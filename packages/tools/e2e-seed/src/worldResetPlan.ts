@@ -50,8 +50,47 @@ export interface WorldResetPlan {
  * `needsReview` is `seeded` plus the signer's NEEDS_REVIEW probe (`ensureNeedsReviewProbe`), for `recipes/needsReviewJump`
  * alone, and LOCAL only: it stores a verdict row straight into the recipe database, which `requireLocalSeedTarget` refuses
  * for anything but the local stack. The PLAN is `seeded`'s, for the reason `ambiguity`'s is.
+ *
+ * `cooking` is `seeded` plus the signer's multi-sentence cooking recipe (`manifest.cookingRecipe`), for
+ * `cooking/cookingModeFlow` alone. Every other mode treats it as residue, by its title.
  */
-export type ResetMode = 'seeded' | 'empty' | 'ambiguity' | 'library' | 'needsReview';
+export const RESET_MODES = ['seeded', 'empty', 'ambiguity', 'library', 'needsReview', 'cooking'] as const;
+
+/** A reset mode. */
+export type ResetMode = (typeof RESET_MODES)[number];
+
+/**
+ * Read the mode from argv, refusing anything the planner does not define. Pure.
+ *
+ * @param argv - The CLI arguments after the script.
+ * @returns The mode; `seeded` when no `--mode` is given.
+ * @throws Error for an unknown mode or a `--mode` with no value.
+ */
+export function resetModeFrom(argv: readonly string[]): ResetMode {
+    const index = argv.indexOf('--mode');
+    const value = index === -1 ? 'seeded' : (argv[index + 1] ?? '');
+    const mode = RESET_MODES.find((candidate) => candidate === value);
+
+    if (mode === undefined) {
+        throw new Error(`e2e-seed reset: --mode must be one of ${RESET_MODES.join(', ')}, got '${value}'`);
+    }
+
+    return mode;
+}
+
+/** The recipes a mode adds to the signer's seeded ones. Pure. */
+function modeExtras(manifest: FixtureManifest, mode: Exclude<ResetMode, 'empty'>): readonly FixtureRecipe[] {
+    switch (mode) {
+        case 'library':
+            return manifest.libraryFillers;
+        case 'cooking':
+            return [manifest.cookingRecipe];
+        case 'seeded':
+        case 'ambiguity':
+        case 'needsReview':
+            return [];
+    }
+}
 
 /**
  * Reconcile. Pure.
@@ -70,10 +109,7 @@ export function planWorldReset(actual: WorldSnapshot, manifest: FixtureManifest,
     // The private-food draft is SPARED when it stands at its visibility, and never created here: its line is bound to a food
     // the applier cannot name, so `reset.ts` makes it through `ensurePrivateFoodRecipe` after the reconcile.
     const spared = manifest.privateFoodRecipe;
-    const plan = reconcile(actual, [
-        ...(mode === 'library' ? [...signerRecipes, ...manifest.libraryFillers] : signerRecipes),
-        spared,
-    ]);
+    const plan = reconcile(actual, [...signerRecipes, ...modeExtras(manifest, mode), spared]);
 
     return { ...plan, create: plan.create.filter((recipe) => recipe.title !== spared.title) };
 }

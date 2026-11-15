@@ -8,7 +8,7 @@
  * stop its flow from running at all — a flow driven against an unknown world produces failures that read
  * like app defects, which is exactly what turned one broken reseed into twenty-four misattributed reds.
  *
- * Usage: `e2e-seed reset [--mode seeded|empty|ambiguity|library|needsReview]`
+ * Usage: `e2e-seed reset [--mode seeded|empty|ambiguity|library|needsReview|cooking]`
  *
  * `ambiguity` reconciles like `seeded`, then creates the signer's gate-AMBIGUOUS probe and waits for the gate's verdict
  * (`ensureAmbiguityProbe`). The probe is named for the word `provision` chose, read from the session state. It needs
@@ -39,27 +39,7 @@ import { readSessionState, sessionStatePath } from './sessionState.js';
 import { settingsResetVia } from './settingsReset.js';
 import { assertPlatformsAgree } from './shard.js';
 import { openVerdictStore } from './verdictStore.js';
-import { planWorldReset, type ResetMode } from './worldResetPlan.js';
-
-/** Read the mode from argv, refusing anything the planner does not define. Pure. */
-export function resetModeFrom(argv: readonly string[]): ResetMode {
-    const index = argv.indexOf('--mode');
-    const value = index === -1 ? 'seeded' : (argv[index + 1] ?? '');
-
-    if (
-        value !== 'seeded' &&
-        value !== 'empty' &&
-        value !== 'ambiguity' &&
-        value !== 'library' &&
-        value !== 'needsReview'
-    ) {
-        throw new Error(
-            `e2e-seed reset: --mode must be 'seeded', 'empty', 'ambiguity', 'library' or 'needsReview', got '${value}'`,
-        );
-    }
-
-    return value;
-}
+import { planWorldReset, resetModeFrom } from './worldResetPlan.js';
 
 const env = readSeedEnvironment(process.env);
 const mode = resetModeFrom(process.argv.slice(2));

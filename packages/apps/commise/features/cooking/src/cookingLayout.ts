@@ -1,7 +1,7 @@
 /**
  * @module cookingLayout — the widths and heights of the cooking surface, written once with the complete Tailwind class
- * each one drives. Tailwind builds only class text it can find in a scanned file, and `globals.css` scans this package,
- * so a class is written whole here next to its number. A test pins that each class contains its number.
+ * each one drives. Tailwind builds only class text it can find, so a class is written whole here next to its number. A
+ * test pins that each class contains its number.
  */
 
 /** The centred column every cooking screen uses at 600 and wider, with its complete web class. */
@@ -12,8 +12,8 @@ export const NOTICE_COLUMN = { maxPx: 480, webClassName: 'max-w-[480px]' } as co
 
 /**
  * Under 360 the place drops to its own full-width row and the Back and Next chevrons hide, so the labels keep their
- * width. Web writes the width in rem, 22.5 at 16 px a rem, so the rule also fires when the cook enlarges the text: at
- * 200% it holds up to 720 px. Native reads `maxPx`. The container-query classes are written whole, each holding its
+ * width. Web writes the width in rem, 22.5 at 16 px a rem, so the rule also fires when the cook enlarges the text.
+ * Native reads `maxPx`. The container-query classes are written whole, each holding its
  * number.
  */
 export const NARROW_ROW = {

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { signInWithTicket } from './utils/auth';
 import { route } from './utils/basePath';
@@ -41,6 +41,62 @@ async function seed(page: Page, servings: number): Promise<void> {
 // widest the row gets, and the three-digit one is the case that would push `+` off a row that fits only two digits.
 const SERVINGS = [2, 12, 120] as const;
 
+/** The step buttons' boxes, and where the content box of the stepper's row ends (its right edge less its padding). */
+async function measure(stepper: Locator) {
+    return stepper.evaluate((group) => {
+        let row = group.parentElement;
+
+        // The row is the nearest flex ancestor that pads its content: both the heading row and the pinned list row do.
+        while (
+            row !== null &&
+            !(getComputedStyle(row).display === 'flex' && parseFloat(getComputedStyle(row).paddingRight) > 0)
+        ) {
+            row = row.parentElement;
+        }
+
+        const rowBox = row?.getBoundingClientRect();
+        const rowPadding = row === null ? 0 : parseFloat(getComputedStyle(row).paddingRight);
+
+        return {
+            buttons: [...group.querySelectorAll('button')].map((button) => {
+                const { left, right, width, height } = button.getBoundingClientRect();
+
+                return { left, right, width, height };
+            }),
+            count: (() => {
+                const span = group.querySelector('span');
+
+                return span === null
+                    ? null
+                    : { text: span.textContent, clipped: span.scrollWidth > span.clientWidth + 0.5 };
+            })(),
+            groupRight: group.getBoundingClientRect().right,
+            contentRight: rowBox === undefined ? Number.NaN : rowBox.right - rowPadding,
+        };
+    });
+}
+
+/** The same checks for the stepper in the page and the one in the pinned list. */
+function expectFits(where: string, measured: Awaited<ReturnType<typeof measure>>, viewportWidth: number): void {
+    expect(measured.buttons, `${where}: both step buttons`).toHaveLength(2);
+
+    for (const box of measured.buttons) {
+        // A step button is a 44 CSS px circle at every text size: it is the touch target, and it must not grow with rem.
+        expect(box.width, `${where}: a step button is 44 px wide`).toBeCloseTo(44, 0);
+        expect(box.height, `${where}: a step button is 44 px tall`).toBeCloseTo(44, 0);
+        // Both ends of the control: a `+` pushed off the right edge is the defect, and a `-` pushed off the left edge
+        // by a row that wraps the wrong way would be its mirror.
+        expect(box.left, `${where}: a stepper button starts left of the viewport`).toBeGreaterThanOrEqual(0);
+        expect(box.right, `${where}: a stepper button ends right of the viewport`).toBeLessThanOrEqual(viewportWidth);
+    }
+
+    // The count shows whole: a box squeezed below its digits would hide them behind a button.
+    expect(measured.count?.clipped, `${where}: the count "${measured.count?.text ?? ''}" is clipped`).toBe(false);
+    expect(measured.groupRight, `${where}: the stepper ends past its row's content box`).toBeLessThanOrEqual(
+        measured.contentRight + 0.5,
+    );
+}
+
 for (const viewport of [
     { width: 320, height: 640 },
     { width: 390, height: 844 },
@@ -60,28 +116,11 @@ for (const viewport of [
                     const stepper = page.getByRole('group', { name: 'Servings' }).first();
 
                     await expect(stepper).toBeVisible();
+                    expectFits('in the page', await measure(stepper), viewport.width);
 
-                    const boxes = await stepper.getByRole('button').evaluateAll((buttons) =>
-                        buttons.map((button) => {
-                            const { left, right } = button.getBoundingClientRect();
-
-                            return { left, right };
-                        }),
-                    );
                     const overflow = await page.evaluate(
                         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
                     );
-
-                    // Both ends of the control: a `+` pushed off the right edge is the defect, and a `-` pushed off the
-                    // left edge by a row that wraps the wrong way would be its mirror.
-                    expect(boxes).toHaveLength(2);
-
-                    for (const box of boxes) {
-                        expect(box.left, 'a stepper button starts left of the viewport').toBeGreaterThanOrEqual(0);
-                        expect(box.right, 'a stepper button ends right of the viewport').toBeLessThanOrEqual(
-                            viewport.width,
-                        );
-                    }
 
                     expect(overflow, 'the page scrolls sideways').toBeLessThanOrEqual(0);
 
@@ -93,26 +132,7 @@ for (const viewport of [
                     const pinnedStepper = page.getByRole('dialog').getByRole('group', { name: 'Servings' });
 
                     await expect(pinnedStepper).toBeVisible();
-
-                    const pinnedBoxes = await pinnedStepper.getByRole('button').evaluateAll((buttons) =>
-                        buttons.map((button) => {
-                            const { left, right } = button.getBoundingClientRect();
-
-                            return { left, right };
-                        }),
-                    );
-
-                    expect(pinnedBoxes).toHaveLength(2);
-
-                    for (const box of pinnedBoxes) {
-                        expect(
-                            box.left,
-                            'a pinned-bar stepper button starts left of the viewport',
-                        ).toBeGreaterThanOrEqual(0);
-                        expect(box.right, 'a pinned-bar stepper button ends right of the viewport').toBeLessThanOrEqual(
-                            viewport.width,
-                        );
-                    }
+                    expectFits('in the pinned list', await measure(pinnedStepper), viewport.width);
                 });
             });
         }

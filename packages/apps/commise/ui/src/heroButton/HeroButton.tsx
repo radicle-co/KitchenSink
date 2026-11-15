@@ -17,11 +17,18 @@ import type { HeroButtonProps } from './props.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /**
+ * The size of a round touch target: 44 CSS px, fixed. It is written in px, not rem, so it keeps the 44 px floor at every
+ * text size and does not grow with the root font. One source for the hero disc and the Stepper's step buttons. Written
+ * whole: Tailwind finds a class only when it appears whole in the source.
+ */
+export const TOUCH_DISC_SIZE_CLASS = 'size-[44px]';
+
+/**
  * The disc's classes, shared with the ⋯ menu's trigger (`ActionMenu` `appearance="disc"`) so the two cannot differ.
  * Written whole: Tailwind finds a class only when it appears whole in the source. Sized in px, not rem: the disc is
  * chrome over a photo and keeps its 1x size at every text size (designer ruling 2026-11-11).
  */
-export const HERO_DISC_CLASS = `inline-flex size-[44px] shrink-0 items-center justify-center rounded-full bg-photo-chip text-ink shadow-sm ${FOCUS_RING_CLASS.floating}`;
+export const HERO_DISC_CLASS = `inline-flex ${TOUCH_DISC_SIZE_CLASS} shrink-0 items-center justify-center rounded-full bg-photo-chip text-ink shadow-sm ${FOCUS_RING_CLASS.floating}`;
 
 /** The web control over a photo. */
 export const HeroButton: FC<HeroButtonProps> = ({ icon, label, onPress, href, expanded, disabled = false }) => {

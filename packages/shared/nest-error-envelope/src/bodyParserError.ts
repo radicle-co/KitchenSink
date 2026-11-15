@@ -27,7 +27,7 @@ export const BODY_NOT_PARSEABLE_MESSAGE = 'The request body is not valid JSON.';
 /** The published `message` for a body in an encoding or charset the parser does not read: a CONSTANT. */
 export const BODY_ENCODING_UNSUPPORTED_MESSAGE = 'The request body uses an encoding that is not supported.';
 
-/** What each parser `type` this link claims answers with. */
+/** What each parser `type` this link claims answers with. Read through `Object.hasOwn`: a `type` of `constructor` is not one. */
 const PARSER_FAILURES: Readonly<
     Record<string, { readonly status: number; readonly message: string; readonly validation: boolean }>
 > = {
@@ -64,7 +64,8 @@ export function normalizeBodyParserError(
     }
 
     const { type, status, expose } = exception as { type?: unknown; status?: unknown; expose?: unknown };
-    const failure = typeof type === 'string' ? PARSER_FAILURES[type] : undefined;
+    const failure =
+        typeof type === 'string' && Object.hasOwn(PARSER_FAILURES, type) ? PARSER_FAILURES[type] : undefined;
 
     if (failure === undefined || expose !== true || typeof status !== 'number' || status < 400 || status > 499) {
         return undefined;

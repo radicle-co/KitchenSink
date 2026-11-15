@@ -1,4 +1,4 @@
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 const { mockCaptureException } = vi.hoisted(() => ({ mockCaptureException: vi.fn() }));
 
@@ -93,6 +93,10 @@ describe('ApiExceptionFilter', () => {
     });
 
     describe("the body parser's refusals", () => {
+        afterEach(() => {
+            vi.restoreAllMocks();
+        });
+
         // body-parser throws an `http-errors` object, which is NOT a Nest HttpException: without its own arm it fell to the
         // 500 fallback, and the import's clients (which halve a chunk on 413) never saw the status they branch on.
         it('answers 413 PAYLOAD_TOO_LARGE with a constant message', () => {
@@ -140,7 +144,6 @@ describe('ApiExceptionFilter', () => {
             expect(mockCaptureException).not.toHaveBeenCalled();
             expect(logged[0]).not.toHaveBeenCalled();
             expect(JSON.stringify([captured.body, ...logged.map((spy) => spy.mock.calls)])).not.toContain(MARKER);
-            vi.restoreAllMocks();
         });
 
         it('does not treat another error that merely carries a 413 as one', () => {

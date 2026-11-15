@@ -9,8 +9,8 @@
         "implementationsWithModuleDoc": 668,
         "implementationsWithComponentDoc": 525,
         "documentedProps": 3106,
-        "classifiedComponents": 377,
-        "componentsWithPatternTag": 268,
+        "classifiedComponents": 374,
+        "componentsWithPatternTag": 265,
         "crossPlatformComponents": 222
     },
     "groups": [
@@ -104,8 +104,8 @@
                 "implementationsWithModuleDoc": 67,
                 "implementationsWithComponentDoc": 63,
                 "documentedProps": 62,
-                "classifiedComponents": 42,
-                "componentsWithPatternTag": 37,
+                "classifiedComponents": 39,
+                "componentsWithPatternTag": 34,
                 "crossPlatformComponents": 0
             }
         },

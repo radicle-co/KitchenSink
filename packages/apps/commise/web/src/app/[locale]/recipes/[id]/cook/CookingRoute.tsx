@@ -43,8 +43,8 @@ export interface CookingRouteProps {
 
 type Ways = Pick<CookingScreenProps, 'onLeave' | 'onEdit' | 'onHome'>;
 
-/** Where each way out of cooking mode goes. */
-function useWays(id: string): Ways {
+/** Where each way out of cooking mode goes, shared with the segment's loading frame. */
+export function useWays(id: string): Ways {
     const { locale } = useParams<{ locale: string }>();
     const router = useRouter();
 

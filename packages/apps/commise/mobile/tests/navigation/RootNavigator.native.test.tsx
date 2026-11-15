@@ -26,6 +26,7 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { renderWithProviders } from '@commise/test-utils';
+import { navigationRef } from '../../src/navigation/navigationRef.js';
 import { useBackIntercept } from '@commise/ui/back-intercept';
 import { installHardwareBackHandler, type HardwareBackHandle } from '@commise/ui/testing/hardware-back';
 
@@ -662,6 +663,13 @@ describe('cooking mode', () => {
         press('Leave');
         expect(showing('Detail lamb')).toBe(true);
         expect(tabBar()).not.toBeNull();
+    });
+
+    it('turns the edge swipe off on its screen: a swipe is how a cook moves between steps', () => {
+        startCooking();
+        expect(showing('Cooking lamb')).toBe(true);
+
+        expect(navigationRef.getCurrentOptions()).toMatchObject({ gestureEnabled: false });
     });
 
     it('leaves on hardware Back to the recipe, and holds no sheet answer of its own', () => {

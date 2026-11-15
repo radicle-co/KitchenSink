@@ -74,7 +74,8 @@ async function seed(page: Page, extra: readonly ReturnType<typeof makeRecipeDeta
     await page.route('**/_vercel/insights/**', (request) =>
         request.fulfill({ status: 200, contentType: 'text/javascript', body: '' }),
     );
-    // The app's reachability probe asks `/health` of the page origin and of the services; a CI run boots neither.
+    // `/health` is the service clients' contract-skew probe. A CI run boots no server for it, and a body with no hash
+    // reads as indeterminate, so this answer hides no real skew.
     await page.route('**/health', (request) =>
         request.fulfill({ status: 200, contentType: 'application/json', body: '{"status":"ok"}' }),
     );

@@ -178,12 +178,8 @@ function FoodDetailRoute({ navigation, route }: TaskProps<'FoodDetail'>): JSX.El
  */
 function CookingModeRoute({ navigation, route }: TaskProps<'CookingMode'>): JSX.Element {
     const { recipeId } = route.params;
-    const leave = useCallback((): void => {
-        navigation.goBack();
-    }, [navigation]);
-
     useBackIntercept(() => {
-        leave();
+        navigation.goBack();
 
         return true;
     });
@@ -191,7 +187,7 @@ function CookingModeRoute({ navigation, route }: TaskProps<'CookingMode'>): JSX.
     return (
         <CookingModeScreen
             recipeId={recipeId}
-            onLeave={leave}
+            onLeave={() => navigation.goBack()}
             onEdit={() => navigation.replace('RecipeEdit', { recipeId })}
             onHome={() => navigation.popTo('Tabs', { screen: 'home', params: { screen: 'HomeRoot', pop: true } })}
         />

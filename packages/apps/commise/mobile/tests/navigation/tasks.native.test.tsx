@@ -149,14 +149,3 @@ describe('the food page route', () => {
         expect(handed.foodPages.at(-1)).toEqual({ foodId: 'food_1', offline });
     });
 });
-
-describe('cooking mode registration', () => {
-    it('turns the edge swipe off: a swipe is how a cook moves between steps', () => {
-        const Stack = createNativeStackNavigator<RootStackParamList>();
-        const screens = taskScreens(Stack).props.children as readonly { props: { name: string; options?: object } }[];
-
-        expect(screens.find((screen) => screen.props.name === 'CookingMode')?.props.options).toEqual({
-            gestureEnabled: false,
-        });
-    });
-});

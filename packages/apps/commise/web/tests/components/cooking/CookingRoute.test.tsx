@@ -126,25 +126,30 @@ describe('CookingRoute: a failed server prefetch falls through to the browser re
         document.body.append(container);
         const onRecoverableError = vi.fn();
 
+        let root: ReturnType<typeof hydrateRoot> | undefined;
         await act(async () => {
-            hydrateRoot(container, page(client, empty()), { onRecoverableError });
+            root = hydrateRoot(container, page(client, empty()), { onRecoverableError });
         });
 
         await waitFor(() => expect(container.textContent).toMatch(/Step\s1\sof\s2/u));
         expect(container.textContent).toContain(STEP_TEXT);
         expect(read).toHaveBeenCalledTimes(1);
         expect(onRecoverableError).not.toHaveBeenCalled();
+        await act(async () => root?.unmount());
         container.remove();
     });
 });
 
 describe('CookingRoute: where the link goes (R-2, decisions/0029)', () => {
-    function open(recipe: Parameters<typeof makeRecipeDetail>[0]): void {
+    /** Mount the route on a recipe, returning the read so a test can wait for it. */
+    function open(recipe: Parameters<typeof makeRecipeDetail>[0]) {
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-            makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, ...recipe }),
-        );
+        const read = vi
+            .spyOn(client, 'getRecipeById')
+            .mockResolvedValue(makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, ...recipe }));
         renderWithRecipeClient(<CookingRoute id="rec_1" />, client);
+
+        return read;
     }
 
     it('cooks a published recipe', async () => {
@@ -189,12 +194,11 @@ describe('CookingRoute: where the link goes (R-2, decisions/0029)', () => {
         useAuthMock.mockReturnValue({ sessionClaims: {} });
         useUserProfileMock.mockReturnValue({ status: 'pending', isLoading: true, data: undefined });
         const texts = recordTexts();
-        open({ status: RecipeStatus.DRAFT, steps: STEPS });
+        const read = open({ status: RecipeStatus.DRAFT, steps: STEPS });
 
-        // Long enough for the read to settle; the viewer is still unknown, so nothing may be decided.
-        await act(async () => {
-            await new Promise((resolve) => setTimeout(resolve, 50));
-        });
+        // The read is made and its answer delivered; the viewer is still unknown, so nothing may be decided.
+        await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+        await act(async () => undefined);
         texts.stop();
 
         expect(replaceMock).not.toHaveBeenCalled();

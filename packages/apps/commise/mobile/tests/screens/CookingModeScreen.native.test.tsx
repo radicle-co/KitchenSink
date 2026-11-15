@@ -14,11 +14,13 @@ import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useSessionClaims } from '../../src/hooks/useSessionClaims.js';
-import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { CookingModeScreen } from '../../src/screens/CookingModeScreen.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
 
-vi.mock('../../src/hooks/useUserProfile.js', () => ({ useUserProfile: vi.fn() }));
+// Hoisted, as the web sibling's mocks are, so the profile can be answered without a cast on the real hook's type.
+const { useUserProfileMock } = vi.hoisted(() => ({ useUserProfileMock: vi.fn() }));
+
+vi.mock('../../src/hooks/useUserProfile.js', () => ({ useUserProfile: useUserProfileMock }));
 vi.mock('../../src/hooks/useSessionClaims.js', () => ({ useSessionClaims: vi.fn() }));
 
 const OWNER_ID = 'usr_1';
@@ -43,7 +45,7 @@ const screenOf = () => <CookingModeScreen recipeId="rec_1" onLeave={onLeave} onE
 
 beforeEach(() => {
     vi.mocked(useSessionClaims).mockReturnValue({ external_id: OWNER_ID });
-    vi.mocked(useUserProfile).mockReturnValue(settledProfile as unknown as ReturnType<typeof useUserProfile>);
+    useUserProfileMock.mockReturnValue(settledProfile);
 });
 
 afterEach(() => {

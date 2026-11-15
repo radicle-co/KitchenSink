@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import { htmlElementOf } from '../__fixtures__/htmlElementOf.js';
 import { CookingNextPreview } from '../CookingNextPreview.js';
 import { PREVIEW_IN_BODY, SHORT_SCREEN } from '../cookingLayout.js';
 
@@ -38,9 +39,9 @@ describe('CookingNextPreview', () => {
         expect(screen.getByText(preview.line).className).not.toContain('line-clamp');
     });
 
-    it('is shown by the frame height: the foot copy hides under 40 rem and the step copy shows only then', () => {
+    it('carries the class that shows it: the foot copy hides under 40 rem and the step copy shows only then', () => {
         const { container, rerender } = render(<CookingNextPreview preview={preview} place="foot" />);
-        const classOf = () => (container.firstElementChild as HTMLElement).className;
+        const classOf = () => htmlElementOf(container.firstElementChild).className;
 
         expect(classOf()).toContain(PREVIEW_IN_BODY.footWebClassName);
         expect(classOf()).not.toContain(PREVIEW_IN_BODY.bodyWebClassName);

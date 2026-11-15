@@ -120,11 +120,6 @@ describe('IosAdapter', () => {
         }
     });
 
-    it('names a lane device when handed on as a bare function, as the lane planner does', () => {
-        const { deviceFor } = new IosAdapter(options(makeShell().shell, undefined, SETTINGS, 'ipad'));
-        expect(deviceFor(4)).toBe('ks-maestro-ipad-4');
-    });
-
     it('costs an iPad lane what the 2026-11-15 runs measured: peak 2.10 GiB and under one cpu busy', () => {
         // Measured with maestro:macUsage ipad: mean 0.4 to 0.6 cpus per lane, peak resident 1.87 to 2.10 GiB, over a
         // one-lane run and a two-lane run on the Mac.

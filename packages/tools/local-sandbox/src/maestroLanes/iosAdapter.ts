@@ -71,8 +71,9 @@ export class IosAdapter implements DeviceAdapter {
         this.laneCost = IOS_LANE_COSTS[options.device];
     }
 
-    /** An arrow, because `laneRun` hands it to the planner as a bare function, where a method would lose `this`. */
-    readonly deviceFor = (index: number): string => laneSimulatorName(index, this.options.device);
+    deviceFor(index: number): string {
+        return laneSimulatorName(index, this.options.device);
+    }
 
     hostFacts(): Promise<HostFacts> {
         return this.session.facts();

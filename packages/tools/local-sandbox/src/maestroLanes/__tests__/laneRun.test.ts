@@ -358,6 +358,39 @@ describe('runLaneRun — a lane run over fakes', () => {
         expect(events.filter((event) => !event.startsWith('log'))).toEqual(['lock', 'unlock']);
     });
 
+    it('names a lane device through the adapter, so a class adapter that reads this still answers', async () => {
+        const { events, deps } = harness();
+
+        // A class adapter: `deviceFor` is a method that reads `this`, as `IosAdapter`'s does.
+        class PrefixedAdapter {
+            readonly platform = 'android' as const;
+            readonly laneCost = { cpus: 1, memBytes: 1 };
+            readonly maxLanes = 8;
+            constructor(private readonly prefix: string) {}
+            hostFacts = () => Promise.resolve({ cpus: 64, load1: 0, memAvailable: 1024 });
+            prepareHost = () => Promise.resolve();
+            deviceFor(index: number): string {
+                return `${this.prefix}-${index}`;
+            }
+            startDevice = (lane: { readonly device: string }) => {
+                events.push(`device ${lane.device}`);
+
+                return Promise.resolve();
+            };
+            laneEnv = () => ({});
+            stopDevice = () => Promise.resolve();
+            teardownHost = () => Promise.resolve();
+        }
+
+        await runLaneRun(
+            { ...deps, adapterFor: () => new PrefixedAdapter('pad') },
+            { platforms: ['android'], requested: 2, selection: 'all' },
+        );
+
+        expect(events).toContain('device pad-1');
+        expect(events).toContain('device pad-2');
+    });
+
     it('stops services, devices and the lock when a device fails to start', async () => {
         const { events, deps } = harness();
 

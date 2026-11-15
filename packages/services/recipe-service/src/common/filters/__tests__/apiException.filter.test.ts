@@ -92,6 +92,33 @@ describe('ApiExceptionFilter', () => {
         });
     });
 
+    describe("the body parser's oversized-body error", () => {
+        // body-parser throws an `http-errors` object, which is NOT a Nest HttpException: without its own arm it fell to the
+        // 500 fallback, and the import's clients (which halve a chunk on 413) never saw the status they branch on.
+        it('answers 413 PAYLOAD_TOO_LARGE with a constant message', () => {
+            const { host, captured } = makeHost();
+            const error = Object.assign(new Error('request entity too large'), {
+                status: 413,
+                statusCode: 413,
+                type: 'entity.too.large',
+                expose: true,
+            });
+
+            filter.catch(error, host);
+
+            expect(captured.statusCode).toBe(HttpStatus.PAYLOAD_TOO_LARGE);
+            expect(captured.body).toEqual({ code: 'PAYLOAD_TOO_LARGE', message: 'The request body is too large.' });
+        });
+
+        it('does not treat another error that merely carries a 413 as one', () => {
+            const { host, captured } = makeHost();
+
+            filter.catch(Object.assign(new Error('x'), { status: 413 }), host);
+
+            expect(captured.statusCode).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+        });
+    });
+
     describe('unknown-error fallback', () => {
         it('maps an arbitrary Error to 500 without leaking its message', () => {
             const { host, captured } = makeHost();

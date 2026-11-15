@@ -1,8 +1,8 @@
 import { fillTemplate, pluralOf, resolveMessages } from '@commise/i18n';
 import { stepPlace } from '@kitchensink/cooking-core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { navOf } from '../cookingCopy.js';
+import { exitOf, nameOf, navOf } from '../cookingCopy.js';
 import { cookingMessages } from '../messages.js';
 
 const en = resolveMessages(cookingMessages, 'en');
@@ -70,5 +70,29 @@ describe('navOf — the Back and Next pair', () => {
     it('is Finish on a one-step recipe, where step 1 is also the last', () => {
         expect(nav(0, 1, false).forward.kind).toBe('finish');
         expect(nav(0, 1, false).back.a11yName).toBe('Back to the recipe');
+    });
+});
+
+describe('exitOf — the Exit control every screen with a top bar shows', () => {
+    it('is labelled Exit, named Exit cooking mode, and leaves through the handler it is given', () => {
+        const onLeave = vi.fn();
+        const exit = exitOf(en.top, onLeave);
+
+        expect(exit.label).toBe('Exit');
+        expect(exit.accessibilityLabel).toBe('Exit cooking mode');
+        expect(exit.accessibilityLabel).toContain(exit.label);
+
+        exit.onPress();
+
+        expect(onLeave).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('nameOf — the accessible name a Button takes, only when an action has one', () => {
+    it('hands the fuller name through, and nothing when the label is the name', () => {
+        expect(nameOf({ label: 'Back', accessibilityLabel: 'Back to step 1', onPress: vi.fn() })).toEqual({
+            accessibilityLabel: 'Back to step 1',
+        });
+        expect(nameOf({ label: 'Finish', onPress: vi.fn() })).toEqual({});
     });
 });

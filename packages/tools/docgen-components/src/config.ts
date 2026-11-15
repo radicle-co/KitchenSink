@@ -80,6 +80,15 @@ export const COMPONENT_GROUPS: readonly ComponentGroup[] = [
         platforms: ['web', 'native'],
     },
     {
+        id: 'featuresCooking',
+        title: 'Cooking feature',
+        packageName: '@commise/features-cooking',
+        packageDir: 'packages/apps/commise/features/cooking',
+        sourceRoots: ['packages/apps/commise/features/cooking/src'],
+        layer: 'feature',
+        platforms: ['web', 'native'],
+    },
+    {
         id: 'web',
         title: 'Web app',
         packageName: '@commise/web',

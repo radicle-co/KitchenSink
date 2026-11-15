@@ -1,7 +1,8 @@
 import { fillTemplate } from '@commise/i18n';
 import type { StepPlace } from '@kitchensink/cooking-core';
 
-import type { CookingNavMessages } from './messages.js';
+import type { CookingAction } from './cookingViewProps.js';
+import type { CookingMessages, CookingNavMessages } from './messages.js';
 
 /** One of the two controls of the pair at the foot of a step. */
 export interface CookingNavControl {
@@ -69,4 +70,26 @@ export function navOf({ place, everyLineTicked, copy }: NavInput): CookingNav {
             filled: false,
         },
     };
+}
+
+/**
+ * Exit, the same control on every screen that has a top bar.
+ *
+ * @param top - The top bar copy.
+ * @param onLeave - Where Exit goes: the recipe page.
+ * @returns The Exit action. Pure.
+ */
+export function exitOf(top: CookingMessages['top'], onLeave: () => void): CookingAction {
+    return { label: top.exit, accessibilityLabel: top.exitA11y, onPress: onLeave };
+}
+
+/**
+ * The accessible-name prop of a Button, only when the action has a fuller name than its label: an optional prop is
+ * never passed as `undefined`.
+ *
+ * @param action - The action a Button draws.
+ * @returns `{ accessibilityLabel }` or an empty object. Pure.
+ */
+export function nameOf(action: CookingAction): { accessibilityLabel?: string } {
+    return action.accessibilityLabel === undefined ? {} : { accessibilityLabel: action.accessibilityLabel };
 }

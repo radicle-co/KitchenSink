@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup } from '@testing-library/react';
+import { act, cleanup } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
@@ -173,5 +173,50 @@ describe('CheckBoxGlyph (native)', () => {
 
         expect(container.querySelector('[data-icon-name]')).not.toBeNull();
         expect(vi.mocked(checkMarkMotion)).toHaveBeenLastCalledWith(true, 1);
+    });
+
+    // The leaf hands the mark whatever `checkMarkMotion` answers, and re-asks as the OS preference resolves and then
+    // changes. The policy is mocked to a marker prop so the wiring itself is observable (the lanes alias the spring away).
+    describe('the motion props the mark gets', () => {
+        const MARKER = 'checkMotion';
+        const markOf = (container: Element): Element | null =>
+            container.querySelector('[data-icon-name]')?.closest(`[data-testid="${MARKER}"]`) ?? null;
+
+        it('asks the policy as the preference goes unknown, then off, then on, and warns of nothing', async () => {
+            const complaints = [vi.spyOn(console, 'error'), vi.spyOn(console, 'warn')];
+            let changed: (reduce: boolean) => void = () => undefined;
+            vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
+            vi.spyOn(AccessibilityInfo, 'addEventListener').mockImplementation(((
+                _name: string,
+                handler: typeof changed,
+            ) => {
+                changed = handler;
+
+                return { remove: () => undefined };
+            }) as never);
+            vi.mocked(checkMarkMotion).mockImplementation(
+                (reduce) => (reduce === false ? { testID: MARKER } : {}) as never,
+            );
+
+            const { container } = render(<CheckBoxGlyph checked />);
+
+            // Unknown: the policy was asked with `undefined`, and the mark carries no motion props.
+            expect(vi.mocked(checkMarkMotion)).toHaveBeenCalledWith(undefined, 1);
+            expect(markOf(container)).toBeNull();
+
+            await act(settle);
+            expect(vi.mocked(checkMarkMotion)).toHaveBeenLastCalledWith(false, 1);
+            expect(markOf(container)).not.toBeNull();
+
+            act(() => {
+                changed(true);
+            });
+            expect(vi.mocked(checkMarkMotion)).toHaveBeenLastCalledWith(true, 1);
+            expect(markOf(container)).toBeNull();
+            expect(container.querySelector('[data-icon-name]')).not.toBeNull();
+            for (const complaint of complaints) {
+                expect(complaint.mock.calls.map((c) => String(c[0]).slice(0, 300))).toEqual([]);
+            }
+        });
     });
 });

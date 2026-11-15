@@ -156,6 +156,12 @@ describe('radius scale, every app', () => {
                 // A fractional radius renders on both platforms, so there is no reason to round it.
                 ['a wrapped form (rounding is not needed)', 'Math.round(side * GLYPH_CORNER_PER_SIDE)'],
                 ['two glyph constants', 'GLYPH_A * GLYPH_B'],
+                ['the side over a glyph constant', 'side / GLYPH_X'],
+                ['the side plus a glyph constant', 'side + GLYPH_X'],
+                ['the side minus a glyph constant', 'side - GLYPH_X'],
+                ['the side over a glyph constant', 'side / GLYPH_X'],
+                ['the side plus a glyph constant', 'side + GLYPH_X'],
+                ['the side minus a glyph constant', 'side - GLYPH_X'],
             ])('refuses %s in a glyph module', (_shape, value) => {
                 expect(scan(glyph(`const s = { borderRadius: ${value} };`))).toEqual([`borderRadius: ${value}`]);
             });
@@ -256,6 +262,9 @@ describe('Tamagui radius', () => {
             ['an offset on the admitted shape', 'side * GLYPH_CORNER_PER_SIDE + 1'],
             ['a wrapped form (rounding is not needed)', 'Math.round(side * GLYPH_CORNER_PER_SIDE)'],
             ['two glyph constants', 'GLYPH_A * GLYPH_B'],
+            ['the side over a glyph constant', 'side / GLYPH_X'],
+            ['the side plus a glyph constant', 'side + GLYPH_X'],
+            ['the side minus a glyph constant', 'side - GLYPH_X'],
         ])('refuses %s on an element in a glyph module', (_shape, value) => {
             expect(
                 tamaguiRadiusFindings(`${glyphHead}<View borderRadius={${value}} />`, 'fixture.tsx', none, keys),

@@ -825,7 +825,7 @@ describe('CookingScreen: the Done settle window', () => {
             toDone();
             const acted = () =>
                 name === 'Back to the recipe'
-                    ? onLeave.mock.calls.length > 0
+                    ? vi.mocked(onLeave).mock.calls.length > 0
                     : screen.queryByRole('heading', { level: 1, name: 'All 6 steps done' }) === null;
 
             after(100);
@@ -852,7 +852,7 @@ describe('CookingScreen: the Done settle window', () => {
 
         expect(
             name === 'Back to the recipe'
-                ? onLeave.mock.calls.length
+                ? vi.mocked(onLeave).mock.calls.length
                 : screen.queryByRole('heading', { level: 1, name: 'All 6 steps done' }),
         ).toBe(name === 'Back to the recipe' ? 1 : null);
     });

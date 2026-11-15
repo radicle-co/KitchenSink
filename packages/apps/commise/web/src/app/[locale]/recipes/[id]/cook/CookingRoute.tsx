@@ -18,41 +18,22 @@
  * @pattern Adapter — the route's params, router, session and query, to `CookingScreen`'s read and callbacks
  */
 import { useAuth } from '@clerk/nextjs';
-import {
-    CookingScreen,
-    cookingReadSourceOf,
-    useCookingRead,
-    type CookingScreenProps,
-} from '@commise/features-cooking/web';
+import { CookingScreen, cookingReadSourceOf, useCookingRead } from '@commise/features-cooking/web';
 import { claimedViewerIdOf, viewerIdOf, viewerKnown } from '@commise/features-recipes/detail';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { onlineManager, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
-import type { Route } from 'next';
-import { useParams, useRouter } from 'next/navigation';
 import type { FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
+import { useCookWays, type CookWays } from './useCookWays';
+
 /** Props for {@link CookingRoute}. */
 export interface CookingRouteProps {
     /** The recipe id from the `[id]` segment. */
     readonly id: string;
-}
-
-type Ways = Pick<CookingScreenProps, 'onLeave' | 'onEdit' | 'onHome'>;
-
-/** Where each way out of cooking mode goes, shared with the segment's loading frame. */
-export function useWays(id: string): Ways {
-    const { locale } = useParams<{ locale: string }>();
-    const router = useRouter();
-
-    return {
-        onLeave: () => router.replace(`/${locale}/recipes/${id}` as Route),
-        onEdit: () => router.replace(`/${locale}/recipes/${id}/edit` as Route),
-        onHome: () => router.replace(`/${locale}` as Route),
-    };
 }
 
 /**
@@ -64,7 +45,7 @@ export function useWays(id: string): Ways {
 export const CookingRoute: FC<CookingRouteProps> = ({ id }) => {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
-    const ways = useWays(id);
+    const ways = useCookWays(id);
     // ONE rule decides who is cooking, for the key below and for the hold inside: the detail page's `viewerIdOf`. A
     // different cook is a different session, so the settled subtree is keyed by it and built again.
     const { sessionClaims } = useAuth();
@@ -110,7 +91,7 @@ interface SettledCookingProps {
     readonly detail: ReturnType<ReturnType<typeof recipeQueries>['detail']>;
     /** Who is cooking, by the one rule in {@link CookingRoute}. */
     readonly viewer: { readonly id: string | undefined; readonly known: boolean };
-    readonly ways: Ways;
+    readonly ways: CookWays;
     readonly readAgain: () => void;
 }
 

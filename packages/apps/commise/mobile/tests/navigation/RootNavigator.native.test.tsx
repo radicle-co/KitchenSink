@@ -26,9 +26,10 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { renderWithProviders } from '@commise/test-utils';
-import { navigationRef } from '../../src/navigation/navigationRef.js';
 import { useBackIntercept } from '@commise/ui/back-intercept';
 import { installHardwareBackHandler, type HardwareBackHandle } from '@commise/ui/testing/hardware-back';
+
+import { navigationRef } from '../../src/navigation/navigationRef.js';
 
 vi.mock('@sentry/react-native', () => ({ captureException: vi.fn() }));
 // A device with a status bar: the shell's ScreenFrame pads this much at the top of every tab screen.

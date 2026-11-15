@@ -16,7 +16,7 @@ import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks'
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, cleanup, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { hydrateRoot } from 'react-dom/client';
@@ -193,14 +193,31 @@ describe('CookingRoute: where the link goes (R-2, decisions/0029)', () => {
     it('decides nothing while the viewer is unknown, and paints only the loading frame', async () => {
         useAuthMock.mockReturnValue({ sessionClaims: {} });
         useUserProfileMock.mockReturnValue({ status: 'pending', isLoading: true, data: undefined });
+        const client = createFakeRecipeServiceClient();
+        const read = vi.spyOn(client, 'getRecipeById');
+        // The detail is SEEDED, so nothing suspends: the settled subtree is committed on the first render and the
+        // viewer is the only thing left to wait for. An unseeded read would still be suspended when the asserts run.
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+        queryClient.setQueryData(
+            recipeQueries(client).detail('rec_1').queryKey,
+            makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, status: RecipeStatus.DRAFT, steps: STEPS }),
+        );
+        // A function, so the rerender passes a NEW element: React skips an identical one.
+        const route = () => (
+            <LocaleProvider locale="en">
+                <QueryClientProvider client={queryClient}>
+                    <RecipeServiceProvider client={client}>
+                        <CookingRoute id="rec_1" />
+                    </RecipeServiceProvider>
+                </QueryClientProvider>
+            </LocaleProvider>
+        );
         const texts = recordTexts();
-        const read = open({ status: RecipeStatus.DRAFT, steps: STEPS });
-
-        // The read is made and its answer delivered; the viewer is still unknown, so nothing may be decided.
-        await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+        const { rerender } = render(route());
         await act(async () => undefined);
         texts.stop();
 
+        expect(read).not.toHaveBeenCalled();
         expect(replaceMock).not.toHaveBeenCalled();
         expect(screen.getByRole('main').getAttribute('aria-busy')).toBe('true');
         expect(screen.queryByText('This recipe isn’t available any more')).not.toBeInTheDocument();
@@ -208,6 +225,13 @@ describe('CookingRoute: where the link goes (R-2, decisions/0029)', () => {
         for (const text of texts.seen) {
             expect(text).not.toContain(STEP_TEXT);
         }
+
+        // Positive control: once the viewer is known the same draft IS decided, so the asserts above are not vacuous.
+        useAuthMock.mockReturnValue({ sessionClaims: { external_id: OWNER_ID } });
+        useUserProfileMock.mockReturnValue(settledProfile);
+        rerender(route());
+
+        await waitFor(() => expect(replaceMock).toHaveBeenCalledWith('/en/recipes/rec_1/edit'));
     });
 
     it('shows a 404 as S32, with Go to Home', async () => {

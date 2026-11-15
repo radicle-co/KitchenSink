@@ -7,13 +7,14 @@
 import { CookingScreen } from '@commise/features-cooking/web';
 import { useParams } from 'next/navigation';
 
-import { useWays } from './CookingRoute';
+import { useCookWays } from './useCookWays';
 
 /** Nothing to read again yet: the page is still loading. */
 const noop = (): void => undefined;
 
 export default function CookingLoading(): React.JSX.Element {
     const { id } = useParams<{ id: string }>();
+    const ways = useCookWays(id);
 
-    return <CookingScreen read={{ kind: 'pending', retry: noop }} {...useWays(id)} />;
+    return <CookingScreen read={{ kind: 'pending', retry: noop }} {...ways} />;
 }

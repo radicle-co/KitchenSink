@@ -13,7 +13,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { makeRecipeDetail } from '../../../tests/components/recipes/__fixtures__/recipeFixtures';
 
-vi.mock('@clerk/nextjs/server', () => ({ auth: vi.fn() }));
+/** The two fields the page reads from Clerk's `auth()`; a double of exactly that shape needs no cast. */
+const mockedAuth = vi.hoisted(() =>
+    vi.fn<() => Promise<{ userId: string | null; getToken: () => Promise<string | null> }>>(),
+);
+
+vi.mock('@clerk/nextjs/server', () => ({ auth: mockedAuth }));
 vi.mock('next/navigation', () => ({
     redirect: vi.fn((url: string) => {
         throw new Error(`NEXT_REDIRECT:${url}`);
@@ -22,9 +27,6 @@ vi.mock('next/navigation', () => ({
         throw new Error('NEXT_NOT_FOUND');
     }),
 }));
-
-const { auth } = await import('@clerk/nextjs/server');
-const mockedAuth = vi.mocked(auth);
 
 const { default: CookingPage } = await import('../[locale]/recipes/[id]/cook/page');
 const { CookingRoute } = await import('../[locale]/recipes/[id]/cook/CookingRoute');
@@ -36,7 +38,7 @@ function mockAuthed(): void {
     mockedAuth.mockResolvedValue({
         userId: 'usr_1',
         getToken: async () => 'tok_1',
-    } as unknown as Awaited<ReturnType<typeof auth>>);
+    });
 }
 
 function boundary(element: React.ReactElement): HydrationBoundaryProps {
@@ -83,7 +85,7 @@ describe('[locale]/recipes/[id]/cook/page.tsx', () => {
         mockedAuth.mockResolvedValue({
             userId: null,
             getToken: async () => null,
-        } as unknown as Awaited<ReturnType<typeof auth>>);
+        });
         const read = vi.spyOn(RecipeServiceClient.prototype, 'getRecipeById');
 
         await expect(CookingPage(paramsFor(RECIPE_ID))).rejects.toThrow(

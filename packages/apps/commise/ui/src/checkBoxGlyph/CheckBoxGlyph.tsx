@@ -19,6 +19,7 @@
 import type { FC } from 'react';
 
 import { Icon } from '../icon/Icon.js';
+import { pxToRemUnit as rem } from '../tokens/emit.js';
 import { typeRole } from '../tokens/typography.js';
 import {
     CHECK_MARK_SHARE,
@@ -27,9 +28,6 @@ import {
     checkBoxSideOf,
     type CheckBoxGlyphProps,
 } from './props.js';
-
-/** A px length as `rem` against the 16 px root. Pure. */
-const rem = (px: number): string => `${String(px / 16)}rem`;
 
 /** The web whole-row checkbox's box. */
 export const CheckBoxGlyph: FC<CheckBoxGlyphProps> = ({ checked, textRole = DEFAULT_CHECK_BOX_TEXT_ROLE }) => {

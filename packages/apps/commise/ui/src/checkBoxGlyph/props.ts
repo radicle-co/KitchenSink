@@ -29,13 +29,13 @@ export const GLYPH_CORNER_PER_SIDE = GLYPH_CORNER / CHECK_BOX_MIN_SIDE;
 export const GLYPH_CORNER_PERCENT = `${String(GLYPH_CORNER_PER_SIDE * 100)}%`;
 
 /** The scale the check springs in from (§1.9: 0.9 to 1 with a small overshoot). */
-export const CHECK_MARK_FROM_SCALE = 0.9;
+const CHECK_MARK_FROM_SCALE = 0.9;
 
 /** The named spring of the one signature motion, registered in the native Tamagui config. */
 export const CHECK_MARK_ANIMATION = 'check';
 
 /** How the native check mark enters: the named spring from 0.9 of its size, or nothing at all. */
-export type CheckMarkMotion =
+type CheckMarkMotion =
     | { readonly animation: typeof CHECK_MARK_ANIMATION; readonly enterStyle: { readonly scale: number } }
     | Record<string, never>;
 

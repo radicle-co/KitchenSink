@@ -969,12 +969,12 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   suggestion that the cook confirms or clears. It never sets the declared source or the statement. The item waits under
   "Needs your statement" until the cook confirms (`FR-014a`). The model never returns an address.
 - **FR-061** _(added 2026-11-15, owner rulings 2026-11-11 and 2026-11-15, ADR-0072 §8)_: **The fallback goes through the
-  one import pipeline and the paste allowance.** A paste is a one-recipe import (`POST /api/v1/import`, with
+  one import pipeline and the one import allowance.** A paste is a one-recipe import (`POST /api/v1/import`, with
   `expectedTotal: 1`). The fallback result becomes that import's item, and it is saved, held and approved by the same
-  advance steps as every other import (`FR-047`). There is no second admit path and no second save path. The paste allowance (`FR-022`, ADR-0072 §8) is charged one paste unit when an extraction job is accepted, because LLM spend starts there, whatever the job's outcome. The item's bulk unit is charged at its first send, as for any import. Whether a failed extraction also costs a bulk unit is OPEN for the owner. Until it is ruled, it costs none. A paste refused before a job exists (over the cap, opt-out) costs nothing.
+  advance steps as every other import (`FR-047`). There is no second admit path and no second save path. A paste spends the ONE import allowance (`FR-022`: 200 a day on Free, 1,000 a day on a paid plan; superusers and VIPs count as paid, owner ruling 2026-11-15). There is no separate paste allowance. ADR-0072 §8 and DD32 are amended to match in the paste-import PRs. A paste is charged one unit when its extraction succeeds. A failed extraction (`budgetSpent`, `failed`) costs nothing. That interim rule is AWAITING AN OWNER RULING. A paste refused before a job exists (over the cap, opt-out) costs nothing.
 - **FR-062** _(added 2026-11-15, owner rulings; `docs/design/pasteImport/spec.md` §14, PR #257)_: **The mobile paste row goes live only when
   this fallback ships.** Web HTML paste goes live earlier. That is the owner's web-first exception, recorded in the
-  design spec (`docs/design/pasteImport/spec.md` §14, PR #257). The mobile paste row stays hidden behind a flag until `FR-056` to `FR-061` pass their
+  design spec (`docs/design/pasteImport/spec.md` §14, PR #257). The mobile paste row stays hidden behind a flag until `FR-056` to `FR-063` pass their
   tiers. Web and mobile then ship the same fallback outcomes, including `budgetSpent` and the over-cap refusal, each
   with copy and a localisation key (`CODING_STANDARDS.md` §14).
 
@@ -1002,7 +1002,7 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
    statement field as a suggestion, the item stays under "Needs your statement", and it is saved only after the cook
    confirms. **Given** the cook clears it, **Then** the statement and `source_kind` stay unset. A paste still can never be `imported_public` or
    `imported_physical` (`FR-052`).
-5. **The allowance is charged (`FR-061`).** **Given** an accepted extraction job, **Then** the paste allowance drops by one unit and the item goes through the same advance, hold and save as a file import. **Given** `budgetSpent` or `failed`, **Then** the paste unit stays spent and no bulk unit is charged (the interim rule in `FR-061`). **Given** an over-cap or opt-out refusal, **Then** nothing is charged. **Given** the same import id is sent twice, **Then** there is
+5. **The allowance is charged (`FR-061`).** **Given** a successful extraction, **Then** the one import allowance drops by one unit and the item goes through the same advance, hold and save as a file import. **Given** `budgetSpent` or `failed`, **Then** nothing is charged (the interim rule in `FR-061`, awaiting an owner ruling). **Given** an over-cap or opt-out refusal, **Then** nothing is charged. **Given** the same import id is sent twice, **Then** there is
    one item and one charge.
 6. **The mobile row is gated (`FR-062`).** **Given** the fallback has not shipped, **Then** the mobile paste row is
    absent and the web HTML paste is present. **Given** it has shipped, **Then** the row is present and shows the same

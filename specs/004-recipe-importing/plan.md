@@ -379,7 +379,7 @@ job in recipe-workers (`RecipeTextExtractFunction`): own queue, DLQ and reserved
 call site `'text-extraction'` (ADR-0024 §4c), VPC-attached so it is an ADR-0004 NAT consumer. The model returns line numbers
 only (`FR-057`), the input is capped at 48,000 UTF-8 bytes and refused over it (`FR-058`), and the ceiling ends the paste as
 `budgetSpent` (`FR-059`). A guessed source is a question, never the statement (`FR-060`, ADR-0089 §7). It uses the one import
-pipeline and the paste allowance (`FR-061`, ADR-0072 §8). A page opt-out skips it (`FR-063`). The mobile paste row is gated on it (`FR-062`). Design detail:
+pipeline and the one import allowance (`FR-061`). A page opt-out skips it (`FR-063`). The mobile paste row is gated on it (`FR-062`). Design detail:
 ADR-0092 (planned), plus a new result table in its own migration.
 
 First non-null result wins. Strict `@type === 'Recipe'` validation before accepting (HAZ-028 — a

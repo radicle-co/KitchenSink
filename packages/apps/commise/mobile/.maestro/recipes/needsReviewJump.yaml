@@ -129,13 +129,8 @@ onFlowComplete:
           - inputText: '5'
           # The phone's sheet stacks Done ABOVE Cancel, the tablet's inline pair puts it to the RIGHT. Only this tap
           # branches, and each anchor still keeps it off the keyboard's own key named "Done", which sits below the pair.
-          - runFlow:
-                when:
-                    visible: 'Close ${E2E_NEEDS_REVIEW_FOOD}.*'
-                commands:
-                    - tapOn:
-                          text: 'Done'
-                          above: 'Cancel'
+          # The tablet branch comes FIRST: each `when` is checked at its own step, so after the phone's tap closed the
+          # sheet, a later "no Close" check would also be true and run the tablet's steps against an empty screen.
           - runFlow:
                 when:
                     notVisible: 'Close ${E2E_NEEDS_REVIEW_FOOD}.*'
@@ -146,6 +141,13 @@ onFlowComplete:
                     - tapOn:
                           text: 'Done'
                           rightOf: 'Cancel'
+          - runFlow:
+                when:
+                    visible: 'Close ${E2E_NEEDS_REVIEW_FOOD}.*'
+                commands:
+                    - tapOn:
+                          text: 'Done'
+                          above: 'Cancel'
           - extendedWaitUntil:
                 notVisible: 'You wrote'
                 timeout: 20000

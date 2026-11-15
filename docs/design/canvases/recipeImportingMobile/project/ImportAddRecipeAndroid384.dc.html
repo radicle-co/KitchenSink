@@ -253,10 +253,10 @@ body { font-family: Inter, system-ui, sans-serif; }
 .side.rail { padding: 22px 12px; align-items: center; }
 .side.rail a { width: 48px; justify-content: center; padding: 0; }
 .tile .ph { aspect-ratio: 4/3; border-radius: 12px; background-size: cover; background-position: center; }
-.pc-chicken { background-image: url(/_blob/ef613a29c1f89d02401d3657a7ea11cc); background-size: cover; background-position: center; }
-.pc-padthai { background-image: url(/_blob/0fef119536a2aea225b12b26685bc0ad); background-size: cover; background-position: center; }
-.pc-pancakes { background-image: url(/_blob/172bdf675e7466f97ede8a4e3e273bc6); background-size: cover; background-position: center; }
-.pc-cookies { background-image: url(/_blob/828833676c7a99de71d1e48cfe6ee1a2); background-size: cover; background-position: center; }
+.pc-chicken { background-color: var(--cover-cream); }
+.pc-padthai { background-color: var(--cover-peach); }
+.pc-pancakes { background-color: var(--cover-sky); }
+.pc-cookies { background-color: var(--cover-warning); }
 .opt { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 12px; font-size: 14px; line-height: 20px; }
 .opt + .opt { border-top: 1px solid var(--line-divider); }
 .rad { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-control); flex: none; }
@@ -340,8 +340,94 @@ b, strong { font-weight: 600; }
                     .rd .tabbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
                     .tab .avatar.xs, .nv-tab .avatar.xs { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-divider); }
                     .tab.on .avatar.xs, .nv-tab.on .avatar.xs { box-shadow: 0 0 0 2px var(--ink); }
+
+/* Paste import boards (design/pasteBoards). Role sizes only: 14 label and meta, 16 body and card title, 18 section title, 28 large title. */
+.pg { --tap: 44px; --g: 16px; }
+:where(.pg) button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.pg .back { min-height: var(--tap); min-width: var(--tap); }
+.pg .btn { height: auto; min-height: var(--tap); padding: 10px 18px; white-space: normal; text-align: center; line-height: 24px; font-size: 16px; font-weight: 600; font-family: var(--font-body); }
+.pg .btn.block { width: 100%; }
+.pg .btn.secondary { color: var(--ink); }
+.pg .btn.secondary .ic { color: var(--ink); }
+.pg .btn.ghost { background: transparent; box-shadow: none; color: var(--ink); }
+.pg .btn.destructive { background: var(--paper); color: var(--danger-text); box-shadow: inset 0 0 0 1px var(--danger); }
+.screen .pgBusy { width: 16px; height: 16px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35); border-top: 2px solid var(--on-action); }
+.screen .pgIn { padding: 16px var(--g) 16px; }
+.screen .pgCol { max-width: var(--cw, none); }
+.screen .pgSep { margin: 0; padding: 8px var(--g); background: var(--surface-muted); color: var(--ink-muted); font: 600 14px/20px var(--font-body); border-top: 1px solid var(--line-divider); border-bottom: 1px solid var(--line-divider); }
+.screen .pgHint { font: 400 14px/20px var(--font-body); color: var(--ink-muted); margin: 12px 0 0; }
+.screen .pgMeta { font: 400 14px/20px var(--font-body); color: var(--ink-muted); margin: 12px 0 0; }
+.screen .pgLabel { display: block; font: 600 14px/20px var(--font-body); margin: 24px 0 8px; }
+.screen .pgBox { display: block; width: 100%; box-sizing: border-box; resize: none; font: 400 16px/24px var(--font-body); color: var(--ink); background: var(--paper-raised); border: 0; border-radius: var(--radius-md); box-shadow: inset 0 0 0 1px var(--line-control); padding: 12px 14px; margin: 0; overflow: hidden; }
+.screen .pgBox.focus { box-shadow: inset 0 0 0 2px var(--focus-ring); }
+.screen .pgCard { background: var(--paper-raised); border-radius: var(--radius-md); border-left: 4px solid var(--action); box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--line-divider); padding: 16px; margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
+.screen .pgCard .kindRow { display: flex; align-items: center; gap: 8px; }
+.screen .pgCard .kindRow .ic { color: var(--ink-muted); }
+.screen .pgCard .kind { flex: 1; min-width: 0; font: 600 14px/20px var(--font-body); margin: 0; }
+.screen .pgCard .name { font: 600 16px/24px var(--font-body); margin: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.screen .pgCard .site { font: 400 16px/24px var(--font-body); margin: 0; }
+.screen .pgCard .url { font: 400 14px/20px var(--font-body); color: var(--ink-muted); margin: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.screen .pgCard .size { font: 400 14px/20px var(--font-body); color: var(--ink-muted); margin: 0; }
+.screen .pgClear { display: inline-flex; align-items: center; gap: 4px; min-height: var(--tap); padding: 0 12px; margin: -12px -12px -12px 0; border-radius: 22px; font: 600 14px/20px var(--font-body); color: var(--ink); }
+.screen .pgClear .ic { width: 16px; height: 16px; color: var(--ink); }
+.screen .pgStatus { display: flex; gap: 12px; align-items: flex-start; margin: 16px 0 0; font: 400 16px/24px var(--font-body); }
+.screen .pgStatus .ic { color: var(--ink-muted); margin-top: 2px; }
+.screen .pgAlert { display: flex; gap: 12px; align-items: flex-start; margin: 16px 0 0; font: 400 16px/24px var(--font-body); }
+.screen .pgAlert .ic { color: var(--attention); margin-top: 2px; }
+.screen .pgAct { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.screen .pgBar { display: flex; flex-direction: column; gap: 8px; padding: 12px var(--g) 12px; background: var(--bar); border-top: 1px solid var(--line-divider); flex: none; }
+.screen .pgBar.stack { gap: 8px; }
+.screen .pgBarNote { font: 400 14px/20px var(--font-body); margin: 0; }
+.screen .pgH2 { font: 600 18px/24px var(--font-display); margin: 0 0 12px; }
+.screen .pgSec { margin-top: 32px; }
+.screen .pgSec.first { margin-top: 24px; }
+.screen .pgNeeded { margin-top: 24px; padding: 16px; background: var(--paper-raised); border-radius: var(--radius-md); box-shadow: inset 0 0 0 1px var(--line-divider); }
+.screen .pgNeeded .pgItem + .pgItem { margin-top: 24px; }
+.screen .pgFld { margin-top: 16px; }
+.screen .pgFld:first-child { margin-top: 0; }
+.screen .pgFld .vl { display: block; margin-bottom: 8px; }
+.screen .pgIn textarea.pgBox.url { font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
+.screen .pgNote { font: 400 14px/20px var(--font-body); color: var(--ink-muted); margin: 12px 0 0; }
+.screen .pgErr { display: flex; gap: 6px; align-items: flex-start; margin: 8px 0 0; font: 600 14px/20px var(--font-body); color: var(--danger-text); }
+.screen .pgErr .ic { width: 16px; height: 16px; margin-top: 2px; }
+.screen .pgInp { display: flex; align-items: center; min-height: var(--tap); padding: 10px 14px; border-radius: var(--radius-md); background: var(--paper-raised); box-shadow: inset 0 0 0 1px var(--line-control); font: 400 16px/24px var(--font-body); color: var(--ink-muted); margin: 0; }
+.screen .pgInp.bad { box-shadow: inset 0 0 0 2px var(--danger); }
+.screen .pgChips.bad .fc { box-shadow: inset 0 0 0 2px var(--danger); }
+.screen .pgChips.focus .fc:first-child { box-shadow: inset 0 0 0 2px var(--focus-ring); }
+.screen .pgLine { padding: 12px 0; border-top: 1px solid var(--line-divider); }
+.screen .pgLine:first-of-type { border-top: 0; }
+.screen .pgLine .orig { font: 400 14px/20px var(--font-body); color: var(--ink-muted); margin: 0; overflow-wrap: anywhere; }
+.screen .pgLine .wmatch { margin-top: 4px; }
+.screen .pgLine .wmatch .ic { color: var(--ink-muted); }
+.screen .pgLine .wmatch .linkBtn { min-height: var(--tap); }
+.screen .pgVis .vopt { min-height: var(--tap); }
+.screen .pgPriv { display: flex; gap: 8px; align-items: flex-start; font: 400 14px/20px var(--font-body); color: var(--ink-muted); margin: 16px 0 0; }
+.screen .pgPriv .ic { width: 16px; height: 16px; margin-top: 2px; }
+.screen .pgNotice { background: var(--paper-raised); border-radius: var(--radius-md); box-shadow: inset 0 0 0 1px var(--line-divider); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.screen .pgNotice h2 { font: 600 18px/24px var(--font-display); margin: 0; display: flex; gap: 12px; align-items: flex-start; }
+.screen .pgNotice h2 .ic { color: var(--attention); margin-top: 2px; }
+.screen .pgNotice p { margin: 0; font: 400 16px/24px var(--font-body); }
+.screen .pgRadio { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 16px; font: 400 16px/24px var(--font-body); }
+.screen .pgRadio + .pgRadio { border-top: 1px solid var(--line-divider); }
+.screen .pgRadio .rad { width: 22px; height: 22px; }
+.screen .pgList { background: var(--paper-raised); border-radius: var(--radius-md); box-shadow: inset 0 0 0 1px var(--line-divider); margin-top: 16px; }
+.screen .pgLink { color: var(--action-text); font-weight: 600; text-decoration: underline; }
+.screen .pgBadge { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 8px; background: var(--surface-muted); color: var(--ink); font: 600 14px/20px var(--font-body); }
+.screen .pgBadge .ic { width: 14px; height: 14px; }
+.screen .pgAnnot { margin: 16px 0 0; padding: 10px 12px; border: 1px dashed var(--line-control); border-radius: var(--radius-md); font: 400 14px/20px var(--font-body); color: var(--ink-muted); }
+.screen .pgCover { height: 160px; border-radius: var(--radius-lg); background: linear-gradient(170deg, var(--cover-sky) 0%, var(--cover-coral) 100%); }
+.screen .pgTwo { display: flex; gap: 32px; align-items: flex-start; }
+.screen .pgTwo .left { flex: 1; min-width: 0; }
+.screen .pgTwo .right { width: 320px; flex: none; }
+.screen .pgFade { opacity: 0.5; }
+.bsheet .mrow .ic, .dlg .mrow .ic { color: var(--ink-muted); }
+.bsheet .mrow, .dlg .mrow { min-height: max(52px, var(--tap)); }
+.screen .pgPanelDlg { position: relative; overflow: hidden; }
+.screen .pgPanelDlg .dlg { width: calc(100% - 32px); max-width: 448px; }
+.screen .pgPanelDlg .acts { flex-direction: column; }
+.screen .pgPanelDlg .acts .btn { width: 100%; }
 </style></helmet><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600&display=swap" rel="stylesheet" /><link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400&display=swap" rel="stylesheet" />
-<div class="nv-device nv-android nv-viewport" style="width: 384px; min-height: 832px; height: 832px"><div class="nv-status" aria-hidden="true" style="height: 24px; padding: 0 16px"><span>9:41</span><span class="nv-icons"><svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true"><path d="M8 12 5.6 9.2a3.4 3.4 0 0 1 4.8 0z"/><path d="M2.8 6.6a7.4 7.4 0 0 1 10.4 0l-1.5 1.6a5.3 5.3 0 0 0-7.4 0z"/><path d="M0 3.8a11.4 11.4 0 0 1 16 0l-1.5 1.6a9.3 9.3 0 0 0-13 0z"/></svg><svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg width="26" height="12" viewBox="0 0 26 12" aria-hidden="true"><rect x="0.5" y="0.5" width="22" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.5"/><rect x="2" y="2" width="19" height="8" rx="1.8"/><rect x="23.5" y="4" width="1.8" height="4" rx="0.9" opacity="0.5"/></svg></span></div><div class="screen" data-screen="phoneAddRecipe" style="width: 384px; height: 832px; padding: 24px 0px 88px; box-sizing: border-box; box-shadow: none; border-radius: 0">
+<div class="nv-device nv-android nv-viewport" style="width: 384px; min-height: 832px; height: 832px"><div class="nv-status" aria-hidden="true" style="height: 24px; padding: 0 16px"><span>9:41</span><span class="nv-icons"><svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true"><path d="M8 12 5.6 9.2a3.4 3.4 0 0 1 4.8 0z"/><path d="M2.8 6.6a7.4 7.4 0 0 1 10.4 0l-1.5 1.6a5.3 5.3 0 0 0-7.4 0z"/><path d="M0 3.8a11.4 11.4 0 0 1 16 0l-1.5 1.6a9.3 9.3 0 0 0-13 0z"/></svg><svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg width="26" height="12" viewBox="0 0 26 12" aria-hidden="true"><rect x="0.5" y="0.5" width="22" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.5"/><rect x="2" y="2" width="19" height="8" rx="1.8"/><rect x="23.5" y="4" width="1.8" height="4" rx="0.9" opacity="0.5"/></svg></span></div><div class="screen pg" data-screen="phoneAddRecipe" style="--tap: 48px; width: 384px; height: 832px; padding: 24px 0px 88px; box-sizing: border-box; box-shadow: none; border-radius: 0">
 <svg aria-hidden="true" height="0" style="position: absolute" width="0">
 <defs>
 <symbol id="home" viewbox="0 0 24 24">
@@ -487,6 +573,9 @@ b, strong { font-weight: 600; }
 <symbol id="leave" viewbox="0 0 24 24">
 <path d="M10 5H5.5v14H10M14 8l4 4-4 4M18 12H9"></path>
 </symbol>
+<symbol id="clock" viewbox="0 0 24 24"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></symbol>
+<symbol id="list" viewbox="0 0 24 24"><path d="M9 6.5h10.5M9 12h10.5M9 17.5h10.5M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"></path></symbol>
+<symbol id="pencil" viewbox="0 0 24 24"><path d="M14.5 5.5l4 4L8.5 19.5H4.5v-4zM13 7l4 4M12 20h8"></path></symbol>
 </defs>
 </svg>
 <div class="main">
@@ -534,36 +623,8 @@ b, strong { font-weight: 600; }
 </div>
 
 <div class="scrimAll"></div>
-<div class="bsheet" role="dialog" style="padding-bottom: 48px; padding-left: 16px; padding-right: 16px">
-<div class="grab"></div>
-<h2>Add a recipe</h2>
-<div class="flex" style="gap: 8px">
-<div class="inp grow" style="box-shadow: inset 0 0 0 1.5px var(--selected-edge)">
-<svg aria-hidden="true" class="ic"><use href="#link"></use></svg><span class="soft grow">Paste a link</span>
-</div>
-<a class="btn primary" href="#">Add</a>
-</div>
-<p class="t13 soft" style="margin-top: -4px">A web page, TikTok, Instagram, YouTube or Facebook</p>
-<div>
-<a class="mrow" href="#"><svg aria-hidden="true" class="ic"><use href="#paste"></use></svg>
-<div class="grow">
-<p class="t15 w600">Paste the recipe text</p>
-<p class="t13 soft">From a note, an email or a book</p>
-</div>
-<svg aria-hidden="true" class="ic sm"><use href="#chevR"></use></svg></a><a class="mrow" href="#"><svg aria-hidden="true" class="ic"><use href="#camera"></use></svg>
-<div class="grow">
-<p class="t15 w600">Photograph a recipe card</p>
-<p class="t13 soft">Saved private, using one of your private slots</p>
-</div>
-<svg aria-hidden="true" class="ic sm"><use href="#chevR"></use></svg></a><a class="mrow" href="#"><svg aria-hidden="true" class="ic"><use href="#pan"></use></svg>
-<div class="grow">
-<p class="t15 w600">Write it yourself</p>
-<p class="t13 soft">Start from an empty recipe</p>
-</div>
-<svg aria-hidden="true" class="ic sm"><use href="#chevR"></use></svg></a>
-</div>
-<a class="linkBtn" href="#" style="color: var(--ink-muted)">More ways: a file, or your library from another app<svg aria-hidden="true" class="ic sm">
-<use href="#chevR"></use></svg></a>
+<div class="bsheet" role="dialog" aria-modal="true" aria-labelledby="chooserTitle" style="padding-bottom: 48px; padding-left: 16px; padding-right: 16px">
+<div class="grab"></div><div class="shead"><h2 id="chooserTitle">Add a recipe</h2><button aria-label="Close Add a recipe" class="iconBtn" type="button" style="width:48px;height:48px;margin-right:-8px"><svg aria-hidden="true" class="ic "><use href="#x"></use></svg></button></div><div><a class="mrow" href="#"><svg aria-hidden="true" class="ic "><use href="#paste"></use></svg><div class="grow"><p class="t15 w600">Paste a recipe</p><p class="t13 soft">Text, or a whole web page</p></div><svg aria-hidden="true" class="ic sm"><use href="#chevR"></use></svg></a><a class="mrow" href="#"><svg aria-hidden="true" class="ic "><use href="#pencil"></use></svg><div class="grow"><p class="t15 w600">Write it yourself</p><p class="t13 soft">Start from an empty recipe</p></div><svg aria-hidden="true" class="ic sm"><use href="#chevR"></use></svg></a></div>
 </div>
 </div><nav class="nv-tabbar" style="bottom: 24px" aria-label="Tabs"><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5 12 3.8l8.5 6.7V20a.8.8 0 0 1-.8.8H15v-6h-6v6H4.3a.8.8 0 0 1-.8-.8z"/></svg>Home</a><a class="nv-tab on" href="#" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C10.2 5 7.6 4.5 4 4.6v13.9c3.6-.1 6.2.4 8 1.9 1.8-1.5 4.4-2 8-1.9V4.6c-3.6-.1-6.2.4-8 1.9zM12 6.5v13.9"/></svg>Recipes</a><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m15.2 8.8-1.9 4.5-4.5 1.9 1.9-4.5z"/></svg>Discover</a><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5"/></svg>Meal plan</a><a class="nv-tab" href="#"><span class="avatar xs" aria-hidden="true">ER</span>You</a></nav><div class="nv-inset nv-bottom" style="height: 24px; background: var(--paper-raised)"><span class="nv-indicator"></span></div></div><!--data-you-tab--></x-dc>
         <script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 384, "height": 832}}'>

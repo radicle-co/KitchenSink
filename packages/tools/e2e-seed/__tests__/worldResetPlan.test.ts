@@ -11,6 +11,8 @@ import { deriveFixtureManifest } from '../src/fixtureManifest.js';
 import {
     planPrivateFoodRecipe,
     planWorldReset,
+    RESET_MODES,
+    resetModeFrom,
     type PrivateFoodRecipeRow,
     type WorldSnapshot,
 } from '../src/worldResetPlan.js';
@@ -432,5 +434,89 @@ describe('planWorldReset — library mode', () => {
 
         expect(manifest.recipes.some((recipe) => fillerTitles.has(recipe.title))).toBe(false);
         expect(manifest.libraryFillers.every((recipe) => recipe.owner === 'signer')).toBe(true);
+    });
+});
+
+/**
+ * The cooking-mode Maestro flow alone holds the signer's multi-sentence cooking recipe. Like the
+ * fillers and the ambiguity probe, it is residue in every other mode, by its title, so no other flow's count moves.
+ */
+describe('planWorldReset — cooking mode', () => {
+    const cooking = manifest.cookingRecipe;
+    const crostini = manifest.privateFoodRecipe;
+
+    it('creates the signer recipes AND the cooking recipe against an empty world', () => {
+        const plan = planWorldReset(snapshot(), manifest, 'cooking');
+
+        expect(plan.create.map((recipe) => recipe.title)).toEqual([...signerTitles, cooking.title]);
+    });
+
+    it('plans nothing against a library that already holds the cooking recipe at its visibility', () => {
+        const world = snapshot({
+            recipes: [...settled().recipes, { id: 'cook', title: cooking.title, visibility: cooking.visibility }],
+        });
+
+        expect(planWorldReset(world, manifest, 'cooking')).toEqual({
+            deleteRecipeIds: [],
+            deleteCollectionIds: [],
+            create: [],
+        });
+    });
+
+    it('replaces a cooking recipe a flow left public', () => {
+        const world = snapshot({
+            recipes: [...settled().recipes, { id: 'cook', title: cooking.title, visibility: 'public' }],
+        });
+        const plan = planWorldReset(world, manifest, 'cooking');
+
+        expect(plan.deleteRecipeIds).toEqual(['cook']);
+        expect(plan.create.map((recipe) => recipe.title)).toEqual([cooking.title]);
+    });
+
+    it.each(['seeded', 'ambiguity', 'library', 'empty'] as const)(
+        '⛔ %s mode deletes the cooking recipe, so every other flow keeps its count',
+        (mode) => {
+            const world = snapshot({
+                recipes: [...settled().recipes, { id: 'cook', title: cooking.title, visibility: cooking.visibility }],
+            });
+            const plan = planWorldReset(world, manifest, mode);
+
+            expect(plan.deleteRecipeIds).toContain('cook');
+            expect(plan.create.map((recipe) => recipe.title)).not.toContain(cooking.title);
+        },
+    );
+
+    // qse condition 5: row 6 (a draft offers no Start cooking) opens the signer's Crostini draft, so the cooking mode must
+    // keep it like every non-empty mode does — on every lane, since each lane derives its own manifest.
+    it('⛔ spares the Crostini draft on every platform and shard, and never creates it here', () => {
+        for (const platform of ['android', 'ios'] as const) {
+            for (const shard of [1, 2, 3]) {
+                const lane = deriveFixtureManifest(`${RUN}-${platform}-${String(shard)}`, platform, shard);
+                const world = snapshot({
+                    recipes: [{ id: 'draft', title: lane.privateFoodRecipe.title, visibility: crostini.visibility }],
+                });
+                const plan = planWorldReset(world, lane, 'cooking');
+
+                expect(plan.deleteRecipeIds).not.toContain('draft');
+                expect(plan.create.map((recipe) => recipe.title)).not.toContain(lane.privateFoodRecipe.title);
+            }
+        }
+    });
+});
+
+describe('resetModeFrom', () => {
+    it('reads each mode the planner defines, cooking included, and defaults to seeded', () => {
+        expect(RESET_MODES).toContain('cooking');
+
+        for (const mode of RESET_MODES) {
+            expect(resetModeFrom(['--mode', mode])).toBe(mode);
+        }
+
+        expect(resetModeFrom([])).toBe('seeded');
+    });
+
+    it('refuses a mode the planner does not define, or a missing value', () => {
+        expect(() => resetModeFrom(['--mode', 'cookng'])).toThrow(/--mode must be one of/u);
+        expect(() => resetModeFrom(['--mode'])).toThrow(/--mode must be one of/u);
     });
 });

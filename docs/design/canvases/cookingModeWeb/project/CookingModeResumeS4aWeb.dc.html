@@ -6,14 +6,11 @@
         <script src="./support.js"></script>
     </head>
     <body>
-        <!-- S4a board, built by buildS4aBoards.py (squad Luna designer, plan 0003). Design artifact, not app code. -->
+        <!-- S4a board (squad Luna designer, plan 0003). Design artifact, not app code. -->
         <x-dc><helmet><style>
 [data-theme='light'] { --canvas: #eff3f6; --paper: #fcfdff; --ink: #171b20; --ink-muted: #5c646e; --line-control: #80878f; --line-divider: #dfe3e8; --action: #325c7f; --action-text: #325c7f; --here-bar: #325c7f; --attention: #8c5a00; --paper-raised: #ffffff; --paper-overlay: #ffffff; --surface-muted: #e9edf2; --inverse: #171b20; --inverse-ink: #ffffff; --scrim: rgba(10, 16, 24, 0.42); --on-action: #ffffff; --shadow-lg: 0 2px 4px rgba(10, 20, 30, 0.08), 0 8px 22px rgba(10, 20, 30, 0.12); }
 [data-theme='dark'] { --canvas: #0e161e; --paper: #172029; --ink: #ebeff2; --ink-muted: #a3acb6; --line-control: #7d8792; --line-divider: #262f38; --action: #96bcde; --action-text: #96bcde; --here-bar: #96bcde; --attention: #efba64; --paper-raised: #212b36; --paper-overlay: #26313d; --surface-muted: #212b36; --inverse: #ebeff2; --inverse-ink: #171b20; --scrim: rgba(0, 0, 0, 0.66); --on-action: #0e161e; --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.4); }
-[data-theme='dark'].osScreen, [data-theme='dark'] .osScreen { --os-wall: linear-gradient(180deg, #2b3440, #11161c); --os-wall-ink: #ffffff; --os-card: rgba(56, 66, 79, 0.94); --os-card-ink: #ebeff2; --os-card-muted: #a3acb6; }
 [data-theme='light'] { --selected-fill: #e4eef7; }
-[data-theme='light'] .alarm .ghost, .alarm .ghost { border: 1px solid currentColor; opacity: 0.85; }
-
 body { margin: 0; background: #e4e8ec; font-family: Inter, system-ui, sans-serif; color: #171b20; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 button { font: inherit; color: inherit; background: none; border: 0; text-align: left; cursor: pointer; }
@@ -28,7 +25,6 @@ figcaption { font-size: 14px; line-height: 20px; color: #5c646e; max-width: 420p
 figcaption b { color: #171b20; font-weight: 600; }
 .frag { background: var(--canvas); color: var(--ink); position: relative; overflow: hidden; border-radius: 16px;
   box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.14); display: flex; flex-direction: column; }
-.t28 { font-size: 28px; line-height: 32px; }
 .t16 { font-size: 16px; line-height: 24px; }
 .t14 { font-size: 14px; line-height: 20px; }
 .w500 { font-weight: 500; }
@@ -59,7 +55,6 @@ figcaption b { color: #171b20; font-weight: 600; }
 .dockActs { display: flex; flex-wrap: wrap; gap: 0 12px; margin-left: auto; }
 .textBtn { min-height: 48px; padding: 0 16px; border-radius: 999px; display: inline-flex; align-items: center;
   color: var(--action-text); font-weight: 600; flex: none; position: relative; }
-.slop .textBtn::after { content: ''; position: absolute; inset: 0; border: 1px dashed var(--attention); border-radius: 999px; }
 /* The whole screen at 320 x 568. */
 .screen320 { width: 320px; height: 568px; }
 .top { flex: none; display: flex; align-items: center; gap: 12px; padding: 6px 16px; min-height: 60px; }
@@ -74,21 +69,15 @@ figcaption b { color: #171b20; font-weight: 600; }
 .btn { flex: 1; min-height: 52px; border-radius: 999px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line-control);
   display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 600; padding: 6px 12px; }
 .btn svg { color: var(--action-text); flex: none; }
-/* The whole content, unclipped, beside the screen: the dashed band is what the 320 x 568 screen shows. */
-.strip { width: 320px; position: relative; }
-.band { position: absolute; left: 2px; right: 2px; border: 2px dashed var(--attention); border-radius: 6px; pointer-events: none; }
 /* Recipe detail entry (R2, R2a). */
 .entry { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
 .entry .fill { align-self: stretch; }
 .entryMeta { color: var(--ink-muted); }
 .wideEntry .fill { align-self: flex-start; min-width: 280px; padding: 8px 32px; }
-.snack { margin: 8px 16px 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px;
-  min-height: 56px; padding: 6px 6px 6px 16px; border-radius: 14px; background: var(--inverse); color: var(--inverse-ink); }
-.snackUndo { min-height: 44px; padding: 0 14px; display: inline-flex; align-items: center; font-weight: 600; margin-left: auto; }
 /* Largest text: body roles x2 (16 -> 32, 14 -> 28), the 28 role at its 28 x 2 cap (56/64), figureLarge x1.5 (42/48). */
-.big .t16, .big .btn, .big .fill, .big .quietBtn, .big .noteAction, .big .askLink, .big .textBtn, .big .snack { font-size: 32px; line-height: 40px; }
+.big .t16, .big .btn, .big .fill, .big .quietBtn, .big .noteAction, .big .askLink, .big .textBtn { font-size: 32px; line-height: 40px; }
 .big .t14 { font-size: 28px; line-height: 40px; }
-.big .t28, .big .stepHead, .big .ask h2 { font-size: 56px; line-height: 64px; }
+.big .stepHead, .big .ask h2 { font-size: 56px; line-height: 64px; }
 .big .figureLarge { font-size: 42px; line-height: 48px; }
 .big .dockRow > .glyph { display: none; }
 .big .btn svg, .big .offNote svg, .big .exitBtn svg { width: 28px; height: 28px; }

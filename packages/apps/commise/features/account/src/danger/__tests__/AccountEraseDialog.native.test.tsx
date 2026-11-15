@@ -18,7 +18,9 @@ import { AccountEraseDialog } from '../AccountEraseDialog.native.js';
 import { accountDangerMessages } from '../messages.js';
 import type { AccountEraseDialogProps } from '../model.js';
 import { makeDonatableRecipe } from '../__fixtures__/index.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { render, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
+import { scaledTypeSize } from '@commise/ui/scaled-type';
+import { nativeTokens } from '@commise/ui/native';
 
 const PHRASE = 'ERASE MY DATA';
 
@@ -125,6 +127,35 @@ describe('AccountEraseDialog (native) — donate election', () => {
         // The glyph centres its box on the first line of the text beside it only when the row aligns to the top. A
         // `center` row puts the box level with the middle of a wrapped title (seen on Android at 2x text).
         expect(getComputedStyle(screen.getByRole('checkbox', { name: 'Ramen' })).alignItems).toBe('flex-start');
+    });
+
+    it("⛔ draws a recipe title at its role's capped size, so the box sits on the title's first line at the largest text", () => {
+        const IOS_AX5_SCALE = 3.1;
+
+        // The box is centred in a slot one capped `meta` line tall. A title drawn with React Native's raw Text grows
+        // with the OS scale past that cap (about 3.1x on iOS at AX5), so its first line outgrows the slot and the box
+        // looks high (iOS shot, 2026-11-15). The house Text with the same role grows and stops at the same cap.
+        renderWithTamagui(
+            <AccountEraseDialog
+                open
+                donatableRecipes={[makeDonatableRecipe({ id: 'a', title: 'Ramen' })]}
+                selectedRecipeIds={[]}
+                onToggleRecipe={noop}
+                phrase=""
+                onPhraseChange={noop}
+                onConfirm={noop}
+                onCancel={noop}
+            />,
+            'light',
+            IOS_AX5_SCALE,
+        );
+
+        const title = within(screen.getByRole('checkbox', { name: 'Ramen' })).getByText('Ramen');
+
+        expect(Number.parseFloat(getComputedStyle(title).fontSize)).toBe(
+            scaledTypeSize('meta', IOS_AX5_SCALE).fontSize,
+        );
+        expect(scaledTypeSize('meta', IOS_AX5_SCALE).fontSize).toBe(nativeTokens.type.meta.fontSize * 2);
     });
 
     it('reports a recipe toggle upward with the recipe id', () => {
@@ -307,7 +338,8 @@ describe.each(['light', 'dark'] as const)('AccountEraseDialog (native) — the %
         systemScheme.current = scheme;
         renderDialog({ donatableRecipes: [makeDonatableRecipe({ id: 'r1', title: 'Soup' })], submitError: true });
 
-        expect(style(screen.getByText('Soup')).color).toBe(rgb(colours.ink));
+        // The title is the house Text now, which paints its colour through a theme variable, so it is resolved.
+        expect(resolvedColour(screen.getByText('Soup'), 'color')).toBe(rgb(colours.ink));
         expect(style(screen.getByText(e.error)).color).toBe(rgb(colours.dangerText));
     });
 });

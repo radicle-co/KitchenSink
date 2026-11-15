@@ -21,6 +21,7 @@ import { CheckBoxGlyph } from '@commise/ui/check-box-glyph';
 import { DialogFrame } from '@commise/ui/dialog-frame';
 import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
+import { Text as DesignText } from '@commise/ui/text';
 import { TextInput } from '@commise/ui/text-input';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
@@ -102,7 +103,7 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                             style={styles.recipeRow}
                         >
                             <CheckBoxGlyph checked={checked} textRole="meta" />
-                            <Text style={[styles.recipeTitle, ink]}>{recipe.title}</Text>
+                            <DesignText typeRole="meta">{recipe.title}</DesignText>
                         </Pressable>
                     );
                 })
@@ -160,7 +161,6 @@ const styles = StyleSheet.create({
     warning: { ...nativeTokens.type.body, flex: 1 },
     body: { ...nativeTokens.type.meta },
     recipeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4 },
-    recipeTitle: { ...nativeTokens.type.meta },
     input: {
         borderWidth: 1,
         borderRadius: nativeTokens.radius.sm,

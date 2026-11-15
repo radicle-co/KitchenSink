@@ -1,6 +1,6 @@
 {
     "files": {
-        "packages/apps/commise/features/account/src/danger/AccountEraseDialog.native.tsx": 33,
+        "packages/apps/commise/features/account/src/danger/AccountEraseDialog.native.tsx": 31,
         "packages/apps/commise/features/account/src/profile/DisplayNameSheet.native.tsx": 2,
         "packages/apps/commise/features/account/src/profile/ProfileGroup.native.tsx": 7,
         "packages/apps/commise/features/account/src/profile/ProfileHeader.native.tsx": 13,

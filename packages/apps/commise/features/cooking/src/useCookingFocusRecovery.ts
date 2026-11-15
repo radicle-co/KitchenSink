@@ -10,6 +10,9 @@
  */
 import { useEffect } from 'react';
 
+import { COOKING_FOCUS_LINE_ID } from './CookingLineRow.js';
+import { COOKING_NAV_ID } from './CookingNav.js';
+
 /** What decides where focus goes. */
 export interface CookingFocusRecoveryInput {
     /** How many times the cook has moved between steps. */
@@ -43,11 +46,10 @@ export function useCookingFocusRecovery({
             return;
         }
 
-        const surface = document.querySelector('main');
         const target =
             tickedCount > 0 && !everyLineTicked
-                ? surface?.querySelector('[role="checkbox"][aria-checked="false"]')
-                : [...(surface?.querySelectorAll('nav button') ?? [])].at(-1);
+                ? document.getElementById(COOKING_FOCUS_LINE_ID)
+                : [...(document.getElementById(COOKING_NAV_ID)?.querySelectorAll('button') ?? [])].at(-1);
 
         if (target instanceof HTMLElement) {
             target.focus({ preventScroll: true });

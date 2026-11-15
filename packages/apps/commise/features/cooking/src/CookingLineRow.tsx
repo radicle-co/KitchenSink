@@ -16,10 +16,14 @@ import type { FC } from 'react';
 import type { CookingLineRowProps } from './cookingViewProps.js';
 import { FOCUS_LINE_TYPE } from './focusLineType.js';
 
+/** The id of the focus line's row, so focus can be sent to it when the row it was on goes away. */
+export const COOKING_FOCUS_LINE_ID = 'cooking-focus-line';
+
 /** The web cooking line row. */
 export const CookingLineRow: FC<CookingLineRowProps> = ({ line, emphasis }) => (
     <button
         type="button"
+        id={emphasis === 'focus' ? COOKING_FOCUS_LINE_ID : undefined}
         role="checkbox"
         aria-checked={line.checked}
         aria-label={line.text}

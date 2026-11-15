@@ -17,9 +17,12 @@ import { nameOf } from './cookingCopy.js';
 import { NARROW_ROW } from './cookingLayout.js';
 import type { CookingNavProps } from './cookingViewProps.js';
 
+/** The id of the pair's `nav`: the forward control is its last button, so focus can be sent to it. */
+export const COOKING_NAV_ID = 'cooking-nav';
+
 /** The web Back / forward pair. */
 export const CookingNav: FC<CookingNavProps> = ({ back, forward, disabled }) => (
-    <nav className="px-4 pb-4 pt-2">
+    <nav id={COOKING_NAV_ID} className="px-4 pb-4 pt-2">
         <div className={`grid grid-cols-2 gap-3 ${NARROW_ROW.navWebClassName}`}>
             <Button
                 variant="secondary"

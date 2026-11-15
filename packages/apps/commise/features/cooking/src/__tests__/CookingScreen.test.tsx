@@ -980,3 +980,38 @@ describe('CookingScreen: what the live region says after a tick', () => {
         expect(screen.getAllByRole('status').map((region) => region.textContent)).toContain('Step 2 of 6.');
     });
 });
+
+describe('CookingScreen: focus recovery inside a page that has its own landmarks', () => {
+    const inPage = () => {
+        const props: CookingScreenProps = { read: ready(), onLeave: vi.fn(), onEdit: vi.fn(), onHome: vi.fn() };
+
+        return render(
+            <main>
+                <div role="checkbox" aria-checked="false" aria-label="Outside checkbox" tabIndex={0} />
+                <CookingScreen {...props} />
+                <nav>
+                    <button type="button">Outside button</button>
+                </nav>
+            </main>,
+        );
+    };
+
+    it('focuses the cooking forward control, never a nav button outside the screen', () => {
+        inPage();
+        tick('Heat 1.5 tbsp. oil.');
+        const last = screen.getByRole('checkbox', { name: 'Add the onion and cook 5 min.' });
+        last.focus();
+        fireEvent.click(last);
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Start step 2' }));
+    });
+
+    it('focuses the cooking focus line, never an unticked checkbox outside the screen', () => {
+        inPage();
+        const then = screen.getByRole('checkbox', { name: 'Add the onion and cook 5 min.' });
+        then.focus();
+        fireEvent.click(then);
+
+        expect(document.activeElement).toBe(screen.getByRole('checkbox', { name: 'Heat 1.5 tbsp. oil.' }));
+    });
+});

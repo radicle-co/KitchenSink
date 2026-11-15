@@ -69,6 +69,35 @@ for (const viewport of [
                     }
 
                     expect(overflow, 'the page scrolls sideways').toBeLessThanOrEqual(0);
+
+                    // Below a 720 px body, the pinned ingredients bar opens a list with a second stepper in a row of its
+                    // own, and it needs the same room.
+                    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+                    await page.getByRole('button', { name: /^Ingredients for .*Show list\.$/u }).click();
+
+                    const pinnedStepper = page.getByRole('dialog').getByRole('group', { name: 'Servings' });
+
+                    await expect(pinnedStepper).toBeVisible();
+
+                    const pinnedBoxes = await pinnedStepper.getByRole('button').evaluateAll((buttons) =>
+                        buttons.map((button) => {
+                            const { left, right } = button.getBoundingClientRect();
+
+                            return { left, right };
+                        }),
+                    );
+
+                    expect(pinnedBoxes).toHaveLength(2);
+
+                    for (const box of pinnedBoxes) {
+                        expect(
+                            box.left,
+                            'a pinned-bar stepper button starts left of the viewport',
+                        ).toBeGreaterThanOrEqual(0);
+                        expect(box.right, 'a pinned-bar stepper button ends right of the viewport').toBeLessThanOrEqual(
+                            viewport.width,
+                        );
+                    }
                 });
             });
         }

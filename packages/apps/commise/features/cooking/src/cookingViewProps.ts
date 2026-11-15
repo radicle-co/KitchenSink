@@ -8,7 +8,9 @@
  * container query covers it.
  */
 import type { CookLinkInput } from '@kitchensink/cooking-core';
+import type { ReactNode } from 'react';
 
+import type { LoadingPhase } from './loadingPhase.js';
 import type { UseCookingSessionInput } from './useCookingSession.js';
 
 /** The recipe as the screen cooks it: what the session reads, the title Done names, and the status the link reads. */
@@ -56,6 +58,21 @@ export interface CookingLineView {
     readonly text: string;
     readonly checked: boolean;
     readonly onToggle: () => void;
+}
+
+/** Props for `CookingLineRow`: one line of a step, as the checkbox the cook ticks. */
+export interface CookingLineRowProps {
+    readonly line: CookingLineView;
+    /** `focus` is the line the cook is doing now, the loudest thing on screen. */
+    readonly emphasis: 'focus' | 'other';
+}
+
+/** Props for `CookingTopBar`. */
+export interface CookingTopBarProps {
+    /** Exit: one control, the × and its label, with one accessible name. */
+    readonly exit: CookingAction;
+    /** The place, plain text ("Step 2 of 6"), `muted` while the recipe loads ("Step –"). Absent on Done. */
+    readonly place?: { readonly text: string; readonly tone: 'ink' | 'muted' };
 }
 
 /** Props for the step track: one segment per step. */
@@ -108,4 +125,61 @@ export interface CookingStepProps {
     readonly then: readonly CookingLineView[];
     /** Once every line is ticked, the next step; absent otherwise and on the last step. */
     readonly upNext?: CookingUpNextView;
+}
+
+/** Props for `CookingNextPreview`: the next step, previewed in the pinned foot. */
+export interface CookingNextPreviewProps {
+    readonly preview: CookingPreviewView;
+}
+
+/** How the forward control looks: quiet (Next step, Finish before every line is ticked) or filled (the action now). */
+export type CookingForwardTone = 'quiet' | 'filled';
+
+/** Props for `CookingNav`: Back and the forward control, an equal pair with forward last. */
+export interface CookingNavProps {
+    readonly back: CookingAction;
+    readonly forward: CookingAction & { readonly tone: CookingForwardTone };
+    /** While the recipe loads both are drawn and disabled. */
+    readonly disabled: boolean;
+}
+
+/** Props for `CookingDone`: the body. Its actions are pinned in the foot, like Back and Next. */
+export interface CookingDoneProps {
+    /** "All 6 steps done": the page's h1, in the largeTitle role. */
+    readonly title: string;
+    /** "{recipe}. Enjoy it." */
+    readonly enjoy: string;
+    /** "The screen can turn off again.", only where the screen was kept on. */
+    readonly screenOff?: string;
+}
+
+/** Props for `CookingDoneActions`: Done's two actions, pinned in the foot, each full width. */
+export interface CookingDoneActionsProps {
+    /** The filled action. */
+    readonly backToRecipe: CookingAction;
+    /** The outlined secondary action, under the filled one. */
+    readonly cookAgain: CookingAction;
+}
+
+/** What the loading body shows: nothing at first, then the skeleton, then its label too. `slow` is the slow-load notice. */
+export type CookingLoadingPhase = Exclude<LoadingPhase, 'slow'>;
+
+/** Props for `CookingLoading`. */
+export interface CookingLoadingProps {
+    readonly phase: CookingLoadingPhase;
+    /** "Opening the recipe…" */
+    readonly label: string;
+}
+
+/** Props for `CookingFrame`: the full-screen surface and its three slots. */
+export interface CookingFrameProps {
+    readonly topBar: ReactNode;
+    readonly body: ReactNode;
+    /**
+     * Pinned at the foot of the column: the actions (Back and Next, or Done's two), with the Next preview above them while
+     * there is one. The frame owns the spacing between the two. Absent for a full-screen notice.
+     */
+    readonly foot?: { readonly preview?: ReactNode; readonly actions: ReactNode };
+    /** `aria-busy` on the surface while the recipe loads. */
+    readonly busy: boolean;
 }

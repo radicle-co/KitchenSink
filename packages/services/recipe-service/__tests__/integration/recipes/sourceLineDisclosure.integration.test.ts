@@ -1,6 +1,7 @@
 /**
  * `sourceLine` is OWNER-ONLY (ADR-0082 §2, `transcriptionDisclosure.ts`) over the REAL HTTP pipeline, its dependencies
- * MOCKED (`docs/CODING_STANDARDS.md` §7.1a).
+ * MOCKED (`docs/CODING_STANDARDS.md` §7.1a). The last case drives the real `RecipesService.create` directly, as the bulk
+ * import calls it, because the HTTP route cannot pass the import's arguments.
  *
  * The line a cook pasted or imported is verbatim copied text. The recipe's owner sees it ("You wrote: …"); no other
  * cook, list, search, collection or version snapshot does.
@@ -143,8 +144,9 @@ const createSnapshot = vi.fn(
     },
 );
 /**
- * Plays the database for a clone: the row the DAL writes is the row it hands back, so the clone's detail is mapped
- * from exactly the lines the service decided to write, flag included.
+ * Plays the database for a create: a clone, whose detail is mapped from exactly the lines the service decided to write,
+ * flag included (the row the DAL writes is the row it hands back), and the import's create, which reads only what it was
+ * asked to write. The returned row is clone-shaped either way.
  */
 let cloned: RecipeAggregate | undefined;
 const create = vi.fn(

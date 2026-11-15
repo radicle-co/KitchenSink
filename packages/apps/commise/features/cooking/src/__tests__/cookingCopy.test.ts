@@ -1,4 +1,5 @@
 import { fillTemplate, pluralOf, resolveMessages } from '@commise/i18n';
+import { stepPlace } from '@kitchensink/cooking-core';
 import { describe, expect, it } from 'vitest';
 
 import { navOf } from '../cookingCopy.js';
@@ -24,8 +25,10 @@ describe('the cooking copy through the house helpers', () => {
 describe('navOf — the Back and Next pair', () => {
     const nav = (stepIndex: number, totalSteps: number, everyLineTicked: boolean) =>
         navOf({
-            stepIndex,
-            steps: Array.from({ length: totalSteps }, (_, i) => ({ stepNumber: i + 1, lines: ['A line.'] })),
+            place: stepPlace(
+                stepIndex,
+                Array.from({ length: totalSteps }, (_, i) => ({ stepNumber: i + 1, lines: ['A line.'] })),
+            ),
             everyLineTicked,
             copy: en.nav,
         });

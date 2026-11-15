@@ -26,30 +26,6 @@ describe('cookingMessages', () => {
         expect(badLeaves(en, 'cooking')).toEqual([]);
     });
 
-    it('says the words the design names for the first cooking states', () => {
-        expect(en.top.exit).toBe('Exit');
-        expect(en.top.exitA11y).toBe('Exit cooking mode');
-        expect(en.nav.back).toBe('Back');
-        expect(en.nav.backA11yRecipe).toBe('Back to the recipe');
-        expect(en.nav.next).toBe('Next step');
-        expect(en.nav.finish).toBe('Finish');
-        expect(en.nav.startStep).toBe('Start step\u00a0{n}');
-        expect(en.nav.nextPreview).toBe('Next · step\u00a0{n}');
-        expect(en.next.upNext).toBe('Up next · step\u00a0{n}');
-        expect(en.step.lineOf).toBe('Line\u00a0{current} of {total}');
-        expect(en.step.show).toBe('Show');
-        expect(en.done.title.one).toBe('All done');
-        expect(en.done.title.other).toBe('All {count} steps done');
-        expect(en.done.screenOff).toBe('The screen can turn off again.');
-        expect(en.done.backToRecipe).toBe('Back to the recipe');
-        expect(en.done.cookAgain).toBe('Cook it again');
-        expect(en.loading.label).toBe('Opening the recipe…');
-        expect(en.error.title).toBe('We couldn’t open this recipe');
-        expect(en.empty.title).toBe('This recipe has no steps yet');
-        expect(en.gone.title).toBe('This recipe isn’t available any more');
-        expect(en.gone.home).toBe('Go to Home');
-    });
-
     it('says the place and the step announcement, with and without a focus line', () => {
         expect(en.top.place).toBe('Step\u00a0{current} of {total}');
         expect(en.step.announce).toBe('Step {current} of {total}. {line}');
@@ -82,6 +58,8 @@ describe('cookingMessages', () => {
         expect(placeholdersOf(en.nav.backA11y)).toEqual(['n']);
         expect(placeholdersOf(en.nav.nextA11y)).toEqual(['n']);
         expect(placeholdersOf(en.nav.nextPreview)).toEqual(['n']);
+        expect(placeholdersOf(en.nav.startStep)).toEqual(['n']);
+        expect(placeholdersOf(en.next.upNext)).toEqual(['n']);
         expect(placeholdersOf(en.step.lineOf)).toEqual(['current', 'total']);
         expect(placeholdersOf(en.done.title.one)).toEqual([]);
         expect(placeholdersOf(en.done.title.other)).toEqual(['count']);

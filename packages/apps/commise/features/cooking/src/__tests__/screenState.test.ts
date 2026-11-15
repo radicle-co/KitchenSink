@@ -1,59 +1,59 @@
 import { describe, expect, it } from 'vitest';
 
-import { cookingScreenStateOf, type CookingScreenInput } from '../screenState.js';
+import { cookingReadStateOf, cookingSessionStateOf, type CookingReadInput } from '../screenState.js';
 
-const ready: CookingScreenInput = {
-    read: 'ready',
-    offline: false,
-    stepCount: 6,
-    sessionStatus: 'cooking',
-    everyLineTicked: false,
-};
+const read: CookingReadInput = { read: 'ready', offline: false, stepCount: 6 };
 
 /**
- * The screen the cook sees is ONE of seven states, decided in one place from the read, the step count, the session and
- * the ticks (plans/0002-s1-step-by-step.md, build "Approach"). The cases are the precedence between them.
+ * The screen the cook sees before a session exists is ONE of five states, decided from the read and the step count. The
+ * cases are the precedence between them: the read first, then an empty recipe.
  */
-describe('cookingScreenStateOf', () => {
-    it('is loading while the read is in flight, whatever the session says', () => {
-        expect(cookingScreenStateOf({ ...ready, read: 'pending', sessionStatus: 'complete' })).toEqual({
-            kind: 'loading',
-        });
+describe('cookingReadStateOf', () => {
+    it('is loading while the read is in flight, whatever the step count says', () => {
+        expect(cookingReadStateOf({ ...read, read: 'pending' })).toEqual({ kind: 'loading' });
+        expect(cookingReadStateOf({ ...read, read: 'pending', stepCount: 0 })).toEqual({ kind: 'loading' });
     });
 
     it('is the load error once the read failed, and says whether the cook is offline', () => {
-        expect(cookingScreenStateOf({ ...ready, read: 'failed' })).toEqual({ kind: 'error', offline: false });
-        expect(cookingScreenStateOf({ ...ready, read: 'failed', offline: true })).toEqual({
+        expect(cookingReadStateOf({ ...read, read: 'failed' })).toEqual({ kind: 'error', offline: false });
+        expect(cookingReadStateOf({ ...read, read: 'failed', offline: true })).toEqual({
             kind: 'error',
             offline: true,
         });
+        expect(cookingReadStateOf({ ...read, read: 'failed', stepCount: 0 })).toEqual({
+            kind: 'error',
+            offline: false,
+        });
     });
 
-    it('is gone when the recipe can no longer be read, even offline', () => {
-        expect(cookingScreenStateOf({ ...ready, read: 'gone', offline: true })).toEqual({ kind: 'gone' });
+    it('is gone when the recipe can no longer be read, even offline or with no steps', () => {
+        expect(cookingReadStateOf({ ...read, read: 'gone', offline: true })).toEqual({ kind: 'gone' });
+        expect(cookingReadStateOf({ ...read, read: 'gone', stepCount: 0 })).toEqual({ kind: 'gone' });
     });
 
     it('is no steps for a readable recipe with none', () => {
-        expect(cookingScreenStateOf({ ...ready, stepCount: 0 })).toEqual({ kind: 'noSteps' });
+        expect(cookingReadStateOf({ ...read, stepCount: 0 })).toEqual({ kind: 'noSteps' });
     });
 
+    it('is ready for a readable recipe with steps, where the session takes over', () => {
+        expect(cookingReadStateOf(read)).toEqual({ kind: 'ready' });
+    });
+});
+
+/** Once a session exists, the screen is the step, the step with every line ticked, or Done. */
+describe('cookingSessionStateOf', () => {
+    const session = { sessionStatus: 'cooking', everyLineTicked: false } as const;
+
     it('is the step while cooking with lines still to tick', () => {
-        expect(cookingScreenStateOf(ready)).toEqual({ kind: 'step' });
+        expect(cookingSessionStateOf(session)).toEqual({ kind: 'step' });
     });
 
     it('is next coming once every line of the step is ticked', () => {
-        expect(cookingScreenStateOf({ ...ready, everyLineTicked: true })).toEqual({ kind: 'nextComing' });
+        expect(cookingSessionStateOf({ ...session, everyLineTicked: true })).toEqual({ kind: 'nextComing' });
     });
 
     it('is done once the session is complete, ahead of next coming', () => {
-        expect(cookingScreenStateOf({ ...ready, sessionStatus: 'complete', everyLineTicked: true })).toEqual({
-            kind: 'done',
-        });
-    });
-
-    it('puts no steps ahead of done, because nothing can have been cooked', () => {
-        expect(cookingScreenStateOf({ ...ready, stepCount: 0, sessionStatus: 'complete' })).toEqual({
-            kind: 'noSteps',
-        });
+        expect(cookingSessionStateOf({ sessionStatus: 'complete', everyLineTicked: true })).toEqual({ kind: 'done' });
+        expect(cookingSessionStateOf({ sessionStatus: 'complete', everyLineTicked: false })).toEqual({ kind: 'done' });
     });
 });

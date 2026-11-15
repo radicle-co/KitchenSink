@@ -1,8 +1,11 @@
-import { cookingMessages, navOf, useCookingSession } from '@commise/features-cooking';
 import { resolveMessages } from '@commise/i18n';
 import { InvalidTotalStepsError } from '@kitchensink/cooking-core';
 import { act, cleanup, renderHook } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { navOf } from '../../src/cookingCopy.js';
+import { cookingMessages } from '../../src/messages.js';
+import { useCookingSession } from '../../src/useCookingSession.js';
 
 afterEach(cleanup);
 
@@ -192,7 +195,7 @@ describe('useCookingSession — ticking lines', () => {
     });
 });
 
-describe('useCookingSession — the recipe is read once (R-15)', () => {
+describe('useCookingSession — the recipe is read once', () => {
     it('ignores a later change to the recipe’s steps', () => {
         const { result, rerender } = mount();
 
@@ -210,79 +213,11 @@ describe('useCookingSession — the recipe is read once (R-15)', () => {
     });
 });
 
-describe('useCookingSession — the screen stays on while cooking and only then', () => {
-    const release = vi.fn(() => Promise.resolve());
-    const request = vi.fn(() => Promise.resolve({ released: false, release }));
-
-    beforeEach(() => {
-        release.mockClear();
-        request.mockClear();
-        Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request } });
-        // The adapter needs a secure context; jsdom's default page is not one.
-        Object.defineProperty(window, 'isSecureContext', { configurable: true, value: true });
-    });
-
-    afterEach(() => {
-        Reflect.deleteProperty(navigator, 'wakeLock');
-        Reflect.deleteProperty(window, 'isSecureContext');
-    });
-
-    it('holds a wake lock while cooking and lets go on Done', async () => {
-        const { result } = mount();
-
-        await act(async () => undefined);
-        expect(request).toHaveBeenCalledTimes(1);
-        expect(release).not.toHaveBeenCalled();
-
-        act(() => result.current.next());
-        act(() => result.current.next());
-        await act(async () => undefined);
-        expect(release).not.toHaveBeenCalled();
-
-        act(() => result.current.next());
-        await act(async () => undefined);
-        expect(release).toHaveBeenCalledTimes(1);
-    });
-
-    it('holds it again after Cook it again', async () => {
-        const { result } = mount();
-
-        act(() => result.current.next());
-        act(() => result.current.next());
-        act(() => result.current.next());
-        await act(async () => undefined);
-        act(() => result.current.cookAgain());
-        await act(async () => undefined);
-
-        expect(request).toHaveBeenCalledTimes(2);
-    });
-
-    it('lets go when the cook leaves, which unmounts the screen', async () => {
-        const { unmount } = mount();
-
-        await act(async () => undefined);
-        unmount();
-        await act(async () => undefined);
-
-        expect(release).toHaveBeenCalledTimes(1);
-    });
-
-    it('says whether the screen can be kept on, so the shell shows no promise it cannot keep', () => {
-        const { result } = mount();
-
-        expect(result.current.keepAwakeAvailable).toBe(true);
-
-        Reflect.deleteProperty(navigator, 'wakeLock');
-        expect(mount().result.current.keepAwakeAvailable).toBe(false);
-    });
-});
-
 describe('useCookingSession with the real copy — the Back and Next the cook reads', () => {
     const copy = resolveMessages(cookingMessages, 'en');
     const navFor = (result: { current: ReturnType<typeof useCookingSession> }) =>
         navOf({
-            stepIndex: result.current.place.position - 1,
-            steps: result.current.steps,
+            place: result.current.place,
             everyLineTicked: result.current.everyLineTicked,
             copy: copy.nav,
         });

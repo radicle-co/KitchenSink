@@ -1,5 +1,5 @@
 /**
- * @module @commise/features-cooking/messages — the copy cooking mode says on both platforms, for the states the first cooking screen draws.
+ * @module messages — the copy cooking mode says on both platforms, for the states the first cooking screen draws.
  * Copy the two apps say identically lives here, in the feature package, and each shell reads it
  * through `useMessages(cookingMessages)`. A count is a `{ one, other }` pair with `{count}`, chosen by the shell's
  * view-model with `Intl.PluralRules`. The `en` set is required; adding a locale is another key.
@@ -7,7 +7,7 @@
 import type { LocalizedMessages, PluralText } from '@commise/i18n';
 
 /** The top bar: Exit. */
-export interface CookingTopMessages {
+interface CookingTopMessages {
     /** Visible label of Exit. It stays, even under 360 wide. */
     readonly exit: string;
     /** The one accessible name of Exit, which shows the × and the label together. */
@@ -37,7 +37,7 @@ export interface CookingNavMessages {
 }
 
 /** A step and its lines. */
-export interface CookingStepMessages {
+interface CookingStepMessages {
     /** "Line 1 of 3", shown only when a step has more than one line (contains `{current}` and `{total}`). */
     readonly lineOf: string;
     /** The collapsed record of ticked lines (each contains `{count}` or says one). */
@@ -51,13 +51,13 @@ export interface CookingStepMessages {
 }
 
 /** Next coming: every line of the step is ticked. */
-export interface CookingNextMessages {
+interface CookingNextMessages {
     /** The overline above the filled action (contains `{n}`). */
     readonly upNext: string;
 }
 
 /** Done. */
-export interface CookingDoneMessages {
+interface CookingDoneMessages {
     /** The heading: one form for a one-step recipe, and the other with `{count}` steps. */
     readonly title: PluralText;
     /** The line under it (contains `{recipe}`). */
@@ -71,7 +71,7 @@ export interface CookingDoneMessages {
 }
 
 /** Loading. */
-export interface CookingLoadingMessages {
+interface CookingLoadingMessages {
     /** The place while the recipe loads. */
     readonly place: string;
     /** Shown from the `label` phase of `loadingPhase`. */
@@ -79,7 +79,7 @@ export interface CookingLoadingMessages {
 }
 
 /** The load error. */
-export interface CookingErrorMessages {
+interface CookingErrorMessages {
     readonly title: string;
     /** The body when the device is online. */
     readonly body: string;
@@ -90,7 +90,7 @@ export interface CookingErrorMessages {
 }
 
 /** A recipe with no steps. */
-export interface CookingEmptyMessages {
+interface CookingEmptyMessages {
     readonly title: string;
     /** The owner's body. */
     readonly body: string;
@@ -102,7 +102,7 @@ export interface CookingEmptyMessages {
 }
 
 /** A recipe that cannot be read any more. It never says why. */
-export interface CookingGoneMessages {
+interface CookingGoneMessages {
     readonly title: string;
     readonly home: string;
 }

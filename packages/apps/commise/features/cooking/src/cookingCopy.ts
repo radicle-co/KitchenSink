@@ -1,6 +1,5 @@
 import { fillTemplate } from '@commise/i18n';
-import { stepPlace } from '@kitchensink/cooking-core';
-import type { CookingStep } from '@kitchensink/cooking-core';
+import type { StepPlace } from '@kitchensink/cooking-core';
 
 import type { CookingNavMessages } from './messages.js';
 
@@ -26,10 +25,8 @@ export interface CookingNav {
 
 /** What the pair is decided from. */
 export interface NavInput {
-    /** The 0-based index of the current step. */
-    readonly stepIndex: number;
-    /** The steps the cook walks. */
-    readonly steps: readonly CookingStep[];
+    /** Where the cook is, with the neighbours Back and Next lead to: the session hook's `place`. */
+    readonly place: StepPlace;
     /** Whether every line of the current step is ticked. */
     readonly everyLineTicked: boolean;
     /** The navigation copy. */
@@ -41,12 +38,10 @@ export interface NavInput {
  * the step it goes to. Forward is a quiet Next step while lines are unticked, a filled Start step n once every line is
  * ticked, and Finish on the last step (quiet until every line is ticked, then filled).
  *
- * @param input - The step, the steps, the tick state and the copy.
+ * @param input - The place, the tick state and the copy.
  * @returns The two controls. Pure.
- * @throws {InvalidStepIndexError} When `stepIndex` is not a step.
  */
-export function navOf({ stepIndex, steps, everyLineTicked, copy }: NavInput): CookingNav {
-    const place = stepPlace(stepIndex, steps);
+export function navOf({ place, everyLineTicked, copy }: NavInput): CookingNav {
     const back: CookingNavControl = {
         label: copy.back,
         a11yName: place.previous === null ? copy.backA11yRecipe : fillTemplate(copy.backA11y, { n: place.previous }),

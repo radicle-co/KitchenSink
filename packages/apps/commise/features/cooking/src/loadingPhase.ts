@@ -36,20 +36,25 @@ export function loadingPhase(elapsedMs: number): LoadingPhase {
  * @sideEffect Sets three timers while `active`, and clears them when it stops or the screen goes away.
  */
 export function useLoadingPhase(active: boolean): LoadingPhase {
-    const [elapsedMs, setElapsedMs] = useState(0);
+    const [clock, setClock] = useState({ active, elapsedMs: 0 });
+
+    // A read that begins again starts from zero on the render it begins, not after its first timer fires. The clock
+    // remembers which read it counted.
+    if (clock.active !== active) {
+        setClock({ active, elapsedMs: 0 });
+    }
 
     useEffect(() => {
         if (!active) {
             return undefined;
         }
 
-        const timers = Object.values(LOADING_PHASE_EDGES).map((edge) => setTimeout(() => setElapsedMs(edge), edge));
+        const timers = Object.values(LOADING_PHASE_EDGES).map((edge) =>
+            setTimeout(() => setClock({ active: true, elapsedMs: edge }), edge),
+        );
 
-        return () => {
-            timers.forEach(clearTimeout);
-            setElapsedMs(0);
-        };
+        return () => timers.forEach(clearTimeout);
     }, [active]);
 
-    return active ? loadingPhase(elapsedMs) : 'blank';
+    return active && clock.active ? loadingPhase(clock.elapsedMs) : 'blank';
 }

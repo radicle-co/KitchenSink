@@ -83,10 +83,11 @@ describe('CookingLineRow', () => {
     ] as const)('draws the box and slot of the %s line by the role of its text', (emphasis, box, slot) => {
         render(<CookingLineRow line={lineOf()} emphasis={emphasis} />);
 
-        const glyphSlot = screen.getByRole('checkbox').firstElementChild as HTMLElement;
-        const drawn = glyphSlot.querySelector('[aria-hidden="true"]') as HTMLElement;
+        const glyphSlot = screen.getByRole('checkbox').firstElementChild;
+        const drawn = glyphSlot?.querySelector<HTMLElement>('[aria-hidden="true"]');
 
-        expect(glyphSlot.style.height).toBe(slot);
-        expect(drawn.style.width).toBe(box);
+        expect(glyphSlot).toBeInstanceOf(HTMLElement);
+        expect(glyphSlot instanceof HTMLElement ? glyphSlot.style.height : undefined).toBe(slot);
+        expect(drawn?.style.width).toBe(box);
     });
 });

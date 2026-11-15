@@ -18,9 +18,8 @@ appId: ${APP_ID}
 
 # audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
 - assertVisible: 'My recipes'
-# At the largest text the lamb tile is taller than the screen. Its centre is under the pinned "New recipe" button, and with
-# the whole list shown the search field covered the tap instead (Mac runs, accessibility-extra-extra-extra-large). So narrow
-# the list to the lamb, close the keyboard, and tap near the tile's top, as `common/pickFromOpenList.yaml` does.
+# At the largest text the lamb tile is taller than the screen and its centre is under the pinned "New recipe" button, so
+# filter to the lamb and tap near the tile's top (`point` 50%,5%). Tapping the unfiltered list's tile hit the search field.
 - tapOn: 'Search your recipes'
 - inputText: 'Lamb'
 - assertVisible: '${E2E_RECIPE_LAMB}'
@@ -29,8 +28,7 @@ appId: ${APP_ID}
       text: '${E2E_RECIPE_LAMB}'
       index: 0
       point: '50%,5%'
-# The detail's Back disc is named for where it goes, so only the opened page has it. A tap that landed elsewhere (the
-# search field, with the keyboard up) fails here, at the step that missed.
+# Only the opened detail has this Back disc, so a tap that missed fails here, at the step that missed.
 - assertVisible: 'Back to My recipes'
 # DOWN: recipe detail opens at its top, and at the largest text the action row sits below the fold.
 - runFlow:

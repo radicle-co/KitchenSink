@@ -5,7 +5,7 @@ import { LOADING_PHASE_EDGES, loadingPhase, useLoadingPhase } from '../loadingPh
 
 afterEach(cleanup);
 
-/** Spec S28: nothing for the first 300 ms, the skeleton, "Opening the recipe…" after 1 s, Try again after 10 s. */
+/** The loading screen: nothing for the first 300 ms, the skeleton, "Opening the recipe…" after 1 s, Try again after 10 s. */
 describe('loadingPhase', () => {
     it.each([
         [0, 'blank'],

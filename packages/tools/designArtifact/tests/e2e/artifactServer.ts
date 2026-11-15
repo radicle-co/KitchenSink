@@ -81,10 +81,7 @@ export function hostWrap(html: string, theme: string, preload: string | undefine
     return themed.replace(/<head>/iu, () => `<head>${preload}`);
 }
 
-async function respond(
-    config: ArtifactServerConfig,
-    url: URL,
-): Promise<StaticResponse> {
+async function respond(config: ArtifactServerConfig, url: URL): Promise<StaticResponse> {
     const notFound = { status: 404, type: TYPES['.txt'] ?? '', body: 'not found' };
     const path = decodeURIComponent(url.pathname);
     const theme = url.searchParams.get('theme') === 'dark' ? 'dark' : 'light';

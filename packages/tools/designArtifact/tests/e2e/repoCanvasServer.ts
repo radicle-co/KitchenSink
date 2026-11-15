@@ -23,10 +23,7 @@ export interface RepoCanvasServerConfig {
 
 const CANVAS_PATH = /^\/canvases\/([A-Za-z0-9]+)\/(.+)$/u;
 
-async function respond(
-    config: RepoCanvasServerConfig,
-    url: URL,
-): Promise<StaticResponse> {
+async function respond(config: RepoCanvasServerConfig, url: URL): Promise<StaticResponse> {
     const notFound = { status: 404, type: TYPES['.txt'] ?? '', body: 'not found' };
     const match = CANVAS_PATH.exec(decodeURIComponent(url.pathname));
 

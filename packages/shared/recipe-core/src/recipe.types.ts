@@ -641,6 +641,15 @@ export interface RecipeIngredientView {
      * no request carries it, because it is written only by the save path and carried forward by the food alone.
      */
     boundBy?: BoundBy;
+    /**
+     * The line exactly as the cook pasted or imported it — the text the verification gate judged — so the editor can
+     * show "You wrote: …" beside a `NEEDS_REVIEW` line. ⛔ OWNER-ONLY, decided on the server by recipe-service's
+     * `transcriptionDisclosure.ts`, never hidden by a client: it is verbatim copied text, and ADR-0082 §2 forbids any
+     * line word for word on a public form. Absent for every other viewer, on a line with no transcription, and on a
+     * line its owner did not transcribe. Never on a snapshot, a list item, or 003A's `PublicRecipeView`.
+     * Response-only: the request field of the same name is create-only (ADR-0023's shape).
+     */
+    sourceLine?: string;
 }
 
 /**
@@ -673,6 +682,8 @@ export const recipeIngredientViewSchema = z.object({
     resolutionStatus: lineResolutionStatusSchema.optional(),
     // ADR-0072 §5 — who bound the line. Response-only and optional, so an older client strips it rather than rejecting the recipe.
     boundBy: boundBySchema.optional(),
+    // Owner-only and response-only; see the interface doc. `.min(1)` so absent stays the one spelling of "none".
+    sourceLine: z.string().min(1).optional(),
 });
 
 /**
@@ -704,8 +715,10 @@ export interface RecipeNutrition {
      * 0027 persists the pair the source printed on `recipe_ingredients`, and it rides the CREATE request,
      * because U11's verification gate reads it (a gate shown `0.5 cup` beside a source reading `one gill of
      * milk` disagrees with a line we parsed correctly). See `RangeDerivedBound` in `nutrition.ts` — and do not
-     * add a historical-unit provenance field here to "match" it. `RecipeIngredient` carries no `sourceLine` either; both are write-side provenance, and the
-     * disclosure a cook gets is the sentence in the recipe's description.
+     * add a historical-unit provenance field here to "match" it. `RecipeIngredient` (the snapshot line) carries no `sourceLine` either, and the stated
+     * measure stays write-side provenance the gate reads. The source line alone is returned, to its owner only, as
+     * `RecipeIngredientView.sourceLine`, decided once by recipe-service's `transcriptionDisclosure.ts`; that is no
+     * reason to put the stated measure on the wire.
      *
      * ⚠️ Load-bearing honesty, not decoration. A total computed from `2 cups` when the line read
      * `2 to 3 cups` is up to a third under and is otherwise indistinguishable from an exact one. Absent

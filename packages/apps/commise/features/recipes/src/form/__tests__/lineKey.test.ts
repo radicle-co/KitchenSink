@@ -15,6 +15,7 @@ import { pendingIngredientIds } from '../ingredientStatus.js';
 import {
     isIngredientLineKey,
     isStoredLine,
+    lineKeyAt,
     mintedLineKey,
     persistedLineKeysOf,
     seedLineKey,
@@ -174,5 +175,36 @@ describe('persistedLineKeysOf + storedPositionOf', () => {
 
         expect(new Set(merged.map((entry) => entry.key)).size).toBe(3);
         expect(storedPositionOf(persistedLineKeysOf(merged), seedLineKey(8, 0))).toBe(2);
+    });
+});
+
+/**
+ * `lineKeyAt` is the inverse of `storedPositionOf` for an ADDRESS that came from outside memory (a link). It answers a
+ * key only for the version the draft's keys were read at, so an old link can never open a different line.
+ */
+describe('lineKeyAt — a line address back to a key', () => {
+    const keys = [seedLineKey(5, 0), seedLineKey(5, 1), seedLineKey(5, 3)];
+
+    it('answers the key at that stored position for the base version', () => {
+        expect(lineKeyAt(keys, 5, { version: 5, position: 2 })).toBe(keys[2]);
+        expect(lineKeyAt(keys, 5, { version: 5, position: 0 })).toBe(keys[0]);
+    });
+
+    it('is the inverse of storedPositionOf', () => {
+        keys.forEach((key) => {
+            const position = storedPositionOf(keys, key) ?? -1;
+
+            expect(lineKeyAt(keys, 5, { version: 5, position })).toBe(key);
+        });
+    });
+
+    it('answers undefined for another version, even when the position exists', () => {
+        expect(lineKeyAt(keys, 5, { version: 4, position: 0 })).toBeUndefined();
+        expect(lineKeyAt(keys, 5, { version: 6, position: 0 })).toBeUndefined();
+    });
+
+    it('answers undefined past the end and for an empty list', () => {
+        expect(lineKeyAt(keys, 5, { version: 5, position: 3 })).toBeUndefined();
+        expect(lineKeyAt([], 5, { version: 5, position: 0 })).toBeUndefined();
     });
 });

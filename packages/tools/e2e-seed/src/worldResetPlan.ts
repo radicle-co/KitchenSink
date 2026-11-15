@@ -46,8 +46,12 @@ export interface WorldResetPlan {
  *
  * `library` is `seeded` plus the signer's filler recipes (`manifest.libraryFillers`), for `recipes/headerScrollsAway`
  * alone: the one flow that needs a list longer than a screen. Every other mode treats the fillers as residue.
+ *
+ * `needsReview` is `seeded` plus the signer's NEEDS_REVIEW probe (`ensureNeedsReviewProbe`), for `recipes/needsReviewJump`
+ * alone, and LOCAL only: it stores a verdict row straight into the recipe database, which `requireLocalSeedTarget` refuses
+ * for anything but the local stack. The PLAN is `seeded`'s, for the reason `ambiguity`'s is.
  */
-export type ResetMode = 'seeded' | 'empty' | 'ambiguity' | 'library';
+export type ResetMode = 'seeded' | 'empty' | 'ambiguity' | 'library' | 'needsReview';
 
 /**
  * Reconcile. Pure.

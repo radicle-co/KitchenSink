@@ -28,7 +28,7 @@
  * @pattern Adapter over the platform live-region channels — Android live region, iOS imperative announcement,
  *     never both
  */
-import { useEffect, useState, type FC } from 'react';
+import { useDeferredValue, useEffect, useState, type FC } from 'react';
 import { AccessibilityInfo, Platform, Text } from 'react-native';
 
 import { visuallyHidden as visuallyHiddenStyle } from '../accessibility/visuallyHidden.native.js';
@@ -99,8 +99,8 @@ const Region: FC<Omit<LiveRegionProps, 'occurrence'>> = ({
     );
 };
 
-/** Visible text whose appearance and changes are announced to the screen reader. */
-export const LiveRegion: FC<LiveRegionProps> = ({ occurrence, ...region }) => {
+/** The region over the message it is given now. */
+const Messaged: FC<LiveRegionProps> = ({ occurrence, ...region }) => {
     const slot = useOccurrenceSlot(occurrence);
 
     if (occurrence === undefined) {
@@ -114,3 +114,18 @@ export const LiveRegion: FC<LiveRegionProps> = ({ occurrence, ...region }) => {
         </>
     );
 };
+
+/**
+ * A region that mounts WITH a message it must say (`announceOnMount`). React 19: the first render answers '' and the real
+ * message follows in the next commit, so the message arrives as a change. Its own component, so only the regions that ask
+ * for it hold a deferred value: every other region renders its message in the render it is given.
+ */
+const AnnouncedOnMount: FC<LiveRegionProps> = (props) => {
+    const message = useDeferredValue(props.children, '');
+
+    return <Messaged {...props}>{message}</Messaged>;
+};
+
+/** Visible text whose appearance and changes are announced to the screen reader. */
+export const LiveRegion: FC<LiveRegionProps> = (props) =>
+    props.announceOnMount === true ? <AnnouncedOnMount {...props} /> : <Messaged {...props} />;

@@ -83,6 +83,12 @@ export interface CheckpointInput {
      * sent would keep its source in the draft and lose it in the next update, which strips it (`form/wire.ts`).
      */
     readonly pastePending: boolean;
+    /**
+     * Whether a row editor is open with a restore point (its Cancel puts the line back). It holds a never-published
+     * draft's checkpoints: a half-edited line sent now makes the server drop that line's source and flag, which Cancel
+     * cannot bring back. Absent means not held. A leave, Save changes and Publish still save.
+     */
+    readonly rowEditHeld?: boolean;
 }
 
 /** The triggers at which a recipe that is not yet published reaches the server. */
@@ -103,6 +109,9 @@ const DRAFT_CHECKPOINTS: ReadonlySet<CheckpointTrigger> = new Set([
  * source, as D10 accepts (`pastedLineKeepsSource`).
  */
 const PASTE_HOLD_RELEASES: ReadonlySet<CheckpointTrigger> = new Set(['editorExit', 'appHidden']);
+
+/** The triggers a row editor does NOT hold: the cook is leaving or asking to save, and the draft must reach the server. */
+const ROW_EDIT_HOLD_RELEASES: ReadonlySet<CheckpointTrigger> = new Set(['editorExit', 'saveChanges', 'publish']);
 
 const NONE: ServerWrite = { kind: 'none' };
 
@@ -132,6 +141,10 @@ export function serverWriteFor(input: CheckpointInput): ServerWrite {
         case 'neverPublished':
             if (trigger === 'publish') {
                 return { kind: 'update', publish: true };
+            }
+
+            if (input.rowEditHeld === true && !ROW_EDIT_HOLD_RELEASES.has(trigger)) {
+                return NONE;
             }
 
             return DRAFT_CHECKPOINTS.has(trigger) && changedSinceServerWrite

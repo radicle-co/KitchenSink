@@ -57,6 +57,11 @@ export interface PinnedFooter<Control> {
     readonly unpinned: boolean;
     /** The footer's last measured height, in px; 0 until measured. */
     readonly footerHeight: number;
+    /**
+     * The pinned top row's last measured height, in px; 0 until measured. A footer laid out in the row's own flow is not
+     * part of it. It follows the row (a header that wraps), so a caller that places chrome under the row reads it here.
+     */
+    readonly topHeight: number;
     /** For the frame; unused with a viewport frame. */
     readonly frameRef: NodeRef;
     /** For the pinned top row (the one that holds the exit). */
@@ -193,6 +198,7 @@ export function usePinnedFooter<Control = never>(options: PinnedFooterOptions<Co
     return {
         unpinned: isFooterUnpinned(state.measure),
         footerHeight: state.measure.footer,
+        topHeight: state.measure.pinnedTop,
         ...refs,
         top: nodes.pinnedTop,
         footer: nodes.footer,

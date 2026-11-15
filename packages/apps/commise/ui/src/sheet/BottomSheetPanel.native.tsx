@@ -58,6 +58,8 @@ export interface BottomSheetPanelProps extends Pick<
     readonly children: ReactNode;
     /** Advances each time the Modal shows; the title takes screen-reader focus on each advance. */
     readonly focusSignal: number;
+    /** Where the cursor lands on open (`SheetProps.screenReaderLanding`); read once, when the panel mounts for an opening. */
+    readonly screenReaderLanding?: SheetProps['screenReaderLanding'];
     /** The platform's reduce-motion answer, for the swipe's snap-back. */
     readonly reduceMotion: boolean | undefined;
     /** Where the scroll region starts, in dp: the position the cook left it at when the sheet was set aside. 0: the top. */
@@ -79,6 +81,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     footer,
     children,
     focusSignal,
+    screenReaderLanding = 'title',
     reduceMotion,
     restoreScrollY,
     onScrollSettled,
@@ -91,7 +94,10 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     const { width } = useWindowDimensions();
     const keyboardShown = useKeyboardShown();
     const collapsed = toolbar !== undefined && isToolbarCollapsed(keyboardShown, true);
-    const titleRef = useScreenReaderFocusOnSignal<TamaguiTextElement>(focusSignal);
+    // The panel mounts once per opening, so the landing is the one the opening asked for: a later change must not move the
+    // cursor. `content` gives the hook a signal that never advances, so the title takes nothing.
+    const [landing] = useState(screenReaderLanding);
+    const titleRef = useScreenReaderFocusOnSignal<TamaguiTextElement>(landing === 'title' ? focusSignal : 0);
     const { panHandlers, translateY } = useSwipeToDismiss(onSwipeDismiss, reduceMotion);
     const pinning = usePinnedFooter();
     // The one node handle: putting a scroll position back has no declarative form.

@@ -4,7 +4,14 @@ import { route } from './utils/basePath';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
-import { addStep, chooseCuisine, openIngredientEditor, openRecipeEditor, setServings } from './utils/recipeEditor';
+import {
+    SHEET_EDITOR_VIEWPORT,
+    addStep,
+    chooseCuisine,
+    openIngredientEditor,
+    openRecipeEditor,
+    setServings,
+} from './utils/recipeEditor';
 
 /**
  * Ranged and absent ingredient quantities, end to end (U9 / R40, R42; acceptance AE20 + AE21).
@@ -26,6 +33,9 @@ import { addStep, chooseCuisine, openIngredientEditor, openRecipeEditor, setServ
  * role/label only (repo policy). Serial (Clerk-authed).
  */
 test.describe('ranged + absent ingredient quantity (U9)', () => {
+    // These cases are about the data, not the frame, so they take the frame a cook in a short laptop window gets: the sheet.
+    test.use({ viewport: SHEET_EDITOR_VIEWPORT });
+
     test('states a range, renders it, and re-opens the editor with BOTH bounds', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
@@ -79,6 +89,9 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await expect(reopened.getByLabel('Amount, up to')).toHaveValue('3');
 
         await reopened.getByLabel('Amount, up to').fill('4');
+        // Done closes the row editor in either frame. At this window's height (600 px, under the inline threshold in
+        // `inlineEditorFit.ts`) it is the sheet, whose modal layer covers Save changes until it closes.
+        await reopened.getByRole('button', { name: 'Done' }).click();
         // Published now, so its one write is Save changes (slice 7, D1).
         await page.getByRole('button', { name: 'Save changes' }).click();
 

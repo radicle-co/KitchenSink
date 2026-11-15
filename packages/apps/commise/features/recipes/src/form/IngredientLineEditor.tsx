@@ -15,11 +15,14 @@ import { Button } from '@commise/ui/button';
 import { Combobox } from '@commise/ui/combobox';
 import { FieldLabel, FIELD_CLASS } from '@commise/ui/input';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { StatusBadge } from '@commise/ui/status-badge';
 import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
-import type { FC, ReactNode } from 'react';
+import { useFocusRequest } from '@commise/ui/focus-request';
+import { useRef, type FC, type ReactNode } from 'react';
 
 import { ingredientUnitNoteId } from './fieldErrorIds.js';
 import { errorText } from './formSectionStyles.js';
+import type { ControlFocus } from '../common/controlFocus.js';
 import type { RowLineEditorView } from './ingredientRowView.js';
 import type { RecipeFormMessages } from './messages.js';
 
@@ -60,17 +63,62 @@ const AmountField: FC<{
     />
 );
 
+/**
+ * The notice that heads the editor of a line under review: what is wrong, then the cook's own words. A group an arrival
+ * can focus, so a screen reader reads it first and no text field takes the keyboard (tabIndex -1: focusable, not a tab
+ * stop). `preventScroll`: the page's own jump has placed the row, and focus must not move it again.
+ *
+ * @pattern Adapter over the DOM's `focus()`, through the house focus request
+ */
+const ReviewNotice: FC<{
+    readonly notice: { readonly originalLine?: string };
+    readonly focus: ControlFocus | undefined;
+    readonly m: RecipeFormMessages;
+}> = ({ notice, focus, m }) => {
+    const node = useRef<HTMLDivElement>(null);
+
+    useFocusRequest(focus?.requested === true, () => node.current?.focus({ preventScroll: true }), focus?.onHandled);
+
+    return (
+        <div
+            ref={node}
+            role="group"
+            aria-label={m.statusNeedsReview}
+            tabIndex={-1}
+            className="flex flex-col gap-1 outline-none"
+        >
+            <div>
+                <StatusBadge status="attention">{m.statusNeedsReview}</StatusBadge>
+            </div>
+            <p className="text-caption text-ink-muted">{m.statusExplainNeedsReview}</p>
+            {notice.originalLine !== undefined && (
+                <>
+                    <span className="text-caption text-ink-muted">{m.rowYouWroteLabel}</span>
+                    <p className="min-w-0 select-text break-words text-body-md text-ink">{notice.originalLine}</p>
+                </>
+            )}
+        </div>
+    );
+};
+
 /** The row editor's fields. */
 export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, index, m, details }) => (
     <div className="flex flex-col gap-4">
+        {view.reviewNotice !== undefined && <ReviewNotice notice={view.reviewNotice} focus={view.noticeFocus} m={m} />}
         <div className="flex flex-col gap-1">
             <span className="text-caption text-ink-muted">{m.rowCountedAsLabel}</span>
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {/* One line: a long food wraps beside Change, and Change keeps its own size (designer ruling 2026-11-11). */}
+            <div className="flex min-w-0 flex-nowrap items-center gap-2">
                 <p className="min-w-0 flex-1 break-words text-body-md text-ink">{view.food}</p>
                 {view.onChangeFood !== undefined && (
-                    <Button variant="ghost" onPress={view.onChangeFood}>
-                        {m.rowChange}
-                    </Button>
+                    <div className="shrink-0">
+                        <Button
+                            variant={view.reviewNotice !== undefined ? 'secondary' : 'ghost'}
+                            onPress={view.onChangeFood}
+                        >
+                            {m.rowChange}
+                        </Button>
+                    </div>
                 )}
             </div>
         </div>

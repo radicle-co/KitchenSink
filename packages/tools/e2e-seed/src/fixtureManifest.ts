@@ -84,7 +84,8 @@ export interface FixtureIngredientLine {
     readonly unit?: string | undefined;
     /**
      * What the cook's source line said, verbatim (the wire's create-only `sourceLine`). Absent for an authored line. Only
-     * the ambiguity probe sets it: a source line is what the verification gate judges the bound food AGAINST.
+     * the ambiguity probe and the needs-review probe set it: a source line is what the verification gate judges the bound
+     * food AGAINST.
      */
     readonly sourceLine?: string | undefined;
 }
@@ -116,7 +117,15 @@ export interface FixtureRecipeDefinition {
 
 /** The recipes a run seeds, keyed the way the flows refer to them. */
 export type FixtureRecipeKey =
-    'lamb' | 'asparagus' | 'salad' | 'risotto' | 'privateFood' | 'ambiguityProbe' | 'downgradedStew' | 'libraryFiller';
+    | 'lamb'
+    | 'asparagus'
+    | 'salad'
+    | 'risotto'
+    | 'privateFood'
+    | 'ambiguityProbe'
+    | 'needsReviewProbe'
+    | 'downgradedStew'
+    | 'libraryFiller';
 
 /**
  * The world, before run-scoping.
@@ -405,6 +414,61 @@ export function deriveAmbiguityProbe(
     } as const);
 }
 
+/** The needs-review probe's title before it is scoped to a run: `<base> <runKey>`. */
+export const NEEDS_REVIEW_PROBE_BASE_TITLE = 'Needs Review Probe';
+
+/**
+ * The food the needs-review probe's line is bound to. Plain letters, because the flow puts it inside a Maestro pattern
+ * (`Needs review: <food>`). Unrelated to {@link NEEDS_REVIEW_SOURCE_LINE} on purpose: a line that disagrees with its food is
+ * what a contradicted verdict is about.
+ */
+export const NEEDS_REVIEW_FOOD_NAME = 'Smoked Paprika';
+
+/** What the cook wrote for the needs-review probe's one line; the row editor sheet shows it under "You wrote". */
+export const NEEDS_REVIEW_SOURCE_LINE = '2 cups chicken stock';
+
+/**
+ * The signer's recipe whose one line reads NEEDS_REVIEW (`recipes/needsReviewJump`). Pure, and frozen.
+ *
+ * ## How an HTTP caller makes a line NEEDS_REVIEW
+ *
+ * It cannot say so. The status is DERIVED at read time (`resolveLineStatus`) from a stored `contradicted` verdict whose
+ * identity reading is not `contradict` (a high-certainty identity contradiction is AMBIGUOUS, the pick surface). The verdict's
+ * only writer is a Bedrock worker the LOCAL stack does not run, so `reset --mode needsReview` stores the row itself
+ * (`ensureNeedsReviewProbe`), and ONLY against a local database (`requireLocalSeedTarget`). The line is bound to an authored
+ * food and carries `sourceLine`, because a line with no food or no source text can have no verdict.
+ *
+ * ⛔ NOT IN {@link SEED_WORLD}, and not in `manifest.recipes`: every other flow asserts `^4 recipes$` on the signer's library,
+ * so `planWorldReset` treats the probe as residue in every mode, BY ITS TITLE. Private, because the control is the owner's alone.
+ *
+ * @param manifest - This run's world, for the probe's run-scoped title.
+ * @returns The run-scoped probe.
+ */
+export function deriveNeedsReviewProbe(manifest: Pick<FixtureManifest, 'needsReviewProbeTitle'>): FixtureRecipe {
+    return Object.freeze({
+        key: 'needsReviewProbe',
+        owner: 'signer',
+        baseTitle: NEEDS_REVIEW_PROBE_BASE_TITLE,
+        title: manifest.needsReviewProbeTitle,
+        cuisine: 'American',
+        description: 'A recipe with one line to review.',
+        visibility: 'private',
+        servings: 2,
+        prepTimeMinutes: 5,
+        cookTimeMinutes: 5,
+        totalTimeMinutes: 10,
+        ingredients: Object.freeze([
+            Object.freeze({
+                name: NEEDS_REVIEW_FOOD_NAME,
+                quantity: 2,
+                unit: 'cup',
+                sourceLine: NEEDS_REVIEW_SOURCE_LINE,
+            }),
+        ]),
+        steps: Object.freeze([Object.freeze({ instruction: 'Stir it into the pot.', timerSeconds: undefined })]),
+    } as const);
+}
+
 /**
  * How many filler recipes the LONG-library mode adds to the signer's three. A native recipe card is a full-bleed 4:3
  * image, so about one fits a phone screen: nine rows are several screens, enough for the list's header to scroll away.
@@ -551,6 +615,11 @@ export const FIXTURE_ENV_KEYS = {
     ambiguityProbeRecipe: 'E2E_RECIPE_AMBIGUITY_PROBE',
     // The word that recipe's food and lines are named for; chosen and verified at provision, like the words below.
     ambiguityWord: 'E2E_AMBIGUITY_WORD',
+    // The signer's NEEDS_REVIEW recipe, made by `reset --mode needsReview` for `recipes/needsReviewJump` alone — LOCAL only.
+    needsReviewProbeRecipe: 'E2E_RECIPE_NEEDS_REVIEW_PROBE',
+    // The food its one line is bound to (the control reads "Needs review: <food>"), and the line the cook wrote.
+    needsReviewFood: 'E2E_NEEDS_REVIEW_FOOD',
+    needsReviewSourceLine: 'E2E_NEEDS_REVIEW_SOURCE_LINE',
     capFoodPrefix: 'E2E_CAP_FOOD_PREFIX',
     // The remote-food probe words (owner ruling 2026-10-18): chosen and verified against the live search by `provision`
     // (`ensureRemoteProbeWords`), so they come from `provisioned.probeWords`, never from the run key.
@@ -603,6 +672,8 @@ export interface FixtureManifest {
      * `provision` chooses, which the run key cannot derive, so the recipe is {@link deriveAmbiguityProbe}'s.
      */
     readonly ambiguityProbeTitle: string;
+    /** The run-scoped title of the signer's NEEDS_REVIEW recipe (`reset --mode needsReview`), kept out of `recipes` for the same reason. */
+    readonly needsReviewProbeTitle: string;
     /** The signer's long-library fillers (`reset --mode library`). Kept apart from `recipes`, which every flow counts. */
     readonly libraryFillers: readonly FixtureRecipe[];
     /** `<CAP_FOOD_BASE_NAME> <runKey>` — what the cap flow types, and the start of every name in `capFoodNames`. */
@@ -658,6 +729,7 @@ export function deriveFixtureManifest(runKey: string, platform: MaestroPlatform,
         }),
         privateFoodName: PRIVATE_FOOD_NAME,
         ambiguityProbeTitle: runScopedTitle(AMBIGUITY_PROBE_BASE_TITLE, runKey),
+        needsReviewProbeTitle: runScopedTitle(NEEDS_REVIEW_PROBE_BASE_TITLE, runKey),
         libraryFillers: deriveLibraryFillers(runKey),
         capFoodPrefix,
         capFoodNames: Object.freeze(
@@ -726,6 +798,9 @@ export function manifestToEnvLines(
         `${FIXTURE_ENV_KEYS.privateFoodName}=${manifest.privateFoodName}`,
         `${FIXTURE_ENV_KEYS.ambiguityProbeRecipe}=${manifest.ambiguityProbeTitle}`,
         `${FIXTURE_ENV_KEYS.ambiguityWord}=${probeWords.ambiguityWord}`,
+        `${FIXTURE_ENV_KEYS.needsReviewProbeRecipe}=${manifest.needsReviewProbeTitle}`,
+        `${FIXTURE_ENV_KEYS.needsReviewFood}=${NEEDS_REVIEW_FOOD_NAME}`,
+        `${FIXTURE_ENV_KEYS.needsReviewSourceLine}=${NEEDS_REVIEW_SOURCE_LINE}`,
         `${FIXTURE_ENV_KEYS.capFoodPrefix}=${manifest.capFoodPrefix}`,
         `${FIXTURE_ENV_KEYS.remoteAppendWord}=${probeWords.appendWord}`,
         `${FIXTURE_ENV_KEYS.remoteAppendFood}=${probeWords.appendFood}`,

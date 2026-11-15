@@ -12,9 +12,11 @@
  * @pattern Mediator — between the host's row-editor controllers and the row controls, through `useIngredientsFields`
  */
 import { Button } from '@commise/ui/button';
+import { DialogActions } from '@commise/ui/dialog-actions';
 import { Combobox, type ComboboxArrival } from '@commise/ui/combobox';
 import { Icon } from '@commise/ui/icon';
 import { LiveRegion } from '@commise/ui/live-region';
+import { useOptionalScrollHost } from '@commise/ui/scroll-host';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { Surface } from '@commise/ui/surface-tone';
@@ -25,10 +27,10 @@ import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { VariantDetailsDialog } from '../details/VariantDetailsDialog.native.js';
 import { editorMessages } from '../editor/messages.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
-import { useMainContainerClass } from '../layout/useMainContainerClass.js';
 import { AuthoredFoodSheet } from './AuthoredFoodSheet.native.js';
 import { FoodDetailsSheet } from './FoodDetailsSheet.native.js';
 import { ingredientsErrorId, trailingCommitFailureId } from './fieldErrorIds.js';
+import { ingredientRowId } from './fieldIds.js';
 import { GroupNameField } from './GroupNameField.native.js';
 import { IngredientGroupHeading } from './IngredientGroupHeading.native.js';
 import { IngredientLineEditor } from './IngredientLineEditor.native.js';
@@ -48,6 +50,7 @@ import { trailingEntryFieldOf } from './trailingEntryField.js';
 import type { SectionAddView } from './useIngredientGroups.js';
 import { usePasteLayout } from './usePasteLayout.js';
 import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredientsFields.js';
+import { useRowEditorPlacement } from './useRowEditorPlacement.js';
 
 /** The dp between a group's list and the add field under it: the stack lays it out, and an arrival adds it. */
 const LIST_TO_FIELD_DP = nativeTokens.spacing[1];
@@ -152,8 +155,9 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             acknowledgeRefusal();
         }
     }, [pendingFocusRequested]);
-    // §7.12: a sheet on a phone, inline on a tablet (from a 600 pt content width).
-    const inline = useMainContainerClass() !== 'narrow';
+    // §7.12: the row editor is inline when the screen and the content width both meet the limits in
+    // `inlineEditorFit.ts` (a tablet), otherwise the sheet, as on the web.
+    const { inline, wideContainer } = useRowEditorPlacement(model.openRow !== undefined);
     // The add field when no run holds it: the empty section, or a list whose rows are all being read.
     const addFieldHere =
         model.sections.length === 0 && !model.emptyGroups.some((group) => group.addHere.kind === 'field');
@@ -164,7 +168,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                 {editor.pasteList}
             </Button>
         ) : null;
-    const pasteBesideField = pasteButton !== null && addFieldHere && inline;
+    const pasteBesideField = pasteButton !== null && addFieldHere && wideContainer;
     // ⛔ NO LINE DRAWN TWICE: the draft lines the paste list owns are drawn by its matched list (`PasteMatchedBlock`).
     const { wide, sections, matching } = usePasteLayout(model.sections, paste);
     const rows = sections.flatMap((section) => section.rows);
@@ -191,6 +195,18 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
     const detailsOf = (row: IngredientRowView): ReactNode => panelOf(row)(row.lineEditor.onToggleDetails);
     const empty = model.sections.length === 0 && reading.length === 0 && matching === undefined;
 
+    // The keyboard reveal scrolled so Done and Cancel sat above the keyboard, and closing drops the keyboard without moving the
+    // scroll, so the edited row can be left off the screen. Closing asks the host to show the row ONLY WHEN IT IS HIDDEN, by
+    // the smallest scroll (`showIfHidden`; `useFieldStartReveal` answers it), and not at all when it already shows. It
+    // runs in the press handler, which is the event that closes the editor, so it needs no effect. The sheet path does not:
+    // it returns the reading cursor to the row's ⋯.
+    const scrollHost = useOptionalScrollHost();
+
+    const closeInline = (row: IngredientRowView, close: () => void) => (): void => {
+        close();
+        scrollHost?.showIfHidden(ingredientRowId(row.line.key));
+    };
+
     const rowOf = (row: IngredientRowView): ReactNode => (
         <IngredientRow
             key={row.line.key}
@@ -211,11 +227,18 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                 inline && row.editorOpen ? (
                     <Surface tone="muted" style={[styles.inlineEditor]}>
                         <IngredientLineEditor view={row.lineEditor} index={row.index} m={m} details={detailsOf(row)} />
-                        <View style={styles.end}>
-                            <Button variant="secondary" icon="check" onPress={row.lineEditor.onDone}>
+                        <DialogActions sideBySideFrom={400}>
+                            <Button
+                                variant="secondary"
+                                width="fill"
+                                onPress={closeInline(row, row.lineEditor.onCancel)}
+                            >
+                                {m.rowCancel}
+                            </Button>
+                            <Button icon="check" width="fill" onPress={closeInline(row, row.lineEditor.onDone)}>
                                 {m.rowDone}
                             </Button>
-                        </View>
+                        </DialogActions>
                     </Surface>
                 ) : null
             }
@@ -232,6 +255,10 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             {/* What a row's settled pick did, politely, with the list closed (R3). */}
             <LiveRegion politeness="polite" visuallyHidden>
                 {model.settledMessage}
+            </LiveRegion>
+            {/* A link named an ingredient the draft does not hold: said quietly and politely, until a row is opened. */}
+            <LiveRegion politeness="polite" announceOnMount>
+                {model.jumpNotice ?? ''}
             </LiveRegion>
             {model.listError !== undefined && (
                 <Text

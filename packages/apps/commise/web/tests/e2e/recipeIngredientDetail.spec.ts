@@ -6,7 +6,7 @@ import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipe
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
 import { openNutritionRow } from './utils/nutritionRow';
-import { addStep, chooseCuisine, openIngredientEditor, setServings } from './utils/recipeEditor';
+import { SHEET_EDITOR_VIEWPORT, addStep, chooseCuisine, openIngredientEditor, setServings } from './utils/recipeEditor';
 
 /**
  * A line's PREPARATION and its SECTION, end to end (plan U26 / U27).
@@ -31,6 +31,9 @@ import { addStep, chooseCuisine, openIngredientEditor, setServings } from './uti
  * (Clerk-authed).
  */
 test.describe('ingredient preparation + section (U26/U27)', () => {
+    // The cases are about the data, not the frame; the re-opened editor is the sheet a short laptop window gets.
+    test.use({ viewport: SHEET_EDITOR_VIEWPORT });
+
     test('states a preparation and a section, renders them, and re-opens the editor with both', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);

@@ -69,6 +69,9 @@ function RecipeDetailRoute({ navigation, route }: TabScreenProps<'RecipeDetail'>
             onFinishRefusalSeen={keepFinishRefusal}
             onBack={() => navigation.goBack()}
             onEdit={(recipeId) => navigation.navigate('RecipeEdit', { recipeId })}
+            onReviewLine={(recipeId, line) =>
+                navigation.navigate('RecipeEdit', { recipeId, section: 'ingredients', line })
+            }
             onViewVersions={(recipeId) => navigation.push('RecipeVersions', { recipeId })}
             onOpenFood={(foodId) => navigation.getParent()?.navigate('FoodDetail', { foodId, from: 'recipe' })}
             onDeleted={() => navigation.popToTop()}

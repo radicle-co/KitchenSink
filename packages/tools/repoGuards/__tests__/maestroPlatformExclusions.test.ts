@@ -87,6 +87,17 @@ function valuesOf(stdout: string, key: string): readonly string[] {
 }
 
 /** The committed plan's flows, in plan order. */
+/**
+ * The flows only the LOCAL stack can serve (`maestroLocalOnlyFlows.test.ts`). The DEPLOYED composition these cases run drops
+ * them before packing, so every "what should have run" below is computed without them.
+ */
+const LOCAL_ONLY: ReadonlySet<string> = new Set(
+    run({}, 'local-only')
+        .stdout.split('\n')
+        .filter(Boolean)
+        .map((row) => row.split('|')[0] ?? ''),
+);
+
 const PLANNED: readonly string[] = run({}, 'plan')
     .stdout.split('\n')
     .map((line) => line.trim())
@@ -472,7 +483,7 @@ describe('shard-selection — select, then filter for the platform, then partiti
             const count = (JSON.parse(matrix.stdout) as readonly number[]).length;
             const selected = valuesOf(run({}, 'select', ...pairs).stdout, 'flow');
             const excluded = new Set(exclusions('ios').map((entry) => entry.flow));
-            const expected = selected.filter((flow) => !excluded.has(flow));
+            const expected = selected.filter((flow) => !excluded.has(flow) && !LOCAL_ONLY.has(flow));
             const ran: string[] = [];
 
             for (let index = 1; index <= count; index += 1) {
@@ -521,7 +532,9 @@ describe('shard-selection — select, then filter for the platform, then partiti
 
     it('is the existing select → shard composition on android, flow for flow', () => {
         for (const pairs of selectors()) {
-            const selected = valuesOf(run({}, 'select', ...pairs).stdout, 'flow');
+            const selected = valuesOf(run({}, 'select', ...pairs).stdout, 'flow').filter(
+                (flow) => !LOCAL_ONLY.has(flow),
+            );
 
             for (const [index, count] of [
                 [1, 1],

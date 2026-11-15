@@ -4,9 +4,17 @@
  * and the space are native only, so this export names their `.native.js` files explicitly (the `@commise/ui/layout`
  * precedent); no web app imports it.
  */
-export { FieldRevealContext, type FieldRevealer, type RevealRequest, type RevealTarget } from './fieldRevealContext.js';
+export {
+    FieldRevealContext,
+    withRevealEnd,
+    type FieldRevealer,
+    type RevealRequest,
+    type RevealTarget,
+} from './fieldRevealContext.js';
 export { spanTarget, type SpanPlace } from './spanReveal.js';
+export { useFieldStartReveal } from './useFieldStartReveal.native.js';
 export { RevealSpacer, type RevealSpacerProps } from './RevealSpacer.native.js';
+export { useRevealEnd } from './useRevealEnd.native.js';
 export { useRevealedField, type RevealedFieldProps } from './useRevealedField.native.js';
 export { useFieldRevealHost, type FieldRevealHost } from './useFieldRevealHost.native.js';
 export { isRevealScroller, type RevealScroller } from './measureField.native.js';

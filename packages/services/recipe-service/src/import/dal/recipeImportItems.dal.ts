@@ -178,8 +178,12 @@ function choicesColumnsOf(entry: ChoicesPatch) {
     };
 }
 
-/** What a reopened item drops: it is `received` again, with no match and no parse job (`decideItemUpsert`'s `reopen`). */
-const REOPENED = { stage: 'received', matchedAt: null, parseJobId: null } as const;
+/**
+ * What a reopened item drops: it is `received` again, with no match, no parse job and NO PAID UNIT (`decideItemUpsert`'s `reopen`).
+ * Every reopen is a new parse against the shared LLM ceiling, so it pays a unit again at the next `advance`: one unit must not buy
+ * unlimited re-parses of a recipe the cook keeps replacing.
+ */
+const REOPENED = { stage: 'received', matchedAt: null, parseJobId: null, allowanceSpentAt: null } as const;
 
 /**
  * The ingredient-line count a payload holds, in SQL. The ONE statement of it: the item list counts with it. Takes the payload
@@ -307,7 +311,7 @@ export class RecipeImportItemsDal {
                         .set({
                             title: input.recipe.title,
                             payload: input.recipe,
-                            // A fixed recipe clears the refusal; an emptied one sets it (the unit a paid item spent stays spent).
+                            // A fixed recipe clears the refusal; an emptied one sets it (a `received` item that already paid keeps its unit: no job was made from the old text).
                             refusal: importRefusalOf({
                                 ingredientLineCount: input.recipe.ingredientLines.length,
                                 stepCount: input.recipe.steps.length,
@@ -317,7 +321,7 @@ export class RecipeImportItemsDal {
                             // A new recipe needs a new parse job. The job id is derived from the generation, and a paid item
                             // can hold a job created just before a crash and never attached, made from the OLD text.
                             parseGeneration: sql`${recipeImportItems.parseGeneration} + 1`,
-                            // A reopened item starts again from `received`: no match, no job, and its paid unit stays spent.
+                            // A reopened item starts again from `received`: no match, no job, and its unit is spent again by the next advance.
                             ...(decision.kind === 'reopen' ? REOPENED : {}),
                             updatedAt: sql`now()`,
                         })

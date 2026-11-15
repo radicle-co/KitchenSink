@@ -1033,7 +1033,9 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                         )
                     ).rows[0]?.n;
 
-                it('reopens it: back to received, a new parse generation, no snapshot, the unit still spent, held no more', async () => {
+                // REWRITTEN (review of #261): it pinned "the unit still spent". Every reopen is a new LLM parse against the shared ceiling, so a
+                // reopen must COST a unit: the unit is un-spent, and the next advance pays it again under the one allowance.
+                it('reopens it: back to received and UNPAID, a new parse generation, no snapshot, held no more; paying it again costs a unit', async () => {
                     const { header, before } = await heldMatched('unreadable');
 
                     expect(
@@ -1052,10 +1054,24 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                         parseGeneration: (before?.parseGeneration ?? Number.NaN) + 1,
                         decisionRev: (before?.decisionRev ?? Number.NaN) + 1,
                     });
-                    expect(after?.allowanceSpentAt).not.toBeNull();
+                    expect(after?.allowanceSpentAt).toBeNull();
                     expect(after?.heldAtRev).not.toBe(after?.decisionRev);
                     expect(await linesOf(header.id)).toBe(0);
+                    // Unpaid, so it gets no job until it pays: a reopen is not a free re-parse.
+                    expect(await items.findNeedingJob(header.id, 10)).toEqual([]);
+                    expect(
+                        await items.payUnpaid(USER, header.id, { limit: 10, isPremium: false, principalKind: 'real' }),
+                    ).toEqual({
+                        kind: 'paid',
+                        ordinals: [0],
+                    });
                     expect((await items.findNeedingJob(header.id, 10)).map((item) => item.ordinal)).toEqual([0]);
+                    const ledger = await pool.query(
+                        'SELECT sum(units)::int AS n FROM import_allowance_events WHERE user_id = $1',
+                        [USER],
+                    );
+
+                    expect(ledger.rows[0]).toEqual({ n: 1 });
                 });
 
                 it('⛔ still locks a matched item held for any other reason', async () => {

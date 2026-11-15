@@ -186,6 +186,7 @@ describe('CheckBoxGlyph (native)', () => {
             const complaints = [vi.spyOn(console, 'error'), vi.spyOn(console, 'warn')];
             let changed: (reduce: boolean) => void = () => undefined;
             vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
+            // `as never`: the double returns only `remove`; React Native's EmitterSubscription has members the leaf never reads.
             vi.spyOn(AccessibilityInfo, 'addEventListener').mockImplementation(((
                 _name: string,
                 handler: typeof changed,
@@ -194,6 +195,7 @@ describe('CheckBoxGlyph (native)', () => {
 
                 return { remove: () => undefined };
             }) as never);
+            // `as never`: `testID` is the observable marker, and is not part of the policy's motion props type.
             vi.mocked(checkMarkMotion).mockImplementation(
                 (reduce) => (reduce === false ? { testID: MARKER } : {}) as never,
             );

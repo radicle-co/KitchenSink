@@ -159,9 +159,6 @@ describe('radius scale, every app', () => {
                 ['the side over a glyph constant', 'side / GLYPH_X'],
                 ['the side plus a glyph constant', 'side + GLYPH_X'],
                 ['the side minus a glyph constant', 'side - GLYPH_X'],
-                ['the side over a glyph constant', 'side / GLYPH_X'],
-                ['the side plus a glyph constant', 'side + GLYPH_X'],
-                ['the side minus a glyph constant', 'side - GLYPH_X'],
             ])('refuses %s in a glyph module', (_shape, value) => {
                 expect(scan(glyph(`const s = { borderRadius: ${value} };`))).toEqual([`borderRadius: ${value}`]);
             });

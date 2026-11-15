@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * The cook route's client adapter (`/[locale]/recipes/[id]/cook`): it reads the recipe and the viewer, and
+ * The cook route's client orchestration (`/[locale]/recipes/[id]/cook`): it reads the recipe and the viewer, and
  * hands `CookingScreen` the read and where each way out goes.
  *
  * The read is the SAME `recipeQueries(client).detail(id)` the page prefetched, behind `ClientQueryBoundary`: a prefetch

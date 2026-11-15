@@ -1,5 +1,5 @@
 /**
- * The cooking-mode screen: reads the recipe and the viewer, and hands `CookingScreen` the read and where each way out
+ * The cooking-mode screen, an orchestration screen: it reads the recipe and the viewer, and hands `CookingScreen` the read and where each way out
  * goes. The same shape as the web cook route (`CookingRoute`), so one rule decides who is cooking on both platforms.
  *
  * The read is the SAME `recipeQueries(client).detail(id)` the recipe page reads. A 404 is "not available", any other
@@ -24,6 +24,7 @@ import type { FC } from 'react';
 
 import { useSessionClaims } from '../hooks/useSessionClaims.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
+import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Props for {@link CookingModeScreen}. */
 export interface CookingModeScreenProps extends Pick<CookingScreenProps, 'onLeave' | 'onEdit' | 'onHome'> {
@@ -38,6 +39,7 @@ export interface CookingModeScreenProps extends Pick<CookingScreenProps, 'onLeav
  * @returns The cooking screen in the read's state.
  */
 export const CookingModeScreen: FC<CookingModeScreenProps> = ({ recipeId, onLeave, onEdit, onHome }) => {
+    useScreenTrace('CookingModeScreen');
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
     const ways = { onLeave, onEdit, onHome };

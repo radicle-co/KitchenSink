@@ -11,7 +11,7 @@ import { CookingRoute } from './CookingRoute';
 export const dynamic = 'force-dynamic';
 
 /**
- * Cooking mode's route (`/[locale]/recipes/[id]/cook`). Full screen, outside AppShell:
+ * Cooking mode's route (`/[locale]/recipes/[id]/cook`), an orchestration page. Full screen, outside AppShell:
  * cooking mode is a focused task, with no tab bar or sidebar.
  *
  * A thin server page, as the recipe page is: it refuses a segment that is not a recipe id, requires a signed-in cook
@@ -19,6 +19,8 @@ export const dynamic = 'force-dynamic';
  * page does, with this request's own session token. A failed prefetch dehydrates nothing and never throws, so the browser
  * reads after hydration. Where the link goes (a draft's owner to the editor) is decided in the browser
  * when the read settles, in one place, not on the server.
+ *
+ * @pattern Adapter — the request's params and session, to the prefetched read `CookingRoute` hydrates
  */
 export default async function CookingPage({
     params,

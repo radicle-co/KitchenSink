@@ -11,7 +11,7 @@
         "implementationsWithModuleDoc": 54,
         "implementationsWithComponentDoc": 42,
         "documentedProps": 150,
-        "classifiedComponents": 40,
+        "classifiedComponents": 41,
         "componentsWithPatternTag": 27,
         "crossPlatformComponents": 0
     },
@@ -3408,7 +3408,7 @@
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/screens",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
                 "Adapter — the route's params, session and query, to `CookingScreen`'s read and callbacks"
             ],
@@ -3424,7 +3424,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/CookingModeScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "The cooking-mode screen: reads the recipe and the viewer, and hands `CookingScreen` the read and where each way out\ngoes. The same shape as the web cook route (`CookingRoute`), so one rule decides who is cooking on both platforms.\n\nThe read is the SAME `recipeQueries(client).detail(id)` the recipe page reads. A 404 is \"not available\", any other\nfailure is \"try again\", which resets the boundary and reads again. TanStack's `focusManager` is driven by `AppState`\n(`query/connectivity.ts`), so returning to the app refetches under a cook on a step; `useCookingRead` holds the first\nready read, so that refetch never moves them.",
+                    "moduleDoc": "The cooking-mode screen, an orchestration screen: it reads the recipe and the viewer, and hands `CookingScreen` the read and where each way out\ngoes. The same shape as the web cook route (`CookingRoute`), so one rule decides who is cooking on both platforms.\n\nThe read is the SAME `recipeQueries(client).detail(id)` the recipe page reads. A 404 is \"not available\", any other\nfailure is \"try again\", which resets the boundary and reads again. TanStack's `focusManager` is driven by `AppState`\n(`query/connectivity.ts`), so returning to the app refetches under a cook on a step; `useCookingRead` holds the first\nready read, so that refetch never moves them.",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -3486,7 +3486,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]

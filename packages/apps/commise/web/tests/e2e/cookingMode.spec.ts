@@ -74,6 +74,10 @@ async function seed(page: Page, extra: readonly ReturnType<typeof makeRecipeDeta
     await page.route('**/_vercel/insights/**', (request) =>
         request.fulfill({ status: 200, contentType: 'text/javascript', body: '' }),
     );
+    // The app's reachability probe asks `/health` of the page origin and of the services; a CI run boots neither.
+    await page.route('**/health', (request) =>
+        request.fulfill({ status: 200, contentType: 'application/json', body: '{"status":"ok"}' }),
+    );
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {

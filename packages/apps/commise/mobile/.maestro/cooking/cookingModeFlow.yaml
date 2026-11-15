@@ -17,7 +17,7 @@ appId: ${APP_ID}
 - runFlow: common/openCookingRecipe.yaml
 
 # ── 1. ONE STEP, TWO LINES, THE FIRST FOCUSED (the Hermes check) ──
-- assertVisible: "Line 1 of 2"
+- assertVisible: 'Line 1 of 2'
 - assertVisible:
       text: '^Heat the oven to 200 degrees\.$'
       checked: false
@@ -28,12 +28,12 @@ appId: ${APP_ID}
 
 # ── 2. TICK LINE 1: THE FOCUS MOVES ──
 - tapOn: '^Heat the oven to 200 degrees\.$'
-- assertVisible: "Line 2 of 2"
+- assertVisible: 'Line 2 of 2'
 - assertVisible: 'You ticked 1 line'
 
 # ── 3. NEXT, THEN BACK: THE TICK IS KEPT ──
 - tapOn: 'Next step, step 2'
-- assertVisible: "Step 2 of 3"
+- assertVisible: 'Step 2 of 3'
 - assertVisible: '^Slice the lemon and crush the garlic\.$'
 - runFlow:
       when:
@@ -43,21 +43,21 @@ appId: ${APP_ID}
           - swipe:
                 start: 1%, 50%
                 end: 80%, 50%
-          - assertVisible: "Step 2 of 3"
+          - assertVisible: 'Step 2 of 3'
 - tapOn: 'Back to step 1'
-- assertVisible: "Step 1 of 3"
+- assertVisible: 'Step 1 of 3'
 - assertVisible: 'You ticked 1 line'
-- assertVisible: "Line 2 of 2"
+- assertVisible: 'Line 2 of 2'
 
 # ── 4. A SWIPE IS AN EXTRA ROUTE: STEP 2 TO STEP 3 ──
 - tapOn: 'Next step, step 2'
-- assertVisible: "Step 2 of 3"
+- assertVisible: 'Step 2 of 3'
 - swipe:
       start: 85%, 50%
       end: 15%, 50%
-- assertVisible: "Step 3 of 3"
+- assertVisible: 'Step 3 of 3'
 - assertVisible: 'Rest the tray for 5 minutes before serving.'
-- assertNotVisible: "Line 1 of 1"
+- assertNotVisible: 'Line 1 of 1'
 
 # ── 5. FINISH, DONE, BACK TO THE RECIPE ──
 - tapOn: 'Finish'

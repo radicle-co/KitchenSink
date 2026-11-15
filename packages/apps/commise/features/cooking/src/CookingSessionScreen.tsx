@@ -21,12 +21,15 @@ import { CookingStep } from './CookingStep.js';
 import { CookingTopBar } from './CookingTopBar.js';
 import type { CookingRecipe } from './cookingViewProps.js';
 import { useArrowKeys } from './useArrowKeys.js';
+import { useCookingFocusRecovery } from './useCookingFocusRecovery.js';
 import { useCookingSessionScreen } from './useCookingSessionScreen.js';
 import { useStepSwipe } from './useStepSwipe.js';
 
 /** Props for {@link CookingSessionScreen}. */
 export interface CookingSessionScreenProps {
+    /** The recipe to cook, read once when the session opens. */
     readonly recipe: CookingRecipe;
+    /** Exit, Back on step 1 and Back to the recipe: to the recipe page. */
     readonly onLeave: () => void;
 }
 
@@ -43,6 +46,13 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
             document.getElementById(COOKING_DONE_TITLE_ID)?.focus();
         }
     }, [finished]);
+
+    useCookingFocusRecovery({
+        moves: model.moves,
+        tickedCount: model.session.tickedCount,
+        everyLineTicked: model.session.everyLineTicked,
+        finished,
+    });
 
     // The keys and the swipe only move between steps: leaving on step 1 and finishing on the last are the buttons' alone.
     useArrowKeys(
@@ -89,7 +99,7 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
                         <CookingStep {...model.step} />
                     </div>
                     <LiveRegion politeness="polite" visuallyHidden occurrence={model.moves}>
-                        {model.moves === 0 ? '' : model.announcement}
+                        {model.announcement}
                     </LiveRegion>
                 </>
             }

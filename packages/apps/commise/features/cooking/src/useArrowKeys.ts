@@ -34,6 +34,9 @@ export function useArrowKeys(handlers: ArrowKeyHandlers | undefined): void {
     const onKeyDown = useEffectEvent((event: KeyboardEvent): void => {
         if (
             handlers === undefined ||
+            // A held key repeats: it would run through every step and flood the polite region.
+            event.repeat ||
+            event.defaultPrevented ||
             event.altKey ||
             event.ctrlKey ||
             event.metaKey ||

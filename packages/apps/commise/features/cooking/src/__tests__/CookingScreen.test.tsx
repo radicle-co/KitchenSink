@@ -872,3 +872,111 @@ describe('CookingScreen: the keys do nothing on Done', () => {
         expect(onLeave).not.toHaveBeenCalled();
     });
 });
+
+describe('CookingScreen: keyboard focus when the focused control goes away', () => {
+    const focusAndPress = (name: string) => {
+        const row = screen.getByRole('checkbox', { name });
+        row.focus();
+        fireEvent.click(row);
+    };
+
+    it('moves focus to the forward control when the last line is ticked from the keyboard', () => {
+        setup();
+        tick('Heat 1.5 tbsp. oil.');
+
+        focusAndPress('Add the onion and cook 5 min.');
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Start step 2' }));
+    });
+
+    it('moves focus to the new focus line when a Then line is ticked', () => {
+        setup();
+
+        focusAndPress('Add the onion and cook 5 min.');
+
+        expect(document.activeElement).toBe(screen.getByRole('checkbox', { name: 'Heat 1.5 tbsp. oil.' }));
+    });
+
+    it('leaves focus where it is when something still holds it, as on Exit after a key moves a step', () => {
+        setup();
+        const exit = screen.getByRole('button', { name: 'Exit cooking mode' });
+        exit.focus();
+
+        fireEvent.keyDown(document, { key: 'ArrowRight' });
+
+        expect(screen.getByText('Step 2 of 6')).toBeTruthy();
+        expect(document.activeElement).toBe(exit);
+    });
+
+    it('focuses step 1’s forward control and announces step 1 after Cook again', () => {
+        setup();
+
+        for (let step = 1; step <= 6; step++) {
+            fireEvent.click(forward());
+        }
+
+        screen.getByRole('button', { name: 'Cook it again' }).focus();
+        press('Cook it again');
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Next step, step 2' }));
+        expect(
+            screen.getAllByRole('status').some((region) => region.textContent === 'Step 1 of 6. Heat 1.5 tbsp. oil.'),
+        ).toBe(true);
+    });
+
+    it('does not take focus on opening', () => {
+        setup();
+
+        expect(document.activeElement).toBe(document.body);
+    });
+});
+
+describe('CookingScreen: the keys ignore a held key and a handled key', () => {
+    it('does not run on through steps while → is held down', () => {
+        setup();
+
+        fireEvent.keyDown(document, { key: 'ArrowRight' });
+        fireEvent.keyDown(document, { key: 'ArrowRight', repeat: true });
+        fireEvent.keyDown(document, { key: 'ArrowRight', repeat: true });
+
+        expect(screen.getByText('Step 2 of 6')).toBeTruthy();
+    });
+
+    it('does nothing for a key another handler already took', () => {
+        setup();
+        const event = new KeyboardEvent('keydown', { key: 'ArrowRight', cancelable: true, bubbles: true });
+        event.preventDefault();
+
+        act(() => {
+            document.dispatchEvent(event);
+        });
+
+        expect(screen.getByText('Step 1 of 6')).toBeTruthy();
+    });
+});
+
+describe('CookingScreen: what the live region says after a tick', () => {
+    it('keeps the words of the move when a line is ticked afterwards', () => {
+        setup();
+        fireEvent.click(forward());
+        const said = () => screen.getAllByRole('status').map((region) => region.textContent);
+        expect(said()).toContain('Step 2 of 6. Add 2 tbsp. butter.');
+
+        tick('Add 2 tbsp. butter.');
+
+        expect(said()).toContain('Step 2 of 6. Add 2 tbsp. butter.');
+        expect(said()).not.toContain('Step 2 of 6. Stir well.');
+    });
+
+    it('says only the place on arriving at a step whose lines are all ticked', () => {
+        setup();
+        fireEvent.click(forward());
+        tick('Add 2 tbsp. butter.');
+        tick('Stir well.');
+        tick('Season.');
+        fireEvent.click(forward());
+        fireEvent.click(back());
+
+        expect(screen.getAllByRole('status').map((region) => region.textContent)).toContain('Step 2 of 6.');
+    });
+});

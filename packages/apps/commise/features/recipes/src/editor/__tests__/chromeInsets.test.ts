@@ -5,7 +5,15 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { chromeInsetsOf, FOCUS_CLEARANCE_PX, readChromeInsets, scrollPaddingOf } from '../chromeInsets.js';
+import {
+    chromeInsetsOf,
+    focusHiddenByChrome,
+    focusHiddenByGrownChrome,
+    FOCUS_CLEARANCE_PX,
+    readChromeInsets,
+    scrollPaddingOf,
+    topChromeClearanceOf,
+} from '../chromeInsets.js';
 
 describe('chromeInsetsOf', () => {
     it.each([
@@ -87,21 +95,85 @@ describe('readChromeInsets', () => {
  */
 describe('scrollPaddingOf', () => {
     it('clears the top chrome, and a pinned bar plus the clearance', () => {
-        expect(scrollPaddingOf({ topBottom: 100, barPinned: true, barHeight: 72 })).toEqual({
+        expect(scrollPaddingOf({ topClearance: 100, barPinned: true, barHeight: 72 })).toEqual({
             top: 100,
             bottom: 72 + FOCUS_CLEARANCE_PX,
         });
     });
 
     it('asks nothing for a bar that scrolls with the page: it is in the flow, not over it', () => {
-        expect(scrollPaddingOf({ topBottom: 100, barPinned: false, barHeight: 72 })).toEqual({ top: 100, bottom: 0 });
+        expect(scrollPaddingOf({ topClearance: 100, barPinned: false, barHeight: 72 })).toEqual({
+            top: 100,
+            bottom: 0,
+        });
     });
 
     it('asks nothing before the chrome is measured', () => {
-        expect(scrollPaddingOf({ topBottom: 0, barPinned: true, barHeight: 0 })).toEqual({ top: 0, bottom: 0 });
+        expect(scrollPaddingOf({ topClearance: 0, barPinned: true, barHeight: 0 })).toEqual({ top: 0, bottom: 0 });
     });
 
     it('never asks for a negative top (a band scrolled out of view)', () => {
-        expect(scrollPaddingOf({ topBottom: -40, barPinned: true, barHeight: 72 }).top).toBe(0);
+        expect(scrollPaddingOf({ topClearance: -40, barPinned: true, barHeight: 72 }).top).toBe(0);
+    });
+});
+
+/**
+ * The clearance the document's scroll padding asks of the top: the HEIGHT of every box stuck at the top, summed, so it is
+ * the same at every scroll position (a box's bottom edge is not, before it has stuck).
+ */
+describe('topChromeClearanceOf', () => {
+    it.each([
+        { name: 'the header alone', heights: [56], clearance: 56 },
+        { name: 'the header and the section bar', heights: [56, 44], clearance: 100 },
+        { name: 'a box the width hides (height 0) takes no part', heights: [56, 0, 44], clearance: 100 },
+        { name: 'nothing mounted yet', heights: [], clearance: 0 },
+        { name: 'a negative height is no clearance', heights: [56, -10], clearance: 56 },
+    ])('$name', ({ heights, clearance }) => {
+        expect(topChromeClearanceOf(heights)).toBe(clearance);
+    });
+});
+
+/**
+ * A sticky header can GROW after a focus scroll has cleared it (the save status wraps at 200% text), and the document's new
+ * scroll padding applies only to the NEXT scroll. The control focused under the old chrome is then under the new, and must be
+ * brought back: only when the clearance grew and the control's top is now above the new chrome's bottom.
+ */
+describe('focusHiddenByGrownChrome', () => {
+    it.each([
+        { name: 'grew, and the control now sits under it', previous: 208, next: 257, focusTop: 208, hidden: true },
+        { name: 'grew, and the control is still clear of it', previous: 208, next: 257, focusTop: 346, hidden: false },
+        {
+            name: 'grew, and the control sits exactly at the new edge',
+            previous: 208,
+            next: 257,
+            focusTop: 257,
+            hidden: false,
+        },
+        { name: 'shrank: nothing is newly covered', previous: 257, next: 208, focusTop: 100, hidden: false },
+        { name: 'unchanged: the browser already honoured it', previous: 208, next: 208, focusTop: 100, hidden: false },
+        {
+            name: 'the first reading (nothing applied yet) never re-reveals',
+            previous: 0,
+            next: 208,
+            focusTop: 100,
+            hidden: false,
+        },
+    ])('$name', ({ previous, next, focusTop, hidden }) => {
+        expect(focusHiddenByGrownChrome({ previous, next, focusTop })).toBe(hidden);
+    });
+});
+
+/**
+ * A control that takes focus under the sticky chrome (the header grew while a sheet was open, so the focus the sheet gives
+ * back lands at the old edge): the browser does not scroll a partly covered element on focus, so it must be brought back.
+ */
+describe('focusHiddenByChrome', () => {
+    it.each([
+        { name: 'the control sits under the chrome', clearance: 257, focusTop: 208, hidden: true },
+        { name: 'the control is clear of the chrome', clearance: 257, focusTop: 346, hidden: false },
+        { name: 'the control sits exactly at the edge', clearance: 257, focusTop: 257, hidden: false },
+        { name: 'no chrome is measured yet', clearance: 0, focusTop: -20, hidden: false },
+    ])('$name', ({ clearance, focusTop, hidden }) => {
+        expect(focusHiddenByChrome({ clearance, focusTop })).toBe(hidden);
     });
 });

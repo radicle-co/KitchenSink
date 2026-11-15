@@ -22,7 +22,7 @@ import { Text } from '@commise/ui/text';
 
 import { PREP_JOINER } from '../format/prepJoiner.js';
 import { recipeMessages } from '../messages.js';
-import { IngredientCheckBoxSlot, IngredientRowDivider } from './ingredientFrames.native.js';
+import { IngredientCheckBoxSlot, IngredientReviewSlot, IngredientRowDivider } from './ingredientFrames.native.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
 import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
@@ -36,13 +36,14 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
     allRemoved,
     onToggle,
     divided = false,
+    reviewAction,
 }) => {
     const { detail, ingredientLineName, ingredientDetails } = useMessages(recipeMessages);
     const locale = useLocale();
     const wash = usePressFill();
     const amount = formatAmount(ingredient.quantity, locale, ingredient.unit);
     const parts = variantPartTexts(ingredient.variant?.parts);
-    const statuses = ingredientRowStatuses(ingredient, allRemoved, detail);
+    const statuses = ingredientRowStatuses(ingredient, allRemoved, detail, reviewAction !== undefined);
     const notes = lineTailOf(ingredient);
 
     return (
@@ -154,6 +155,8 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                     ))}
                 </View>
             </Pressable>
+            {/* A sibling of the checkbox, under the row text, indented to where the text starts (16 + 18 + 12). */}
+            {reviewAction !== undefined && <IngredientReviewSlot>{reviewAction}</IngredientReviewSlot>}
         </>
     );
 };

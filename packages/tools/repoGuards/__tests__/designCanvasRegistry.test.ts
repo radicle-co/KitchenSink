@@ -9,7 +9,7 @@
  * @see docs/design/canvases/README.md
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -17,7 +17,7 @@ import { z } from 'zod';
 
 const CANVAS_DIR = join(__dirname, '..', '..', '..', '..', 'docs', 'design', 'canvases');
 
-const canvasSchema = z.object({
+const canvasSchema = z.strictObject({
     id: z.string().min(1),
     title: z.string().min(1),
     url: z.string().min(1),
@@ -27,9 +27,13 @@ const canvasSchema = z.object({
     platform: z.enum(['web', 'mobile', 'combined']).optional(),
     subject: z.string().min(1).optional(),
     note: z.string().optional(),
+    snapshot: z.string().min(1).optional(),
 });
 
-const registrySchema = z.object({ canvases: z.array(canvasSchema) });
+const registrySchema = z.strictObject({ canvases: z.array(canvasSchema) });
+
+/** The record written beside each snapshot; only the url is checked here. */
+const snapshotSchema = z.object({ url: z.string().min(1) });
 
 type CanvasEntry = z.infer<typeof canvasSchema>;
 
@@ -136,6 +140,32 @@ describe('the design canvas registry', () => {
         expect(registryProblems(registry())).toEqual([]);
     });
 
+    // Each screen canvas points at its snapshot folder, and that folder records the same canvas. A snapshot copied under
+    // the wrong id, or an entry added without one, fails by name.
+    it('points every screen canvas at its own snapshot, which records the same url', () => {
+        const problems = registry()
+            .filter(isScreen)
+            .flatMap((entry) => {
+                const expected = `docs/design/canvases/${entry.id}/`;
+
+                if (entry.snapshot !== expected) {
+                    return [`${entry.id}: snapshot is ${String(entry.snapshot)}, expected ${expected}`];
+                }
+
+                const record = join(CANVAS_DIR, entry.id, 'snapshot.json');
+
+                if (!existsSync(record)) {
+                    return [`${entry.id}: no ${expected}snapshot.json`];
+                }
+
+                const { url } = snapshotSchema.parse(JSON.parse(readFileSync(record, 'utf8')));
+
+                return url === entry.url ? [] : [`${entry.id}: snapshot.json records ${url}, not ${entry.url}`];
+            });
+
+        expect(problems).toEqual([]);
+    });
+
     it('is named by the README that tells agents how to use it', () => {
         const readme = readFileSync(join(CANVAS_DIR, 'README.md'), 'utf8');
 
@@ -216,5 +246,11 @@ describe('registryProblems', () => {
 
     it('rejects an entry with an unknown status', () => {
         expect(() => registrySchema.parse({ canvases: [{ ...designSystem, status: 'draft' }] })).toThrow();
+    });
+
+    // A misspelt key ("plaform") would otherwise be dropped silently, and the entry would read as having no platform.
+    it('rejects an entry or a registry with a key the README does not name', () => {
+        expect(() => registrySchema.parse({ canvases: [{ ...designSystem, plaform: 'web' }] })).toThrow();
+        expect(() => registrySchema.parse({ canvases: [designSystem], version: 2 })).toThrow();
     });
 });

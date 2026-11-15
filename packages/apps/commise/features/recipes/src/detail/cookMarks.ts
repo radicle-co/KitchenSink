@@ -26,7 +26,11 @@ export interface CookMarks {
 export type CookMarkCommand =
     | { readonly kind: 'toggleLine'; readonly line: string }
     | { readonly kind: 'toggleStep'; readonly step: number }
-    | { readonly kind: 'clear' };
+    | { readonly kind: 'clear' }
+    /** Cooking mode's Clear ticks: every ingredient tick goes, the current-step marker stays. */
+    | { readonly kind: 'clearIngredientTicks' }
+    /** Cooking mode's Undo: these ticks are added back and none is removed. */
+    | { readonly kind: 'restoreIngredientTicks'; readonly lines: readonly string[] };
 
 /** No marks. One shared object, so an untouched recipe's snapshot is reference-stable. */
 export const EMPTY_COOK_MARKS: CookMarks = Object.freeze({ lines: new Set<string>(), currentStep: undefined });
@@ -60,6 +64,17 @@ export function applyCookMark(state: CookMarks, command: CookMarkCommand): CookM
 
         case 'clear':
             return EMPTY_COOK_MARKS;
+
+        case 'clearIngredientTicks':
+            return state.lines.size === 0 ? state : { lines: new Set<string>(), currentStep: state.currentStep };
+
+        case 'restoreIngredientTicks': {
+            if (command.lines.every((line) => state.lines.has(line))) {
+                return state;
+            }
+
+            return { lines: new Set([...state.lines, ...command.lines]), currentStep: state.currentStep };
+        }
     }
 }
 

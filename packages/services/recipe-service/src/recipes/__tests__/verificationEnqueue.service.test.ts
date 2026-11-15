@@ -319,6 +319,20 @@ describe('RecipesService.create — the verification producer', () => {
         });
     });
 
+    it.each([
+        ['a pasted line', SOURCE_LINE, true],
+        ['an authored line', null, false],
+    ] as const)('records whether the creating owner supplied %s’s text (ADR-0090)', async (_label, line, flag) => {
+        const queue = fakeVerificationQueue();
+        const dal = fakeRecipesDal();
+
+        await makeService(dal, queue).create(OWNER_PRINCIPAL, createDto(line), undefined);
+
+        const input = vi.mocked(dal.create).mock.calls[0]?.[0];
+
+        expect(input?.ingredients[0]?.sourceLineTranscribedByOwner).toBe(flag);
+    });
+
     it('enqueues NOTHING when the line was authored rather than transcribed', async () => {
         const queue = fakeVerificationQueue();
         const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(aggregate({ sourceLine: null })) });
@@ -419,6 +433,61 @@ describe('RecipesService.update — the verification producer', () => {
         await makeService(dal, queue).update(OWNER_PRINCIPAL, RECIPE_ID, updateDto(3), undefined);
 
         expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    /**
+     * ADR-0090: whether the OWNER wrote a line's source text rides the carry-forward with that text. A save re-inserts
+     * every line from a body that cannot state either, so without it a title edit would clear the flag and hide the
+     * owner's own pasted line from them; or, carried from the wrong row, show them text they never wrote.
+     */
+    it.each([true, false])(
+        'carries the source line AND its transcribed-by-owner flag (%s) through an edit that kept the line',
+        async (transcribedByOwner) => {
+            const queue = fakeVerificationQueue();
+            const kept = aggregate();
+            const flagged: RecipeAggregate = {
+                ...kept,
+                ingredients: kept.ingredients.map((line) => ({
+                    ...line,
+                    sourceLineTranscribedByOwner: transcribedByOwner,
+                })),
+            };
+            const update = vi.fn().mockResolvedValue(flagged);
+            const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(flagged), update });
+
+            await makeService(dal, queue).update(OWNER_PRINCIPAL, RECIPE_ID, updateDto(2), undefined);
+
+            const written = update.mock.calls[0]?.find(
+                (argument: unknown): argument is { ingredients: unknown[] } =>
+                    typeof argument === 'object' && argument !== null && 'ingredients' in argument,
+            );
+
+            expect(written?.ingredients[0]).toMatchObject({
+                sourceLine: SOURCE_LINE,
+                sourceLineTranscribedByOwner: transcribedByOwner,
+            });
+        },
+    );
+
+    it('⛔ clears the flag with the text when the edit moved the line — no text, no claim', async () => {
+        const queue = fakeVerificationQueue();
+        const kept = aggregate();
+        const flagged: RecipeAggregate = {
+            ...kept,
+            ingredients: kept.ingredients.map((line) => ({ ...line, sourceLineTranscribedByOwner: true })),
+        };
+        const update = vi.fn().mockResolvedValue(aggregate({ quantity: '3', sourceLine: null }));
+        const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(flagged), update });
+
+        await makeService(dal, queue).update(OWNER_PRINCIPAL, RECIPE_ID, updateDto(3), undefined);
+
+        const written = update.mock.calls[0]?.find(
+            (argument: unknown): argument is { ingredients: Record<string, unknown>[] } =>
+                typeof argument === 'object' && argument !== null && 'ingredients' in argument,
+        );
+
+        expect(written?.ingredients[0]).not.toHaveProperty('sourceLine');
+        expect(written?.ingredients[0]?.['sourceLineTranscribedByOwner']).toBe(false);
     });
 
     it('⛔ asks NOTHING when the lines are unchanged — a title edit must not re-pay for the recipe', async () => {

@@ -1,0 +1,29 @@
+-- 0076 — a bulk-import item can wait for what Publish needs (ADR-0072 §3 as amended 2026-11-11).
+--
+-- The import saves every recipe PUBLISHED, never as a draft, and Publish needs a cuisine (only the curator's public-domain
+-- text is exempt, ADR-0089 §5, and the import never sets that), at least one ingredient and at least one step. Another app's
+-- export often states no cuisine. Nothing makes one up: no default and no AI pick. So an item that lacks one waits in the
+-- import until the cook decides, as an item without a statement waits.
+--
+--  - `cuisine`: the cuisine the cook gave in the import, which replaces the file's for this recipe. NULL when the cook gave
+--    none, and the save then uses the file's. A blank one is refused, as the create route refuses one.
+--  - `held_at_rev`: the `decision_rev` at which the save found the item short of what Publish needs. While it equals
+--    `decision_rev`, the save does not look at the item again, so an item that cannot be saved is never re-queued forever.
+--    Every write of what an item is saved from moves `decision_rev` (0059), so the next decision releases the hold by itself:
+--    nothing ever clears this column, and nothing reads it as the reason. The reason is derived from the item at read time.
+--
+-- Additive and expand-only (ADR-0035): two nullable columns. The CHECKs are added NOT VALID: they bind every write at once,
+-- and 0077 scans the existing rows under a lighter lock. No GRANT: the service role's DML on this table comes from 0059
+-- (ADR-0039).
+
+-- ⚠️ Bounded wait: ALTER TABLE takes ACCESS EXCLUSIVE on the table. A deploy that cannot take it in 5 s fails and a re-run
+-- retries it (`migrationLockTimeout.test.ts` holds the rule).
+SET LOCAL lock_timeout = '5s';
+
+ALTER TABLE recipe_import_items
+    ADD COLUMN cuisine text,
+    ADD COLUMN held_at_rev integer;
+
+ALTER TABLE recipe_import_items
+    ADD CONSTRAINT recipe_import_items_cuisine_check CHECK (cuisine IS NULL OR btrim(cuisine) <> '') NOT VALID,
+    ADD CONSTRAINT recipe_import_items_held_at_rev_check CHECK (held_at_rev IS NULL OR held_at_rev >= 0) NOT VALID;

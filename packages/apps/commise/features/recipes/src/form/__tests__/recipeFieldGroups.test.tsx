@@ -265,6 +265,8 @@ describe('the recipe field groups (web) — error wiring (WCAG 3.3.1)', () => {
     });
 });
 
+// UPDATED (designer must-fix, 2026-11-14): the row's name reads like the recipe page, so the word unit "cup" takes the plural
+// of the amount ("Edit 2 cups Stock"). The Amount and Unit fields still hold the draft as written.
 describe('the recipe field groups (web) — the amount in the row editor (U9/R42, §7.5.2)', () => {
     const ranged = (quantity: number, quantityHigh?: number): RecipeFormValues =>
         filledValues({
@@ -284,7 +286,7 @@ describe('the recipe field groups (web) — the amount in the row editor (U9/R42
         const user = userEvent.setup();
         renderForm({ values: ranged(2, 3) });
 
-        const sheet = await openEditor(user, 'Edit 2–3 cup Stock');
+        const sheet = await openEditor(user, 'Edit 2–3 cups Stock');
 
         expect((within(sheet).getByLabelText(en.rowAmountLabel) as HTMLInputElement).value).toBe('2');
         expect((within(sheet).getByRole('textbox', { name: en.rowAmountHighLabel }) as HTMLInputElement).value).toBe(
@@ -308,7 +310,7 @@ describe('the recipe field groups (web) — the amount in the row editor (U9/R42
         const onValues = vi.fn<(values: RecipeFormValues) => void>();
         render(<Stateful initial={ranged(2)} onValues={onValues} />);
 
-        const sheet = await openEditor(user, 'Edit 2 cup Stock');
+        const sheet = await openEditor(user, 'Edit 2 cups Stock');
         await user.clear(within(sheet).getByLabelText(en.rowAmountLabel));
 
         expect(Number.isNaN(onValues.mock.lastCall?.[0].ingredients[0]?.quantity)).toBe(true);
@@ -319,7 +321,7 @@ describe('the recipe field groups (web) — the amount in the row editor (U9/R42
         const onValues = vi.fn<(values: RecipeFormValues) => void>();
         render(<Stateful initial={ranged(2, 3)} onValues={onValues} />);
 
-        const sheet = await openEditor(user, 'Edit 2–3 cup Stock');
+        const sheet = await openEditor(user, 'Edit 2–3 cups Stock');
         const high = within(sheet).getByRole('textbox', { name: en.rowAmountHighLabel });
 
         await user.clear(high);
@@ -334,7 +336,7 @@ describe('the recipe field groups (web) — the amount in the row editor (U9/R42
         const onValues = vi.fn<(values: RecipeFormValues) => void>();
         render(<Stateful initial={ranged(2)} onValues={onValues} />);
 
-        const sheet = await openEditor(user, 'Edit 2 cup Stock');
+        const sheet = await openEditor(user, 'Edit 2 cups Stock');
         await user.type(within(sheet).getByLabelText(en.rowAmountLabel), '5');
 
         expect(onValues.mock.lastCall?.[0].ingredients[0]).toMatchObject({ ingredientId: 'ing_1', quantity: 25 });
@@ -360,14 +362,15 @@ describe('the recipe field groups (web) — the unit’s class, in the row edito
     });
 
     it.each([
-        ['a SUBJECTIVE unit as a cook’s measure', 'handful', 'Cook’s measure'],
-        ['an UNKNOWN unit as unrecognised, still ACCEPTED, never invalid', 'blorp', 'Unrecognized unit'],
-        ['a short unknown unit too (the U35 ruling covers T and t, not the alphabet)', 'zq', 'Unrecognized unit'],
-    ])('marks %s, and describes the field with it', async (_case, unit, note) => {
+        // `shown` is the unit as the ROW names it: a known word takes the plural of the amount, an unknown one stays as written.
+        ['a SUBJECTIVE unit as a cook’s measure', 'handful', 'handfuls', 'Cook’s measure'],
+        ['an UNKNOWN unit as unrecognised, still ACCEPTED, never invalid', 'blorp', 'blorp', 'Unrecognized unit'],
+        ['a short unknown unit too (the U35 ruling covers T and t, not the alphabet)', 'zq', 'zq', 'Unrecognized unit'],
+    ])('marks %s, and describes the field with it', async (_case, unit, shown, note) => {
         const user = userEvent.setup();
         renderForm({ values: withUnit(unit) });
 
-        const sheet = await openEditor(user, `Edit 2 ${unit} Onion`);
+        const sheet = await openEditor(user, `Edit 2 ${shown} Onion`);
         const field = unitField(sheet) as HTMLInputElement;
 
         expect(field.getAttribute('aria-describedby')).toContain(within(sheet).getByText(note).id);

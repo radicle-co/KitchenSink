@@ -152,7 +152,12 @@ beforeAll(async () => {
                     setVisibility,
                     lockAndCountPrivateSlots,
                     countPrivateSlots,
-                    lockSlotFacts: async () => ({ visibility: stored.visibility, status: stored.status }),
+                    lockSlotFacts: async () => ({
+                        visibility: stored.visibility,
+                        status: stored.status,
+                        sourceType: stored.sourceType,
+                        sourceKind: stored.sourceKind,
+                    }),
                     findById: async (id: string) => (id === stored.id ? aggregateOf(stored) : undefined),
                     // ADR-0029 section 4: the database holds no private food in these suites.
                     privateFoodLines: async () => [],

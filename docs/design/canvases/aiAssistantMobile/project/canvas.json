@@ -1,0 +1,240 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:34Z"
+  },
+  "title": "Commise Screens, mobile: AI assistant",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "AssistantGenerateIphone390.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, generate (mobile, iPhone 390)"
+    },
+    "AssistantPreviewIphone390.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, preview (mobile, iPhone 390)"
+    },
+    "AssistantProviderSetupIphone390.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, provider setup (mobile, iPhone 390)"
+    },
+    "AssistantAgentConsentIphone390.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, agent consent (mobile, iPhone 390)"
+    },
+    "AssistantConnectedAppsIphone390.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, connected apps (mobile, iPhone 390)"
+    },
+    "AssistantConnectedAppsProIphone390.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, connected apps pro (mobile, iPhone 390)"
+    },
+    "AssistantProGateIphone390.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, pro gate (mobile, iPhone 390)"
+    },
+    "AssistantAllowanceUsedUpIphone390.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, allowance used up (mobile, iPhone 390)"
+    },
+    "AssistantGenerateAndroid384.dc.html": {
+      "x": 0,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "AI assistant, generate (mobile, Android 384)"
+    },
+    "AssistantPreviewAndroid384.dc.html": {
+      "x": 464,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "AI assistant, preview (mobile, Android 384)"
+    },
+    "AssistantProviderSetupAndroid384.dc.html": {
+      "x": 928,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "AI assistant, provider setup (mobile, Android 384)"
+    },
+    "AssistantAgentConsentAndroid384.dc.html": {
+      "x": 1392,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "AI assistant, agent consent (mobile, Android 384)"
+    },
+    "AssistantConnectedAppsAndroid384.dc.html": {
+      "x": 1856,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "AI assistant, connected apps (mobile, Android 384)"
+    },
+    "AssistantConnectedAppsProAndroid384.dc.html": {
+      "x": 2320,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "AI assistant, connected apps pro (mobile, Android 384)"
+    },
+    "AssistantProGateAndroid384.dc.html": {
+      "x": 2784,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "AI assistant, pro gate (mobile, Android 384)"
+    },
+    "AssistantAllowanceUsedUpAndroid384.dc.html": {
+      "x": 3248,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "AI assistant, allowance used up (mobile, Android 384)"
+    },
+    "AssistantGenerateIpad820.dc.html": {
+      "x": 0,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "AI assistant, generate (mobile, iPad 820)"
+    },
+    "AssistantPreviewIpad820.dc.html": {
+      "x": 900,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "AI assistant, preview (mobile, iPad 820)"
+    },
+    "AssistantProviderSetupIpad820.dc.html": {
+      "x": 1800,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "AI assistant, provider setup (mobile, iPad 820)"
+    },
+    "AssistantAgentConsentIpad820.dc.html": {
+      "x": 2700,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "AI assistant, agent consent (mobile, iPad 820)"
+    },
+    "AssistantConnectedAppsIpad820.dc.html": {
+      "x": 3600,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "AI assistant, connected apps (mobile, iPad 820)"
+    },
+    "AssistantConnectedAppsProIpad820.dc.html": {
+      "x": 4500,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "AI assistant, connected apps pro (mobile, iPad 820)"
+    },
+    "AssistantProGateIpad820.dc.html": {
+      "x": 5400,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "AI assistant, pro gate (mobile, iPad 820)"
+    },
+    "AssistantAllowanceUsedUpIpad820.dc.html": {
+      "x": 6300,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "AI assistant, allowance used up (mobile, iPad 820)"
+    }
+  },
+  "order": [
+    "AssistantGenerateIphone390.dc.html",
+    "AssistantPreviewIphone390.dc.html",
+    "AssistantProviderSetupIphone390.dc.html",
+    "AssistantAgentConsentIphone390.dc.html",
+    "AssistantConnectedAppsIphone390.dc.html",
+    "AssistantConnectedAppsProIphone390.dc.html",
+    "AssistantProGateIphone390.dc.html",
+    "AssistantAllowanceUsedUpIphone390.dc.html",
+    "AssistantGenerateAndroid384.dc.html",
+    "AssistantPreviewAndroid384.dc.html",
+    "AssistantProviderSetupAndroid384.dc.html",
+    "AssistantAgentConsentAndroid384.dc.html",
+    "AssistantConnectedAppsAndroid384.dc.html",
+    "AssistantConnectedAppsProAndroid384.dc.html",
+    "AssistantProGateAndroid384.dc.html",
+    "AssistantAllowanceUsedUpAndroid384.dc.html",
+    "AssistantGenerateIpad820.dc.html",
+    "AssistantPreviewIpad820.dc.html",
+    "AssistantProviderSetupIpad820.dc.html",
+    "AssistantAgentConsentIpad820.dc.html",
+    "AssistantConnectedAppsIpad820.dc.html",
+    "AssistantConnectedAppsProIpad820.dc.html",
+    "AssistantProGateIpad820.dc.html",
+    "AssistantAllowanceUsedUpIpad820.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "AI assistant: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1504,
+      "text": "AI assistant: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 2996,
+      "text": "AI assistant: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

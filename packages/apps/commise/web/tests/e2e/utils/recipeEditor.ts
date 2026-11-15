@@ -12,6 +12,20 @@ import { route } from './basePath';
  * Selectors are role and label only (repo policy).
  */
 
+/**
+ * A window the row editor opens INLINE in: 50 rem high and, with the sidebar, a 60 rem container at the default text
+ * size, over the limits `INLINE_EDITOR_MIN_VIEWPORT_REM` and `INLINE_EDITOR_MIN_CONTAINER_REM` in `inlineEditorFit.ts`
+ * ask for. A spec that means the inline frame sets this. Playwright's 1280 x 720 default is under the inline height, so
+ * a spec that leans on it gets the sheet.
+ */
+export const INLINE_EDITOR_VIEWPORT = { width: 1280, height: 800 } as const;
+
+/**
+ * A short laptop window: 37.5 rem high at the default text size, clearly under the inline height, so the row editor
+ * opens as the sheet. A spec that means the sheet on a wide screen sets it.
+ */
+export const SHEET_EDITOR_VIEWPORT = { width: 1280, height: 600 } as const;
+
 /** The editor's sections, by their headings. */
 export type EditorSectionName = 'Details' | 'Ingredients' | 'Steps' | 'Photos & publish';
 
@@ -147,6 +161,45 @@ export async function editorTopChrome(
     }, TOP_CHROME_IDS);
 }
 
+/** What {@link topChromeBottom} measured: the band's lowest edge, and how many boxes made it. */
+export interface TopChrome {
+    /** The largest bottom edge, in CSS px, of every sticky or fixed box anchored at the top that overlaps the target. */
+    readonly bottom: number;
+    /** How many boxes were measured: a check that measured nothing must not pass. */
+    readonly count: number;
+}
+
+/**
+ * Everything drawn over the top of the page above a target: the largest bottom edge of every `sticky` or `fixed` element
+ * whose `top` is set (so it is anchored at the top, which leaves the action bar out), that has a height, and that
+ * overlaps the target horizontally (which leaves the side rail out). Read from computed styles, so it needs no name for
+ * the header or the section tabs, and a new sticky box is counted without a change here.
+ *
+ * @param target - The box the chrome must clear.
+ * @returns The lowest edge, and how many boxes made it.
+ */
+export async function topChromeBottom(target: Locator): Promise<TopChrome> {
+    return target.evaluate((node) => {
+        const reach = node.getBoundingClientRect();
+        let bottom = Number.NEGATIVE_INFINITY;
+        let count = 0;
+
+        for (const element of document.querySelectorAll('*')) {
+            const style = getComputedStyle(element);
+            const rect = element.getBoundingClientRect();
+            const anchored = ['sticky', 'fixed'].includes(style.position) && style.top !== 'auto';
+            const overlaps = rect.left < reach.right && rect.right > reach.left;
+
+            if (anchored && rect.height > 0 && overlaps && !element.contains(node)) {
+                bottom = Math.max(bottom, rect.bottom);
+                count += 1;
+            }
+        }
+
+        return { bottom, count };
+    });
+}
+
 /** The text, escaped for a `RegExp`. */
 const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 
@@ -179,7 +232,8 @@ export function ingredientRow(scope: Page | Locator, food: string): Locator {
 
 /**
  * Open a row's editor (build spec §7.5.2) and answer where its fields are: the phone sheet below a 600 container, or
- * the inline panel in the row from 600.
+ * the inline panel in the row from 600 in a window tall enough (`INLINE_EDITOR_VIEWPORT`). It answers the frame the page
+ * chose, so the caller sets the viewport for the frame it means.
  *
  * @param page - The page.
  * @param food - The food the row names.

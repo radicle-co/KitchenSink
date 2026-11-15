@@ -38,6 +38,11 @@ describe('isLineNeedsReview', () => {
         }
     });
 
+    it('judges anything carrying a status — the editor’s form line is read by the same rule', () => {
+        expect(isLineNeedsReview({ resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW })).toBe(true);
+        expect(isLineNeedsReview({})).toBe(false);
+    });
+
     it('⛔ is false for a line with NO status — absence of a verdict means publish (0023)', () => {
         expect(isLineNeedsReview(makeIngredientView())).toBe(false);
     });

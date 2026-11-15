@@ -65,6 +65,7 @@ export const Sheet: FC<SheetProps> = ({
     closeLabel,
     size,
     presentation = 'sheet',
+    screenReaderLanding = 'title',
     toolbar,
     children,
     footer,
@@ -151,6 +152,7 @@ export const Sheet: FC<SheetProps> = ({
                 toolbar={toolbar}
                 footer={footer}
                 focusSignal={shown}
+                screenReaderLanding={screenReaderLanding}
                 reduceMotion={reduceMotion}
                 restoreScrollY={scrolled.opening === panelKey ? scrolled.y : 0}
                 onScrollSettled={(y) => setScrolled({ opening: panelKey, y })}

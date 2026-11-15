@@ -158,68 +158,142 @@ an empty state's inner block, the 404).
 
 Prose inside any width is capped at `max-width: 62ch` (reading body) or `65ch` (forms and help text).
 
-### 1.4 Colour roles
+### 1.4 Colour roles (`ui/src/tokens/colors.ts`)
 
-The palette stays (`ui/src/tokens/colors.ts`, `palette`). Two primitives are added, and screens use **roles**, never
-palette names. Add the roles to `colors.ts` as a new `role` export emitted in `themeCss.ts` and
-`nativeTokens.colors`. ⚠️ **Do not repurpose `semantic.secondary` (coral) or `semantic.ring` (seafoam-light)**:
-changing what a token means breaks consumers silently. Move consumers onto the new roles, then delete the old
-semantic keys once nothing reads them.
+Screens use **roles**, never palette names. The values below are generated from `role` and `roleDark`. The
+`@commise/ui` test `redesignContrast.test.ts` measures the contrast of every pair, so this spec states no ratio.
 
-| Role (new)     | Value                                                                                      | Used for                                                                       | Contrast (WCAG 2.x, computed 2026-10-08 in the source files)        |
-| -------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| `canvas`       | `sand`, plus the existing beach-glow wash on `body` (issue #145, kept)                     | the page                                                                       | n/a                                                                 |
-| `paper`        | `white`                                                                                    | cards, sheets, inputs, menus, sticky bars                                      | n/a                                                                 |
-| `ink`          | `charcoal`                                                                                 | all main text and icons                                                        | 12.68:1 on white, 11.78:1 on sand                                   |
-| `inkMuted`     | `slate`                                                                                    | secondary text, meta, inactive tabs                                            | 5.24:1 on white, 4.87:1 on sand                                     |
-| `lineControl`  | **new primitive `pewter` `#858F93`**                                                       | edges of inputs, unselected chips, checkboxes, secondary buttons               | 3.31:1 on white, 3.07:1 on sand (SC 1.4.11)                         |
-| `lineDivider`  | `mist`                                                                                     | dividers only, never a component edge                                          | decorative                                                          |
-| `action`       | `seafoam` fill, white label (the existing primary gradient `seafoam` → `ocean-dark` stays) | **the one primary action per view**, the FAB, a checked checkbox               | white on seafoam 4.67:1                                             |
-| `actionText`   | `ocean-dark`                                                                               | text buttons, links                                                            | 6.20:1 on white, 5.75:1 on sand                                     |
-| `selectedFill` | `seafoam` at 14% over white (`#E2EDEC`)                                                    | selected chip and segment fill                                                 | `actionText` label on it 5.18:1                                     |
-| `selectedEdge` | `seafoam`, 1.5 px                                                                          | selected chip edge                                                             | 4.67:1 on white                                                     |
-| `hereBar`      | `seafoam`, 3 px                                                                            | "you are here": active tab, active sidebar item, current section, current step | 4.67:1 on white, 4.34:1 on sand                                     |
-| `focusRing`    | `ocean-dark`, 2 px, 2 px offset                                                            | every focusable element                                                        | 5.75:1 on sand                                                      |
-| `rating`       | **new primitive `honey` `#A86A12`**                                                        | filled stars only. **Never text.** The number beside stars is `ink`.           | 4.43:1 on white (passes 1.4.11, not 1.4.3). Today's amber is 1.88:1 |
-| `attention`    | `warning-dark` text, `warning` 20% tint                                                    | "Choose a match", needs-attention states                                       | 5.10:1 on white                                                     |
-| `danger`       | `error` fill (confirm button only), `error-dark` text                                      | destructive actions and failures                                               | 4.66:1 / 5.63:1                                                     |
-| `brand`        | `coral`, `sky`, `premium`, `success` as **tints only**                                     | covers, illustrations, the PRO badge (`premium` with `ink`, 5.70:1)            | **never a control edge, label or state**                            |
+⚠️ **Do not repurpose a role.** A key that changes meaning breaks its readers silently. Add a new role, move the
+readers onto it, then delete the old key.
 
-**Coral leaves every control** (owner). Today's coral-outlined secondary is 2.23:1 on sand.
+<!-- BEGIN generated:colorRoles. Do not edit by hand: run `npm run docs:generate --workspace=packages/tools/docgen-components`. -->
 
-**Difficulty** (kept from `specSharedSystem` §4): Easy `success` 15% tint + `actionText`. Medium `warning` 15% +
-`warning-dark`. Hard `coral` 15% + `ink`. Always with the three-dot meter (●○○ ●●○ ●●●), so it never relies on colour
-(SC 1.4.1). `error` is never used for difficulty.
+| Role            | Light                       | Dark                      |
+| --------------- | --------------------------- | ------------------------- |
+| `canvas`        | `#EFF3F6` (`fog`)           | `#0E161E`                 |
+| `paper`         | `#FCFDFF` (`cloud`)         | `#172029`                 |
+| `ink`           | `#171B20` (`charcoal`)      | `#EBEFF2`                 |
+| `inkMuted`      | `#5C646E` (`slate`)         | `#A3ACB6`                 |
+| `lineControl`   | `#80878F` (`pewter`)        | `#7D8792`                 |
+| `lineDivider`   | `#DFE3E8` (`mist`)          | `#262F38`                 |
+| `action`        | `#325C7F` (`steel`)         | `#96BCDE`                 |
+| `actionText`    | `#325C7F` (`steel`)         | `#96BCDE`                 |
+| `selectedFill`  | `#E4EEF7`                   | `#1F3548`                 |
+| `selectedEdge`  | `#325C7F` (`steel`)         | `#96BCDE`                 |
+| `hereBar`       | `#325C7F` (`steel`)         | `#96BCDE`                 |
+| `focusRing`     | `#325C7F` (`steel`)         | `#96BCDE`                 |
+| `rating`        | `#171B20` (`charcoal`)      | `#EBEFF2`                 |
+| `attention`     | `#8C5A00` (`warning-dark`)  | `#EFBA64`                 |
+| `attentionTint` | `rgba(245, 176, 65, 0.2)`   | `rgba(245, 176, 65, 0.2)` |
+| `danger`        | `#C05238` (`error`)         | `#E07A60`                 |
+| `dangerText`    | `#A53E27` (`error-dark`)    | `#EC8E76`                 |
+| `paperRaised`   | `#FFFFFF` (`snow`)          | `#212B36`                 |
+| `paperOverlay`  | `#FFFFFF` (`snow`)          | `#26313D`                 |
+| `surfaceMuted`  | `#E9EDF2` (`pearl`)         | `#212B36`                 |
+| `inverse`       | `#171B20` (`charcoal`)      | `#EBEFF2`                 |
+| `inverseInk`    | `#FFFFFF` (`snow`)          | `#171B20`                 |
+| `inverseAction` | `#96BCDE` (`steel-light`)   | `#325C7F`                 |
+| `photoChip`     | `rgba(252, 253, 255, 0.94)` | `rgba(23, 32, 41, 0.86)`  |
+| `scrim`         | `rgba(10, 16, 24, 0.42)`    | `rgba(0, 0, 0, 0.66)`     |
+| `onAction`      | `#FFFFFF` (`snow`)          | `#0E161E`                 |
+| `actionPressed` | `#264A68` (`ocean-dark`)    | `#B4CFE8`                 |
+| `dangerPressed` | `#A33F2A`                   | `#CC6A52`                 |
+
+<!-- END generated:colorRoles -->
+
+What each role is for:
+
+| Role            | Used for                                                                             |
+| --------------- | ------------------------------------------------------------------------------------ |
+| `canvas`        | the page                                                                             |
+| `paper`         | cards, sheets, inputs, menus, sticky bars                                            |
+| `ink`           | all main text and icons                                                              |
+| `inkMuted`      | secondary text, meta, inactive tabs                                                  |
+| `lineControl`   | edges of inputs, unselected chips, checkboxes, secondary buttons (SC 1.4.11)         |
+| `lineDivider`   | dividers only, never a component edge                                                |
+| `action`        | **the one primary action per view**, the FAB, a checked checkbox                     |
+| `actionText`    | text buttons, links                                                                  |
+| `selectedFill`  | selected chip and segment fill                                                       |
+| `selectedEdge`  | selected chip edge, 1.5 px                                                           |
+| `hereBar`       | "you are here": active tab, active sidebar item, current section, current step, 3 px |
+| `focusRing`     | every focusable element, 2 px with a 2 px offset                                     |
+| `rating`        | filled stars only. **Never text.** The number beside the stars is `ink`.             |
+| `attention`     | "Choose a match" and other needs-attention text                                      |
+| `attentionTint` | the fill of a needs-attention state, under an `ink` or `attention` label             |
+| `danger`        | the fill of a destructive confirm button only                                        |
+| `dangerText`    | destructive actions and failures, as text                                            |
+| `paperRaised`   | a surface raised above `paper`, such as a choice panel                               |
+| `paperOverlay`  | menus, dialogs and popovers that float over the page                                 |
+| `surfaceMuted`  | quiet fills, such as a loading skeleton and the profile header                       |
+| `inverse`       | the fill of an inverted surface, such as the snackbar                                |
+| `inverseInk`    | text on `inverse`                                                                    |
+| `inverseAction` | the action and the focus ring on `inverse`, such as Undo                             |
+| `photoChip`     | a chip or button over a photo                                                        |
+| `scrim`         | the dim layer behind a dialog or sheet                                               |
+| `onAction`      | the label on an `action` or `danger` fill                                            |
+| `actionPressed` | the `action` fill under a press or a fine-pointer hover                              |
+| `dangerPressed` | the `danger` fill under a press or a fine-pointer hover                              |
+
+Cover and illustration tints come from `covers.ts`, never from a role. A tint never marks a control edge, a label or a
+state.
+
+**Difficulty** (kept from `specSharedSystem` §4) takes its colours from `difficultyTone` in `tones.ts`. It always shows
+the three-dot meter (●○○ ●●○ ●●●), so it never relies on colour (SC 1.4.1). `error` is never used for difficulty.
 
 **Status** (Draft, Private, Public): `pearl` fill, `ink` text, an icon (pencil-line, lock, globe). Neutral, never
 amber.
 
 ### 1.5 Type roles (`ui/src/tokens/typography.ts`, native faces in `scale.ts`)
 
-A screen names a role, never a size. The ramp in `scale.ts` (`fontSize`) stays.
+A screen names a role, never a size. The ramp in `scale.ts` (`fontSize`) stays for the screens that have not moved
+yet. The table below is generated from `typeRole`. A size is one of 14, 16, 18 or 28, and a leading is whole px on a
+4 px grid (owner ruling 2026-10-25). When a role's size differs per container class, web writes a bounded `clamp()` in
+`cqi` (container units, never `vw`), and native picks the size for its class.
 
-| Role           | Face                                                                                     | Size                                                                                                                                         | Weight  | Line height       | Default rule                                                      |
-| -------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ----------------- | ----------------------------------------------------------------- |
-| `largeTitle`   | Playfair Display                                                                         | 28 at `@narrow`, 34 at `@regular`, 40 at `@wide`. Web: bounded `clamp()` in `cqi` (container units, never `vw`). Native: one size per class. | 700     | 1.15              | wrap:2 on top-level pages. wrap:3 on recipe and collection titles |
-| `barTitle`     | Inter                                                                                    | 17                                                                                                                                           | 600     | 1.2               | truncate:1                                                        |
-| `sectionTitle` | Inter                                                                                    | 18                                                                                                                                           | 600     | 1.25              | wrap:2                                                            |
-| `cardTitle`    | Inter                                                                                    | 16                                                                                                                                           | 600     | 1.3               | truncate:2                                                        |
-| `body`         | Inter                                                                                    | 16                                                                                                                                           | 400     | 1.5               | wrap                                                              |
-| `readingBody`  | Inter                                                                                    | 18                                                                                                                                           | 400     | 1.6, measure 62ch | wrap                                                              |
-| `meta`         | Inter                                                                                    | 14                                                                                                                                           | 400/500 | 1.4               | per element                                                       |
-| `label`        | Inter                                                                                    | 14                                                                                                                                           | 600     | 1.2               | `room`                                                            |
-| `caption`      | Inter                                                                                    | 12                                                                                                                                           | 500     | 1.4               | truncate:1                                                        |
-| `overline`     | Inter, uppercase, +0.06em                                                                | 11                                                                                                                                           | 600     | 1.4               | `room`                                                            |
-| `figure`       | Inter, `tabular-nums lining-nums` (native `fontVariant: ['tabular-nums','lining-nums']`) | `figure-inline` = the size of its line. `figure-stat` = 20                                                                                   | 600     | as its line       | never wraps                                                       |
+<!-- BEGIN generated:typeRoles. Do not edit by hand: run `npm run docs:generate --workspace=packages/tools/docgen-components`. -->
 
-- **Playfair sets names only:** the greeting, large titles, the recipe title, a collection name, the monogram cover,
-  the wordmark. **It never sets a number.** Every amount, time, count, kcal and serving uses `figure`.
+| Role           | Face    | Size (px)        | Weight | Leading (px)     | Digits          |
+| -------------- | ------- | ---------------- | ------ | ---------------- | --------------- |
+| `largeTitle`   | Manrope | 28               | 600    | 32               |                 |
+| `barTitle`     | Inter   | 16               | 600    | 20               |                 |
+| `sectionTitle` | Inter   | 18               | 600    | 24               |                 |
+| `cardTitle`    | Inter   | 16               | 600    | 20               |                 |
+| `body`         | Inter   | 16               | 400    | 24               |                 |
+| `readingBody`  | Inter   | 18               | 400    | 28               |                 |
+| `readingLarge` | Inter   | 28               | 400    | 36               |                 |
+| `meta`         | Inter   | 14               | 400    | 20               |                 |
+| `list`         | Inter   | 14               | 400    | 20               |                 |
+| `label`        | Inter   | 14               | 600    | 20               |                 |
+| `caption`      | Inter   | 14               | 500    | 20               |                 |
+| `figureInline` | Inter   | size of its line | 600    | size of its line | tabular, lining |
+| `figureStat`   | Inter   | 18               | 600    | 24               | tabular, lining |
+
+<!-- END generated:typeRoles -->
+
+The default rule of each role:
+
+| Role           | Default rule                                                      |
+| -------------- | ----------------------------------------------------------------- |
+| `largeTitle`   | wrap:2 on top-level pages. wrap:3 on recipe and collection titles |
+| `barTitle`     | truncate:1                                                        |
+| `sectionTitle` | wrap:2                                                            |
+| `cardTitle`    | truncate:2                                                        |
+| `body`         | wrap                                                              |
+| `readingBody`  | wrap, measure 62ch                                                |
+| `readingLarge` | wrap. Never on a screen that also shows `largeTitle`              |
+| `meta`         | per element                                                       |
+| `list`         | wrap                                                              |
+| `label`        | `room`                                                            |
+| `caption`      | truncate:1                                                        |
+| `figureInline` | never wraps                                                       |
+| `figureStat`   | never wraps                                                       |
+
+- **Manrope sets names only:** the greeting, large titles, the recipe title, a collection name, the monogram cover,
+  the wordmark. **It never sets a number.** Every amount, time, count, kcal and serving uses a figure role.
 - Inputs never go below 16 px, so iOS Safari does not zoom.
-- **Native must register Inter** 400/500/600/700 (`@expo-google-fonts/inter`, a new dependency) in
-  `mobile/App.tsx` beside the two Playfair faces, with a `bodyFontFace` map beside `displayFontFace` in `scale.ts`,
-  guarded by `nativeFontFace.test.ts`. A native role selects a **face per weight**, never `fontFamily` plus
-  `fontWeight` together. That removes one candidate cause of the Android greeting falling back to a system bold
-  (`specSharedSystem` §3). The implementer still confirms the cause on device.
+- A native role selects a **face per weight** from `displayFontFace` or `bodyFontFace` (`scale.ts`), never
+  `fontFamily` plus `fontWeight` together. `nativeFontFace.test.ts` guards the faces.
+- The `overline` role is retired. A small heading is `label`, in sentence case.
 
 ### 1.6 Spacing, shape and elevation
 
@@ -1491,10 +1565,29 @@ ingredient row breaks unit words (#144)", items 1 to 7). There is **no amount co
 
 #### 7.5.2 The row editor
 
-- **Below a 600 container:** a content-height bottom sheet (`Sheet size="content"`). The list stays still, and the
-  sheet lifts the fields above the keyboard. **Done** (primary, `check`, fill) is pinned above the keyboard.
-- **From 600:** inline under the row, `pearl` at 60%, radius `md`, padding 16. One editor open at a time: opening
-  another closes the first and keeps its values. **Done** is a secondary button.
+- **Which one (one rule, both platforms):** the editor opens inline only when the window is at least 46 rem high AND
+  the editor's container is at least 43 rem wide. Otherwise it opens as the sheet. Both numbers are in rem, so a larger
+  text size needs a taller and wider space. They were measured on 2026-11-14 with the longest content (a range, a note, a
+  preparation and a long "You wrote" line), reached by the "Needs review" jump: the reason must show whole below ALL the
+  sticky chrome (the header and the section tabs under it) and above the action bar, and Done and Cancel must be in view.
+  46 rem high is the shortest window (it is 43 rem over a wide window, and 46 rem at the narrowest container the width
+  limit admits; at 200% text it is 45 rem). With the window held at 46 rem high, the container (the content box of the
+  editor's column) needs 43 rem at 100% text and 41 rem at 200% text. A narrower
+  container makes the editor taller, which is why the two limits go together. The 600 px `narrow` class is unchanged and
+  still drives other layout, such as the paste button. The frame an open editor started in is kept until it closes.
+- **Under either limit:** a content-height bottom sheet (`Sheet size="content"`). The list stays still, and the
+  sheet lifts the fields above the keyboard. **Cancel** (secondary) then **Done** (primary, `check`) are pinned above
+  the keyboard as one `DialogActions` pair, side by side from 400 and stacked (Done on top) below it.
+- **With both limits met:** inline under the row, `pearl` at 60%, radius `md`, padding 16. One editor open at a time: opening
+  another closes the first and keeps its values. **Cancel** then **Done** (primary) end the panel, as the same pair.
+- **Cancel** puts back the line's amount, range, unit, preparation, name and note as they were when the editor opened,
+  then closes. It never undoes a food picked with Change, which closes the editor and commits on its own. Every other
+  close route keeps the edits (owner request 2026-11-11). The edits are live in the draft, so a stray tap on the scrim
+  must not lose typing.
+- **A line that needs review** heads the editor with the "Needs review" badge, its explanation and, for the owner,
+  "You wrote" with the line exactly as pasted or imported (ADR-0090), then "Counted as" with Change as a secondary
+  button. The owner's "Needs review" on the recipe page links to the editor at `#ingredients/{version}.{position}` and
+  opens that line's editor. A stale address lands on the section with a short notice.
 - Content, top to bottom:
     - the food as one line with **Change** (ghost): "Lamb shoulder, raw · 282 cal per 100 g · USDA".
     - `FieldLabel` "Amount": a 64 px number field. "+ Add a range" (ghost) reveals "to" and a second field. With a
@@ -1502,9 +1595,9 @@ ingredient row breaks unit words (#144)", items 1 to 7). There is **no amount co
     - "Unit": a `Combobox`, 112 px.
     - "Preparation": fills the rest, at least 160 px.
     - "Food details" (ghost) opens the existing details panel (nutrition, variants, candidates).
-- Layout from 600: Amount, Unit and Preparation on one line. Below 600 (the sheet): Amount and Unit on line 1,
+- Layout inline: Amount, Unit and Preparation on one line. In the sheet: Amount and Unit on line 1,
   Preparation full width on line 2.
-- Escape or Done closes it. Focus returns to the row. No group field (groups are set at the section level).
+- Escape, Done or Cancel closes it. Focus returns to the row. No group field (groups are set at the section level).
 
 #### 7.5.3 The add field (quantity first, food always picked)
 
@@ -1723,7 +1816,7 @@ serving · {counted} of {total} counted". `stepTimerLabel` (`form/messages.ts:68
 | Current-section tracking | `IntersectionObserver`                                        | `onLayout` + throttled `onScroll`                                       | translated         | platform APIs                                                              |
 | Section jump             | `scroll-margin-top`, focus to the H2                          | `scrollTo`, accessibility focus to the H2                               | translated         | same job                                                                   |
 | Refused Publish          | the first invalid field takes focus (keyboard focus)          | the field is centred, the screen-reader cursor moves to it, no keyboard | translated         | §7.8: the keyboard would hide the message and open a combobox's list       |
-| Row editor               | inline from 600, sheet below                                  | sheet on phone, inline on tablet                                        | translated         | the keyboard and the thumb                                                 |
+| Row editor               | inline from 46 rem high and 43 rem wide, sheet otherwise      | sheet on phone, inline on tablet                                        | translated         | the keyboard and the thumb                                                 |
 | Row reorder              | ⋯ Move up / down. No drag                                     | the same                                                                | kept               | SC 2.5.7                                                                   |
 | Paste                    | sheet                                                         | sheet, the system paste menu in the field                               | kept               | same job                                                                   |
 | Add photos               | file input, drag and drop on a fine pointer                   | "Take photo" / "Choose from library"                                    | translated         | the camera                                                                 |
@@ -2506,7 +2599,7 @@ Where a slice makes an existing spec obsolete, its coverage moves to the named n
 
 ### Slice 8: the Ingredients section and the one-tap create entry
 
-- **Changes:** quiet read rows, the row ⋯ menu, the row editor (sheet below 600, inline from 600), the quantity-first
+- **Changes:** quiet read rows, the row ⋯ menu, the row editor (inline from 46 rem high and 43 rem wide, sheet otherwise), the quantity-first
   add field with the live reading (after A1 and A2), Paste a list, groups, the nutrition total. The FAB and the sidebar
   button switch to **one tap opens the editor**. Home's first-run Paste ingredients opens the editor with the paste
   sheet open. `/recipes/parse*` and the native parse screens retire.

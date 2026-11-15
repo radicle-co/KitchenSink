@@ -1,0 +1,1159 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T05:52:09Z"
+  },
+  "title": "Commise Screens, mobile: Recipe detail",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "RecipeDetailIphone390.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 3704,
+      "title": "Recipe detail, proposal (mobile, iPhone 390)"
+    },
+    "RecipeDetailScrolledIphone390.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe detail, scrolled, proposal (mobile, iPhone 390)"
+    },
+    "RecipeDetailIngredientsOpenIphone390.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe detail, ingredients open, proposal (mobile, iPhone 390)"
+    },
+    "RecipeDetailNutritionOpenIphone390.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe detail, nutrition open, proposal (mobile, iPhone 390)"
+    },
+    "RecipeDetailMenuIphone390.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe detail, more menu, proposal (mobile, iPhone 390)"
+    },
+    "RecipeDetailReaderMenuIphone390.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, reader, more menu (mobile, iPhone 390)"
+    },
+    "RecipeDetailReaderIphone390.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 3616,
+      "title": "Recipe detail, another cook's recipe, proposal (mobile, iPhone 390)"
+    },
+    "RecipeRatingIphone390.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 990,
+      "title": "Rate this recipe, proposal (mobile, iPhone 390)"
+    },
+    "RecipeCommentsIphone390.dc.html": {
+      "x": 3760,
+      "y": 260,
+      "w": 390,
+      "h": 990,
+      "title": "Comments, proposal (mobile, iPhone 390)"
+    },
+    "RecipeCommentsTypingIphone390.dc.html": {
+      "x": 4230,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Comments, proposal, typing a comment (mobile, iPhone 390)"
+    },
+    "RecipeCommentsYoursIphone390.dc.html": {
+      "x": 4700,
+      "y": 260,
+      "w": 390,
+      "h": 990,
+      "title": "Comments, with your own, proposal (mobile, iPhone 390)"
+    },
+    "RecipeCommentDeleteIphone390.dc.html": {
+      "x": 5170,
+      "y": 260,
+      "w": 390,
+      "h": 990,
+      "title": "Delete your comment, proposal (mobile, iPhone 390)"
+    },
+    "RecipeDetailPhotoLightboxIphone390.dc.html": {
+      "x": 5640,
+      "y": 260,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe detail, photo full screen (mobile, iPhone 390)"
+    },
+    "RecipeDeleteDialogIphone390.dc.html": {
+      "x": 6110,
+      "y": 260,
+      "w": 390,
+      "h": 1134,
+      "title": "Recipe detail, delete this recipe? (mobile, iPhone 390)"
+    },
+    "RecipeMakePublicDialogIphone390.dc.html": {
+      "x": 6580,
+      "y": 260,
+      "w": 390,
+      "h": 1904,
+      "title": "Recipe detail, make public? (mobile, iPhone 390)"
+    },
+    "RecipeVisibilityFailedIphone390.dc.html": {
+      "x": 7050,
+      "y": 260,
+      "w": 390,
+      "h": 1183,
+      "title": "Recipe detail, visibility not changed (mobile, iPhone 390)"
+    },
+    "RecipeUpsellSheetIphone390.dc.html": {
+      "x": 7520,
+      "y": 260,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe detail, Premium for private (mobile, iPhone 390)"
+    },
+    "RecipeSaveCopyIphone390.dc.html": {
+      "x": 7990,
+      "y": 260,
+      "w": 390,
+      "h": 1106,
+      "title": "Recipe detail, save a copy (mobile, iPhone 390)"
+    },
+    "RecipeRatingStatesIphone390.dc.html": {
+      "x": 8460,
+      "y": 260,
+      "w": 390,
+      "h": 1197,
+      "title": "Recipe detail, rating states (mobile, iPhone 390)"
+    },
+    "RecipeDetailReviewMatchesIphone390.dc.html": {
+      "x": 8930,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, review ingredient matches (mobile, iPhone 390)"
+    },
+    "RecipeDetailReviewMatchesStatesIphone390.dc.html": {
+      "x": 9400,
+      "y": 260,
+      "w": 390,
+      "h": 1801,
+      "title": "Recipe detail, review matches: states (mobile, iPhone 390)"
+    },
+    "RecipeDetailLoadingIphone390.dc.html": {
+      "x": 9870,
+      "y": 260,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe detail, loading (mobile, iPhone 390)"
+    },
+    "RecipeDetailDeletedIphone390.dc.html": {
+      "x": 10340,
+      "y": 260,
+      "w": 390,
+      "h": 1081,
+      "title": "Recipe detail, deleted (mobile, iPhone 390)"
+    },
+    "RecipeDetailRefreshFailedIphone390.dc.html": {
+      "x": 10810,
+      "y": 260,
+      "w": 390,
+      "h": 1801,
+      "title": "Recipe detail, could not refresh (mobile, iPhone 390)"
+    },
+    "RecipeDetailEmptySectionsIphone390.dc.html": {
+      "x": 11280,
+      "y": 260,
+      "w": 390,
+      "h": 857,
+      "title": "Recipe detail, empty sections (mobile, iPhone 390)"
+    },
+    "RecipeDetailScaledIphone390.dc.html": {
+      "x": 11750,
+      "y": 260,
+      "w": 390,
+      "h": 1323,
+      "title": "Recipe detail, servings changed (mobile, iPhone 390)"
+    },
+    "RecipeDetailIngredientNoticesIphone390.dc.html": {
+      "x": 12220,
+      "y": 260,
+      "w": 390,
+      "h": 1592,
+      "title": "Recipe detail, ingredients to check (mobile, iPhone 390)"
+    },
+    "RecipeDetailRemovedFoodsIphone390.dc.html": {
+      "x": 12690,
+      "y": 260,
+      "w": 390,
+      "h": 1771,
+      "title": "Recipe detail, removed or not loaded foods (mobile, iPhone 390)"
+    },
+    "RecipeDetailCopiedPrivateFoodsIphone390.dc.html": {
+      "x": 13160,
+      "y": 260,
+      "w": 390,
+      "h": 1017,
+      "title": "Recipe detail, copy uses private foods (mobile, iPhone 390)"
+    },
+    "RecipeDetailNutritionStatesIphone390.dc.html": {
+      "x": 13630,
+      "y": 260,
+      "w": 390,
+      "h": 1967,
+      "title": "Recipe detail, nutrition states (mobile, iPhone 390)"
+    },
+    "RecipeLoadErrorIphone390.dc.html": {
+      "x": 14100,
+      "y": 260,
+      "w": 390,
+      "h": 1046,
+      "title": "Recipe, could not load (mobile, iPhone 390)"
+    },
+    "RecipeNotFoundIphone390.dc.html": {
+      "x": 14570,
+      "y": 260,
+      "w": 390,
+      "h": 1046,
+      "title": "Recipe, not available (mobile, iPhone 390)"
+    },
+    "RecipeVersionsIphone390.dc.html": {
+      "x": 15040,
+      "y": 260,
+      "w": 390,
+      "h": 943,
+      "title": "Recipe versions, proposal (mobile, iPhone 390)"
+    },
+    "RecipeVersionsScrolledIphone390.dc.html": {
+      "x": 15510,
+      "y": 260,
+      "w": 390,
+      "h": 943,
+      "title": "Version history, scrolled (mobile, iPhone 390)"
+    },
+    "RecipeVersionsEmptyIphone390.dc.html": {
+      "x": 15980,
+      "y": 260,
+      "w": 390,
+      "h": 943,
+      "title": "Recipe versions, empty, proposal (mobile, iPhone 390)"
+    },
+    "RecipeVersionsLoadingIphone390.dc.html": {
+      "x": 16450,
+      "y": 260,
+      "w": 390,
+      "h": 943,
+      "title": "Recipe versions, loading (mobile, iPhone 390)"
+    },
+    "RecipeVersionsErrorIphone390.dc.html": {
+      "x": 16920,
+      "y": 260,
+      "w": 390,
+      "h": 943,
+      "title": "Recipe versions, could not load (mobile, iPhone 390)"
+    },
+    "RecipeVersionsRestoreIphone390.dc.html": {
+      "x": 17390,
+      "y": 260,
+      "w": 390,
+      "h": 2467,
+      "title": "Recipe versions, restoring (mobile, iPhone 390)"
+    },
+    "RecipeVersionPreviewIphone390.dc.html": {
+      "x": 17860,
+      "y": 260,
+      "w": 390,
+      "h": 1031,
+      "title": "Recipe versions, preview a version (mobile, iPhone 390)"
+    },
+    "RecipeVersionPreviewStatesIphone390.dc.html": {
+      "x": 18330,
+      "y": 260,
+      "w": 390,
+      "h": 2369,
+      "title": "Recipe versions, preview states (mobile, iPhone 390)"
+    },
+    "RecipeVersionCompareIphone390.dc.html": {
+      "x": 18800,
+      "y": 260,
+      "w": 390,
+      "h": 1339,
+      "title": "Recipe versions, compare (mobile, iPhone 390)"
+    },
+    "RecipeDetailCookingIphone390.dc.html": {
+      "x": 19270,
+      "y": 260,
+      "w": 390,
+      "h": 3516,
+      "title": "Recipe detail, cooking in progress (mobile, iPhone 390)"
+    },
+    "RecipeDetailAndroid384.dc.html": {
+      "x": 0,
+      "y": 4624,
+      "w": 384,
+      "h": 3671,
+      "title": "Recipe detail, proposal (mobile, Android 384)"
+    },
+    "RecipeDetailScrolledAndroid384.dc.html": {
+      "x": 464,
+      "y": 4624,
+      "w": 384,
+      "h": 957,
+      "title": "Recipe detail, scrolled, proposal (mobile, Android 384)"
+    },
+    "RecipeDetailIngredientsOpenAndroid384.dc.html": {
+      "x": 928,
+      "y": 4624,
+      "w": 384,
+      "h": 957,
+      "title": "Recipe detail, ingredients open, proposal (mobile, Android 384)"
+    },
+    "RecipeDetailNutritionOpenAndroid384.dc.html": {
+      "x": 1392,
+      "y": 4624,
+      "w": 384,
+      "h": 957,
+      "title": "Recipe detail, nutrition open, proposal (mobile, Android 384)"
+    },
+    "RecipeDetailMenuAndroid384.dc.html": {
+      "x": 1856,
+      "y": 4624,
+      "w": 384,
+      "h": 957,
+      "title": "Recipe detail, more menu, proposal (mobile, Android 384)"
+    },
+    "RecipeDetailReaderMenuAndroid384.dc.html": {
+      "x": 2320,
+      "y": 4624,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe detail, reader, more menu (mobile, Android 384)"
+    },
+    "RecipeDetailReaderAndroid384.dc.html": {
+      "x": 2784,
+      "y": 4624,
+      "w": 384,
+      "h": 3583,
+      "title": "Recipe detail, another cook's recipe, proposal (mobile, Android 384)"
+    },
+    "RecipeRatingAndroid384.dc.html": {
+      "x": 3248,
+      "y": 4624,
+      "w": 384,
+      "h": 957,
+      "title": "Rate this recipe, proposal (mobile, Android 384)"
+    },
+    "RecipeCommentsAndroid384.dc.html": {
+      "x": 3712,
+      "y": 4624,
+      "w": 384,
+      "h": 957,
+      "title": "Comments, proposal (mobile, Android 384)"
+    },
+    "RecipeCommentsTypingAndroid384.dc.html": {
+      "x": 4176,
+      "y": 4624,
+      "w": 384,
+      "h": 832,
+      "title": "Comments, proposal, typing a comment (mobile, Android 384)"
+    },
+    "RecipeCommentsYoursAndroid384.dc.html": {
+      "x": 4640,
+      "y": 4624,
+      "w": 384,
+      "h": 957,
+      "title": "Comments, with your own, proposal (mobile, Android 384)"
+    },
+    "RecipeCommentDeleteAndroid384.dc.html": {
+      "x": 5104,
+      "y": 4624,
+      "w": 384,
+      "h": 957,
+      "title": "Delete your comment, proposal (mobile, Android 384)"
+    },
+    "RecipeDetailPhotoLightboxAndroid384.dc.html": {
+      "x": 5568,
+      "y": 4624,
+      "w": 384,
+      "h": 957,
+      "title": "Recipe detail, photo full screen (mobile, Android 384)"
+    },
+    "RecipeDeleteDialogAndroid384.dc.html": {
+      "x": 6032,
+      "y": 4624,
+      "w": 384,
+      "h": 1101,
+      "title": "Recipe detail, delete this recipe? (mobile, Android 384)"
+    },
+    "RecipeMakePublicDialogAndroid384.dc.html": {
+      "x": 6496,
+      "y": 4624,
+      "w": 384,
+      "h": 1871,
+      "title": "Recipe detail, make public? (mobile, Android 384)"
+    },
+    "RecipeVisibilityFailedAndroid384.dc.html": {
+      "x": 6960,
+      "y": 4624,
+      "w": 384,
+      "h": 1170,
+      "title": "Recipe detail, visibility not changed (mobile, Android 384)"
+    },
+    "RecipeUpsellSheetAndroid384.dc.html": {
+      "x": 7424,
+      "y": 4624,
+      "w": 384,
+      "h": 957,
+      "title": "Recipe detail, Premium for private (mobile, Android 384)"
+    },
+    "RecipeSaveCopyAndroid384.dc.html": {
+      "x": 7888,
+      "y": 4624,
+      "w": 384,
+      "h": 1073,
+      "title": "Recipe detail, save a copy (mobile, Android 384)"
+    },
+    "RecipeRatingStatesAndroid384.dc.html": {
+      "x": 8352,
+      "y": 4624,
+      "w": 384,
+      "h": 1164,
+      "title": "Recipe detail, rating states (mobile, Android 384)"
+    },
+    "RecipeDetailReviewMatchesAndroid384.dc.html": {
+      "x": 8816,
+      "y": 4624,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe detail, review ingredient matches (mobile, Android 384)"
+    },
+    "RecipeDetailReviewMatchesStatesAndroid384.dc.html": {
+      "x": 9280,
+      "y": 4624,
+      "w": 384,
+      "h": 1768,
+      "title": "Recipe detail, review matches: states (mobile, Android 384)"
+    },
+    "RecipeDetailLoadingAndroid384.dc.html": {
+      "x": 9744,
+      "y": 4624,
+      "w": 384,
+      "h": 957,
+      "title": "Recipe detail, loading (mobile, Android 384)"
+    },
+    "RecipeDetailDeletedAndroid384.dc.html": {
+      "x": 10208,
+      "y": 4624,
+      "w": 384,
+      "h": 1048,
+      "title": "Recipe detail, deleted (mobile, Android 384)"
+    },
+    "RecipeDetailRefreshFailedAndroid384.dc.html": {
+      "x": 10672,
+      "y": 4624,
+      "w": 384,
+      "h": 1768,
+      "title": "Recipe detail, could not refresh (mobile, Android 384)"
+    },
+    "RecipeDetailEmptySectionsAndroid384.dc.html": {
+      "x": 11136,
+      "y": 4624,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe detail, empty sections (mobile, Android 384)"
+    },
+    "RecipeDetailScaledAndroid384.dc.html": {
+      "x": 11600,
+      "y": 4624,
+      "w": 384,
+      "h": 1314,
+      "title": "Recipe detail, servings changed (mobile, Android 384)"
+    },
+    "RecipeDetailIngredientNoticesAndroid384.dc.html": {
+      "x": 12064,
+      "y": 4624,
+      "w": 384,
+      "h": 1583,
+      "title": "Recipe detail, ingredients to check (mobile, Android 384)"
+    },
+    "RecipeDetailRemovedFoodsAndroid384.dc.html": {
+      "x": 12528,
+      "y": 4624,
+      "w": 384,
+      "h": 1738,
+      "title": "Recipe detail, removed or not loaded foods (mobile, Android 384)"
+    },
+    "RecipeDetailCopiedPrivateFoodsAndroid384.dc.html": {
+      "x": 12992,
+      "y": 4624,
+      "w": 384,
+      "h": 984,
+      "title": "Recipe detail, copy uses private foods (mobile, Android 384)"
+    },
+    "RecipeDetailNutritionStatesAndroid384.dc.html": {
+      "x": 13456,
+      "y": 4624,
+      "w": 384,
+      "h": 1934,
+      "title": "Recipe detail, nutrition states (mobile, Android 384)"
+    },
+    "RecipeLoadErrorAndroid384.dc.html": {
+      "x": 13920,
+      "y": 4624,
+      "w": 384,
+      "h": 1013,
+      "title": "Recipe, could not load (mobile, Android 384)"
+    },
+    "RecipeNotFoundAndroid384.dc.html": {
+      "x": 14384,
+      "y": 4624,
+      "w": 384,
+      "h": 1013,
+      "title": "Recipe, not available (mobile, Android 384)"
+    },
+    "RecipeVersionsAndroid384.dc.html": {
+      "x": 14848,
+      "y": 4624,
+      "w": 384,
+      "h": 933,
+      "title": "Recipe versions, proposal (mobile, Android 384)"
+    },
+    "RecipeVersionsScrolledAndroid384.dc.html": {
+      "x": 15312,
+      "y": 4624,
+      "w": 384,
+      "h": 933,
+      "title": "Version history, scrolled (mobile, Android 384)"
+    },
+    "RecipeVersionsEmptyAndroid384.dc.html": {
+      "x": 15776,
+      "y": 4624,
+      "w": 384,
+      "h": 933,
+      "title": "Recipe versions, empty, proposal (mobile, Android 384)"
+    },
+    "RecipeVersionsLoadingAndroid384.dc.html": {
+      "x": 16240,
+      "y": 4624,
+      "w": 384,
+      "h": 933,
+      "title": "Recipe versions, loading (mobile, Android 384)"
+    },
+    "RecipeVersionsErrorAndroid384.dc.html": {
+      "x": 16704,
+      "y": 4624,
+      "w": 384,
+      "h": 933,
+      "title": "Recipe versions, could not load (mobile, Android 384)"
+    },
+    "RecipeVersionsRestoreAndroid384.dc.html": {
+      "x": 17168,
+      "y": 4624,
+      "w": 384,
+      "h": 2434,
+      "title": "Recipe versions, restoring (mobile, Android 384)"
+    },
+    "RecipeVersionPreviewAndroid384.dc.html": {
+      "x": 17632,
+      "y": 4624,
+      "w": 384,
+      "h": 1021,
+      "title": "Recipe versions, preview a version (mobile, Android 384)"
+    },
+    "RecipeVersionPreviewStatesAndroid384.dc.html": {
+      "x": 18096,
+      "y": 4624,
+      "w": 384,
+      "h": 2336,
+      "title": "Recipe versions, preview states (mobile, Android 384)"
+    },
+    "RecipeVersionCompareAndroid384.dc.html": {
+      "x": 18560,
+      "y": 4624,
+      "w": 384,
+      "h": 1306,
+      "title": "Recipe versions, compare (mobile, Android 384)"
+    },
+    "RecipeDetailCookingAndroid384.dc.html": {
+      "x": 19024,
+      "y": 4624,
+      "w": 384,
+      "h": 3483,
+      "title": "Recipe detail, cooking in progress (mobile, Android 384)"
+    },
+    "RecipeDetailIpad820.dc.html": {
+      "x": 0,
+      "y": 8955,
+      "w": 820,
+      "h": 1990,
+      "title": "Recipe detail, proposal (mobile, iPad 820)"
+    },
+    "RecipeDetailScrolledIpad820.dc.html": {
+      "x": 900,
+      "y": 8955,
+      "w": 820,
+      "h": 2018,
+      "title": "Recipe detail, scrolled, proposal (mobile, iPad 820)"
+    },
+    "RecipeDetailNutritionOpenIpad820.dc.html": {
+      "x": 1800,
+      "y": 8955,
+      "w": 820,
+      "h": 2080,
+      "title": "Recipe detail, nutrition open, proposal (mobile, iPad 820)"
+    },
+    "RecipeDetailMenuIpad820.dc.html": {
+      "x": 2700,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, more menu, proposal (mobile, iPad 820)"
+    },
+    "RecipeDetailReaderMenuIpad820.dc.html": {
+      "x": 3600,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, reader, more menu (mobile, iPad 820)"
+    },
+    "RecipeDetailReaderIpad820.dc.html": {
+      "x": 4500,
+      "y": 8955,
+      "w": 820,
+      "h": 1938,
+      "title": "Recipe detail, another cook's recipe, proposal (mobile, iPad 820)"
+    },
+    "RecipeRatingIpad820.dc.html": {
+      "x": 5400,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Rate this recipe, proposal (mobile, iPad 820)"
+    },
+    "RecipeCommentsIpad820.dc.html": {
+      "x": 6300,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Comments, proposal (mobile, iPad 820)"
+    },
+    "RecipeCommentsTypingIpad820.dc.html": {
+      "x": 7200,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Comments, proposal, typing a comment (mobile, iPad 820)"
+    },
+    "RecipeCommentsYoursIpad820.dc.html": {
+      "x": 8100,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Comments, with your own, proposal (mobile, iPad 820)"
+    },
+    "RecipeCommentDeleteIpad820.dc.html": {
+      "x": 9000,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Delete your comment, proposal (mobile, iPad 820)"
+    },
+    "RecipeDetailPhotoLightboxIpad820.dc.html": {
+      "x": 9900,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, photo full screen (mobile, iPad 820)"
+    },
+    "RecipeDeleteDialogIpad820.dc.html": {
+      "x": 10800,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, delete this recipe? (mobile, iPad 820)"
+    },
+    "RecipeMakePublicDialogIpad820.dc.html": {
+      "x": 11700,
+      "y": 8955,
+      "w": 820,
+      "h": 1752,
+      "title": "Recipe detail, make public? (mobile, iPad 820)"
+    },
+    "RecipeVisibilityFailedIpad820.dc.html": {
+      "x": 12600,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, visibility not changed (mobile, iPad 820)"
+    },
+    "RecipeUpsellSheetIpad820.dc.html": {
+      "x": 13500,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, Premium for private (mobile, iPad 820)"
+    },
+    "RecipeSaveCopyIpad820.dc.html": {
+      "x": 14400,
+      "y": 8955,
+      "w": 820,
+      "h": 1938,
+      "title": "Recipe detail, save a copy (mobile, iPad 820)"
+    },
+    "RecipeRatingStatesIpad820.dc.html": {
+      "x": 15300,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, rating states (mobile, iPad 820)"
+    },
+    "RecipeDetailReviewMatchesIpad820.dc.html": {
+      "x": 16200,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, review ingredient matches (mobile, iPad 820)"
+    },
+    "RecipeDetailReviewMatchesStatesIpad820.dc.html": {
+      "x": 17100,
+      "y": 8955,
+      "w": 820,
+      "h": 1784,
+      "title": "Recipe detail, review matches: states (mobile, iPad 820)"
+    },
+    "RecipeDetailLoadingIpad820.dc.html": {
+      "x": 18000,
+      "y": 8955,
+      "w": 820,
+      "h": 1189,
+      "title": "Recipe detail, loading (mobile, iPad 820)"
+    },
+    "RecipeDetailDeletedIpad820.dc.html": {
+      "x": 18900,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, deleted (mobile, iPad 820)"
+    },
+    "RecipeDetailRefreshFailedIpad820.dc.html": {
+      "x": 19800,
+      "y": 8955,
+      "w": 820,
+      "h": 1214,
+      "title": "Recipe detail, could not refresh (mobile, iPad 820)"
+    },
+    "RecipeDetailEmptySectionsIpad820.dc.html": {
+      "x": 20700,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, empty sections (mobile, iPad 820)"
+    },
+    "RecipeDetailScaledIpad820.dc.html": {
+      "x": 21600,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, servings changed (mobile, iPad 820)"
+    },
+    "RecipeDetailIngredientNoticesIpad820.dc.html": {
+      "x": 22500,
+      "y": 8955,
+      "w": 820,
+      "h": 1234,
+      "title": "Recipe detail, ingredients to check (mobile, iPad 820)"
+    },
+    "RecipeDetailRemovedFoodsIpad820.dc.html": {
+      "x": 23400,
+      "y": 8955,
+      "w": 820,
+      "h": 1882,
+      "title": "Recipe detail, removed or not loaded foods (mobile, iPad 820)"
+    },
+    "RecipeDetailCopiedPrivateFoodsIpad820.dc.html": {
+      "x": 24300,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, copy uses private foods (mobile, iPad 820)"
+    },
+    "RecipeDetailNutritionStatesIpad820.dc.html": {
+      "x": 25200,
+      "y": 8955,
+      "w": 820,
+      "h": 1858,
+      "title": "Recipe detail, nutrition states (mobile, iPad 820)"
+    },
+    "RecipeLoadErrorIpad820.dc.html": {
+      "x": 26100,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe, could not load (mobile, iPad 820)"
+    },
+    "RecipeNotFoundIpad820.dc.html": {
+      "x": 27000,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe, not available (mobile, iPad 820)"
+    },
+    "RecipeVersionsIpad820.dc.html": {
+      "x": 27900,
+      "y": 8955,
+      "w": 820,
+      "h": 1303,
+      "title": "Recipe versions, proposal (mobile, iPad 820)"
+    },
+    "RecipeVersionsScrolledIpad820.dc.html": {
+      "x": 28800,
+      "y": 8955,
+      "w": 820,
+      "h": 1303,
+      "title": "Version history, scrolled (mobile, iPad 820)"
+    },
+    "RecipeVersionsEmptyIpad820.dc.html": {
+      "x": 29700,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe versions, empty, proposal (mobile, iPad 820)"
+    },
+    "RecipeVersionsLoadingIpad820.dc.html": {
+      "x": 30600,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe versions, loading (mobile, iPad 820)"
+    },
+    "RecipeVersionsErrorIpad820.dc.html": {
+      "x": 31500,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe versions, could not load (mobile, iPad 820)"
+    },
+    "RecipeVersionsRestoreIpad820.dc.html": {
+      "x": 32400,
+      "y": 8955,
+      "w": 820,
+      "h": 2370,
+      "title": "Recipe versions, restoring (mobile, iPad 820)"
+    },
+    "RecipeVersionPreviewIpad820.dc.html": {
+      "x": 33300,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe versions, preview a version (mobile, iPad 820)"
+    },
+    "RecipeVersionPreviewStatesIpad820.dc.html": {
+      "x": 34200,
+      "y": 8955,
+      "w": 820,
+      "h": 1804,
+      "title": "Recipe versions, preview states (mobile, iPad 820)"
+    },
+    "RecipeVersionCompareIpad820.dc.html": {
+      "x": 35100,
+      "y": 8955,
+      "w": 820,
+      "h": 1274,
+      "title": "Recipe versions, compare (mobile, iPad 820)"
+    },
+    "RecipeDetailCookingIpad820.dc.html": {
+      "x": 36000,
+      "y": 8955,
+      "w": 820,
+      "h": 2018,
+      "title": "Recipe detail, cooking in progress (mobile, iPad 820)"
+    },
+    "RecipeFactsAndroid384.dc.html": {
+      "x": 19488,
+      "y": 4624,
+      "w": 384,
+      "h": 1926,
+      "title": "Recipe detail, facts card, proposal (mobile, Android 384)"
+    },
+    "RecipeFactsBookAndroid384.dc.html": {
+      "x": 19952,
+      "y": 4624,
+      "w": 384,
+      "h": 1838,
+      "title": "Recipe detail, facts card, from a book, proposal (mobile, Android 384)"
+    },
+    "RecipeSourceCardAndroid384.dc.html": {
+      "x": 20416,
+      "y": 4624,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe detail, source card, proposal (mobile, Android 384)"
+    },
+    "RecipeFactsSaveCopyAndroid384.dc.html": {
+      "x": 20880,
+      "y": 4624,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe detail, make public? (mobile, Android 384)"
+    },
+    "RecipeFactsIpad820.dc.html": {
+      "x": 36900,
+      "y": 8955,
+      "w": 820,
+      "h": 1351,
+      "title": "Recipe detail, facts card, proposal (mobile, iPad 820)"
+    },
+    "RecipeFactsBookIpad820.dc.html": {
+      "x": 37800,
+      "y": 8955,
+      "w": 820,
+      "h": 1331,
+      "title": "Recipe detail, facts card, from a book, proposal (mobile, iPad 820)"
+    },
+    "RecipeSourceCardIpad820.dc.html": {
+      "x": 38700,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, source card, proposal (mobile, iPad 820)"
+    },
+    "RecipeFactsSaveCopyIpad820.dc.html": {
+      "x": 39600,
+      "y": 8955,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, make public? (mobile, iPad 820)"
+    },
+    "RecipeFactsIphone390.dc.html": {
+      "x": 19740,
+      "y": 260,
+      "w": 390,
+      "h": 1959,
+      "title": "Recipe detail, facts card, proposal (mobile, iPhone 390)"
+    },
+    "RecipeFactsBookIphone390.dc.html": {
+      "x": 20210,
+      "y": 260,
+      "w": 390,
+      "h": 1871,
+      "title": "Recipe detail, facts card, from a book, proposal (mobile, iPhone 390)"
+    },
+    "RecipeSourceCardIphone390.dc.html": {
+      "x": 20680,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, source card, proposal (mobile, iPhone 390)"
+    },
+    "RecipeFactsSaveCopyIphone390.dc.html": {
+      "x": 21150,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, make public? (mobile, iPhone 390)"
+    },
+    "RecipeDetailExitSnackbarS3bMobile.dc.html": {
+      "x": 0,
+      "y": 11745,
+      "w": 2400,
+      "h": 2630,
+      "title": "Recipe detail, S3b exit-from-cooking-mode snackbar (mobile)"
+    }
+  },
+  "order": [
+    "RecipeDetailIphone390.dc.html",
+    "RecipeDetailScrolledIphone390.dc.html",
+    "RecipeDetailIngredientsOpenIphone390.dc.html",
+    "RecipeDetailNutritionOpenIphone390.dc.html",
+    "RecipeDetailMenuIphone390.dc.html",
+    "RecipeDetailReaderMenuIphone390.dc.html",
+    "RecipeDetailReaderIphone390.dc.html",
+    "RecipeRatingIphone390.dc.html",
+    "RecipeCommentsIphone390.dc.html",
+    "RecipeCommentsTypingIphone390.dc.html",
+    "RecipeCommentsYoursIphone390.dc.html",
+    "RecipeCommentDeleteIphone390.dc.html",
+    "RecipeDetailPhotoLightboxIphone390.dc.html",
+    "RecipeDeleteDialogIphone390.dc.html",
+    "RecipeMakePublicDialogIphone390.dc.html",
+    "RecipeVisibilityFailedIphone390.dc.html",
+    "RecipeUpsellSheetIphone390.dc.html",
+    "RecipeSaveCopyIphone390.dc.html",
+    "RecipeRatingStatesIphone390.dc.html",
+    "RecipeDetailReviewMatchesIphone390.dc.html",
+    "RecipeDetailReviewMatchesStatesIphone390.dc.html",
+    "RecipeDetailLoadingIphone390.dc.html",
+    "RecipeDetailDeletedIphone390.dc.html",
+    "RecipeDetailRefreshFailedIphone390.dc.html",
+    "RecipeDetailEmptySectionsIphone390.dc.html",
+    "RecipeDetailScaledIphone390.dc.html",
+    "RecipeDetailIngredientNoticesIphone390.dc.html",
+    "RecipeDetailRemovedFoodsIphone390.dc.html",
+    "RecipeDetailCopiedPrivateFoodsIphone390.dc.html",
+    "RecipeDetailNutritionStatesIphone390.dc.html",
+    "RecipeLoadErrorIphone390.dc.html",
+    "RecipeNotFoundIphone390.dc.html",
+    "RecipeVersionsIphone390.dc.html",
+    "RecipeVersionsScrolledIphone390.dc.html",
+    "RecipeVersionsEmptyIphone390.dc.html",
+    "RecipeVersionsLoadingIphone390.dc.html",
+    "RecipeVersionsErrorIphone390.dc.html",
+    "RecipeVersionsRestoreIphone390.dc.html",
+    "RecipeVersionPreviewIphone390.dc.html",
+    "RecipeVersionPreviewStatesIphone390.dc.html",
+    "RecipeVersionCompareIphone390.dc.html",
+    "RecipeDetailCookingIphone390.dc.html",
+    "RecipeDetailAndroid384.dc.html",
+    "RecipeDetailScrolledAndroid384.dc.html",
+    "RecipeDetailIngredientsOpenAndroid384.dc.html",
+    "RecipeDetailNutritionOpenAndroid384.dc.html",
+    "RecipeDetailMenuAndroid384.dc.html",
+    "RecipeDetailReaderMenuAndroid384.dc.html",
+    "RecipeDetailReaderAndroid384.dc.html",
+    "RecipeRatingAndroid384.dc.html",
+    "RecipeCommentsAndroid384.dc.html",
+    "RecipeCommentsTypingAndroid384.dc.html",
+    "RecipeCommentsYoursAndroid384.dc.html",
+    "RecipeCommentDeleteAndroid384.dc.html",
+    "RecipeDetailPhotoLightboxAndroid384.dc.html",
+    "RecipeDeleteDialogAndroid384.dc.html",
+    "RecipeMakePublicDialogAndroid384.dc.html",
+    "RecipeVisibilityFailedAndroid384.dc.html",
+    "RecipeUpsellSheetAndroid384.dc.html",
+    "RecipeSaveCopyAndroid384.dc.html",
+    "RecipeRatingStatesAndroid384.dc.html",
+    "RecipeDetailReviewMatchesAndroid384.dc.html",
+    "RecipeDetailReviewMatchesStatesAndroid384.dc.html",
+    "RecipeDetailLoadingAndroid384.dc.html",
+    "RecipeDetailDeletedAndroid384.dc.html",
+    "RecipeDetailRefreshFailedAndroid384.dc.html",
+    "RecipeDetailEmptySectionsAndroid384.dc.html",
+    "RecipeDetailScaledAndroid384.dc.html",
+    "RecipeDetailIngredientNoticesAndroid384.dc.html",
+    "RecipeDetailRemovedFoodsAndroid384.dc.html",
+    "RecipeDetailCopiedPrivateFoodsAndroid384.dc.html",
+    "RecipeDetailNutritionStatesAndroid384.dc.html",
+    "RecipeLoadErrorAndroid384.dc.html",
+    "RecipeNotFoundAndroid384.dc.html",
+    "RecipeVersionsAndroid384.dc.html",
+    "RecipeVersionsScrolledAndroid384.dc.html",
+    "RecipeVersionsEmptyAndroid384.dc.html",
+    "RecipeVersionsLoadingAndroid384.dc.html",
+    "RecipeVersionsErrorAndroid384.dc.html",
+    "RecipeVersionsRestoreAndroid384.dc.html",
+    "RecipeVersionPreviewAndroid384.dc.html",
+    "RecipeVersionPreviewStatesAndroid384.dc.html",
+    "RecipeVersionCompareAndroid384.dc.html",
+    "RecipeDetailCookingAndroid384.dc.html",
+    "RecipeDetailIpad820.dc.html",
+    "RecipeDetailScrolledIpad820.dc.html",
+    "RecipeDetailNutritionOpenIpad820.dc.html",
+    "RecipeDetailMenuIpad820.dc.html",
+    "RecipeDetailReaderMenuIpad820.dc.html",
+    "RecipeDetailReaderIpad820.dc.html",
+    "RecipeRatingIpad820.dc.html",
+    "RecipeCommentsIpad820.dc.html",
+    "RecipeCommentsTypingIpad820.dc.html",
+    "RecipeCommentsYoursIpad820.dc.html",
+    "RecipeCommentDeleteIpad820.dc.html",
+    "RecipeDetailPhotoLightboxIpad820.dc.html",
+    "RecipeDeleteDialogIpad820.dc.html",
+    "RecipeMakePublicDialogIpad820.dc.html",
+    "RecipeVisibilityFailedIpad820.dc.html",
+    "RecipeUpsellSheetIpad820.dc.html",
+    "RecipeSaveCopyIpad820.dc.html",
+    "RecipeRatingStatesIpad820.dc.html",
+    "RecipeDetailReviewMatchesIpad820.dc.html",
+    "RecipeDetailReviewMatchesStatesIpad820.dc.html",
+    "RecipeDetailLoadingIpad820.dc.html",
+    "RecipeDetailDeletedIpad820.dc.html",
+    "RecipeDetailRefreshFailedIpad820.dc.html",
+    "RecipeDetailEmptySectionsIpad820.dc.html",
+    "RecipeDetailScaledIpad820.dc.html",
+    "RecipeDetailIngredientNoticesIpad820.dc.html",
+    "RecipeDetailRemovedFoodsIpad820.dc.html",
+    "RecipeDetailCopiedPrivateFoodsIpad820.dc.html",
+    "RecipeDetailNutritionStatesIpad820.dc.html",
+    "RecipeLoadErrorIpad820.dc.html",
+    "RecipeNotFoundIpad820.dc.html",
+    "RecipeVersionsIpad820.dc.html",
+    "RecipeVersionsScrolledIpad820.dc.html",
+    "RecipeVersionsEmptyIpad820.dc.html",
+    "RecipeVersionsLoadingIpad820.dc.html",
+    "RecipeVersionsErrorIpad820.dc.html",
+    "RecipeVersionsRestoreIpad820.dc.html",
+    "RecipeVersionPreviewIpad820.dc.html",
+    "RecipeVersionPreviewStatesIpad820.dc.html",
+    "RecipeVersionCompareIpad820.dc.html",
+    "RecipeDetailCookingIpad820.dc.html",
+    "RecipeFactsAndroid384.dc.html",
+    "RecipeFactsBookAndroid384.dc.html",
+    "RecipeSourceCardAndroid384.dc.html",
+    "RecipeFactsSaveCopyAndroid384.dc.html",
+    "RecipeFactsIpad820.dc.html",
+    "RecipeFactsBookIpad820.dc.html",
+    "RecipeSourceCardIpad820.dc.html",
+    "RecipeFactsSaveCopyIpad820.dc.html",
+    "RecipeFactsIphone390.dc.html",
+    "RecipeFactsBookIphone390.dc.html",
+    "RecipeSourceCardIphone390.dc.html",
+    "RecipeFactsSaveCopyIphone390.dc.html",
+    "RecipeDetailExitSnackbarS3bMobile.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Recipe detail: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 4364,
+      "text": "Recipe detail: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 8695,
+      "text": "Recipe detail: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nRecipeDetailExitSnackbarS3bMobile": {
+      "x": 0,
+      "y": 11485,
+      "text": "Recipe detail: S3b exit snackbar (plan 0111). The running-timer dock on RecipeDetailScrolled is S4.",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

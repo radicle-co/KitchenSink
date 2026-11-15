@@ -1,0 +1,192 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T05:52:09Z"
+  },
+  "title": "Commise Screens, mobile: App-wide states",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "AppSnackbarsIphone390.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 1508,
+      "title": "App, snackbars (mobile, iPhone 390)"
+    },
+    "AppRouteErrorIphone390.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 1538,
+      "title": "App, something went wrong (mobile, iPhone 390)"
+    },
+    "AppOfflineReadIphone390.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 943,
+      "title": "App, waiting for a connection (mobile, iPhone 390)"
+    },
+    "AppSyncOfflineIphone390.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 943,
+      "title": "App, you're offline (mobile, iPhone 390)"
+    },
+    "AppSyncSyncingIphone390.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 943,
+      "title": "App, back online (mobile, iPhone 390)"
+    },
+    "AppUnreadableWorkIphone390.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 943,
+      "title": "App, work could not be opened (mobile, iPhone 390)"
+    },
+    "AppSnackbarsAndroid384.dc.html": {
+      "x": 0,
+      "y": 2458,
+      "w": 384,
+      "h": 1475,
+      "title": "App, snackbars (mobile, Android 384)"
+    },
+    "AppRouteErrorAndroid384.dc.html": {
+      "x": 464,
+      "y": 2458,
+      "w": 384,
+      "h": 1505,
+      "title": "App, something went wrong (mobile, Android 384)"
+    },
+    "AppOfflineReadAndroid384.dc.html": {
+      "x": 928,
+      "y": 2458,
+      "w": 384,
+      "h": 933,
+      "title": "App, waiting for a connection (mobile, Android 384)"
+    },
+    "AppSyncOfflineAndroid384.dc.html": {
+      "x": 1392,
+      "y": 2458,
+      "w": 384,
+      "h": 933,
+      "title": "App, you're offline (mobile, Android 384)"
+    },
+    "AppSyncSyncingAndroid384.dc.html": {
+      "x": 1856,
+      "y": 2458,
+      "w": 384,
+      "h": 933,
+      "title": "App, back online (mobile, Android 384)"
+    },
+    "AppUnreadableWorkAndroid384.dc.html": {
+      "x": 2320,
+      "y": 2458,
+      "w": 384,
+      "h": 933,
+      "title": "App, work could not be opened (mobile, Android 384)"
+    },
+    "AppSnackbarsIpad820.dc.html": {
+      "x": 0,
+      "y": 4623,
+      "w": 820,
+      "h": 1403,
+      "title": "App, snackbars (mobile, iPad 820)"
+    },
+    "AppRouteErrorIpad820.dc.html": {
+      "x": 900,
+      "y": 4623,
+      "w": 820,
+      "h": 1453,
+      "title": "App, something went wrong (mobile, iPad 820)"
+    },
+    "AppOfflineReadIpad820.dc.html": {
+      "x": 1800,
+      "y": 4623,
+      "w": 820,
+      "h": 1180,
+      "title": "App, waiting for a connection (mobile, iPad 820)"
+    },
+    "AppSyncOfflineIpad820.dc.html": {
+      "x": 2700,
+      "y": 4623,
+      "w": 820,
+      "h": 1180,
+      "title": "App, you're offline (mobile, iPad 820)"
+    },
+    "AppSyncSyncingIpad820.dc.html": {
+      "x": 3600,
+      "y": 4623,
+      "w": 820,
+      "h": 1180,
+      "title": "App, back online (mobile, iPad 820)"
+    },
+    "AppUnreadableWorkIpad820.dc.html": {
+      "x": 4500,
+      "y": 4623,
+      "w": 820,
+      "h": 1180,
+      "title": "App, work could not be opened (mobile, iPad 820)"
+    }
+  },
+  "order": [
+    "AppSnackbarsIphone390.dc.html",
+    "AppRouteErrorIphone390.dc.html",
+    "AppOfflineReadIphone390.dc.html",
+    "AppSyncOfflineIphone390.dc.html",
+    "AppSyncSyncingIphone390.dc.html",
+    "AppUnreadableWorkIphone390.dc.html",
+    "AppSnackbarsAndroid384.dc.html",
+    "AppRouteErrorAndroid384.dc.html",
+    "AppOfflineReadAndroid384.dc.html",
+    "AppSyncOfflineAndroid384.dc.html",
+    "AppSyncSyncingAndroid384.dc.html",
+    "AppUnreadableWorkAndroid384.dc.html",
+    "AppSnackbarsIpad820.dc.html",
+    "AppRouteErrorIpad820.dc.html",
+    "AppOfflineReadIpad820.dc.html",
+    "AppSyncOfflineIpad820.dc.html",
+    "AppSyncSyncingIpad820.dc.html",
+    "AppUnreadableWorkIpad820.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "App-wide states: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 2198,
+      "text": "App-wide states: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 4363,
+      "text": "App-wide states: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

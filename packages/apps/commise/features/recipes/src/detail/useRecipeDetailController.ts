@@ -20,6 +20,7 @@
 import { knownPaidFeaturesOf, paidFeatureStateOf, type ProfileQueryState } from '@commise/features-account';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { ActionMenuItem, ActionMenuProps } from '@commise/ui/action-menu';
+import { countCookableSteps, isCookable } from '@kitchensink/cooking-core';
 import { RecipeVisibility, canClone, isOwner, makeViewer, type RecipeDetail } from '@kitchensink/recipe-core';
 import { isPrivateFoodsOnPublicRecipeError } from '@kitchensink/recipe-service-client';
 import {
@@ -105,6 +106,11 @@ export interface RecipeDetailController {
     readonly visibilityNotice: string | undefined;
     /** The action row's primary. */
     readonly primary: 'edit' | 'saveCopy' | undefined;
+    /**
+     * Whether Start cooking is offered: the core's one rule over the recipe's status and step count, the
+     * same for the owner and for another cook. The page draws the control from `onStartCooking`, which each app binds.
+     */
+    readonly canStartCooking: boolean;
     /** Save a copy: whether it is in flight, and the command. */
     readonly clone: { readonly pending: boolean; readonly run: () => void };
     /** The ⋯ menu's props (the shell adds `appearance`), or `undefined` when it has nothing to offer. */
@@ -254,6 +260,10 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
         visibilityNotice,
         // D7: a viewer may clone a PUBLIC recipe they do not own — the SAME `canClone` predicate on both platforms.
         primary: primaryOf({ viewerIsOwner, viewerCanClone: canClone(recipe, viewer) }),
+        canStartCooking: isCookable({
+            status: recipe.status,
+            stepCount: countCookableSteps(recipe.steps.map((step) => step.instruction)),
+        }),
         clone: {
             pending: cloneRecipe.isPending,
             run: () => cloneRecipe.mutate(id, { onSuccess: (created) => nav.onCloned(created.id) }),

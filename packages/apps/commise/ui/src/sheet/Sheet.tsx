@@ -8,9 +8,9 @@
  *
  * - `aria-modal`, and `aria-labelledby`/`aria-describedby` built from the title's id, `labelledBy` and
  *   `describedBy` (Radix spreads these props after its own, so they win);
- * - focus to the title on open (Radix does not fire this when content already took focus, so content that focuses
- *   itself on mount keeps it), and back to a SIBLING opener on close (`useReturnFocusOnClose`: Radix returns focus
- *   only to an owned trigger);
+ * - focus to the title on open, unless `screenReaderLanding="content"` leaves the landing to the content (Radix does not
+ *   fire this when content already took focus, so content that focuses itself on mount keeps it either way), and back
+ *   to a SIBLING opener on close (`useReturnFocusOnClose`: Radix returns focus only to an owned trigger);
  * - the visible box while an on-screen keyboard is open, as `--sheet-visible-height` and `--sheet-visible-top`, so the
  *   sheet sits inside the visual viewport instead of under the keyboard: below `sm` its top is the box's top (which
  *   follows an iOS pan), and from `sm` it centres on the box's centre, not the window's (E2 I5);
@@ -91,6 +91,7 @@ export const Sheet: FC<SheetProps> = ({
     closeLabel,
     size,
     presentation = 'sheet',
+    screenReaderLanding = 'title',
     toolbar,
     children,
     footer,
@@ -116,7 +117,11 @@ export const Sheet: FC<SheetProps> = ({
                     aria-describedby={describedBy.length > 0 ? describedBy.join(' ') : undefined}
                     onOpenAutoFocus={(event) => {
                         event.preventDefault();
-                        document.getElementById(titleId)?.focus();
+
+                        if (screenReaderLanding === 'title') {
+                            document.getElementById(titleId)?.focus();
+                        }
+
                         onShown?.();
                     }}
                     onCloseAutoFocus={(event) => {

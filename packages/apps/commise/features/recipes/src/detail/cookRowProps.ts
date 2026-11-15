@@ -4,6 +4,7 @@
  * the same props, and both are pure: the marks live in the orchestration layer (`useCookMarks`).
  */
 import type { RecipeIngredientView, RecipeStepView } from '@kitchensink/recipe-core';
+import type { ReactNode } from 'react';
 
 /** Props for `IngredientCheckRow` (web and native). */
 export interface IngredientCheckRowProps {
@@ -17,6 +18,12 @@ export interface IngredientCheckRowProps {
     readonly onToggle: (line: string) => void;
     /** Whether a hairline separates this row from the one above it: every row of a group but its first. */
     readonly divided?: boolean;
+    /**
+     * The owner's control that opens this line in the editor, for a line that needs review. Drawn as a SIBLING of the
+     * check control, under the row text (a control inside the checkbox would tick the line when pressed). When it is
+     * given, the row leaves the "Needs review" badge to it.
+     */
+    readonly reviewAction?: ReactNode;
 }
 
 /** Props for `StepRow` (web and native). */

@@ -13,10 +13,14 @@ export type { CookabilityInput } from './cookability.js';
 export {
     InvalidLineIndexError,
     InvalidStepIndexError,
+    InvalidTimerDurationError,
     InvalidTotalStepsError,
+    TimerAlreadyActiveError,
     isInvalidLineIndexError,
     isInvalidStepIndexError,
+    isInvalidTimerDurationError,
     isInvalidTotalStepsError,
+    isTimerAlreadyActiveError,
 } from './errors.js';
 
 // ── Steps as the cook walks them: lines and place (FR-032, FR-033, FR-033a) ──
@@ -27,3 +31,35 @@ export { linePlace, stepPlace } from './place.js';
 export type { LinePlace, StepPlace } from './place.js';
 export { cookLinkOutcome } from './cookLinkOutcome.js';
 export type { CookLinkInput, CookLinkOutcome } from './cookLinkOutcome.js';
+
+// ── The session: step navigation and line ticks (FR-032, FR-033) ─────────────
+export { advance, createSession, goBack, sessionStatus } from './session.js';
+export type { CreateSessionInput, SessionStatus } from './session.js';
+export type { CookingSession } from './types.js';
+export {
+    allLinesTicked,
+    createLineTicks,
+    focusLineIndex,
+    isLineTicked,
+    tickedLineCount,
+    tickLine,
+    untickLine,
+} from './lineTicks.js';
+export type { LineKey, LineTicks } from './lineTicks.js';
+
+// ── The timer: one reducer over commands, and the reader of a step's duration ──
+export { MAX_TIMER_MS, MIN_TIMER_MS, NO_TIMER, isValidTimerMs, reduceTimer, timeLeftMs } from './timer.js';
+export type {
+    ActiveTimer,
+    HeldTimer,
+    PausedTimer,
+    RingingTimer,
+    RunningTimer,
+    TimerBase,
+    TimerCommand,
+    TimerEvent,
+    TimerResult,
+    TimerState,
+} from './timer.js';
+export { durationParts, elapsedParts, offerSecondsOf, readDuration } from './duration.js';
+export type { DurationParts, DurationReading, ElapsedParts, OfferInput } from './duration.js';

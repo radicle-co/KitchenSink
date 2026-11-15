@@ -21,7 +21,9 @@
  * A FOCUS (`kind: 'focus'`, `docs/design/uiOverhaul/specSharedSystem.md` §16.3) is a field the cook is typing in. The
  * host holds it until the field blurs and keeps it inside the visible area by the same smallest scroll, with no blank
  * space. It re-checks each time the visible area gets SHORTER (the keyboard rising, then the pinned footer) and never
- * on a taller area or a change of the content, so the cook's own scrolling is not undone. An arrival pending on the
+ * on a taller area or a change of the content, so the cook's own scrolling is not undone. A focus may carry an `end`
+ * (an open row editor's Done and Cancel): when the span from the field's top to the end's bottom fits, that span is
+ * shown, so the actions land one gap above the keyboard; otherwise the field alone is, and the field wins. An arrival pending on the
  * same host wins (a focus is dropped while one waits, and an arrival replaces a held focus), and a list that is open
  * shows its own rows, so the focus waits for it to close.
  *
@@ -52,7 +54,7 @@ import {
 import type { FieldRevealer, ListRequest, RevealRequest } from './fieldRevealContext.js';
 import { measureField, scrollContentTo, type RevealScroller } from './measureField.native.js';
 import type { RevealSpacerProps } from './RevealSpacer.native.js';
-import { spanTarget } from './spanReveal.js';
+import { focusSpanBottom, spanTarget, startSpanTarget } from './spanReveal.js';
 
 /** What the host renders with. */
 export interface FieldRevealHost {
@@ -63,6 +65,9 @@ export interface FieldRevealHost {
     /** For the `RevealSpacer` after the scroller's other children; `null` while no reveal needs it. */
     readonly spacer: RevealSpacerProps | null;
 }
+
+/** A request to show an element once: its start, or only if it is hidden. */
+type StartRequest = Extract<RevealRequest, { readonly kind: 'start' | 'nearest' }>;
 
 /** The two requests the host holds in one slot: an arrival waits for a scroll, a focus waits for a blur. */
 type PendingRequest = Extract<RevealRequest, { readonly kind: 'arrival' | 'focus' }>;
@@ -86,7 +91,19 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
     const [pending, setPending] = useState<PendingRequest | null>(null);
     // The target waiting to be shown; one-shot.
     const [target, setTarget] = useState<Extract<RevealRequest, { readonly kind: 'target' }> | null>(null);
+    // The element a deep link named, waiting to be put at the top; one-shot.
+    const [start, setStart] = useState<StartRequest | null>(null);
     const [revealer] = useState(() => {
+        // The element the cook was taken to is the one to show, so nothing held earlier may move it again.
+        const holdStart = (request: StartRequest): (() => void) => {
+            setPending(null);
+            setStart(request);
+
+            return () => {
+                setStart((current) => (current === request ? null : current));
+            };
+        };
+
         const reveal: FieldRevealer = (request) => {
             switch (request.kind) {
                 case 'arrival':
@@ -113,6 +130,12 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
                     return () => {
                         setTarget((current) => (current === request ? null : current));
                     };
+
+                case 'start':
+                    return holdStart(request);
+
+                case 'nearest':
+                    return holdStart(request);
 
                 case 'list':
                     dispatch({ kind: 'requested', request });
@@ -209,23 +232,38 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
 
         let released = false;
 
-        void measureField(focus.field, view).then((measure) => {
-            if (released || measure === null) {
-                return;
-            }
+        // The end (an open row editor's Done and Cancel) is measured with the field; one that cannot be measured is
+        // simply absent, and the field is shown alone.
+        const { end } = focus;
 
-            const place = spanTarget({
-                top: measure.top,
-                bottom: measure.top + measure.height,
-                offset: measure.offset,
-                viewport: currentViewport(),
-                keep: REVEAL_GAP_DP,
-            });
+        void Promise.all([measureField(focus.field, view), end === undefined ? null : measureField(end, view)]).then(
+            ([measure, endMeasure]) => {
+                if (released || measure === null) {
+                    return;
+                }
 
-            if (place !== null) {
-                scrollTo(view, place);
-            }
-        });
+                const viewportNow = currentViewport();
+                const endBottom = endMeasure === null ? null : endMeasure.top + endMeasure.height;
+                const bottom = focusSpanBottom({
+                    top: measure.top,
+                    bottom: measure.top + measure.height,
+                    endBottom,
+                    viewport: viewportNow,
+                    keep: REVEAL_GAP_DP,
+                });
+                const place = spanTarget({
+                    top: measure.top,
+                    bottom,
+                    offset: measure.offset,
+                    viewport: viewportNow,
+                    keep: REVEAL_GAP_DP,
+                });
+
+                if (place !== null) {
+                    scrollTo(view, place);
+                }
+            },
+        );
 
         return () => {
             released = true;
@@ -278,6 +316,46 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
             released = true;
         };
     }, [target, laidOut]);
+
+    // A start is placed once the visible area is laid out: its top goes one gap below the area's top, unless its end
+    // (the row editor's Done and Cancel) would then be out of view, and the end wins (`startSpanTarget`). A NEAREST start
+    // (an editor that closed) is shown only if hidden, by the smallest scroll (`spanTarget`).
+    useEffect(() => {
+        const view = currentScroller();
+
+        if (start === null || view === null || !laidOut) {
+            return undefined;
+        }
+
+        let released = false;
+
+        void measureField(start.field, view).then((measure) => {
+            if (released) {
+                return;
+            }
+
+            const place =
+                measure === null
+                    ? null
+                    : (start.kind === 'nearest' ? spanTarget : startSpanTarget)({
+                          top: measure.top,
+                          bottom: measure.top + measure.height,
+                          offset: measure.offset,
+                          viewport: currentViewport(),
+                          keep: REVEAL_GAP_DP,
+                      });
+
+            if (place !== null) {
+                scrollTo(view, place);
+            }
+
+            setStart((current) => (current === start ? null : current));
+        });
+
+        return () => {
+            released = true;
+        };
+    }, [start, laidOut]);
 
     const onSpacerLayout = (event: LayoutChangeEvent): void => {
         const { y, height } = event.nativeEvent.layout;

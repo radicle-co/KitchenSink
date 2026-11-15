@@ -1,0 +1,240 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:37Z"
+  },
+  "title": "Commise Screens, mobile: Drafts",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "DraftLibraryIphone390.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, library (mobile, iPhone 390)"
+    },
+    "DraftDraftMenuIphone390.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, draft menu (mobile, iPhone 390)"
+    },
+    "DraftEditorIphone390.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, editor (mobile, iPhone 390)"
+    },
+    "DraftPlanPickerIphone390.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, plan picker (mobile, iPhone 390)"
+    },
+    "DraftCollectionPickerIphone390.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, collection picker (mobile, iPhone 390)"
+    },
+    "DraftListPickerIphone390.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, list picker (mobile, iPhone 390)"
+    },
+    "DraftSetBackToDraftIphone390.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, set back to draft (mobile, iPhone 390)"
+    },
+    "DraftDeleteDraftIphone390.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, delete draft (mobile, iPhone 390)"
+    },
+    "DraftLibraryAndroid384.dc.html": {
+      "x": 0,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Drafts, library (mobile, Android 384)"
+    },
+    "DraftDraftMenuAndroid384.dc.html": {
+      "x": 464,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Drafts, draft menu (mobile, Android 384)"
+    },
+    "DraftEditorAndroid384.dc.html": {
+      "x": 928,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Drafts, editor (mobile, Android 384)"
+    },
+    "DraftPlanPickerAndroid384.dc.html": {
+      "x": 1392,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Drafts, plan picker (mobile, Android 384)"
+    },
+    "DraftCollectionPickerAndroid384.dc.html": {
+      "x": 1856,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Drafts, collection picker (mobile, Android 384)"
+    },
+    "DraftListPickerAndroid384.dc.html": {
+      "x": 2320,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Drafts, list picker (mobile, Android 384)"
+    },
+    "DraftSetBackToDraftAndroid384.dc.html": {
+      "x": 2784,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Drafts, set back to draft (mobile, Android 384)"
+    },
+    "DraftDeleteDraftAndroid384.dc.html": {
+      "x": 3248,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Drafts, delete draft (mobile, Android 384)"
+    },
+    "DraftLibraryIpad820.dc.html": {
+      "x": 0,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Drafts, library (mobile, iPad 820)"
+    },
+    "DraftDraftMenuIpad820.dc.html": {
+      "x": 900,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Drafts, draft menu (mobile, iPad 820)"
+    },
+    "DraftEditorIpad820.dc.html": {
+      "x": 1800,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Drafts, editor (mobile, iPad 820)"
+    },
+    "DraftPlanPickerIpad820.dc.html": {
+      "x": 2700,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Drafts, plan picker (mobile, iPad 820)"
+    },
+    "DraftCollectionPickerIpad820.dc.html": {
+      "x": 3600,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Drafts, collection picker (mobile, iPad 820)"
+    },
+    "DraftListPickerIpad820.dc.html": {
+      "x": 4500,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Drafts, list picker (mobile, iPad 820)"
+    },
+    "DraftSetBackToDraftIpad820.dc.html": {
+      "x": 5400,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Drafts, set back to draft (mobile, iPad 820)"
+    },
+    "DraftDeleteDraftIpad820.dc.html": {
+      "x": 6300,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Drafts, delete draft (mobile, iPad 820)"
+    }
+  },
+  "order": [
+    "DraftLibraryIphone390.dc.html",
+    "DraftDraftMenuIphone390.dc.html",
+    "DraftEditorIphone390.dc.html",
+    "DraftPlanPickerIphone390.dc.html",
+    "DraftCollectionPickerIphone390.dc.html",
+    "DraftListPickerIphone390.dc.html",
+    "DraftSetBackToDraftIphone390.dc.html",
+    "DraftDeleteDraftIphone390.dc.html",
+    "DraftLibraryAndroid384.dc.html",
+    "DraftDraftMenuAndroid384.dc.html",
+    "DraftEditorAndroid384.dc.html",
+    "DraftPlanPickerAndroid384.dc.html",
+    "DraftCollectionPickerAndroid384.dc.html",
+    "DraftListPickerAndroid384.dc.html",
+    "DraftSetBackToDraftAndroid384.dc.html",
+    "DraftDeleteDraftAndroid384.dc.html",
+    "DraftLibraryIpad820.dc.html",
+    "DraftDraftMenuIpad820.dc.html",
+    "DraftEditorIpad820.dc.html",
+    "DraftPlanPickerIpad820.dc.html",
+    "DraftCollectionPickerIpad820.dc.html",
+    "DraftListPickerIpad820.dc.html",
+    "DraftSetBackToDraftIpad820.dc.html",
+    "DraftDeleteDraftIpad820.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Drafts: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1504,
+      "text": "Drafts: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 2996,
+      "text": "Drafts: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

@@ -158,6 +158,8 @@ describe('RecipesService.create — line composition (T043b)', () => {
                 quantity: { kind: 'exact', value: 2 },
                 unit: 'cup',
                 displayText: 'diced',
+                // An authored line: no text, so nothing the owner wrote (ADR-0090).
+                sourceLineTranscribedByOwner: false,
                 sortOrder: 0,
                 // ADR-0072 §5 (added with the bulk import): the line states WHO bound it. A food the caller chose on a
                 // create is `cook`; the rule is `domain/bindingOriginCarryForward.ts`.

@@ -37,6 +37,11 @@ function stubViewport(
 
 const TOOLBAR = { heading: <span>Search 40 options</span>, controls: <input aria-label="Search" /> };
 
+/** Content that takes focus itself once it is on screen, as the row editor's Needs review notice does. */
+function Focuser(): JSX.Element {
+    return <div ref={(node) => node?.focus()} role="group" aria-label="Notice" tabIndex={-1} />;
+}
+
 /** A sheet opened by a SIBLING control, the only way the design system's callers open one. */
 function Host(props: {
     readonly overrides?: Partial<SheetProps>;
@@ -219,6 +224,28 @@ describe('Sheet (web)', () => {
 
     it('moves focus to the title on open', async () => {
         await openHost(<Host />);
+
+        expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Add details' }));
+    });
+
+    it('screenReaderLanding="content" does not move focus to the title', async () => {
+        await openHost(<Host overrides={{ screenReaderLanding: 'content' }} />);
+
+        expect(document.activeElement).not.toBe(screen.getByRole('heading', { name: 'Add details' }));
+    });
+
+    it('screenReaderLanding="content" leaves focus on content that focuses itself after the open', async () => {
+        await openHost(
+            <Host overrides={{ screenReaderLanding: 'content' }}>
+                <Focuser />
+            </Host>,
+        );
+
+        expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Notice' }));
+    });
+
+    it('screenReaderLanding="title" is the default and moves focus to the title', async () => {
+        await openHost(<Host overrides={{ screenReaderLanding: 'title' }} />);
 
         expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Add details' }));
     });

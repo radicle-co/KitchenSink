@@ -13,6 +13,7 @@ import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { typeRole } from '@commise/ui/tokens/typography';
 
 import { makeIngredientView, makeStepView } from '../../__fixtures__/index.js';
+import { recipeMessages } from '../../messages.js';
 import { IngredientCheckRow } from '../IngredientCheckRow.js';
 import { StepRow } from '../StepRow.js';
 
@@ -196,6 +197,93 @@ describe('IngredientCheckRow (web)', () => {
 
         const describedBy = screen.getByRole('checkbox', { name: /flour/u }).getAttribute('aria-describedby') ?? '';
         expect(document.getElementById(describedBy)?.textContent).toContain('Needs review');
+    });
+
+    /**
+     * The owner's review control (needs-review jump): the row takes a `reviewAction` slot, drawn as a SIBLING of the check
+     * control inside the same `li` (a link inside a checkbox button is invalid HTML and would tick the line). When the slot
+     * is given the "Needs review" badge moves out of the checkbox and its description, to the control; other statuses stay.
+     */
+    describe('the review control slot', () => {
+        const doubted = makeIngredientView({
+            resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+            name: 'flour',
+            isUserEntered: true,
+        });
+        const control = <a href="/edit#ingredients/3.0">Go to flour</a>;
+
+        it('is a sibling of the checkbox, not inside it, and pressing it does not tick the line', () => {
+            const onToggle = vi.fn();
+            const { container } = render(
+                <ul>
+                    <IngredientCheckRow
+                        ingredient={doubted}
+                        checked={false}
+                        allRemoved={false}
+                        onToggle={onToggle}
+                        reviewAction={control}
+                    />
+                </ul>,
+            );
+            const link = screen.getByRole('link', { name: 'Go to flour' });
+            const row = screen.getByRole('checkbox', { name: /flour/u });
+
+            expect(row.contains(link)).toBe(false);
+            expect(link.closest('li')).toBe(row.closest('li'));
+            expect(container.querySelectorAll('li')).toHaveLength(1);
+
+            link.addEventListener('click', (event) => event.preventDefault());
+            fireEvent.click(link);
+            expect(onToggle).not.toHaveBeenCalled();
+        });
+
+        it('moves the Needs review badge out of the checkbox and its description; other statuses stay', () => {
+            render(
+                <ul>
+                    <IngredientCheckRow
+                        ingredient={doubted}
+                        checked={false}
+                        allRemoved={false}
+                        onToggle={vi.fn()}
+                        reviewAction={control}
+                    />
+                </ul>,
+            );
+            const row = screen.getByRole('checkbox', { name: /flour/u });
+            const description = document.getElementById(row.getAttribute('aria-describedby') ?? '')?.textContent ?? '';
+
+            expect(row.textContent).not.toContain('Needs review');
+            expect(description).not.toContain('Needs review');
+            expect(description).toContain(recipeMessages.en.detail.userEnteredBadge);
+        });
+
+        it('with no slot the badge stays in the row, as before', () => {
+            render(
+                <ul>
+                    <IngredientCheckRow ingredient={doubted} checked={false} allRemoved={false} onToggle={vi.fn()} />
+                </ul>,
+            );
+
+            expect(screen.getByRole('checkbox', { name: /flour/u }).textContent).toContain('Needs review');
+        });
+
+        it('with only that status, the description goes entirely', () => {
+            const only = makeIngredientView({ resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW, name: 'flour' });
+
+            render(
+                <ul>
+                    <IngredientCheckRow
+                        ingredient={only}
+                        checked={false}
+                        allRemoved={false}
+                        onToggle={vi.fn()}
+                        reviewAction={control}
+                    />
+                </ul>,
+            );
+
+            expect(screen.getByRole('checkbox', { name: /flour/u }).getAttribute('aria-describedby')).toBeNull();
+        });
     });
 
     // REWRITTEN for owner C5 + T1: the row floor is 44 (it was 48), the same as every other touch target.

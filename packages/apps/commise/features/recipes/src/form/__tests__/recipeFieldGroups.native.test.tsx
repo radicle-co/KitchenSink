@@ -215,6 +215,8 @@ describe('the recipe field groups (native) — error wiring (WCAG 3.3.1)', () =>
     });
 });
 
+// UPDATED (designer must-fix, 2026-11-14): the row's name reads like the recipe page, so the word unit "cup" takes the plural
+// of the amount ("Edit 2 cups Stock"). The Amount and Unit fields still hold the draft as written.
 describe('the recipe field groups (native) — the amount in the row editor (U9/R42, §7.5.2)', () => {
     const ranged = (quantity: number, quantityHigh?: number): RecipeFormValues =>
         filledValues({
@@ -233,7 +235,7 @@ describe('the recipe field groups (native) — the amount in the row editor (U9/
     it('a stated range shows BOTH bounds; the visible "to" is hidden from assistive tech', () => {
         renderForm({ values: ranged(2, 3) });
 
-        const sheet = openEditor('Edit 2–3 cup Stock', 'Stock');
+        const sheet = openEditor('Edit 2–3 cups Stock', 'Stock');
 
         expect((within(sheet).getByLabelText(en.rowAmountLabel) as HTMLInputElement).value).toBe('2');
         expect((within(sheet).getByLabelText(en.rowAmountHighLabel) as HTMLInputElement).value).toBe('3');
@@ -252,7 +254,7 @@ describe('the recipe field groups (native) — the amount in the row editor (U9/
         const onValues = vi.fn<(values: RecipeFormValues) => void>();
         render(<Stateful initial={ranged(2, 3)} onValues={onValues} />);
 
-        const sheet = openEditor('Edit 2–3 cup Stock', 'Stock');
+        const sheet = openEditor('Edit 2–3 cups Stock', 'Stock');
 
         fireEvent.change(within(sheet).getByLabelText(en.rowAmountHighLabel), { target: { value: '' } });
         expect(onValues.mock.lastCall?.[0].ingredients[0]).not.toHaveProperty('quantityHigh');
@@ -279,13 +281,14 @@ describe('the recipe field groups (native) — the unit’s class, in the row ed
     });
 
     it.each([
-        ['handful', 'Cook’s measure'],
-        ['blorp', 'Unrecognized unit'],
-        ['zq', 'Unrecognized unit'],
-    ])('the unit %j says "%s", and the field keeps it', (unit, note) => {
+        // `shown` is the unit as the ROW names it: a known word takes the plural of the amount, an unknown one stays as written.
+        ['handful', 'handfuls', 'Cook’s measure'],
+        ['blorp', 'blorp', 'Unrecognized unit'],
+        ['zq', 'zq', 'Unrecognized unit'],
+    ])('the unit %j, named %j on the row, says "%s", and the field keeps it', (unit, shown, note) => {
         renderForm({ values: withUnit(unit) });
 
-        const sheet = openEditor(`Edit 2 ${unit} Onion`, 'Onion');
+        const sheet = openEditor(`Edit 2 ${shown} Onion`, 'Onion');
 
         expect(within(sheet).getByText(note)).toBeTruthy();
         expect((within(sheet).getByLabelText(en.rowUnitLabel) as HTMLInputElement).value).toBe(unit);

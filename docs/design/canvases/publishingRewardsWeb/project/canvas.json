@@ -1,0 +1,121 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:35Z"
+  },
+  "title": "Commise Screens, web: Publishing rewards",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "RewardPublishWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Publishing rewards, publish (web, 1280)"
+    },
+    "RewardSlotsWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Publishing rewards, slots (web, 1280)"
+    },
+    "RewardUnpublishWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Publishing rewards, unpublish (web, 1280)"
+    },
+    "RewardCannotPublishWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Publishing rewards, cannot publish (web, 1280)"
+    },
+    "RewardCookedByOthersWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Publishing rewards, cooked by others (web, 1280)"
+    },
+    "RewardPublishWeb390.dc.html": {
+      "x": 0,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, publish (web, 390)"
+    },
+    "RewardSlotsWeb390.dc.html": {
+      "x": 470,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, slots (web, 390)"
+    },
+    "RewardUnpublishWeb390.dc.html": {
+      "x": 940,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, unpublish (web, 390)"
+    },
+    "RewardCannotPublishWeb390.dc.html": {
+      "x": 1410,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, cannot publish (web, 390)"
+    },
+    "RewardCookedByOthersWeb390.dc.html": {
+      "x": 1880,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, cooked by others (web, 390)"
+    }
+  },
+  "order": [
+    "RewardPublishWeb1280.dc.html",
+    "RewardSlotsWeb1280.dc.html",
+    "RewardUnpublishWeb1280.dc.html",
+    "RewardCannotPublishWeb1280.dc.html",
+    "RewardCookedByOthersWeb1280.dc.html",
+    "RewardPublishWeb390.dc.html",
+    "RewardSlotsWeb390.dc.html",
+    "RewardUnpublishWeb390.dc.html",
+    "RewardCannotPublishWeb390.dc.html",
+    "RewardCookedByOthersWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Publishing rewards: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1520,
+      "text": "Publishing rewards: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

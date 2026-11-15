@@ -79,8 +79,8 @@ describe('bulk import — erasure and purge (LOCAL e2e)', () => {
         `);
 
         const line = await db.execute<{ id: string }>(sql`
-            INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest, judgement_digest, phrase, unit)
-            VALUES (${importId}, 0, 0, 0, '1 cup flour', 'ld', 'jd', 'flour', 'cup') RETURNING id
+            INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest, judgement_digest, phrase, name, unit)
+            VALUES (${importId}, 0, 0, 0, '1 cup flour', 'ld', 'jd', 'flour', 'flour', 'cup') RETURNING id
         `);
 
         await db.execute(sql`

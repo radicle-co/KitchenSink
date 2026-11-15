@@ -6,14 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { RecipeFormErrors } from '../../form/validate.js';
-import {
-    EDITOR_SECTIONS,
-    errorsInSection,
-    firstSectionWithErrors,
-    sectionFromHash,
-    sectionOfField,
-    type EditorSectionId,
-} from '../sections.js';
+import { EDITOR_SECTIONS, errorsInSection, firstSectionWithErrors, sectionOfField } from '../sections.js';
 
 describe('EDITOR_SECTIONS', () => {
     it('is the four sections in page order (build spec §7)', () => {
@@ -54,21 +47,5 @@ describe('firstSectionWithErrors', () => {
     it('is undefined when nothing was refused', () => {
         expect(firstSectionWithErrors({})).toBeUndefined();
         expect(firstSectionWithErrors({ title: undefined })).toBeUndefined();
-    });
-});
-
-describe('sectionFromHash (web deep link, A16)', () => {
-    it.each<[string, EditorSectionId | undefined]>([
-        ['#details', 'details'],
-        ['#ingredients', 'ingredients'],
-        ['steps', 'steps'],
-        ['#photos', 'photos'],
-        ['', undefined],
-        ['#', undefined],
-        ['#Ingredients', undefined],
-        ['#nutrition', undefined],
-        ['#constructor', undefined],
-    ])('%j → %j', (hash, section) => {
-        expect(sectionFromHash(hash)).toBe(section);
     });
 });

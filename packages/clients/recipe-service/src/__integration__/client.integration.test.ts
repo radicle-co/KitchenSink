@@ -170,6 +170,17 @@ describe('RecipeServiceClient (integration, real HTTP server)', () => {
         expect(server.received[0]!.authorization).toBe('Bearer tok-int');
     });
 
+    it('reads a source kind a newer server sends as unrecognised, instead of failing the whole recipe', async () => {
+        const recipe = makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', sourceType: 'imported_public' });
+        server = await startServer([{ status: 200, json: { ...recipe, sourceKind: 'adapted' } }]);
+        const client = new RecipeServiceClient({ baseUrl: server.baseUrl, token: 'tok-int', fetch });
+
+        const result = await client.getRecipeById('rec_1');
+
+        expect(result.sourceKind).toBe('unrecognised');
+        expect(result.title).toBe(recipe.title);
+    });
+
     it('serializes list + array query params onto the real request line', async () => {
         // All FOUR facet dimensions, not `facets: {}`. `recipeSearchFacetsSchema` declares every dimension
         // REQUIRED (deliberately — the server/client disagreement about whether a facet block could be absent

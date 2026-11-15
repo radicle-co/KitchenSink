@@ -1,0 +1,1353 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-27T14:00:35Z"
+  },
+  "title": "Commise Screens: Recipe editor",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "RecipeEditor.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 4224,
+      "title": "Recipe editor, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorMobile.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 390,
+      "h": 5081,
+      "title": "Recipe editor (mobile)"
+    },
+    "RecipeEditorSheet.dc.html": {
+      "x": 1830,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, Paste a list sheet, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorSheetMobile.dc.html": {
+      "x": 3190,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, Paste a list sheet (mobile)"
+    },
+    "RecipeEditorEditExisting.dc.html": {
+      "x": 3660,
+      "y": 260,
+      "w": 1280,
+      "h": 4206,
+      "title": "Recipe editor, editing a saved recipe (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorEditExistingMobile.dc.html": {
+      "x": 5020,
+      "y": 260,
+      "w": 390,
+      "h": 5037,
+      "title": "Recipe editor, editing a saved recipe (mobile)"
+    },
+    "RecipeEditorEmpty.dc.html": {
+      "x": 5490,
+      "y": 260,
+      "w": 1280,
+      "h": 2622,
+      "title": "Recipe editor, new and empty (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorEmptyMobile.dc.html": {
+      "x": 6850,
+      "y": 260,
+      "w": 390,
+      "h": 3215,
+      "title": "Recipe editor, new and empty (mobile)"
+    },
+    "RecipeEditorReadyUnmatched.dc.html": {
+      "x": 7320,
+      "y": 260,
+      "w": 1280,
+      "h": 2181,
+      "title": "Recipe editor, ready with unmatched ingredients (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorReadyUnmatchedMobile.dc.html": {
+      "x": 8680,
+      "y": 260,
+      "w": 390,
+      "h": 2563,
+      "title": "Recipe editor, ready with unmatched ingredients (mobile)"
+    },
+    "RecipeEditorFixToPublish.dc.html": {
+      "x": 9150,
+      "y": 260,
+      "w": 1280,
+      "h": 3554,
+      "title": "Recipe editor, fix to publish (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFixToPublishMobile.dc.html": {
+      "x": 10510,
+      "y": 260,
+      "w": 390,
+      "h": 4279,
+      "title": "Recipe editor, fix to publish (mobile)"
+    },
+    "RecipeEditorLoading.dc.html": {
+      "x": 10980,
+      "y": 260,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe editor, opening a saved recipe (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorLoadingMobile.dc.html": {
+      "x": 12340,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, opening a saved recipe (mobile)"
+    },
+    "RecipeEditorPreview.dc.html": {
+      "x": 12810,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, preview (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorPreviewMobile.dc.html": {
+      "x": 14170,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, preview (mobile)"
+    },
+    "RecipeEditorCuisine.dc.html": {
+      "x": 14640,
+      "y": 260,
+      "w": 1280,
+      "h": 478,
+      "title": "Recipe editor, cuisine (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorCuisineMobile.dc.html": {
+      "x": 16000,
+      "y": 260,
+      "w": 390,
+      "h": 1000,
+      "title": "Recipe editor, cuisine (mobile)"
+    },
+    "RecipeEditorPasteSteps.dc.html": {
+      "x": 16470,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, paste steps (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorPasteStepsMobile.dc.html": {
+      "x": 17830,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, paste steps (mobile)"
+    },
+    "RecipeEditorPhotosUploading.dc.html": {
+      "x": 18300,
+      "y": 260,
+      "w": 1280,
+      "h": 590,
+      "title": "Recipe editor, photos uploading (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorPhotosUploadingMobile.dc.html": {
+      "x": 19660,
+      "y": 260,
+      "w": 390,
+      "h": 1196,
+      "title": "Recipe editor, photos uploading (mobile)"
+    },
+    "RecipeEditorPhotosErrors.dc.html": {
+      "x": 20130,
+      "y": 260,
+      "w": 1280,
+      "h": 1024,
+      "title": "Recipe editor, photo problems (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorPhotosErrorsMobile.dc.html": {
+      "x": 21490,
+      "y": 260,
+      "w": 390,
+      "h": 1546,
+      "title": "Recipe editor, photo problems (mobile)"
+    },
+    "RecipeEditorPhotoSource.dc.html": {
+      "x": 21960,
+      "y": 260,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe editor, add photos sheet (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorPhotoSourceMobile.dc.html": {
+      "x": 23320,
+      "y": 260,
+      "w": 390,
+      "h": 1756,
+      "title": "Recipe editor, add photos sheet (mobile)"
+    },
+    "RecipeEditorVisibility.dc.html": {
+      "x": 23790,
+      "y": 260,
+      "w": 1280,
+      "h": 1200,
+      "title": "Recipe editor, who can see it (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorVisibilityMobile.dc.html": {
+      "x": 25150,
+      "y": 260,
+      "w": 390,
+      "h": 2348,
+      "title": "Recipe editor, who can see it (mobile)"
+    },
+    "RecipeEditor1024.dc.html": {
+      "x": 0,
+      "y": 5741,
+      "w": 1024,
+      "h": 4246,
+      "title": "Recipe editor, proposal, 1024 px (web)",
+      "expand": "fill"
+    },
+    "RecipeEditor768.dc.html": {
+      "x": 1104,
+      "y": 5741,
+      "w": 768,
+      "h": 4246,
+      "title": "Recipe editor, proposal, 768 px (web)",
+      "expand": "fill"
+    },
+    "RecipeEditor834Mobile.dc.html": {
+      "x": 2422,
+      "y": 5741,
+      "w": 834,
+      "h": 4491,
+      "title": "Recipe editor, 834 px (mobile)"
+    },
+    "RecipeEditor1194Mobile.dc.html": {
+      "x": 3336,
+      "y": 5741,
+      "w": 1194,
+      "h": 4443,
+      "title": "Recipe editor, 1194 px (mobile)"
+    },
+    "RecipeEditorSaveStatus.dc.html": {
+      "x": 0,
+      "y": 10892,
+      "w": 1280,
+      "h": 1044,
+      "title": "Recipe editor, save status (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorSaveStatusMobile.dc.html": {
+      "x": 1360,
+      "y": 10892,
+      "w": 390,
+      "h": 1060,
+      "title": "Recipe editor, save status (mobile)"
+    },
+    "RecipeEditorResume.dc.html": {
+      "x": 1830,
+      "y": 10892,
+      "w": 1280,
+      "h": 724,
+      "title": "Recipe editor, unsaved changes found (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorResumeMobile.dc.html": {
+      "x": 3190,
+      "y": 10892,
+      "w": 390,
+      "h": 896,
+      "title": "Recipe editor, unsaved changes found (mobile)"
+    },
+    "RecipeEditorSaveFailed.dc.html": {
+      "x": 3660,
+      "y": 10892,
+      "w": 1280,
+      "h": 1426,
+      "title": "Recipe editor, save failed (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorSaveFailedMobile.dc.html": {
+      "x": 5020,
+      "y": 10892,
+      "w": 390,
+      "h": 1572,
+      "title": "Recipe editor, save failed (mobile)"
+    },
+    "RecipeEditorDiscardDraft.dc.html": {
+      "x": 5490,
+      "y": 10892,
+      "w": 1280,
+      "h": 940,
+      "title": "Recipe editor, discard this draft? (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorDiscardDraftMobile.dc.html": {
+      "x": 6850,
+      "y": 10892,
+      "w": 390,
+      "h": 2084,
+      "title": "Recipe editor, discard this draft? (mobile)"
+    },
+    "RecipeEditorDiscardChanges.dc.html": {
+      "x": 7320,
+      "y": 10892,
+      "w": 1280,
+      "h": 916,
+      "title": "Recipe editor, discard your changes? (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorDiscardChangesMobile.dc.html": {
+      "x": 8680,
+      "y": 10892,
+      "w": 390,
+      "h": 1568,
+      "title": "Recipe editor, discard your changes? (mobile)"
+    },
+    "RecipeEditorConflict.dc.html": {
+      "x": 0,
+      "y": 13636,
+      "w": 1280,
+      "h": 1364,
+      "title": "Recipe editor, changed while you were editing (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorConflictMobile.dc.html": {
+      "x": 1360,
+      "y": 13636,
+      "w": 390,
+      "h": 1590,
+      "title": "Recipe editor, changed while you were editing (mobile)"
+    },
+    "RecipeEditorConflictDraft.dc.html": {
+      "x": 1830,
+      "y": 13636,
+      "w": 1280,
+      "h": 1080,
+      "title": "Recipe editor, draft changed elsewhere (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorConflictDraftMobile.dc.html": {
+      "x": 3190,
+      "y": 13636,
+      "w": 390,
+      "h": 1254,
+      "title": "Recipe editor, draft changed elsewhere (mobile)"
+    },
+    "RecipeEditorConflictMerge.dc.html": {
+      "x": 3660,
+      "y": 13636,
+      "w": 1280,
+      "h": 952,
+      "title": "Recipe editor, merge field by field (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorConflictMergeMobile.dc.html": {
+      "x": 5020,
+      "y": 13636,
+      "w": 390,
+      "h": 1090,
+      "title": "Recipe editor, merge field by field (mobile)"
+    },
+    "RecipeEditorConflictStaleBase.dc.html": {
+      "x": 5490,
+      "y": 13636,
+      "w": 1280,
+      "h": 1352,
+      "title": "Recipe editor, far behind (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorConflictStaleBaseMobile.dc.html": {
+      "x": 6850,
+      "y": 13636,
+      "w": 390,
+      "h": 1668,
+      "title": "Recipe editor, far behind (mobile)"
+    },
+    "RecipeEditorFoodSearchTooShort.dc.html": {
+      "x": 0,
+      "y": 15964,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: too short (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchTooShortMobile.dc.html": {
+      "x": 1360,
+      "y": 15964,
+      "w": 390,
+      "h": 837,
+      "title": "Recipe editor, food search: too short (mobile)"
+    },
+    "RecipeEditorFoodSearchSearching.dc.html": {
+      "x": 1830,
+      "y": 15964,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: searching (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchSearchingMobile.dc.html": {
+      "x": 3190,
+      "y": 15964,
+      "w": 390,
+      "h": 979,
+      "title": "Recipe editor, food search: searching (mobile)"
+    },
+    "RecipeEditorFoodSearchResults.dc.html": {
+      "x": 3660,
+      "y": 15964,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: results (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchDefault.dc.html": {
+      "x": 15468,
+      "y": 15964,
+      "w": 1280,
+      "h": 1010,
+      "title": "Recipe editor, food search default (web)"
+    },
+    "RecipeEditorFoodSearchResultsMobile.dc.html": {
+      "x": 5020,
+      "y": 15964,
+      "w": 390,
+      "h": 1270,
+      "title": "Recipe editor, food search: results (mobile)"
+    },
+    "RecipeEditorFoodSearchDefaultMobile.dc.html": {
+      "x": 12810,
+      "y": 15964,
+      "w": 390,
+      "h": 1080,
+      "title": "Recipe editor, food search default (phone)"
+    },
+    "RecipeEditorFoodSearchDefault834Mobile.dc.html": {
+      "x": 13280,
+      "y": 15964,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe editor, food search default (tablet 834 px)"
+    },
+    "RecipeEditorFoodSearchDefault1194Mobile.dc.html": {
+      "x": 14194,
+      "y": 15964,
+      "w": 1194,
+      "h": 1010,
+      "title": "Recipe editor, food search default (tablet 1194 px)"
+    },
+    "RecipeEditorFoodSearchMoreSources.dc.html": {
+      "x": 5490,
+      "y": 15964,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: more sources still searching (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchMoreSourcesMobile.dc.html": {
+      "x": 6850,
+      "y": 15964,
+      "w": 390,
+      "h": 1162,
+      "title": "Recipe editor, food search: more sources still searching (mobile)"
+    },
+    "RecipeEditorFoodSearchMoreSourcesDone.dc.html": {
+      "x": 7320,
+      "y": 15964,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: results from more sources (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchMoreSourcesDoneMobile.dc.html": {
+      "x": 8680,
+      "y": 15964,
+      "w": 390,
+      "h": 1278,
+      "title": "Recipe editor, food search: results from more sources (mobile)"
+    },
+    "RecipeEditorFoodSearchNoResults.dc.html": {
+      "x": 9150,
+      "y": 15964,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: no matches (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchNoResultsMobile.dc.html": {
+      "x": 10510,
+      "y": 15964,
+      "w": 390,
+      "h": 1108,
+      "title": "Recipe editor, food search: no matches (mobile)"
+    },
+    "RecipeEditorFoodSearchReading.dc.html": {
+      "x": 10980,
+      "y": 15964,
+      "w": 1280,
+      "h": 1567,
+      "title": "Recipe editor, food search: reading the typed text (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchReadingMobile.dc.html": {
+      "x": 12340,
+      "y": 15964,
+      "w": 390,
+      "h": 1997,
+      "title": "Recipe editor, food search: reading the typed text (mobile)"
+    },
+    "RecipeEditorFoodSearchPickInFlight.dc.html": {
+      "x": 0,
+      "y": 18621,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: adding a food (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchPickInFlightMobile.dc.html": {
+      "x": 1360,
+      "y": 18621,
+      "w": 390,
+      "h": 1004,
+      "title": "Recipe editor, food search: adding a food (mobile)"
+    },
+    "RecipeEditorFoodSearchPickFailed.dc.html": {
+      "x": 1830,
+      "y": 18621,
+      "w": 1280,
+      "h": 1664,
+      "title": "Recipe editor, food search: a pick did not take (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchPickFailedMobile.dc.html": {
+      "x": 3190,
+      "y": 18621,
+      "w": 390,
+      "h": 1972,
+      "title": "Recipe editor, food search: a pick did not take (mobile)"
+    },
+    "RecipeEditorFoodSearchPendingText.dc.html": {
+      "x": 3660,
+      "y": 18621,
+      "w": 1280,
+      "h": 1242,
+      "title": "Recipe editor, food search: text not added (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchPendingTextMobile.dc.html": {
+      "x": 5020,
+      "y": 18621,
+      "w": 390,
+      "h": 1526,
+      "title": "Recipe editor, food search: text not added (mobile)"
+    },
+    "RecipeEditorFoodSearchAddedNeedsChoice.dc.html": {
+      "x": 5490,
+      "y": 18621,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: added, needs a choice (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchAddedNeedsChoiceMobile.dc.html": {
+      "x": 6850,
+      "y": 18621,
+      "w": 390,
+      "h": 1045,
+      "title": "Recipe editor, food search: added, needs a choice (mobile)"
+    },
+    "RecipeEditorFoodSearchCatalogUnavailable.dc.html": {
+      "x": 0,
+      "y": 21253,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: food catalog unavailable (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchCatalogUnavailableMobile.dc.html": {
+      "x": 1360,
+      "y": 21253,
+      "w": 390,
+      "h": 1153,
+      "title": "Recipe editor, food search: food catalog unavailable (mobile)"
+    },
+    "RecipeEditorFoodSearchYourFoodsUnavailable.dc.html": {
+      "x": 1830,
+      "y": 21253,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: your foods unavailable (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchYourFoodsUnavailableMobile.dc.html": {
+      "x": 3190,
+      "y": 21253,
+      "w": 390,
+      "h": 1297,
+      "title": "Recipe editor, food search: your foods unavailable (mobile)"
+    },
+    "RecipeEditorFoodSearchBothUnavailable.dc.html": {
+      "x": 3660,
+      "y": 21253,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: your foods and catalog unavailable (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchBothUnavailableMobile.dc.html": {
+      "x": 5020,
+      "y": 21253,
+      "w": 390,
+      "h": 1159,
+      "title": "Recipe editor, food search: your foods and catalog unavailable (mobile)"
+    },
+    "RecipeEditorFoodSearchFailed.dc.html": {
+      "x": 5490,
+      "y": 21253,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: search failed (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchFailedMobile.dc.html": {
+      "x": 6850,
+      "y": 21253,
+      "w": 390,
+      "h": 1055,
+      "title": "Recipe editor, food search: search failed (mobile)"
+    },
+    "RecipeEditorFoodSearchOffline.dc.html": {
+      "x": 7320,
+      "y": 21253,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: offline (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchOfflineMobile.dc.html": {
+      "x": 8680,
+      "y": 21253,
+      "w": 390,
+      "h": 1083,
+      "title": "Recipe editor, food search: offline (mobile)"
+    },
+    "RecipeEditorFoodSearchSourceLimited.dc.html": {
+      "x": 9150,
+      "y": 21253,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: lookup limit and busy source (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchSourceLimitedMobile.dc.html": {
+      "x": 10510,
+      "y": 21253,
+      "w": 390,
+      "h": 1281,
+      "title": "Recipe editor, food search: lookup limit and busy source (mobile)"
+    },
+    "RecipeEditorFoodSearchIncomplete.dc.html": {
+      "x": 10980,
+      "y": 21253,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: search did not finish (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodSearchIncompleteMobile.dc.html": {
+      "x": 12340,
+      "y": 21253,
+      "w": 390,
+      "h": 1223,
+      "title": "Recipe editor, food search: search did not finish (mobile)"
+    },
+    "RecipeEditorChangeFood.dc.html": {
+      "x": 0,
+      "y": 23210,
+      "w": 1280,
+      "h": 782,
+      "title": "Recipe editor, change food on a saved recipe (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorChangeFoodMobile.dc.html": {
+      "x": 1360,
+      "y": 23210,
+      "w": 390,
+      "h": 1402,
+      "title": "Recipe editor, change food on a saved recipe (mobile)"
+    },
+    "RecipeEditorChangeFoodRefused.dc.html": {
+      "x": 1830,
+      "y": 23210,
+      "w": 1280,
+      "h": 1015,
+      "title": "Recipe editor, change food: not saved (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorChangeFoodRefusedMobile.dc.html": {
+      "x": 3190,
+      "y": 23210,
+      "w": 390,
+      "h": 1321,
+      "title": "Recipe editor, change food: not saved (mobile)"
+    },
+    "RecipeEditorIngredientRowStates.dc.html": {
+      "x": 0,
+      "y": 25272,
+      "w": 1280,
+      "h": 1873,
+      "title": "Recipe editor, every ingredient row state (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorIngredientRowStatesMobile.dc.html": {
+      "x": 1360,
+      "y": 25272,
+      "w": 390,
+      "h": 2113,
+      "title": "Recipe editor, every ingredient row state (mobile)"
+    },
+    "RecipeEditorIngredientGroups.dc.html": {
+      "x": 1830,
+      "y": 25272,
+      "w": 1280,
+      "h": 1200,
+      "title": "Recipe editor, ingredient groups (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorIngredientGroupsMobile.dc.html": {
+      "x": 3190,
+      "y": 25272,
+      "w": 390,
+      "h": 1344,
+      "title": "Recipe editor, ingredient groups (mobile)"
+    },
+    "RecipeEditorRowEditor.dc.html": {
+      "x": 3660,
+      "y": 25272,
+      "w": 1280,
+      "h": 1138,
+      "title": "Recipe editor, edit an ingredient (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorRowEditorMobile.dc.html": {
+      "x": 5020,
+      "y": 25272,
+      "w": 390,
+      "h": 1000,
+      "title": "Recipe editor, edit an ingredient (mobile)"
+    },
+    "RecipeEditorNutritionTotal.dc.html": {
+      "x": 5490,
+      "y": 25272,
+      "w": 1280,
+      "h": 524,
+      "title": "Recipe editor, nutrition total states (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorNutritionTotalMobile.dc.html": {
+      "x": 6850,
+      "y": 25272,
+      "w": 390,
+      "h": 556,
+      "title": "Recipe editor, nutrition total states (mobile)"
+    },
+    "RecipeEditorRowChooseMatch.dc.html": {
+      "x": 0,
+      "y": 28045,
+      "w": 1280,
+      "h": 664,
+      "title": "Recipe editor, choose a match (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorRowChooseMatchMobile.dc.html": {
+      "x": 1360,
+      "y": 28045,
+      "w": 390,
+      "h": 1384,
+      "title": "Recipe editor, choose a match (mobile)"
+    },
+    "RecipeEditorRowChooseMatchStates.dc.html": {
+      "x": 1830,
+      "y": 28045,
+      "w": 1280,
+      "h": 1616,
+      "title": "Recipe editor, choose a match: loading and problems (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorRowChooseMatchStatesMobile.dc.html": {
+      "x": 3190,
+      "y": 28045,
+      "w": 390,
+      "h": 2358,
+      "title": "Recipe editor, choose a match: loading and problems (mobile)"
+    },
+    "RecipeEditorRowNeedsReview.dc.html": {
+      "x": 3660,
+      "y": 28045,
+      "w": 1280,
+      "h": 411,
+      "title": "Recipe editor, needs review (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorRowNeedsReviewMobile.dc.html": {
+      "x": 5020,
+      "y": 28045,
+      "w": 390,
+      "h": 853,
+      "title": "Recipe editor, needs review (mobile)"
+    },
+    "RecipeEditorRowNoMatch.dc.html": {
+      "x": 5490,
+      "y": 28045,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe editor, no match found (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorRowNoMatchMobile.dc.html": {
+      "x": 6850,
+      "y": 28045,
+      "w": 390,
+      "h": 805,
+      "title": "Recipe editor, no match found (mobile)"
+    },
+    "RecipeEditorRowLookupFailed.dc.html": {
+      "x": 7320,
+      "y": 28045,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe editor, couldn't look up (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorRowLookupFailedMobile.dc.html": {
+      "x": 8680,
+      "y": 28045,
+      "w": 390,
+      "h": 535,
+      "title": "Recipe editor, couldn't look up (mobile)"
+    },
+    "RecipeEditorRowFoodRemoved.dc.html": {
+      "x": 9150,
+      "y": 28045,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe editor, food no longer listed (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorRowFoodRemovedMobile.dc.html": {
+      "x": 10510,
+      "y": 28045,
+      "w": 390,
+      "h": 734,
+      "title": "Recipe editor, food no longer listed (mobile)"
+    },
+    "RecipeEditorRowNutrition.dc.html": {
+      "x": 10980,
+      "y": 28045,
+      "w": 1280,
+      "h": 1146,
+      "title": "Recipe editor, an ingredient's nutrition (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorRowNutritionMobile.dc.html": {
+      "x": 12340,
+      "y": 28045,
+      "w": 390,
+      "h": 1960,
+      "title": "Recipe editor, an ingredient's nutrition (mobile)"
+    },
+    "RecipeEditorCreateFood.dc.html": {
+      "x": 0,
+      "y": 31063,
+      "w": 1280,
+      "h": 594,
+      "title": "Recipe editor, create my own food (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorCreateFoodMobile.dc.html": {
+      "x": 1360,
+      "y": 31063,
+      "w": 390,
+      "h": 1196,
+      "title": "Recipe editor, create my own food (mobile)"
+    },
+    "RecipeEditorCreateFoodErrors.dc.html": {
+      "x": 1830,
+      "y": 31063,
+      "w": 1280,
+      "h": 622,
+      "title": "Recipe editor, create my own food: errors (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorCreateFoodErrorsMobile.dc.html": {
+      "x": 3190,
+      "y": 31063,
+      "w": 390,
+      "h": 1290,
+      "title": "Recipe editor, create my own food: errors (mobile)"
+    },
+    "RecipeEditorCreateFoodDuplicate.dc.html": {
+      "x": 3660,
+      "y": 31063,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe editor, create my own food: name taken (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorCreateFoodDuplicateMobile.dc.html": {
+      "x": 5020,
+      "y": 31063,
+      "w": 390,
+      "h": 638,
+      "title": "Recipe editor, create my own food: name taken (mobile)"
+    },
+    "RecipeEditorFoodDetails.dc.html": {
+      "x": 0,
+      "y": 33013,
+      "w": 1280,
+      "h": 750,
+      "title": "Recipe editor, add details (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodDetailsMobile.dc.html": {
+      "x": 1360,
+      "y": 33013,
+      "w": 390,
+      "h": 1543,
+      "title": "Recipe editor, add details (mobile)"
+    },
+    "RecipeEditorFoodDetailsSearch.dc.html": {
+      "x": 1830,
+      "y": 33013,
+      "w": 1280,
+      "h": 778,
+      "title": "Recipe editor, add details: long list (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodDetailsSearchMobile.dc.html": {
+      "x": 3190,
+      "y": 33013,
+      "w": 390,
+      "h": 1644,
+      "title": "Recipe editor, add details: long list (mobile)"
+    },
+    "RecipeEditorFoodDetailsStates.dc.html": {
+      "x": 3660,
+      "y": 33013,
+      "w": 1280,
+      "h": 1261,
+      "title": "Recipe editor, add details: loading and problems (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorFoodDetailsStatesMobile.dc.html": {
+      "x": 5020,
+      "y": 33013,
+      "w": 390,
+      "h": 2189,
+      "title": "Recipe editor, add details: loading and problems (mobile)"
+    },
+    "RecipeEditorPasteRefused.dc.html": {
+      "x": 0,
+      "y": 35862,
+      "w": 1280,
+      "h": 1945,
+      "title": "Recipe editor, paste a list: refused (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorPasteRefusedMobile.dc.html": {
+      "x": 1360,
+      "y": 35862,
+      "w": 390,
+      "h": 1940,
+      "title": "Recipe editor, paste a list: refused (mobile)"
+    },
+    "RecipeEditorPasteReading.dc.html": {
+      "x": 1830,
+      "y": 35862,
+      "w": 1280,
+      "h": 1021,
+      "title": "Recipe editor, paste a list: reading (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorPasteReadingMobile.dc.html": {
+      "x": 3190,
+      "y": 35862,
+      "w": 390,
+      "h": 1186,
+      "title": "Recipe editor, paste a list: reading (mobile)"
+    },
+    "RecipeEditorPasteNeedsYou.dc.html": {
+      "x": 3660,
+      "y": 35862,
+      "w": 1280,
+      "h": 1205,
+      "title": "Recipe editor, paste a list: lines need you (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorPasteChoose.dc.html": {
+      "x": 11808,
+      "y": 35862,
+      "w": 1280,
+      "h": 1100,
+      "title": "Recipe editor, paste choose (web)"
+    },
+    "RecipeEditorPasteChooseStates.dc.html": {
+      "x": 15826,
+      "y": 35862,
+      "w": 1280,
+      "h": 1000,
+      "title": "Recipe editor, paste choose states (web)"
+    },
+    "RecipeEditorPasteNeedsYouMobile.dc.html": {
+      "x": 5020,
+      "y": 35862,
+      "w": 390,
+      "h": 1474,
+      "title": "Recipe editor, paste a list: lines need you (mobile)"
+    },
+    "RecipeEditorPasteChooseMobile.dc.html": {
+      "x": 9150,
+      "y": 35862,
+      "w": 390,
+      "h": 1520,
+      "title": "Recipe editor, paste choose (phone)"
+    },
+    "RecipeEditorPasteChoose834Mobile.dc.html": {
+      "x": 9620,
+      "y": 35862,
+      "w": 834,
+      "h": 1480,
+      "title": "Recipe editor, paste choose (tablet 834 px)"
+    },
+    "RecipeEditorPasteChoose1194Mobile.dc.html": {
+      "x": 10534,
+      "y": 35862,
+      "w": 1194,
+      "h": 1100,
+      "title": "Recipe editor, paste choose (tablet 1194 px)"
+    },
+    "RecipeEditorPasteChooseStatesMobile.dc.html": {
+      "x": 13168,
+      "y": 35862,
+      "w": 390,
+      "h": 1580,
+      "title": "Recipe editor, paste choose states (phone)"
+    },
+    "RecipeEditorPasteChooseStates834Mobile.dc.html": {
+      "x": 13638,
+      "y": 35862,
+      "w": 834,
+      "h": 1330,
+      "title": "Recipe editor, paste choose states (tablet 834 px)"
+    },
+    "RecipeEditorPasteChooseStates1194Mobile.dc.html": {
+      "x": 14552,
+      "y": 35862,
+      "w": 1194,
+      "h": 1000,
+      "title": "Recipe editor, paste choose states (tablet 1194 px)"
+    },
+    "RecipeEditorPasteStalled.dc.html": {
+      "x": 5490,
+      "y": 35862,
+      "w": 1280,
+      "h": 1325,
+      "title": "Recipe editor, paste a list: taking longer (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorPasteStalledMobile.dc.html": {
+      "x": 6850,
+      "y": 35862,
+      "w": 390,
+      "h": 1566,
+      "title": "Recipe editor, paste a list: taking longer (mobile)"
+    },
+    "RecipeEditorPasteOffline.dc.html": {
+      "x": 7320,
+      "y": 35862,
+      "w": 1280,
+      "h": 1095,
+      "title": "Recipe editor, paste a list: offline (web)",
+      "expand": "fill"
+    },
+    "RecipeEditorPasteOfflineMobile.dc.html": {
+      "x": 8680,
+      "y": 35862,
+      "w": 390,
+      "h": 1282,
+      "title": "Recipe editor, paste a list: offline (mobile)"
+    }
+  },
+  "order": [
+    "RecipeEditor.dc.html",
+    "RecipeEditorMobile.dc.html",
+    "RecipeEditorSheet.dc.html",
+    "RecipeEditorSheetMobile.dc.html",
+    "RecipeEditorEditExisting.dc.html",
+    "RecipeEditorEditExistingMobile.dc.html",
+    "RecipeEditorEmpty.dc.html",
+    "RecipeEditorEmptyMobile.dc.html",
+    "RecipeEditorReadyUnmatched.dc.html",
+    "RecipeEditorReadyUnmatchedMobile.dc.html",
+    "RecipeEditorFixToPublish.dc.html",
+    "RecipeEditorFixToPublishMobile.dc.html",
+    "RecipeEditorLoading.dc.html",
+    "RecipeEditorLoadingMobile.dc.html",
+    "RecipeEditorPreview.dc.html",
+    "RecipeEditorPreviewMobile.dc.html",
+    "RecipeEditorCuisine.dc.html",
+    "RecipeEditorCuisineMobile.dc.html",
+    "RecipeEditorPasteSteps.dc.html",
+    "RecipeEditorPasteStepsMobile.dc.html",
+    "RecipeEditorPhotosUploading.dc.html",
+    "RecipeEditorPhotosUploadingMobile.dc.html",
+    "RecipeEditorPhotosErrors.dc.html",
+    "RecipeEditorPhotosErrorsMobile.dc.html",
+    "RecipeEditorPhotoSource.dc.html",
+    "RecipeEditorPhotoSourceMobile.dc.html",
+    "RecipeEditorVisibility.dc.html",
+    "RecipeEditorVisibilityMobile.dc.html",
+    "RecipeEditor1024.dc.html",
+    "RecipeEditor768.dc.html",
+    "RecipeEditor834Mobile.dc.html",
+    "RecipeEditor1194Mobile.dc.html",
+    "RecipeEditorSaveStatus.dc.html",
+    "RecipeEditorSaveStatusMobile.dc.html",
+    "RecipeEditorResume.dc.html",
+    "RecipeEditorResumeMobile.dc.html",
+    "RecipeEditorSaveFailed.dc.html",
+    "RecipeEditorSaveFailedMobile.dc.html",
+    "RecipeEditorDiscardDraft.dc.html",
+    "RecipeEditorDiscardDraftMobile.dc.html",
+    "RecipeEditorDiscardChanges.dc.html",
+    "RecipeEditorDiscardChangesMobile.dc.html",
+    "RecipeEditorConflict.dc.html",
+    "RecipeEditorConflictMobile.dc.html",
+    "RecipeEditorConflictDraft.dc.html",
+    "RecipeEditorConflictDraftMobile.dc.html",
+    "RecipeEditorConflictMerge.dc.html",
+    "RecipeEditorConflictMergeMobile.dc.html",
+    "RecipeEditorConflictStaleBase.dc.html",
+    "RecipeEditorConflictStaleBaseMobile.dc.html",
+    "RecipeEditorFoodSearchTooShort.dc.html",
+    "RecipeEditorFoodSearchTooShortMobile.dc.html",
+    "RecipeEditorFoodSearchSearching.dc.html",
+    "RecipeEditorFoodSearchSearchingMobile.dc.html",
+    "RecipeEditorFoodSearchResults.dc.html",
+    "RecipeEditorFoodSearchDefault.dc.html",
+    "RecipeEditorFoodSearchResultsMobile.dc.html",
+    "RecipeEditorFoodSearchDefaultMobile.dc.html",
+    "RecipeEditorFoodSearchDefault834Mobile.dc.html",
+    "RecipeEditorFoodSearchDefault1194Mobile.dc.html",
+    "RecipeEditorFoodSearchMoreSources.dc.html",
+    "RecipeEditorFoodSearchMoreSourcesMobile.dc.html",
+    "RecipeEditorFoodSearchMoreSourcesDone.dc.html",
+    "RecipeEditorFoodSearchMoreSourcesDoneMobile.dc.html",
+    "RecipeEditorFoodSearchNoResults.dc.html",
+    "RecipeEditorFoodSearchNoResultsMobile.dc.html",
+    "RecipeEditorFoodSearchReading.dc.html",
+    "RecipeEditorFoodSearchReadingMobile.dc.html",
+    "RecipeEditorFoodSearchPickInFlight.dc.html",
+    "RecipeEditorFoodSearchPickInFlightMobile.dc.html",
+    "RecipeEditorFoodSearchPickFailed.dc.html",
+    "RecipeEditorFoodSearchPickFailedMobile.dc.html",
+    "RecipeEditorFoodSearchPendingText.dc.html",
+    "RecipeEditorFoodSearchPendingTextMobile.dc.html",
+    "RecipeEditorFoodSearchAddedNeedsChoice.dc.html",
+    "RecipeEditorFoodSearchAddedNeedsChoiceMobile.dc.html",
+    "RecipeEditorFoodSearchCatalogUnavailable.dc.html",
+    "RecipeEditorFoodSearchCatalogUnavailableMobile.dc.html",
+    "RecipeEditorFoodSearchYourFoodsUnavailable.dc.html",
+    "RecipeEditorFoodSearchYourFoodsUnavailableMobile.dc.html",
+    "RecipeEditorFoodSearchBothUnavailable.dc.html",
+    "RecipeEditorFoodSearchBothUnavailableMobile.dc.html",
+    "RecipeEditorFoodSearchFailed.dc.html",
+    "RecipeEditorFoodSearchFailedMobile.dc.html",
+    "RecipeEditorFoodSearchOffline.dc.html",
+    "RecipeEditorFoodSearchOfflineMobile.dc.html",
+    "RecipeEditorFoodSearchSourceLimited.dc.html",
+    "RecipeEditorFoodSearchSourceLimitedMobile.dc.html",
+    "RecipeEditorFoodSearchIncomplete.dc.html",
+    "RecipeEditorFoodSearchIncompleteMobile.dc.html",
+    "RecipeEditorChangeFood.dc.html",
+    "RecipeEditorChangeFoodMobile.dc.html",
+    "RecipeEditorChangeFoodRefused.dc.html",
+    "RecipeEditorChangeFoodRefusedMobile.dc.html",
+    "RecipeEditorIngredientRowStates.dc.html",
+    "RecipeEditorIngredientRowStatesMobile.dc.html",
+    "RecipeEditorIngredientGroups.dc.html",
+    "RecipeEditorIngredientGroupsMobile.dc.html",
+    "RecipeEditorRowEditor.dc.html",
+    "RecipeEditorRowEditorMobile.dc.html",
+    "RecipeEditorNutritionTotal.dc.html",
+    "RecipeEditorNutritionTotalMobile.dc.html",
+    "RecipeEditorRowChooseMatch.dc.html",
+    "RecipeEditorRowChooseMatchMobile.dc.html",
+    "RecipeEditorRowChooseMatchStates.dc.html",
+    "RecipeEditorRowChooseMatchStatesMobile.dc.html",
+    "RecipeEditorRowNeedsReview.dc.html",
+    "RecipeEditorRowNeedsReviewMobile.dc.html",
+    "RecipeEditorRowNoMatch.dc.html",
+    "RecipeEditorRowNoMatchMobile.dc.html",
+    "RecipeEditorRowLookupFailed.dc.html",
+    "RecipeEditorRowLookupFailedMobile.dc.html",
+    "RecipeEditorRowFoodRemoved.dc.html",
+    "RecipeEditorRowFoodRemovedMobile.dc.html",
+    "RecipeEditorRowNutrition.dc.html",
+    "RecipeEditorRowNutritionMobile.dc.html",
+    "RecipeEditorCreateFood.dc.html",
+    "RecipeEditorCreateFoodMobile.dc.html",
+    "RecipeEditorCreateFoodErrors.dc.html",
+    "RecipeEditorCreateFoodErrorsMobile.dc.html",
+    "RecipeEditorCreateFoodDuplicate.dc.html",
+    "RecipeEditorCreateFoodDuplicateMobile.dc.html",
+    "RecipeEditorFoodDetails.dc.html",
+    "RecipeEditorFoodDetailsMobile.dc.html",
+    "RecipeEditorFoodDetailsSearch.dc.html",
+    "RecipeEditorFoodDetailsSearchMobile.dc.html",
+    "RecipeEditorFoodDetailsStates.dc.html",
+    "RecipeEditorFoodDetailsStatesMobile.dc.html",
+    "RecipeEditorPasteRefused.dc.html",
+    "RecipeEditorPasteRefusedMobile.dc.html",
+    "RecipeEditorPasteReading.dc.html",
+    "RecipeEditorPasteReadingMobile.dc.html",
+    "RecipeEditorPasteNeedsYou.dc.html",
+    "RecipeEditorPasteChoose.dc.html",
+    "RecipeEditorPasteChooseStates.dc.html",
+    "RecipeEditorPasteNeedsYouMobile.dc.html",
+    "RecipeEditorPasteChooseMobile.dc.html",
+    "RecipeEditorPasteChoose834Mobile.dc.html",
+    "RecipeEditorPasteChoose1194Mobile.dc.html",
+    "RecipeEditorPasteChooseStatesMobile.dc.html",
+    "RecipeEditorPasteChooseStates834Mobile.dc.html",
+    "RecipeEditorPasteChooseStates1194Mobile.dc.html",
+    "RecipeEditorPasteStalled.dc.html",
+    "RecipeEditorPasteStalledMobile.dc.html",
+    "RecipeEditorPasteOffline.dc.html",
+    "RecipeEditorPasteOfflineMobile.dc.html"
+  ],
+  "notes": {
+    "row14": {
+      "x": 0,
+      "y": 0,
+      "text": "Recipe editor",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row15": {
+      "x": 0,
+      "y": 5481,
+      "text": "Recipe editor: breakpoints",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row16": {
+      "x": 0,
+      "y": 10632,
+      "text": "Recipe editor: saving",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row17": {
+      "x": 0,
+      "y": 13376,
+      "text": "Recipe editor: conflicts",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row18": {
+      "x": 0,
+      "y": 15704,
+      "text": "Food search: typing and results",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row19": {
+      "x": 0,
+      "y": 18361,
+      "text": "Food search: picking",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row20": {
+      "x": 0,
+      "y": 20993,
+      "text": "Food search: problems",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row21": {
+      "x": 0,
+      "y": 22950,
+      "text": "Food search: editing a recipe",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row22": {
+      "x": 0,
+      "y": 25012,
+      "text": "Ingredient rows",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row23": {
+      "x": 0,
+      "y": 27785,
+      "text": "Ingredient panels",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row24": {
+      "x": 0,
+      "y": 30803,
+      "text": "Create my own food",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row25": {
+      "x": 0,
+      "y": 32753,
+      "text": "Food details",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row26": {
+      "x": 0,
+      "y": 35602,
+      "text": "Paste a list",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

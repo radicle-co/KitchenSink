@@ -21,8 +21,11 @@ import {
     CAP_FOOD_BASE_NAME,
     deriveAmbiguityProbe,
     deriveFixtureManifest,
+    deriveNeedsReviewProbe,
     FIXTURE_ENV_KEYS,
     manifestToEnvLines,
+    NEEDS_REVIEW_FOOD_NAME,
+    NEEDS_REVIEW_SOURCE_LINE,
     PRIVATE_FOOD_NAME,
     PRIVATE_FOOD_RECIPE,
     runScopedTitle,
@@ -658,6 +661,74 @@ describe('the ambiguity probe', () => {
 
     it('uses no regex metacharacters in its title, because the flow puts it inside a Maestro pattern', () => {
         expect(manifest.ambiguityProbeTitle).toMatch(/^[A-Za-z0-9 -]+$/u);
+    });
+
+    it('is frozen, lines and all, like the rest of the manifest', () => {
+        expect(Object.isFrozen(probe)).toBe(true);
+        expect(Object.isFrozen(probe.ingredients)).toBe(true);
+    });
+});
+
+/**
+ * `recipes/needsReviewJump`: the owner's recipe whose one line reads NEEDS_REVIEW. Like the ambiguity probe it is NOT part of
+ * the seeded world (every other flow counts three recipes) and is made by its own reset mode, after the reconcile.
+ */
+describe('the needs-review probe', () => {
+    const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+    const probe = deriveNeedsReviewProbe(manifest);
+
+    it('scopes its title to the run, with the run key last', () => {
+        expect(manifest.needsReviewProbeTitle).toBe(runScopedTitle('Needs Review Probe', RUN));
+        expect(probe.title).toBe(manifest.needsReviewProbeTitle);
+    });
+
+    it('is the SIGNER’s PRIVATE recipe: the control is the owner’s alone, and Discover must not list it', () => {
+        expect(probe.owner).toBe('signer');
+        expect(probe.visibility).toBe('private');
+        expect(probe.key).toBe('needsReviewProbe');
+    });
+
+    it('has ONE line, 2 cups of a food whose name differs from the source line it was written as', () => {
+        expect(probe.ingredients).toHaveLength(1);
+        expect(probe.ingredients[0]).toMatchObject({
+            name: NEEDS_REVIEW_FOOD_NAME,
+            quantity: 2,
+            unit: 'cup',
+            sourceLine: NEEDS_REVIEW_SOURCE_LINE,
+        });
+        expect(NEEDS_REVIEW_SOURCE_LINE.toLowerCase()).not.toContain(NEEDS_REVIEW_FOOD_NAME.toLowerCase());
+    });
+
+    it('is NOT in SEED_WORLD and not in manifest.recipes, so every other flow still sees "3 recipes"', () => {
+        expect(SEED_WORLD.map((recipe) => recipe.key)).not.toContain('needsReviewProbe');
+        expect(manifest.recipes.map((recipe) => recipe.key)).not.toContain('needsReviewProbe');
+        expect(manifest.libraryFillers.map((recipe) => recipe.key)).not.toContain('needsReviewProbe');
+    });
+
+    it('builds a request the shipped contract accepts, carrying the source line', () => {
+        const request = toCreateRequest(
+            probe,
+            new Map([[NEEDS_REVIEW_FOOD_NAME, '00000000-0000-4000-8000-0000000000b1']]),
+        );
+
+        expect(createRecipeRequestSchema.safeParse(request).success).toBe(true);
+        expect(request.ingredients.map((line) => line.sourceLine)).toEqual([NEEDS_REVIEW_SOURCE_LINE]);
+    });
+
+    it('reaches the flow as three keys: the recipe, the food and the source line', () => {
+        const lines = manifestToEnvLines(manifest, provisioned(ERASURE));
+
+        expect(FIXTURE_ENV_KEYS.needsReviewProbeRecipe).toBe('E2E_RECIPE_NEEDS_REVIEW_PROBE');
+        expect(FIXTURE_ENV_KEYS.needsReviewFood).toBe('E2E_NEEDS_REVIEW_FOOD');
+        expect(FIXTURE_ENV_KEYS.needsReviewSourceLine).toBe('E2E_NEEDS_REVIEW_SOURCE_LINE');
+        expect(lines).toContain(`E2E_RECIPE_NEEDS_REVIEW_PROBE=${runScopedTitle('Needs Review Probe', RUN)}`);
+        expect(lines).toContain(`E2E_NEEDS_REVIEW_FOOD=${NEEDS_REVIEW_FOOD_NAME}`);
+        expect(lines).toContain(`E2E_NEEDS_REVIEW_SOURCE_LINE=${NEEDS_REVIEW_SOURCE_LINE}`);
+    });
+
+    it('uses no regex metacharacters in the title or the food, because the flow puts them inside a Maestro pattern', () => {
+        expect(manifest.needsReviewProbeTitle).toMatch(/^[A-Za-z0-9 -]+$/u);
+        expect(NEEDS_REVIEW_FOOD_NAME).toMatch(/^[A-Za-z ]+$/u);
     });
 
     it('is frozen, lines and all, like the rest of the manifest', () => {

@@ -327,29 +327,79 @@ describe('RecipesService.clone', () => {
     });
 });
 
-describe('RecipesService.clone — the source line survives (U11)', () => {
-    it('⛔ carries the raw SOURCE LINE onto the clone', async () => {
-        // ⛔ THE DATA LOSS THIS PINS. The clone mapper once preserved `displayText` and all four per-line
-        // nutrition overrides and silently dropped `source_line`, which `0024_ingredient_source_line.sql`
-        // added later. A clone therefore lost the one fact the verification gate needs, permanently: the
-        // cloned recipe could never be verified, and U14's correction surface would have nothing to show the
-        // cook the source said.
-        //
-        // It is a fact about the SOURCE, not about the author — a clone of an imported recipe was transcribed
-        // from the same book — so it travels with the line exactly as `display_text` does.
-        const SOURCE_LINE = '2 heaping cups of well-sifted pastry flour';
-        const source = sourceAggregate();
-        const withSourceLine: typeof source = {
+/**
+ * The source line on a clone (U11, ADR-0090).
+ *
+ * ⛔ REWRITTEN for ADR-0090, not weakened. The text still travels: it is what the verification gate judges, and
+ * `verificationKey` hashes it, so a clone without it could never be verified and its verdict would stop matching
+ * the source's. What changed is WHO it belongs to. The cloner owns the copy, and the owner is the one cook shown a
+ * line's source text, so the copy now records whether its owner supplied that text: never for another cook's
+ * recipe, and unchanged for the cook's own.
+ */
+describe('RecipesService.clone — the source line survives, and says who wrote it (U11, ADR-0090)', () => {
+    const SOURCE_LINE = '2 heaping cups of well-sifted pastry flour';
+
+    /**
+     * The source with one transcribed line.
+     *
+     * @param transcribedByOwner - The line's flag.
+     * @param overrides - Recipe-row overrides.
+     * @returns The aggregate.
+     */
+    function transcribedSource(
+        transcribedByOwner: boolean,
+        overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {},
+    ): RecipeAggregate {
+        const source = sourceAggregate(overrides);
+
+        return {
             ...source,
-            ingredients: source.ingredients.map((row) => ({ ...row, sourceLine: SOURCE_LINE })),
+            ingredients: source.ingredients.map((row) => ({
+                ...row,
+                sourceLine: SOURCE_LINE,
+                sourceLineTranscribedByOwner: transcribedByOwner,
+            })),
         };
-        const { dal, create } = fakeDal(withSourceLine);
+    }
+
+    type ClonedLines = { ingredients: { sourceLine?: string; sourceLineTranscribedByOwner?: boolean }[] } | undefined;
+
+    it('⛔ carries the raw SOURCE LINE onto a clone of another cook’s recipe, marked NOT written by the cloner', async () => {
+        // ⛔ THE DATA LOSS THIS STILL PINS. The clone mapper once preserved `displayText` and all four per-line
+        // nutrition overrides and silently dropped `source_line`, which `0024_ingredient_source_line.sql` added
+        // later. A clone therefore lost the one fact the verification gate needs, permanently.
+        //
+        // ⛔ AND THE DISCLOSURE THIS PINS. The verdict text travels, but the source cook typed it, not the cloner.
+        // Were the flag copied, "owner only" would show the cloner another cook's verbatim words.
+        const { dal, create } = fakeDal(transcribedSource(true));
 
         await service(dal).clone(CLONER_PRINCIPAL, 'src-1', undefined);
 
-        const input = create.mock.calls[0]?.[0] as { ingredients: { sourceLine?: string }[] } | undefined;
+        const input = create.mock.calls[0]?.[0] as ClonedLines;
 
         expect(input?.ingredients[0]?.sourceLine).toBe(SOURCE_LINE);
+        expect(input?.ingredients[0]?.sourceLineTranscribedByOwner).toBe(false);
+    });
+
+    it('KEEPS the flag on a clone of the cook’s OWN recipe — they wrote that text', async () => {
+        const { dal, create } = fakeDal(transcribedSource(true, { visibility: 'private', ownerId: SOURCE_OWNER }));
+
+        await service(dal).clone(SOURCE_OWNER_PRINCIPAL, 'src-1', undefined);
+
+        const input = create.mock.calls[0]?.[0] as ClonedLines;
+
+        expect(input?.ingredients[0]?.sourceLine).toBe(SOURCE_LINE);
+        expect(input?.ingredients[0]?.sourceLineTranscribedByOwner).toBe(true);
+    });
+
+    it('never RAISES the flag on a self-clone: a copy of a copy is still not the cook’s text', async () => {
+        const { dal, create } = fakeDal(transcribedSource(false, { visibility: 'private', ownerId: SOURCE_OWNER }));
+
+        await service(dal).clone(SOURCE_OWNER_PRINCIPAL, 'src-1', undefined);
+
+        const input = create.mock.calls[0]?.[0] as ClonedLines;
+
+        expect(input?.ingredients[0]?.sourceLineTranscribedByOwner).toBe(false);
     });
 });
 

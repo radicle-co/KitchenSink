@@ -284,7 +284,7 @@ async function bindAuthoredFood(
  *   exact name, so either would fail it on a step that reads like an app defect.
  * @sideEffect May author one food, and binds it. Sleeps between retries.
  */
-async function ensureAuthoredFood(
+export async function ensureAuthoredFood(
     clients: ProbeFoodClients,
     name: string,
     label: string,

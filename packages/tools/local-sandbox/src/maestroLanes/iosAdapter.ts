@@ -107,7 +107,7 @@ export class IosAdapter implements DeviceAdapter {
             'bash',
             [
                 '-c',
-                '. "$1" && maestro_disable_password_autofill_ios',
+                '. "$1" && maestro_disable_password_autofill_ios && maestro_disable_apple_intelligence_banner_ios',
                 'iosAdapter',
                 path.join(this.options.repoRoot, RUNNER),
             ],

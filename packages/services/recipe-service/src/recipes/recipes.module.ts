@@ -171,6 +171,17 @@ import { CURATION_DISAGREEMENT_SINK, emitCurationDisagreement, ParseJobMatchView
         { provide: MATCH_PROPOSAL_LIMITS, useValue: DEFAULT_MATCH_PROPOSAL_LIMITS },
         { provide: UNMADE_PROPOSALS_SINK, useValue: emitUnmadeProposals },
     ],
-    exports: [RecipesService],
+    // ParseJobsService, MatchProposalService, PARSE_JOB_MATCHES_DAL, RECIPE_LINE_VERIFICATIONS_DAL, CURATION_DISAGREEMENT_SINK and
+    // IngredientRebindService are what the bulk import's services drive (ADR-0072); the import module composes them, so
+    // none is re-provided there.
+    exports: [
+        RecipesService,
+        ParseJobsService,
+        MatchProposalService,
+        PARSE_JOB_MATCHES_DAL,
+        RECIPE_LINE_VERIFICATIONS_DAL,
+        CURATION_DISAGREEMENT_SINK,
+        IngredientRebindService,
+    ],
 })
 export class RecipesModule {}

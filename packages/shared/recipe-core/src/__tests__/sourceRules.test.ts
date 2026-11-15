@@ -26,7 +26,21 @@ describe('sourceIsCorrectable', () => {
             { ...OPEN, sourceType: 'imported_public' },
             false,
         ],
-        ['a book recipe', { ...OPEN, sourceType: 'imported_physical', sourceKind: 'book' }, false],
+        [
+            'a never-published book the cook stated in the editor',
+            { ...OPEN, sourceType: 'imported_physical', sourceKind: 'book' },
+            true,
+        ],
+        [
+            'a published book (an import saves published, so it stays locked)',
+            { ...OPEN, sourceType: 'imported_physical', sourceKind: 'book', firstPublishedAt: AT },
+            false,
+        ],
+        [
+            'a book INHERITED by a clone',
+            { ...OPEN, sourceType: 'imported_physical', sourceKind: 'book', clonedFromId: 'r-1' },
+            false,
+        ],
         ['a paid-site recipe', { ...OPEN, sourceType: 'imported_paid', sourceKind: 'paid_site' }, false],
         ['a book recipe stored with no kind', { ...OPEN, sourceType: 'imported_physical' }, false],
         [

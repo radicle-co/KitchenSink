@@ -25,12 +25,12 @@ export interface CorrectableSourceFacts {
 }
 
 /**
- * Whether the cook can still set, replace or remove this recipe's source by pasting a link. Pure.
+ * Whether the cook can still set, replace or remove this recipe's source by pasting a link or stating a book. Pure.
  *
  * `false` when ANY of these holds:
  * - it was first published: the source is frozen (ADR-0023 section 1b, ADR-0077 section 2, no relabel route), and a recipe
  *   set back to draft stays locked, because the fact is the first publish and not the status (ADR-0058);
- * - the stored source is one the cook did not state through a link: the curator's public-domain text, a book, a paid site;
+ * - the stored source is one the cook did not state in the editor: the curator's public-domain text, a paid site;
  * - the source was INHERITED by a clone (a clone with a kind): otherwise cloning a public recipe would be a way to relabel it;
  * - the kind is one this client does not know: it fails closed.
  *
@@ -45,12 +45,16 @@ export function sourceIsCorrectable(recipe: CorrectableSourceFacts): boolean {
         return false;
     }
 
-    const statedByLinkOrNone =
-        recipe.sourceType === RecipeSourceType.USER_CREATED || recipe.sourceKind === 'public_web';
+    // A book is the cook's statement too, made in the editor (a never-published recipe states one); an import saves its
+    // recipe published, so an imported book is locked by the first rule above. A paid site stays unstatable here.
+    const statedInTheEditorOrNone =
+        recipe.sourceType === RecipeSourceType.USER_CREATED ||
+        recipe.sourceKind === 'public_web' ||
+        recipe.sourceKind === 'book';
     const inheritedByClone =
         recipe.clonedFromId !== null && recipe.clonedFromId !== undefined && recipe.sourceKind !== null;
 
-    return statedByLinkOrNone && !inheritedByClone;
+    return statedInTheEditorOrNone && !inheritedByClone;
 }
 
 /**

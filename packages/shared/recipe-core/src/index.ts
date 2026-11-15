@@ -223,6 +223,15 @@ export {
     statementRequiredOf,
 } from './statementRequired.js';
 export type { RecipeStatementKind, RecipeStatementKindView, StatementRequiredInput } from './statementRequired.js';
+export {
+    PUBLIC_CONFIRM_WORDINGS,
+    PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    STATEMENT_WORDINGS,
+    STATEMENT_WORDINGS_BY_CHOICE,
+    WORDING_LOCALE_MAX_LENGTH,
+    WORDING_LOCALE_MIN_LENGTH,
+} from './statementWordings.js';
+export type { PublicConfirmWording, StatementWording } from './statementWordings.js';
 export { PRIVATE_ONLY_SOURCE_KEYS, privateOnlySourceKey, sourceIsCorrectable } from './sourceRules.js';
 export type { CorrectableSourceFacts } from './sourceRules.js';
 export {

@@ -215,6 +215,14 @@ export type { Viewer } from './viewer.js';
 export { canClone, canRate, isOwner } from './recipeAccessPolicy.js';
 export { sourceConflictOf } from './sourceConflict.js';
 export type { SourceConflictInput, SourceEvidenceFacts } from './sourceConflict.js';
+export {
+    RECIPE_STATEMENT_KINDS,
+    UNRECOGNISED_STATEMENT_KIND,
+    recipeStatementKindSchema,
+    recipeStatementKindViewSchema,
+    statementRequiredOf,
+} from './statementRequired.js';
+export type { RecipeStatementKind, RecipeStatementKindView, StatementRequiredInput } from './statementRequired.js';
 export { PRIVATE_ONLY_SOURCE_KEYS, privateOnlySourceKey, sourceIsCorrectable } from './sourceRules.js';
 export type { CorrectableSourceFacts } from './sourceRules.js';
 export {

@@ -46,8 +46,10 @@ describe('recipes.source_kind and its CHECKs (migration 0071)', () => {
             await client.query('BEGIN');
             await client.query(
                 `INSERT INTO recipes (id, owner_id, title, description, prep_time_minutes, cook_time_minutes,
-                                      total_time_minutes, servings, visibility, status, source_type, source_url, source_kind)
-                 VALUES ($1, $2, 'Source kind suite', '', 1, 1, 2, 4, 'private', 'draft', $3, $4, $5)`,
+                                      total_time_minutes, servings, visibility, status, source_type, source_url, source_kind,
+                                      statement_kind)
+                 VALUES ($1, $2, 'Source kind suite', '', 1, 1, 2, 4, 'private', 'draft', $3, $4, $5,
+                         CASE WHEN $5::text IS NULL THEN NULL ELSE 'source' END)`,
                 [RECIPE_ID, OWNER_ID, sourceType, sourceUrl, sourceKind],
             );
 

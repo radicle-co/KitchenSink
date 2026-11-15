@@ -121,9 +121,11 @@ describe('erasure never donates a private-only recipe (ADR-0089)', () => {
         return db.transaction(async (tx) => {
             const { rows } = await tx.execute<{ id: string }>(sql`
                 INSERT INTO recipes (owner_id, title, description, servings, prep_time_minutes, cook_time_minutes,
-                                     total_time_minutes, visibility, status, source_type, source_kind, source_url)
+                                     total_time_minutes, visibility, status, source_type, source_kind, source_url,
+                                     statement_kind)
                 VALUES (${USER_ERASED}, ${'ADR-0089 probe ' + probe.name}, 'probe', 2, 5, 5, 10, 'private', 'published',
-                        ${probe.sourceType}, ${probe.sourceKind}, ${probe.sourceUrl})
+                        ${probe.sourceType}, ${probe.sourceKind}, ${probe.sourceUrl},
+                        CASE WHEN ${probe.sourceKind}::text IS NULL THEN NULL ELSE 'source' END)
                 RETURNING id
             `);
             const id = rows[0]?.id;

@@ -18,6 +18,24 @@ function defined<T>(value: T | undefined): T {
 }
 
 describe('evidenceRowOf — the row a statement leaves behind', () => {
+    it.each([
+        ['a fragment', 'https://www.allrecipes.com/recipe/1/soup/#comments', 'https://www.allrecipes.com/recipe/1/soup/'],
+        ['a bare #', 'https://www.allrecipes.com/recipe/1/soup/#', 'https://www.allrecipes.com/recipe/1/soup/'],
+        [
+            'a fragment holding a ?',
+            'https://www.allrecipes.com/recipe/1/soup/?a=1#x?y=2',
+            'https://www.allrecipes.com/recipe/1/soup/?a=1',
+        ],
+    ])('keys a web source by its page, never by %s', (_label, address, key) => {
+        const provenance = { ...defined(WEB), sourceUrl: address };
+
+        const row = evidenceRowOf(provenance, 'editorLink');
+
+        expect(row).toMatchObject({ sourceKey: key });
+        // The stored address is what the cook stated; only the KEY drops the fragment.
+        expect(row).toMatchObject({ sourceUrl: address });
+    });
+
     it('records a web statement with its address, key, site and kind', () => {
         expect(evidenceRowOf(defined(WEB), 'editorLink')).toEqual({
             capture: 'editorLink',

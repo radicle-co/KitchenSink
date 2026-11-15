@@ -30,14 +30,20 @@ export interface EvidenceFacts {
 const NO_VERIFIED_SITE_CLAIMS: readonly string[] = [];
 
 /**
- * The key a later paste matches a source by. ⚠️ OPEN: no normaliser exists beyond `parseSourceLink`'s re-serialised address, so
- * the key IS that address. One function, so the owner's ruling on the real key changes one line.
+ * The key a later paste matches a source by: the proved address without its `#fragment`, which never names a different page.
+ * ⚠️ OPEN: tracking parameters and a trailing slash are NOT normalised here; the duplicate lookup settles that rule before it
+ * writes any `pastedPage` row (the table is append-only, so a stored key cannot be rewritten). One function, so that ruling
+ * changes one place.
  *
  * @param address - The proved web address (`parseSourceLink`'s `url`).
  * @returns The key. Pure.
  */
 function sourceKeyOf(address: string): string {
-    return address;
+    const page = new URL(address);
+
+    page.hash = '';
+
+    return page.href;
 }
 
 /**

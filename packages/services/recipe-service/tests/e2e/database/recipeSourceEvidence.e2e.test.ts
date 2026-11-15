@@ -86,8 +86,9 @@ describe('recipe_source_evidence (migration 0086)', () => {
         await client.query(
             `INSERT INTO recipes (id, owner_id, title, description, prep_time_minutes, cook_time_minutes,
                                   total_time_minutes, servings, visibility, status, source_type, source_url, source_kind,
-                                  cloned_from_id)
-             VALUES ($1, $2, 'Evidence suite', '', 1, 1, 2, 4, 'private', 'draft', $3, $4, $5, $6)`,
+                                  cloned_from_id, statement_kind)
+             VALUES ($1, $2, 'Evidence suite', '', 1, 1, 2, 4, 'private', 'draft', $3, $4, $5, $6,
+                     CASE WHEN $5::text IS NULL THEN NULL ELSE 'source' END)`,
             [
                 over.id ?? RECIPE_ID,
                 OWNER_ID,
@@ -234,7 +235,7 @@ describe('recipe_source_evidence (migration 0086)', () => {
         // The cook cleared the statement: the recipe now reads as their own, and the evidence stays.
         await pool.query(
             `UPDATE recipes SET source_type = 'user_created', source_url = NULL, source_kind = NULL,
-                                source_attribution = NULL WHERE id = $1`,
+                                statement_kind = NULL, source_attribution = NULL WHERE id = $1`,
             [RECIPE_ID],
         );
 
@@ -304,7 +305,8 @@ describe('recipe_source_evidence (migration 0086)', () => {
 
             await expect(
                 pool.query(
-                    `UPDATE recipes SET source_type = 'imported_public', source_kind = 'public_web', source_url = $2
+                    `UPDATE recipes SET source_type = 'imported_public', source_kind = 'public_web', statement_kind = 'source',
+                                       source_url = $2
                       WHERE id = $1`,
                     [RECIPE_ID, WEB.sourceUrl],
                 ),

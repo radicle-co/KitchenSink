@@ -4,8 +4,7 @@
  * cursor `scrollToField` uses, over ids no field shares); the element reads the count of its own id and, when it goes
  * UP, sends the reveal host a `start` request. The host puts its top at the top of the visible area. A call to
  * `showIfHidden` counts under its own key (`nearestStartKey`) and sends a `nearest` request: the host then shows the
- * element
- * only when it is hidden.
+ * element only when it is hidden.
  *
  * Unlike `useFieldTargetReveal` it moves no screen-reader cursor and never takes focus: a row's own sheet or notice owns
  * those. A count is a level, so an element that mounts under a standing count is inert, and only a later increase moves

@@ -116,8 +116,7 @@ export interface ScrollHostApi {
     readonly scrollToStart: (id: string) => boolean;
     /**
      * Show an element only when it is hidden, by the smallest scroll that shows it, and not at all when it already
-     * shows: an
-     * ingredient row after its inline editor closed. It moves no focus and no screen-reader cursor.
+     * shows. It moves no focus and no screen-reader cursor.
      *
      * @returns Whether the element was found. Native finds no element by id: the element hears it was named
      *     (`useFieldStartReveal`) and asks the field reveal host, so it always answers `true`.

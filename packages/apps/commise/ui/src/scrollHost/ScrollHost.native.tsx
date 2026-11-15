@@ -188,8 +188,7 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = NO_SECTIONS, activa
                 return true;
             },
             // The same cursor under its own key (`nearestStartKey`): the element asks the field reveal host to show it
-            // only if it
-            // is hidden. Like a named element, its scroll replaces the section jump's.
+            // only if it is hidden. Like a named element, its scroll replaces the section jump's.
             showIfHidden: (id) => {
                 const key = nearestStartKey(id);
 

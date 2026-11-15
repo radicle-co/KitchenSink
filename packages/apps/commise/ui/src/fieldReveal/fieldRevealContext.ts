@@ -34,8 +34,8 @@ export type RevealTarget = Pick<HostInstance, 'measureLayout'>;
  * - A `start` is an element a deep link named (`ScrollHost.scrollToStart`): the host scrolls its top to the top of the
  *   visible area, once. It asks for no screen-reader cursor: the element's own sheet or notice owns that.
  * - A `nearest` is an element the screen asked to show only if it is hidden (`ScrollHost.showIfHidden`): the host
- * scrolls
- *   it by the smallest amount that shows it, once, and not at all when it already shows. It asks for no cursor either.
+ *   scrolls it by the smallest amount that shows it, once, and not at all when it already shows. It asks for no cursor
+ *   either.
  * - A `target` is a field a refused Publish named: the host scrolls it to the middle of the visible area, once, and
  *   then calls `onShown`, where the field moves the screen-reader cursor to itself.
  *

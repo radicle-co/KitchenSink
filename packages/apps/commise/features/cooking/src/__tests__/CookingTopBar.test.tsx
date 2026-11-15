@@ -12,11 +12,8 @@ describe('CookingTopBar', () => {
     it('makes Exit one control with one accessible name that contains its visible label', () => {
         render(<CookingTopBar exit={exit} place={step2} />);
 
-        const buttons = screen.getAllByRole('button');
-
-        expect(buttons).toHaveLength(1);
-        expect(buttons[0]?.getAttribute('aria-label')).toBe('Exit cooking mode');
-        expect(buttons[0]?.textContent).toContain('Exit');
+        expect(screen.getAllByRole('button')).toHaveLength(1);
+        expect(screen.getByRole('button', { name: 'Exit cooking mode' }).textContent).toContain('Exit');
     });
 
     it('calls Exit', () => {

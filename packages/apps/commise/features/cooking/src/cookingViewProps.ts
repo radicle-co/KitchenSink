@@ -1,11 +1,7 @@
 /**
- * @module cookingViewProps — the props contract of cooking mode, shared by the web (`*.tsx`) and native
- * (`*.native.tsx`) leaves so both platforms expose one API. It holds the screen's props (what the route adapter hands
- * `CookingScreen`) and the step body's props. Every string here is already localised and filled by the orchestration
- * layer: a render component never formats copy.
- *
- * A platform-only fact stays out of it: native's under-360 width is a native prop its own screen adds, because web's
- * container query covers it.
+ * @module cookingViewProps — the props of cooking mode: the screen's props (what the route adapter hands
+ * `CookingScreen`), the step body's props and each leaf's props. Every string here is already localised and filled by the
+ * screen: a render component never formats copy.
  */
 import type { CookLinkInput } from '@kitchensink/cooking-core';
 import type { ReactNode } from 'react';
@@ -62,6 +58,7 @@ export interface CookingLineView {
 
 /** Props for `CookingLineRow`: one line of a step, as the checkbox the cook ticks. */
 export interface CookingLineRowProps {
+    /** The line: its text, whether it is ticked, and what a press does. */
     readonly line: CookingLineView;
     /** `focus` is the line the cook is doing now, the loudest thing on screen. */
     readonly emphasis: 'focus' | 'other';
@@ -129,15 +126,18 @@ export interface CookingStepProps {
 
 /** Props for `CookingNextPreview`: the next step, previewed in the pinned foot. */
 export interface CookingNextPreviewProps {
+    /** The next step's overline and first line. */
     readonly preview: CookingPreviewView;
 }
 
 /** How the forward control looks: quiet (Next step, Finish before every line is ticked) or filled (the action now). */
-export type CookingForwardTone = 'quiet' | 'filled';
+type CookingForwardTone = 'quiet' | 'filled';
 
 /** Props for `CookingNav`: Back and the forward control, an equal pair with forward last. */
 export interface CookingNavProps {
+    /** Back: to the step before, or to the recipe on step 1. */
     readonly back: CookingAction;
+    /** Forward: Next step, Start step n or Finish, and how it looks now. */
     readonly forward: CookingAction & { readonly tone: CookingForwardTone };
     /** While the recipe loads both are drawn and disabled. */
     readonly disabled: boolean;
@@ -162,10 +162,11 @@ export interface CookingDoneActionsProps {
 }
 
 /** What the loading body shows: nothing at first, then the skeleton, then its label too. `slow` is the slow-load notice. */
-export type CookingLoadingPhase = Exclude<LoadingPhase, 'slow'>;
+type CookingLoadingPhase = Exclude<LoadingPhase, 'slow'>;
 
 /** Props for `CookingLoading`. */
 export interface CookingLoadingProps {
+    /** How long the recipe has been loading, as what the body draws. */
     readonly phase: CookingLoadingPhase;
     /** "Opening the recipe…" */
     readonly label: string;
@@ -173,7 +174,9 @@ export interface CookingLoadingProps {
 
 /** Props for `CookingFrame`: the full-screen surface and its three slots. */
 export interface CookingFrameProps {
+    /** The bar pinned at the top; `null` for a full-screen notice. */
     readonly topBar: ReactNode;
+    /** The scrolling body between the bar and the foot. */
     readonly body: ReactNode;
     /**
      * Pinned at the foot of the column: the actions (Back and Next, or Done's two), with the Next preview above them while

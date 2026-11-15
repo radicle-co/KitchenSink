@@ -19,11 +19,13 @@ describe('CookingDoneActions', () => {
         render(actions());
 
         const buttons = screen.getAllByRole('button');
+        const backToRecipe = screen.getByRole('button', { name: 'Back to the recipe' });
+        const cookAgain = screen.getByRole('button', { name: 'Cook it again' });
 
-        expect(buttons.map((button) => button.textContent)).toEqual(['Back to the recipe', 'Cook it again']);
-        expect(buttons[0]?.className).toContain('bg-action');
-        expect(buttons[1]?.className).not.toContain('bg-action');
-        expect(buttons[1]?.className).toContain('border');
+        expect(buttons).toEqual([backToRecipe, cookAgain]);
+        expect(backToRecipe.className).toContain('bg-action');
+        expect(cookAgain.className).not.toContain('bg-action');
+        expect(cookAgain.className).toContain('border');
 
         for (const button of buttons) {
             expect(button.className).toContain('w-full');

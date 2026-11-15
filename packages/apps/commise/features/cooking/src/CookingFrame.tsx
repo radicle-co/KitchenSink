@@ -18,7 +18,7 @@ import type { CookingFrameProps } from './cookingViewProps.js';
 import { COOKING_COLUMN } from './cookingLayout.js';
 
 /** The id of the cooking surface's `main`. */
-export const COOKING_SURFACE_ID = 'cooking-surface';
+const COOKING_SURFACE_ID = 'cooking-surface';
 
 /** The web cooking surface. */
 export const CookingFrame: FC<CookingFrameProps> = ({ topBar, body, foot, busy }) => (

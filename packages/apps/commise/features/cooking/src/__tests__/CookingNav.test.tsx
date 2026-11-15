@@ -54,8 +54,8 @@ describe('CookingNav', () => {
         const row = htmlElementOf(screen.getByRole('navigation').firstElementChild);
 
         expect(row.className).toContain(NARROW_ROW.navWebClassName);
-        expect(buttons()[0]?.querySelector('svg')).not.toBeNull();
-        expect(buttons()[1]?.querySelector('svg')).not.toBeNull();
+        expect(screen.getByRole('button', { name: 'Back to step 1' }).querySelector('svg')).not.toBeNull();
+        expect(screen.getByRole('button', { name: 'Next step, step 3' }).querySelector('svg')).not.toBeNull();
     });
 
     it('fills neither control while forward is quiet', () => {

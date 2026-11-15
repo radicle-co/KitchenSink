@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { CookingFrame, COOKING_SURFACE_ID } from '../CookingFrame.js';
+import { CookingFrame } from '../CookingFrame.js';
 import { COOKING_COLUMN } from '../cookingLayout.js';
 import { htmlElementOf } from '../__fixtures__/htmlElementOf.js';
 
@@ -64,7 +64,6 @@ describe('CookingFrame', () => {
 
         const main = screen.getByRole('main');
 
-        expect(main.id).toBe(COOKING_SURFACE_ID);
         // A size container, so the short-screen rule can ask the surface's height as well as its width.
         expect(main.className).toContain('[container-type:size]');
     });

@@ -9,10 +9,11 @@
  *
  * Everything outside the served roots answers 404, and a path that resolves outside a root is refused.
  */
-import { createServer } from 'node:http';
-import type { Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
+
+import { TYPES, startStaticServer } from './staticServer.js';
+import type { StaticResponse } from './staticServer.js';
 
 /** What the server serves. */
 export interface ArtifactServerConfig {
@@ -33,16 +34,6 @@ export interface ArtifactServer {
     readonly origin: string;
     close(): Promise<void>;
 }
-
-const TYPES: Readonly<Record<string, string>> = {
-    '.html': 'text/html; charset=utf-8',
-    '.js': 'text/javascript; charset=utf-8',
-    '.css': 'text/css; charset=utf-8',
-    '.json': 'application/json; charset=utf-8',
-    '.ttf': 'font/ttf',
-    '.jpg': 'image/jpeg',
-    '.txt': 'text/plain; charset=utf-8',
-};
 
 /** The tags a card page needs ahead of its own script, in the order the host loads them. */
 export function cardPreload(config: Pick<ArtifactServerConfig, 'tokensCss'>): string {
@@ -93,7 +84,7 @@ export function hostWrap(html: string, theme: string, preload: string | undefine
 async function respond(
     config: ArtifactServerConfig,
     url: URL,
-): Promise<{ status: number; type: string; body: Buffer | string }> {
+): Promise<StaticResponse> {
     const notFound = { status: 404, type: TYPES['.txt'] ?? '', body: 'not found' };
     const path = decodeURIComponent(url.pathname);
     const theme = url.searchParams.get('theme') === 'dark' ? 'dark' : 'light';
@@ -158,37 +149,5 @@ async function respond(
  * @sideEffect Opens a listening socket on 127.0.0.1.
  */
 export async function startArtifactServer(config: ArtifactServerConfig): Promise<ArtifactServer> {
-    const server: Server = createServer((request, response) => {
-        const url = new URL(request.url ?? '/', 'http://127.0.0.1');
-
-        respond(config, url).then(
-            ({ status, type, body }) => {
-                response.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' });
-                response.end(body);
-            },
-            (error: unknown) => {
-                response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
-                response.end(String(error));
-            },
-        );
-    });
-
-    await new Promise<void>((done, fail) => {
-        server.once('error', fail);
-        server.listen(0, '127.0.0.1', done);
-    });
-
-    const address = server.address();
-
-    if (address === null || typeof address === 'string') {
-        throw new Error('The artifact server did not bind a TCP port.');
-    }
-
-    return {
-        origin: `http://127.0.0.1:${String(address.port)}`,
-        close: () =>
-            new Promise<void>((done, fail) => {
-                server.close((error) => (error === undefined ? done() : fail(error)));
-            }),
-    };
+    return startStaticServer((url) => respond(config, url));
 }

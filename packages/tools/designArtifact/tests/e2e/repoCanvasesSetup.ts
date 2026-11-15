@@ -11,6 +11,7 @@ import { chromium } from 'playwright-core';
 import type { TestProject } from 'vitest/node';
 
 import { startRepoCanvasServer } from './repoCanvasServer.js';
+import { RUNTIME_HELP } from './staticServer.js';
 
 declare module 'vitest' {
     export interface ProvidedContext {
@@ -18,13 +19,6 @@ declare module 'vitest' {
         repoCanvasOrigin: string;
     }
 }
-
-const RUNTIME_HELP = [
-    'DESIGN_CANVAS_RUNTIME must name a local copy of the Design canvas runtime (the `support.js` the claude.ai platform',
-    'supplies to a canvas; this repository does not vendor it). To get one: read any Design canvas artifact with the',
-    "Artifact tool's `read` action and its `path` set to `artifact-type/dc-runtime.js`, then export",
-    'DESIGN_CANVAS_RUNTIME=<the saved file>.',
-].join(' ');
 
 /**
  * Serves the canvases for the suite.

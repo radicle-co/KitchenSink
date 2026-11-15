@@ -6,12 +6,12 @@
  * `<html>` the way the host does. Everything else answers 404, and a path that resolves outside a canvas's `project/`
  * is refused.
  */
-import { createServer } from 'node:http';
-import type { Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 
 import { hostWrap } from './artifactServer.js';
+import { TYPES, startStaticServer } from './staticServer.js';
+import type { StaticResponse, StaticServer } from './staticServer.js';
 
 /** What the server serves. */
 export interface RepoCanvasServerConfig {
@@ -21,22 +21,12 @@ export interface RepoCanvasServerConfig {
     readonly canvasRuntimeFile: string;
 }
 
-const TYPES: Readonly<Record<string, string>> = {
-    '.html': 'text/html; charset=utf-8',
-    '.js': 'text/javascript; charset=utf-8',
-    '.css': 'text/css; charset=utf-8',
-    '.json': 'application/json; charset=utf-8',
-    '.ttf': 'font/ttf',
-    '.jpg': 'image/jpeg',
-    '.txt': 'text/plain; charset=utf-8',
-};
-
 const CANVAS_PATH = /^\/canvases\/([A-Za-z0-9]+)\/(.+)$/u;
 
 async function respond(
     config: RepoCanvasServerConfig,
     url: URL,
-): Promise<{ status: number; type: string; body: Buffer | string }> {
+): Promise<StaticResponse> {
     const notFound = { status: 404, type: TYPES['.txt'] ?? '', body: 'not found' };
     const match = CANVAS_PATH.exec(decodeURIComponent(url.pathname));
 
@@ -74,38 +64,6 @@ async function respond(
  * @returns The origin and a `close`.
  * @sideEffect Opens a listening socket on 127.0.0.1.
  */
-export async function startRepoCanvasServer(
-    config: RepoCanvasServerConfig,
-): Promise<{ readonly origin: string; close(): Promise<void> }> {
-    const server: Server = createServer((request, response) => {
-        respond(config, new URL(request.url ?? '/', 'http://127.0.0.1')).then(
-            ({ status, type, body }) => {
-                response.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' });
-                response.end(body);
-            },
-            (error: unknown) => {
-                response.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
-                response.end(String(error));
-            },
-        );
-    });
-
-    await new Promise<void>((done, fail) => {
-        server.once('error', fail);
-        server.listen(0, '127.0.0.1', done);
-    });
-
-    const address = server.address();
-
-    if (address === null || typeof address === 'string') {
-        throw new Error('The canvas server did not bind a TCP port.');
-    }
-
-    return {
-        origin: `http://127.0.0.1:${String(address.port)}`,
-        close: () =>
-            new Promise<void>((done, fail) => {
-                server.close((error) => (error === undefined ? done() : fail(error)));
-            }),
-    };
+export async function startRepoCanvasServer(config: RepoCanvasServerConfig): Promise<StaticServer> {
+    return startStaticServer((url) => respond(config, url));
 }

@@ -4,6 +4,8 @@
  * and its tone together, so a tone can never arrive without a place; Done passes none. Native also takes `narrow`, the
  * under-360 rule the screen reads from the window, because a leaf never reads the device.
  */
+import { nativeTokens } from '@commise/ui/native';
+import { withPlatformOs } from '@commise/ui/testing/platform-os';
 import { render } from '@commise/ui/testing/tamagui';
 import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -45,12 +47,28 @@ describe('CookingTopBar (native)', () => {
         expect(props.exit.onPress).toHaveBeenCalledTimes(1);
     });
 
-    it('is at least 48 tall', () => {
+    // The spec makes Exit a quiet `md` button, 44 tall like web's, and the platform touch floor lifts it on Android.
+    it.each([
+        ['ios', 44],
+        ['android', 48],
+    ] as const)('is the medium button, %s tall to the platform touch floor', (os, height) => {
+        withPlatformOs(os, () => {
+            render(<CookingTopBar {...barProps()} />);
+
+            expect(tallestMinHeight(screen.getByRole('button', { name: 'Exit cooking mode' }))).toBe(height);
+        });
+    });
+
+    // The spec: side padding 12 and a gap of 4 between Exit and the place, and the place in body text (16), as on web.
+    it('pads 12 at the sides, keeps 4 between Exit and the place, and sets the place in body text', () => {
         render(<CookingTopBar {...barProps()} />);
+        const bar = getComputedStyle(screen.getByTestId('cooking-top-bar'));
 
-        const height = tallestMinHeight(screen.getByRole('button', { name: 'Exit cooking mode' }));
-
-        expect(height).toBeGreaterThanOrEqual(48);
+        expect(bar.paddingInline).toBe('var(--t-space-3)');
+        expect(bar.gap).toBe('var(--t-space-1)');
+        expect(getComputedStyle(screen.getByText('Step 2 of 6')).fontSize).toBe(
+            `${String(nativeTokens.type.body.fontSize)}px`,
+        );
     });
 
     it('shows the place as plain text, not a control', () => {

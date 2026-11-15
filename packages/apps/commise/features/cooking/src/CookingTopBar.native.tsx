@@ -1,6 +1,6 @@
 /**
  * @module CookingTopBar — the native top bar: Exit as ONE control, the × and its visible label together with
- * one accessible name, on the quiet `lg` house Button (52, so at least 48 tall), then the place as plain text. Done passes
+ * one accessible name, on the quiet `md` house Button (44, lifted to the platform touch floor), then the place as plain text. Done passes
  * no place, so it shows Exit alone. The place keeps the position and type of a later All steps button. No Ingredients pill
  * yet, not even a disabled one.
  *
@@ -31,15 +31,15 @@ export const CookingTopBar: FC<NativeCookingTopBarProps> = ({ exit, place, narro
         testID="cooking-top-bar"
         flexDirection={narrow ? 'column' : 'row'}
         alignItems={narrow ? 'flex-start' : 'center'}
-        gap="$2"
-        paddingHorizontal="$4"
+        gap="$1"
+        paddingHorizontal="$3"
         paddingVertical="$2"
     >
-        <Button variant="quiet" size="lg" icon="x" onPress={exit.onPress} {...nameOf(exit)}>
+        <Button variant="quiet" size="md" icon="x" onPress={exit.onPress} {...nameOf(exit)}>
             {exit.label}
         </Button>
         {place === undefined ? null : (
-            <Text typeRole="label" color={place.tone === 'muted' ? '$inkMuted' : '$ink'}>
+            <Text typeRole="body" color={place.tone === 'muted' ? '$inkMuted' : '$ink'}>
                 {place.text}
             </Text>
         )}

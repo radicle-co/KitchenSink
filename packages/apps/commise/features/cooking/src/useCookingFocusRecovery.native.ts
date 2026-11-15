@@ -38,10 +38,7 @@ export interface CookingFocusRecovery {
  * @param seen - The inputs the last request was decided on.
  * @param now - The inputs now.
  */
-function focusTargetOf(
-    seen: CookingFocusRecoveryInput,
-    now: CookingFocusRecoveryInput,
-): CookingFocusTarget | null {
+function focusTargetOf(seen: CookingFocusRecoveryInput, now: CookingFocusRecoveryInput): CookingFocusTarget | null {
     if (now.finished) {
         return null;
     }

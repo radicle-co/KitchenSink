@@ -33,6 +33,15 @@ function doneProps(overrides: Partial<CookingDoneProps> = {}): CookingDoneProps 
 }
 
 describe('CookingDone (native)', () => {
+    // The board's Done body keeps 12 between its lines.
+    it('keeps 12 between the title and the lines under it', () => {
+        render(<CookingDone {...doneProps()} />);
+
+        const body = screen.getByRole('heading', { name: 'All 6 steps done' }).parentElement;
+
+        expect(body === null ? '' : getComputedStyle(body).gap).toBe('var(--t-space-3)');
+    });
+
     it('heads the screen with the title', () => {
         render(<CookingDone {...doneProps()} />);
 

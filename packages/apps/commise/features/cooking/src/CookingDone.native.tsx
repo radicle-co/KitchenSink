@@ -22,7 +22,7 @@ export const CookingDone: FC<CookingDoneProps> = ({ title, enjoy, screenOff }) =
     const heading = useScreenReaderFocusOnMount<View>();
 
     return (
-        <YStack gap="$2" paddingHorizontal="$4" paddingVertical="$5">
+        <YStack gap="$3" paddingHorizontal="$4" paddingVertical="$5">
             {/* The heading is an unstyled host View: the mount hook takes a host node, which a Tamagui Text's ref is not
                 typed as. The View is one accessible node, so the cursor lands on the title and reads it once. */}
             <View ref={heading} accessible role="heading" aria-level={1}>

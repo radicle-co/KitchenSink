@@ -94,6 +94,17 @@ describe('acceptRecipe: the black-and-white gate, one case per predicate and bot
             });
         });
 
+        it('does not read an abbreviation period as a sentence end: "oz. each" and "in. pieces" are one line', () => {
+            expect(
+                acceptRecipe(
+                    recipeOf({
+                        ingredientLines: ['4 medium (about 7 oz. each) Honeycrisp apples, cut into 1/2-in. pieces'],
+                    }),
+                    'jsonLd',
+                ),
+            ).toEqual({ ok: true });
+        });
+
         it('reads a sentence end in any script', () => {
             expect(acceptRecipe(recipeOf({ ingredientLines: ['1 œuf. Fouettez. Ajoutez'] }), 'jsonLd')).toEqual({
                 ok: false,

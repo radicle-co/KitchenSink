@@ -11,7 +11,7 @@
  * | G1 | the title passes `recipeTitleSchema`                                                              | `titleUnusable`       |
  * | G2 | at least the tier's minimum of ingredient lines                                                   | `noIngredients`       |
  * | G3 | at most `MAX_PARSE_JOB_LINES` lines, each at most `PARSE_JOB_LINE_MAX_CHARS`                      | `tooManyIngredientLines`, `ingredientLineTooLong` |
- * | G4 | no ingredient line over 200 characters, or with two sentence ends (a blob, or steps in the list)  | `ingredientsNotSeparated` |
+ * | G4 | no ingredient line over 200 characters, or with two sentence ends, a full stop then an uppercase letter (a blob, or steps in the list)  | `ingredientsNotSeparated` |
  * | G5 | at least one step, each at least 3 characters trimmed                                             | `noSteps`             |
  * | G6 | no step is an amount and a canonical unit in at most 8 words (an ingredient in the method)        | `ingredientsInSteps`  |
  * | G7 | no line is in both the ingredients and the steps (a range read twice)                             | `ingredientsInSteps`  |
@@ -68,17 +68,20 @@ const MAX_INGREDIENT_STEP_WORDS = 8;
 /** G6: how far into a step a `:` may be and still end a section label such as "For the glaze". */
 const MAX_SECTION_LABEL_CHARS = 40;
 
-/** Whether `char` is a letter in some script: a cased character, or one with no case that is still a letter-like symbol. */
-function isLetter(char: string): boolean {
-    return char.toLowerCase() !== char.toUpperCase();
+/** Whether `char` is an uppercase letter in some script: it changes when lowercased. */
+function isUpperCase(char: string): boolean {
+    return char !== char.toLowerCase();
 }
 
-/** G4: how many times `line` has a full stop, whitespace, then a letter. One pass; a digit after the stop (`1.5`) is no end. */
+/**
+ * G4: how many times `line` has a full stop, a space, then an uppercase letter. One pass. A digit or a lowercase letter
+ * after the stop is no end, so "7 oz. each" and "1/2-in. pieces" and `1.5` end no sentence.
+ */
 function sentenceEnds(line: string): number {
     let ends = 0;
 
     for (let index = 0; index < line.length - 2; index += 1) {
-        if (line.charAt(index) === '.' && line.charAt(index + 1) === ' ' && isLetter(line.charAt(index + 2))) {
+        if (line.charAt(index) === '.' && line.charAt(index + 1) === ' ' && isUpperCase(line.charAt(index + 2))) {
             ends += 1;
         }
     }

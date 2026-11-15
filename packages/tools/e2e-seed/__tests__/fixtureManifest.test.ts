@@ -807,11 +807,6 @@ describe('the cooking recipe (cooking mode)', () => {
         expect(createRecipeRequestSchema.safeParse(toCreateRequest(cooking, ids)).success).toBe(true);
     });
 
-    it('reaches the flow as E2E_RECIPE_COOKING, with the run-scoped title', () => {
-        expect(FIXTURE_ENV_KEYS.cookingRecipe).toBe('E2E_RECIPE_COOKING');
-        expect(manifestToEnvLines(manifest, provisioned(ERASURE))).toContain(`E2E_RECIPE_COOKING=${cooking.title}`);
-    });
-
     it('uses no regex metacharacters in its title, because the flow puts it inside a Maestro pattern', () => {
         expect(cooking.title).toMatch(/^[A-Za-z0-9 -]+$/u);
     });

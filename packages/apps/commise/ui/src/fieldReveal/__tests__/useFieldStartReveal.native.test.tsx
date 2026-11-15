@@ -7,7 +7,7 @@ import { renderHook } from '@testing-library/react';
 import type { FC, ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { FieldTargetContext } from '../../scrollHost/fieldTarget.js';
+import { FieldTargetContext, nearestStartKey } from '../../scrollHost/fieldTarget.js';
 import { FieldRevealContext, type FieldRevealer } from '../fieldRevealContext.js';
 import { useFieldStartReveal } from '../useFieldStartReveal.native.js';
 
@@ -47,6 +47,19 @@ describe('useFieldStartReveal', () => {
         name({ row: 1 });
 
         expect(revealer).toHaveBeenCalledExactlyOnceWith({ kind: 'start', field: node });
+    });
+
+    it('sends a NEAREST start when the nearest count of its id goes up, and a plain one when the plain count does', () => {
+        const { revealer, node, name } = mount({});
+
+        name({ [nearestStartKey('row')]: 1 });
+
+        expect(revealer).toHaveBeenLastCalledWith({ kind: 'start', field: node, nearest: true });
+
+        name({ [nearestStartKey('row')]: 1, row: 1 });
+
+        expect(revealer).toHaveBeenLastCalledWith({ kind: 'start', field: node });
+        expect(revealer).toHaveBeenCalledTimes(2);
     });
 
     it('is inert under a count that stood when it mounted, and moves on the next rise', () => {

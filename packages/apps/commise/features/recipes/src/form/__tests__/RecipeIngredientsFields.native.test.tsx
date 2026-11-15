@@ -52,7 +52,10 @@ vi.mock('@commise/ui/field-reveal', async (importOriginal) => {
     };
 });
 // The page's scroll host, where a case gives one: an inline editor that closes asks it for its row's start.
-const host = vi.hoisted(() => ({ scrollToStart: vi.fn<(id: string) => boolean>(() => true), present: false }));
+const host = vi.hoisted(() => ({
+    scrollToStart: vi.fn<(id: string, options?: { readonly nearest?: boolean }) => boolean>(() => true),
+    present: false,
+}));
 
 vi.mock('@commise/ui/scroll-host', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@commise/ui/scroll-host')>()),
@@ -833,7 +836,10 @@ describe('RecipeIngredientsFields (native) — the row editor on a tablet: inlin
     });
 
     // The keyboard reveal scrolls so Done and Cancel sit above the keyboard; when the editor closes the keyboard drops and
-    // the scroll stays, which left the edited row off the top of the screen. Closing asks the host for the row's start.
+    // the scroll stays, which left the edited row off the top of the screen. Closing asks the host to show the row by the
+    // NEAREST place (`{ nearest: true }`): the smallest scroll, and none when the row already shows. REWRITTEN: this used to
+    // assert a plain start, which always moved the row's top to the top of the visible area. The host's own tests prove what
+    // "nearest" does; this one proves that Done and Cancel ask for it, once.
     describe.each([
         ['Done', en.rowDone],
         ['Cancel', en.rowCancel],
@@ -847,7 +853,7 @@ describe('RecipeIngredientsFields (native) — the row editor on a tablet: inlin
             host.present = false;
         });
 
-        it('asks the scroll host to bring the edited row back to its start, once', () => {
+        it('asks the scroll host to show the edited row by the nearest scroll, once', () => {
             render(<StatefulLeaf initial={[RICE, { ...RICE, ingredientId: 'b', name: 'Salt' }]} />);
 
             press('Edit 300 g Arborio rice');
@@ -856,7 +862,7 @@ describe('RecipeIngredientsFields (native) — the row editor on a tablet: inlin
             press(label);
 
             expect(host.scrollToStart).toHaveBeenCalledTimes(1);
-            expect(host.scrollToStart).toHaveBeenCalledWith(starts.ids[0]);
+            expect(host.scrollToStart).toHaveBeenCalledWith(starts.ids[0], { nearest: true });
         });
     });
 

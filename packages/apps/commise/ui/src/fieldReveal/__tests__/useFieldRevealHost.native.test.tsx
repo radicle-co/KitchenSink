@@ -815,6 +815,57 @@ describe('useFieldRevealHost — a start (scrollToStart)', () => {
         expect(seam.scrolls).toEqual([{ y: 392, animated: true }]);
     });
 
+    /** A start that asks for the NEAREST place: the smallest scroll that shows the element, and none when it already shows. */
+    async function aimNearest(rendered: Pick<ReturnType<typeof host>, 'result'>): Promise<void> {
+        await act(async () => {
+            rendered.result.current.revealer({ kind: 'start', field, nearest: true });
+            await Promise.resolve();
+        });
+    }
+
+    it('nearest: an element fully in view scrolls nothing', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 120, height: 48, offset: 100 }];
+
+        await aimNearest(rendered);
+
+        expect(seam.measured).toBe(1);
+        expect(seam.scrolls).toEqual([]);
+    });
+
+    it('nearest: an element off the top lands its top one gap below the top edge', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: -60, height: 48, offset: 100 }];
+
+        await aimNearest(rendered);
+
+        expect(seam.scrolls).toEqual([{ y: 100 - 60 - 8, animated: true }]);
+    });
+
+    it('nearest: an element off the bottom lands its bottom one gap above the bottom edge', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 380, height: 48, offset: 100 }];
+
+        await aimNearest(rendered);
+
+        expect(seam.scrolls).toEqual([{ y: 100 + 380 + 48 + 8 - 400, animated: true }]);
+    });
+
+    it('nearest: disarms after one check, even when nothing scrolled', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 120, height: 48, offset: 100 }];
+        await aimNearest(rendered);
+
+        seam.measures = [{ top: 380, height: 48, offset: 100 }];
+        await act(async () => {
+            rendered.result.current.onViewportLayout(layout(0, 300));
+            await Promise.resolve();
+        });
+
+        expect(seam.measured).toBe(1);
+        expect(seam.scrolls).toEqual([]);
+    });
+
     it('a release cancels a start still measuring', async () => {
         const rendered = host(400);
         seam.measures = [{ top: 300, height: 48, offset: 100 }];

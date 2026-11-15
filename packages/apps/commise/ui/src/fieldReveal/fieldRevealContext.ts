@@ -32,7 +32,7 @@ export type RevealTarget = Pick<HostInstance, 'measureLayout'>;
  *   is the bottom of what the field sits in (an open row editor, down to its Done and Cancel): when the field and the
  *   end fit in the visible area together, the host shows both, and otherwise the field alone (the field wins).
  * - A `start` is an element a deep link named (`ScrollHost.scrollToStart`): the host scrolls its top to the top of the
- *   visible area, once. It asks for no screen-reader cursor: the element's own sheet or notice owns that.
+ *   visible area, once. With `nearest` it shows the element only when it is hidden, by the smallest scroll, once. It asks for no screen-reader cursor: the element's own sheet or notice owns that.
  * - A `target` is a field a refused Publish named: the host scrolls it to the middle of the visible area, once, and
  *   then calls `onShown`, where the field moves the screen-reader cursor to itself.
  *
@@ -43,7 +43,7 @@ export type RevealRequest =
     | { readonly kind: 'arrival'; readonly field: RevealTarget; readonly above: number }
     | { readonly kind: 'focus'; readonly field: RevealTarget; readonly end?: RevealTarget }
     | { readonly kind: 'target'; readonly field: RevealTarget; readonly onShown: () => void }
-    | { readonly kind: 'start'; readonly field: RevealTarget };
+    | { readonly kind: 'start'; readonly field: RevealTarget; readonly nearest?: boolean };
 
 /** The request of a field's list: the one kind the opening's reducer holds. */
 export type ListRequest = Extract<RevealRequest, { readonly kind: 'list' }>;

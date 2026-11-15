@@ -36,7 +36,7 @@ import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import type { LayoutReport, ScrollBind, ScrollHostApi, ScrollHostProps, ScrollReport, ScrollTarget } from './props.js';
 import { createCurrentChangeSubject } from './currentChange.js';
 import { currentSectionOf } from './currentSection.js';
-import { FieldTargetContext } from './fieldTarget.js';
+import { FieldTargetContext, nearestStartKey } from './fieldTarget.js';
 import { ScrollHostContext } from './scrollHostContext.js';
 import { INITIAL_SCROLL_STATE, nextScrollState } from './scrollState.js';
 
@@ -180,10 +180,14 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = NO_SECTIONS, activa
             // shares) and asks the field reveal host to put its top at the top (`useFieldStartReveal`). Like a named
             // field, its scroll replaces the section jump's, so the jump's hold and its wait for a layout end here. The
             // host cannot know whether an element with that id is mounted, so it always answers `true`.
-            scrollToStart: (id) => {
+            // `{ nearest: true }` counts under its own key, so the element can tell a start that wants the smallest scroll from
+            // one that wants its top at the top.
+            scrollToStart: (id, options) => {
+                const key = options?.nearest === true ? nearestStartKey(id) : id;
+
                 setHeld(undefined);
                 setPendingJump(undefined);
-                setTargets((previous) => ({ ...previous, [id]: (previous[id] ?? 0) + 1 }));
+                setTargets((previous) => ({ ...previous, [key]: (previous[key] ?? 0) + 1 }));
 
                 return true;
             },

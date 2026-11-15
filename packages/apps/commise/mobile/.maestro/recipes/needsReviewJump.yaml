@@ -89,19 +89,23 @@ onFlowComplete:
       timeout: 20000
 - assertVisible: 'Edit 7 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
 
-# iOS TABLETS ONLY: with the keyboard up, the open editor's Done and Cancel stay ABOVE it, and after Done or Cancel the
-# edited row is back on screen WITHOUT a scroll, in landscape and in portrait (the field reveal carries the row's end:
-# `withRevealEnd`, and closing asks the host for the row's start: `RecipeIngredientsFields.native.tsx`). Android keeps its own
-# `hideKeyboard` steps above, because its keyboard's action key is ALSO named "Done" and this flow cannot tell the two apart.
+# iOS: with the keyboard up, the open editor's Done and Cancel stay reachable, and Done leaves the saved row on screen. The
+# keyboard steps (type, Done anchored `rightOf: 'Cancel'`, assert the row text) run on a PHONE and on a TABLET: the phone's sheet
+# pins its own Done and Cancel, so they pass honestly there. Android keeps its own `hideKeyboard` steps above, because its
+# keyboard's action key is ALSO named "Done" and this flow cannot tell the two apart.
 #
-# HOW IT TELLS A TABLET FROM A PHONE: no house flow does (there is no device-class env var and no tablet precedent), so it reads
-# the layout. A phone opens the row editor as a SHEET, which has a "Close <food>" control; the tablet's inline editor has none.
-# The flow opens the row, looks for that control, and a phone closes the sheet with Cancel and skips the rest, which is a SKIP
-# and not a failure. `when: visible` does not wait, so the open is awaited on "You wrote" first.
+# WHAT ONLY A TABLET PROVES (`withRevealEnd`, and closing asks the host for the row's start: `RecipeIngredientsFields.native.tsx`):
+# the editor is INLINE, so it has no "Close <food>" control, and the keyboard reveal keeps Done and Cancel above the keyboard in
+# LANDSCAPE as well. No house flow tells a tablet from a phone (there is no device-class env var), so the flow reads the layout:
+# a phone opens the row editor as a SHEET, which has a "Close <food>" control, and the tablet's inline editor has none. The
+# tablet-only steps are guarded `when: notVisible` that control, so a phone SKIPS them rather than failing. `when: visible` does
+# not wait, so every open is awaited on "You wrote" first.
 #
-# The tap is anchored `rightOf: 'Cancel'`, so it can never resolve to the keyboard's own key named "Done". The same steps run
-# twice, once per orientation; Maestro has no loop or macro that keeps `when` and `setOrientation` readable, so they are
-# written out. Each pass reopens the row from rest, so a rotation never meets an open editor.
+# WHY THE PHONE STAYS IN PORTRAIT: a phone's sheet in landscape leaves no room for the keyboard, the Amount field and the pinned
+# pair, which is what failed the iPhone run. Landscape is the tablet's pass alone, and each pass reopens the row from rest, so a
+# rotation never meets an open editor.
+#
+# The tap is anchored `rightOf: 'Cancel'`, so it can never resolve to the keyboard's own key named "Done".
 #
 # ⛔ THE RUNNER MUST SET UP THE SIMULATOR BEFORE THIS FLOW (Maestro has no command for either):
 #   1. a SOFT keyboard: `defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false`, then boot the simulator.
@@ -111,15 +115,42 @@ onFlowComplete:
       when:
           platform: iOS
       commands:
+          # Pass 1, portrait, phone and tablet.
           - tapOn: 'Edit 7 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
           - extendedWaitUntil:
                 visible: 'You wrote'
                 timeout: 20000
-          # The editor is up with its pair, whichever layout it took.
           - assertVisible: 'Counted as'
           - assertVisible: 'Cancel'
           - assertVisible: 'Done'
-          # A phone: the sheet's close control is there. Cancel it and leave the block.
+          # Tablet only: the editor is inline, so nothing closes it but its own pair.
+          - runFlow:
+                when:
+                    notVisible: 'Close ${E2E_NEEDS_REVIEW_FOOD}.*'
+                commands:
+                    - assertNotVisible: 'Close ${E2E_NEEDS_REVIEW_FOOD}.*'
+          - tapOn: 'Amount'
+          - eraseText: 5
+          - inputText: '5'
+          - assertVisible:
+                text: 'Done'
+                rightOf: 'Cancel'
+          - tapOn:
+                text: 'Done'
+                rightOf: 'Cancel'
+          - extendedWaitUntil:
+                notVisible: 'You wrote'
+                timeout: 20000
+          # Visible as it is, with no scroll in between: on a tablet the reveal on close brought it back.
+          - assertVisible: 'Edit 5 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
+          # Pass 2, tablet only, landscape. Reopen to read the layout; a phone closes the sheet and leaves.
+          - tapOn: 'Edit 5 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
+          - extendedWaitUntil:
+                visible: 'You wrote'
+                timeout: 20000
+          - assertVisible: 'Counted as'
+          - assertVisible: 'Cancel'
+          - assertVisible: 'Done'
           - runFlow:
                 when:
                     visible: 'Close ${E2E_NEEDS_REVIEW_FOOD}.*'
@@ -128,7 +159,6 @@ onFlowComplete:
                     - extendedWaitUntil:
                           notVisible: 'You wrote'
                           timeout: 20000
-          # A tablet: no such control. Cancel, then prove both orientations from rest.
           - runFlow:
                 when:
                     notVisible: 'Close ${E2E_NEEDS_REVIEW_FOOD}.*'
@@ -138,25 +168,6 @@ onFlowComplete:
                           notVisible: 'You wrote'
                           timeout: 20000
                     - setOrientation: LANDSCAPE_LEFT
-                    - tapOn: 'Edit 7 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
-                    - extendedWaitUntil:
-                          visible: 'You wrote'
-                          timeout: 20000
-                    - tapOn: 'Amount'
-                    - eraseText: 5
-                    - inputText: '5'
-                    - assertVisible:
-                          text: 'Done'
-                          rightOf: 'Cancel'
-                    - tapOn:
-                          text: 'Done'
-                          rightOf: 'Cancel'
-                    - extendedWaitUntil:
-                          notVisible: 'You wrote'
-                          timeout: 20000
-                    # No scroll in between: the edited row is already on screen, which the reveal on close did.
-                    - assertVisible: 'Edit 5 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
-                    - setOrientation: PORTRAIT
                     - tapOn: 'Edit 5 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
                     - extendedWaitUntil:
                           visible: 'You wrote'
@@ -174,6 +185,7 @@ onFlowComplete:
                           notVisible: 'You wrote'
                           timeout: 20000
                     - assertVisible: 'Edit 7 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
+                    - setOrientation: PORTRAIT
 
 # Leave with the close control, never Discard (it deletes the recipe). The next flow's reset deletes the probe either way.
 - tapOn: 'Close editor'

@@ -209,6 +209,18 @@ describe('ScrollHost + field reveal host + a row (native) â€” naming an elementâ
         expect(seen.api?.current).not.toBe('steps');
     });
 
+    it('with { nearest: true } shows the row by the smallest scroll: a row already in view does not scroll', async () => {
+        await mount();
+        seam.scrolls = [];
+
+        await act(async () => {
+            seen.api?.scrollToStart('row', { nearest: true });
+            await Promise.resolve();
+        });
+
+        expect(seam.scrolls).toEqual([]);
+    });
+
     it('answers true without finding an element by id, and moves no screen-reader cursor', async () => {
         await mount();
         let found = false;

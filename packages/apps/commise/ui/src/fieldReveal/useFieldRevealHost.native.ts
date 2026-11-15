@@ -308,7 +308,8 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
     }, [target, laidOut]);
 
     // A start is placed once the visible area is laid out: its top goes one gap below the area's top, unless its end
-    // (the row editor's Done and Cancel) would then be out of view, and the end wins (`startSpanTarget`).
+    // (the row editor's Done and Cancel) would then be out of view, and the end wins (`startSpanTarget`). A NEAREST start
+    // (an editor that closed) is shown only if hidden, by the smallest scroll (`spanTarget`).
     useEffect(() => {
         const view = currentScroller();
 
@@ -326,7 +327,7 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
             const place =
                 measure === null
                     ? null
-                    : startSpanTarget({
+                    : (start.nearest === true ? spanTarget : startSpanTarget)({
                           top: measure.top,
                           bottom: measure.top + measure.height,
                           offset: measure.offset,

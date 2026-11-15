@@ -5,7 +5,7 @@
  *
  * The hook holds NO rule: the steps and their lines, the ticks and the focus, where the cook is and
  * whether they are done all come from cooking-core's reducers and formatters. What it adds is React: a `useReducer` that
- * composes the session reducer with the line-tick reducer, and the screen-on hold from `@commise/ui/keep-awake`. If a rule
+ * composes the session reducer with the line-tick reducer. The screen-on hold is `useCookingKeepAwake`'s. If a rule
  * is missing, it is added to cooking-core, never here.
  *
  * The session lives in memory only: leaving the screen loses the place. The recipe is read ONCE: the steps
@@ -13,7 +13,6 @@
  *
  * @pattern Headless hook — state and commands for two thin screens
  */
-import { useKeepAwake, useKeepAwakeAvailable } from '@commise/ui/keep-awake';
 import {
     advance,
     allLinesTicked,
@@ -81,8 +80,6 @@ export interface UseCookingSessionResult {
     readonly back: () => void;
     /** Start again from step 1 with no line ticked. */
     readonly cookAgain: () => void;
-    /** Whether this device can keep the screen on, so no promise is shown where it cannot. */
-    readonly keepAwakeAvailable: boolean;
 }
 
 interface State {
@@ -188,10 +185,6 @@ export function useCookingSession(input: UseCookingSessionInput): UseCookingSess
     const next = useCallback(() => dispatch({ type: 'next', stepIndex }), [stepIndex]);
     const back = useCallback(() => dispatch({ type: 'back', stepIndex }), [stepIndex]);
     const cookAgain = useCallback(() => dispatch({ type: 'again', startedAt: new Date().toISOString() }), []);
-    const keepAwakeAvailable = useKeepAwakeAvailable();
-
-    // On while cooking; off on Done, and on leaving, which unmounts the screen and so this hook.
-    useKeepAwake(status !== 'complete');
 
     return {
         steps,
@@ -209,6 +202,5 @@ export function useCookingSession(input: UseCookingSessionInput): UseCookingSess
         next,
         back,
         cookAgain,
-        keepAwakeAvailable,
     };
 }

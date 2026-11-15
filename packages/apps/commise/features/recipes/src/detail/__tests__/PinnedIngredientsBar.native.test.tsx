@@ -180,8 +180,11 @@ describe('the pinned ingredients bar (native)', () => {
             row = row.parentElement;
         }
 
-        expect(row).not.toBeNull();
-        expect(resolvedStyle(row as HTMLElement, 'flexWrap')).toBe('wrap');
+        if (row === null) {
+            throw new Error('no space-between row above the stepper');
+        }
+
+        expect(resolvedStyle(row, 'flexWrap')).toBe('wrap');
     });
 
     it('closes by the bar, and by the scrim', () => {

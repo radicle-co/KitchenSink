@@ -180,6 +180,10 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: 'One node handle, the field, for a host focus request (the step the editor has just added): `.focus()` on web and `TextInput.focus()` on native, neither of which has a declarative form. The same level-triggered request, acknowledged once taken, that Input, Button and Combobox take. On native the same node is also the one the field reveal host measures to hold the field in view, and the one the screen-reader cursor moves to when the screen names the field.',
     },
+    'featuresCooking/CookingLineRow': {
+        verdict: 'sanctioned',
+        why: "One node handle, the row's press control, for a host focus request: after a line is ticked the next unticked line takes the screen-reader cursor (designer D13). `moveScreenReaderFocus` has no declarative form; the request is the house level (`useFocusRequest`) the screen's focus recovery lowers on acknowledgement, the same one Button takes. Web needs no handle, because its recovery finds the row by id.",
+    },
     'featuresRecipes/form/IngredientRow': {
         verdict: 'sanctioned',
         why: "One node handle, the read row's open control (\"Edit {amount} {food}\"), for a host focus request: after a Remove the next row's open control takes focus, and after Done or a cancelled food search the row's own does (build spec §7.5.1, §7.5.2). `.focus()` on web and `moveScreenReaderFocus` on native have no declarative form; the request is a level the row view clears on acknowledgement. On native the same row also holds its node for `measureLayout`, which the field reveal host uses to put the row's top at the top of the visible area when a deep link names it (`useFieldStartReveal`).",

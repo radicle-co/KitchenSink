@@ -3,6 +3,7 @@ import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { AccessibilityInfo } from 'react-native';
 
+import { allIn, pillOf } from '../../testing/buttonPill.js';
 import { withPlatformOs } from '../../testing/platformOs.native.js';
 import {
     pressFrameOf,
@@ -56,23 +57,9 @@ afterEach(() => {
     vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
 });
 
-/** Every element in `root`, itself first. */
-const allIn = (root: HTMLElement): HTMLElement[] => [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
-
 /** The descendant whose resolved style (react-native-web compiles a StyleSheet to atomic CSS) has this min-height. */
 function withMinHeight(root: HTMLElement, minHeight: string): HTMLElement | null {
     return allIn(root).find((el) => getComputedStyle(el).minHeight === minHeight) ?? null;
-}
-
-/** The painted pill: the element carrying the surface's radius. */
-function pillOf(button: HTMLElement): HTMLElement {
-    const pill = allIn(button).find((el) => Number.parseFloat(getComputedStyle(el).borderTopLeftRadius) > 0);
-
-    if (pill === undefined) {
-        throw new Error('The button paints no rounded surface.');
-    }
-
-    return pill;
 }
 
 /** The stand-in glyph a button drew. */

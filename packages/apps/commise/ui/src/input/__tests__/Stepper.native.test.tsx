@@ -127,8 +127,8 @@ describe('Stepper (native)', () => {
         }
     });
 
-    // Issue 219, the same ruling as the web Stepper (decisions/0069): the row's gap is spacing 2 (8), the count's minimum
-    // width is 24 (a MINIMUM, so a three-digit count still widens it), and the buttons keep the touch floor.
+    // The same widths as the web Stepper: the row's gap is spacing 2 (8), the count's minimum width is 24 (a MINIMUM, so a
+    // three-digit count still widens it), and the buttons keep the touch floor.
     it('keeps its row narrow enough for 320 at the largest text: an 8 gap and a 24 minimum count width', () => {
         render(<Servings />);
 

@@ -158,10 +158,9 @@ describe('Stepper (web)', () => {
         }
     });
 
-    // Issue 219: at 320 px and 200% text the row (88 px buttons, gaps, count box) was about 24 px wider than the room, so
-    // the `+` left the screen. The ruling (decisions/0069): the gap is 2 (8 px at 1x), the count's MINIMUM width is
-    // 1.5rem (a minimum, so a three-digit count still widens it), and the buttons stay `size-11` for the target. The
-    // measured proof is `servingsStepperReflow.spec.ts`; jsdom can only pin the values the ruling named.
+    // The row must fit 320 px at 200% text: the gap is 2, the count's MINIMUM width is 1.5rem (a minimum, so a
+    // three-digit count still widens it), and the buttons stay `size-11` for the touch target. jsdom lays nothing out,
+    // so this pins the values only.
     it('keeps its row narrow enough for 320 px at 200% text: gap-2, a min-w-6 count, and 44 px buttons', () => {
         render(<Servings />);
 

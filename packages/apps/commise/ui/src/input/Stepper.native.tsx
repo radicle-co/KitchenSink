@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
         ...nativeTokens.type.body,
         fontFamily: nativeTokens.fontFace.body.semibold,
         fontVariant: ['tabular-nums', 'lining-nums'],
-        minWidth: 24,
+        minWidth: nativeTokens.spacing[5],
         textAlign: 'center',
     },
 });

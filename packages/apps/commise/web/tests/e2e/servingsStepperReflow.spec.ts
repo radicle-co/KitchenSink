@@ -5,10 +5,8 @@ import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 
 /**
- * The recipe page's servings stepper stays on screen at the narrowest width and the largest text (issue 219, WCAG
- * 1.4.10 Reflow).
- *
- * At 320 px with 200% text the stepper's `+` ended at 352 px, so the whole page scrolled sideways. The measurements
+ * The recipe page's servings stepper stays on screen at the narrowest width and the largest text (WCAG 1.4.10
+ * Reflow): the page must not scroll sideways at 320 px with 200% text. The measurements
  * are taken in a real browser, because jsdom lays nothing out. The text size is set the way `variantSurfaceReflow`
  * sets it: the root font at 200%, which grows the rem-sized buttons, gaps and padding with it.
  */

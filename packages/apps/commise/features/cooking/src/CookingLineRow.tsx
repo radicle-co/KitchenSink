@@ -14,7 +14,7 @@ import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import type { CookingLineRowProps } from './cookingViewProps.js';
-import { FOCUS_LINE_TYPE } from './focusLineType.js';
+import { FOCUS_LINE_TYPE, LINE_TYPE_ROLE } from './focusLineType.js';
 
 /** The id of the focus line's row, so focus can be sent to it when the row it was on goes away. */
 export const COOKING_FOCUS_LINE_ID = 'cooking-focus-line';
@@ -30,10 +30,7 @@ export const CookingLineRow: FC<CookingLineRowProps> = ({ line, emphasis }) => (
         onClick={line.onToggle}
         className={`flex min-h-11 w-full items-start gap-3 rounded-md px-2 py-2 text-start ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.inset}`}
     >
-        <CheckBoxGlyph
-            checked={line.checked}
-            textRole={emphasis === 'focus' ? FOCUS_LINE_TYPE.nativeTypeRole : 'readingBody'}
-        />
+        <CheckBoxGlyph checked={line.checked} textRole={LINE_TYPE_ROLE[emphasis]} />
         <span
             className={`min-w-0 flex-1 break-words font-body ${emphasis === 'focus' ? FOCUS_LINE_TYPE.webClassName : 'text-reading-body'} ${line.checked ? 'text-ink-muted' : 'text-ink'}`}
         >

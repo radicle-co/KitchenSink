@@ -25,10 +25,7 @@ import type { View } from 'react-native';
 import { XStack } from 'tamagui';
 
 import type { CookingLineRowProps } from './cookingViewProps.js';
-import { FOCUS_LINE_TYPE } from './focusLineType.js';
-
-/** The role each line is set in, which is also the role its box is drawn for. */
-const ROLE = { focus: FOCUS_LINE_TYPE.nativeTypeRole, other: 'readingBody' } as const;
+import { LINE_TYPE_ROLE } from './focusLineType.js';
 
 /** Native's props: the shared ones, plus the screen's request that this row takes the screen-reader cursor. */
 export type NativeCookingLineRowProps = CookingLineRowProps & {
@@ -50,8 +47,8 @@ export const CookingLineRow: FC<NativeCookingLineRowProps> = ({
     return (
         <PressScale ref={node} accessibilityRole="checkbox" checked={checked} width="fill" onPress={onToggle}>
             <XStack minHeight={touchFloor()} gap="$3" alignItems="flex-start" paddingVertical="$2">
-                <CheckBoxGlyph checked={checked} textRole={ROLE[emphasis]} />
-                <Text typeRole={ROLE[emphasis]} color={checked ? '$inkMuted' : '$ink'} flex={1}>
+                <CheckBoxGlyph checked={checked} textRole={LINE_TYPE_ROLE[emphasis]} />
+                <Text typeRole={LINE_TYPE_ROLE[emphasis]} color={checked ? '$inkMuted' : '$ink'} flex={1}>
                     {text}
                 </Text>
             </XStack>

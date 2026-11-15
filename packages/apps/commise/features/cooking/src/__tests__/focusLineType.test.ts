@@ -1,7 +1,7 @@
 import { webTypeRoles } from '@commise/ui/tokens/typography';
 import { describe, expect, it } from 'vitest';
 
-import { FOCUS_LINE_TYPE } from '../focusLineType.js';
+import { FOCUS_LINE_TYPE, LINE_TYPE_ROLE } from '../focusLineType.js';
 
 /** The camelCase role name as a kebab-case class stem: `largeTitle` is `large-title`. */
 const kebab = (role: string): string => role.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
@@ -30,5 +30,12 @@ describe('FOCUS_LINE_TYPE', () => {
     it('turns camelCase into kebab-case the way the check expects, so a future role keeps the pairing', () => {
         expect(kebab('readingLarge')).toBe('reading-large');
         expect(kebab('largeTitle')).toBe('large-title');
+    });
+});
+
+/** The one emphasis-to-role map both rows read, and the role each row's check box is drawn for. */
+describe('LINE_TYPE_ROLE', () => {
+    it('sets the focus line in the focus role and every other line in readingBody', () => {
+        expect(LINE_TYPE_ROLE).toEqual({ focus: FOCUS_LINE_TYPE.nativeTypeRole, other: 'readingBody' });
     });
 });

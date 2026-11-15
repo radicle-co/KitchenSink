@@ -152,9 +152,14 @@ describe('CookingLineRow (native)', () => {
         ['other', '18px', '28px'],
     ] as const)('draws the box and slot of the %s line by the role of its text', (emphasis, box, slot) => {
         const { container } = render(<CookingLineRow line={lineOf(false, vi.fn())} emphasis={emphasis} />);
-        const drawn = container.querySelector(ARIA_HIDDEN_CONTENT) as Element;
+        const drawn = container.querySelector(ARIA_HIDDEN_CONTENT);
+        const glyphSlot = drawn?.parentElement;
+
+        if (!drawn || !glyphSlot) {
+            throw new Error('The row draws no check box.');
+        }
 
         expect(resolvedStyle(drawn, 'width')).toBe(box);
-        expect(resolvedStyle(drawn.parentElement as Element, 'height')).toBe(slot);
+        expect(resolvedStyle(glyphSlot, 'height')).toBe(slot);
     });
 });

@@ -29,7 +29,15 @@ const boxIn = (container: HTMLElement): HTMLElement => {
 };
 
 /** The slot the box is centred in: the glyph's outer element. */
-const slotIn = (container: HTMLElement): HTMLElement => container.firstElementChild as HTMLElement;
+const slotIn = (container: HTMLElement): HTMLElement => {
+    const slot = container.firstElementChild;
+
+    if (!(slot instanceof HTMLElement)) {
+        throw new Error('The glyph draws no slot.');
+    }
+
+    return slot;
+};
 
 describe('CheckBoxGlyph (web)', () => {
     it('is hidden from assistive technology', () => {

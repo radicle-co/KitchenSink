@@ -46,7 +46,15 @@ const boxIn = (container: Element): Element => {
 };
 
 /** The slot the box is centred in. */
-const slotIn = (container: Element): Element => boxIn(container).parentElement as Element;
+const slotIn = (container: Element): Element => {
+    const slot = boxIn(container).parentElement;
+
+    if (slot === null) {
+        throw new Error('The glyph box has no slot.');
+    }
+
+    return slot;
+};
 
 describe('CheckBoxGlyph (native)', () => {
     it('is hidden from assistive technology', () => {

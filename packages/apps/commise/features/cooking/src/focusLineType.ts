@@ -13,3 +13,13 @@ export const FOCUS_LINE_TYPE = {
     nativeTypeRole: 'readingLarge',
     webClassName: 'text-reading-large',
 } as const satisfies { readonly nativeTypeRole: TypeRole; readonly webClassName: string };
+
+/**
+ * The type role each line of a step is set in, the one map both platforms read: the focus line takes
+ * {@link FOCUS_LINE_TYPE}'s role and every other line `readingBody`. The row passes the same role to its check box, so
+ * the box and its slot are drawn for the text they label.
+ */
+export const LINE_TYPE_ROLE = {
+    focus: FOCUS_LINE_TYPE.nativeTypeRole,
+    other: 'readingBody',
+} as const satisfies Readonly<Record<'focus' | 'other', TypeRole>>;

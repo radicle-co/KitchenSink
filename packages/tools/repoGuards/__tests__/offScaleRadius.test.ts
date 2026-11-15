@@ -28,6 +28,28 @@ import { repoRoot } from './serviceSources.js';
 import { designSystemStyledExports } from './tamaguiElements.js';
 import { radiusTokenKeys } from './tamaguiScaleKeys.js';
 
+/** The corner expressions a glyph module may write: the side times the named ratio, in either order. */
+const GLYPH_CORNER_ADMITTED = [
+    ['the side times the named ratio', 'side * GLYPH_CORNER_PER_SIDE'],
+    ['the named ratio times the side', 'GLYPH_CORNER_PER_SIDE * side'],
+];
+
+/** The corner expressions a glyph module may NOT write: any arithmetic around the named ratio is layout. */
+const GLYPH_CORNER_REFUSED = [
+    ['a quotient of the side', 'side / 3'],
+    ['a bare-number ratio', 'side * 0.22'],
+    ['a longer chain', 'side * GLYPH_X * 2'],
+    ['the ratio worked out inline', '(side * GLYPH_X) / CHECK_BOX_MIN_SIDE'],
+    ['a ratio that is not a glyph constant', 'side * CORNER_RATIO'],
+    ['an offset on the admitted shape', 'side * GLYPH_CORNER_PER_SIDE + 1'],
+    // A fractional radius renders on both platforms, so there is no reason to round it.
+    ['a wrapped form (rounding is not needed)', 'Math.round(side * GLYPH_CORNER_PER_SIDE)'],
+    ['two glyph constants', 'GLYPH_A * GLYPH_B'],
+    ['the side over a glyph constant', 'side / GLYPH_X'],
+    ['the side plus a glyph constant', 'side + GLYPH_X'],
+    ['the side minus a glyph constant', 'side - GLYPH_X'],
+];
+
 const scan = (text: string, file = 'Sample.tsx'): readonly string[] =>
     offScaleRadiusIn(file, text).map((hit) => hit.text);
 
@@ -139,27 +161,11 @@ describe('radius scale, every app', () => {
         // A glyph that grows with its text keeps its corner in proportion: the one admitted shape is a named ratio times
         // the side, `side * GLYPH_CORNER_PER_SIDE`. Anything that adds arithmetic around it is layout, and is refused.
         describe('a glyph corner that scales with its side', () => {
-            it.each([
-                ['the side times the named ratio', 'side * GLYPH_CORNER_PER_SIDE'],
-                ['the named ratio times the side', 'GLYPH_CORNER_PER_SIDE * side'],
-            ])('admits %s in a glyph module', (_shape, value) => {
+            it.each(GLYPH_CORNER_ADMITTED)('admits %s in a glyph module', (_shape, value) => {
                 expect(scan(glyph(`const s = { borderRadius: ${value} };`))).toEqual([]);
             });
 
-            it.each([
-                ['a quotient of the side', 'side / 3'],
-                ['a bare-number ratio', 'side * 0.22'],
-                ['a longer chain', 'side * GLYPH_X * 2'],
-                ['the ratio worked out inline', '(side * GLYPH_X) / CHECK_BOX_MIN_SIDE'],
-                ['a ratio that is not a glyph constant', 'side * CORNER_RATIO'],
-                ['an offset on the admitted shape', 'side * GLYPH_CORNER_PER_SIDE + 1'],
-                // A fractional radius renders on both platforms, so there is no reason to round it.
-                ['a wrapped form (rounding is not needed)', 'Math.round(side * GLYPH_CORNER_PER_SIDE)'],
-                ['two glyph constants', 'GLYPH_A * GLYPH_B'],
-                ['the side over a glyph constant', 'side / GLYPH_X'],
-                ['the side plus a glyph constant', 'side + GLYPH_X'],
-                ['the side minus a glyph constant', 'side - GLYPH_X'],
-            ])('refuses %s in a glyph module', (_shape, value) => {
+            it.each(GLYPH_CORNER_REFUSED)('refuses %s in a glyph module', (_shape, value) => {
                 expect(scan(glyph(`const s = { borderRadius: ${value} };`))).toEqual([`borderRadius: ${value}`]);
             });
 
@@ -241,28 +247,13 @@ describe('Tamagui radius', () => {
     describe('a glyph corner that scales with its side', () => {
         const glyphHead = `/**\n * @module x\n *\n * @pattern Glyph — a mark\n */\n${head}`;
 
-        it.each([
-            ['the side times the named ratio', 'side * GLYPH_CORNER_PER_SIDE'],
-            ['the named ratio times the side', 'GLYPH_CORNER_PER_SIDE * side'],
-        ])('admits %s on an element in a glyph module', (_shape, value) => {
+        it.each(GLYPH_CORNER_ADMITTED)('admits %s on an element in a glyph module', (_shape, value) => {
             expect(
                 tamaguiRadiusFindings(`${glyphHead}<View borderRadius={${value}} />`, 'fixture.tsx', none, keys),
             ).toEqual([]);
         });
 
-        it.each([
-            ['a quotient of the side', 'side / 3'],
-            ['a bare-number ratio', 'side * 0.22'],
-            ['a longer chain', 'side * GLYPH_X * 2'],
-            ['the ratio worked out inline', '(side * GLYPH_X) / CHECK_BOX_MIN_SIDE'],
-            ['a ratio that is not a glyph constant', 'side * CORNER_RATIO'],
-            ['an offset on the admitted shape', 'side * GLYPH_CORNER_PER_SIDE + 1'],
-            ['a wrapped form (rounding is not needed)', 'Math.round(side * GLYPH_CORNER_PER_SIDE)'],
-            ['two glyph constants', 'GLYPH_A * GLYPH_B'],
-            ['the side over a glyph constant', 'side / GLYPH_X'],
-            ['the side plus a glyph constant', 'side + GLYPH_X'],
-            ['the side minus a glyph constant', 'side - GLYPH_X'],
-        ])('refuses %s on an element in a glyph module', (_shape, value) => {
+        it.each(GLYPH_CORNER_REFUSED)('refuses %s on an element in a glyph module', (_shape, value) => {
             expect(
                 tamaguiRadiusFindings(`${glyphHead}<View borderRadius={${value}} />`, 'fixture.tsx', none, keys),
             ).toHaveLength(1);

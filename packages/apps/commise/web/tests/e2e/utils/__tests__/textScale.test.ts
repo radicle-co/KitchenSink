@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { applyTextScale, textScaleOf, type StyleTagPage, type TextScaleTestInfo } from '../textScale';
 
+const infoWith = (metadata: Record<string, unknown>): TextScaleTestInfo => ({ project: { metadata } });
+
 /**
  * The text scale a spec applies. The theme sizes text and spacing in rem, so a root font of N% grows both, as browser
  * text zoom does. These two functions are the only place the percentage is written.
  */
-const infoWith = (metadata: Record<string, unknown>): TextScaleTestInfo => ({ project: { metadata } });
-
 describe('textScaleOf', () => {
     it('reads a numeric scale from the project metadata', () => {
         expect(textScaleOf(infoWith({ textScale: 2 }))).toBe(2);

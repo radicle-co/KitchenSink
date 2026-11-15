@@ -9,6 +9,7 @@ import { mockFoodApi, ownFoodLedger } from './utils/foodApi';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { rgb } from './utils/surfaceToneCascade';
 import { editorTopChrome, ingredientOpen, openIngredientEditor, openRecipeEditor } from './utils/recipeEditor';
+import { applyTextScale } from './utils/textScale';
 
 /**
  * The food list and the row's name, measured where V3 measured them (`docs/design/v3Evaluation.md`, cases A to F;
@@ -399,7 +400,7 @@ test.describe('the food list at 640 × 360 with 200% text (V3-3, case D; compact
             ]),
             sources: () => [{ source: 'usda', outcome: 'limited', retryAfterSeconds: 600 }],
         });
-        await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
+        await applyTextScale(page, 2);
         const field = await middleField(page, ingredients);
         const band = await editorTopChrome(page);
 

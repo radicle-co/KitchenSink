@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { IOS_DEVICES, laneSimulatorName } from '../../src/maestroLanes/iosLane.js';
 import { macPathsOf } from '../../src/maestroLanes/macSession.js';
 
 const MAC_DIR = fileURLToPath(new URL('../mac/', import.meta.url));
@@ -147,7 +148,10 @@ describe('maestroShim.sh', () => {
 
 describe('laneHost.sh', () => {
     /** A fake `xcrun` that answers `simctl list -j devices` from a fixture and logs every other call. */
-    function withSimulators(sandbox: Sandbox, devices: readonly { name: string; udid: string }[]): void {
+    function withSimulators(
+        sandbox: Sandbox,
+        devices: readonly { name: string; udid: string; deviceTypeIdentifier?: string }[],
+    ): void {
         const json = JSON.stringify({
             devices: {
                 'com.apple.CoreSimulator.SimRuntime.iOS-26-5': devices.map((d) => ({ ...d, state: 'Shutdown' })),
@@ -227,6 +231,36 @@ describe('laneHost.sh', () => {
             `XCRUN simctl create ks-maestro-ipad-1 com.apple.CoreSimulator.SimDeviceType.iPad-Air-11-inch-M3 ${RUNTIME}`,
             `XCRUN simctl create ks-maestro-lane-1 com.apple.CoreSimulator.SimDeviceType.iPhone-17 ${RUNTIME}`,
         ]);
+    });
+
+    it('names a created lane exactly as the TypeScript does, for every device class', () => {
+        for (const device of IOS_DEVICES) {
+            const sandbox = makeSandbox();
+            withSimulators(sandbox, []);
+            run('laneHost.sh', ['ensure', '3', device], sandbox);
+            const [created] = callsOf(sandbox);
+            expect(created?.split(' ')[3]).toBe(laneSimulatorName(3, device));
+        }
+    });
+
+    it('deletes and recreates a lane Simulator whose device type is not the one asked for now', () => {
+        const sandbox = makeSandbox();
+        withSimulators(sandbox, [{ name: 'ks-maestro-ipad-2', udid: 'OLD', deviceTypeIdentifier: 'type.old' }]);
+        const result = run('laneHost.sh', ['ensure', '2', 'ipad'], sandbox, { KS_SIM_IPAD_DEVICE_TYPE: 'type.new' });
+        expect(result.stdout.trim()).toBe('NEW-UDID');
+        expect(callsOf(sandbox)).toEqual([
+            'XCRUN simctl shutdown OLD',
+            'XCRUN simctl delete OLD',
+            `XCRUN simctl create ks-maestro-ipad-2 type.new ${RUNTIME}`,
+        ]);
+    });
+
+    it('keeps a lane Simulator whose device type is the one asked for', () => {
+        const sandbox = makeSandbox();
+        withSimulators(sandbox, [{ name: 'ks-maestro-ipad-2', udid: 'PAD', deviceTypeIdentifier: 'type.same' }]);
+        const result = run('laneHost.sh', ['ensure', '2', 'ipad'], sandbox, { KS_SIM_IPAD_DEVICE_TYPE: 'type.same' });
+        expect(result.stdout.trim()).toBe('PAD');
+        expect(callsOf(sandbox)).toEqual([]);
     });
 
     it('refuses a device class that is not iphone or ipad, and shell text in one', () => {

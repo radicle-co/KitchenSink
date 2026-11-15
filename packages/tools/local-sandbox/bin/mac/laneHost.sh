@@ -41,12 +41,25 @@ udid_by_name() {
     xcrun simctl list -j devices | jq -r --arg n "$1" '[.devices[][] | select(.name == $n) | .udid] | first // empty'
 }
 
+# type_by_name <name>   prints the device type of the Simulator with that name, or nothing
+type_by_name() {
+    xcrun simctl list -j devices | jq -r --arg n "$1" '[.devices[][] | select(.name == $n) | .deviceTypeIdentifier // empty] | first // empty'
+}
+
 case "${1:-}" in
     ensure)
         [[ "${2:-}" =~ ^[1-9][0-9]*$ ]] || die "ensure needs a positive lane number, got '${2:-}'"
         class_of "${3-iphone}"
         name="${NAME_PREFIX}$2"
         udid="$(udid_by_name "$name")"
+        # A Simulator kept from a run with another device type is replaced, never reused under the new name's promise.
+        # A listing that states no type (nothing to compare) keeps the Simulator.
+        have_type="$(type_by_name "$name")"
+        if [ -n "$udid" ] && [ -n "$have_type" ] && [ "$have_type" != "$DEVICE_TYPE" ]; then
+            xcrun simctl shutdown "$udid" || true
+            xcrun simctl delete "$udid"
+            udid=''
+        fi
         [ -n "$udid" ] || udid="$(xcrun simctl create "$name" "$DEVICE_TYPE" "$RUNTIME")"
         echo "$udid"
         ;;

@@ -382,7 +382,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
                         open={pinnedIngredients.open}
                         onOpenChange={pinnedIngredients.onOpenChange}
                     >
-                        <div className="flex items-center justify-between gap-3 pe-3 ps-4 pt-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pe-3 ps-4 pt-2.5">
                             <span className="text-meta text-ink-muted">{detail.servingsAdjustLabel}</span>
                             <ServingScaleControl
                                 servings={servings}

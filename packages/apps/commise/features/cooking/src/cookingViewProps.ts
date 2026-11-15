@@ -93,14 +93,6 @@ export interface CookingUpNextView {
     readonly rest: readonly string[];
 }
 
-/**
- * What comes after a step: the foot's preview, or the body's Up next, never both. The last step has neither, so the
- * field that carries this is optional.
- */
-export type CookingStepAfter =
-    | { readonly kind: 'preview'; readonly preview: CookingPreviewView }
-    | { readonly kind: 'upNext'; readonly upNext: CookingUpNextView };
-
 /** Props for the step body. */
 export interface CookingStepProps {
     /** The region's accessible name: the place ("Step 2 of 6"). */

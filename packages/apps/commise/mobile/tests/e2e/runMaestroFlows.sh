@@ -1328,6 +1328,41 @@ maestro_disable_password_autofill_ios() {
     fi
 }
 
+# maestro_disable_apple_intelligence_banner_ios
+#
+# Keep the "Ready for Apple Intelligence" banner off the booted Simulator `MAESTRO_IOS_UDID`. About 25 s after boot,
+# `generativeexperiencesd` posts that FollowUp as a banner over whatever app is in front. The banner belongs to another
+# process, so no flow can dismiss it, and the next tap can open Settings instead of Commise.
+# The switch is `launchctl disable` on that daemon inside the Simulator.
+#
+# ⛔ THE READ-BACK DECIDES, never the disable's exit status: only the exact line `"<daemon>" => disabled` in
+# `launchctl print-disabled system` passes. A name-only match would also pass `=> enabled`, and a missing daemon fails.
+# ⚠️ A Simulator erase resets the switch. `bootout` stops a daemon that is already running and is allowed to fail: right
+# after boot it is often not running yet ("No such process").
+#
+# @sideEffect Disables a daemon inside the Simulator, stopping it if it runs.
+maestro_disable_apple_intelligence_banner_ios() {
+    if [ -z "${MAESTRO_IOS_UDID:-}" ]; then
+        echo '::error::maestro_disable_apple_intelligence_banner_ios needs MAESTRO_IOS_UDID — the Simulator to set is never guessed'
+
+        return 1
+    fi
+
+    local daemon='com.apple.generativeexperiencesd' disabled
+    xcrun simctl spawn "$MAESTRO_IOS_UDID" launchctl disable "system/${daemon}" ||
+        echo "::warning::launchctl disable ${daemon} exited non-zero; the read-back decides"
+    xcrun simctl spawn "$MAESTRO_IOS_UDID" launchctl bootout "system/${daemon}" 2>/dev/null || true
+    disabled=$(xcrun simctl spawn "$MAESTRO_IOS_UDID" launchctl print-disabled system 2>/dev/null | tr -d '\r')
+    echo "${daemon}: $(printf '%s\n' "$disabled" | grep -F "\"${daemon}\"" || echo 'not listed')"
+
+    # A here-string, not a pipe: under pipefail `grep -q` leaving at an early match SIGPIPEs the writer (141) on a long listing.
+    if ! grep -Eq "^[[:space:]]*\"${daemon//./\\.}\" => disabled[[:space:]]*$" <<<"$disabled"; then
+        echo "::error::the Simulator does not hold ${daemon} disabled, so the Apple Intelligence banner may cover a flow"
+
+        return 1
+    fi
+}
+
 # maestro_local_reverse <recipe-host-port> [<port>...]
 #
 # The local app's ports, reversed onto this host: the ONE map that a lane and `localMaestro.sh`'s one-emulator path both

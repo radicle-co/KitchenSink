@@ -101,13 +101,14 @@ export class IosAdapter implements DeviceAdapter {
         await this.session.laneHost('boot', udid);
         await this.session.laneHost('install', udid, macPathsOf().iosApp(this.contentKey));
 
-        // The runner holds the one copy of this step (held equal to CI's by a guard) but calls it only from its callers,
-        // so the adapter sources the runner and runs it through the shims, which put it on this lane's Mac Simulator.
+        // The runner holds the one copy of these two steps but calls them only from its callers, so the adapter sources
+        // the runner and runs them through the shims, which put them on this lane's Mac Simulator. AutoFill is held equal
+        // to CI's copy by `maestroPasswordAutofill.test.ts`. The banner switch is lane-only: CI has no copy of it yet.
         await this.options.shell.run(
             'bash',
             [
                 '-c',
-                '. "$1" && maestro_disable_password_autofill_ios',
+                '. "$1" && maestro_disable_password_autofill_ios && maestro_disable_apple_intelligence_banner_ios',
                 'iosAdapter',
                 path.join(this.options.repoRoot, RUNNER),
             ],

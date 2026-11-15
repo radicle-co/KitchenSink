@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest';
 import {
     TALL_LIBRARY_RECIPE_BASE_TITLE,
     CAP_FOOD_BASE_NAME,
+    COOKING_RECIPE_BASE_TITLE,
     deriveAmbiguityProbe,
     deriveFixtureManifest,
     deriveNeedsReviewProbe,
@@ -755,5 +756,80 @@ describe('the tall library recipe (the pinned ingredients bar needs a card that 
     it('is tall: ten or more long steps, so the ingredients card can scroll off a 2400 px screen', () => {
         expect(tall?.steps.length).toBeGreaterThanOrEqual(10);
         expect(tall?.steps.every((step) => step.instruction.length >= 120)).toBe(true);
+    });
+});
+
+/**
+ * The cooking-mode Maestro flow cooks a recipe whose first two steps each split into two or more
+ * lines, so it can tick line 1 and see the focus move, and so the device run on Hermes asserts a real
+ * split. It is the signer's, outside SEED_WORLD, and made only by `reset --mode cooking`, so every other flow still
+ * counts the signer's library as before.
+ */
+describe('the cooking recipe (cooking mode)', () => {
+    const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+    const cooking = manifest.cookingRecipe;
+
+    it("is the signer's, PRIVATE and published, and run-scoped", () => {
+        expect(cooking.owner).toBe('signer');
+        expect(cooking.visibility).toBe('private');
+        expect(cooking.status).toBeUndefined();
+        expect(cooking.title).toBe(runScopedTitle(COOKING_RECIPE_BASE_TITLE, RUN));
+    });
+
+    it('has at least three steps, and its first two each hold two or more sentences', () => {
+        // A sentence end here is a full stop before a space and a capital: the trap-table abbreviation below is followed
+        // by a lowercase word, so it is not counted (the real splitter is cooking-core's; the device run proves it).
+        const sentences = (text: string): number => text.split(/\.\s+(?=[A-Z])/u).length;
+
+        expect(cooking.steps.length).toBeGreaterThanOrEqual(3);
+        expect(sentences(cooking.steps[0]?.instruction ?? '')).toBeGreaterThanOrEqual(2);
+        expect(sentences(cooking.steps[1]?.instruction ?? '')).toBeGreaterThanOrEqual(2);
+    });
+
+    // qse condition 4: one trap-table line, an abbreviation a naive splitter would cut at.
+    it('carries a trap-table abbreviation inside a sentence', () => {
+        expect(cooking.steps.some((step) => /\btbsp\. [a-z]/u.test(step.instruction))).toBe(true);
+    });
+
+    it('is NOT in SEED_WORLD and not in manifest.recipes, so every other flow keeps its count', () => {
+        expect(SEED_WORLD.map((recipe) => recipe.baseTitle)).not.toContain(COOKING_RECIPE_BASE_TITLE);
+        expect(manifest.recipes.map((recipe) => recipe.title)).not.toContain(cooking.title);
+    });
+
+    it('builds a request the shipped contract accepts', () => {
+        const ids = new Map(
+            cooking.ingredients.map((line, index) => [
+                line.name,
+                `00000000-0000-4000-8000-0000000000c${String(index)}`,
+            ]),
+        );
+
+        expect(createRecipeRequestSchema.safeParse(toCreateRequest(cooking, ids)).success).toBe(true);
+    });
+
+    it('uses no regex metacharacters in its title, because the flow puts it inside a Maestro pattern', () => {
+        expect(cooking.title).toMatch(/^[A-Za-z0-9 -]+$/u);
+    });
+
+    // qse condition 3: lanes run in parallel. Each lane resets as its OWN signer (asserted above), and the reset can only
+    // delete what that signer's list returned, so the cleanup by title cannot reach another lane's recipe. The title is
+    // also scoped by each lane's run key, so no lane could keep another lane's cooking recipe by title either.
+    it('is scoped by the lane’s run key, on every platform and shard', () => {
+        const lanes = MAESTRO_PLATFORMS.flatMap((platform) =>
+            Array.from(
+                { length: maestroShardCapacity(platform) },
+                (_, index) => `${RUN}-${platform}-${String(index + 1)}`,
+            ),
+        );
+        const titles = lanes.map((runKey) => deriveFixtureManifest(runKey, 'android', 1).cookingRecipe.title);
+
+        expect(new Set(titles).size).toBe(lanes.length);
+        expect(titles.every((title, index) => title.endsWith(lanes[index] ?? '?'))).toBe(true);
+    });
+
+    it('is frozen, lines and steps too', () => {
+        expect(Object.isFrozen(cooking)).toBe(true);
+        expect(Object.isFrozen(cooking.steps)).toBe(true);
+        expect(Object.isFrozen(cooking.ingredients)).toBe(true);
     });
 });

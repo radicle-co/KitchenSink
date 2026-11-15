@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page, type TestInfo } from '@playwrigh
 import { route } from './utils/basePath';
 import { E2E_RECIPE_IDS, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import { applyTextScale } from './utils/textScale';
 
 /**
  * Curated U15, re-aimed by slice 5 of the UI overhaul (`docs/design/uiOverhaul/buildSpec.md` §4.4): Discover's facets live
@@ -265,7 +266,7 @@ test.describe('the filter Sheet’s Done at 640 × 360 (compactHeightLayout.md �
     }> {
         await seed(page);
         await page.goto(route('/discover?query=e'));
-        await page.addStyleTag({ content: `html { font-size: ${String(scale * 100)}% !important; }` });
+        await applyTextScale(page, scale);
         await page.getByRole('button', { name: 'Filters' }).click();
         const sheet = page.getByRole('dialog', { name: 'Filters' });
         const done = sheet.getByRole('button', { name: SHOW });

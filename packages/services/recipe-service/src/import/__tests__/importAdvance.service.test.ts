@@ -960,6 +960,9 @@ describe('ImportAdvanceService — saving what is ready', () => {
         expect(lines[2]).not.toHaveProperty('unit');
         expect(lines[3]).toMatchObject({ quantity: { kind: 'absent' }, sourceLine: 'FOR THE SAUCE' });
         expect(lines[3]).not.toHaveProperty('sourcePhrase');
+        // ⛔ EVERY line carries its file line (the two foods of line 1 both carry it): `create` marks a line the cook's own
+        // words only when it has one (ADR-0090 §2), so a line without it would be saved as not the cook's.
+        expect(lines.map((line) => line.sourceLine)).toEqual([0, 1, 1, 2].map((index) => payloadLines[index]));
     });
 
     it('names a line kept as written with its parsed phrase, and a heading with its text (declared, never converging)', async () => {

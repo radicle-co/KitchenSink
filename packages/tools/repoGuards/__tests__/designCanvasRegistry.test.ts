@@ -23,11 +23,14 @@ const canvasSchema = z.strictObject({
     url: z.string().min(1),
     kind: z.enum(['designSystem', 'page', 'feature', 'unused']),
     status: z.enum(['current', 'archive', 'unused']),
-    source: z.enum(['repo', 'live', 'none']),
+    source: z.enum(['repo', 'repo-canvas', 'none']),
     platform: z.enum(['web', 'mobile', 'combined']).optional(),
     subject: z.string().min(1).optional(),
     note: z.string().optional(),
-    snapshot: z.string().min(1).optional(),
+    folder: z
+        .string()
+        .regex(/^[A-Za-z0-9]+$/u)
+        .optional(),
 });
 
 const registrySchema = z.strictObject({ canvases: z.array(canvasSchema) });
@@ -63,8 +66,12 @@ function entryProblems(entry: CanvasEntry): readonly string[] {
         problems.push(`${entry.id}: a combined canvas cannot be current`);
     }
 
-    if (entry.status === 'current' && isScreen(entry) && entry.source !== 'live') {
-        problems.push(`${entry.id}: a current screen canvas has source "live"`);
+    // A screen canvas's source is a folder in this repo, and only a screen canvas has one.
+    if (
+        isScreen(entry) !== (entry.source === 'repo-canvas') ||
+        (entry.source === 'repo-canvas') !== (entry.folder !== undefined)
+    ) {
+        problems.push(`${entry.id}: a screen canvas has source "repo-canvas" and a folder, and no other entry does`);
     }
 
     return problems;
@@ -102,6 +109,10 @@ function registryProblems(entries: readonly CanvasEntry[]): readonly string[] {
             entries.map((entry) => entry.url),
             'url',
         ),
+        ...duplicates(
+            entries.flatMap((entry) => (entry.folder === undefined ? [] : [entry.folder])),
+            'folder',
+        ),
         ...entries.flatMap(entryProblems),
         ...designSystemProblems(entries),
         ...pairingProblems(entries),
@@ -117,7 +128,8 @@ const screen = (overrides: Partial<CanvasEntry>): CanvasEntry => ({
     url: 'https://claude.ai/artifact/CEyW2KKB5e5k4RWAWkmRBR',
     kind: 'page',
     status: 'current',
-    source: 'live',
+    source: 'repo-canvas',
+    folder: overrides.id ?? 'homeWeb',
     platform: 'web',
     subject: 'Home',
     ...overrides,
@@ -140,22 +152,15 @@ describe('the design canvas registry', () => {
         expect(registryProblems(registry())).toEqual([]);
     });
 
-    // Each screen canvas points at its snapshot folder, and that folder records the same canvas. A snapshot copied under
-    // the wrong id, or an entry added without one, fails by name.
-    it('points every screen canvas at its own snapshot, which records the same url', () => {
+    // Each screen canvas's folder holds a record of the same canvas. A folder copied under the wrong entry fails by name.
+    it('points every screen canvas at a folder whose snapshot.json records the same url', () => {
         const problems = registry()
             .filter(isScreen)
             .flatMap((entry) => {
-                const expected = `docs/design/canvases/${entry.id}/`;
-
-                if (entry.snapshot !== expected) {
-                    return [`${entry.id}: snapshot is ${String(entry.snapshot)}, expected ${expected}`];
-                }
-
-                const record = join(CANVAS_DIR, entry.id, 'snapshot.json');
+                const record = join(CANVAS_DIR, entry.folder ?? entry.id, 'snapshot.json');
 
                 if (!existsSync(record)) {
-                    return [`${entry.id}: no ${expected}snapshot.json`];
+                    return [`${entry.id}: no snapshot.json in its folder`];
                 }
 
                 const { url } = snapshotSchema.parse(JSON.parse(readFileSync(record, 'utf8')));
@@ -210,7 +215,7 @@ describe('registryProblems', () => {
     });
 
     it('reports a duplicated id', () => {
-        const copy = screen({ platform: 'mobile', url: MOBILE_URL });
+        const copy = screen({ platform: 'mobile', url: MOBILE_URL, folder: 'copy' });
 
         expect(registryProblems([designSystem, screen({}), copy])).toEqual(['duplicate id: homeWeb']);
     });
@@ -219,21 +224,45 @@ describe('registryProblems', () => {
         const { subject: _subject, ...withoutSubject } = screen({ status: 'archive', platform: 'combined' });
 
         expect(
-            registryProblems([designSystem, screen({}), mobile, { ...withoutSubject, id: 'x', url: OTHER_URL }]),
+            registryProblems([
+                designSystem,
+                screen({}),
+                mobile,
+                { ...withoutSubject, id: 'x', folder: 'x', url: OTHER_URL },
+            ]),
         ).toEqual(['x: a screen canvas needs a subject and a platform']);
     });
 
-    it('reports a current screen canvas built from the repo', () => {
-        expect(registryProblems([designSystem, screen({ source: 'repo' }), mobile])).toEqual([
-            'homeWeb: a current screen canvas has source "live"',
+    it('reports a screen canvas with no folder, and a folder on a non-screen entry', () => {
+        const noFolder = screen({ source: 'none', folder: undefined });
+        const message = 'homeWeb: a screen canvas has source "repo-canvas" and a folder, and no other entry does';
+
+        expect(registryProblems([designSystem, noFolder, mobile])).toEqual([message]);
+        expect(registryProblems([designSystem, screen({ source: 'repo' }), mobile])).toEqual([message]);
+        expect(registryProblems([{ ...designSystem, folder: 'designSystem' }, screen({}), mobile])).toEqual([
+            'designSystem: a screen canvas has source "repo-canvas" and a folder, and no other entry does',
         ]);
     });
 
-    it('reports a missing or live-sourced Design System', () => {
+    it('reports a folder two entries share', () => {
+        const twin = screen({ id: 'homeMobile', platform: 'mobile', url: MOBILE_URL });
+
+        expect(registryProblems([designSystem, screen({}), { ...twin, folder: 'homeWeb' }])).toEqual([
+            'duplicate folder: homeWeb',
+        ]);
+    });
+
+    it('rejects a folder that is not one segment of letters and digits', () => {
+        for (const folder of ['../x', 'a/b', 'a-b', '']) {
+            expect(() => registrySchema.parse({ canvases: [screen({ folder })] })).toThrow();
+        }
+    });
+
+    it('reports a missing or non-repo Design System', () => {
         const expected = ['there must be exactly one current Design System, with source "repo"'];
 
         expect(registryProblems([screen({}), mobile])).toEqual(expected);
-        expect(registryProblems([{ ...designSystem, source: 'live' }, screen({}), mobile])).toEqual(expected);
+        expect(registryProblems([{ ...designSystem, source: 'none' }, screen({}), mobile])).toEqual(expected);
     });
 
     it('reports a combined canvas marked current', () => {

@@ -208,22 +208,23 @@ This feature's entire input side is untrusted external data, and none of it is a
 - `packages/clients/usda` is the reference implementation. **Do not "converge" a boundary schema away**: on
   this feature it is the parse standing between a hostile page and the recipe write path.
 
-| Method   | Path                                              | Auth        | Success | Notes                                                                                                                                       |
-| -------- | ------------------------------------------------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST     | `/api/v1/import/url`                              | user        | `202`   | Async job; `Idempotency-Key` required                                                                                                       |
-| POST     | `/api/v1/import/instagram`                        | user        | `202`   | Gated by capability flag (D-002)                                                                                                            |
-| POST     | `/api/v1/import/file`                             | user        | `201`   | Sync — local parse, no outbound call                                                                                                        |
-| POST     | `/api/v1/import/text`                             | user        | `201`   | Sync — raw-text paste, no outbound call (`FR-052`)                                                                                          |
-| ~~POST~~ | ~~`/api/v1/import/photo`~~                        | —           | —       | ⛔ **011 owns the photo channel** (D-001 as amended, ADR-0019 §3). 004 keeps only the `imported_physical` `sourceType` in the bulk contract |
-| GET      | `/api/v1/import/jobs/{id}`                        | user, owner | `200`   | Job status → `draftId` or error code                                                                                                        |
-| GET      | `/api/v1/import/drafts/{id}`                      | user, owner | `200`   | Draft for review                                                                                                                            |
-| PATCH    | `/api/v1/import/drafts/{id}`                      | user, owner | `200`   | User corrections                                                                                                                            |
-| POST     | `/api/v1/import/drafts/{id}/confirm`              | user, owner | `201`   | Creates the Recipe; the only write path                                                                                                     |
-| DELETE   | `/api/v1/import/drafts/{id}`                      | user, owner | `204`   | Discard                                                                                                                                     |
-| GET      | `/api/v1/import/sources`                          | user        | `200`   | Enabled channels + blocklist summary                                                                                                        |
-| GET      | `/api/v1/admin/import/paywalled-domains`          | admin scope | `200`   | D-004                                                                                                                                       |
-| POST     | `/api/v1/admin/import/paywalled-domains`          | admin scope | `201`   | D-004                                                                                                                                       |
-| DELETE   | `/api/v1/admin/import/paywalled-domains/{domain}` | admin scope | `204`   | D-004                                                                                                                                       |
+| Method   | Path                                              | Auth        | Success | Notes                                                                                                                                                                                           |
+| -------- | ------------------------------------------------- | ----------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST     | `/api/v1/import/url`                              | user        | `202`   | Async job; `Idempotency-Key` required                                                                                                                                                           |
+| POST     | `/api/v1/import/instagram`                        | user        | `202`   | Gated by capability flag (D-002)                                                                                                                                                                |
+| POST     | `/api/v1/import/file`                             | user        | `201`   | Sync — local parse, no outbound call                                                                                                                                                            |
+| POST     | `/api/v1/import/text`                             | user        | `202`   | Raw-text paste (`FR-052`). Device-read pages need no AI. Text with no structured data goes to the async AI fallback (`FR-056`); the paste is a one-recipe import on `/api/v1/import` (`FR-061`) |
+| GET      | `/api/v1/import/text/{id}`                        | user, owner | `200`   | Poll the AI fallback result: `pending`, `extracted`, `noRecipe`, `severalRecipes`, `budgetSpent`, `failed` (`FR-056`, `FR-059`)                                                                 |
+| ~~POST~~ | ~~`/api/v1/import/photo`~~                        | —           | —       | ⛔ **011 owns the photo channel** (D-001 as amended, ADR-0019 §3). 004 keeps only the `imported_physical` `sourceType` in the bulk contract                                                     |
+| GET      | `/api/v1/import/jobs/{id}`                        | user, owner | `200`   | Job status → `draftId` or error code                                                                                                                                                            |
+| GET      | `/api/v1/import/drafts/{id}`                      | user, owner | `200`   | Draft for review                                                                                                                                                                                |
+| PATCH    | `/api/v1/import/drafts/{id}`                      | user, owner | `200`   | User corrections                                                                                                                                                                                |
+| POST     | `/api/v1/import/drafts/{id}/confirm`              | user, owner | `201`   | Creates the Recipe; the only write path                                                                                                                                                         |
+| DELETE   | `/api/v1/import/drafts/{id}`                      | user, owner | `204`   | Discard                                                                                                                                                                                         |
+| GET      | `/api/v1/import/sources`                          | user        | `200`   | Enabled channels + blocklist summary                                                                                                                                                            |
+| GET      | `/api/v1/admin/import/paywalled-domains`          | admin scope | `200`   | D-004                                                                                                                                                                                           |
+| POST     | `/api/v1/admin/import/paywalled-domains`          | admin scope | `201`   | D-004                                                                                                                                                                                           |
+| DELETE   | `/api/v1/admin/import/paywalled-domains/{domain}` | admin scope | `204`   | D-004                                                                                                                                                                                           |
 
 **Clone is NOT here** — `POST /api/v1/recipes/{id}/clone` already ships in 001.
 
@@ -371,6 +372,15 @@ JsonLdExtractor      →  script[type="application/ld+json"], walk @graph, Zod-v
 MicrodataExtractor   →  [itemtype*="schema.org/Recipe"]
 HeuristicExtractor   →  structural heuristics (headings + list patterns), returns confidence 0..1
 ```
+
+_(Amended 2026-11-15, owner ruling, `FR-056`, C-007.)_ `HeuristicExtractor` is replaced by the AI text-extraction fallback. JSON-LD and
+microdata run first, on the cook's device, with no AI. A page with neither, and any plain-text paste, goes to a separate async
+job in recipe-workers (`RecipeTextExtractFunction`): own queue, DLQ and reserved concurrency, the single Bedrock role, spend
+call site `'text-extraction'` (ADR-0024 §4c), VPC-attached so it is an ADR-0004 NAT consumer. The model returns line numbers
+only (`FR-057`), the input is capped at 48,000 UTF-8 bytes and refused over it (`FR-058`), and the ceiling ends the paste as
+`budgetSpent` (`FR-059`). A guessed source is a question, never the statement (`FR-060`, ADR-0089 §7). It uses the one import
+pipeline and the one import allowance (`FR-061`). A page opt-out skips it (`FR-063`). The mobile paste row is gated on it (`FR-062`). Design detail:
+ADR-0092 (planned), plus a new result table in its own migration.
 
 First non-null result wins. Strict `@type === 'Recipe'` validation before accepting (HAZ-028 — a
 non-Recipe JSON-LD object must not be accepted as a recipe). Every extractor returns `null`, never throws, so
@@ -527,6 +537,7 @@ Ordered by dependency. Each step is test-first (§7.1) and ships web **and** mob
     extraction. See tasks T-033 to T-037. Counsel review is owed before launch (`016-FR-050`).
 11. **UI — web and mobile in lockstep**: import entry, draft review/complete, attribution display, error states.
 12. **Load and soak** (k6) against the §7 SLOs.
+    12a. **AI text-extraction fallback** _(added 2026-11-15, `FR-056` to `FR-063`)_: built in this feature, after the page reader and the paste channel. See tasks T-048.
 
 ---
 

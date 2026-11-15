@@ -4,6 +4,7 @@ import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
 import { addStep, chooseCuisine, fillTimes, openNewRecipe, openRecipeEditor, setServings } from './utils/recipeEditor';
+import { applyTextScale } from './utils/textScale';
 
 /**
  * A minimal, valid 1×1 transparent PNG — inlined so the spec needs no binary fixture file on disk.
@@ -354,7 +355,7 @@ test.describe('recipe photo tile menu (2026-10-17)', () => {
     test('the menu button stays 44 px square at 200% text', async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 900 });
         const photosRegion = await openEditorWithTwoPhotos(page);
-        await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
+        await applyTextScale(page, 2);
 
         const box = await photosRegion.getByRole('button', { name: 'Actions for photo 2' }).boundingBox();
 

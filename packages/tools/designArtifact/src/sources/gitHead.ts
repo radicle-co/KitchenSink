@@ -12,7 +12,8 @@ import type { BuildStamp } from '../readme/stampReadme.js';
 /** Answers with the commit the working tree is at. */
 export type GitHeadReader = () => Promise<BuildStamp>;
 
-const SHA = /^[0-9a-f]{40}$/u;
+/** A full 40-hex commit id. */
+export const SHA_PATTERN = /^[0-9a-f]{40}$/u;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$/u;
 
 /**
@@ -26,7 +27,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$/u;
 export function parseGitHead(output: string): Omit<BuildStamp, 'dirty'> {
     const [sha = '', date = ''] = output.trim().split('\n');
 
-    if (!SHA.test(sha) || !ISO_DATE.test(date)) {
+    if (!SHA_PATTERN.test(sha) || !ISO_DATE.test(date)) {
         throw new DesignArtifactError(
             'missing-source',
             `Could not read the git HEAD commit from: ${JSON.stringify(output)}`,
@@ -39,7 +40,7 @@ export function parseGitHead(output: string): Omit<BuildStamp, 'dirty'> {
 /** Runs `git <args>` and answers its standard output. */
 export type RunGit = (args: readonly string[]) => Promise<string>;
 
-function execGit(cwd: string): RunGit {
+export function execGit(cwd: string): RunGit {
     /** @sideEffect Spawns `git`. */
     return async (args) => (await promisify(execFile)('git', [...args], { cwd })).stdout;
 }

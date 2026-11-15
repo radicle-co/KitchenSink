@@ -1,0 +1,169 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:36Z"
+  },
+  "title": "Commise Screens, web: Cooking school",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "SchoolCoursesWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking school, courses (web, 1280)"
+    },
+    "SchoolCourseWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 880,
+      "title": "Cooking school, course (web, 1280)"
+    },
+    "SchoolLessonWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking school, lesson (web, 1280)"
+    },
+    "SchoolLessonFreeWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking school, lesson free (web, 1280)"
+    },
+    "SchoolLessonLockedWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking school, lesson locked (web, 1280)"
+    },
+    "SchoolLessonOfflineWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking school, lesson offline (web, 1280)"
+    },
+    "SchoolProgressWeb1280.dc.html": {
+      "x": 8160,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking school, progress (web, 1280)"
+    },
+    "SchoolCourseCheckoutWeb1280.dc.html": {
+      "x": 9520,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking school, course checkout (web, 1280)"
+    },
+    "SchoolCoursesWeb390.dc.html": {
+      "x": 0,
+      "y": 1800,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking school, courses (web, 390)"
+    },
+    "SchoolCourseWeb390.dc.html": {
+      "x": 470,
+      "y": 1800,
+      "w": 390,
+      "h": 1060,
+      "title": "Cooking school, course (web, 390)"
+    },
+    "SchoolLessonWeb390.dc.html": {
+      "x": 940,
+      "y": 1800,
+      "w": 390,
+      "h": 1240,
+      "title": "Cooking school, lesson (web, 390)"
+    },
+    "SchoolLessonFreeWeb390.dc.html": {
+      "x": 1410,
+      "y": 1800,
+      "w": 390,
+      "h": 1320,
+      "title": "Cooking school, lesson free (web, 390)"
+    },
+    "SchoolLessonLockedWeb390.dc.html": {
+      "x": 1880,
+      "y": 1800,
+      "w": 390,
+      "h": 990,
+      "title": "Cooking school, lesson locked (web, 390)"
+    },
+    "SchoolLessonOfflineWeb390.dc.html": {
+      "x": 2350,
+      "y": 1800,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking school, lesson offline (web, 390)"
+    },
+    "SchoolProgressWeb390.dc.html": {
+      "x": 2820,
+      "y": 1800,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking school, progress (web, 390)"
+    },
+    "SchoolCourseCheckoutWeb390.dc.html": {
+      "x": 3290,
+      "y": 1800,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking school, course checkout (web, 390)"
+    }
+  },
+  "order": [
+    "SchoolCoursesWeb1280.dc.html",
+    "SchoolCourseWeb1280.dc.html",
+    "SchoolLessonWeb1280.dc.html",
+    "SchoolLessonFreeWeb1280.dc.html",
+    "SchoolLessonLockedWeb1280.dc.html",
+    "SchoolLessonOfflineWeb1280.dc.html",
+    "SchoolProgressWeb1280.dc.html",
+    "SchoolCourseCheckoutWeb1280.dc.html",
+    "SchoolCoursesWeb390.dc.html",
+    "SchoolCourseWeb390.dc.html",
+    "SchoolLessonWeb390.dc.html",
+    "SchoolLessonFreeWeb390.dc.html",
+    "SchoolLessonLockedWeb390.dc.html",
+    "SchoolLessonOfflineWeb390.dc.html",
+    "SchoolProgressWeb390.dc.html",
+    "SchoolCourseCheckoutWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Cooking school: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1540,
+      "text": "Cooking school: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

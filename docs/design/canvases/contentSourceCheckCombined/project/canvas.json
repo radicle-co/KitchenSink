@@ -1,0 +1,496 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-27T05:14:26Z"
+  },
+  "title": "Commise Screens: Content source check",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "SourceCheckCheckingMobile.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, checking (phone)"
+    },
+    "SourceCheckInReviewMobile.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, in review (phone)"
+    },
+    "SourceCheckLibraryMobile.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, library (phone)"
+    },
+    "SourceCheckEditorInReviewMobile.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, editor in review (phone)"
+    },
+    "SourceCheckEditorPrivateNoSlotMobile.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, editor private no slot (phone)"
+    },
+    "SourceCheckPublishBlockedNoSlotMobile.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, publish blocked no slot (phone)"
+    },
+    "SourceCheckPublishBlockedWebImportMobile.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, publish blocked web import (phone)"
+    },
+    "SourceCheckApprovedMobile.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, approved (phone)"
+    },
+    "SourceCheckNotApprovedMobile.dc.html": {
+      "x": 3760,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, not approved (phone)"
+    },
+    "SourceCheckNotApprovedOverLimitMobile.dc.html": {
+      "x": 4230,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, not approved over limit (phone)"
+    },
+    "SourceCheckAskAgainMobile.dc.html": {
+      "x": 4700,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, ask again (phone)"
+    },
+    "SourceCheckAskAgainSentMobile.dc.html": {
+      "x": 5170,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, ask again sent (phone)"
+    },
+    "SourceCheckPlanInReviewMobile.dc.html": {
+      "x": 5640,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, plan in review (phone)"
+    },
+    "SourceCheckCollectionInReviewMobile.dc.html": {
+      "x": 6110,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, collection in review (phone)"
+    },
+    "SourceCheckChecking834Mobile.dc.html": {
+      "x": 0,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Content source check, checking (tablet 834 px)"
+    },
+    "SourceCheckChecking1194Mobile.dc.html": {
+      "x": 914,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Content source check, checking (tablet 1194 px)"
+    },
+    "SourceCheckInReview834Mobile.dc.html": {
+      "x": 2188,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Content source check, in review (tablet 834 px)"
+    },
+    "SourceCheckInReview1194Mobile.dc.html": {
+      "x": 3102,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Content source check, in review (tablet 1194 px)"
+    },
+    "SourceCheckLibrary834Mobile.dc.html": {
+      "x": 4376,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Content source check, library (tablet 834 px)"
+    },
+    "SourceCheckLibrary1194Mobile.dc.html": {
+      "x": 5290,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Content source check, library (tablet 1194 px)"
+    },
+    "SourceCheckEditorInReview834Mobile.dc.html": {
+      "x": 6564,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Content source check, editor in review (tablet 834 px)"
+    },
+    "SourceCheckEditorInReview1194Mobile.dc.html": {
+      "x": 7478,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Content source check, editor in review (tablet 1194 px)"
+    },
+    "SourceCheckEditorPrivateNoSlot834Mobile.dc.html": {
+      "x": 8752,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Content source check, editor private no slot (tablet 834 px)"
+    },
+    "SourceCheckEditorPrivateNoSlot1194Mobile.dc.html": {
+      "x": 9666,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Content source check, editor private no slot (tablet 1194 px)"
+    },
+    "SourceCheckPublishBlockedNoSlot834Mobile.dc.html": {
+      "x": 10940,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Content source check, publish blocked no slot (tablet 834 px)"
+    },
+    "SourceCheckPublishBlockedNoSlot1194Mobile.dc.html": {
+      "x": 11854,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Content source check, publish blocked no slot (tablet 1194 px)"
+    },
+    "SourceCheckPublishBlockedWebImport834Mobile.dc.html": {
+      "x": 13128,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Content source check, publish blocked web import (tablet 834 px)"
+    },
+    "SourceCheckPublishBlockedWebImport1194Mobile.dc.html": {
+      "x": 14042,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Content source check, publish blocked web import (tablet 1194 px)"
+    },
+    "SourceCheckApproved834Mobile.dc.html": {
+      "x": 15316,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Content source check, approved (tablet 834 px)"
+    },
+    "SourceCheckApproved1194Mobile.dc.html": {
+      "x": 16230,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Content source check, approved (tablet 1194 px)"
+    },
+    "SourceCheckNotApproved834Mobile.dc.html": {
+      "x": 17504,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Content source check, not approved (tablet 834 px)"
+    },
+    "SourceCheckNotApproved1194Mobile.dc.html": {
+      "x": 18418,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Content source check, not approved (tablet 1194 px)"
+    },
+    "SourceCheckNotApprovedOverLimit834Mobile.dc.html": {
+      "x": 19692,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Content source check, not approved over limit (tablet 834 px)"
+    },
+    "SourceCheckNotApprovedOverLimit1194Mobile.dc.html": {
+      "x": 20606,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Content source check, not approved over limit (tablet 1194 px)"
+    },
+    "SourceCheckAskAgain834Mobile.dc.html": {
+      "x": 21880,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Content source check, ask again (tablet 834 px)"
+    },
+    "SourceCheckAskAgain1194Mobile.dc.html": {
+      "x": 22794,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Content source check, ask again (tablet 1194 px)"
+    },
+    "SourceCheckAskAgainSent834Mobile.dc.html": {
+      "x": 24068,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Content source check, ask again sent (tablet 834 px)"
+    },
+    "SourceCheckAskAgainSent1194Mobile.dc.html": {
+      "x": 24982,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Content source check, ask again sent (tablet 1194 px)"
+    },
+    "SourceCheckPlanInReview834Mobile.dc.html": {
+      "x": 26256,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Content source check, plan in review (tablet 834 px)"
+    },
+    "SourceCheckPlanInReview1194Mobile.dc.html": {
+      "x": 27170,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Content source check, plan in review (tablet 1194 px)"
+    },
+    "SourceCheckCollectionInReview834Mobile.dc.html": {
+      "x": 28444,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Content source check, collection in review (tablet 834 px)"
+    },
+    "SourceCheckCollectionInReview1194Mobile.dc.html": {
+      "x": 29358,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Content source check, collection in review (tablet 1194 px)"
+    },
+    "SourceCheckChecking.dc.html": {
+      "x": 0,
+      "y": 3058,
+      "w": 1280,
+      "h": 940,
+      "title": "Content source check, checking (web)"
+    },
+    "SourceCheckInReview.dc.html": {
+      "x": 1360,
+      "y": 3058,
+      "w": 1280,
+      "h": 940,
+      "title": "Content source check, in review (web)"
+    },
+    "SourceCheckLibrary.dc.html": {
+      "x": 2720,
+      "y": 3058,
+      "w": 1280,
+      "h": 1040,
+      "title": "Content source check, library (web)"
+    },
+    "SourceCheckEditorInReview.dc.html": {
+      "x": 4080,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Content source check, editor in review (web)"
+    },
+    "SourceCheckEditorPrivateNoSlot.dc.html": {
+      "x": 5440,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Content source check, editor private no slot (web)"
+    },
+    "SourceCheckPublishBlockedNoSlot.dc.html": {
+      "x": 6800,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Content source check, publish blocked no slot (web)"
+    },
+    "SourceCheckPublishBlockedWebImport.dc.html": {
+      "x": 8160,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Content source check, publish blocked web import (web)"
+    },
+    "SourceCheckApproved.dc.html": {
+      "x": 9520,
+      "y": 3058,
+      "w": 1280,
+      "h": 940,
+      "title": "Content source check, approved (web)"
+    },
+    "SourceCheckNotApproved.dc.html": {
+      "x": 10880,
+      "y": 3058,
+      "w": 1280,
+      "h": 940,
+      "title": "Content source check, not approved (web)"
+    },
+    "SourceCheckNotApprovedOverLimit.dc.html": {
+      "x": 12240,
+      "y": 3058,
+      "w": 1280,
+      "h": 940,
+      "title": "Content source check, not approved over limit (web)"
+    },
+    "SourceCheckAskAgain.dc.html": {
+      "x": 13600,
+      "y": 3058,
+      "w": 1280,
+      "h": 940,
+      "title": "Content source check, ask again (web)"
+    },
+    "SourceCheckAskAgainSent.dc.html": {
+      "x": 14960,
+      "y": 3058,
+      "w": 1280,
+      "h": 940,
+      "title": "Content source check, ask again sent (web)"
+    },
+    "SourceCheckPlanInReview.dc.html": {
+      "x": 16320,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Content source check, plan in review (web)"
+    },
+    "SourceCheckCollectionInReview.dc.html": {
+      "x": 17680,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Content source check, collection in review (web)"
+    }
+  },
+  "order": [
+    "SourceCheckCheckingMobile.dc.html",
+    "SourceCheckInReviewMobile.dc.html",
+    "SourceCheckLibraryMobile.dc.html",
+    "SourceCheckEditorInReviewMobile.dc.html",
+    "SourceCheckEditorPrivateNoSlotMobile.dc.html",
+    "SourceCheckPublishBlockedNoSlotMobile.dc.html",
+    "SourceCheckPublishBlockedWebImportMobile.dc.html",
+    "SourceCheckApprovedMobile.dc.html",
+    "SourceCheckNotApprovedMobile.dc.html",
+    "SourceCheckNotApprovedOverLimitMobile.dc.html",
+    "SourceCheckAskAgainMobile.dc.html",
+    "SourceCheckAskAgainSentMobile.dc.html",
+    "SourceCheckPlanInReviewMobile.dc.html",
+    "SourceCheckCollectionInReviewMobile.dc.html",
+    "SourceCheckChecking834Mobile.dc.html",
+    "SourceCheckChecking1194Mobile.dc.html",
+    "SourceCheckInReview834Mobile.dc.html",
+    "SourceCheckInReview1194Mobile.dc.html",
+    "SourceCheckLibrary834Mobile.dc.html",
+    "SourceCheckLibrary1194Mobile.dc.html",
+    "SourceCheckEditorInReview834Mobile.dc.html",
+    "SourceCheckEditorInReview1194Mobile.dc.html",
+    "SourceCheckEditorPrivateNoSlot834Mobile.dc.html",
+    "SourceCheckEditorPrivateNoSlot1194Mobile.dc.html",
+    "SourceCheckPublishBlockedNoSlot834Mobile.dc.html",
+    "SourceCheckPublishBlockedNoSlot1194Mobile.dc.html",
+    "SourceCheckPublishBlockedWebImport834Mobile.dc.html",
+    "SourceCheckPublishBlockedWebImport1194Mobile.dc.html",
+    "SourceCheckApproved834Mobile.dc.html",
+    "SourceCheckApproved1194Mobile.dc.html",
+    "SourceCheckNotApproved834Mobile.dc.html",
+    "SourceCheckNotApproved1194Mobile.dc.html",
+    "SourceCheckNotApprovedOverLimit834Mobile.dc.html",
+    "SourceCheckNotApprovedOverLimit1194Mobile.dc.html",
+    "SourceCheckAskAgain834Mobile.dc.html",
+    "SourceCheckAskAgain1194Mobile.dc.html",
+    "SourceCheckAskAgainSent834Mobile.dc.html",
+    "SourceCheckAskAgainSent1194Mobile.dc.html",
+    "SourceCheckPlanInReview834Mobile.dc.html",
+    "SourceCheckPlanInReview1194Mobile.dc.html",
+    "SourceCheckCollectionInReview834Mobile.dc.html",
+    "SourceCheckCollectionInReview1194Mobile.dc.html",
+    "SourceCheckChecking.dc.html",
+    "SourceCheckInReview.dc.html",
+    "SourceCheckLibrary.dc.html",
+    "SourceCheckEditorInReview.dc.html",
+    "SourceCheckEditorPrivateNoSlot.dc.html",
+    "SourceCheckPublishBlockedNoSlot.dc.html",
+    "SourceCheckPublishBlockedWebImport.dc.html",
+    "SourceCheckApproved.dc.html",
+    "SourceCheckNotApproved.dc.html",
+    "SourceCheckNotApprovedOverLimit.dc.html",
+    "SourceCheckAskAgain.dc.html",
+    "SourceCheckAskAgainSent.dc.html",
+    "SourceCheckPlanInReview.dc.html",
+    "SourceCheckCollectionInReview.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Content source check: phone",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1224,
+      "text": "Content source check: tablet",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 2798,
+      "text": "Content source check: web",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

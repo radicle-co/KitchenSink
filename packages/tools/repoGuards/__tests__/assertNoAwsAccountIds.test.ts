@@ -334,6 +334,26 @@ describe('the scanner detects an account id and discriminates what is not one', 
         expect(result.code).toBe(0);
     });
 
+    it('does NOT flag a known id that is the last group of a UUID, but still flags it after any other hyphen', () => {
+        // ⚠️ FOUND BY RUNNING THIS GATE: the design-canvas snapshots bundle a UUID validator whose regex names
+        // the nil UUID `00000000-0000-0000-0000-000000000000`, and its last group is the twelve-zero fixture id.
+        // A UUID's node field is not an account id. The same id after a non-UUID prefix (a CDK asset bucket
+        // name) is one, so the exemption must hold to the full UUID shape.
+        const result = run(
+            '--accounts',
+            '000000000000',
+            tree({ 'bundle.js': 'return /^(00000000-0000-0000-0000-000000000000|ffffffff)$/;' }),
+        );
+        const bucket = run(
+            '--accounts',
+            '000000000000',
+            tree({ 'a.md': 'cdk-hnb659fds-assets-000000000000-us-east-1' }),
+        );
+
+        expect(result.code).toBe(0);
+        expect(bucket.code).toBe(1);
+    });
+
     it('reports every offending line, not just the first', () => {
         const result = run(
             '--accounts',

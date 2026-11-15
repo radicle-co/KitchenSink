@@ -1,0 +1,838 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-27T19:13:01Z"
+  },
+  "title": "Commise Screens: Recipe detail",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "RecipeDetail.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 1828,
+      "title": "Recipe detail, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailMobile.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 390,
+      "h": 3464,
+      "title": "Recipe detail, proposal (mobile)"
+    },
+    "RecipeDetailScrolled.dc.html": {
+      "x": 1830,
+      "y": 260,
+      "w": 1280,
+      "h": 844,
+      "title": "Recipe detail, scrolled, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailScrolledMobile.dc.html": {
+      "x": 3190,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, scrolled, proposal (mobile)"
+    },
+    "RecipeDetailIngredientsOpenMobile.dc.html": {
+      "x": 3660,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, ingredients open, proposal (mobile)"
+    },
+    "RecipeDetailNutritionOpenMobile.dc.html": {
+      "x": 4130,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, nutrition open, proposal (mobile)"
+    },
+    "RecipeDetailMenu.dc.html": {
+      "x": 4600,
+      "y": 260,
+      "w": 1280,
+      "h": 844,
+      "title": "Recipe detail, more menu, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailReaderMenu.dc.html": {
+      "x": 52650,
+      "y": 260,
+      "w": 1280,
+      "h": 844,
+      "title": "Recipe detail, reader, more menu"
+    },
+    "RecipeDetailMenuMobile.dc.html": {
+      "x": 5960,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, more menu, proposal (mobile)"
+    },
+    "RecipeDetailReaderMenuMobile.dc.html": {
+      "x": 52180,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, reader, more menu (mobile)"
+    },
+    "RecipeDetailReader.dc.html": {
+      "x": 6430,
+      "y": 260,
+      "w": 1280,
+      "h": 1792,
+      "title": "Recipe detail, another cook's recipe, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailReaderMobile.dc.html": {
+      "x": 7790,
+      "y": 260,
+      "w": 390,
+      "h": 3424,
+      "title": "Recipe detail, another cook's recipe, proposal (mobile)"
+    },
+    "RecipeRating.dc.html": {
+      "x": 8260,
+      "y": 260,
+      "w": 1280,
+      "h": 844,
+      "title": "Rate this recipe, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipeRatingMobile.dc.html": {
+      "x": 9620,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Rate this recipe, proposal (mobile)"
+    },
+    "RecipeComments.dc.html": {
+      "x": 10090,
+      "y": 260,
+      "w": 1280,
+      "h": 844,
+      "title": "Comments, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipeCommentsMobile.dc.html": {
+      "x": 11450,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Comments, proposal (mobile)"
+    },
+    "RecipeCommentsYours.dc.html": {
+      "x": 11920,
+      "y": 260,
+      "w": 1280,
+      "h": 844,
+      "title": "Comments, with your own, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipeCommentsYoursMobile.dc.html": {
+      "x": 13280,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Comments, with your own, proposal (mobile)"
+    },
+    "RecipeCommentDelete.dc.html": {
+      "x": 13750,
+      "y": 260,
+      "w": 1280,
+      "h": 844,
+      "title": "Delete your comment, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipeCommentDeleteMobile.dc.html": {
+      "x": 15110,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Delete your comment, proposal (mobile)"
+    },
+    "RecipeDetailPhotoLightbox.dc.html": {
+      "x": 15580,
+      "y": 260,
+      "w": 1280,
+      "h": 844,
+      "title": "Recipe detail, photo full screen (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailPhotoLightboxMobile.dc.html": {
+      "x": 16940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, photo full screen (mobile)"
+    },
+    "RecipeDeleteDialog.dc.html": {
+      "x": 17410,
+      "y": 260,
+      "w": 1280,
+      "h": 704,
+      "title": "Recipe detail, delete this recipe? (web)",
+      "expand": "fill"
+    },
+    "RecipeDeleteDialogMobile.dc.html": {
+      "x": 18770,
+      "y": 260,
+      "w": 390,
+      "h": 1064,
+      "title": "Recipe detail, delete this recipe? (mobile)"
+    },
+    "RecipeMakePublicDialog.dc.html": {
+      "x": 19240,
+      "y": 260,
+      "w": 1280,
+      "h": 1104,
+      "title": "Recipe detail, make public? (web)",
+      "expand": "fill"
+    },
+    "RecipeMakePublicDialogMobile.dc.html": {
+      "x": 20600,
+      "y": 260,
+      "w": 390,
+      "h": 1832,
+      "title": "Recipe detail, make public? (mobile)"
+    },
+    "RecipeVisibilityFailed.dc.html": {
+      "x": 21070,
+      "y": 260,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe detail, visibility not changed (web)",
+      "expand": "fill"
+    },
+    "RecipeVisibilityFailedMobile.dc.html": {
+      "x": 22430,
+      "y": 260,
+      "w": 390,
+      "h": 1112,
+      "title": "Recipe detail, visibility not changed (mobile)"
+    },
+    "RecipeUpsellSheet.dc.html": {
+      "x": 22900,
+      "y": 260,
+      "w": 1280,
+      "h": 844,
+      "title": "Recipe detail, Premium for private (web)",
+      "expand": "fill"
+    },
+    "RecipeUpsellSheetMobile.dc.html": {
+      "x": 24260,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, Premium for private (mobile)"
+    },
+    "RecipeSaveCopy.dc.html": {
+      "x": 24730,
+      "y": 260,
+      "w": 1280,
+      "h": 844,
+      "title": "Recipe detail, save a copy (web)",
+      "expand": "fill"
+    },
+    "RecipeSaveCopyMobile.dc.html": {
+      "x": 26090,
+      "y": 260,
+      "w": 390,
+      "h": 960,
+      "title": "Recipe detail, save a copy (mobile)"
+    },
+    "RecipeRatingStates.dc.html": {
+      "x": 26560,
+      "y": 260,
+      "w": 1280,
+      "h": 600,
+      "title": "Recipe detail, rating states (web)",
+      "expand": "fill"
+    },
+    "RecipeRatingStatesMobile.dc.html": {
+      "x": 27920,
+      "y": 260,
+      "w": 390,
+      "h": 1124,
+      "title": "Recipe detail, rating states (mobile)"
+    },
+    "RecipeDetailReviewMatches.dc.html": {
+      "x": 28390,
+      "y": 260,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe detail, review ingredient matches (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailReviewMatchesMobile.dc.html": {
+      "x": 29750,
+      "y": 260,
+      "w": 390,
+      "h": 664,
+      "title": "Recipe detail, review ingredient matches (mobile)"
+    },
+    "RecipeDetailReviewMatchesStates.dc.html": {
+      "x": 30220,
+      "y": 260,
+      "w": 1280,
+      "h": 824,
+      "title": "Recipe detail, review matches: states (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailReviewMatchesStatesMobile.dc.html": {
+      "x": 31580,
+      "y": 260,
+      "w": 390,
+      "h": 1728,
+      "title": "Recipe detail, review matches: states (mobile)"
+    },
+    "RecipeDetailLoading.dc.html": {
+      "x": 32050,
+      "y": 260,
+      "w": 1280,
+      "h": 747,
+      "title": "Recipe detail, loading (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailLoadingMobile.dc.html": {
+      "x": 33410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, loading (mobile)"
+    },
+    "RecipeDetailDeleted.dc.html": {
+      "x": 33880,
+      "y": 260,
+      "w": 1280,
+      "h": 885,
+      "title": "Recipe detail, deleted (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailDeletedMobile.dc.html": {
+      "x": 35240,
+      "y": 260,
+      "w": 390,
+      "h": 935,
+      "title": "Recipe detail, deleted (mobile)"
+    },
+    "RecipeDetailRefreshFailed.dc.html": {
+      "x": 35710,
+      "y": 260,
+      "w": 1280,
+      "h": 1019,
+      "title": "Recipe detail, could not refresh (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailRefreshFailedMobile.dc.html": {
+      "x": 37070,
+      "y": 260,
+      "w": 390,
+      "h": 1764,
+      "title": "Recipe detail, could not refresh (mobile)"
+    },
+    "RecipeDetailEmptySections.dc.html": {
+      "x": 37540,
+      "y": 260,
+      "w": 1280,
+      "h": 804,
+      "title": "Recipe detail, empty sections (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailEmptySectionsMobile.dc.html": {
+      "x": 38900,
+      "y": 260,
+      "w": 390,
+      "h": 820,
+      "title": "Recipe detail, empty sections (mobile)"
+    },
+    "RecipeDetailScaled.dc.html": {
+      "x": 39370,
+      "y": 260,
+      "w": 1280,
+      "h": 848,
+      "title": "Recipe detail, servings changed (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailScaledMobile.dc.html": {
+      "x": 40730,
+      "y": 260,
+      "w": 390,
+      "h": 1288,
+      "title": "Recipe detail, servings changed (mobile)"
+    },
+    "RecipeDetailIngredientNotices.dc.html": {
+      "x": 41200,
+      "y": 260,
+      "w": 1280,
+      "h": 874,
+      "title": "Recipe detail, ingredients to check (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailIngredientNoticesMobile.dc.html": {
+      "x": 42560,
+      "y": 260,
+      "w": 390,
+      "h": 1556,
+      "title": "Recipe detail, ingredients to check (mobile)"
+    },
+    "RecipeDetailRemovedFoods.dc.html": {
+      "x": 43030,
+      "y": 260,
+      "w": 1280,
+      "h": 1008,
+      "title": "Recipe detail, removed or not loaded foods (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailRemovedFoodsMobile.dc.html": {
+      "x": 44390,
+      "y": 260,
+      "w": 390,
+      "h": 1736,
+      "title": "Recipe detail, removed or not loaded foods (mobile)"
+    },
+    "RecipeDetailCopiedPrivateFoods.dc.html": {
+      "x": 44860,
+      "y": 260,
+      "w": 1280,
+      "h": 594,
+      "title": "Recipe detail, copy uses private foods (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailCopiedPrivateFoodsMobile.dc.html": {
+      "x": 46220,
+      "y": 260,
+      "w": 390,
+      "h": 980,
+      "title": "Recipe detail, copy uses private foods (mobile)"
+    },
+    "RecipeDetailNutritionStates.dc.html": {
+      "x": 46690,
+      "y": 260,
+      "w": 1280,
+      "h": 980,
+      "title": "Recipe detail, nutrition states (web)",
+      "expand": "fill"
+    },
+    "RecipeDetailNutritionStatesMobile.dc.html": {
+      "x": 48050,
+      "y": 260,
+      "w": 390,
+      "h": 1932,
+      "title": "Recipe detail, nutrition states (mobile)"
+    },
+    "RecipeLoadError.dc.html": {
+      "x": 48520,
+      "y": 260,
+      "w": 1280,
+      "h": 720,
+      "title": "Recipe, could not load (web)",
+      "expand": "fill"
+    },
+    "RecipeLoadErrorMobile.dc.html": {
+      "x": 49880,
+      "y": 260,
+      "w": 390,
+      "h": 900,
+      "title": "Recipe, could not load (mobile)"
+    },
+    "RecipeNotFound.dc.html": {
+      "x": 50350,
+      "y": 260,
+      "w": 1280,
+      "h": 720,
+      "title": "Recipe, not available (web)",
+      "expand": "fill"
+    },
+    "RecipeNotFoundMobile.dc.html": {
+      "x": 51710,
+      "y": 260,
+      "w": 390,
+      "h": 900,
+      "title": "Recipe, not available (mobile)"
+    },
+    "RecipeDetail1024.dc.html": {
+      "x": 0,
+      "y": 4124,
+      "w": 1024,
+      "h": 2004,
+      "title": "Recipe detail, proposal, 1024 px (web)",
+      "expand": "fill"
+    },
+    "RecipeDetail768.dc.html": {
+      "x": 1104,
+      "y": 4124,
+      "w": 768,
+      "h": 3024,
+      "title": "Recipe detail, proposal, 768 px (web)",
+      "expand": "fill"
+    },
+    "RecipeDetail834Mobile.dc.html": {
+      "x": 2422,
+      "y": 4124,
+      "w": 834,
+      "h": 2027,
+      "title": "Recipe detail, proposal, 834 px (mobile)"
+    },
+    "RecipeDetail1194Mobile.dc.html": {
+      "x": 3336,
+      "y": 4124,
+      "w": 1194,
+      "h": 1979,
+      "title": "Recipe detail, proposal, 1194 px (mobile)"
+    },
+    "RecipeDetailCooking.dc.html": {
+      "x": 0,
+      "y": 7808,
+      "w": 1280,
+      "h": 1828,
+      "title": "Recipe detail, cooking in progress (web)"
+    },
+    "RecipeDetailCookingMobile.dc.html": {
+      "x": 1360,
+      "y": 7808,
+      "w": 390,
+      "h": 3300,
+      "title": "Recipe detail, cooking in progress (phone)"
+    },
+    "RecipeDetailCooking1024.dc.html": {
+      "x": 1830,
+      "y": 7808,
+      "w": 1024,
+      "h": 1941,
+      "title": "Recipe detail, cooking in progress, 1024 px (web)"
+    },
+    "RecipeDetailCooking768.dc.html": {
+      "x": 2934,
+      "y": 7808,
+      "w": 768,
+      "h": 3004,
+      "title": "Recipe detail, cooking in progress, 768 px (web)"
+    },
+    "RecipeDetailCooking834Mobile.dc.html": {
+      "x": 3782,
+      "y": 7808,
+      "w": 834,
+      "h": 2031,
+      "title": "Recipe detail, cooking in progress (tablet 834 px)"
+    },
+    "RecipeDetailCooking1194Mobile.dc.html": {
+      "x": 4696,
+      "y": 7808,
+      "w": 1194,
+      "h": 1979,
+      "title": "Recipe detail, cooking in progress (tablet 1194 px)"
+    },
+    "RecipeVersions.dc.html": {
+      "x": 0,
+      "y": 11768,
+      "w": 1280,
+      "h": 717,
+      "title": "Recipe versions, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipeVersionsMobile.dc.html": {
+      "x": 1360,
+      "y": 11768,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe versions, proposal (mobile)"
+    },
+    "RecipeVersionsScrolledMobile.dc.html": {
+      "x": 14640,
+      "y": 11768,
+      "w": 390,
+      "h": 844,
+      "title": "Version history, scrolled (mobile)"
+    },
+    "RecipeVersionsEmpty.dc.html": {
+      "x": 1830,
+      "y": 11768,
+      "w": 1280,
+      "h": 471,
+      "title": "Recipe versions, empty, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipeVersionsEmptyMobile.dc.html": {
+      "x": 3190,
+      "y": 11768,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe versions, empty, proposal (mobile)"
+    },
+    "RecipeVersionsLoading.dc.html": {
+      "x": 3660,
+      "y": 11768,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe versions, loading (web)",
+      "expand": "fill"
+    },
+    "RecipeVersionsLoadingMobile.dc.html": {
+      "x": 5020,
+      "y": 11768,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe versions, loading (mobile)"
+    },
+    "RecipeVersionsError.dc.html": {
+      "x": 5490,
+      "y": 11768,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe versions, could not load (web)",
+      "expand": "fill"
+    },
+    "RecipeVersionsErrorMobile.dc.html": {
+      "x": 6850,
+      "y": 11768,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe versions, could not load (mobile)"
+    },
+    "RecipeVersionsRestore.dc.html": {
+      "x": 7320,
+      "y": 11768,
+      "w": 1280,
+      "h": 1148,
+      "title": "Recipe versions, restoring (web)",
+      "expand": "fill"
+    },
+    "RecipeVersionsRestoreMobile.dc.html": {
+      "x": 8680,
+      "y": 11768,
+      "w": 390,
+      "h": 2388,
+      "title": "Recipe versions, restoring (mobile)"
+    },
+    "RecipeVersionPreview.dc.html": {
+      "x": 9150,
+      "y": 11768,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe versions, preview a version (web)",
+      "expand": "fill"
+    },
+    "RecipeVersionPreviewMobile.dc.html": {
+      "x": 10510,
+      "y": 11768,
+      "w": 390,
+      "h": 932,
+      "title": "Recipe versions, preview a version (mobile)"
+    },
+    "RecipeVersionPreviewStates.dc.html": {
+      "x": 10980,
+      "y": 11768,
+      "w": 1280,
+      "h": 1432,
+      "title": "Recipe versions, preview states (web)",
+      "expand": "fill"
+    },
+    "RecipeVersionPreviewStatesMobile.dc.html": {
+      "x": 12340,
+      "y": 11768,
+      "w": 390,
+      "h": 2288,
+      "title": "Recipe versions, preview states (mobile)"
+    },
+    "RecipeVersionCompare.dc.html": {
+      "x": 12810,
+      "y": 11768,
+      "w": 1280,
+      "h": 720,
+      "title": "Recipe versions, compare (web)",
+      "expand": "fill"
+    },
+    "RecipeVersionCompareMobile.dc.html": {
+      "x": 14170,
+      "y": 11768,
+      "w": 390,
+      "h": 1260,
+      "title": "Recipe versions, compare (mobile)"
+    },
+    "RecipeVersions1024.dc.html": {
+      "x": 0,
+      "y": 14556,
+      "w": 1024,
+      "h": 717,
+      "title": "Recipe versions, proposal, 1024 px (web)",
+      "expand": "fill"
+    },
+    "RecipeVersions768.dc.html": {
+      "x": 1104,
+      "y": 14556,
+      "w": 768,
+      "h": 869,
+      "title": "Recipe versions, proposal, 768 px (web)",
+      "expand": "fill"
+    },
+    "RecipeVersions834Mobile.dc.html": {
+      "x": 2422,
+      "y": 14556,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe versions, proposal, 834 px (mobile)"
+    },
+    "RecipeVersionsScrolled834Mobile.dc.html": {
+      "x": 4610,
+      "y": 14556,
+      "w": 834,
+      "h": 1194,
+      "title": "Version history, scrolled, 834 px (mobile)"
+    },
+    "RecipeVersions1194Mobile.dc.html": {
+      "x": 3336,
+      "y": 14556,
+      "w": 1194,
+      "h": 834,
+      "title": "Recipe versions, proposal, 1194 px (mobile)"
+    }
+  },
+  "order": [
+    "RecipeDetail.dc.html",
+    "RecipeDetailMobile.dc.html",
+    "RecipeDetailScrolled.dc.html",
+    "RecipeDetailScrolledMobile.dc.html",
+    "RecipeDetailIngredientsOpenMobile.dc.html",
+    "RecipeDetailNutritionOpenMobile.dc.html",
+    "RecipeDetailMenu.dc.html",
+    "RecipeDetailReaderMenu.dc.html",
+    "RecipeDetailMenuMobile.dc.html",
+    "RecipeDetailReaderMenuMobile.dc.html",
+    "RecipeDetailReader.dc.html",
+    "RecipeDetailReaderMobile.dc.html",
+    "RecipeRating.dc.html",
+    "RecipeRatingMobile.dc.html",
+    "RecipeComments.dc.html",
+    "RecipeCommentsMobile.dc.html",
+    "RecipeCommentsYours.dc.html",
+    "RecipeCommentsYoursMobile.dc.html",
+    "RecipeCommentDelete.dc.html",
+    "RecipeCommentDeleteMobile.dc.html",
+    "RecipeDetailPhotoLightbox.dc.html",
+    "RecipeDetailPhotoLightboxMobile.dc.html",
+    "RecipeDeleteDialog.dc.html",
+    "RecipeDeleteDialogMobile.dc.html",
+    "RecipeMakePublicDialog.dc.html",
+    "RecipeMakePublicDialogMobile.dc.html",
+    "RecipeVisibilityFailed.dc.html",
+    "RecipeVisibilityFailedMobile.dc.html",
+    "RecipeUpsellSheet.dc.html",
+    "RecipeUpsellSheetMobile.dc.html",
+    "RecipeSaveCopy.dc.html",
+    "RecipeSaveCopyMobile.dc.html",
+    "RecipeRatingStates.dc.html",
+    "RecipeRatingStatesMobile.dc.html",
+    "RecipeDetailReviewMatches.dc.html",
+    "RecipeDetailReviewMatchesMobile.dc.html",
+    "RecipeDetailReviewMatchesStates.dc.html",
+    "RecipeDetailReviewMatchesStatesMobile.dc.html",
+    "RecipeDetailLoading.dc.html",
+    "RecipeDetailLoadingMobile.dc.html",
+    "RecipeDetailDeleted.dc.html",
+    "RecipeDetailDeletedMobile.dc.html",
+    "RecipeDetailRefreshFailed.dc.html",
+    "RecipeDetailRefreshFailedMobile.dc.html",
+    "RecipeDetailEmptySections.dc.html",
+    "RecipeDetailEmptySectionsMobile.dc.html",
+    "RecipeDetailScaled.dc.html",
+    "RecipeDetailScaledMobile.dc.html",
+    "RecipeDetailIngredientNotices.dc.html",
+    "RecipeDetailIngredientNoticesMobile.dc.html",
+    "RecipeDetailRemovedFoods.dc.html",
+    "RecipeDetailRemovedFoodsMobile.dc.html",
+    "RecipeDetailCopiedPrivateFoods.dc.html",
+    "RecipeDetailCopiedPrivateFoodsMobile.dc.html",
+    "RecipeDetailNutritionStates.dc.html",
+    "RecipeDetailNutritionStatesMobile.dc.html",
+    "RecipeLoadError.dc.html",
+    "RecipeLoadErrorMobile.dc.html",
+    "RecipeNotFound.dc.html",
+    "RecipeNotFoundMobile.dc.html",
+    "RecipeDetail1024.dc.html",
+    "RecipeDetail768.dc.html",
+    "RecipeDetail834Mobile.dc.html",
+    "RecipeDetail1194Mobile.dc.html",
+    "RecipeDetailCooking.dc.html",
+    "RecipeDetailCookingMobile.dc.html",
+    "RecipeDetailCooking1024.dc.html",
+    "RecipeDetailCooking768.dc.html",
+    "RecipeDetailCooking834Mobile.dc.html",
+    "RecipeDetailCooking1194Mobile.dc.html",
+    "RecipeVersions.dc.html",
+    "RecipeVersionsMobile.dc.html",
+    "RecipeVersionsScrolledMobile.dc.html",
+    "RecipeVersionsEmpty.dc.html",
+    "RecipeVersionsEmptyMobile.dc.html",
+    "RecipeVersionsLoading.dc.html",
+    "RecipeVersionsLoadingMobile.dc.html",
+    "RecipeVersionsError.dc.html",
+    "RecipeVersionsErrorMobile.dc.html",
+    "RecipeVersionsRestore.dc.html",
+    "RecipeVersionsRestoreMobile.dc.html",
+    "RecipeVersionPreview.dc.html",
+    "RecipeVersionPreviewMobile.dc.html",
+    "RecipeVersionPreviewStates.dc.html",
+    "RecipeVersionPreviewStatesMobile.dc.html",
+    "RecipeVersionCompare.dc.html",
+    "RecipeVersionCompareMobile.dc.html",
+    "RecipeVersions1024.dc.html",
+    "RecipeVersions768.dc.html",
+    "RecipeVersions834Mobile.dc.html",
+    "RecipeVersionsScrolled834Mobile.dc.html",
+    "RecipeVersions1194Mobile.dc.html"
+  ],
+  "notes": {
+    "row10": {
+      "x": 0,
+      "y": 0,
+      "text": "Recipe detail",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row11": {
+      "x": 0,
+      "y": 3864,
+      "text": "Recipe detail: breakpoints",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row36": {
+      "x": 0,
+      "y": 7548,
+      "text": "Recipe detail: cooking in progress",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row12": {
+      "x": 0,
+      "y": 11508,
+      "text": "Recipe versions",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row13": {
+      "x": 0,
+      "y": 14296,
+      "text": "Recipe versions: breakpoints",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

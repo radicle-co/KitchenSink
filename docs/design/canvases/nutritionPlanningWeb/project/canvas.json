@@ -1,0 +1,137 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:32Z"
+  },
+  "title": "Commise Screens, web: Nutrition planning",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "NutritionGoalsEmptyWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Nutrition planning, goals empty (web, 1280)"
+    },
+    "NutritionDashboardWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Nutrition planning, dashboard (web, 1280)"
+    },
+    "NutritionGoalSetupWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Nutrition planning, goal setup (web, 1280)"
+    },
+    "NutritionMealBreakdownWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Nutrition planning, meal breakdown (web, 1280)"
+    },
+    "NutritionBelowGoalWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Nutrition planning, below goal (web, 1280)"
+    },
+    "NutritionSwapsProWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Nutrition planning, swaps pro (web, 1280)"
+    },
+    "NutritionGoalsEmptyWeb390.dc.html": {
+      "x": 0,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Nutrition planning, goals empty (web, 390)"
+    },
+    "NutritionDashboardWeb390.dc.html": {
+      "x": 470,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Nutrition planning, dashboard (web, 390)"
+    },
+    "NutritionGoalSetupWeb390.dc.html": {
+      "x": 940,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Nutrition planning, goal setup (web, 390)"
+    },
+    "NutritionMealBreakdownWeb390.dc.html": {
+      "x": 1410,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Nutrition planning, meal breakdown (web, 390)"
+    },
+    "NutritionBelowGoalWeb390.dc.html": {
+      "x": 1880,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Nutrition planning, below goal (web, 390)"
+    },
+    "NutritionSwapsProWeb390.dc.html": {
+      "x": 2350,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Nutrition planning, swaps pro (web, 390)"
+    }
+  },
+  "order": [
+    "NutritionGoalsEmptyWeb1280.dc.html",
+    "NutritionDashboardWeb1280.dc.html",
+    "NutritionGoalSetupWeb1280.dc.html",
+    "NutritionMealBreakdownWeb1280.dc.html",
+    "NutritionBelowGoalWeb1280.dc.html",
+    "NutritionSwapsProWeb1280.dc.html",
+    "NutritionGoalsEmptyWeb390.dc.html",
+    "NutritionDashboardWeb390.dc.html",
+    "NutritionGoalSetupWeb390.dc.html",
+    "NutritionMealBreakdownWeb390.dc.html",
+    "NutritionBelowGoalWeb390.dc.html",
+    "NutritionSwapsProWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Nutrition planning: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1460,
+      "text": "Nutrition planning: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

@@ -1,0 +1,543 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T05:52:09Z"
+  },
+  "title": "Commise Screens, web: Recipes and collections",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "RecipesWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 1523,
+      "title": "My recipes, proposal (web, 1280)"
+    },
+    "RecipesLoadingWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 786,
+      "title": "My recipes, loading, proposal (web, 1280)"
+    },
+    "RecipesErrorWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 760,
+      "title": "My recipes, could not load, proposal (web, 1280)"
+    },
+    "RecipesEmptyWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 760,
+      "title": "My recipes, empty, proposal (web, 1280)"
+    },
+    "RecipesNoMatchWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 1908,
+      "title": "My recipes, no match, proposal (web, 1280)"
+    },
+    "RecipesLoadMoreWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 1999,
+      "title": "My recipes, load more, proposal (web, 1280)"
+    },
+    "RecipesSortWeb1280.dc.html": {
+      "x": 8160,
+      "y": 260,
+      "w": 1280,
+      "h": 1521,
+      "title": "My recipes, sort, proposal (web, 1280)"
+    },
+    "CollectionsWeb1280.dc.html": {
+      "x": 9520,
+      "y": 260,
+      "w": 1280,
+      "h": 872,
+      "title": "Collections, proposal (web, 1280)"
+    },
+    "CollectionsLoadingWeb1280.dc.html": {
+      "x": 10880,
+      "y": 260,
+      "w": 1280,
+      "h": 760,
+      "title": "Collections, loading, proposal (web, 1280)"
+    },
+    "CollectionsErrorWeb1280.dc.html": {
+      "x": 12240,
+      "y": 260,
+      "w": 1280,
+      "h": 760,
+      "title": "Collections, could not load, proposal (web, 1280)"
+    },
+    "CollectionsEmptyWeb1280.dc.html": {
+      "x": 13600,
+      "y": 260,
+      "w": 1280,
+      "h": 848,
+      "title": "Collections, empty, proposal (web, 1280)"
+    },
+    "CollectionsNoMatchWeb1280.dc.html": {
+      "x": 14960,
+      "y": 260,
+      "w": 1280,
+      "h": 760,
+      "title": "Collections, no match, proposal (web, 1280)"
+    },
+    "NewCollectionSheetWeb1280.dc.html": {
+      "x": 16320,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Collections, new collection, proposal (web, 1280)"
+    },
+    "NewCollectionSheetErrorsWeb1280.dc.html": {
+      "x": 17680,
+      "y": 260,
+      "w": 1280,
+      "h": 1940,
+      "title": "Collections, new collection: problems, proposal (web, 1280)"
+    },
+    "CollectionDetailWeb1280.dc.html": {
+      "x": 19040,
+      "y": 260,
+      "w": 1280,
+      "h": 984,
+      "title": "Collection detail, proposal (web, 1280)"
+    },
+    "CollectionMakePublicDialogWeb1280.dc.html": {
+      "x": 20400,
+      "y": 260,
+      "w": 1280,
+      "h": 937,
+      "title": "Collection detail, make public?, proposal (web, 1280)"
+    },
+    "CollectionUpsellSheetWeb1280.dc.html": {
+      "x": 21760,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Collection detail, Premium for private, proposal (web, 1280)"
+    },
+    "CollectionPullUpdatesWeb1280.dc.html": {
+      "x": 23120,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Collection detail, pull updates, proposal (web, 1280)"
+    },
+    "CollectionRecipePickerWeb1280.dc.html": {
+      "x": 24480,
+      "y": 260,
+      "w": 1280,
+      "h": 820,
+      "title": "Collection detail, add recipes, proposal (web, 1280)"
+    },
+    "CollectionRecipePickerStatesWeb1280.dc.html": {
+      "x": 25840,
+      "y": 260,
+      "w": 1280,
+      "h": 1811,
+      "title": "Collection detail, add recipes: states, proposal (web, 1280)"
+    },
+    "CollectionPullUpdatesStatesWeb1280.dc.html": {
+      "x": 27200,
+      "y": 260,
+      "w": 1280,
+      "h": 944,
+      "title": "Collection detail, pull updates: states, proposal (web, 1280)"
+    },
+    "CollectionDetailLoadingWeb1280.dc.html": {
+      "x": 28560,
+      "y": 260,
+      "w": 1280,
+      "h": 760,
+      "title": "Collection detail, loading (web, 1280)"
+    },
+    "CollectionDetailNotFoundWeb1280.dc.html": {
+      "x": 29920,
+      "y": 260,
+      "w": 1280,
+      "h": 760,
+      "title": "Collection detail, not found or failed (web, 1280)"
+    },
+    "CollectionDetailEmptyWeb1280.dc.html": {
+      "x": 31280,
+      "y": 260,
+      "w": 1280,
+      "h": 760,
+      "title": "Collection detail, empty, proposal (web, 1280)"
+    },
+    "CollectionDetailAlertsWeb1280.dc.html": {
+      "x": 32640,
+      "y": 260,
+      "w": 1280,
+      "h": 1144,
+      "title": "Collection detail, actions failed, proposal (web, 1280)"
+    },
+    "CollectionRenameSheetWeb1280.dc.html": {
+      "x": 34000,
+      "y": 260,
+      "w": 1280,
+      "h": 868,
+      "title": "Collection detail, rename, proposal (web, 1280)"
+    },
+    "CollectionDeleteDialogWeb1280.dc.html": {
+      "x": 35360,
+      "y": 260,
+      "w": 1280,
+      "h": 704,
+      "title": "Collection detail, delete? (web, 1280)"
+    },
+    "RecipesWeb1024.dc.html": {
+      "x": 0,
+      "y": 2919,
+      "w": 1024,
+      "h": 1513,
+      "title": "My recipes, proposal (web, 1024)"
+    },
+    "CollectionsWeb1024.dc.html": {
+      "x": 1104,
+      "y": 2919,
+      "w": 1024,
+      "h": 866,
+      "title": "Collections, proposal (web, 1024)"
+    },
+    "CollectionDetailWeb1024.dc.html": {
+      "x": 2208,
+      "y": 2919,
+      "w": 1024,
+      "h": 988,
+      "title": "Collection detail, proposal (web, 1024)"
+    },
+    "RecipesWeb768.dc.html": {
+      "x": 0,
+      "y": 5092,
+      "w": 768,
+      "h": 2543,
+      "title": "My recipes, proposal (web, 768)"
+    },
+    "CollectionsWeb768.dc.html": {
+      "x": 848,
+      "y": 5092,
+      "w": 768,
+      "h": 1359,
+      "title": "Collections, proposal (web, 768)"
+    },
+    "CollectionDetailWeb768.dc.html": {
+      "x": 1696,
+      "y": 5092,
+      "w": 768,
+      "h": 1525,
+      "title": "Collection detail, proposal (web, 768)"
+    },
+    "RecipesWeb390.dc.html": {
+      "x": 0,
+      "y": 8295,
+      "w": 390,
+      "h": 1700,
+      "title": "My recipes (web, 390)"
+    },
+    "RecipesLoadingWeb390.dc.html": {
+      "x": 470,
+      "y": 8295,
+      "w": 390,
+      "h": 994,
+      "title": "My recipes, loading (web, 390)"
+    },
+    "RecipesErrorWeb390.dc.html": {
+      "x": 940,
+      "y": 8295,
+      "w": 390,
+      "h": 622,
+      "title": "My recipes, could not load (web, 390)"
+    },
+    "RecipesEmptyWeb390.dc.html": {
+      "x": 1410,
+      "y": 8295,
+      "w": 390,
+      "h": 624,
+      "title": "My recipes, empty (web, 390)"
+    },
+    "RecipesNoMatchWeb390.dc.html": {
+      "x": 1880,
+      "y": 8295,
+      "w": 390,
+      "h": 1982,
+      "title": "My recipes, no match (web, 390)"
+    },
+    "RecipesLoadMoreWeb390.dc.html": {
+      "x": 2350,
+      "y": 8295,
+      "w": 390,
+      "h": 1882,
+      "title": "My recipes, load more (web, 390)"
+    },
+    "RecipesSortWeb390.dc.html": {
+      "x": 2820,
+      "y": 8295,
+      "w": 390,
+      "h": 951,
+      "title": "My recipes, sort (web, 390)"
+    },
+    "CollectionsWeb390.dc.html": {
+      "x": 3290,
+      "y": 8295,
+      "w": 390,
+      "h": 1250,
+      "title": "Collections (web, 390)"
+    },
+    "CollectionsLoadingWeb390.dc.html": {
+      "x": 3760,
+      "y": 8295,
+      "w": 390,
+      "h": 866,
+      "title": "Collections, loading (web, 390)"
+    },
+    "CollectionsErrorWeb390.dc.html": {
+      "x": 4230,
+      "y": 8295,
+      "w": 390,
+      "h": 622,
+      "title": "Collections, could not load (web, 390)"
+    },
+    "CollectionsEmptyWeb390.dc.html": {
+      "x": 4700,
+      "y": 8295,
+      "w": 390,
+      "h": 1050,
+      "title": "Collections, empty (web, 390)"
+    },
+    "CollectionsNoMatchWeb390.dc.html": {
+      "x": 5170,
+      "y": 8295,
+      "w": 390,
+      "h": 698,
+      "title": "Collections, no match (web, 390)"
+    },
+    "NewCollectionSheetWeb390.dc.html": {
+      "x": 5640,
+      "y": 8295,
+      "w": 390,
+      "h": 844,
+      "title": "Collections, new collection (web, 390)"
+    },
+    "NewCollectionSheetErrorsWeb390.dc.html": {
+      "x": 6110,
+      "y": 8295,
+      "w": 390,
+      "h": 2240,
+      "title": "Collections, new collection: problems (web, 390)"
+    },
+    "CollectionDetailWeb390.dc.html": {
+      "x": 6580,
+      "y": 8295,
+      "w": 390,
+      "h": 1354,
+      "title": "Collection detail (web, 390)"
+    },
+    "CollectionDetailScrolledWeb390.dc.html": {
+      "x": 7050,
+      "y": 8295,
+      "w": 390,
+      "h": 844,
+      "title": "Collection detail, scrolled (web, 390)"
+    },
+    "CollectionMakePublicDialogWeb390.dc.html": {
+      "x": 7520,
+      "y": 8295,
+      "w": 390,
+      "h": 1104,
+      "title": "Collection detail, make public? (web, 390)"
+    },
+    "CollectionUpsellSheetWeb390.dc.html": {
+      "x": 7990,
+      "y": 8295,
+      "w": 390,
+      "h": 844,
+      "title": "Collection detail, Premium for private (web, 390)"
+    },
+    "CollectionPullUpdatesWeb390.dc.html": {
+      "x": 8460,
+      "y": 8295,
+      "w": 390,
+      "h": 1879,
+      "title": "Collection detail, pull updates (web, 390)"
+    },
+    "CollectionRecipePickerWeb390.dc.html": {
+      "x": 8930,
+      "y": 8295,
+      "w": 390,
+      "h": 844,
+      "title": "Collection detail, add recipes (web, 390)"
+    },
+    "CollectionRecipePickerStatesWeb390.dc.html": {
+      "x": 9400,
+      "y": 8295,
+      "w": 390,
+      "h": 2802,
+      "title": "Collection detail, add recipes: states (web, 390)"
+    },
+    "CollectionPullUpdatesStatesWeb390.dc.html": {
+      "x": 9870,
+      "y": 8295,
+      "w": 390,
+      "h": 1937,
+      "title": "Collection detail, pull updates: states (web, 390)"
+    },
+    "CollectionDetailLoadingWeb390.dc.html": {
+      "x": 10340,
+      "y": 8295,
+      "w": 390,
+      "h": 773,
+      "title": "Collection detail, loading (web, 390)"
+    },
+    "CollectionDetailNotFoundWeb390.dc.html": {
+      "x": 10810,
+      "y": 8295,
+      "w": 390,
+      "h": 826,
+      "title": "Collection detail, not found or failed (web, 390)"
+    },
+    "CollectionDetailEmptyWeb390.dc.html": {
+      "x": 11280,
+      "y": 8295,
+      "w": 390,
+      "h": 690,
+      "title": "Collection detail, empty (web, 390)"
+    },
+    "CollectionDetailAlertsWeb390.dc.html": {
+      "x": 11750,
+      "y": 8295,
+      "w": 390,
+      "h": 1606,
+      "title": "Collection detail, actions failed (web, 390)"
+    },
+    "CollectionRenameSheetWeb390.dc.html": {
+      "x": 12220,
+      "y": 8295,
+      "w": 390,
+      "h": 930,
+      "title": "Collection detail, rename (web, 390)"
+    },
+    "CollectionDeleteDialogWeb390.dc.html": {
+      "x": 12690,
+      "y": 8295,
+      "w": 390,
+      "h": 1238,
+      "title": "Collection detail, delete? (web, 390)"
+    }
+  },
+  "order": [
+    "RecipesWeb1280.dc.html",
+    "RecipesLoadingWeb1280.dc.html",
+    "RecipesErrorWeb1280.dc.html",
+    "RecipesEmptyWeb1280.dc.html",
+    "RecipesNoMatchWeb1280.dc.html",
+    "RecipesLoadMoreWeb1280.dc.html",
+    "RecipesSortWeb1280.dc.html",
+    "CollectionsWeb1280.dc.html",
+    "CollectionsLoadingWeb1280.dc.html",
+    "CollectionsErrorWeb1280.dc.html",
+    "CollectionsEmptyWeb1280.dc.html",
+    "CollectionsNoMatchWeb1280.dc.html",
+    "NewCollectionSheetWeb1280.dc.html",
+    "NewCollectionSheetErrorsWeb1280.dc.html",
+    "CollectionDetailWeb1280.dc.html",
+    "CollectionMakePublicDialogWeb1280.dc.html",
+    "CollectionUpsellSheetWeb1280.dc.html",
+    "CollectionPullUpdatesWeb1280.dc.html",
+    "CollectionRecipePickerWeb1280.dc.html",
+    "CollectionRecipePickerStatesWeb1280.dc.html",
+    "CollectionPullUpdatesStatesWeb1280.dc.html",
+    "CollectionDetailLoadingWeb1280.dc.html",
+    "CollectionDetailNotFoundWeb1280.dc.html",
+    "CollectionDetailEmptyWeb1280.dc.html",
+    "CollectionDetailAlertsWeb1280.dc.html",
+    "CollectionRenameSheetWeb1280.dc.html",
+    "CollectionDeleteDialogWeb1280.dc.html",
+    "RecipesWeb1024.dc.html",
+    "CollectionsWeb1024.dc.html",
+    "CollectionDetailWeb1024.dc.html",
+    "RecipesWeb768.dc.html",
+    "CollectionsWeb768.dc.html",
+    "CollectionDetailWeb768.dc.html",
+    "RecipesWeb390.dc.html",
+    "RecipesLoadingWeb390.dc.html",
+    "RecipesErrorWeb390.dc.html",
+    "RecipesEmptyWeb390.dc.html",
+    "RecipesNoMatchWeb390.dc.html",
+    "RecipesLoadMoreWeb390.dc.html",
+    "RecipesSortWeb390.dc.html",
+    "CollectionsWeb390.dc.html",
+    "CollectionsLoadingWeb390.dc.html",
+    "CollectionsErrorWeb390.dc.html",
+    "CollectionsEmptyWeb390.dc.html",
+    "CollectionsNoMatchWeb390.dc.html",
+    "NewCollectionSheetWeb390.dc.html",
+    "NewCollectionSheetErrorsWeb390.dc.html",
+    "CollectionDetailWeb390.dc.html",
+    "CollectionDetailScrolledWeb390.dc.html",
+    "CollectionMakePublicDialogWeb390.dc.html",
+    "CollectionUpsellSheetWeb390.dc.html",
+    "CollectionPullUpdatesWeb390.dc.html",
+    "CollectionRecipePickerWeb390.dc.html",
+    "CollectionRecipePickerStatesWeb390.dc.html",
+    "CollectionPullUpdatesStatesWeb390.dc.html",
+    "CollectionDetailLoadingWeb390.dc.html",
+    "CollectionDetailNotFoundWeb390.dc.html",
+    "CollectionDetailEmptyWeb390.dc.html",
+    "CollectionDetailAlertsWeb390.dc.html",
+    "CollectionRenameSheetWeb390.dc.html",
+    "CollectionDeleteDialogWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Recipes and collections: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 2659,
+      "text": "Recipes and collections: web 1024",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 4832,
+      "text": "Recipes and collections: web 768",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row3": {
+      "x": 0,
+      "y": 8035,
+      "text": "Recipes and collections: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

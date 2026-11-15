@@ -105,6 +105,13 @@ export const MANDATED: readonly Mandate[] = [
             /(^|\/)(next-env\.d\.ts|not-found\.tsx|global-not-found\.tsx|global-error\.tsx|instrumentation-client\.ts)$/u,
         mandatedBy: 'Next.js — App Router special files resolved by name, and the `next-env.d.ts` it generates',
     },
+    {
+        // They mirror claude.ai artifact paths byte for byte: the boards load these files by name.
+        pattern: /^docs\/design\/canvases\/[A-Za-z0-9]+\/project\//u,
+        mandatedBy:
+            'the claude.ai Design canvases — each board loads its fonts and styles by path (`tokens.css` names ' +
+            '`fonts/Inter_400Regular.ttf`), and the snapshot keeps the published paths unchanged',
+    },
 ];
 
 /** Whether any dot-separated segment of the file's name carries a hyphen or an underscore. Pure. */

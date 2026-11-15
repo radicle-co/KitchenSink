@@ -88,7 +88,11 @@ export interface DiscoveredService {
  * @sideEffect Shells out to git and stats the working tree.
  */
 export function trackedFiles(relativeDir: string): readonly string[] {
-    return execFileSync('git', ['ls-files', '--', relativeDir], { cwd: repoRoot, encoding: 'utf8' })
+    return execFileSync('git', ['ls-files', '--', relativeDir], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        maxBuffer: 1024 * 1024 * 64,
+    })
         .split('\n')
         .filter((file) => file.length > 0 && existsSync(path.join(repoRoot, file)));
 }

@@ -1,0 +1,600 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:33Z"
+  },
+  "title": "Commise Screens, mobile: Recipe importing",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "ImportAddRecipeIphone390.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, add recipe (mobile, iPhone 390)"
+    },
+    "ImportLinkProgressIphone390.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, link progress (mobile, iPhone 390)"
+    },
+    "ImportReviewDraftIphone390.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 1151,
+      "title": "Recipe importing, review draft (mobile, iPhone 390)"
+    },
+    "ImportAlreadyImportedIphone390.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, already imported (mobile, iPhone 390)"
+    },
+    "ImportImportFailedIphone390.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, import failed (mobile, iPhone 390)"
+    },
+    "ImportPaidSiteBlockedIphone390.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, paid site blocked (mobile, iPhone 390)"
+    },
+    "ImportPasteTextIphone390.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, paste text (mobile, iPhone 390)"
+    },
+    "ImportBookSavedIphone390.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, book saved (mobile, iPhone 390)"
+    },
+    "ImportLinkPrivateOnlyIphone390.dc.html": {
+      "x": 3760,
+      "y": 260,
+      "w": 390,
+      "h": 1171,
+      "title": "Recipe importing, link private only (mobile, iPhone 390)"
+    },
+    "ImportPasteNoAiCheckIphone390.dc.html": {
+      "x": 4230,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, paste no ai check (mobile, iPhone 390)"
+    },
+    "ImportVideoProgressIphone390.dc.html": {
+      "x": 4700,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, video progress (mobile, iPhone 390)"
+    },
+    "ImportVideoPickRecipesIphone390.dc.html": {
+      "x": 5170,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, video pick recipes (mobile, iPhone 390)"
+    },
+    "ImportShareCaptureIphone390.dc.html": {
+      "x": 5640,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, share capture (mobile, iPhone 390)"
+    },
+    "ImportModeChoiceIphone390.dc.html": {
+      "x": 6110,
+      "y": 260,
+      "w": 390,
+      "h": 1298,
+      "title": "Recipe importing, mode choice (mobile, iPhone 390)"
+    },
+    "ImportWizardStepIphone390.dc.html": {
+      "x": 6580,
+      "y": 260,
+      "w": 390,
+      "h": 1595,
+      "title": "Recipe importing, wizard step (mobile, iPhone 390)"
+    },
+    "ImportWizardStatesIphone390.dc.html": {
+      "x": 7050,
+      "y": 260,
+      "w": 390,
+      "h": 2213,
+      "title": "Recipe importing, wizard states (mobile, iPhone 390)"
+    },
+    "ImportWizardLeaveIphone390.dc.html": {
+      "x": 7520,
+      "y": 260,
+      "w": 390,
+      "h": 1595,
+      "title": "Recipe importing, wizard leave (mobile, iPhone 390)"
+    },
+    "ImportWizardSummaryIphone390.dc.html": {
+      "x": 7990,
+      "y": 260,
+      "w": 390,
+      "h": 1204,
+      "title": "Recipe importing, wizard summary (mobile, iPhone 390)"
+    },
+    "ImportFlaggedLineIphone390.dc.html": {
+      "x": 8460,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, flagged line (mobile, iPhone 390)"
+    },
+    "ImportStatementsIphone390.dc.html": {
+      "x": 8930,
+      "y": 260,
+      "w": 390,
+      "h": 1578,
+      "title": "Recipe importing, statements (mobile, iPhone 390)"
+    },
+    "ImportLimitReachedIphone390.dc.html": {
+      "x": 9400,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, limit reached (mobile, iPhone 390)"
+    },
+    "ImportLibraryProgressIphone390.dc.html": {
+      "x": 9870,
+      "y": 260,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe importing, library progress (mobile, iPhone 390)"
+    },
+    "ImportLibraryResultsIphone390.dc.html": {
+      "x": 10340,
+      "y": 260,
+      "w": 390,
+      "h": 1281,
+      "title": "Recipe importing, library results (mobile, iPhone 390)"
+    },
+    "ImportAddRecipeAndroid384.dc.html": {
+      "x": 0,
+      "y": 3133,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe importing, add recipe (mobile, Android 384)"
+    },
+    "ImportLinkProgressAndroid384.dc.html": {
+      "x": 464,
+      "y": 3133,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe importing, link progress (mobile, Android 384)"
+    },
+    "ImportReviewDraftAndroid384.dc.html": {
+      "x": 928,
+      "y": 3133,
+      "w": 384,
+      "h": 1108,
+      "title": "Recipe importing, review draft (mobile, Android 384)"
+    },
+    "ImportAlreadyImportedAndroid384.dc.html": {
+      "x": 1392,
+      "y": 3133,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe importing, already imported (mobile, Android 384)"
+    },
+    "ImportImportFailedAndroid384.dc.html": {
+      "x": 1856,
+      "y": 3133,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe importing, import failed (mobile, Android 384)"
+    },
+    "ImportPaidSiteBlockedAndroid384.dc.html": {
+      "x": 2320,
+      "y": 3133,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe importing, paid site blocked (mobile, Android 384)"
+    },
+    "ImportPasteTextAndroid384.dc.html": {
+      "x": 2784,
+      "y": 3133,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe importing, paste text (mobile, Android 384)"
+    },
+    "ImportBookSavedAndroid384.dc.html": {
+      "x": 3248,
+      "y": 3133,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe importing, book saved (mobile, Android 384)"
+    },
+    "ImportLinkPrivateOnlyAndroid384.dc.html": {
+      "x": 3712,
+      "y": 3133,
+      "w": 384,
+      "h": 1128,
+      "title": "Recipe importing, link private only (mobile, Android 384)"
+    },
+    "ImportPasteNoAiCheckAndroid384.dc.html": {
+      "x": 4176,
+      "y": 3133,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe importing, paste no ai check (mobile, Android 384)"
+    },
+    "ImportVideoProgressAndroid384.dc.html": {
+      "x": 4640,
+      "y": 3133,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe importing, video progress (mobile, Android 384)"
+    },
+    "ImportVideoPickRecipesAndroid384.dc.html": {
+      "x": 5104,
+      "y": 3133,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe importing, video pick recipes (mobile, Android 384)"
+    },
+    "ImportShareCaptureAndroid384.dc.html": {
+      "x": 5568,
+      "y": 3133,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe importing, share capture (mobile, Android 384)"
+    },
+    "ImportModeChoiceAndroid384.dc.html": {
+      "x": 6032,
+      "y": 3133,
+      "w": 384,
+      "h": 1255,
+      "title": "Recipe importing, mode choice (mobile, Android 384)"
+    },
+    "ImportWizardStepAndroid384.dc.html": {
+      "x": 6496,
+      "y": 3133,
+      "w": 384,
+      "h": 1552,
+      "title": "Recipe importing, wizard step (mobile, Android 384)"
+    },
+    "ImportWizardStatesAndroid384.dc.html": {
+      "x": 6960,
+      "y": 3133,
+      "w": 384,
+      "h": 2170,
+      "title": "Recipe importing, wizard states (mobile, Android 384)"
+    },
+    "ImportWizardLeaveAndroid384.dc.html": {
+      "x": 7424,
+      "y": 3133,
+      "w": 384,
+      "h": 1552,
+      "title": "Recipe importing, wizard leave (mobile, Android 384)"
+    },
+    "ImportWizardSummaryAndroid384.dc.html": {
+      "x": 7888,
+      "y": 3133,
+      "w": 384,
+      "h": 1161,
+      "title": "Recipe importing, wizard summary (mobile, Android 384)"
+    },
+    "ImportFlaggedLineAndroid384.dc.html": {
+      "x": 8352,
+      "y": 3133,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe importing, flagged line (mobile, Android 384)"
+    },
+    "ImportStatementsAndroid384.dc.html": {
+      "x": 8816,
+      "y": 3133,
+      "w": 384,
+      "h": 1535,
+      "title": "Recipe importing, statements (mobile, Android 384)"
+    },
+    "ImportLimitReachedAndroid384.dc.html": {
+      "x": 9280,
+      "y": 3133,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe importing, limit reached (mobile, Android 384)"
+    },
+    "ImportLibraryProgressAndroid384.dc.html": {
+      "x": 9744,
+      "y": 3133,
+      "w": 384,
+      "h": 947,
+      "title": "Recipe importing, library progress (mobile, Android 384)"
+    },
+    "ImportLibraryResultsAndroid384.dc.html": {
+      "x": 10208,
+      "y": 3133,
+      "w": 384,
+      "h": 1238,
+      "title": "Recipe importing, library results (mobile, Android 384)"
+    },
+    "ImportAddRecipeIpad820.dc.html": {
+      "x": 0,
+      "y": 5963,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe importing, add recipe (mobile, iPad 820)"
+    },
+    "ImportLinkProgressIpad820.dc.html": {
+      "x": 900,
+      "y": 5963,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe importing, link progress (mobile, iPad 820)"
+    },
+    "ImportReviewDraftIpad820.dc.html": {
+      "x": 1800,
+      "y": 5963,
+      "w": 820,
+      "h": 1479,
+      "title": "Recipe importing, review draft (mobile, iPad 820)"
+    },
+    "ImportAlreadyImportedIpad820.dc.html": {
+      "x": 2700,
+      "y": 5963,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe importing, already imported (mobile, iPad 820)"
+    },
+    "ImportImportFailedIpad820.dc.html": {
+      "x": 3600,
+      "y": 5963,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe importing, import failed (mobile, iPad 820)"
+    },
+    "ImportPaidSiteBlockedIpad820.dc.html": {
+      "x": 4500,
+      "y": 5963,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe importing, paid site blocked (mobile, iPad 820)"
+    },
+    "ImportPasteTextIpad820.dc.html": {
+      "x": 5400,
+      "y": 5963,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe importing, paste text (mobile, iPad 820)"
+    },
+    "ImportBookSavedIpad820.dc.html": {
+      "x": 6300,
+      "y": 5963,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe importing, book saved (mobile, iPad 820)"
+    },
+    "ImportLinkPrivateOnlyIpad820.dc.html": {
+      "x": 7200,
+      "y": 5963,
+      "w": 820,
+      "h": 1499,
+      "title": "Recipe importing, link private only (mobile, iPad 820)"
+    },
+    "ImportPasteNoAiCheckIpad820.dc.html": {
+      "x": 8100,
+      "y": 5963,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe importing, paste no ai check (mobile, iPad 820)"
+    },
+    "ImportVideoProgressIpad820.dc.html": {
+      "x": 9000,
+      "y": 5963,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe importing, video progress (mobile, iPad 820)"
+    },
+    "ImportVideoPickRecipesIpad820.dc.html": {
+      "x": 9900,
+      "y": 5963,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe importing, video pick recipes (mobile, iPad 820)"
+    },
+    "ImportShareCaptureIpad820.dc.html": {
+      "x": 10800,
+      "y": 5963,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe importing, share capture (mobile, iPad 820)"
+    },
+    "ImportModeChoiceIpad820.dc.html": {
+      "x": 11700,
+      "y": 5963,
+      "w": 820,
+      "h": 1265,
+      "title": "Recipe importing, mode choice (mobile, iPad 820)"
+    },
+    "ImportWizardStepIpad820.dc.html": {
+      "x": 12600,
+      "y": 5963,
+      "w": 820,
+      "h": 1588,
+      "title": "Recipe importing, wizard step (mobile, iPad 820)"
+    },
+    "ImportWizardStatesIpad820.dc.html": {
+      "x": 13500,
+      "y": 5963,
+      "w": 820,
+      "h": 1457,
+      "title": "Recipe importing, wizard states (mobile, iPad 820)"
+    },
+    "ImportWizardLeaveIpad820.dc.html": {
+      "x": 14400,
+      "y": 5963,
+      "w": 820,
+      "h": 1588,
+      "title": "Recipe importing, wizard leave (mobile, iPad 820)"
+    },
+    "ImportWizardSummaryIpad820.dc.html": {
+      "x": 15300,
+      "y": 5963,
+      "w": 820,
+      "h": 1265,
+      "title": "Recipe importing, wizard summary (mobile, iPad 820)"
+    },
+    "ImportFlaggedLineIpad820.dc.html": {
+      "x": 16200,
+      "y": 5963,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe importing, flagged line (mobile, iPad 820)"
+    },
+    "ImportStatementsIpad820.dc.html": {
+      "x": 17100,
+      "y": 5963,
+      "w": 820,
+      "h": 1444,
+      "title": "Recipe importing, statements (mobile, iPad 820)"
+    },
+    "ImportLimitReachedIpad820.dc.html": {
+      "x": 18000,
+      "y": 5963,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe importing, limit reached (mobile, iPad 820)"
+    },
+    "ImportLibraryProgressIpad820.dc.html": {
+      "x": 18900,
+      "y": 5963,
+      "w": 820,
+      "h": 1265,
+      "title": "Recipe importing, library progress (mobile, iPad 820)"
+    },
+    "ImportLibraryResultsIpad820.dc.html": {
+      "x": 19800,
+      "y": 5963,
+      "w": 820,
+      "h": 1265,
+      "title": "Recipe importing, library results (mobile, iPad 820)"
+    }
+  },
+  "order": [
+    "ImportAddRecipeIphone390.dc.html",
+    "ImportLinkProgressIphone390.dc.html",
+    "ImportReviewDraftIphone390.dc.html",
+    "ImportAlreadyImportedIphone390.dc.html",
+    "ImportImportFailedIphone390.dc.html",
+    "ImportPaidSiteBlockedIphone390.dc.html",
+    "ImportPasteTextIphone390.dc.html",
+    "ImportBookSavedIphone390.dc.html",
+    "ImportLinkPrivateOnlyIphone390.dc.html",
+    "ImportPasteNoAiCheckIphone390.dc.html",
+    "ImportVideoProgressIphone390.dc.html",
+    "ImportVideoPickRecipesIphone390.dc.html",
+    "ImportShareCaptureIphone390.dc.html",
+    "ImportModeChoiceIphone390.dc.html",
+    "ImportWizardStepIphone390.dc.html",
+    "ImportWizardStatesIphone390.dc.html",
+    "ImportWizardLeaveIphone390.dc.html",
+    "ImportWizardSummaryIphone390.dc.html",
+    "ImportFlaggedLineIphone390.dc.html",
+    "ImportStatementsIphone390.dc.html",
+    "ImportLimitReachedIphone390.dc.html",
+    "ImportLibraryProgressIphone390.dc.html",
+    "ImportLibraryResultsIphone390.dc.html",
+    "ImportAddRecipeAndroid384.dc.html",
+    "ImportLinkProgressAndroid384.dc.html",
+    "ImportReviewDraftAndroid384.dc.html",
+    "ImportAlreadyImportedAndroid384.dc.html",
+    "ImportImportFailedAndroid384.dc.html",
+    "ImportPaidSiteBlockedAndroid384.dc.html",
+    "ImportPasteTextAndroid384.dc.html",
+    "ImportBookSavedAndroid384.dc.html",
+    "ImportLinkPrivateOnlyAndroid384.dc.html",
+    "ImportPasteNoAiCheckAndroid384.dc.html",
+    "ImportVideoProgressAndroid384.dc.html",
+    "ImportVideoPickRecipesAndroid384.dc.html",
+    "ImportShareCaptureAndroid384.dc.html",
+    "ImportModeChoiceAndroid384.dc.html",
+    "ImportWizardStepAndroid384.dc.html",
+    "ImportWizardStatesAndroid384.dc.html",
+    "ImportWizardLeaveAndroid384.dc.html",
+    "ImportWizardSummaryAndroid384.dc.html",
+    "ImportFlaggedLineAndroid384.dc.html",
+    "ImportStatementsAndroid384.dc.html",
+    "ImportLimitReachedAndroid384.dc.html",
+    "ImportLibraryProgressAndroid384.dc.html",
+    "ImportLibraryResultsAndroid384.dc.html",
+    "ImportAddRecipeIpad820.dc.html",
+    "ImportLinkProgressIpad820.dc.html",
+    "ImportReviewDraftIpad820.dc.html",
+    "ImportAlreadyImportedIpad820.dc.html",
+    "ImportImportFailedIpad820.dc.html",
+    "ImportPaidSiteBlockedIpad820.dc.html",
+    "ImportPasteTextIpad820.dc.html",
+    "ImportBookSavedIpad820.dc.html",
+    "ImportLinkPrivateOnlyIpad820.dc.html",
+    "ImportPasteNoAiCheckIpad820.dc.html",
+    "ImportVideoProgressIpad820.dc.html",
+    "ImportVideoPickRecipesIpad820.dc.html",
+    "ImportShareCaptureIpad820.dc.html",
+    "ImportModeChoiceIpad820.dc.html",
+    "ImportWizardStepIpad820.dc.html",
+    "ImportWizardStatesIpad820.dc.html",
+    "ImportWizardLeaveIpad820.dc.html",
+    "ImportWizardSummaryIpad820.dc.html",
+    "ImportFlaggedLineIpad820.dc.html",
+    "ImportStatementsIpad820.dc.html",
+    "ImportLimitReachedIpad820.dc.html",
+    "ImportLibraryProgressIpad820.dc.html",
+    "ImportLibraryResultsIpad820.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Recipe importing: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 2873,
+      "text": "Recipe importing: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 5703,
+      "text": "Recipe importing: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

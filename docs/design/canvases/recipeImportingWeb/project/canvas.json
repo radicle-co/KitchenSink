@@ -1,0 +1,409 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:33Z"
+  },
+  "title": "Commise Screens, web: Recipe importing",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "ImportAddRecipeWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, add recipe (web, 1280)"
+    },
+    "ImportLinkProgressWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, link progress (web, 1280)"
+    },
+    "ImportReviewDraftWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe importing, review draft (web, 1280)"
+    },
+    "ImportAlreadyImportedWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, already imported (web, 1280)"
+    },
+    "ImportImportFailedWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, import failed (web, 1280)"
+    },
+    "ImportPaidSiteBlockedWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, paid site blocked (web, 1280)"
+    },
+    "ImportPasteTextWeb1280.dc.html": {
+      "x": 8160,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, paste text (web, 1280)"
+    },
+    "ImportBookSavedWeb1280.dc.html": {
+      "x": 9520,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, book saved (web, 1280)"
+    },
+    "ImportLinkPrivateOnlyWeb1280.dc.html": {
+      "x": 10880,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe importing, link private only (web, 1280)"
+    },
+    "ImportPasteNoAiCheckWeb1280.dc.html": {
+      "x": 12240,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, paste no ai check (web, 1280)"
+    },
+    "ImportVideoProgressWeb1280.dc.html": {
+      "x": 13600,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, video progress (web, 1280)"
+    },
+    "ImportVideoPickRecipesWeb1280.dc.html": {
+      "x": 14960,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, video pick recipes (web, 1280)"
+    },
+    "ImportShareCaptureWeb1280.dc.html": {
+      "x": 16320,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, share capture (web, 1280)"
+    },
+    "ImportModeChoiceWeb1280.dc.html": {
+      "x": 17680,
+      "y": 260,
+      "w": 1280,
+      "h": 940,
+      "title": "Recipe importing, mode choice (web, 1280)"
+    },
+    "ImportWizardStepWeb1280.dc.html": {
+      "x": 19040,
+      "y": 260,
+      "w": 1280,
+      "h": 880,
+      "title": "Recipe importing, wizard step (web, 1280)"
+    },
+    "ImportWizardStatesWeb1280.dc.html": {
+      "x": 20400,
+      "y": 260,
+      "w": 1280,
+      "h": 1230,
+      "title": "Recipe importing, wizard states (web, 1280)"
+    },
+    "ImportWizardLeaveWeb1280.dc.html": {
+      "x": 21760,
+      "y": 260,
+      "w": 1280,
+      "h": 880,
+      "title": "Recipe importing, wizard leave (web, 1280)"
+    },
+    "ImportWizardSummaryWeb1280.dc.html": {
+      "x": 23120,
+      "y": 260,
+      "w": 1280,
+      "h": 930,
+      "title": "Recipe importing, wizard summary (web, 1280)"
+    },
+    "ImportFlaggedLineWeb1280.dc.html": {
+      "x": 24480,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, flagged line (web, 1280)"
+    },
+    "ImportStatementsWeb1280.dc.html": {
+      "x": 25840,
+      "y": 260,
+      "w": 1280,
+      "h": 1480,
+      "title": "Recipe importing, statements (web, 1280)"
+    },
+    "ImportLimitReachedWeb1280.dc.html": {
+      "x": 27200,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, limit reached (web, 1280)"
+    },
+    "ImportLibraryProgressWeb1280.dc.html": {
+      "x": 28560,
+      "y": 260,
+      "w": 1280,
+      "h": 840,
+      "title": "Recipe importing, library progress (web, 1280)"
+    },
+    "ImportLibraryResultsWeb1280.dc.html": {
+      "x": 29920,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe importing, library results (web, 1280)"
+    },
+    "ImportAddRecipeWeb390.dc.html": {
+      "x": 0,
+      "y": 2400,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, add recipe (web, 390)"
+    },
+    "ImportLinkProgressWeb390.dc.html": {
+      "x": 470,
+      "y": 2400,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, link progress (web, 390)"
+    },
+    "ImportReviewDraftWeb390.dc.html": {
+      "x": 940,
+      "y": 2400,
+      "w": 390,
+      "h": 1340,
+      "title": "Recipe importing, review draft (web, 390)"
+    },
+    "ImportAlreadyImportedWeb390.dc.html": {
+      "x": 1410,
+      "y": 2400,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, already imported (web, 390)"
+    },
+    "ImportImportFailedWeb390.dc.html": {
+      "x": 1880,
+      "y": 2400,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, import failed (web, 390)"
+    },
+    "ImportPaidSiteBlockedWeb390.dc.html": {
+      "x": 2350,
+      "y": 2400,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, paid site blocked (web, 390)"
+    },
+    "ImportPasteTextWeb390.dc.html": {
+      "x": 2820,
+      "y": 2400,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, paste text (web, 390)"
+    },
+    "ImportBookSavedWeb390.dc.html": {
+      "x": 3290,
+      "y": 2400,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, book saved (web, 390)"
+    },
+    "ImportLinkPrivateOnlyWeb390.dc.html": {
+      "x": 3760,
+      "y": 2400,
+      "w": 390,
+      "h": 1340,
+      "title": "Recipe importing, link private only (web, 390)"
+    },
+    "ImportPasteNoAiCheckWeb390.dc.html": {
+      "x": 4230,
+      "y": 2400,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, paste no ai check (web, 390)"
+    },
+    "ImportVideoProgressWeb390.dc.html": {
+      "x": 4700,
+      "y": 2400,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, video progress (web, 390)"
+    },
+    "ImportVideoPickRecipesWeb390.dc.html": {
+      "x": 5170,
+      "y": 2400,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, video pick recipes (web, 390)"
+    },
+    "ImportShareCaptureWeb390.dc.html": {
+      "x": 5640,
+      "y": 2400,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, share capture (web, 390)"
+    },
+    "ImportModeChoiceWeb390.dc.html": {
+      "x": 6110,
+      "y": 2400,
+      "w": 390,
+      "h": 1260,
+      "title": "Recipe importing, mode choice (web, 390)"
+    },
+    "ImportWizardStepWeb390.dc.html": {
+      "x": 6580,
+      "y": 2400,
+      "w": 390,
+      "h": 1530,
+      "title": "Recipe importing, wizard step (web, 390)"
+    },
+    "ImportWizardStatesWeb390.dc.html": {
+      "x": 7050,
+      "y": 2400,
+      "w": 390,
+      "h": 2160,
+      "title": "Recipe importing, wizard states (web, 390)"
+    },
+    "ImportWizardLeaveWeb390.dc.html": {
+      "x": 7520,
+      "y": 2400,
+      "w": 390,
+      "h": 1530,
+      "title": "Recipe importing, wizard leave (web, 390)"
+    },
+    "ImportWizardSummaryWeb390.dc.html": {
+      "x": 7990,
+      "y": 2400,
+      "w": 390,
+      "h": 1174,
+      "title": "Recipe importing, wizard summary (web, 390)"
+    },
+    "ImportFlaggedLineWeb390.dc.html": {
+      "x": 8460,
+      "y": 2400,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, flagged line (web, 390)"
+    },
+    "ImportStatementsWeb390.dc.html": {
+      "x": 8930,
+      "y": 2400,
+      "w": 390,
+      "h": 1600,
+      "title": "Recipe importing, statements (web, 390)"
+    },
+    "ImportLimitReachedWeb390.dc.html": {
+      "x": 9400,
+      "y": 2400,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, limit reached (web, 390)"
+    },
+    "ImportLibraryProgressWeb390.dc.html": {
+      "x": 9870,
+      "y": 2400,
+      "w": 390,
+      "h": 924,
+      "title": "Recipe importing, library progress (web, 390)"
+    },
+    "ImportLibraryResultsWeb390.dc.html": {
+      "x": 10340,
+      "y": 2400,
+      "w": 390,
+      "h": 1200,
+      "title": "Recipe importing, library results (web, 390)"
+    }
+  },
+  "order": [
+    "ImportAddRecipeWeb1280.dc.html",
+    "ImportLinkProgressWeb1280.dc.html",
+    "ImportReviewDraftWeb1280.dc.html",
+    "ImportAlreadyImportedWeb1280.dc.html",
+    "ImportImportFailedWeb1280.dc.html",
+    "ImportPaidSiteBlockedWeb1280.dc.html",
+    "ImportPasteTextWeb1280.dc.html",
+    "ImportBookSavedWeb1280.dc.html",
+    "ImportLinkPrivateOnlyWeb1280.dc.html",
+    "ImportPasteNoAiCheckWeb1280.dc.html",
+    "ImportVideoProgressWeb1280.dc.html",
+    "ImportVideoPickRecipesWeb1280.dc.html",
+    "ImportShareCaptureWeb1280.dc.html",
+    "ImportModeChoiceWeb1280.dc.html",
+    "ImportWizardStepWeb1280.dc.html",
+    "ImportWizardStatesWeb1280.dc.html",
+    "ImportWizardLeaveWeb1280.dc.html",
+    "ImportWizardSummaryWeb1280.dc.html",
+    "ImportFlaggedLineWeb1280.dc.html",
+    "ImportStatementsWeb1280.dc.html",
+    "ImportLimitReachedWeb1280.dc.html",
+    "ImportLibraryProgressWeb1280.dc.html",
+    "ImportLibraryResultsWeb1280.dc.html",
+    "ImportAddRecipeWeb390.dc.html",
+    "ImportLinkProgressWeb390.dc.html",
+    "ImportReviewDraftWeb390.dc.html",
+    "ImportAlreadyImportedWeb390.dc.html",
+    "ImportImportFailedWeb390.dc.html",
+    "ImportPaidSiteBlockedWeb390.dc.html",
+    "ImportPasteTextWeb390.dc.html",
+    "ImportBookSavedWeb390.dc.html",
+    "ImportLinkPrivateOnlyWeb390.dc.html",
+    "ImportPasteNoAiCheckWeb390.dc.html",
+    "ImportVideoProgressWeb390.dc.html",
+    "ImportVideoPickRecipesWeb390.dc.html",
+    "ImportShareCaptureWeb390.dc.html",
+    "ImportModeChoiceWeb390.dc.html",
+    "ImportWizardStepWeb390.dc.html",
+    "ImportWizardStatesWeb390.dc.html",
+    "ImportWizardLeaveWeb390.dc.html",
+    "ImportWizardSummaryWeb390.dc.html",
+    "ImportFlaggedLineWeb390.dc.html",
+    "ImportStatementsWeb390.dc.html",
+    "ImportLimitReachedWeb390.dc.html",
+    "ImportLibraryProgressWeb390.dc.html",
+    "ImportLibraryResultsWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Recipe importing: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 2140,
+      "text": "Recipe importing: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

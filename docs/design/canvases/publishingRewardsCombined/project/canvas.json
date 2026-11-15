@@ -1,0 +1,208 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-27T19:13:01Z"
+  },
+  "title": "Commise Screens: Publishing rewards",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "RewardPublishMobile.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, publish (phone)"
+    },
+    "RewardSlotsMobile.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, slots (phone)"
+    },
+    "RewardUnpublishMobile.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, unpublish (phone)"
+    },
+    "RewardCannotPublishMobile.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, cannot publish (phone)"
+    },
+    "RewardCookedByOthersMobile.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, cooked by others (phone)"
+    },
+    "RewardPublish834Mobile.dc.html": {
+      "x": 0,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Publishing rewards, publish (tablet 834 px)"
+    },
+    "RewardSlots834Mobile.dc.html": {
+      "x": 914,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Publishing rewards, slots (tablet 834 px)"
+    },
+    "RewardUnpublish834Mobile.dc.html": {
+      "x": 1828,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Publishing rewards, unpublish (tablet 834 px)"
+    },
+    "RewardCannotPublish834Mobile.dc.html": {
+      "x": 2742,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Publishing rewards, cannot publish (tablet 834 px)"
+    },
+    "RewardCookedByOthers834Mobile.dc.html": {
+      "x": 3656,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Publishing rewards, cooked by others (tablet 834 px)"
+    },
+    "RewardPublish1194Mobile.dc.html": {
+      "x": 4570,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Publishing rewards, publish (tablet 1194 px)"
+    },
+    "RewardSlots1194Mobile.dc.html": {
+      "x": 5844,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Publishing rewards, slots (tablet 1194 px)"
+    },
+    "RewardUnpublish1194Mobile.dc.html": {
+      "x": 7118,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Publishing rewards, unpublish (tablet 1194 px)"
+    },
+    "RewardCannotPublish1194Mobile.dc.html": {
+      "x": 8392,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Publishing rewards, cannot publish (tablet 1194 px)"
+    },
+    "RewardCookedByOthers1194Mobile.dc.html": {
+      "x": 9666,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Publishing rewards, cooked by others (tablet 1194 px)"
+    },
+    "RewardPublish.dc.html": {
+      "x": 0,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Publishing rewards, publish (web)"
+    },
+    "RewardSlots.dc.html": {
+      "x": 1360,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Publishing rewards, slots (web)"
+    },
+    "RewardUnpublish.dc.html": {
+      "x": 2720,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Publishing rewards, unpublish (web)"
+    },
+    "RewardCannotPublish.dc.html": {
+      "x": 4080,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Publishing rewards, cannot publish (web)"
+    },
+    "RewardCookedByOthers.dc.html": {
+      "x": 5440,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Publishing rewards, cooked by others (web)"
+    }
+  },
+  "order": [
+    "RewardPublishMobile.dc.html",
+    "RewardSlotsMobile.dc.html",
+    "RewardUnpublishMobile.dc.html",
+    "RewardCannotPublishMobile.dc.html",
+    "RewardCookedByOthersMobile.dc.html",
+    "RewardPublish834Mobile.dc.html",
+    "RewardSlots834Mobile.dc.html",
+    "RewardUnpublish834Mobile.dc.html",
+    "RewardCannotPublish834Mobile.dc.html",
+    "RewardCookedByOthers834Mobile.dc.html",
+    "RewardPublish1194Mobile.dc.html",
+    "RewardSlots1194Mobile.dc.html",
+    "RewardUnpublish1194Mobile.dc.html",
+    "RewardCannotPublish1194Mobile.dc.html",
+    "RewardCookedByOthers1194Mobile.dc.html",
+    "RewardPublish.dc.html",
+    "RewardSlots.dc.html",
+    "RewardUnpublish.dc.html",
+    "RewardCannotPublish.dc.html",
+    "RewardCookedByOthers.dc.html"
+  ],
+  "notes": {
+    "row30": {
+      "x": 0,
+      "y": 0,
+      "text": "Publishing rewards: phone",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row31": {
+      "x": 0,
+      "y": 1224,
+      "text": "Publishing rewards: tablet",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row32": {
+      "x": 0,
+      "y": 2798,
+      "text": "Publishing rewards: web",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

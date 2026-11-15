@@ -1,0 +1,654 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T05:52:09Z"
+  },
+  "title": "Commise Screens, mobile: Cooking mode",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "CookingModeEntryIphone390.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, entry (mobile, iPhone 390)"
+    },
+    "CookingModeEntryInProgressIphone390.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, entry in progress (mobile, iPhone 390)"
+    },
+    "CookingModeResumeIphone390.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, resume (mobile, iPhone 390)"
+    },
+    "CookingModeResumeTimerDoneIphone390.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, resume timer done (mobile, iPhone 390)"
+    },
+    "CookingModeResumeEarlierIphone390.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, resume earlier (mobile, iPhone 390)"
+    },
+    "CookingModeEntryEndedIphone390.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, entry ended (mobile, iPhone 390)"
+    },
+    "CookingModeBeforeIphone390.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, before (mobile, iPhone 390)"
+    },
+    "CookingModeStepIphone390.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, step (mobile, iPhone 390)"
+    },
+    "CookingModeStepTickedIphone390.dc.html": {
+      "x": 3760,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, step ticked (mobile, iPhone 390)"
+    },
+    "CookingModeStepJumpedIphone390.dc.html": {
+      "x": 4230,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, step jumped (mobile, iPhone 390)"
+    },
+    "CookingModeNextComingIphone390.dc.html": {
+      "x": 4700,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, next coming (mobile, iPhone 390)"
+    },
+    "CookingModeWaitIphone390.dc.html": {
+      "x": 5170,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, wait (mobile, iPhone 390)"
+    },
+    "CookingModeTwoTimersIphone390.dc.html": {
+      "x": 5640,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, two timers (mobile, iPhone 390)"
+    },
+    "CookingModeJobInProgressIphone390.dc.html": {
+      "x": 6110,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, job in progress (mobile, iPhone 390)"
+    },
+    "CookingModeStepFiveIphone390.dc.html": {
+      "x": 6580,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, step five (mobile, iPhone 390)"
+    },
+    "CookingModeTimerDoneIphone390.dc.html": {
+      "x": 7050,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, timer done (mobile, iPhone 390)"
+    },
+    "CookingModeOtherRecipeTimerIphone390.dc.html": {
+      "x": 7520,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, other recipe timer (mobile, iPhone 390)"
+    },
+    "CookingModeTimerDoneLockedIphone390.dc.html": {
+      "x": 7990,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, timer done locked (mobile, iPhone 390)"
+    },
+    "CookingModeTimerNoticeIphone390.dc.html": {
+      "x": 8460,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, timer notice (mobile, iPhone 390)"
+    },
+    "CookingModeTimerBannerIphone390.dc.html": {
+      "x": 8930,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, timer banner (mobile, iPhone 390)"
+    },
+    "CookingModeAlarmsOffIphone390.dc.html": {
+      "x": 9400,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, alarms off (mobile, iPhone 390)"
+    },
+    "CookingModeIngredientsIphone390.dc.html": {
+      "x": 9870,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, ingredients (mobile, iPhone 390)"
+    },
+    "CookingModeAllStepsIphone390.dc.html": {
+      "x": 10340,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, all steps (mobile, iPhone 390)"
+    },
+    "CookingModeDoneIphone390.dc.html": {
+      "x": 10810,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, done (mobile, iPhone 390)"
+    },
+    "CookingModeEntryAndroid384.dc.html": {
+      "x": 0,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, entry (mobile, Android 384)"
+    },
+    "CookingModeEntryInProgressAndroid384.dc.html": {
+      "x": 464,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, entry in progress (mobile, Android 384)"
+    },
+    "CookingModeResumeAndroid384.dc.html": {
+      "x": 928,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, resume (mobile, Android 384)"
+    },
+    "CookingModeResumeTimerDoneAndroid384.dc.html": {
+      "x": 1392,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, resume timer done (mobile, Android 384)"
+    },
+    "CookingModeResumeEarlierAndroid384.dc.html": {
+      "x": 1856,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, resume earlier (mobile, Android 384)"
+    },
+    "CookingModeEntryEndedAndroid384.dc.html": {
+      "x": 2320,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, entry ended (mobile, Android 384)"
+    },
+    "CookingModeBeforeAndroid384.dc.html": {
+      "x": 2784,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, before (mobile, Android 384)"
+    },
+    "CookingModeStepAndroid384.dc.html": {
+      "x": 3248,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, step (mobile, Android 384)"
+    },
+    "CookingModeStepTickedAndroid384.dc.html": {
+      "x": 3712,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, step ticked (mobile, Android 384)"
+    },
+    "CookingModeStepJumpedAndroid384.dc.html": {
+      "x": 4176,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, step jumped (mobile, Android 384)"
+    },
+    "CookingModeNextComingAndroid384.dc.html": {
+      "x": 4640,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, next coming (mobile, Android 384)"
+    },
+    "CookingModeWaitAndroid384.dc.html": {
+      "x": 5104,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, wait (mobile, Android 384)"
+    },
+    "CookingModeTwoTimersAndroid384.dc.html": {
+      "x": 5568,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, two timers (mobile, Android 384)"
+    },
+    "CookingModeJobInProgressAndroid384.dc.html": {
+      "x": 6032,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, job in progress (mobile, Android 384)"
+    },
+    "CookingModeStepFiveAndroid384.dc.html": {
+      "x": 6496,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, step five (mobile, Android 384)"
+    },
+    "CookingModeTimerDoneAndroid384.dc.html": {
+      "x": 6960,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, timer done (mobile, Android 384)"
+    },
+    "CookingModeOtherRecipeTimerAndroid384.dc.html": {
+      "x": 7424,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, other recipe timer (mobile, Android 384)"
+    },
+    "CookingModeTimerDoneLockedAndroid384.dc.html": {
+      "x": 7888,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, timer done locked (mobile, Android 384)"
+    },
+    "CookingModeTimerNoticeAndroid384.dc.html": {
+      "x": 8352,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, timer notice (mobile, Android 384)"
+    },
+    "CookingModeTimerBannerAndroid384.dc.html": {
+      "x": 8816,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, timer banner (mobile, Android 384)"
+    },
+    "CookingModeAlarmsOffAndroid384.dc.html": {
+      "x": 9280,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, alarms off (mobile, Android 384)"
+    },
+    "CookingModeIngredientsAndroid384.dc.html": {
+      "x": 9744,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, ingredients (mobile, Android 384)"
+    },
+    "CookingModeAllStepsAndroid384.dc.html": {
+      "x": 10208,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, all steps (mobile, Android 384)"
+    },
+    "CookingModeDoneAndroid384.dc.html": {
+      "x": 10672,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Cooking mode, done (mobile, Android 384)"
+    },
+    "CookingModeEntryIpad820.dc.html": {
+      "x": 0,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, entry (mobile, iPad 820)"
+    },
+    "CookingModeEntryInProgressIpad820.dc.html": {
+      "x": 900,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, entry in progress (mobile, iPad 820)"
+    },
+    "CookingModeResumeIpad820.dc.html": {
+      "x": 1800,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, resume (mobile, iPad 820)"
+    },
+    "CookingModeResumeTimerDoneIpad820.dc.html": {
+      "x": 2700,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, resume timer done (mobile, iPad 820)"
+    },
+    "CookingModeResumeEarlierIpad820.dc.html": {
+      "x": 3600,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, resume earlier (mobile, iPad 820)"
+    },
+    "CookingModeEntryEndedIpad820.dc.html": {
+      "x": 4500,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, entry ended (mobile, iPad 820)"
+    },
+    "CookingModeBeforeIpad820.dc.html": {
+      "x": 5400,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, before (mobile, iPad 820)"
+    },
+    "CookingModeStepIpad820.dc.html": {
+      "x": 6300,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, step (mobile, iPad 820)"
+    },
+    "CookingModeStepTickedIpad820.dc.html": {
+      "x": 7200,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, step ticked (mobile, iPad 820)"
+    },
+    "CookingModeStepJumpedIpad820.dc.html": {
+      "x": 8100,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, step jumped (mobile, iPad 820)"
+    },
+    "CookingModeNextComingIpad820.dc.html": {
+      "x": 9000,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, next coming (mobile, iPad 820)"
+    },
+    "CookingModeWaitIpad820.dc.html": {
+      "x": 9900,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, wait (mobile, iPad 820)"
+    },
+    "CookingModeTwoTimersIpad820.dc.html": {
+      "x": 10800,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, two timers (mobile, iPad 820)"
+    },
+    "CookingModeJobInProgressIpad820.dc.html": {
+      "x": 11700,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, job in progress (mobile, iPad 820)"
+    },
+    "CookingModeStepFiveIpad820.dc.html": {
+      "x": 12600,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, step five (mobile, iPad 820)"
+    },
+    "CookingModeTimerDoneIpad820.dc.html": {
+      "x": 13500,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, timer done (mobile, iPad 820)"
+    },
+    "CookingModeOtherRecipeTimerIpad820.dc.html": {
+      "x": 14400,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, other recipe timer (mobile, iPad 820)"
+    },
+    "CookingModeTimerDoneLockedIpad820.dc.html": {
+      "x": 15300,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, timer done locked (mobile, iPad 820)"
+    },
+    "CookingModeTimerNoticeIpad820.dc.html": {
+      "x": 16200,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, timer notice (mobile, iPad 820)"
+    },
+    "CookingModeTimerBannerIpad820.dc.html": {
+      "x": 17100,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, timer banner (mobile, iPad 820)"
+    },
+    "CookingModeAlarmsOffIpad820.dc.html": {
+      "x": 18000,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, alarms off (mobile, iPad 820)"
+    },
+    "CookingModeIngredientsIpad820.dc.html": {
+      "x": 18900,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, ingredients (mobile, iPad 820)"
+    },
+    "CookingModeAllStepsIpad820.dc.html": {
+      "x": 19800,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, all steps (mobile, iPad 820)"
+    },
+    "CookingModeDoneIpad820.dc.html": {
+      "x": 20700,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Cooking mode, done (mobile, iPad 820)"
+    },
+    "CookingModeDockRowS3Mobile.dc.html": {
+      "x": 0,
+      "y": 4700,
+      "w": 2400,
+      "h": 3110,
+      "title": "Cooking mode, S3 dock row (mobile: iPhone 390, Android 384, iPad 820, 320 largest text)"
+    },
+    "CookingModeAlarmGoToStepS3bMobile.dc.html": {
+      "x": 0,
+      "y": 8230,
+      "w": 2400,
+      "h": 3420,
+      "title": "Cooking mode, S3b alarm with \"Stop and go to step\" (mobile)"
+    }
+  },
+  "order": [
+    "CookingModeEntryIphone390.dc.html",
+    "CookingModeEntryInProgressIphone390.dc.html",
+    "CookingModeResumeIphone390.dc.html",
+    "CookingModeResumeTimerDoneIphone390.dc.html",
+    "CookingModeResumeEarlierIphone390.dc.html",
+    "CookingModeEntryEndedIphone390.dc.html",
+    "CookingModeBeforeIphone390.dc.html",
+    "CookingModeStepIphone390.dc.html",
+    "CookingModeStepTickedIphone390.dc.html",
+    "CookingModeStepJumpedIphone390.dc.html",
+    "CookingModeNextComingIphone390.dc.html",
+    "CookingModeWaitIphone390.dc.html",
+    "CookingModeTwoTimersIphone390.dc.html",
+    "CookingModeJobInProgressIphone390.dc.html",
+    "CookingModeStepFiveIphone390.dc.html",
+    "CookingModeTimerDoneIphone390.dc.html",
+    "CookingModeOtherRecipeTimerIphone390.dc.html",
+    "CookingModeTimerDoneLockedIphone390.dc.html",
+    "CookingModeTimerNoticeIphone390.dc.html",
+    "CookingModeTimerBannerIphone390.dc.html",
+    "CookingModeAlarmsOffIphone390.dc.html",
+    "CookingModeIngredientsIphone390.dc.html",
+    "CookingModeAllStepsIphone390.dc.html",
+    "CookingModeDoneIphone390.dc.html",
+    "CookingModeEntryAndroid384.dc.html",
+    "CookingModeEntryInProgressAndroid384.dc.html",
+    "CookingModeResumeAndroid384.dc.html",
+    "CookingModeResumeTimerDoneAndroid384.dc.html",
+    "CookingModeResumeEarlierAndroid384.dc.html",
+    "CookingModeEntryEndedAndroid384.dc.html",
+    "CookingModeBeforeAndroid384.dc.html",
+    "CookingModeStepAndroid384.dc.html",
+    "CookingModeStepTickedAndroid384.dc.html",
+    "CookingModeStepJumpedAndroid384.dc.html",
+    "CookingModeNextComingAndroid384.dc.html",
+    "CookingModeWaitAndroid384.dc.html",
+    "CookingModeTwoTimersAndroid384.dc.html",
+    "CookingModeJobInProgressAndroid384.dc.html",
+    "CookingModeStepFiveAndroid384.dc.html",
+    "CookingModeTimerDoneAndroid384.dc.html",
+    "CookingModeOtherRecipeTimerAndroid384.dc.html",
+    "CookingModeTimerDoneLockedAndroid384.dc.html",
+    "CookingModeTimerNoticeAndroid384.dc.html",
+    "CookingModeTimerBannerAndroid384.dc.html",
+    "CookingModeAlarmsOffAndroid384.dc.html",
+    "CookingModeIngredientsAndroid384.dc.html",
+    "CookingModeAllStepsAndroid384.dc.html",
+    "CookingModeDoneAndroid384.dc.html",
+    "CookingModeEntryIpad820.dc.html",
+    "CookingModeEntryInProgressIpad820.dc.html",
+    "CookingModeResumeIpad820.dc.html",
+    "CookingModeResumeTimerDoneIpad820.dc.html",
+    "CookingModeResumeEarlierIpad820.dc.html",
+    "CookingModeEntryEndedIpad820.dc.html",
+    "CookingModeBeforeIpad820.dc.html",
+    "CookingModeStepIpad820.dc.html",
+    "CookingModeStepTickedIpad820.dc.html",
+    "CookingModeStepJumpedIpad820.dc.html",
+    "CookingModeNextComingIpad820.dc.html",
+    "CookingModeWaitIpad820.dc.html",
+    "CookingModeTwoTimersIpad820.dc.html",
+    "CookingModeJobInProgressIpad820.dc.html",
+    "CookingModeStepFiveIpad820.dc.html",
+    "CookingModeTimerDoneIpad820.dc.html",
+    "CookingModeOtherRecipeTimerIpad820.dc.html",
+    "CookingModeTimerDoneLockedIpad820.dc.html",
+    "CookingModeTimerNoticeIpad820.dc.html",
+    "CookingModeTimerBannerIpad820.dc.html",
+    "CookingModeAlarmsOffIpad820.dc.html",
+    "CookingModeIngredientsIpad820.dc.html",
+    "CookingModeAllStepsIpad820.dc.html",
+    "CookingModeDoneIpad820.dc.html",
+    "CookingModeDockRowS3Mobile.dc.html",
+    "CookingModeAlarmGoToStepS3bMobile.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Cooking mode: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1504,
+      "text": "Cooking mode: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 2996,
+      "text": "Cooking mode: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row3": {
+      "x": 0,
+      "y": 4600,
+      "text": "Cooking mode: S3 dock row (plan 0110)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nCookingModeAlarmGoToStepS3bMobile": {
+      "x": 0,
+      "y": 7970,
+      "text": "Cooking mode: S3b alarm outside cooking mode (plan 0111)",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

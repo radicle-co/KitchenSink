@@ -1,0 +1,161 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:36Z"
+  },
+  "title": "Commise Screens, web: Reports, rules and your rights",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "RightsReportWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, report (web, 1280)"
+    },
+    "RightsReportReceivedWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, report received (web, 1280)"
+    },
+    "RightsStatementOfReasonsWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, statement of reasons (web, 1280)"
+    },
+    "RightsRulesWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, rules (web, 1280)"
+    },
+    "RightsYourDataWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, your data (web, 1280)"
+    },
+    "RightsEraseWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, erase (web, 1280)"
+    },
+    "RightsAiDisclosureWeb1280.dc.html": {
+      "x": 8160,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, ai disclosure (web, 1280)"
+    },
+    "RightsReviewQueueWeb1280.dc.html": {
+      "x": 9520,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, review queue (web, 1280)"
+    },
+    "RightsReportWeb390.dc.html": {
+      "x": 0,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, report (web, 390)"
+    },
+    "RightsReportReceivedWeb390.dc.html": {
+      "x": 470,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, report received (web, 390)"
+    },
+    "RightsStatementOfReasonsWeb390.dc.html": {
+      "x": 940,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, statement of reasons (web, 390)"
+    },
+    "RightsRulesWeb390.dc.html": {
+      "x": 1410,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, rules (web, 390)"
+    },
+    "RightsYourDataWeb390.dc.html": {
+      "x": 1880,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, your data (web, 390)"
+    },
+    "RightsEraseWeb390.dc.html": {
+      "x": 2350,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, erase (web, 390)"
+    },
+    "RightsAiDisclosureWeb390.dc.html": {
+      "x": 2820,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, ai disclosure (web, 390)"
+    }
+  },
+  "order": [
+    "RightsReportWeb1280.dc.html",
+    "RightsReportReceivedWeb1280.dc.html",
+    "RightsStatementOfReasonsWeb1280.dc.html",
+    "RightsRulesWeb1280.dc.html",
+    "RightsYourDataWeb1280.dc.html",
+    "RightsEraseWeb1280.dc.html",
+    "RightsAiDisclosureWeb1280.dc.html",
+    "RightsReviewQueueWeb1280.dc.html",
+    "RightsReportWeb390.dc.html",
+    "RightsReportReceivedWeb390.dc.html",
+    "RightsStatementOfReasonsWeb390.dc.html",
+    "RightsRulesWeb390.dc.html",
+    "RightsYourDataWeb390.dc.html",
+    "RightsEraseWeb390.dc.html",
+    "RightsAiDisclosureWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Reports, rules and your rights: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1520,
+      "text": "Reports, rules and your rights: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

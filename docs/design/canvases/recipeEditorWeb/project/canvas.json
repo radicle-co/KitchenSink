@@ -1,0 +1,1159 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T05:52:09Z"
+  },
+  "title": "Commise Screens, web: Recipe editor",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "RecipeEditorWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 4224,
+      "title": "Recipe editor, proposal (web, 1280)"
+    },
+    "RecipeEditorSheetWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, Paste a list sheet, proposal (web, 1280)"
+    },
+    "RecipeEditorEditExistingWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 4206,
+      "title": "Recipe editor, editing a saved recipe (web, 1280)"
+    },
+    "RecipeEditorEmptyWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 2622,
+      "title": "Recipe editor, new and empty (web, 1280)"
+    },
+    "RecipeEditorReadyUnmatchedWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 2181,
+      "title": "Recipe editor, ready with unmatched ingredients (web, 1280)"
+    },
+    "RecipeEditorFixToPublishWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 3554,
+      "title": "Recipe editor, fix to publish (web, 1280)"
+    },
+    "RecipeEditorLoadingWeb1280.dc.html": {
+      "x": 8160,
+      "y": 260,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe editor, opening a saved recipe (web, 1280)"
+    },
+    "RecipeEditorPreviewWeb1280.dc.html": {
+      "x": 9520,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, preview (web, 1280)"
+    },
+    "RecipeEditorCuisineWeb1280.dc.html": {
+      "x": 10880,
+      "y": 260,
+      "w": 1280,
+      "h": 478,
+      "title": "Recipe editor, cuisine (web, 1280)"
+    },
+    "RecipeEditorPasteStepsWeb1280.dc.html": {
+      "x": 12240,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, paste steps (web, 1280)"
+    },
+    "RecipeEditorPhotosUploadingWeb1280.dc.html": {
+      "x": 13600,
+      "y": 260,
+      "w": 1280,
+      "h": 590,
+      "title": "Recipe editor, photos uploading (web, 1280)"
+    },
+    "RecipeEditorPhotosErrorsWeb1280.dc.html": {
+      "x": 14960,
+      "y": 260,
+      "w": 1280,
+      "h": 1024,
+      "title": "Recipe editor, photo problems (web, 1280)"
+    },
+    "RecipeEditorPhotoSourceWeb1280.dc.html": {
+      "x": 16320,
+      "y": 260,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe editor, add photos sheet (web, 1280)"
+    },
+    "RecipeEditorVisibilityWeb1280.dc.html": {
+      "x": 17680,
+      "y": 260,
+      "w": 1280,
+      "h": 1200,
+      "title": "Recipe editor, who can see it (web, 1280)"
+    },
+    "RecipeEditorSaveStatusWeb1280.dc.html": {
+      "x": 19040,
+      "y": 260,
+      "w": 1280,
+      "h": 1044,
+      "title": "Recipe editor, save status (web, 1280)"
+    },
+    "RecipeEditorResumeWeb1280.dc.html": {
+      "x": 20400,
+      "y": 260,
+      "w": 1280,
+      "h": 724,
+      "title": "Recipe editor, unsaved changes found (web, 1280)"
+    },
+    "RecipeEditorSaveFailedWeb1280.dc.html": {
+      "x": 21760,
+      "y": 260,
+      "w": 1280,
+      "h": 1426,
+      "title": "Recipe editor, save failed (web, 1280)"
+    },
+    "RecipeEditorDiscardDraftWeb1280.dc.html": {
+      "x": 23120,
+      "y": 260,
+      "w": 1280,
+      "h": 940,
+      "title": "Recipe editor, discard this draft? (web, 1280)"
+    },
+    "RecipeEditorDiscardChangesWeb1280.dc.html": {
+      "x": 24480,
+      "y": 260,
+      "w": 1280,
+      "h": 916,
+      "title": "Recipe editor, discard your changes? (web, 1280)"
+    },
+    "RecipeEditorConflictWeb1280.dc.html": {
+      "x": 25840,
+      "y": 260,
+      "w": 1280,
+      "h": 1364,
+      "title": "Recipe editor, changed while you were editing (web, 1280)"
+    },
+    "RecipeEditorConflictDraftWeb1280.dc.html": {
+      "x": 27200,
+      "y": 260,
+      "w": 1280,
+      "h": 1080,
+      "title": "Recipe editor, draft changed elsewhere (web, 1280)"
+    },
+    "RecipeEditorConflictMergeWeb1280.dc.html": {
+      "x": 28560,
+      "y": 260,
+      "w": 1280,
+      "h": 952,
+      "title": "Recipe editor, merge field by field (web, 1280)"
+    },
+    "RecipeEditorConflictStaleBaseWeb1280.dc.html": {
+      "x": 29920,
+      "y": 260,
+      "w": 1280,
+      "h": 1352,
+      "title": "Recipe editor, far behind (web, 1280)"
+    },
+    "RecipeEditorFoodSearchTooShortWeb1280.dc.html": {
+      "x": 31280,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: too short (web, 1280)"
+    },
+    "RecipeEditorFoodSearchSearchingWeb1280.dc.html": {
+      "x": 32640,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: searching (web, 1280)"
+    },
+    "RecipeEditorFoodSearchResultsWeb1280.dc.html": {
+      "x": 34000,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: results (web, 1280)"
+    },
+    "RecipeEditorFoodSearchDefaultWeb1280.dc.html": {
+      "x": 35360,
+      "y": 260,
+      "w": 1280,
+      "h": 1010,
+      "title": "Recipe editor, food search default (web, 1280)"
+    },
+    "RecipeEditorFoodSearchMoreSourcesWeb1280.dc.html": {
+      "x": 36720,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: more sources still searching (web, 1280)"
+    },
+    "RecipeEditorFoodSearchMoreSourcesDoneWeb1280.dc.html": {
+      "x": 38080,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: results from more sources (web, 1280)"
+    },
+    "RecipeEditorFoodSearchNoResultsWeb1280.dc.html": {
+      "x": 39440,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: no matches (web, 1280)"
+    },
+    "RecipeEditorFoodSearchReadingWeb1280.dc.html": {
+      "x": 40800,
+      "y": 260,
+      "w": 1280,
+      "h": 1567,
+      "title": "Recipe editor, food search: reading the typed text (web, 1280)"
+    },
+    "RecipeEditorFoodSearchPickInFlightWeb1280.dc.html": {
+      "x": 42160,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: adding a food (web, 1280)"
+    },
+    "RecipeEditorFoodSearchPickFailedWeb1280.dc.html": {
+      "x": 43520,
+      "y": 260,
+      "w": 1280,
+      "h": 1664,
+      "title": "Recipe editor, food search: a pick did not take (web, 1280)"
+    },
+    "RecipeEditorFoodSearchPendingTextWeb1280.dc.html": {
+      "x": 44880,
+      "y": 260,
+      "w": 1280,
+      "h": 1242,
+      "title": "Recipe editor, food search: text not added (web, 1280)"
+    },
+    "RecipeEditorFoodSearchAddedNeedsChoiceWeb1280.dc.html": {
+      "x": 46240,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: added, needs a choice (web, 1280)"
+    },
+    "RecipeEditorFoodSearchCatalogUnavailableWeb1280.dc.html": {
+      "x": 47600,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: food catalog unavailable (web, 1280)"
+    },
+    "RecipeEditorFoodSearchYourFoodsUnavailableWeb1280.dc.html": {
+      "x": 48960,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: your foods unavailable (web, 1280)"
+    },
+    "RecipeEditorFoodSearchBothUnavailableWeb1280.dc.html": {
+      "x": 50320,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: your foods and catalog unavailable (web, 1280)"
+    },
+    "RecipeEditorFoodSearchFailedWeb1280.dc.html": {
+      "x": 51680,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: search failed (web, 1280)"
+    },
+    "RecipeEditorFoodSearchOfflineWeb1280.dc.html": {
+      "x": 53040,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: offline (web, 1280)"
+    },
+    "RecipeEditorFoodSearchSourceLimitedWeb1280.dc.html": {
+      "x": 54400,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: lookup limit and busy source (web, 1280)"
+    },
+    "RecipeEditorFoodSearchIncompleteWeb1280.dc.html": {
+      "x": 55760,
+      "y": 260,
+      "w": 1280,
+      "h": 900,
+      "title": "Recipe editor, food search: search did not finish (web, 1280)"
+    },
+    "RecipeEditorChangeFoodWeb1280.dc.html": {
+      "x": 57120,
+      "y": 260,
+      "w": 1280,
+      "h": 782,
+      "title": "Recipe editor, change food on a saved recipe (web, 1280)"
+    },
+    "RecipeEditorChangeFoodRefusedWeb1280.dc.html": {
+      "x": 58480,
+      "y": 260,
+      "w": 1280,
+      "h": 1015,
+      "title": "Recipe editor, change food: not saved (web, 1280)"
+    },
+    "RecipeEditorIngredientRowStatesWeb1280.dc.html": {
+      "x": 59840,
+      "y": 260,
+      "w": 1280,
+      "h": 1873,
+      "title": "Recipe editor, every ingredient row state (web, 1280)"
+    },
+    "RecipeEditorIngredientGroupsWeb1280.dc.html": {
+      "x": 61200,
+      "y": 260,
+      "w": 1280,
+      "h": 1200,
+      "title": "Recipe editor, ingredient groups (web, 1280)"
+    },
+    "RecipeEditorRowEditorWeb1280.dc.html": {
+      "x": 62560,
+      "y": 260,
+      "w": 1280,
+      "h": 1138,
+      "title": "Recipe editor, edit an ingredient (web, 1280)"
+    },
+    "RecipeEditorNutritionTotalWeb1280.dc.html": {
+      "x": 63920,
+      "y": 260,
+      "w": 1280,
+      "h": 524,
+      "title": "Recipe editor, nutrition total states (web, 1280)"
+    },
+    "RecipeEditorRowChooseMatchWeb1280.dc.html": {
+      "x": 65280,
+      "y": 260,
+      "w": 1280,
+      "h": 664,
+      "title": "Recipe editor, choose a match (web, 1280)"
+    },
+    "RecipeEditorRowChooseMatchStatesWeb1280.dc.html": {
+      "x": 66640,
+      "y": 260,
+      "w": 1280,
+      "h": 1616,
+      "title": "Recipe editor, choose a match: loading and problems (web, 1280)"
+    },
+    "RecipeEditorRowNeedsReviewWeb1280.dc.html": {
+      "x": 68000,
+      "y": 260,
+      "w": 1280,
+      "h": 411,
+      "title": "Recipe editor, needs review (web, 1280)"
+    },
+    "RecipeEditorRowNoMatchWeb1280.dc.html": {
+      "x": 69360,
+      "y": 260,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe editor, no match found (web, 1280)"
+    },
+    "RecipeEditorRowLookupFailedWeb1280.dc.html": {
+      "x": 70720,
+      "y": 260,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe editor, couldn't look up (web, 1280)"
+    },
+    "RecipeEditorRowFoodRemovedWeb1280.dc.html": {
+      "x": 72080,
+      "y": 260,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe editor, food no longer listed (web, 1280)"
+    },
+    "RecipeEditorRowNutritionWeb1280.dc.html": {
+      "x": 73440,
+      "y": 260,
+      "w": 1280,
+      "h": 1146,
+      "title": "Recipe editor, an ingredient's nutrition (web, 1280)"
+    },
+    "RecipeEditorCreateFoodWeb1280.dc.html": {
+      "x": 74800,
+      "y": 260,
+      "w": 1280,
+      "h": 594,
+      "title": "Recipe editor, create my own food (web, 1280)"
+    },
+    "RecipeEditorCreateFoodErrorsWeb1280.dc.html": {
+      "x": 76160,
+      "y": 260,
+      "w": 1280,
+      "h": 622,
+      "title": "Recipe editor, create my own food: errors (web, 1280)"
+    },
+    "RecipeEditorCreateFoodDuplicateWeb1280.dc.html": {
+      "x": 77520,
+      "y": 260,
+      "w": 1280,
+      "h": 400,
+      "title": "Recipe editor, create my own food: name taken (web, 1280)"
+    },
+    "RecipeEditorFoodDetailsWeb1280.dc.html": {
+      "x": 78880,
+      "y": 260,
+      "w": 1280,
+      "h": 750,
+      "title": "Recipe editor, add details (web, 1280)"
+    },
+    "RecipeEditorFoodDetailsSearchWeb1280.dc.html": {
+      "x": 80240,
+      "y": 260,
+      "w": 1280,
+      "h": 778,
+      "title": "Recipe editor, add details: long list (web, 1280)"
+    },
+    "RecipeEditorFoodDetailsStatesWeb1280.dc.html": {
+      "x": 81600,
+      "y": 260,
+      "w": 1280,
+      "h": 1261,
+      "title": "Recipe editor, add details: loading and problems (web, 1280)"
+    },
+    "RecipeEditorPasteRefusedWeb1280.dc.html": {
+      "x": 82960,
+      "y": 260,
+      "w": 1280,
+      "h": 1945,
+      "title": "Recipe editor, paste a list: refused (web, 1280)"
+    },
+    "RecipeEditorPasteReadingWeb1280.dc.html": {
+      "x": 84320,
+      "y": 260,
+      "w": 1280,
+      "h": 1021,
+      "title": "Recipe editor, paste a list: reading (web, 1280)"
+    },
+    "RecipeEditorPasteNeedsYouWeb1280.dc.html": {
+      "x": 85680,
+      "y": 260,
+      "w": 1280,
+      "h": 1205,
+      "title": "Recipe editor, paste a list: lines need you (web, 1280)"
+    },
+    "RecipeEditorPasteChooseWeb1280.dc.html": {
+      "x": 87040,
+      "y": 260,
+      "w": 1280,
+      "h": 1100,
+      "title": "Recipe editor, paste choose (web, 1280)"
+    },
+    "RecipeEditorPasteChooseStatesWeb1280.dc.html": {
+      "x": 88400,
+      "y": 260,
+      "w": 1280,
+      "h": 1000,
+      "title": "Recipe editor, paste choose states (web, 1280)"
+    },
+    "RecipeEditorPasteStalledWeb1280.dc.html": {
+      "x": 89760,
+      "y": 260,
+      "w": 1280,
+      "h": 1325,
+      "title": "Recipe editor, paste a list: taking longer (web, 1280)"
+    },
+    "RecipeEditorPasteOfflineWeb1280.dc.html": {
+      "x": 91120,
+      "y": 260,
+      "w": 1280,
+      "h": 1095,
+      "title": "Recipe editor, paste a list: offline (web, 1280)"
+    },
+    "RecipeEditorWeb1024.dc.html": {
+      "x": 0,
+      "y": 5144,
+      "w": 1024,
+      "h": 4246,
+      "title": "Recipe editor, proposal (web, 1024)"
+    },
+    "RecipeEditorWeb768.dc.html": {
+      "x": 0,
+      "y": 10050,
+      "w": 768,
+      "h": 4246,
+      "title": "Recipe editor, proposal (web, 768)"
+    },
+    "RecipeEditorWeb390.dc.html": {
+      "x": 0,
+      "y": 14956,
+      "w": 390,
+      "h": 5081,
+      "title": "Recipe editor (web, 390)"
+    },
+    "RecipeEditorSheetWeb390.dc.html": {
+      "x": 470,
+      "y": 14956,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, Paste a list sheet (web, 390)"
+    },
+    "RecipeEditorEditExistingWeb390.dc.html": {
+      "x": 940,
+      "y": 14956,
+      "w": 390,
+      "h": 5037,
+      "title": "Recipe editor, editing a saved recipe (web, 390)"
+    },
+    "RecipeEditorEmptyWeb390.dc.html": {
+      "x": 1410,
+      "y": 14956,
+      "w": 390,
+      "h": 3215,
+      "title": "Recipe editor, new and empty (web, 390)"
+    },
+    "RecipeEditorReadyUnmatchedWeb390.dc.html": {
+      "x": 1880,
+      "y": 14956,
+      "w": 390,
+      "h": 2563,
+      "title": "Recipe editor, ready with unmatched ingredients (web, 390)"
+    },
+    "RecipeEditorFixToPublishWeb390.dc.html": {
+      "x": 2350,
+      "y": 14956,
+      "w": 390,
+      "h": 4279,
+      "title": "Recipe editor, fix to publish (web, 390)"
+    },
+    "RecipeEditorLoadingWeb390.dc.html": {
+      "x": 2820,
+      "y": 14956,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, opening a saved recipe (web, 390)"
+    },
+    "RecipeEditorPreviewWeb390.dc.html": {
+      "x": 3290,
+      "y": 14956,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, preview (web, 390)"
+    },
+    "RecipeEditorCuisineWeb390.dc.html": {
+      "x": 3760,
+      "y": 14956,
+      "w": 390,
+      "h": 1000,
+      "title": "Recipe editor, cuisine (web, 390)"
+    },
+    "RecipeEditorPasteStepsWeb390.dc.html": {
+      "x": 4230,
+      "y": 14956,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, paste steps (web, 390)"
+    },
+    "RecipeEditorPhotosUploadingWeb390.dc.html": {
+      "x": 4700,
+      "y": 14956,
+      "w": 390,
+      "h": 1196,
+      "title": "Recipe editor, photos uploading (web, 390)"
+    },
+    "RecipeEditorPhotosErrorsWeb390.dc.html": {
+      "x": 5170,
+      "y": 14956,
+      "w": 390,
+      "h": 1546,
+      "title": "Recipe editor, photo problems (web, 390)"
+    },
+    "RecipeEditorPhotoSourceWeb390.dc.html": {
+      "x": 5640,
+      "y": 14956,
+      "w": 390,
+      "h": 1756,
+      "title": "Recipe editor, add photos sheet (web, 390)"
+    },
+    "RecipeEditorVisibilityWeb390.dc.html": {
+      "x": 6110,
+      "y": 14956,
+      "w": 390,
+      "h": 2348,
+      "title": "Recipe editor, who can see it (web, 390)"
+    },
+    "RecipeEditorSaveStatusWeb390.dc.html": {
+      "x": 6580,
+      "y": 14956,
+      "w": 390,
+      "h": 1060,
+      "title": "Recipe editor, save status (web, 390)"
+    },
+    "RecipeEditorResumeWeb390.dc.html": {
+      "x": 7050,
+      "y": 14956,
+      "w": 390,
+      "h": 896,
+      "title": "Recipe editor, unsaved changes found (web, 390)"
+    },
+    "RecipeEditorSaveFailedWeb390.dc.html": {
+      "x": 7520,
+      "y": 14956,
+      "w": 390,
+      "h": 1572,
+      "title": "Recipe editor, save failed (web, 390)"
+    },
+    "RecipeEditorDiscardDraftWeb390.dc.html": {
+      "x": 7990,
+      "y": 14956,
+      "w": 390,
+      "h": 2084,
+      "title": "Recipe editor, discard this draft? (web, 390)"
+    },
+    "RecipeEditorDiscardChangesWeb390.dc.html": {
+      "x": 8460,
+      "y": 14956,
+      "w": 390,
+      "h": 1568,
+      "title": "Recipe editor, discard your changes? (web, 390)"
+    },
+    "RecipeEditorConflictWeb390.dc.html": {
+      "x": 8930,
+      "y": 14956,
+      "w": 390,
+      "h": 1590,
+      "title": "Recipe editor, changed while you were editing (web, 390)"
+    },
+    "RecipeEditorConflictDraftWeb390.dc.html": {
+      "x": 9400,
+      "y": 14956,
+      "w": 390,
+      "h": 1254,
+      "title": "Recipe editor, draft changed elsewhere (web, 390)"
+    },
+    "RecipeEditorConflictMergeWeb390.dc.html": {
+      "x": 9870,
+      "y": 14956,
+      "w": 390,
+      "h": 1090,
+      "title": "Recipe editor, merge field by field (web, 390)"
+    },
+    "RecipeEditorConflictStaleBaseWeb390.dc.html": {
+      "x": 10340,
+      "y": 14956,
+      "w": 390,
+      "h": 1668,
+      "title": "Recipe editor, far behind (web, 390)"
+    },
+    "RecipeEditorFoodSearchTooShortWeb390.dc.html": {
+      "x": 10810,
+      "y": 14956,
+      "w": 390,
+      "h": 837,
+      "title": "Recipe editor, food search: too short (web, 390)"
+    },
+    "RecipeEditorFoodSearchSearchingWeb390.dc.html": {
+      "x": 11280,
+      "y": 14956,
+      "w": 390,
+      "h": 979,
+      "title": "Recipe editor, food search: searching (web, 390)"
+    },
+    "RecipeEditorFoodSearchResultsWeb390.dc.html": {
+      "x": 11750,
+      "y": 14956,
+      "w": 390,
+      "h": 1270,
+      "title": "Recipe editor, food search: results (web, 390)"
+    },
+    "RecipeEditorFoodSearchDefaultWeb390.dc.html": {
+      "x": 12220,
+      "y": 14956,
+      "w": 390,
+      "h": 1080,
+      "title": "Recipe editor, food search default (web, 390)"
+    },
+    "RecipeEditorFoodSearchMoreSourcesWeb390.dc.html": {
+      "x": 12690,
+      "y": 14956,
+      "w": 390,
+      "h": 1162,
+      "title": "Recipe editor, food search: more sources still searching (web, 390)"
+    },
+    "RecipeEditorFoodSearchMoreSourcesDoneWeb390.dc.html": {
+      "x": 13160,
+      "y": 14956,
+      "w": 390,
+      "h": 1278,
+      "title": "Recipe editor, food search: results from more sources (web, 390)"
+    },
+    "RecipeEditorFoodSearchNoResultsWeb390.dc.html": {
+      "x": 13630,
+      "y": 14956,
+      "w": 390,
+      "h": 1108,
+      "title": "Recipe editor, food search: no matches (web, 390)"
+    },
+    "RecipeEditorFoodSearchReadingWeb390.dc.html": {
+      "x": 14100,
+      "y": 14956,
+      "w": 390,
+      "h": 1997,
+      "title": "Recipe editor, food search: reading the typed text (web, 390)"
+    },
+    "RecipeEditorFoodSearchPickInFlightWeb390.dc.html": {
+      "x": 14570,
+      "y": 14956,
+      "w": 390,
+      "h": 1004,
+      "title": "Recipe editor, food search: adding a food (web, 390)"
+    },
+    "RecipeEditorFoodSearchPickFailedWeb390.dc.html": {
+      "x": 15040,
+      "y": 14956,
+      "w": 390,
+      "h": 1972,
+      "title": "Recipe editor, food search: a pick did not take (web, 390)"
+    },
+    "RecipeEditorFoodSearchPendingTextWeb390.dc.html": {
+      "x": 15510,
+      "y": 14956,
+      "w": 390,
+      "h": 1526,
+      "title": "Recipe editor, food search: text not added (web, 390)"
+    },
+    "RecipeEditorFoodSearchAddedNeedsChoiceWeb390.dc.html": {
+      "x": 15980,
+      "y": 14956,
+      "w": 390,
+      "h": 1045,
+      "title": "Recipe editor, food search: added, needs a choice (web, 390)"
+    },
+    "RecipeEditorFoodSearchCatalogUnavailableWeb390.dc.html": {
+      "x": 16450,
+      "y": 14956,
+      "w": 390,
+      "h": 1153,
+      "title": "Recipe editor, food search: food catalog unavailable (web, 390)"
+    },
+    "RecipeEditorFoodSearchYourFoodsUnavailableWeb390.dc.html": {
+      "x": 16920,
+      "y": 14956,
+      "w": 390,
+      "h": 1297,
+      "title": "Recipe editor, food search: your foods unavailable (web, 390)"
+    },
+    "RecipeEditorFoodSearchBothUnavailableWeb390.dc.html": {
+      "x": 17390,
+      "y": 14956,
+      "w": 390,
+      "h": 1159,
+      "title": "Recipe editor, food search: your foods and catalog unavailable (web, 390)"
+    },
+    "RecipeEditorFoodSearchFailedWeb390.dc.html": {
+      "x": 17860,
+      "y": 14956,
+      "w": 390,
+      "h": 1055,
+      "title": "Recipe editor, food search: search failed (web, 390)"
+    },
+    "RecipeEditorFoodSearchOfflineWeb390.dc.html": {
+      "x": 18330,
+      "y": 14956,
+      "w": 390,
+      "h": 1083,
+      "title": "Recipe editor, food search: offline (web, 390)"
+    },
+    "RecipeEditorFoodSearchSourceLimitedWeb390.dc.html": {
+      "x": 18800,
+      "y": 14956,
+      "w": 390,
+      "h": 1281,
+      "title": "Recipe editor, food search: lookup limit and busy source (web, 390)"
+    },
+    "RecipeEditorFoodSearchIncompleteWeb390.dc.html": {
+      "x": 19270,
+      "y": 14956,
+      "w": 390,
+      "h": 1223,
+      "title": "Recipe editor, food search: search did not finish (web, 390)"
+    },
+    "RecipeEditorChangeFoodWeb390.dc.html": {
+      "x": 19740,
+      "y": 14956,
+      "w": 390,
+      "h": 1402,
+      "title": "Recipe editor, change food on a saved recipe (web, 390)"
+    },
+    "RecipeEditorChangeFoodRefusedWeb390.dc.html": {
+      "x": 20210,
+      "y": 14956,
+      "w": 390,
+      "h": 1321,
+      "title": "Recipe editor, change food: not saved (web, 390)"
+    },
+    "RecipeEditorIngredientRowStatesWeb390.dc.html": {
+      "x": 20680,
+      "y": 14956,
+      "w": 390,
+      "h": 2113,
+      "title": "Recipe editor, every ingredient row state (web, 390)"
+    },
+    "RecipeEditorIngredientGroupsWeb390.dc.html": {
+      "x": 21150,
+      "y": 14956,
+      "w": 390,
+      "h": 1344,
+      "title": "Recipe editor, ingredient groups (web, 390)"
+    },
+    "RecipeEditorRowEditorWeb390.dc.html": {
+      "x": 21620,
+      "y": 14956,
+      "w": 390,
+      "h": 1000,
+      "title": "Recipe editor, edit an ingredient (web, 390)"
+    },
+    "RecipeEditorNutritionTotalWeb390.dc.html": {
+      "x": 22090,
+      "y": 14956,
+      "w": 390,
+      "h": 556,
+      "title": "Recipe editor, nutrition total states (web, 390)"
+    },
+    "RecipeEditorRowChooseMatchWeb390.dc.html": {
+      "x": 22560,
+      "y": 14956,
+      "w": 390,
+      "h": 1384,
+      "title": "Recipe editor, choose a match (web, 390)"
+    },
+    "RecipeEditorRowChooseMatchStatesWeb390.dc.html": {
+      "x": 23030,
+      "y": 14956,
+      "w": 390,
+      "h": 2358,
+      "title": "Recipe editor, choose a match: loading and problems (web, 390)"
+    },
+    "RecipeEditorRowNeedsReviewWeb390.dc.html": {
+      "x": 23500,
+      "y": 14956,
+      "w": 390,
+      "h": 853,
+      "title": "Recipe editor, needs review (web, 390)"
+    },
+    "RecipeEditorRowNoMatchWeb390.dc.html": {
+      "x": 23970,
+      "y": 14956,
+      "w": 390,
+      "h": 805,
+      "title": "Recipe editor, no match found (web, 390)"
+    },
+    "RecipeEditorRowLookupFailedWeb390.dc.html": {
+      "x": 24440,
+      "y": 14956,
+      "w": 390,
+      "h": 535,
+      "title": "Recipe editor, couldn't look up (web, 390)"
+    },
+    "RecipeEditorRowFoodRemovedWeb390.dc.html": {
+      "x": 24910,
+      "y": 14956,
+      "w": 390,
+      "h": 734,
+      "title": "Recipe editor, food no longer listed (web, 390)"
+    },
+    "RecipeEditorRowNutritionWeb390.dc.html": {
+      "x": 25380,
+      "y": 14956,
+      "w": 390,
+      "h": 1960,
+      "title": "Recipe editor, an ingredient's nutrition (web, 390)"
+    },
+    "RecipeEditorCreateFoodWeb390.dc.html": {
+      "x": 25850,
+      "y": 14956,
+      "w": 390,
+      "h": 1196,
+      "title": "Recipe editor, create my own food (web, 390)"
+    },
+    "RecipeEditorCreateFoodErrorsWeb390.dc.html": {
+      "x": 26320,
+      "y": 14956,
+      "w": 390,
+      "h": 1290,
+      "title": "Recipe editor, create my own food: errors (web, 390)"
+    },
+    "RecipeEditorCreateFoodDuplicateWeb390.dc.html": {
+      "x": 26790,
+      "y": 14956,
+      "w": 390,
+      "h": 638,
+      "title": "Recipe editor, create my own food: name taken (web, 390)"
+    },
+    "RecipeEditorFoodDetailsWeb390.dc.html": {
+      "x": 27260,
+      "y": 14956,
+      "w": 390,
+      "h": 1543,
+      "title": "Recipe editor, add details (web, 390)"
+    },
+    "RecipeEditorFoodDetailsSearchWeb390.dc.html": {
+      "x": 27730,
+      "y": 14956,
+      "w": 390,
+      "h": 1644,
+      "title": "Recipe editor, add details: long list (web, 390)"
+    },
+    "RecipeEditorFoodDetailsStatesWeb390.dc.html": {
+      "x": 28200,
+      "y": 14956,
+      "w": 390,
+      "h": 2189,
+      "title": "Recipe editor, add details: loading and problems (web, 390)"
+    },
+    "RecipeEditorPasteRefusedWeb390.dc.html": {
+      "x": 28670,
+      "y": 14956,
+      "w": 390,
+      "h": 1940,
+      "title": "Recipe editor, paste a list: refused (web, 390)"
+    },
+    "RecipeEditorPasteReadingWeb390.dc.html": {
+      "x": 29140,
+      "y": 14956,
+      "w": 390,
+      "h": 1186,
+      "title": "Recipe editor, paste a list: reading (web, 390)"
+    },
+    "RecipeEditorPasteNeedsYouWeb390.dc.html": {
+      "x": 29610,
+      "y": 14956,
+      "w": 390,
+      "h": 1474,
+      "title": "Recipe editor, paste a list: lines need you (web, 390)"
+    },
+    "RecipeEditorPasteChooseWeb390.dc.html": {
+      "x": 30080,
+      "y": 14956,
+      "w": 390,
+      "h": 1520,
+      "title": "Recipe editor, paste choose (web, 390)"
+    },
+    "RecipeEditorPasteChooseStatesWeb390.dc.html": {
+      "x": 30550,
+      "y": 14956,
+      "w": 390,
+      "h": 1580,
+      "title": "Recipe editor, paste choose states (web, 390)"
+    },
+    "RecipeEditorPasteStalledWeb390.dc.html": {
+      "x": 31020,
+      "y": 14956,
+      "w": 390,
+      "h": 1566,
+      "title": "Recipe editor, paste a list: taking longer (web, 390)"
+    },
+    "RecipeEditorPasteOfflineWeb390.dc.html": {
+      "x": 31490,
+      "y": 14956,
+      "w": 390,
+      "h": 1282,
+      "title": "Recipe editor, paste a list: offline (web, 390)"
+    }
+  },
+  "order": [
+    "RecipeEditorWeb1280.dc.html",
+    "RecipeEditorSheetWeb1280.dc.html",
+    "RecipeEditorEditExistingWeb1280.dc.html",
+    "RecipeEditorEmptyWeb1280.dc.html",
+    "RecipeEditorReadyUnmatchedWeb1280.dc.html",
+    "RecipeEditorFixToPublishWeb1280.dc.html",
+    "RecipeEditorLoadingWeb1280.dc.html",
+    "RecipeEditorPreviewWeb1280.dc.html",
+    "RecipeEditorCuisineWeb1280.dc.html",
+    "RecipeEditorPasteStepsWeb1280.dc.html",
+    "RecipeEditorPhotosUploadingWeb1280.dc.html",
+    "RecipeEditorPhotosErrorsWeb1280.dc.html",
+    "RecipeEditorPhotoSourceWeb1280.dc.html",
+    "RecipeEditorVisibilityWeb1280.dc.html",
+    "RecipeEditorSaveStatusWeb1280.dc.html",
+    "RecipeEditorResumeWeb1280.dc.html",
+    "RecipeEditorSaveFailedWeb1280.dc.html",
+    "RecipeEditorDiscardDraftWeb1280.dc.html",
+    "RecipeEditorDiscardChangesWeb1280.dc.html",
+    "RecipeEditorConflictWeb1280.dc.html",
+    "RecipeEditorConflictDraftWeb1280.dc.html",
+    "RecipeEditorConflictMergeWeb1280.dc.html",
+    "RecipeEditorConflictStaleBaseWeb1280.dc.html",
+    "RecipeEditorFoodSearchTooShortWeb1280.dc.html",
+    "RecipeEditorFoodSearchSearchingWeb1280.dc.html",
+    "RecipeEditorFoodSearchResultsWeb1280.dc.html",
+    "RecipeEditorFoodSearchDefaultWeb1280.dc.html",
+    "RecipeEditorFoodSearchMoreSourcesWeb1280.dc.html",
+    "RecipeEditorFoodSearchMoreSourcesDoneWeb1280.dc.html",
+    "RecipeEditorFoodSearchNoResultsWeb1280.dc.html",
+    "RecipeEditorFoodSearchReadingWeb1280.dc.html",
+    "RecipeEditorFoodSearchPickInFlightWeb1280.dc.html",
+    "RecipeEditorFoodSearchPickFailedWeb1280.dc.html",
+    "RecipeEditorFoodSearchPendingTextWeb1280.dc.html",
+    "RecipeEditorFoodSearchAddedNeedsChoiceWeb1280.dc.html",
+    "RecipeEditorFoodSearchCatalogUnavailableWeb1280.dc.html",
+    "RecipeEditorFoodSearchYourFoodsUnavailableWeb1280.dc.html",
+    "RecipeEditorFoodSearchBothUnavailableWeb1280.dc.html",
+    "RecipeEditorFoodSearchFailedWeb1280.dc.html",
+    "RecipeEditorFoodSearchOfflineWeb1280.dc.html",
+    "RecipeEditorFoodSearchSourceLimitedWeb1280.dc.html",
+    "RecipeEditorFoodSearchIncompleteWeb1280.dc.html",
+    "RecipeEditorChangeFoodWeb1280.dc.html",
+    "RecipeEditorChangeFoodRefusedWeb1280.dc.html",
+    "RecipeEditorIngredientRowStatesWeb1280.dc.html",
+    "RecipeEditorIngredientGroupsWeb1280.dc.html",
+    "RecipeEditorRowEditorWeb1280.dc.html",
+    "RecipeEditorNutritionTotalWeb1280.dc.html",
+    "RecipeEditorRowChooseMatchWeb1280.dc.html",
+    "RecipeEditorRowChooseMatchStatesWeb1280.dc.html",
+    "RecipeEditorRowNeedsReviewWeb1280.dc.html",
+    "RecipeEditorRowNoMatchWeb1280.dc.html",
+    "RecipeEditorRowLookupFailedWeb1280.dc.html",
+    "RecipeEditorRowFoodRemovedWeb1280.dc.html",
+    "RecipeEditorRowNutritionWeb1280.dc.html",
+    "RecipeEditorCreateFoodWeb1280.dc.html",
+    "RecipeEditorCreateFoodErrorsWeb1280.dc.html",
+    "RecipeEditorCreateFoodDuplicateWeb1280.dc.html",
+    "RecipeEditorFoodDetailsWeb1280.dc.html",
+    "RecipeEditorFoodDetailsSearchWeb1280.dc.html",
+    "RecipeEditorFoodDetailsStatesWeb1280.dc.html",
+    "RecipeEditorPasteRefusedWeb1280.dc.html",
+    "RecipeEditorPasteReadingWeb1280.dc.html",
+    "RecipeEditorPasteNeedsYouWeb1280.dc.html",
+    "RecipeEditorPasteChooseWeb1280.dc.html",
+    "RecipeEditorPasteChooseStatesWeb1280.dc.html",
+    "RecipeEditorPasteStalledWeb1280.dc.html",
+    "RecipeEditorPasteOfflineWeb1280.dc.html",
+    "RecipeEditorWeb1024.dc.html",
+    "RecipeEditorWeb768.dc.html",
+    "RecipeEditorWeb390.dc.html",
+    "RecipeEditorSheetWeb390.dc.html",
+    "RecipeEditorEditExistingWeb390.dc.html",
+    "RecipeEditorEmptyWeb390.dc.html",
+    "RecipeEditorReadyUnmatchedWeb390.dc.html",
+    "RecipeEditorFixToPublishWeb390.dc.html",
+    "RecipeEditorLoadingWeb390.dc.html",
+    "RecipeEditorPreviewWeb390.dc.html",
+    "RecipeEditorCuisineWeb390.dc.html",
+    "RecipeEditorPasteStepsWeb390.dc.html",
+    "RecipeEditorPhotosUploadingWeb390.dc.html",
+    "RecipeEditorPhotosErrorsWeb390.dc.html",
+    "RecipeEditorPhotoSourceWeb390.dc.html",
+    "RecipeEditorVisibilityWeb390.dc.html",
+    "RecipeEditorSaveStatusWeb390.dc.html",
+    "RecipeEditorResumeWeb390.dc.html",
+    "RecipeEditorSaveFailedWeb390.dc.html",
+    "RecipeEditorDiscardDraftWeb390.dc.html",
+    "RecipeEditorDiscardChangesWeb390.dc.html",
+    "RecipeEditorConflictWeb390.dc.html",
+    "RecipeEditorConflictDraftWeb390.dc.html",
+    "RecipeEditorConflictMergeWeb390.dc.html",
+    "RecipeEditorConflictStaleBaseWeb390.dc.html",
+    "RecipeEditorFoodSearchTooShortWeb390.dc.html",
+    "RecipeEditorFoodSearchSearchingWeb390.dc.html",
+    "RecipeEditorFoodSearchResultsWeb390.dc.html",
+    "RecipeEditorFoodSearchDefaultWeb390.dc.html",
+    "RecipeEditorFoodSearchMoreSourcesWeb390.dc.html",
+    "RecipeEditorFoodSearchMoreSourcesDoneWeb390.dc.html",
+    "RecipeEditorFoodSearchNoResultsWeb390.dc.html",
+    "RecipeEditorFoodSearchReadingWeb390.dc.html",
+    "RecipeEditorFoodSearchPickInFlightWeb390.dc.html",
+    "RecipeEditorFoodSearchPickFailedWeb390.dc.html",
+    "RecipeEditorFoodSearchPendingTextWeb390.dc.html",
+    "RecipeEditorFoodSearchAddedNeedsChoiceWeb390.dc.html",
+    "RecipeEditorFoodSearchCatalogUnavailableWeb390.dc.html",
+    "RecipeEditorFoodSearchYourFoodsUnavailableWeb390.dc.html",
+    "RecipeEditorFoodSearchBothUnavailableWeb390.dc.html",
+    "RecipeEditorFoodSearchFailedWeb390.dc.html",
+    "RecipeEditorFoodSearchOfflineWeb390.dc.html",
+    "RecipeEditorFoodSearchSourceLimitedWeb390.dc.html",
+    "RecipeEditorFoodSearchIncompleteWeb390.dc.html",
+    "RecipeEditorChangeFoodWeb390.dc.html",
+    "RecipeEditorChangeFoodRefusedWeb390.dc.html",
+    "RecipeEditorIngredientRowStatesWeb390.dc.html",
+    "RecipeEditorIngredientGroupsWeb390.dc.html",
+    "RecipeEditorRowEditorWeb390.dc.html",
+    "RecipeEditorNutritionTotalWeb390.dc.html",
+    "RecipeEditorRowChooseMatchWeb390.dc.html",
+    "RecipeEditorRowChooseMatchStatesWeb390.dc.html",
+    "RecipeEditorRowNeedsReviewWeb390.dc.html",
+    "RecipeEditorRowNoMatchWeb390.dc.html",
+    "RecipeEditorRowLookupFailedWeb390.dc.html",
+    "RecipeEditorRowFoodRemovedWeb390.dc.html",
+    "RecipeEditorRowNutritionWeb390.dc.html",
+    "RecipeEditorCreateFoodWeb390.dc.html",
+    "RecipeEditorCreateFoodErrorsWeb390.dc.html",
+    "RecipeEditorCreateFoodDuplicateWeb390.dc.html",
+    "RecipeEditorFoodDetailsWeb390.dc.html",
+    "RecipeEditorFoodDetailsSearchWeb390.dc.html",
+    "RecipeEditorFoodDetailsStatesWeb390.dc.html",
+    "RecipeEditorPasteRefusedWeb390.dc.html",
+    "RecipeEditorPasteReadingWeb390.dc.html",
+    "RecipeEditorPasteNeedsYouWeb390.dc.html",
+    "RecipeEditorPasteChooseWeb390.dc.html",
+    "RecipeEditorPasteChooseStatesWeb390.dc.html",
+    "RecipeEditorPasteStalledWeb390.dc.html",
+    "RecipeEditorPasteOfflineWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Recipe editor: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 4884,
+      "text": "Recipe editor: web 1024",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 9790,
+      "text": "Recipe editor: web 768",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row3": {
+      "x": 0,
+      "y": 14696,
+      "text": "Recipe editor: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

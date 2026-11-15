@@ -9,7 +9,7 @@
  * @see docs/design/canvases/README.md
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -27,9 +27,13 @@ const canvasSchema = z.strictObject({
     platform: z.enum(['web', 'mobile', 'combined']).optional(),
     subject: z.string().min(1).optional(),
     note: z.string().optional(),
+    snapshot: z.string().min(1).optional(),
 });
 
 const registrySchema = z.strictObject({ canvases: z.array(canvasSchema) });
+
+/** The record written beside each snapshot; only the url is checked here. */
+const snapshotSchema = z.object({ url: z.string().min(1) });
 
 type CanvasEntry = z.infer<typeof canvasSchema>;
 
@@ -134,6 +138,32 @@ const designSystem: CanvasEntry = {
 describe('the design canvas registry', () => {
     it('parses and keeps every rule its README states', () => {
         expect(registryProblems(registry())).toEqual([]);
+    });
+
+    // Each screen canvas points at its snapshot folder, and that folder records the same canvas. A snapshot copied under
+    // the wrong id, or an entry added without one, fails by name.
+    it('points every screen canvas at its own snapshot, which records the same url', () => {
+        const problems = registry()
+            .filter(isScreen)
+            .flatMap((entry) => {
+                const expected = `docs/design/canvases/${entry.id}/`;
+
+                if (entry.snapshot !== expected) {
+                    return [`${entry.id}: snapshot is ${String(entry.snapshot)}, expected ${expected}`];
+                }
+
+                const record = join(CANVAS_DIR, entry.id, 'snapshot.json');
+
+                if (!existsSync(record)) {
+                    return [`${entry.id}: no ${expected}snapshot.json`];
+                }
+
+                const { url } = snapshotSchema.parse(JSON.parse(readFileSync(record, 'utf8')));
+
+                return url === entry.url ? [] : [`${entry.id}: snapshot.json records ${url}, not ${entry.url}`];
+            });
+
+        expect(problems).toEqual([]);
     });
 
     it('is named by the README that tells agents how to use it', () => {

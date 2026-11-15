@@ -1,0 +1,73 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:34Z"
+  },
+  "title": "Commise Screens, web: In-app notices",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "NoticeReadyWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 1040,
+      "title": "In-app notices, ready (web, 1280)"
+    },
+    "NoticeCatchUpWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 1040,
+      "title": "In-app notices, catch up (web, 1280)"
+    },
+    "NoticeReadyWeb390.dc.html": {
+      "x": 0,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "In-app notices, ready (web, 390)"
+    },
+    "NoticeCatchUpWeb390.dc.html": {
+      "x": 470,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "In-app notices, catch up (web, 390)"
+    }
+  },
+  "order": [
+    "NoticeReadyWeb1280.dc.html",
+    "NoticeCatchUpWeb1280.dc.html",
+    "NoticeReadyWeb390.dc.html",
+    "NoticeCatchUpWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "In-app notices: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1700,
+      "text": "In-app notices: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

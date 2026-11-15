@@ -6,9 +6,6 @@
  * The import READS the recipe service's collaborators and writes none of them: a recipe is saved through
  * `RecipesService.create`, a food is bound through `IngredientsService`, and the private-slot count stays the recipe
  * service's ({@link privateSlotsOf} is a Port over it, ADR-0073).
- *
- * `RecipesModule` exports what the advance step drives (`RecipesService`, `ParseJobsService`, `MatchProposalService`, the match
- * store, the verification read model and the curation sink); `IngredientsModule` exports the food collaborators.
  */
 import { Module } from '@nestjs/common';
 

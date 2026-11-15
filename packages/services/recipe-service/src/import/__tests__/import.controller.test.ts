@@ -1,5 +1,5 @@
 /**
- * `ImportController` maps each of the fifteen routes to ONE service method, with the caller's identity from the verified
+ * `ImportController` maps each route to ONE service method, with the caller's identity from the verified
  * principal and the ids from the path (ADR-0072 §1). A route that called the wrong method, dropped the caller's credential
  * or took the owner from the body would still compile, so each mapping is pinned here against service doubles.
  *

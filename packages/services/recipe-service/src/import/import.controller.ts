@@ -1,5 +1,5 @@
 /**
- * The `/api/v1/import` REST surface (ADR-0072 §1): fifteen routes, each mapped to ONE service method.
+ * The `/api/v1/import` REST surface (ADR-0072 §1): each route is mapped to ONE service method.
  *
  * DESIGN PATTERN: **Facade over three services** (`ImportService` for the header and items, `ImportStepService` for the
  * wizard's reads and decisions, `ImportAdvanceService` for the bounded step that pays, matches and saves). The controller is

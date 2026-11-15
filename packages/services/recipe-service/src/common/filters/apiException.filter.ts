@@ -2,7 +2,11 @@ import { Catch, HttpException, HttpStatus, Logger, type ArgumentsHost, type Exce
 import { isRecipeError } from '@kitchensink/recipe-core';
 import * as Sentry from '@sentry/nestjs';
 
-import { normalizeHttpException, normalizeUnstorableText } from '@kitchensink/nest-error-envelope';
+import {
+    normalizeBodyTooLarge,
+    normalizeHttpException,
+    normalizeUnstorableText,
+} from '@kitchensink/nest-error-envelope';
 import type { ApiErrorEnvelope, EnvelopeVocabulary, NormalizedFailure } from '@kitchensink/nest-error-envelope';
 import type { Request, Response } from 'express';
 
@@ -67,21 +71,6 @@ function classifyRecipeError(exception: unknown): ClassifiedEnvelope | undefined
         : { code: exception.code, message: exception.message, details: exception.details };
 }
 
-/**
- * Whether a thrown value is the body parser's "the JSON body is over the limit" refusal (`type: 'entity.too.large'`).
- *
- * @param exception - The thrown value.
- * @returns Whether it is. Pure.
- */
-function isBodyTooLarge(exception: unknown): boolean {
-    return (
-        typeof exception === 'object' &&
-        exception !== null &&
-        'type' in exception &&
-        exception.type === 'entity.too.large'
-    );
-}
-
 /*
  * What the filter decided to put on the wire is the shared `NormalizedFailure` — `{ status, body }`, where `body`
  * is the mechanism's envelope. It used to be a local `Resolution` interface over `ApiErrorBody`; using the shared
@@ -114,15 +103,8 @@ function resolve(exception: unknown): NormalizedFailure {
         return normalizeHttpException(exception, VOCABULARY);
     }
 
-    // The body parser's refusal is an `http-errors` object, not an HttpException, so it needs its own arm or it answers 500.
-    if (isBodyTooLarge(exception)) {
-        return {
-            status: HttpStatus.PAYLOAD_TOO_LARGE,
-            body: { code: CODE.PAYLOAD_TOO_LARGE, message: 'The request body is too large.' },
-        };
-    }
-
     return (
+        normalizeBodyTooLarge(exception, VOCABULARY) ??
         normalizeUnstorableText(exception, VOCABULARY) ?? {
             status: HttpStatus.INTERNAL_SERVER_ERROR,
             // ⚠️ The message is a CONSTANT, never the throwable's. An unexpected `Error`'s message is the one place

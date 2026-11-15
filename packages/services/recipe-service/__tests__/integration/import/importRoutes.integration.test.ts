@@ -1,5 +1,5 @@
 /**
- * The bulk import's fifteen routes over the REAL HTTP pipeline, with every store MOCKED (`docs/CODING_STANDARDS.md` §7.1a,
+ * The bulk import's routes over the REAL HTTP pipeline, with every store MOCKED (`docs/CODING_STANDARDS.md` §7.1a,
  * DD12): routing, the auth middleware, the zod pipe, the real import services over fake DALs, the exception filter, and
  * every body parsed against the PUBLISHED contract copy (`@kitchensink/schema-recipe`), the way an installed client parses it.
  *

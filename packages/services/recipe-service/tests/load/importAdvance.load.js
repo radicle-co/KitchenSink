@@ -128,6 +128,20 @@ export function advanceImport() {
             'advance answers 200': (r) => r.status === 200,
             'the view carries the allowance': (r) => 'allowance' in JSON.parse(r.body || '{}'),
         });
+
+        // ⚠️ A pool user's 1,000 units a day last about 333 iterations; after that every advance answers 200 fast
+        // WITHOUT paying, and the p95 would measure the cheap path. So the last advance of each import must show an item
+        // that left `received` (it was paid), and this check turns red when the run outlives the allowance.
+        if (step === ADVANCES - 1) {
+            check(res, {
+                'the advance paid for work (an item left received)': (r) => {
+                    const counts = JSON.parse(r.body || '{}').counts || {};
+
+                    return counts.received < counts.total;
+                },
+            });
+        }
+
         advanceTrend.add(res.timings.duration);
     }
 

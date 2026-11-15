@@ -328,8 +328,8 @@ export interface EnvelopeVocabulary {
  * put FOUR error shapes on a service's wire: the envelope, Nest's `{ statusCode, message, error? }`,
  * `nestjs-zod`'s `{ statusCode, message: 'Validation failed', errors }`, and — for the `429` — a bare JSON STRING.
  * Because the guarantee lives HERE rather than at each throw site, it also covers failures a service does not
- * raise: `ClerkAuthService`'s argument-less `401`s, Nest's `404` for an unrouted path, the body parser's `413`, the
- * throttler's string `429`. No amount of controller discipline would have reached those.
+ * raise: `ClerkAuthService`'s argument-less `401`s, Nest's `404` for an unrouted path and the throttler's string `429`.
+ * (The body parser's `413` is NOT an `HttpException`, so it is `normalizeBodyTooLarge`'s, not this function's.) No amount of controller discipline would have reached those.
  *
  * ⛔ Do not reintroduce a "pass it through if it looks fine" shortcut — "looks fine" is what the four shapes were.
  *

@@ -4087,6 +4087,21 @@
             ],
             "type": "string"
         },
+        "importOrdinalParamsSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "ordinal": {
+                    "maximum": 2147483646,
+                    "minimum": 0,
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "ordinal"
+            ],
+            "type": "object"
+        },
         "importPickRequestSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,

@@ -167,7 +167,7 @@ recipe it created, so a repeated `advance` sees the item as done.
       `saveRefused` is read from the hold: it shows only for an `unreadable` or `createRefused` hold that still applies to
       the cook asking, so a hold whose cause is gone, or one the cook can see the cause of, never shows it.
 - The import still binds nothing in the background and never chooses a visibility for the cook.
-- **This is bulk import only.** The single-recipe imports (a link, a paste, a video) are unchanged.
+- **A pasted recipe is a one-recipe import through this route** (owner ruling 2026-11-15): it spends one import allowance like any other recipe. A link or a video import is not built yet.
 
 ### 4. Match lines are snapshotted, because parse jobs expire
 

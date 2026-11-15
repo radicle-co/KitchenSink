@@ -1390,7 +1390,7 @@ The section above decides **who authors** the contract; this one is where it **r
   first-day migration would exhaust a user's daily allowance on the day they join, which is precisely backwards.
     > ⚠️ **Both halves are replaced.** Owner rulings, 2026-10-26. A file of any size is accepted, and there is no
     > 1,000-recipe file limit. Bulk import has its own allowance of 1,000 recipes a rolling day on a paid plan and 200 on Free. It counts per
-    > recipe, and it is separate from paste (see the note under `FR-022`). A file larger than the room left imports
+    > recipe, and paste spends the same allowance (owner ruling 2026-11-15; see the note under `FR-022`). A file larger than the room left imports
     > what fits, and the rest follows as room frees up.
 - **D-012 (Bulk import, 2026-08-02)**: A single uploaded export file may contain many recipes — the realistic
   migration path from Paprika, Mealie, or Plan To Eat, and the onboarding case this feature exists to serve.

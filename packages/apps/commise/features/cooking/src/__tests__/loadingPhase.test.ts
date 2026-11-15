@@ -92,4 +92,44 @@ describe('useLoadingPhase', () => {
 
         expect(vi.getTimerCount()).toBe(0);
     });
+
+    it.each([
+        [299, 'blank'],
+        [300, 'skeleton'],
+        [999, 'skeleton'],
+        [1000, 'label'],
+        [9999, 'label'],
+        [10_000, 'slow'],
+    ])('shows %s ms into a read as %s, at the edge to the millisecond', (elapsed, phase) => {
+        const { result } = renderHook(() => useLoadingPhase(true));
+
+        act(() => {
+            vi.advanceTimersByTime(elapsed);
+        });
+
+        expect(result.current).toBe(phase);
+    });
+
+    it('is blank on the very render a new read begins, not one render later', () => {
+        const phases: string[] = [];
+        const { rerender } = renderHook(
+            ({ active }) => {
+                const phase = useLoadingPhase(active);
+
+                phases.push(phase);
+
+                return phase;
+            },
+            { initialProps: { active: true } },
+        );
+
+        act(() => {
+            vi.advanceTimersByTime(11_000);
+        });
+        rerender({ active: false });
+        phases.length = 0;
+        rerender({ active: true });
+
+        expect(phases[0]).toBe('blank');
+    });
 });

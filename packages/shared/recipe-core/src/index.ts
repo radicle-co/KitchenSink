@@ -213,6 +213,8 @@ export type { FoodId, IngredientId, RecipeId, S3Key, UserId } from './ids.js';
 export { makeViewer } from './viewer.js';
 export type { Viewer } from './viewer.js';
 export { canClone, canRate, isOwner } from './recipeAccessPolicy.js';
+export { sourceConflictOf } from './sourceConflict.js';
+export type { SourceConflictInput, SourceEvidenceFacts } from './sourceConflict.js';
 export { PRIVATE_ONLY_SOURCE_KEYS, privateOnlySourceKey, sourceIsCorrectable } from './sourceRules.js';
 export type { CorrectableSourceFacts } from './sourceRules.js';
 export {

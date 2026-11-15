@@ -228,6 +228,10 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/*/scaling',
         '!@kitchensink/*/external-url',
         '!@kitchensink/*/food-name',
+        // `page-reader` (the whole-page paste import): reads a pasted recipe page on the cook's device. Off the barrel
+        // for the same contract-hash reason, and an entry point of its own because the app and the features package
+        // import it, and a shipped build compiles it in.
+        '!@kitchensink/*/page-reader',
         // `resolution/normalized-key` (plan U10) — the PERSISTED match grain of
         // the ingredient-resolution knowledge base. It is a subpath for the same
         // reason `food-name` is, and the reason is stronger here: TWO processes

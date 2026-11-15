@@ -18,9 +18,13 @@
  * @pattern Adapter — the route's params, router, session and query, to `CookingScreen`'s read and callbacks
  */
 import { useAuth } from '@clerk/nextjs';
-import { CookingScreen, useCookingRead, type CookingScreenProps } from '@commise/features-cooking/web';
+import {
+    CookingScreen,
+    cookingReadSourceOf,
+    useCookingRead,
+    type CookingScreenProps,
+} from '@commise/features-cooking/web';
 import { claimedViewerIdOf, viewerIdOf, viewerKnown } from '@commise/features-recipes/detail';
-import { isOwner, makeViewer } from '@kitchensink/recipe-core';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { onlineManager, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
@@ -117,17 +121,7 @@ interface SettledCookingProps {
  */
 const SettledCooking: FC<SettledCookingProps> = ({ detail, viewer, ways, readAgain }) => {
     const { data: recipe } = useSuspenseQuery(detail);
-    const read = useCookingRead({
-        recipeId: recipe.id,
-        subject: viewer.id,
-        recipe: { id: recipe.id, title: recipe.title, status: recipe.status, steps: recipe.steps },
-        failure: undefined,
-        viewer: {
-            known: viewer.known,
-            isOwner: viewer.known && viewer.id !== undefined && isOwner(recipe, makeViewer({ id: viewer.id })),
-        },
-        retry: readAgain,
-    });
+    const read = useCookingRead(cookingReadSourceOf(recipe, viewer, readAgain));
 
     return <CookingScreen read={read} {...ways} />;
 };

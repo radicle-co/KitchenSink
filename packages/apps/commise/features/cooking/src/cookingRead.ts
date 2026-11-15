@@ -5,6 +5,7 @@
  * cook on their step. The rules know nothing of TanStack, Clerk or the recipe service: an adapter hands over plain
  * facts, and `useCookingRead` hands back the `CookingScreenRead` the screen draws.
  */
+import { isOwner, makeViewer, type RecipeDetail } from '@kitchensink/recipe-core';
 import { useState } from 'react';
 
 import type { CookingRecipe, CookingScreenRead } from './cookingViewProps.js';
@@ -39,6 +40,33 @@ export function cookingReadOf({ recipe, failure, viewer, retry }: CookingReadSou
     }
 
     return { kind: 'pending', retry };
+}
+
+/**
+ * The read facts for a recipe the query has settled: the one place the two route adapters turn a recipe and a viewer into
+ * a {@link CookingReadSource}, so who owns the recipe is decided once.
+ *
+ * @param recipe - The settled recipe.
+ * @param viewer - Who is looking, by the detail page's one viewer rule, and whether that is known yet.
+ * @param retry - Reads the recipe again.
+ * @returns The facts for {@link useCookingRead}. Pure.
+ */
+export function cookingReadSourceOf(
+    recipe: RecipeDetail,
+    viewer: { readonly id: string | undefined; readonly known: boolean },
+    retry: () => void,
+): CookingReadSource {
+    return {
+        recipeId: recipe.id,
+        subject: viewer.id,
+        recipe: { id: recipe.id, title: recipe.title, status: recipe.status, steps: recipe.steps },
+        failure: undefined,
+        viewer: {
+            known: viewer.known,
+            isOwner: viewer.known && viewer.id !== undefined && isOwner(recipe, makeViewer({ id: viewer.id })),
+        },
+        retry,
+    };
 }
 
 /** The key one cook's session of one recipe is held under. */

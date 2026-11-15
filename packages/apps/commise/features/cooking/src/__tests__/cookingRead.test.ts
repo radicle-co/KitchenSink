@@ -2,8 +2,9 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RecipeStatus } from '@kitchensink/recipe-core';
+import { makeRecipeDetail } from '@kitchensink/recipe-core/testing';
 
-import { cookingReadOf, useCookingRead, type CookingReadSource } from '../cookingRead.js';
+import { cookingReadOf, cookingReadSourceOf, useCookingRead, type CookingReadSource } from '../cookingRead.js';
 import type { CookingRecipe } from '../cookingViewProps.js';
 
 afterEach(cleanup);
@@ -127,5 +128,25 @@ describe('useCookingRead: the hold', () => {
         act(() => rerender({ input: source({ subject: undefined, viewer: { known: false, isOwner: false } }) }));
 
         expect(result.current.kind).toBe('pending');
+    });
+});
+
+describe('cookingReadSourceOf: a settled recipe and who is looking, as the read facts', () => {
+    const detail = makeRecipeDetail({ id: 'r1', ownerId: 'user-1', status: RecipeStatus.PUBLISHED });
+
+    it('carries the recipe, the cook as the subject and the retry', () => {
+        const made = cookingReadSourceOf(detail, { id: 'user-1', known: true }, retry);
+
+        expect(made).toMatchObject({ recipeId: 'r1', subject: 'user-1', failure: undefined, retry });
+        expect(made.recipe).toEqual({ id: 'r1', title: detail.title, status: detail.status, steps: detail.steps });
+    });
+
+    it.each([
+        ['the owner', 'user-1', true, true],
+        ['another cook', 'user-2', true, false],
+        ['an unknown viewer who happens to hold the id', 'user-1', false, false],
+        ['no id', undefined, true, false],
+    ])('says %s is owner: %s', (_name, id, known, isOwner) => {
+        expect(cookingReadSourceOf(detail, { id, known }, retry).viewer).toEqual({ known, isOwner });
     });
 });

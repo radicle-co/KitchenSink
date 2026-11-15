@@ -64,6 +64,34 @@ function firstAttribute(
     return undefined;
 }
 
+/** What a page says about its own address: read once per page, then combined with each recipe's own links. */
+export interface PageAddresses {
+    readonly canonical: string | undefined;
+    readonly ogUrl: string | undefined;
+    readonly baseHref: string | undefined;
+}
+
+/**
+ * Read the addresses a page states for itself.
+ *
+ * @param page - The parsed paste.
+ * @returns The canonical link, the `og:url` and the `<base href>`, each as written or `undefined`. Pure.
+ */
+export function pageAddressesOf(page: PageDocument): PageAddresses {
+    return {
+        canonical: firstAttribute(page, 'link', 'href', (link) =>
+            (link.attr('rel') ?? '').toLowerCase().split(/\s+/u).includes('canonical'),
+        ),
+        ogUrl: firstAttribute(
+            page,
+            'meta',
+            'content',
+            (meta) => meta.attr('property') === 'og:url' || meta.attr('name') === 'og:url',
+        ),
+        baseHref: firstAttribute(page, 'base', 'href', () => true),
+    };
+}
+
 /**
  * Detect the source of a pasted page.
  *
@@ -73,17 +101,8 @@ function firstAttribute(
  *   same registrable domain; otherwise `none`. A relative address is read against `<base href>`, or else the first
  *   absolute address the page gives, and is dropped when there is neither. Pure.
  */
-export function detectPageSource(page: PageDocument, nodeLinks: readonly string[]): DetectedSource {
-    const canonical = firstAttribute(page, 'link', 'href', (link) =>
-        (link.attr('rel') ?? '').toLowerCase().split(/\s+/u).includes('canonical'),
-    );
-    const ogUrl = firstAttribute(
-        page,
-        'meta',
-        'content',
-        (meta) => meta.attr('property') === 'og:url' || meta.attr('name') === 'og:url',
-    );
-    const baseHref = firstAttribute(page, 'base', 'href', () => true);
+export function detectPageSource(page: PageDocument | PageAddresses, nodeLinks: readonly string[]): DetectedSource {
+    const { canonical, ogUrl, baseHref } = 'byTag' in page ? pageAddressesOf(page) : page;
     const raws = [canonical, ogUrl, ...nodeLinks].flatMap((raw) => (raw === undefined ? [] : [raw]));
     const base = [baseHref, ...raws].find((raw) => {
         const absolute = raw === undefined || !hasScheme(raw) ? undefined : parseSourceLink(raw);

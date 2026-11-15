@@ -44,6 +44,11 @@ describe('asList and scalar', () => {
 });
 
 describe('textOf', () => {
+    it('reads one level of list and no deeper, so a hostile nesting cannot overflow the stack', () => {
+        expect(textOf(['a', ['b'], 'c'])).toBe('a c');
+        expect(textOf(JSON.parse(`${'['.repeat(100_000)}"x"${']'.repeat(100_000)}`))).toBeUndefined();
+    });
+
     it('reads a string, a number, a JSON-LD value object and a list of them on one line', () => {
         expect(textOf('  a   b ')).toBe('a b');
         expect(textOf(7)).toBe('7');

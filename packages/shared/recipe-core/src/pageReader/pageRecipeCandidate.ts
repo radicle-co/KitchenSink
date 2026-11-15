@@ -15,6 +15,7 @@
  */
 import { PARSE_JOB_LINE_MAX_CHARS, MAX_PARSE_JOB_LINES } from '../parsing/parseJobText.js';
 import { recipeCuisineSchema, recipeDescriptionSchema, recipeTitleSchema } from '../recipeRequestBounds.js';
+import { MAX_RECIPES_PER_PAGE } from './pageCaps.js';
 import { instructionSteps } from './instructionSteps.js';
 import { creditOf, imageRefsOf } from './pageEvidence.js';
 import type { PageCredit } from './pageEvidence.js';
@@ -45,7 +46,7 @@ export interface PageRecipe {
 export type UnusableReason = 'titleTooLong' | 'tooManyIngredientLines' | 'ingredientLineTooLong';
 
 /** One recipe a page holds, read: usable (with the addresses its node names, for source detection) or over a limit. */
-export type RecipeChoice =
+type RecipeChoice =
     | {
           readonly kind: 'found';
           readonly recipe: PageRecipe;
@@ -204,7 +205,7 @@ export function extractionOf(nodes: readonly SchemaNode[]): RecipeExtraction {
     const seen = new Set<string>();
     const candidates: Candidate[] = [];
 
-    for (const node of nodes) {
+    for (const node of nodes.slice(0, MAX_RECIPES_PER_PAGE)) {
         const candidate = candidateOf(node);
 
         if (candidate !== undefined && !seen.has(candidate.key)) {

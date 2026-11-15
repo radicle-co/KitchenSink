@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_MICRODATA_RECIPES, MAX_WALK_NODES } from '../pageCaps.js';
+import { MAX_RECIPES_PER_PAGE, MAX_WALK_NODES } from '../pageCaps.js';
 import { parsePage } from '../pageDocument.js';
 import { microdataRecipe } from '../microdataRecipe.js';
 import { makeMicrodataBody, makePage } from '../__fixtures__/pageFixtures.js';
@@ -105,10 +105,10 @@ describe('microdataRecipe', () => {
     it('reads at most the first 64 recipe items of a page', () => {
         const one = (index: number) =>
             recipeScope(`<h1 itemprop="name">R${String(index)}</h1><i itemprop="recipeIngredient">1 egg</i>`);
-        const extraction = read(Array.from({ length: MAX_MICRODATA_RECIPES + 36 }, (_, index) => one(index)).join(''));
+        const extraction = read(Array.from({ length: MAX_RECIPES_PER_PAGE + 36 }, (_, index) => one(index)).join(''));
 
-        expect(MAX_MICRODATA_RECIPES).toBe(64);
-        expect(extraction.kind === 'several' ? extraction.titles : []).toHaveLength(MAX_MICRODATA_RECIPES);
+        expect(MAX_RECIPES_PER_PAGE).toBe(64);
+        expect(extraction.kind === 'several' ? extraction.titles : []).toHaveLength(MAX_RECIPES_PER_PAGE);
         expect(extraction.kind === 'several' ? extraction.titles[0] : undefined).toBe('R0');
     });
 

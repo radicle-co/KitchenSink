@@ -8,11 +8,11 @@
  * reader in `pageRecipeCandidate.ts` serves both strategies. A value comes from the attribute the element type names
  * (`meta` content, `time` datetime, `link` and `a` href, `img` src, `data` value) and otherwise from its text blocks.
  *
- * ⛔ At most {@link MAX_MICRODATA_RECIPES} recipe items are read. The walk is iterative, {@link MAX_WALK_DEPTH} deep and
+ * ⛔ At most {@link MAX_RECIPES_PER_PAGE} recipe items are read. The walk is iterative, {@link MAX_WALK_DEPTH} deep and
  * {@link MAX_WALK_NODES} elements, per recipe, and the text of one property is read from at most that many nodes. An item is built
  * on a prototype-less object, so a property named `__proto__` or `constructor` is plain data.
  */
-import { MAX_MICRODATA_RECIPES, MAX_WALK_DEPTH, MAX_WALK_NODES } from './pageCaps.js';
+import { MAX_RECIPES_PER_PAGE, MAX_WALK_DEPTH, MAX_WALK_NODES } from './pageCaps.js';
 import type { PageDocument, PageElement } from './pageDocument.js';
 import { extractionOf } from './pageRecipeCandidate.js';
 import type { RecipeExtraction } from './pageRecipeCandidate.js';
@@ -135,7 +135,7 @@ const isRecipeItem = (element: PageElement): boolean =>
  * @returns What the microdata holds: `none` when no `itemscope` is a Recipe. Pure.
  */
 export function microdataRecipe(page: PageDocument): RecipeExtraction {
-    const roots = page.withAttribute('itemscope').filter(isRecipeItem).slice(0, MAX_MICRODATA_RECIPES);
+    const roots = page.withAttribute('itemscope').filter(isRecipeItem).slice(0, MAX_RECIPES_PER_PAGE);
 
     return extractionOf(roots.map((root): SchemaNode => itemOf(root)));
 }

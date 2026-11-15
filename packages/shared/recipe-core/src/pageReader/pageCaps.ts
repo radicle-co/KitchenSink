@@ -21,8 +21,8 @@ export const MAX_JSON_LD_BLOCKS = 16;
 /** The most UTF-8 bytes of one JSON-LD block that are handed to `JSON.parse`; a larger block is skipped. */
 export const MAX_JSON_LD_BLOCK_BYTES = 262_144;
 
-/** The most Recipe items read from a page's microdata, in page order. A page with more is not one recipe's page. */
-export const MAX_MICRODATA_RECIPES = 64;
+/** The most Recipes read from a page, by either strategy, in page order. A page with more is not one recipe's page. */
+export const MAX_RECIPES_PER_PAGE = 64;
 
 /** The deepest nesting a walk over parsed JSON-LD or microdata descends to. */
 export const MAX_WALK_DEPTH = 32;
@@ -34,8 +34,7 @@ const UTF8_MAX_BYTES_PER_UTF16_UNIT = 3;
 const ENCODER = new TextEncoder();
 
 /**
- * The size of `text` in UTF-8 bytes. A text whose size is certain either way (every UTF-16 unit is at least one byte and
- * at most three) is not encoded.
+ * The size of `text` in UTF-8 bytes.
  *
  * @param text - Any text.
  * @returns The number of bytes `TextEncoder` would produce. Pure.
@@ -45,7 +44,8 @@ export function utf8ByteLength(text: string): number {
 }
 
 /**
- * Whether `text` is within `maxBytes` of UTF-8, without encoding it when its length alone decides.
+ * Whether `text` is within `maxBytes` of UTF-8, without encoding it when its length alone decides: a text whose size is
+ * certain either way (every UTF-16 unit is at least one byte and at most three) is not encoded.
  *
  * @param text - Any text.
  * @param maxBytes - The most bytes allowed.

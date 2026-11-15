@@ -72,7 +72,26 @@ function recipeNodesOf(root: unknown): readonly SchemaNode[] {
     return found;
 }
 
-/** A block's parsed JSON, or `undefined` when it is over the byte limit or is not JSON. */
+/** Whether `root` nests no deeper than {@link MAX_WALK_DEPTH}. Iterative: a block under the byte cap can nest 100,000 deep. */
+function isShallow(root: unknown): boolean {
+    const stack: Frame[] = [{ value: root, depth: 0 }];
+
+    for (let frame = stack.pop(); frame !== undefined; frame = stack.pop()) {
+        if (frame.depth > MAX_WALK_DEPTH) {
+            return false;
+        }
+
+        const { value, depth } = frame;
+
+        if (typeof value === 'object' && value !== null) {
+            Object.values(value).forEach((child) => stack.push({ value: child, depth: depth + 1 }));
+        }
+    }
+
+    return true;
+}
+
+/** A block's parsed JSON, or `undefined` when it is over the byte limit, is not JSON, or nests too deeply to read. */
 function parsedBlock(script: PageElement): unknown {
     const text = script.rawText();
 
@@ -81,7 +100,9 @@ function parsedBlock(script: PageElement): unknown {
     }
 
     try {
-        return JSON.parse(text) as unknown;
+        const parsed = JSON.parse(text) as unknown;
+
+        return isShallow(parsed) ? parsed : undefined;
     } catch {
         return undefined;
     }

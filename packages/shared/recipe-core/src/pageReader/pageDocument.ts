@@ -242,6 +242,17 @@ export function plainText(html: string): string {
     return collapseSpace(text);
 }
 
+/** File `element` under `key` in a one-to-many index. */
+function filed(index: Map<string, DomElement[]>, key: string, element: DomElement): void {
+    const list = index.get(key);
+
+    if (list === undefined) {
+        index.set(key, [element]);
+    } else {
+        list.push(element);
+    }
+}
+
 function elementView(node: DomNode): PageElement | undefined {
     if (!isTag(node)) {
         return undefined;
@@ -265,34 +276,33 @@ function elementView(node: DomNode): PageElement | undefined {
 export function parsePage(html: string): PageDocument {
     const { root, truncated } = parseDocument(html);
 
-    const select = (test: (element: PageElement) => boolean): readonly PageElement[] => {
-        const found: PageElement[] = [];
-        const stack: DomNode[] = [...root.children].reverse();
+    // One walk, once: every element is filed under its tag and under each attribute it carries, in document order. A
+    // lookup is then a map read, not a walk of the whole page.
+    const byTagName = new Map<string, DomElement[]>();
+    const byAttribute = new Map<string, DomElement[]>();
+    const stack: DomNode[] = [...root.children].reverse();
 
-        for (let next = stack.pop(); next !== undefined; next = stack.pop()) {
-            const view = elementView(next);
+    for (let next = stack.pop(); next !== undefined; next = stack.pop()) {
+        if (isTag(next)) {
+            filed(byTagName, next.name, next);
+            Object.keys(next.attribs).forEach((name) => filed(byAttribute, name, next));
 
-            if (view !== undefined && test(view)) {
-                found.push(view);
-            }
+            for (let index = next.children.length - 1; index >= 0; index -= 1) {
+                const child = next.children[index];
 
-            if (isTag(next)) {
-                for (let index = next.children.length - 1; index >= 0; index -= 1) {
-                    const child = next.children[index];
-
-                    if (child !== undefined) {
-                        stack.push(child);
-                    }
+                if (child !== undefined) {
+                    stack.push(child);
                 }
             }
         }
+    }
 
-        return found;
-    };
+    const viewsOf = (index: Map<string, DomElement[]>, key: string): readonly PageElement[] =>
+        (index.get(key) ?? []).flatMap((element) => elementView(element) ?? []);
 
     return {
         truncated,
-        byTag: (tag) => select((element) => element.tag === tag),
-        withAttribute: (name) => select((element) => element.attr(name) !== undefined),
+        byTag: (tag) => viewsOf(byTagName, tag),
+        withAttribute: (name) => viewsOf(byAttribute, name),
     };
 }

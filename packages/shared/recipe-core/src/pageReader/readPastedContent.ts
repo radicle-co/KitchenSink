@@ -7,7 +7,7 @@
  *
  * ⛔ A hostile paste is bounded at every stage (`pageCaps.ts`): the size is checked in BYTES before anything is parsed
  * and an over-size paste is refused whole, never cut; parsing stops at a depth cap; JSON-LD is size-, count-, depth- and
- * node-bounded. Nothing is executed, fetched or logged, and no regular expression runs over the paste.
+ * node-bounded. Nothing is executed, fetched or logged, and no regular expression runs over a page. (A paste that is not a page goes to `extractSourceLink`, which runs one pattern per line, bounded by the line's length.)
  *
  * ⚠️ {@link PageRecipe} is a plain shape, not the service's `ImportRecipe`: `@kitchensink/schema-recipe` depends on this
  * package. The caller parses it with `importRecipeSchema`, the check that a recipe's size and step limits hold.
@@ -16,7 +16,7 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 
 import { extractSourceLink } from '../sourceLink.js';
-import { detectPageSource } from './detectPageSource.js';
+import { detectPageSource, pageAddressesOf } from './detectPageSource.js';
 import type { DetectedSource } from './detectPageSource.js';
 import { MAX_PASTE_BYTES, classifyPaste } from './pageCaps.js';
 import { parsePage } from './pageDocument.js';
@@ -118,7 +118,9 @@ export function readPastedContent(text: string): PasteReadResult {
             };
         }
 
-        case 'several':
+        case 'several': {
+            const addresses = pageAddressesOf(page);
+
             return {
                 kind: 'several',
                 titles: extraction.titles,
@@ -127,7 +129,7 @@ export function readPastedContent(text: string): PasteReadResult {
                         return choice;
                     }
 
-                    const source = detectPageSource(page, choice.links);
+                    const source = detectPageSource(addresses, choice.links);
 
                     return {
                         kind: 'found',
@@ -138,6 +140,8 @@ export function readPastedContent(text: string): PasteReadResult {
                 }),
                 pasteDigest,
             };
+        }
+
         case 'unusable':
             return { kind: 'unusable', reason: extraction.reason, pasteDigest };
         case 'none':

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MAX_PASTE_BYTES, readPastedContent } from '@kitchensink/recipe-core/page-reader';
 
+import { MAX_JSON_LD_BLOCK_BYTES, MAX_RECIPES_PER_PAGE } from '../src/pageReader/pageCaps.js';
 import { makeLinkHead, makePage, makeRecipeNode } from '../src/pageReader/__fixtures__/pageFixtures.js';
 
 /**
@@ -13,6 +14,8 @@ import { makeLinkHead, makePage, makeRecipeNode } from '../src/pageReader/__fixt
 const LONG_LINE_CHARS = 32_000;
 /** The budget for reading a 2 MB paste on Node. The measured cost is a fraction of it; the headroom is for a busy CI runner. */
 const TIME_BUDGET_MS = 1_500;
+/** Empty elements around the recipes on the several-recipes page: every tag lookup walks all of them (28.9 s measured at 250,000 before the page was indexed once). */
+const EMPTY_ELEMENTS = 200_000;
 
 /** A synthetic page of about `bytes` bytes: long lines of markup and script around one JSON-LD recipe. */
 function makeHugePage(bytes: number): string {
@@ -73,7 +76,7 @@ describe('readPastedContent over a whole synthetic page', () => {
         expect(readPastedContent(page)).toEqual({ kind: 'tooLarge', maxBytes: MAX_PASTE_BYTES });
     });
 
-    it('leaves Object.prototype alone when the page carries hostile keys', () => {
+    it('keeps hostile __proto__ keys out of the recipe it reads', () => {
         const hostile =
             '{"__proto__":{"polluted":1},"@graph":[{"@type":"Recipe","name":"Safe","recipeIngredient":["1 egg"],"__proto__":{"name":"Evil"}}]}';
 
@@ -112,14 +115,42 @@ describe('readPastedContent over a whole synthetic page', () => {
         expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
     });
 
-    it('reads a flat 2 MB microdata page of many Recipe items inside the time budget', () => {
-        const items = '<div itemscope itemtype="https://schema.org/Recipe"><i itemprop="name">r</i></div>'.repeat(
-            20_000,
-        );
+    it('reads a 1.4 MB microdata page of many Recipe items with ingredients, among 200,000 empty elements, down the several branch inside the time budget', () => {
+        const items = Array.from(
+            { length: 100 },
+            (_, index) =>
+                `<div itemscope itemtype="https://schema.org/Recipe"><i itemprop="name">r${index}</i><i itemprop="recipeIngredient">1 egg</i></div>`,
+        ).join('');
         const started = performance.now();
-        const result = readPastedContent(makePage({ body: items }));
+        const result = readPastedContent(makePage({ body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }));
 
-        expect(result.kind).toBe('none');
+        expect(result.kind).toBe('several');
         expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+    });
+
+    it('reads a page whose JSON-LD holds thousands of Recipe nodes down the several branch inside the time budget', () => {
+        const nodes = Array.from({ length: 3_000 }, (_, index) => ({
+            '@type': 'Recipe',
+            '@id': `r${index}`,
+            name: `r${index}`,
+            recipeIngredient: ['1 egg'],
+        }));
+        const started = performance.now();
+        const result = readPastedContent(makePage({ jsonLd: [{ '@graph': nodes }] }));
+
+        expect(result.kind === 'several' ? result.choices.length : 0).toBe(MAX_RECIPES_PER_PAGE);
+        expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+    });
+
+    describe('a block nested 100,000 deep, under the byte cap', () => {
+        const DEPTH = 100_000;
+        const nested = `${'['.repeat(DEPTH)}"x"${']'.repeat(DEPTH)}`;
+
+        it.each(['name', 'recipeIngredient', 'author'])('does not throw when %s holds it', (property) => {
+            const block = `{"@type":"Recipe","name":"Soup","recipeIngredient":["1 egg"],"${property}":${nested}}`;
+
+            expect(block.length).toBeLessThan(MAX_JSON_LD_BLOCK_BYTES);
+            expect(() => readPastedContent(makePage({ jsonLd: [block] }))).not.toThrow();
+        });
     });
 });

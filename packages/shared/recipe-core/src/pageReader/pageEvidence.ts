@@ -8,12 +8,13 @@
  * past its bound is LEFT OUT, never cut short, so a half-sentence is never shown as the credit. An image address is a
  * string only: it is never fetched, and only an absolute `http` or `https` address is kept.
  */
+import { safeHttpUrl } from '../externalUrl.js';
 import { MAX_IMAGE_URL_CHARS } from './pageCaps.js';
 import { asList, field, isSchemaNode, scalar, textOf } from './schemaNode.js';
 import type { SchemaNode } from './schemaNode.js';
 
 /** The most authors kept. */
-export const MAX_CREDIT_AUTHORS = 10;
+const MAX_CREDIT_AUTHORS = 10;
 /** The longest author, publisher or copyright holder name, in characters. */
 const MAX_CREDIT_NAME_CHARS = 200;
 /** The longest copyright notice, in characters. */
@@ -133,11 +134,10 @@ export function imageUrlOf(refs: readonly string[], base: string | undefined): s
         }
 
         try {
-            const url = new URL(ref, base);
-            const isWeb = url.protocol === 'http:' || url.protocol === 'https:';
+            const safe = safeHttpUrl(new URL(ref, base).href);
 
-            if (isWeb && url.username === '' && url.password === '' && url.href.length <= MAX_IMAGE_URL_CHARS) {
-                return url.href;
+            if (safe !== null && safe.href.length <= MAX_IMAGE_URL_CHARS) {
+                return safe.href;
             }
         } catch {
             // Not an address (a relative one with no base, or garbage): the next one.

@@ -10,7 +10,7 @@
  */
 import { parse } from 'tinyduration';
 
-import { INT4_CEILING } from '../recipeRequestBounds.js';
+import { recipeMinutesSchema } from '../recipeRequestBounds.js';
 
 /** The longest text read as a duration. `P1DT23H59M59S` is 13; anything past this is not one, and costs one comparison. */
 const MAX_DURATION_CHARS = 64;
@@ -25,7 +25,7 @@ const SECONDS_PER_MINUTE = 60;
  *
  * @param value - A JSON-LD or microdata value, normally `PT1H30M`.
  * @returns The minutes (seconds are rounded to the nearest minute), or `undefined` when it is not a string, not a valid
- *   duration, negative, counts months or years, or is past `INT4_CEILING` (the column). Pure.
+ *   duration, negative, counts months or years, or is past the column (`recipeMinutesSchema`). Pure.
  */
 export function durationMinutes(value: unknown): number | undefined {
     if (typeof value !== 'string' || value.length > MAX_DURATION_CHARS) {
@@ -52,5 +52,7 @@ export function durationMinutes(value: unknown): number | undefined {
         (parsed.seconds ?? 0) / SECONDS_PER_MINUTE;
     const whole = Math.round(minutes);
 
-    return Number.isFinite(whole) && whole >= 0 && whole <= INT4_CEILING ? whole : undefined;
+    const checked = recipeMinutesSchema.safeParse(whole);
+
+    return checked.success ? checked.data : undefined;
 }

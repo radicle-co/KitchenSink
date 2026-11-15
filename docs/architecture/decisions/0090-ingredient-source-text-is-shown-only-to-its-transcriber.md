@@ -64,11 +64,13 @@ a clone copies the text.
 | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | Create (`POST /api/v1/recipes`): the editor, paste, the cookbook importer and the e2e seed | TRUE on a line with `sourceLine`. The caller becomes the owner.                                                   |
 | Update (`PATCH /api/v1/recipes/{id}`), and the rebind and version restore that use it      | Carried with the text by `transcriptionCarryForward.ts`, from the same stored line. If nothing is carried, FALSE. |
+| Bulk import (ADR-0072): `ImportAdvanceService` saves through `RecipesService.create`       | TRUE on every line. Each line carries the file's raw line, and create vouches for it.                             |
 | Clone of another cook's recipe                                                             | FALSE. The text is still copied.                                                                                  |
 | Clone of the cook's own recipe                                                             | The source line's value. It is never raised.                                                                      |
 
-`POST /api/v1/import` (ADR-0072) is not on this branch. When it lands, it uses the same writer, and the required field
-makes it state the value. For the cook's own import the value is TRUE, as for a create.
+The bulk import gives every line its raw text, a line kept whole and a heading included. So create writes TRUE on all of
+them. The import's HTTP route is not wired yet (ADR-0072, the controller lands later), so today this path runs only through
+the service.
 
 `ownerVouches` (`ingredientLine.planner.ts`) is a statement the caller makes, not a mode switch. Create says TRUE because
 the caller is the owner. Update says FALSE. Today an update request never carries `sourceLine`, so the statement has no

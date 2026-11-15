@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RecipeStatus } from '@kitchensink/recipe-core';
 
 import { htmlElementOf } from '../__fixtures__/htmlElementOf.js';
+import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
 import { CookingScreen } from '../CookingScreen.js';
 import type { CookingScreenProps, CookingScreenRead } from '../cookingViewProps.js';
 
@@ -62,7 +63,7 @@ const STEPS = [
 
 const ready = (over: Partial<Extract<CookingScreenRead, { kind: 'ready' }>> = {}): CookingScreenRead => ({
     kind: 'ready',
-    recipe: { id: 'r1', title: TITLE, status: RecipeStatus.PUBLISHED, steps: STEPS },
+    recipe: makeCookingRecipe({ id: 'r1', title: TITLE, status: RecipeStatus.PUBLISHED, steps: STEPS }),
     viewerIsOwner: true,
     ...over,
 });
@@ -169,12 +170,12 @@ describe('CookingScreen: load error', () => {
 });
 
 describe('CookingScreen: no steps', () => {
-    const blank = {
+    const blank = makeCookingRecipe({
         id: 'r1',
         title: TITLE,
         status: RecipeStatus.PUBLISHED,
         steps: [{ stepNumber: 1, instruction: '  ' }],
-    };
+    });
 
     it('offers its owner Edit recipe', () => {
         const { onEdit } = setup(ready({ recipe: blank, viewerIsOwner: true }));
@@ -205,7 +206,7 @@ describe('CookingScreen: recipe gone', () => {
 });
 
 describe('CookingScreen: where a cook link goes', () => {
-    const draft = { id: 'r1', title: TITLE, status: RecipeStatus.DRAFT, steps: STEPS };
+    const draft = makeCookingRecipe({ id: 'r1', title: TITLE, status: RecipeStatus.DRAFT, steps: STEPS });
 
     it('sends the owner of a draft to the editor, painting only the loading frame, never the recipe', () => {
         const { onEdit, container } = setup(ready({ recipe: draft, viewerIsOwner: true }));
@@ -417,12 +418,12 @@ describe('CookingScreen: a step', () => {
         rerender(
             <CookingScreen
                 read={ready({
-                    recipe: {
+                    recipe: makeCookingRecipe({
                         id: 'r1',
                         title: TITLE,
                         status: RecipeStatus.PUBLISHED,
                         steps: [{ stepNumber: 1, instruction: 'Something else.' }],
-                    },
+                    }),
                 })}
                 onLeave={onLeave}
                 onEdit={onEdit}
@@ -441,12 +442,12 @@ describe('CookingScreen: a step', () => {
         rerender(
             <CookingScreen
                 read={ready({
-                    recipe: {
+                    recipe: makeCookingRecipe({
                         id: 'r2',
                         title: 'Soup',
                         status: RecipeStatus.PUBLISHED,
                         steps: [{ stepNumber: 1, instruction: 'Simmer the soup.' }],
-                    },
+                    }),
                 })}
                 onLeave={onLeave}
                 onEdit={onEdit}
@@ -837,12 +838,12 @@ describe('CookingScreen: the names a cook hears on the way to Done', () => {
 
         setup(
             ready({
-                recipe: {
+                recipe: makeCookingRecipe({
                     id: 'r1',
                     title: TITLE,
                     status: RecipeStatus.PUBLISHED,
                     steps: [{ stepNumber: 1, instruction: 'Simmer the soup.' }],
-                },
+                }),
             }),
         );
         fireEvent.click(forward());
@@ -885,12 +886,12 @@ describe('CookingScreen: the read wins over the session at the join', () => {
         rerenderWith(
             view,
             ready({
-                recipe: {
+                recipe: makeCookingRecipe({
                     id: 'r1',
                     title: TITLE,
                     status: RecipeStatus.PUBLISHED,
                     steps: [{ stepNumber: 1, instruction: '  ' }],
-                },
+                }),
             }),
         );
 

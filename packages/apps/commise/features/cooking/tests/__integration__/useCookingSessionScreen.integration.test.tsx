@@ -4,6 +4,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { makeCookingRecipe } from '../../src/__fixtures__/makeCookingRecipe.js';
 import type { CookingRecipe } from '../../src/cookingViewProps.js';
 import { useCookingSessionScreen } from '../../src/useCookingSessionScreen.js';
 
@@ -15,7 +16,7 @@ afterEach(cleanup);
  * browser's wake lock is stood in for. Steps 1, 2 and 4 have text; step 3 is blank and skipped, so the cook walks three
  * steps and step 1 has two lines.
  */
-const RECIPE: CookingRecipe = {
+const RECIPE: CookingRecipe = makeCookingRecipe({
     id: 'rec_1',
     title: 'Weeknight roast',
     status: RecipeStatus.PUBLISHED,
@@ -25,7 +26,7 @@ const RECIPE: CookingRecipe = {
         { stepNumber: 3, instruction: '   ' },
         { stepNumber: 4, instruction: 'Serve it hot.' },
     ],
-};
+});
 
 const wrapper = ({ children }: { readonly children: ReactNode }) => (
     <LocaleProvider locale="en">{children}</LocaleProvider>

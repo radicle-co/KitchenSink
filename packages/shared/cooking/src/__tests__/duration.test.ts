@@ -109,6 +109,21 @@ describe('readDuration reads the number a cook wrote, or nothing', () => {
         },
     );
 
+    it.each([
+        'Microwave 2 m 30 seconds',
+        'Bake 2m, 30 seconds',
+        'Bake 1 hour and 15 m',
+        'Bake 1 hour, 15 m',
+        'Bake 5 minutes and 5 s',
+        'Bake 5 minutes, 5 s',
+    ])('%s gives none: a bare m or s on either side of the span is time it cannot read', (line) => {
+        expect(readDuration(line)).toEqual({ kind: 'none' });
+    });
+
+    it('does not over-reach: a unit like cm next to a span is not time', () => {
+        expect(readDuration('Cut into 2 cm pieces, then bake 5 minutes')).toEqual({ kind: 'one', seconds: 300 });
+    });
+
     it('reads two amounts of the same unit as many', () => {
         expect(readDuration('Rest 10 minutes, 5 minutes')).toEqual({ kind: 'many' });
     });

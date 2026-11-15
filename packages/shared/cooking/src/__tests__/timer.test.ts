@@ -278,6 +278,16 @@ describe('addTime', () => {
         });
     });
 
+    it('refuses added time that takes the time left past 24 hours when the clock went back', () => {
+        const started20h = run([{ ...START, durationMs: 20 * 60 * MINUTE, nowMs: 5 * 60 * MINUTE }]).state;
+
+        // Time left is 25 h at now = 0 (the clock is 5 h behind the start), and 26 h with the hour added, while the
+        // total (21 h) is within 24 h: only the time-left check refuses it.
+        expect(() => reduceTimer(started20h, { kind: 'addTime', id: 't1', addMs: 60 * MINUTE, nowMs: 0 })).toThrow(
+            expect.toSatisfy(isInvalidTimerDurationError),
+        );
+    });
+
     it('refuses 1 s added to a ringing timer, as it does from running', () => {
         const ringing = ringingState();
 

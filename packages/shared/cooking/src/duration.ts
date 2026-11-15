@@ -57,10 +57,12 @@ const JOINER = String.raw`(?:\s*,\s*|\s+and\s+|\s+)`;
 const BARE_MINUTES = String.raw`(?:\s+(?<bare>\d{1,2})(?=\s*(?:$|[.,;:!?)])))`;
 
 /**
- * A number and a bare `m` or `s` straight after a span ("1 h 15 m"): time the reader does not read, so the span before it
- * would give a wrong total (1 h for 75 minutes). The line then reads `none`.
+ * A bare `m` or `s` amount next to the span, after it ("1 h 15 m") or before it ("2 m 30 seconds"): time the reader does
+ * not read, so the span alone would give a wrong total. The line then reads `none`. Both are built from the same joiner
+ * the span uses.
  */
-const UNREAD_TIME_AFTER = /^(?:\s*,\s*|\s+and\s+|\s+)\d+(?:[.,]\d+)?\s*[ms](?![a-z])/iu;
+const UNREAD_TIME_AFTER = new RegExp(String.raw`^${JOINER}\d+(?:[.,]\d+)?\s*[ms](?![a-z])`, 'iu');
+const UNREAD_TIME_BEFORE = new RegExp(String.raw`(?<![\d.,])\d+(?:[.,]\d+)?\s*[ms]${JOINER}$`, 'iu');
 
 /** One whole span of time: amounts joined by space, comma or "and", then an optional bare minute part. */
 const SPAN = new RegExp(`${amountSource(false)}(?:${JOINER}${amountSource(false)})*${BARE_MINUTES}?`, 'giu');
@@ -111,7 +113,9 @@ export function readDuration(line: string): DurationReading {
 
     const [span = ''] = spans[0] ?? [];
 
-    if (UNREAD_TIME_AFTER.test(line.slice((spans[0]?.index ?? 0) + span.length))) {
+    const at = spans[0]?.index ?? 0;
+
+    if (UNREAD_TIME_BEFORE.test(line.slice(0, at)) || UNREAD_TIME_AFTER.test(line.slice(at + span.length))) {
         return { kind: 'none' };
     }
 

@@ -350,8 +350,12 @@ describe('the scanner detects an account id and discriminates what is not one', 
             tree({ 'a.md': 'cdk-hnb659fds-assets-000000000000-us-east-1' }),
         );
 
+        // Hex groups that fall short of the 8-4-4-4 prefix are not a UUID, so the id after them is still flagged.
+        const partial = run('--accounts', '000000000000', tree({ 'b.md': 'ab12-cd34-ef56-000000000000' }));
+
         expect(result.code).toBe(0);
         expect(bucket.code).toBe(1);
+        expect(partial.code).toBe(1);
     });
 
     it('reports every offending line, not just the first', () => {

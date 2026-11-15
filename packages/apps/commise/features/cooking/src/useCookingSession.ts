@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * @module @commise/features-cooking/useCookingSession — the cook's one session, as a hook the web and native screens share.
+ * @module useCookingSession — the cook's one session, as a hook the web and native screens share.
  *
  * The hook holds NO rule: the steps and their lines, the ticks and the focus, where the cook is and
  * whether they are done all come from cooking-core's reducers and formatters. What it adds is React: a `useReducer` that

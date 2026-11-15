@@ -37,6 +37,7 @@ import type { LineVerificationsDal } from '../dal/lineVerifications.dal.js';
 import type { PhotosDal } from '../../photos/dal/photos.dal.js';
 import type { RatingsDal } from '../../ratings/dal/ratings.dal.js';
 import type { RecipesDal } from '../dal/recipes.dal.js';
+import type { RecipeSourceEvidenceDal } from '../dal/recipeSourceEvidence.dal.js';
 import type { VerificationQueuePort } from '../verification.queue.js';
 import type { VersionsService } from '../../versions/versions.service.js';
 import { IngredientLinePlanner } from '../ingredientLine.planner.js';
@@ -85,6 +86,13 @@ export interface RecipesServiceCollaborators {
     readonly lineVerificationsDal: LineVerificationsDal;
     /** The byline read model. Defaults to one that has never seen the cook, so writes fall back to the claims. */
     readonly authorHandles: Pick<AuthorHandlesDal, 'findByline'>;
+    /** The evidence table: by default one that holds no evidence, so a recipe is never held out of Public. */
+    readonly sourceEvidence: Pick<RecipeSourceEvidenceDal, 'insert' | 'listForRecipe'>;
+}
+
+/** An evidence table that is empty and accepts every append. */
+function noSourceEvidence(): Pick<RecipeSourceEvidenceDal, 'insert' | 'listForRecipe'> {
+    return { insert: async () => undefined, listForRecipe: async () => [] };
 }
 
 /**
@@ -106,6 +114,7 @@ export function makeRecipesService(overrides: Partial<RecipesServiceCollaborator
         foodNutrition: emptyFoodNutrition(),
         lineVerificationsDal: fakeLineVerificationsDal(new Map()),
         authorHandles: { findByline: async () => undefined },
+        sourceEvidence: noSourceEvidence(),
         ...overrides,
     };
 
@@ -131,5 +140,6 @@ export function makeRecipesService(overrides: Partial<RecipesServiceCollaborator
         collaborators.lineVerificationsDal,
         detailAssembler,
         collaborators.authorHandles,
+        collaborators.sourceEvidence,
     );
 }

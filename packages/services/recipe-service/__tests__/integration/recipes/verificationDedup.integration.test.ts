@@ -22,6 +22,7 @@ import type { VerifyIngredientLineMessage } from '@kitchensink/recipe-core/resol
 import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
+import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import { sha256Hex } from '../../../src/common/sha256.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
@@ -164,6 +165,10 @@ beforeAll(async () => {
             },
             { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
             { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
+            {
+                provide: RecipeSourceEvidenceDal,
+                useValue: { insert: async () => undefined, listForRecipe: async () => [] },
+            },
         ],
     });
 });

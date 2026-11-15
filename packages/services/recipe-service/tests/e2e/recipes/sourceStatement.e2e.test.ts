@@ -338,4 +338,152 @@ describe('a pasted web link as the recipe source (e2e)', () => {
         expect((attempt.json['details'] as { reason?: string } | undefined)?.reason).toBe('SOURCE_LOCKED');
         expect(await readRow(cloneId)).toMatchObject({ sourceKind: 'public_web' });
     });
+
+    /**
+     * THE EVIDENCE RULE (migration 0086, `sourceConflictOf`): a recipe that EVER had a third-party source stated may not be
+     * Public, even after the cook clears the statement. Until it existed, "PATCH statement: null" resolved to `user_created`
+     * and the recipe could be published Public as the cook's own work, which is the defect these tests pin. Every test below
+     * runs over HTTP against the real database, so the evidence row, the append-only guard and the clone trigger are real.
+     */
+    describe('the evidence rule: a cleared source does not make a copied recipe the cook’s own work', () => {
+        async function evidenceOf(
+            id: string,
+        ): Promise<Array<{ capture: string; source_kind: string; source_domain: string | null }>> {
+            const { rows } = await pool.query<{ capture: string; source_kind: string; source_domain: string | null }>(
+                `SELECT capture, source_kind, source_domain FROM recipe_source_evidence WHERE recipe_id = $1 ORDER BY recorded_at`,
+                [id],
+            );
+
+            return rows;
+        }
+
+        /** A private draft that states a web source, then clears it: the recipe reads as the cook's own. */
+        async function clearedDraft(): Promise<{ id: string; version: number }> {
+            const { id, version } = await create({ status: 'draft', visibility: 'private', statement: STATEMENT });
+            const cleared = await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, statement: null });
+
+            expect(cleared.status).toBe(200);
+            expect(await readRow(id)).toMatchObject({ sourceType: 'user_created', sourceKind: null, sourceUrl: null });
+
+            return { id, version: cleared.json['currentVersion'] as number };
+        }
+
+        function expectSourceConflict(result: { status: number; json: Record<string, unknown> }): void {
+            expect(result.status).toBe(400);
+            expect(result.json['code']).toBe('INVALID_VISIBILITY');
+            expect((result.json['details'] as { reason?: string } | undefined)?.reason).toBe('SOURCE_CONFLICT');
+        }
+
+        it('create with a statement appends one editorLink evidence row, and a clear appends nothing and removes nothing', async () => {
+            const { id } = await clearedDraft();
+
+            expect(await evidenceOf(id)).toEqual([
+                { capture: 'editorLink', source_kind: 'public_web', source_domain: 'allrecipes.com' },
+            ]);
+        });
+
+        it('PATCH that applies a statement appends an editorLink evidence row', async () => {
+            const { id, version } = await create({ status: 'draft', visibility: 'private' });
+
+            expect(await evidenceOf(id)).toEqual([]);
+
+            await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, statement: STATEMENT });
+
+            expect(await evidenceOf(id)).toEqual([
+                { capture: 'editorLink', source_kind: 'public_web', source_domain: 'allrecipes.com' },
+            ]);
+        });
+
+        it('THE NAMED PATH: state a source, clear it, publish, then ask for Public: 400 SOURCE_CONFLICT, and it stays private', async () => {
+            const { id, version } = await clearedDraft();
+            const published = await send('PATCH', `/api/v1/recipes/${id}`, {
+                expectedVersion: version,
+                status: 'published',
+            });
+
+            expect(published.status).toBe(200);
+
+            expectSourceConflict(await send('PATCH', `/api/v1/recipes/${id}/visibility`, { visibility: 'public' }));
+            expect(await readRow(id)).toMatchObject({ visibility: 'private', status: 'published' });
+        });
+
+        it('refuses Public on the DRAFT too: the same set-visibility, before any publish', async () => {
+            const { id } = await clearedDraft();
+
+            expectSourceConflict(await send('PATCH', `/api/v1/recipes/${id}/visibility`, { visibility: 'public' }));
+        });
+
+        it('refuses to PUBLISH a draft that raced to public, and leaves it a draft', async () => {
+            const { id, version } = await clearedDraft();
+            // The race the publish-time judgement exists for: the draft is public by a path set-visibility did not judge.
+            await roleDb.asOwner((client) =>
+                client.query(`UPDATE recipes SET visibility = 'public' WHERE id = $1`, [id]),
+            );
+
+            expectSourceConflict(
+                await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, status: 'published' }),
+            );
+            expect(await readRow(id)).toMatchObject({ status: 'draft' });
+        });
+
+        it('never refuses Private: the same recipe can be made private again and published private', async () => {
+            const { id, version } = await clearedDraft();
+            const published = await send('PATCH', `/api/v1/recipes/${id}`, {
+                expectedVersion: version,
+                status: 'published',
+            });
+            const again = await send('PATCH', `/api/v1/recipes/${id}/visibility`, { visibility: 'private' });
+
+            expect(published.status).toBe(200);
+            expect(again.status).toBe(200);
+        });
+
+        it('the CLONE of such a recipe inherits the evidence, lands private, and cannot be made public either', async () => {
+            const { id, version } = await clearedDraft();
+            await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, status: 'published' });
+
+            const cloned = await send('POST', `/api/v1/recipes/${id}/clone`, {});
+            const cloneId = cloned.json['id'] as string;
+
+            expect(cloned.status).toBe(201);
+            expect((await readRow(cloneId)).visibility).toBe('private');
+            expect(await evidenceOf(cloneId)).toEqual([
+                { capture: 'editorLink', source_kind: 'public_web', source_domain: 'allrecipes.com' },
+            ]);
+            expectSourceConflict(
+                await send('PATCH', `/api/v1/recipes/${cloneId}/visibility`, { visibility: 'public' }),
+            );
+        });
+
+        it('CONTROL: a recipe that never had a source can be made Public, and its clone defaults Public', async () => {
+            const { id } = await create({ status: 'published', visibility: 'private' });
+
+            const asked = await send('PATCH', `/api/v1/recipes/${id}/visibility`, { visibility: 'public' });
+            const cloned = await send('POST', `/api/v1/recipes/${id}/clone`, {});
+
+            expect(asked.status).toBe(200);
+            expect(cloned.status).toBe(201);
+            expect((await readRow(cloned.json['id'] as string)).visibility).toBe('public');
+            expect(await evidenceOf(id)).toEqual([]);
+        });
+
+        it('the import save writes importFile evidence, in the create’s transaction, for a book', async () => {
+            const provenance = resolveStatementProvenance({ kind: 'book', citation: 'Joy of Cooking' });
+
+            if (provenance === undefined) {
+                throw new Error('test setup: the statement must resolve');
+            }
+
+            const saved = await service.create(
+                principal(),
+                createRecipeRequestSchema.parse(body({ status: 'draft', visibility: 'private' })),
+                undefined,
+                { provenance, lineOrigins: [{ kind: 'cook' }] },
+            );
+
+            expect(await evidenceOf(saved.id)).toEqual([
+                { capture: 'importFile', source_kind: 'book', source_domain: null },
+            ]);
+        });
+    });
 });

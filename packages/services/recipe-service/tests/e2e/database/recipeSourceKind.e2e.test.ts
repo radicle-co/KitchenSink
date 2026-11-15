@@ -10,7 +10,9 @@
  *  3. Every kind is paired with its label (`recipes_source_kind_pairs_source_type`): `public_web` with `imported_public` AND an
  *     address, `book` with `imported_physical`, `paid_site` with `imported_paid`. No other pairing can be written by any
  *     writer, the service included.
- *  4. `PRIVATE_ONLY_SOURCE_KEYS`, bound the way account erasure binds it, agrees with `privateRuleOf` for every pair.
+ *  4. (Since 0086) a recipe that states a kind is written with its `recipe_source_evidence` row in the SAME transaction: the
+ *     deferred backstop refuses to commit one without it, so this suite's raw inserts carry the row the service would write.
+ *  5. `PRIVATE_ONLY_SOURCE_KEYS`, bound the way account erasure binds it, agrees with `privateRuleOf` for every pair.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
@@ -37,12 +39,42 @@ describe('recipes.source_kind and its CHECKs (migration 0071)', () => {
     });
 
     async function insert(sourceType: string, sourceUrl: string | null, sourceKind: string | null): Promise<void> {
-        await pool.query(
-            `INSERT INTO recipes (id, owner_id, title, description, prep_time_minutes, cook_time_minutes,
-                                  total_time_minutes, servings, visibility, status, source_type, source_url, source_kind)
-             VALUES ($1, $2, 'Source kind suite', '', 1, 1, 2, 4, 'private', 'draft', $3, $4, $5)`,
-            [RECIPE_ID, OWNER_ID, sourceType, sourceUrl, sourceKind],
-        );
+        // ONE transaction: the deferred backstop (migration 0086) demands the evidence row of a stated kind at COMMIT.
+        const client = await pool.connect();
+
+        try {
+            await client.query('BEGIN');
+            await client.query(
+                `INSERT INTO recipes (id, owner_id, title, description, prep_time_minutes, cook_time_minutes,
+                                      total_time_minutes, servings, visibility, status, source_type, source_url, source_kind)
+                 VALUES ($1, $2, 'Source kind suite', '', 1, 1, 2, 4, 'private', 'draft', $3, $4, $5)`,
+                [RECIPE_ID, OWNER_ID, sourceType, sourceUrl, sourceKind],
+            );
+
+            // A kind outside the vocabulary never reaches here: the recipe insert above refused it.
+            if (sourceKind !== null) {
+                await client.query(
+                    `INSERT INTO recipe_source_evidence (recipe_id, capture, source_url, source_key, source_domain,
+                                                         source_kind, citation)
+                     VALUES ($1, $2, $3, $3, $4, $5, $6)`,
+                    [
+                        RECIPE_ID,
+                        sourceKind === 'public_web' ? 'editorLink' : 'importFile',
+                        sourceUrl,
+                        sourceKind === 'public_web' ? 'example.com' : null,
+                        sourceKind,
+                        sourceKind === 'public_web' ? null : 'A cited source',
+                    ],
+                );
+            }
+
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
     }
 
     async function storedKind(): Promise<string | null> {

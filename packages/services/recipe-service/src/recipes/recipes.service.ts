@@ -43,6 +43,7 @@ import { quantityFromColumns, statedMeasureFromColumns } from './dal/quantityCol
 import { userNutritionFromColumns } from './dal/userNutritionColumns.js';
 import {
     invalidVisibility,
+    sourceConflictRefused,
     notOwner,
     privateSlotsFull,
     provenanceNotPermitted,
@@ -56,6 +57,8 @@ import {
 } from './recipe.error.js';
 import type { PrivateSlotUsage } from './recipes.schema.js';
 import { evaluateProvenance, type ResolvedProvenance } from './domain/provenancePolicy.js';
+import { evidenceRowOf, sourceConflictOfEvidence } from './domain/sourceEvidence.js';
+import { RecipeSourceEvidenceDal } from './dal/recipeSourceEvidence.dal.js';
 import {
     resolveLineBindings,
     type DirectedBinding,
@@ -459,7 +462,25 @@ function assertVisibilityAllowed(
         throw slotsFullError(standing);
     }
 
-    throw invalidVisibility(decision.reason, { visibility: ask.requested, sourceType: ask.sourceType });
+    throw policyRefusal(decision.denial, decision.reason, { visibility: ask.requested, sourceType: ask.sourceType });
+}
+
+/**
+ * The error for a refusal the policies answer with `400 INVALID_VISIBILITY`: the plain C-004 refusal, or the evidence rule's,
+ * which the same status tells apart by `details.reason` ('SOURCE_CONFLICT'). The ONE place both policies' denials are mapped,
+ * so `evaluateVisibility` and `evaluatePublishedState` cannot answer the evidence rule differently.
+ *
+ * @param denial - The policy's denial discriminant.
+ * @param reason - The policy's deny-reason.
+ * @param details - The attempted visibility and source type.
+ * @returns The error to throw.
+ */
+function policyRefusal(
+    denial: 'policy' | 'contained' | 'privateSlots' | 'sourceConflict',
+    reason: string,
+    details: Record<string, unknown>,
+): Error {
+    return denial === 'sourceConflict' ? sourceConflictRefused(reason, details) : invalidVisibility(reason, details);
 }
 
 /**
@@ -471,11 +492,14 @@ function assertVisibilityAllowed(
  * @param principal - The verified caller.
  * @param recipe - The recipe's provenance label and source kind.
  * @param requested - The visibility asked for.
+ * @param sourceConflict - Whether the evidence holds the recipe out of Public (`sourceConflictOfEvidence`), read in the write's
+ *   own transaction. REQUIRED, so a route that forgot it does not compile.
  */
 function visibilityAskOf(
     principal: Principal,
     recipe: { readonly sourceType: RecipeSourceType; readonly sourceKind: RecipeSourceKind | null },
     requested: RecipeVisibility,
+    sourceConflict: boolean,
 ): Omit<VisibilityPolicyInput, 'hasAvailablePrivateSlot'> {
     return {
         principalKind: principal.principalKind,
@@ -484,6 +508,7 @@ function visibilityAskOf(
         sourceKind: recipe.sourceKind,
         isPremium: isPremiumPrincipal(principal),
         requested,
+        sourceConflict,
     };
 }
 
@@ -571,6 +596,9 @@ export class RecipesService {
         // Plan 2026-10-15-010 D8 — the read model a write's byline is resolved from. Required like the others.
         // ⚠️ Token-injected with a VALUE import: the `Pick` type emits `Object` into design:paramtypes.
         @Inject(AuthorHandlesDal) private readonly authorHandles: Pick<AuthorHandlesDal, 'findByline'>,
+        // The append-only evidence of every third-party source ever stated (migration 0086). Value import, like the byline
+        // read model above: the `Pick` type emits `Object` into design:paramtypes.
+        @Inject(RecipeSourceEvidenceDal) private readonly sourceEvidence: RecipeSourceEvidenceDal,
     ) {}
 
     /** One logger for the producer — a queue that is refusing work must be visible, never silent. */
@@ -799,10 +827,14 @@ export class RecipesService {
         const provenance = provenanceDecision.provenance;
         const requested = dto.visibility ?? RecipeVisibility.PUBLIC;
         const isPremium = isPremiumPrincipal(principal);
+        // The evidence this write leaves (ADR-0089 evidence rule), derived from the SAME provenance the row is written with, so
+        // the policy is asked about the recipe's real evidence and never a literal. A new recipe has no other.
+        const evidenceRow = evidenceRowOf(provenance, imported === undefined ? 'editorLink' : 'importFile');
         const visibilityAsk = visibilityAskOf(
             principal,
             { sourceType: provenance.sourceType, sourceKind: provenance.sourceKind },
             requested,
+            sourceConflictOfEvidence(evidenceRow === undefined ? [] : [evidenceRow], provenance),
         );
         // ADR-0073: only a free cook's private PUBLISHED recipe takes a slot, and THAT decision is made inside the write's transaction,
         // under the per-user lock, below. Every other request has no slot to lack, so it is judged here, before the planner,
@@ -916,6 +948,11 @@ export class RecipesService {
                 },
                 tx,
             );
+
+            // The statement's evidence, in THIS transaction: a stated source with no evidence row cannot commit (migration 0086).
+            if (evidenceRow !== undefined) {
+                await this.sourceEvidence.insert(tx, { ...evidenceRow, recipeId: created.recipe.id });
+            }
 
             // The import's claim of its item, in THIS transaction, so the claim and the recipe commit or vanish together.
             await imported?.afterWrite?.(tx, {
@@ -1319,6 +1356,10 @@ export class RecipesService {
             throw sourceNotUsable('The source link is not a public web page address.');
         }
 
+        // The evidence row a statement this PATCH applies will leave (none for a clear). Written below, in the transaction.
+        const pendingEvidence =
+            correction.kind === 'apply' ? evidenceRowOf(correction.provenance, 'editorLink') : undefined;
+
         // A stated source sets Private in this same write (ADR-0089): every judgement below reads the visibility it leaves.
         const forcesPrivate = correction.kind === 'apply' && correction.makePrivate;
         const sourceAfter =
@@ -1443,16 +1484,27 @@ export class RecipesService {
                 // is a private recipe from the first instant and is judged as one.
                 const visibilityAfter = forcesPrivate ? RecipeVisibility.PRIVATE : current.visibility;
 
+                // The evidence NOW, under the row lock this transaction holds (a PATCH that writes evidence takes the same lock),
+                // plus the row this PATCH is about to append.
+                const sourceConflict = sourceConflictOfEvidence(
+                    [
+                        ...(await this.sourceEvidence.listForRecipe(tx, id)),
+                        ...(pendingEvidence === undefined ? [] : [pendingEvidence]),
+                    ],
+                    sourceAfter,
+                );
+
                 // The state this write leaves, judged on the visibility read UNDER the lock (ADR-0089): a private-only recipe
                 // is never published and public, even if a race left its draft public.
                 const stateAfter = evaluatePublishedState({
                     status: afterStatus,
                     visibility: visibilityAfter,
                     ...sourceAfter,
+                    sourceConflict,
                 });
 
                 if (!stateAfter.allowed) {
-                    throw invalidVisibility(stateAfter.reason, {
+                    throw policyRefusal(stateAfter.denial, stateAfter.reason, {
                         visibility: visibilityAfter,
                         sourceType: sourceAfter.sourceType,
                     });
@@ -1476,7 +1528,7 @@ export class RecipesService {
                     }
 
                     assertVisibilityAllowed(
-                        visibilityAskOf(principal, sourceAfter, RecipeVisibility.PRIVATE),
+                        visibilityAskOf(principal, sourceAfter, RecipeVisibility.PRIVATE, sourceConflict),
                         takesSlot && counted !== undefined ? counted : SLOT_NOT_NEEDED,
                     );
                 }
@@ -1531,6 +1583,12 @@ export class RecipesService {
 
             if (!result) {
                 return undefined;
+            }
+
+            // Appended only once the write LANDED: a lost compare-and-swap commits an empty transaction, and must not record a
+            // statement that was never applied.
+            if (pendingEvidence !== undefined) {
+                await this.sourceEvidence.insert(tx, { ...pendingEvidence, recipeId: id });
             }
 
             await this.recordSnapshotIn(
@@ -1674,17 +1732,22 @@ export class RecipesService {
         // ADR-0073 section 12: a clone is always written as a DRAFT (below), and a draft holds no slot, so a clone is never
         // counted or refused for slots - whatever visibility it lands with. The slot is taken when the cook publishes it
         // (`update`).
-        const cloneVisibility = defaultCloneVisibility(
-            sourceType,
-            source.recipe.sourceKind,
-            principal,
-            source.recipe.visibility,
-        );
-
         // ⛔ ONE TRANSACTION, exactly as `create` — the clone and its first version row commit together.
         const created = await this.dal.transaction(async (tx) => {
             // The CLONER's byline: the clone is theirs, so they are its author and its first version's editor.
             const byline = await this.bylineIn(tx, principal);
+            // The clone inherits the source's evidence (the database copies it on insert), so its default visibility is judged
+            // on that evidence, read in this transaction: cloning must not launder a source the cook cleared.
+            const cloneVisibility = defaultCloneVisibility(
+                sourceType,
+                source.recipe.sourceKind,
+                principal,
+                source.recipe.visibility,
+                sourceConflictOfEvidence(await this.sourceEvidence.listForRecipe(tx, source.recipe.id), {
+                    sourceType,
+                    sourceKind: source.recipe.sourceKind,
+                }),
+            );
             const cloned = await this.dal.create(
                 {
                     ownerId,
@@ -1807,7 +1870,10 @@ export class RecipesService {
                     ? counted
                     : SLOT_NOT_NEEDED;
 
-            assertVisibilityAllowed(visibilityAskOf(principal, source, visibility), standing);
+            // Evidence read under the row lock taken just above: a PATCH that states a source takes the same lock.
+            const sourceConflict = sourceConflictOfEvidence(await this.sourceEvidence.listForRecipe(tx, id), source);
+
+            assertVisibilityAllowed(visibilityAskOf(principal, source, visibility, sourceConflict), standing);
 
             if (nowPublicFoods.length > 0) {
                 await this.dal.clearPublicFoodOwners(tx, nowPublicFoods);

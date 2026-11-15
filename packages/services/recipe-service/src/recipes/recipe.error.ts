@@ -283,6 +283,24 @@ export function invalidVisibility(reason: string, details?: Record<string, unkno
     return new RecipeDomainError(RecipeErrorCode.INVALID_VISIBILITY, reason, details);
 }
 
+/** `details.reason` of the `INVALID_VISIBILITY` the evidence rule answers with: the stable key a client branches on. */
+const SOURCE_CONFLICT_REASON = 'SOURCE_CONFLICT';
+
+/**
+ * `INVALID_VISIBILITY` with `details.reason: 'SOURCE_CONFLICT'` (→ 400) — a third-party source was once stated for the recipe,
+ * so it may not be Public, whatever the statement says now (the evidence rule, `sourceConflictOf`).
+ *
+ * ⚠️ Not a new published code, on the `SOURCE_LOCKED` precedent: `INVALID_VISIBILITY` is already the answer to "this recipe may
+ * not hold that visibility", and `details.reason` is the key a client branches on.
+ *
+ * @param reason - The policy's deny-reason, surfaced as the error message.
+ * @param details - The attempted visibility and source type, as {@link invalidVisibility} carries.
+ * @returns The error to throw.
+ */
+export function sourceConflictRefused(reason: string, details: Record<string, unknown> = {}): RecipeDomainError {
+    return invalidVisibility(reason, { ...details, reason: SOURCE_CONFLICT_REASON });
+}
+
 /**
  * `FORBIDDEN` — the caller declared a provenance it is not granted to declare (004-FR-025, ADR-0023).
  *

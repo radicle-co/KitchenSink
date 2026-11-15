@@ -191,6 +191,14 @@ export type {
     NewImportAllowanceEventRow,
 } from './importAllowanceEvents.js';
 
+// ── recipe_source_evidence (0086) — the append-only record of every third-party source ever stated ──
+export { recipeSourceEvidence, SOURCE_EVIDENCE_CAPTURES } from './recipeSourceEvidence.js';
+export type {
+    NewRecipeSourceEvidenceRow,
+    RecipeSourceEvidenceRow,
+    SourceEvidenceCapture,
+} from './recipeSourceEvidence.js';
+
 // ── recipe_imports, recipe_import_items, recipe_import_lines (ADR-0072, 0059) — bulk recipe import ──
 export {
     recipeImports,

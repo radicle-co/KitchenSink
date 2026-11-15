@@ -17,6 +17,7 @@ import type { ContainmentSubject } from '../../common/containmentPolicy.js';
 import { evaluateVisibility } from '../../recipes/domain/visibilityPolicy.js';
 import type { ImportVisibility } from '../dal/recipeImports.dal.js';
 import { resolveStatementProvenance } from '../../recipes/domain/provenancePolicy.js';
+import { evidenceRowOf, sourceConflictOfEvidence } from '../../recipes/domain/sourceEvidence.js';
 import type { KnownImportStatement } from './importStatement.js';
 
 /** What the policy needs to know about the cook. */
@@ -57,6 +58,8 @@ export function visibilityRefusedFor(
         return true;
     }
 
+    // The evidence the save will write for this statement (a new recipe has no other), so the question is the one the save asks.
+    const evidenceRow = evidenceRowOf(provenance, 'importFile');
     const decision = evaluateVisibility({
         principalKind: facts.principalKind,
         containment: facts.containment,
@@ -65,6 +68,7 @@ export function visibilityRefusedFor(
         isPremium: facts.isPremium,
         hasAvailablePrivateSlot: true,
         requested: requested === 'public' ? RecipeVisibility.PUBLIC : RecipeVisibility.PRIVATE,
+        sourceConflict: sourceConflictOfEvidence(evidenceRow === undefined ? [] : [evidenceRow], provenance),
     });
 
     return !decision.allowed;

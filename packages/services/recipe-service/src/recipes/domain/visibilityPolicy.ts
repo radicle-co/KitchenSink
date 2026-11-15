@@ -63,21 +63,33 @@ export interface VisibilityPolicyInput extends ContainmentSubject {
      * none is needed.
      */
     readonly hasAvailablePrivateSlot: boolean;
+    /**
+     * Whether a third-party source was EVER stated for the recipe (`sourceConflictOf`, recipe-core: the ONE seam the
+     * feature-020 hold replaces). REQUIRED, never defaulted, so a call site that forgot it is a compile error. It refuses a
+     * request for Public only; Private is never refused by it. The caller reads the evidence in the write's own transaction.
+     */
+    readonly sourceConflict: boolean;
 }
 
 /**
- * The outcome of a visibility decision: allowed, or denied for one of three reasons a caller must answer differently.
+ * The outcome of a visibility decision: allowed, or denied for one of four reasons a caller must answer differently.
  *
  * - `policy` — C-004 refuses the transition (→ `400 INVALID_VISIBILITY`);
  * - `contained` — ADR-0040 refuses a contained test principal's publish (→ `403 TEST_PRINCIPAL_CONTAINED`);
  * - `privateSlots` — ADR-0073: a free cook has no private slot left (→ `403 PRIVATE_SLOTS_FULL`, with `used` and
- *   `limit`, which the caller holds and this pure module does not).
+ *   `limit`, which the caller holds and this pure module does not);
+ * - `sourceConflict` — a third-party source was once stated for the recipe, so it may not be Public (→ the same
+ *   `400 INVALID_VISIBILITY`, told apart by `details.reason: 'SOURCE_CONFLICT'`).
  *
  * All carry a human-readable reason, surfaced as the error message.
  */
 export type VisibilityDecision =
     | { readonly allowed: true; readonly reason: string }
-    | { readonly allowed: false; readonly denial: 'policy' | 'contained' | 'privateSlots'; readonly reason: string };
+    | {
+          readonly allowed: false;
+          readonly denial: 'policy' | 'contained' | 'privateSlots' | 'sourceConflict';
+          readonly reason: string;
+      };
 
 /** Build an allow decision. Pure. */
 function allow(reason: string): VisibilityDecision {
@@ -92,6 +104,15 @@ function deny(reason: string): VisibilityDecision {
 /** Build a slot-exhaustion deny decision (ADR-0073). Pure. */
 function denyNoSlot(reason: string): VisibilityDecision {
     return { allowed: false, denial: 'privateSlots', reason };
+}
+
+/** Build an evidence-rule deny decision. Pure. */
+function denySourceConflict(): VisibilityDecision {
+    return {
+        allowed: false,
+        denial: 'sourceConflict',
+        reason: 'A source other than the cook was stated for this recipe, so it may not be made public.',
+    };
 }
 
 /** Why a private-only recipe may not be public. The only `imported_public` that is private-only is a web copy (ADR-0089). */
@@ -121,13 +142,17 @@ export function evaluatePublishedState(input: {
     readonly visibility: RecipeVisibility;
     readonly sourceType: RecipeSourceType;
     readonly sourceKind: RecipeSourceKind | null;
+    /** Whether a third-party source was ever stated (`sourceConflictOf`). REQUIRED. */
+    readonly sourceConflict: boolean;
 }): VisibilityDecision {
-    if (
-        input.status === RecipeStatus.PUBLISHED &&
-        input.visibility === RecipeVisibility.PUBLIC &&
-        privateRuleOf(input.sourceType, input.sourceKind) === 'privateOnly'
-    ) {
-        return deny(privateOnlyReason(input.sourceType));
+    if (input.status === RecipeStatus.PUBLISHED && input.visibility === RecipeVisibility.PUBLIC) {
+        if (privateRuleOf(input.sourceType, input.sourceKind) === 'privateOnly') {
+            return deny(privateOnlyReason(input.sourceType));
+        }
+
+        if (input.sourceConflict) {
+            return denySourceConflict();
+        }
     }
 
     return allow('The recipe is not left published and public while private-only.');
@@ -137,7 +162,7 @@ export function evaluatePublishedState(input: {
  * Evaluate the C-004 visibility policy for a requested transition. Pure — inputs only.
  */
 export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDecision {
-    const { sourceType, sourceKind, isPremium, hasAvailablePrivateSlot, requested } = input;
+    const { sourceType, sourceKind, isPremium, hasAvailablePrivateSlot, requested, sourceConflict } = input;
 
     if (requested === RecipeVisibility.PUBLIC) {
         const containment = evaluateContainment({
@@ -150,11 +175,11 @@ export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDeci
             return { allowed: false, denial: 'contained', reason: containment.reason };
         }
 
-        if (privateRuleOf(sourceType, sourceKind) !== 'privateOnly') {
-            return allow('User-created and imported-public recipes may be public.');
+        if (privateRuleOf(sourceType, sourceKind) === 'privateOnly') {
+            return deny(privateOnlyReason(sourceType));
         }
 
-        return deny(privateOnlyReason(sourceType));
+        return sourceConflict ? denySourceConflict() : allow('User-created and imported-public recipes may be public.');
     }
 
     // requested === RecipeVisibility.PRIVATE
@@ -185,7 +210,8 @@ export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDeci
  * `sourceType` and visibility: a clone of a PRIVATE source is `private` (FR-005c: only its owner can clone it, and the
  * copy stays as private as the original); `imported_physical`/`imported_paid` clones default to `private` (they may
  * not be public); everything else defaults to `public` — EXCEPT for a contained test principal (ADR-0040), whose clone
- * always defaults to `private`, because a default is a publish nobody asked for. Pure.
+ * always defaults to `private`, because a default is a publish nobody asked for, and so does a clone of a recipe held by the
+ * evidence rule (`sourceConflict`: the clone inherits the evidence). Pure.
  *
  * ⛔ A clone that lands `private` is a move to private like any other (ADR-0073 section 3): the caller takes the
  * per-user lock and the slot check before writing it. This function only says what the default IS.
@@ -195,8 +221,9 @@ export function defaultCloneVisibility(
     sourceKind: RecipeSourceKind | null,
     cloner: ContainmentSubject,
     sourceVisibility: RecipeVisibility,
+    sourceConflict: boolean,
 ): RecipeVisibility {
-    if (isContained(cloner) || sourceVisibility === RecipeVisibility.PRIVATE) {
+    if (isContained(cloner) || sourceVisibility === RecipeVisibility.PRIVATE || sourceConflict) {
         return RecipeVisibility.PRIVATE;
     }
 

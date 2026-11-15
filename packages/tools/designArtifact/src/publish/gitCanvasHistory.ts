@@ -65,6 +65,19 @@ export async function canvasTree(run: RunGit, sha: string, folder: string): Prom
 }
 
 /**
+ * Whether a canvas folder differs between two commits.
+ *
+ * @param run - Runs git in the repository.
+ * @param a - One commit.
+ * @param b - The other commit.
+ * @param folder - The canvas folder name.
+ * @returns `true` when any file under the folder differs.
+ */
+export async function canvasDiffers(run: RunGit, a: string, b: string, folder: string): Promise<boolean> {
+    return (await run(['diff', '--name-only', a, b, '--', `${CANVASES_DIR}/${folder}/`])).trim() !== '';
+}
+
+/**
  * Finds the commit that added a canvas's `snapshot.json` on main's first-parent line.
  *
  * @param run - Runs git in the repository.

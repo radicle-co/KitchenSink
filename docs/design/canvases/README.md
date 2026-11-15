@@ -77,20 +77,30 @@ after the PR merges.
 
 ### Publish from main
 
-Run these from a clean checkout after `git fetch origin main`. Only the `Artifact` tool can read and publish.
+Run these after `git fetch origin main`. Only the `Artifact` tool can read and publish. `stage` writes `main`'s blobs
+from git, so the work tree needs no cleaning.
 
+0. **Marker.** For each `repo-canvas` entry, read `project/published.json` with the `Artifact` tool
+   (`action: "read"`) into `<dir>/<folder>/project/`. A canvas that was never published from the repo has none, so skip
+   the read. Without the marker the baseline falls back to the snapshot. Also save the `action: "list"` result as a
+   JSON array of paths (`<list.json>`): `check` and `stage` exit 2 when it names the marker and it was not downloaded.
 1. **Plan.** `npm run canvas:publishPlan --workspace=packages/tools/designArtifact -- plan --live <dir>`. It prints,
    for each `repo-canvas` entry, the baseline (the live marker, or the snapshot commit when there is no marker), the
-   changed and deleted paths, and what to download. Skip a canvas with status `unchanged`.
+   changed and deleted paths, and what to download. Skip a canvas with status `unchanged` and a `marker` baseline. A
+   canvas with a `snapshot` baseline downloads every baseline path, even when it is `unchanged`.
 2. **Read.** For each canvas, download the paths in `download` with the `Artifact` tool (`action: "read"`) into
-   `<dir>/<folder>/`. Also save the `action: "list"` result as a JSON array of paths.
-3. **Check.** `… -- check <id> --main <sha> --live <dir> --list <list.json>`. Exit 0 is clean. A live file passes when
-   it equals the baseline or `main`. Exit 1 is drift: stop and follow "Drift". Exit 2 is bad input.
+   `<dir>/<folder>/`.
+3. **Check.** `… -- check <id> --main <sha> --live <dir> --list <list.json>`. `<sha>` is the `main.sha` that `plan`
+   printed (the `origin/main` tip). Exit 0 is clean. A live file passes when it equals the baseline or `main`. Exit 1
+   is drift: stop and follow "Drift". Exit 2 is bad input, or a `<sha>` behind the tip whose canvas changed since.
 4. **Stage.** `… -- stage <id> --main <sha> --live <dir> --list <list.json> --out <out>`. It checks again, writes the
    `main` blobs from git (a dirty work tree cannot leak in) and the marker outside the canvas folder, and prints the
-   `url`, `root` and `files` for the publish.
-5. **Publish.** Pass that output to the `Artifact` tool unchanged. `files` is the dict form: a deletion is `null`.
-   Never pass `force`. If the publish is refused, restart at step 2 for that canvas.
+   `url`, `root`, `files` and `label` for the publish. When the marker already names `main` it prints nothing and
+   exits 0: there is nothing to publish.
+5. **Publish.** Pass `url`, `root` and `files` to the `Artifact` tool unchanged, and pass `label` as the Artifact
+   `label` unchanged. The label, `canvas <id>: <baselineSha>..<mainSha>`, lets a reviewer confirm the publish covers
+   every path that changed between the two commits. `files` is the dict form: a deletion is `null`. Never pass
+   `force`. If the publish is refused, restart at step 0 for that canvas.
 
 ### Drift
 

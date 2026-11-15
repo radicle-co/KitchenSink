@@ -9,10 +9,12 @@
  * - `plan --live <dir>`: per canvas, the changes since its baseline and what to download into `<dir>/<folder>/`.
  * - `check <id> --main <sha> --live <dir> --list <json>`: whether the downloaded files may be overwritten.
  * - `stage <id> --main <sha> --live <dir> --list <json> --out <dir>`: re-checks, then writes main's blobs and the
- *   marker, and prints the Artifact tool's `url`, `root` and `files`.
+ *   marker, and prints the Artifact tool's `url`, `root`, `files` and the `label` to pass unchanged. It prints nothing
+ *   and exits 0 when a marker already names `--main`.
  *
- * Exit codes: 0 ok or clean, 1 drift (or `stage` refused), 2 bad input, git failure, unknown id, invalid marker or a
- * marker that is not on main.
+ * Exit codes: 0 ok or clean, 1 drift (or `stage` refused), 2 bad input, git failure, unknown id, invalid marker, a
+ * marker that is not on main, a list that names a marker that was not downloaded, or a `--main` behind the tip whose
+ * canvas folder changed since.
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -23,6 +25,7 @@ import {
     CANVASES_DIR,
     MAIN_REF,
     blobBytes,
+    canvasDiffers,
     canvasTree,
     isAncestor,
     resolveMain,
@@ -30,8 +33,8 @@ import {
     snapshotCommit,
 } from '../src/publish/gitCanvasHistory.js';
 import { hashLive, readLiveList, readMarker } from '../src/publish/liveFiles.js';
-import { chooseBaseline, driftVerdict, planCanvas, publishInput } from '../src/publish/publishPlan.js';
-import type { CanvasPlan, DriftVerdict } from '../src/publish/publishPlan.js';
+import { MARKER_PATH, chooseBaseline, driftVerdict, planCanvas, publishInput } from '../src/publish/publishPlan.js';
+import type { Baseline, CanvasPlan, DriftVerdict } from '../src/publish/publishPlan.js';
 import { parseRepoCanvases } from '../src/publish/repoCanvases.js';
 import type { RepoCanvas } from '../src/publish/repoCanvases.js';
 import { execGit } from '../src/sources/gitHead.js';
@@ -51,7 +54,7 @@ async function planOne(
     main: string,
     canvas: RepoCanvas,
     liveDir: string,
-): Promise<{ plan: CanvasPlan; baseline: ReturnType<typeof chooseBaseline> }> {
+): Promise<{ plan: CanvasPlan; baseline: Baseline }> {
     const marker = await readMarker(liveDir, canvas.folder);
 
     if (marker !== null && !(await isAncestor(run, marker, main))) {
@@ -77,12 +80,22 @@ async function checkOne(
     canvas: RepoCanvas,
     liveDir: string,
     listFile: string,
-): Promise<{ plan: CanvasPlan; verdict: DriftVerdict }> {
-    const { plan } = await planOne(run, main, canvas, liveDir);
-    const liveOids = await hashLive(run, liveDir, canvas.folder, plan.download);
-    const verdict = driftVerdict({ plan, liveOids, livePaths: await readLiveList(listFile) });
+): Promise<{ plan: CanvasPlan; baseline: Baseline; verdict: DriftVerdict }> {
+    const { plan, baseline } = await planOne(run, main, canvas, liveDir);
+    const livePaths = await readLiveList(listFile);
 
-    return { plan, verdict };
+    // No marker was read, yet the live canvas has one: the baseline would silently fall back to the snapshot.
+    if (baseline.from === 'snapshot' && livePaths.includes(MARKER_PATH)) {
+        throw new DesignArtifactError(
+            'marker-not-downloaded',
+            `The live list of ${canvas.id} holds ${MARKER_PATH}, but it is not in ${liveDir}/${canvas.folder}. Read it with the Artifact tool and run \`plan\` again.`,
+        );
+    }
+
+    const liveOids = await hashLive(run, liveDir, canvas.folder, plan.download);
+    const verdict = driftVerdict({ plan, liveOids, livePaths });
+
+    return { plan, baseline, verdict };
 }
 
 async function main(): Promise<number> {
@@ -133,12 +146,24 @@ async function main(): Promise<number> {
         throw new DesignArtifactError('unknown-canvas', `No repo-canvas entry has the id ${String(id)}.`);
     }
 
-    const { plan, verdict } = await checkOne(run, mainSha, canvas, liveDir, resolve(need('list')));
+    if (mainSha !== tip && (await canvasDiffers(run, mainSha, tip, canvas.folder))) {
+        throw new DesignArtifactError(
+            'stale-main',
+            `--main ${mainSha} is behind ${MAIN_REF} (${tip}), and ${canvas.id} changed since. Publish ${tip}.`,
+        );
+    }
+
+    const { plan, baseline, verdict } = await checkOne(run, mainSha, canvas, liveDir, resolve(need('list')));
 
     if (command === 'check') {
         process.stdout.write(`${JSON.stringify({ id: canvas.id, ...verdict })}\n`);
 
         return verdict.verdict === 'clean' ? 0 : 1;
+    }
+
+    // The marker already names main: nothing to publish, and no Artifact call is needed.
+    if (plan.status === 'unchanged' && baseline.from === 'marker') {
+        return 0;
     }
 
     if (verdict.verdict !== 'clean') {
@@ -159,7 +184,14 @@ async function main(): Promise<number> {
 
     await mkdir(dirname(input.marker.path), { recursive: true });
     await writeFile(input.marker.path, input.marker.content);
-    process.stdout.write(`${JSON.stringify({ url: input.url, root: input.root, files: input.files })}\n`);
+    process.stdout.write(
+        `${JSON.stringify({
+            url: input.url,
+            root: input.root,
+            files: input.files,
+            label: `canvas ${canvas.id}: ${baseline.sha}..${mainSha}`,
+        })}\n`,
+    );
 
     return 0;
 }

@@ -44,7 +44,9 @@ describe('selectCanvases', () => {
     });
 
     it('selects the named canvases for a list of ids', () => {
-        expect(selectCanvases(canvases, [], 'homeMobile', new Set()).map((canvas) => canvas.id)).toEqual(['homeMobile']);
+        expect(selectCanvases(canvases, [], 'homeMobile', new Set()).map((canvas) => canvas.id)).toEqual([
+            'homeMobile',
+        ]);
     });
 
     it('refuses an id that is not a canvas, so a typo cannot select nothing', () => {
@@ -55,7 +57,12 @@ describe('selectCanvases', () => {
 describe('changedRegistryIds', () => {
     const registry = (...entries: object[]): string => JSON.stringify({ canvases: entries });
     const web = { id: 'homeWeb', url: 'https://claude.ai/artifact/a', source: 'repo-canvas', folder: 'homeWeb' };
-    const mobile = { id: 'homeMobile', url: 'https://claude.ai/artifact/b', source: 'repo-canvas', folder: 'homeMobile' };
+    const mobile = {
+        id: 'homeMobile',
+        url: 'https://claude.ai/artifact/b',
+        source: 'repo-canvas',
+        folder: 'homeMobile',
+    };
 
     it('is empty when no entry differs, whatever the key order', () => {
         const reordered = { folder: 'homeWeb', source: 'repo-canvas', url: web.url, id: 'homeWeb' };

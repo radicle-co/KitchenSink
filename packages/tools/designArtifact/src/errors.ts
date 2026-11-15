@@ -22,7 +22,9 @@ export type DesignArtifactErrorCode =
     | 'invalid-reference'
     | 'invalid-marker'
     | 'unknown-canvas'
-    | 'marker-not-on-main';
+    | 'marker-not-on-main'
+    | 'marker-not-downloaded'
+    | 'stale-main';
 
 /** A build input broke a rule the artifact depends on. */
 export class DesignArtifactError extends Error {

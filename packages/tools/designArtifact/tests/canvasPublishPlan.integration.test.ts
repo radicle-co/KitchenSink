@@ -279,6 +279,33 @@ describe('check', () => {
 
         expect(run(['check', 'homeWeb', '--main', '2'.repeat(40), '--live', live, '--list', list]).code).toBe(2);
     });
+
+    it('exits 2 when the live list holds the marker but it was never downloaded', async () => {
+        await writeLive({ ...BASELINE_FILES });
+        const list = await writeList([...Object.keys(BASELINE_FILES), 'project/published.json']);
+        const result = run(['check', 'homeWeb', '--main', mainSha, '--live', live, '--list', list]);
+
+        expect(result.code).toBe(2);
+        expect(result.stderr).toContain('published.json');
+    });
+
+    it('exits 2 when --main is behind the tip and the canvas changed in between', async () => {
+        const list = await liveAtBaseline();
+        await put(`${CANVAS}/project/a.html`, '<p>a3</p>\n');
+        commit('later change to the canvas');
+        const result = run(['check', 'homeWeb', '--main', mainSha, '--live', live, '--list', list]);
+
+        expect(result.code).toBe(2);
+        expect(result.stderr).toContain('behind');
+    });
+
+    it('accepts --main behind the tip when the canvas folder did not change in between', async () => {
+        const list = await liveAtBaseline();
+        await put('docs/other.md', 'unrelated\n');
+        commit('unrelated change');
+
+        expect(run(['check', 'homeWeb', '--main', mainSha, '--live', live, '--list', list]).code).toBe(0);
+    });
 });
 
 describe('stage', () => {
@@ -306,6 +333,58 @@ describe('stage', () => {
         expect(JSON.parse(await readFile(join(out, 'Home.published.json'), 'utf8'))).toEqual({ sha: mainSha });
         expect(await readdir(join(out, 'Home/project'))).not.toContain('published.json');
         expect(await readdir(join(out, 'Home/project'))).not.toContain('b.html');
+    });
+
+    it('prints the label baseline..main with full shas, for the Artifact label', async () => {
+        await writeLive({ ...BASELINE_FILES });
+        const list = await writeList(Object.keys(BASELINE_FILES));
+        const staged = JSON.parse(
+            run(['stage', 'homeWeb', '--main', mainSha, '--live', live, '--list', list, '--out', out]).stdout,
+        );
+
+        expect(staged.label).toBe(`canvas homeWeb: ${snapshotSha}..${mainSha}`);
+    });
+
+    it.each([
+        ['the snapshot', null],
+        ['a marker', 'marker'],
+    ])('puts every path of the baseline..main diff in files, from %s', async (_name, from) => {
+        await writeLive({
+            ...BASELINE_FILES,
+            ...(from === null ? {} : { 'project/published.json': `{"sha":"${snapshotSha}"}` }),
+        });
+        const list = await writeList([
+            ...Object.keys(BASELINE_FILES),
+            ...(from === null ? [] : ['project/published.json']),
+        ]);
+        const staged = JSON.parse(
+            run(['stage', 'homeWeb', '--main', mainSha, '--live', live, '--list', list, '--out', out]).stdout,
+        );
+        const diff = git('diff', '--no-renames', '--name-status', snapshotSha, mainSha, '--', `${CANVAS}/project`)
+            .split('\n')
+            .map((line) => line.split('\t') as [string, string]);
+
+        expect(diff.length).toBeGreaterThan(0);
+
+        for (const [status, path] of diff) {
+            const key = path.slice(`${CANVAS}/`.length);
+
+            expect(staged.files, key).toHaveProperty([key], status === 'D' ? null : expect.stringContaining(key));
+        }
+
+        expect(Object.keys(staged.files).sort()).toEqual(
+            [...diff.map(([, p]) => p.slice(`${CANVAS}/`.length)), 'project/published.json'].sort(),
+        );
+    });
+
+    it('exits 0 and prints nothing when the marker already names main', async () => {
+        await writeLive({ 'project/published.json': `{"sha":"${mainSha}"}` });
+        const list = await writeList(['project/published.json']);
+        const result = run(['stage', 'homeWeb', '--main', mainSha, '--live', live, '--list', list, '--out', out]);
+
+        expect(result.code).toBe(0);
+        expect(result.stdout).toBe('');
+        await expect(readdir(out)).rejects.toThrow();
     });
 
     it('refuses on drift with exit 1 and writes nothing', async () => {

@@ -1,0 +1,12 @@
+appId: ${APP_ID}
+---
+# Cooking mode S1 on Android: the system Back key is Exit, never "previous step" (plan 0002 R-11; design.md §3.3). Steps
+# push no history, so Back from step 2 lands on the recipe page, not step 1. Its own flow because Maestro's `back` is
+# Android-only (`MAESTRO_PLATFORM_EXCLUSIONS`); iOS has no system Back key and its edge swipe is checked in
+# `cooking/cookingModeFlow`.
+- runFlow: common/openCookingRecipe.yaml
+- tapOn: 'Next step, step 2'
+- assertVisible: 'Step.2.of.3'
+- back
+- assertVisible: 'Start cooking'
+- assertNotVisible: 'Step.1.of.3'

@@ -4,12 +4,12 @@
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 10,
         "cross-platform-props-diverge": 30,
-        "missing-component-doc": 165,
-        "missing-module-doc": 23,
+        "missing-component-doc": 167,
+        "missing-module-doc": 24,
         "platform-singleton": 103,
         "ref-api": 22,
-        "unclassified-layer": 93,
-        "undocumented-prop": 229
+        "unclassified-layer": 98,
+        "undocumented-prop": 231
     },
     "findings": [
         {
@@ -5847,6 +5847,83 @@
             "evidence": []
         },
         {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "web/app/[locale]/recipes/[id]/cook/CookingError",
+            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/error.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "web/app/[locale]/recipes/[id]/cook/CookingError",
+            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/error.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "web/app/[locale]/recipes/[id]/cook/CookingError",
+            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/error.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "error",
+                "retry"
+            ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "web/app/[locale]/recipes/[id]/cook/CookingLoading",
+            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/loading.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "web/app/[locale]/recipes/[id]/cook/CookingLoading",
+            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/loading.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
+            "rule": "missing-module-doc",
+            "severity": "gap",
+            "component": "web/app/[locale]/recipes/[id]/cook/CookingPage",
+            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/page.tsx",
+            "message": "the file has no module docblock",
+            "evidence": []
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "web/app/[locale]/recipes/[id]/cook/CookingPage",
+            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/page.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "web/app/[locale]/recipes/[id]/cook/CookingPage",
+            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/page.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "params"
+            ]
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "web/app/[locale]/recipes/[id]/cook/CookingRoute",
+            "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/CookingRoute.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
             "rule": "missing-module-doc",
             "severity": "gap",
             "component": "web/app/[locale]/recipes/[id]/edit/EditRecipePage",
@@ -6754,6 +6831,14 @@
             "severity": "gap",
             "component": "mobile/screens/AppRoot",
             "sourcePath": "packages/apps/commise/mobile/src/screens/AppRoot.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "mobile/screens/CookingModeScreen",
+            "sourcePath": "packages/apps/commise/mobile/src/screens/CookingModeScreen.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
         },

@@ -1,0 +1,23 @@
+appId: ${APP_ID}
+---
+# Sub-flow: sign in, open the signer's cooking recipe (`reset --mode cooking`, decisions/0019) and start cooking it.
+- runFlow: ../../auth/signin.yaml
+- assertVisible: 'My recipes'
+- runFlow:
+      file: ../../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: '^${E2E_RECIPE_COOKING}$'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+- tapOn:
+      text: '^${E2E_RECIPE_COOKING}$'
+- runFlow:
+      file: ../../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Start cooking'
+          DIRECTION: UP
+          TIMEOUT: 20000
+- tapOn: 'Start cooking'
+- extendedWaitUntil:
+      visible: 'Step.1.of.3'
+      timeout: 30000

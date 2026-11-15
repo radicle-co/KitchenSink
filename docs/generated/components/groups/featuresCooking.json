@@ -1623,7 +1623,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingTopBar.native.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingTopBar — the native top bar: Exit as ONE control, the × and its visible label together with\none accessible name, on the quiet `lg` house Button (52, so at least 48 tall), then the place as plain text. Done passes\nno place, so it shows Exit alone. The place keeps the position and type of a later All steps button. No Ingredients pill\nyet, not even a disabled one.\n\nProps are the shared contract's `CookingTopBarProps` plus native's `narrow`, which the screen reads from the window once,\nbecause a leaf never reads the device: web's container query does the same work, so the web leaf has no such prop.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingTopBar — the native top bar: Exit as ONE control, the × and its visible label together with\none accessible name, on the quiet `md` house Button (44, lifted to the platform touch floor), then the place as plain text. Done passes\nno place, so it shows Exit alone. The place keeps the position and type of a later All steps button. No Ingredients pill\nyet, not even a disabled one.\n\nProps are the shared contract's `CookingTopBarProps` plus native's `narrow`, which the screen reads from the window once,\nbecause a leaf never reads the device: web's container query does the same work, so the web leaf has no such prop.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",

@@ -3,13 +3,13 @@
     "counts": {
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 10,
-        "cross-platform-props-diverge": 23,
+        "cross-platform-props-diverge": 28,
         "missing-component-doc": 165,
         "missing-module-doc": 23,
-        "platform-singleton": 115,
+        "platform-singleton": 103,
         "ref-api": 21,
         "unclassified-layer": 93,
-        "undocumented-prop": 223
+        "undocumented-prop": 227
     },
     "findings": [
         {
@@ -5295,83 +5295,66 @@
             ]
         },
         {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresCooking/CookingDone",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingDone.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresCooking/CookingDoneActions",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingDoneActions.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "platform-singleton",
+            "rule": "cross-platform-props-diverge",
             "severity": "review",
             "component": "featuresCooking/CookingFrame",
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
+            "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web"
+                "web: body busy foot topBar",
+                "native: body bodySwipe busy foot topBar"
             ]
         },
         {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresCooking/CookingLineRow",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingLineRow.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingFrame",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.native.tsx",
+            "message": "props carry no JSDoc description",
             "evidence": [
-                "web"
+                "bodySwipe"
             ]
         },
         {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresCooking/CookingLoading",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingLoading.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "platform-singleton",
+            "rule": "cross-platform-props-diverge",
             "severity": "review",
             "component": "featuresCooking/CookingNav",
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingNav.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
+            "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web"
+                "web: back disabled forward",
+                "native: back disabled forward narrow"
             ]
         },
         {
-            "rule": "platform-singleton",
+            "rule": "cross-platform-props-diverge",
             "severity": "review",
             "component": "featuresCooking/CookingNextPreview",
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingNextPreview.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
+            "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web"
+                "web: preview",
+                "native: preview short"
             ]
         },
         {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresCooking/CookingScreen",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingScreen.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingNextPreview",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingNextPreview.native.tsx",
+            "message": "props carry no JSDoc description",
             "evidence": [
-                "web"
+                "short"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingScreen",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingScreen.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "read"
             ]
         },
         {
@@ -5385,33 +5368,24 @@
             ]
         },
         {
-            "rule": "platform-singleton",
+            "rule": "cross-platform-props-diverge",
             "severity": "review",
             "component": "featuresCooking/CookingSessionScreen",
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingSessionScreen.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
+            "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web"
+                "web: onLeave recipe",
+                "native: narrow onLeave recipe short width"
             ]
         },
         {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresCooking/CookingStateNotice",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingStateNotice.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
+            "rule": "undocumented-prop",
+            "severity": "gap",
             "component": "featuresCooking/CookingStep",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingStep.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingStep.native.tsx",
+            "message": "props carry no JSDoc description",
             "evidence": [
-                "web"
+                "track"
             ]
         },
         {
@@ -5425,13 +5399,14 @@
             ]
         },
         {
-            "rule": "platform-singleton",
+            "rule": "cross-platform-props-diverge",
             "severity": "review",
             "component": "featuresCooking/CookingTopBar",
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingTopBar.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
+            "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web"
+                "web: exit place",
+                "native: exit narrow place"
             ]
         },
         {

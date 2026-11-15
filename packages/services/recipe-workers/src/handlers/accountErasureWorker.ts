@@ -718,6 +718,11 @@ export const eraseRecipeRows = async (
         //    say which; they are bound as ONE jsonb parameter like the election, so the rule is not copied here and no SQL
         //    text is spliced. A NULL kind is the empty string in the key, so it is never an unknown. Such an elected recipe is removed with the owner-only set below, exactly as one that holds a
         //    private food is. (Until now a donated book or paid-site recipe was published.)
+        //    ⛔ AND ONLY a recipe the evidence rule does not hold (`sourceConflictOf`, recipe-core): a recipe whose cook stated
+        //    a third-party source and then cleared it reads as their own, and a donation would publish it as such. It follows
+        //    the private-only path: removed with the owner-only set. The private-only half is the bound keys just above; the
+        //    evidence half is the database function `recipe_holds_third_party_source` (migration 0086), the same shape as
+        //    `recipe_holds_private_food`, so neither rule is copied here and no SQL text is spliced.
         await tx.execute(sql`
             UPDATE recipes
             SET visibility = 'public', status = 'published', updated_at = now()
@@ -726,6 +731,7 @@ export const eraseRecipeRows = async (
               AND NOT recipe_holds_private_food(id)
               AND (source_type || ':' || COALESCE(source_kind, ''))
                   NOT IN (SELECT jsonb_array_elements_text(${privateOnlyKeysJson}::jsonb))
+              AND NOT recipe_holds_third_party_source(id)
         `);
 
         // 2. The removed set = the owner's rows that are NOT truly-public (owner-only, non-donated). Captured

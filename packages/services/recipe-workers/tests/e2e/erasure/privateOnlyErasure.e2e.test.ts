@@ -32,6 +32,10 @@ interface Probe {
     readonly sourceKind: string | null;
     readonly sourceUrl: string | null;
     readonly donated: boolean;
+    /** What the cook stated (0087). Omitted: a stated kind reads as `source`, none as no statement. */
+    readonly statementKind?: 'authored';
+    /** Whether the cook's client reported content pasted into the recipe (0087). */
+    readonly pasted?: boolean;
     /** The evidence the recipe carries, if any: a stated source, or one the cook cleared. */
     readonly evidence?: {
         readonly capture: 'editorLink' | 'importFile';
@@ -96,6 +100,18 @@ const PROBES: readonly Probe[] = [
             citation: null,
         },
     },
+    // The statement rule (0087): pasted and never said to be theirs is not donated, because a donation would publish it as theirs.
+    { name: 'pastedNoStatement', sourceType: 'user_created', sourceKind: null, sourceUrl: null, pasted: true, donated: false },
+    // …and once the cook has said so it may be donated like any recipe they wrote.
+    {
+        name: 'pastedAuthored',
+        sourceType: 'user_created',
+        sourceKind: null,
+        sourceUrl: null,
+        pasted: true,
+        statementKind: 'authored',
+        donated: true,
+    },
 ];
 
 describe('erasure never donates a private-only recipe (ADR-0089)', () => {
@@ -122,10 +138,11 @@ describe('erasure never donates a private-only recipe (ADR-0089)', () => {
             const { rows } = await tx.execute<{ id: string }>(sql`
                 INSERT INTO recipes (owner_id, title, description, servings, prep_time_minutes, cook_time_minutes,
                                      total_time_minutes, visibility, status, source_type, source_kind, source_url,
-                                     statement_kind)
+                                     statement_kind, content_pasted_at)
                 VALUES (${USER_ERASED}, ${'ADR-0089 probe ' + probe.name}, 'probe', 2, 5, 5, 10, 'private', 'published',
                         ${probe.sourceType}, ${probe.sourceKind}, ${probe.sourceUrl},
-                        CASE WHEN ${probe.sourceKind}::text IS NULL THEN NULL ELSE 'source' END)
+                        ${probe.statementKind ?? (probe.sourceKind === null ? null : 'source')},
+                        ${probe.pasted === true ? new Date().toISOString() : null}::timestamptz)
                 RETURNING id
             `);
             const id = rows[0]?.id;

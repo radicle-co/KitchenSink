@@ -723,6 +723,9 @@ export const eraseRecipeRows = async (
         //    the private-only path: removed with the owner-only set. The private-only half is the bound keys just above; the
         //    evidence half is the database function `recipe_holds_third_party_source` (migration 0086), the same shape as
         //    `recipe_holds_private_food`, so neither rule is copied here and no SQL text is spliced.
+        //    ⛔ AND ONLY a recipe whose cook owes no statement (`statementRequiredOf`, recipe-core): pasted content the
+        //    cook never said was theirs would be published as theirs by a donation, so it is removed with the owner-only
+        //    set. The database function is `recipe_needs_statement` (migration 0087); it adds no SQL parameter.
         await tx.execute(sql`
             UPDATE recipes
             SET visibility = 'public', status = 'published', updated_at = now()
@@ -732,6 +735,7 @@ export const eraseRecipeRows = async (
               AND (source_type || ':' || COALESCE(source_kind, ''))
                   NOT IN (SELECT jsonb_array_elements_text(${privateOnlyKeysJson}::jsonb))
               AND NOT recipe_holds_third_party_source(id)
+              AND NOT recipe_needs_statement(id)
         `);
 
         // 2. The removed set = the owner's rows that are NOT truly-public (owner-only, non-donated). Captured

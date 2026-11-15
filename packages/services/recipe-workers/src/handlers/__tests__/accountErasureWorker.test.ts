@@ -383,6 +383,21 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(flip?.params).toEqual([JSON.stringify([DONATE_1]), OWNER, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)]);
     });
 
+    it('⛔ donates an elected recipe ONLY if the cook has no statement owed: a pasted recipe never said to be theirs is not made public', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, [DONATE_1]);
+
+        const flip = control.statements().find((s) => /update recipes set visibility/i.test(s.text));
+
+        // The database's own statement rule (migration 0087), not a copy of it, like the evidence rule beside it.
+        expect(flip?.text).toMatch(/and not recipe_needs_statement\(id\)/i);
+        expect(flip?.text).toMatch(/and not recipe_holds_third_party_source\(id\)/i);
+        // …and it adds no parameter: the election, the owner and the private-only keys are still the whole list.
+        expect(flip?.params).toEqual([JSON.stringify([DONATE_1]), OWNER, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)]);
+    });
+
     it('computes the removed set on BOTH axes — owner AND NOT (public AND published)', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);

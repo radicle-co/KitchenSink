@@ -905,6 +905,51 @@ describe('CookingScreen (native): what the live region says after a tick', () =>
     });
 });
 
+// A tick moves the ticked row out of the list, and Cook it again unmounts the focused Done action, so the screen-reader
+// cursor would be lost. It goes to the control that does the cook's next job (designer D13), and only after a tick or
+// Cook it again: opening a step, and pressing Back or Next, leave it where it is.
+describe('CookingScreen (native): screen-reader focus when the focused control goes away', () => {
+    const focused = () => vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mock.calls.map(([node]) => node);
+
+    it('does not take focus on opening, and leaves it on Next after a Next', () => {
+        setup();
+        fireEvent.click(forward());
+
+        expect(focused()).toEqual([]);
+    });
+
+    it('moves focus to the new focus line when a Then line is ticked', () => {
+        setup();
+
+        tick('Heat 1.5 tbsp. oil.');
+
+        expect(focused().at(-1)).toBe(screen.getByRole('checkbox', { name: 'Add the onion and cook 5 min.' }));
+    });
+
+    it('moves focus to the forward control when the last line is ticked', () => {
+        setup();
+        tick('Heat 1.5 tbsp. oil.');
+        vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
+
+        tick('Add the onion and cook 5 min.');
+
+        expect(focused().at(-1)).toBe(forward());
+    });
+
+    it('moves focus to step 1’s forward control after Cook it again', () => {
+        setup();
+
+        for (let step = 1; step <= 6; step++) {
+            fireEvent.click(forward());
+        }
+
+        press('Cook it again');
+
+        expect(focused().at(-1)).toBe(forward());
+        expect(screen.getByRole('button', { name: 'Next step, step 2' })).toBe(forward());
+    });
+});
+
 describe('CookingScreen (native): Done', () => {
     const finish = () => {
         for (let step = 1; step < 6; step++) {

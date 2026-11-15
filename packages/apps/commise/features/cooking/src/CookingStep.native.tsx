@@ -46,8 +46,24 @@ function segmentState(step: number, current: number): SegmentState {
     return step === current ? 'now' : 'later';
 }
 
+/** Native's props: the shared ones, plus the screen's request that the focus line takes the screen-reader cursor. */
+export type NativeCookingStepProps = CookingStepProps & {
+    readonly focusRequested?: boolean;
+    readonly onFocusHandled?: () => void;
+};
+
 /** The native step body. */
-export const CookingStep: FC<CookingStepProps> = ({ label, track, lineOf, ticked, focus, then, upNext }) => (
+export const CookingStep: FC<NativeCookingStepProps> = ({
+    label,
+    track,
+    lineOf,
+    ticked,
+    focus,
+    then,
+    upNext,
+    focusRequested = false,
+    onFocusHandled,
+}) => (
     <YStack role="region" aria-label={label} collapsable={false} gap="$4" paddingHorizontal="$4" paddingVertical="$3">
         <XStack testID="cooking-step-track" aria-hidden gap="$1">
             {Array.from({ length: track.total }, (_, index) => (
@@ -74,7 +90,14 @@ export const CookingStep: FC<CookingStepProps> = ({ label, track, lineOf, ticked
                 {lineOf}
             </Text>
         )}
-        {focus === undefined ? null : <CookingLineRow line={focus} emphasis="focus" />}
+        {focus === undefined ? null : (
+            <CookingLineRow
+                line={focus}
+                emphasis="focus"
+                focusRequested={focusRequested}
+                onFocusHandled={onFocusHandled}
+            />
+        )}
         {then.map((line) => (
             <CookingLineRow key={line.key} line={line} emphasis="other" />
         ))}

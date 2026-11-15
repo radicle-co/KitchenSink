@@ -22,10 +22,20 @@ import type { CookingNavProps } from './cookingViewProps.js';
 export type NativeCookingNavProps = CookingNavProps & {
     /** Under 360 wide: no chevrons, so the labels keep their width. */
     readonly narrow: boolean;
+    /** The screen asks the forward control to take the screen-reader cursor; it acknowledges with `onFocusHandled`. */
+    readonly forwardFocusRequested?: boolean;
+    readonly onFocusHandled?: () => void;
 };
 
 /** The native nav pair. */
-export const CookingNav: FC<NativeCookingNavProps> = ({ back, forward, disabled, narrow }) => (
+export const CookingNav: FC<NativeCookingNavProps> = ({
+    back,
+    forward,
+    disabled,
+    narrow,
+    forwardFocusRequested = false,
+    onFocusHandled,
+}) => (
     <XStack role="navigation" collapsable={false} gap="$3" paddingHorizontal="$4" paddingVertical="$3">
         <YStack flex={1}>
             <Button
@@ -50,6 +60,8 @@ export const CookingNav: FC<NativeCookingNavProps> = ({ back, forward, disabled,
                     iconPlacement="end"
                     {...nameOf(forward)}
                     disabled={disabled}
+                    focusRequested={forwardFocusRequested}
+                    {...(onFocusHandled === undefined ? {} : { onFocusRequestHandled: onFocusHandled })}
                     onPress={forward.onPress}
                 >
                     {forward.label}
@@ -62,6 +74,8 @@ export const CookingNav: FC<NativeCookingNavProps> = ({ back, forward, disabled,
                     {...(narrow ? {} : { icon: 'chevronRight' as const, iconPlacement: 'end' as const })}
                     {...nameOf(forward)}
                     disabled={disabled}
+                    focusRequested={forwardFocusRequested}
+                    {...(onFocusHandled === undefined ? {} : { onFocusRequestHandled: onFocusHandled })}
                     onPress={forward.onPress}
                 >
                     {forward.label}

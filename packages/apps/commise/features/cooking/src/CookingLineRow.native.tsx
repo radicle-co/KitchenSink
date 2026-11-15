@@ -10,14 +10,19 @@
  * The focus line is set in the role named by `FOCUS_LINE_TYPE`, the one seam both platforms read, and every other line in
  * `readingBody`.
  *
- * Presentational: props → JSX.
+ * Presentational: props → JSX, apart from taking the screen-reader cursor when the screen asks (`focusRequested`).
+ *
+ * @pattern Adapter — the press handle wraps the platform's screen-reader focus event, an external system with no declarative form
  */
 import { CheckBoxGlyph } from '@commise/ui/check-box-glyph';
 import { touchFloor } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
+import { useFocusRequest } from '@commise/ui/focus-request';
 import { PressScale } from '@commise/ui/press-scale';
+import { moveScreenReaderFocus } from '@commise/ui/screen-reader-focus';
 import { Text } from '@commise/ui/text';
-import type { FC } from 'react';
+import { useRef, type FC } from 'react';
+import type { View } from 'react-native';
 import { XStack, YStack } from 'tamagui';
 
 import type { CookingLineRowProps } from './cookingViewProps.js';
@@ -38,17 +43,34 @@ const LINE_HEIGHT = {
     other: nativeTokens.type.readingBody.lineHeight,
 } as const;
 
+/** Native's props: the shared ones, plus the screen's request that this row takes the screen-reader cursor. */
+export type NativeCookingLineRowProps = CookingLineRowProps & {
+    readonly focusRequested?: boolean;
+    readonly onFocusHandled?: () => void;
+};
+
 /** The native cooking line row. */
-export const CookingLineRow: FC<CookingLineRowProps> = ({ line: { text, checked, onToggle }, emphasis }) => (
-    <PressScale accessibilityRole="checkbox" checked={checked} width="fill" onPress={onToggle}>
-        <XStack minHeight={touchFloor()} gap="$3" alignItems="flex-start" paddingVertical="$2">
-            {/* The slot holds only the glyph, never text, so its least height is the line's and it never grows. */}
-            <YStack minHeight={LINE_HEIGHT[emphasis]} justifyContent="center">
-                <CheckBoxGlyph checked={checked} />
-            </YStack>
-            <Text typeRole={ROLE[emphasis]} color={checked ? '$inkMuted' : '$ink'} flex={1}>
-                {text}
-            </Text>
-        </XStack>
-    </PressScale>
-);
+export const CookingLineRow: FC<NativeCookingLineRowProps> = ({
+    line: { text, checked, onToggle },
+    emphasis,
+    focusRequested = false,
+    onFocusHandled,
+}) => {
+    const node = useRef<View>(null);
+
+    useFocusRequest(focusRequested, () => moveScreenReaderFocus(node.current), onFocusHandled);
+
+    return (
+        <PressScale ref={node} accessibilityRole="checkbox" checked={checked} width="fill" onPress={onToggle}>
+            <XStack minHeight={touchFloor()} gap="$3" alignItems="flex-start" paddingVertical="$2">
+                {/* The slot holds only the glyph, never text, so its least height is the line's and it never grows. */}
+                <YStack minHeight={LINE_HEIGHT[emphasis]} justifyContent="center">
+                    <CheckBoxGlyph checked={checked} />
+                </YStack>
+                <Text typeRole={ROLE[emphasis]} color={checked ? '$inkMuted' : '$ink'} flex={1}>
+                    {text}
+                </Text>
+            </XStack>
+        </PressScale>
+    );
+};

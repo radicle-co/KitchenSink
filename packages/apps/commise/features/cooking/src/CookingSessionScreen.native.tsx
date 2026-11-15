@@ -20,6 +20,7 @@ import { CookingStep } from './CookingStep.native.js';
 import { CookingTopBar } from './CookingTopBar.native.js';
 import type { CookingRecipe } from './cookingViewProps.js';
 import { stepSwipeOf, swipeTravelOf, type StepSwipe } from './stepSwipe.js';
+import { useCookingFocusRecovery } from './useCookingFocusRecovery.native.js';
 import { useCookingSessionScreen } from './useCookingSessionScreen.js';
 
 /** Props for {@link CookingSessionScreen}. */
@@ -40,6 +41,12 @@ export interface CookingSessionScreenProps {
 export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, onLeave, narrow, short, width }) => {
     const model = useCookingSessionScreen({ recipe, onLeave });
     const { done, hasPrevious, hasNext, goForward, goBack } = model;
+    const focus = useCookingFocusRecovery({
+        moves: model.moves,
+        tickedCount: model.session.tickedCount,
+        everyLineTicked: model.session.everyLineTicked,
+        finished: done !== null,
+    });
 
     if (done !== null) {
         return (
@@ -84,7 +91,11 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
             }}
             body={
                 <>
-                    <CookingStep {...model.step} />
+                    <CookingStep
+                        {...model.step}
+                        focusRequested={focus.target === 'focusLine'}
+                        onFocusHandled={focus.handled}
+                    />
                     <LiveRegion politeness="polite" visuallyHidden announceOnMount occurrence={model.moves}>
                         {model.announcement}
                     </LiveRegion>
@@ -96,6 +107,8 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
                     <CookingNav
                         disabled={false}
                         narrow={narrow}
+                        forwardFocusRequested={focus.target === 'forward'}
+                        onFocusHandled={focus.handled}
                         back={{ label: nav.back.label, accessibilityLabel: nav.back.a11yName, onPress: goBack }}
                         forward={{
                             label: nav.forward.label,

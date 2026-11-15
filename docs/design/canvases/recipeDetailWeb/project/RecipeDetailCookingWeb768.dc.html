@@ -1846,30 +1846,17 @@
 .s4bDock * { box-sizing: border-box; }
 .s4bRow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 60px; padding: 6px 0; }
 .s4bGlyph { color: var(--action-text); flex: none; display: flex; }
-.s4bRow.s4bEnded .s4bGlyph, .s4bRow.s4bRinging .s4bGlyph { color: var(--attention); }
 .s4bLab { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; }
 .s4bFig { font: 600 28px/32px Inter, system-ui, sans-serif; font-variant-numeric: tabular-nums lining-nums;
   white-space: nowrap; color: var(--ink); }
 .s4bMeta { font-size: 14px; line-height: 20px; color: var(--ink-muted); overflow-wrap: anywhere; }
-.s4bPaused { color: var(--ink); font-weight: 600; }
-.s4bName { color: var(--action-text); font-weight: 600; }
-.s4bBody { flex: 1 1 160px; min-width: 0; display: flex; align-items: center; gap: 12px; border-radius: 12px;
-  background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .s4bIcons { display: flex; gap: 8px; flex: none; margin-left: auto; }
 .s4bIb { width: 44px; height: 44px; border-radius: 22px; display: flex; align-items: center; justify-content: center;
   color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; }
-.s4bActs { display: flex; flex-wrap: wrap; gap: 0 12px; margin-left: auto; }
-.s4bText { min-height: 48px; padding: 0 16px; border-radius: 999px; display: inline-flex; align-items: center;
-  color: var(--action-text); font: 600 16px/24px Inter, system-ui, sans-serif; background: none; border: 0; cursor: pointer; }
-/* Placement (R5a): 8 above the tab bar below 840 and on every native size; at the foot of the main column on web 840+. */
+/* Placement (R5a): 8 above the tab bar below 840 and on every native size. */
 .s4bSlot { padding: 0 12px 8px; flex: none; }
+/* Web 840+ (R5a): at the foot of the main column, never over the sidebar. */
 .s4bSlotMain { position: sticky; bottom: 16px; z-index: 6; padding: 16px 0 0; }
-/* Largest text: body roles x2 (14 -> 28, 16 -> 32), figureLarge x1.5 (42/48), the glyph hidden above 1.3x. */
-.s4bBig .s4bFig { font-size: 42px; line-height: 48px; }
-.s4bBig .s4bMeta { font-size: 28px; line-height: 40px; }
-.s4bBig .s4bText { font-size: 32px; line-height: 40px; }
-.s4bBig .s4bGlyph { display: none; }
-.s4bBig .s4bIb svg { width: 28px; height: 28px; }
 </style></helmet
             >
             <svg width="0" height="0" style="position: absolute" aria-hidden="true">

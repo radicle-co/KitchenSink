@@ -7,14 +7,11 @@
         <link rel="stylesheet" href="ds/commise/tokens.css" />
     </head>
     <body>
-        <!-- S4b board, built by buildS4bBoards.py (squad Luna designer, plan 0004). Design artifact, not app code. -->
+        <!-- S4b board, squad Luna designer, plan 0004. Design artifact, not app code. -->
         <x-dc><helmet><style>
 [data-theme='light'] { --canvas: #eff3f6; --paper: #fcfdff; --ink: #171b20; --ink-muted: #5c646e; --line-control: #80878f; --line-divider: #dfe3e8; --action: #325c7f; --action-text: #325c7f; --here-bar: #325c7f; --attention: #8c5a00; --paper-raised: #ffffff; --paper-overlay: #ffffff; --surface-muted: #e9edf2; --inverse: #171b20; --inverse-ink: #ffffff; --scrim: rgba(10, 16, 24, 0.42); --on-action: #ffffff; --shadow-lg: 0 2px 4px rgba(10, 20, 30, 0.08), 0 8px 22px rgba(10, 20, 30, 0.12); }
 [data-theme='dark'] { --canvas: #0e161e; --paper: #172029; --ink: #ebeff2; --ink-muted: #a3acb6; --line-control: #7d8792; --line-divider: #262f38; --action: #96bcde; --action-text: #96bcde; --here-bar: #96bcde; --attention: #efba64; --paper-raised: #212b36; --paper-overlay: #26313d; --surface-muted: #212b36; --inverse: #ebeff2; --inverse-ink: #171b20; --scrim: rgba(0, 0, 0, 0.66); --on-action: #0e161e; --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.4); }
-[data-theme='dark'].osScreen, [data-theme='dark'] .osScreen { --os-wall: linear-gradient(180deg, #2b3440, #11161c); --os-wall-ink: #ffffff; --os-card: rgba(56, 66, 79, 0.94); --os-card-ink: #ebeff2; --os-card-muted: #a3acb6; }
 [data-theme='light'] { --selected-fill: #e4eef7; }
-[data-theme='light'] .alarm .ghost, .alarm .ghost { border: 1px solid currentColor; opacity: 0.85; }
-
 /* S4b recipe-page timer dock (Luna plan 0004, designer D24-D29): S3's CookingTimerRow in a region named "Timer". */
 .s4bDock { box-sizing: border-box; width: 100%; max-width: 600px; margin: 0 auto; padding: 0 8px 0 14px;
   background: var(--paper-raised); color: var(--ink); border-radius: 18px; box-shadow: var(--shadow-lg);
@@ -37,9 +34,8 @@
 .s4bActs { display: flex; flex-wrap: wrap; gap: 0 12px; margin-left: auto; }
 .s4bText { min-height: 48px; padding: 0 16px; border-radius: 999px; display: inline-flex; align-items: center;
   color: var(--action-text); font: 600 16px/24px Inter, system-ui, sans-serif; background: none; border: 0; cursor: pointer; }
-/* Placement (R5a): 8 above the tab bar below 840 and on every native size; at the foot of the main column on web 840+. */
+/* Placement (R5a): 8 above the tab bar below 840 and on every native size. */
 .s4bSlot { padding: 0 12px 8px; flex: none; }
-.s4bSlotMain { position: sticky; bottom: 16px; z-index: 6; padding: 16px 0 0; }
 /* Largest text: body roles x2 (14 -> 28, 16 -> 32), figureLarge x1.5 (42/48), the glyph hidden above 1.3x. */
 .s4bBig .s4bFig { font-size: 42px; line-height: 48px; }
 .s4bBig .s4bMeta { font-size: 28px; line-height: 40px; }
@@ -84,10 +80,6 @@ figcaption b { color: #171b20; font-weight: 600; }
   display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--ink); }
 .top { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 8px 8px 0; }
 .iconBtn { width: 44px; height: 44px; border-radius: 22px; display: flex; align-items: center; justify-content: center; }
-.statusPad { flex: none; height: 47px; }
-.homeInd { flex: none; height: 34px; background: var(--paper-raised); position: relative; }
-.homeInd::after { content: ''; position: absolute; left: 50%; bottom: 8px; width: 134px; height: 5px; margin-left: -67px;
-  border-radius: 3px; background: var(--ink); }
 .tabs { flex: none; display: flex; background: var(--paper-raised); border-top: 1px solid var(--line-divider); }
 .tabs a { flex: 1; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 4px; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--ink-muted); text-decoration: none; }
@@ -132,15 +124,6 @@ figcaption b { color: #171b20; font-weight: 600; }
 .alarm .go { min-height: 48px; font-weight: 600; text-decoration: underline; align-self: center; display: flex; align-items: center; }
 .alarm.alarmCard { inset: auto; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 480px; border-radius: 20px; }
 .scrim { position: absolute; inset: 0; z-index: 19; background: var(--scrim); }
-/* Notes drawn on the screen: dashed boxes and the focus order. */
-.cap { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--attention); z-index: 8; pointer-events: none; }
-.cap span { position: absolute; right: 6px; top: 2px; font-size: 14px; line-height: 20px; color: var(--attention);
-  background: var(--canvas); padding: 0 4px; border-radius: 6px; }
-.order { position: absolute; z-index: 10; width: 28px; height: 28px; border-radius: 14px; background: var(--attention);
-  color: #fff; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
-.slop .s4bIb::after, .slop .s4bText::after { content: ''; position: absolute; inset: -2px; border: 1px dashed var(--attention);
-  border-radius: 24px; }
-.slop .s4bIb, .slop .s4bText { position: relative; }
 /* Largest text on the page: body roles x2 (16 -> 32, 14 -> 28), the 28 title at its 28 x 2 cap (56/64). */
 .big .t16, .big .fill, .big .snack, .big .menu a { font-size: 32px; line-height: 40px; }
 .big .t14, .big .chip { font-size: 28px; line-height: 40px; }

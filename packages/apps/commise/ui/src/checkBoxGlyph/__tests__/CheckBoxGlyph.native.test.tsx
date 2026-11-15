@@ -187,8 +187,10 @@ describe('CheckBoxGlyph (native)', () => {
                     return at;
                 }
             }
+
             throw new Error('The check mark carries no transition.');
         };
+
         const handle: { current?: ReturnType<typeof installReduceMotion> } = {};
 
         afterEach(() => {

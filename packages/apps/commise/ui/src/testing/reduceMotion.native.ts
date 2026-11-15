@@ -36,6 +36,7 @@ export function installReduceMotion(initial: boolean): ReduceMotionHandle {
     const target = AccessibilityInfo as { isReduceMotionEnabled: unknown; addEventListener: unknown };
 
     target.isReduceMotionEnabled = (): Promise<boolean> => Promise.resolve(initial);
+
     target.addEventListener = (_event: string, subscriber: (reduce: boolean) => void): { remove: () => void } => {
         subscribers.add(subscriber);
 

@@ -267,6 +267,20 @@ describe('CookingScreen (native): where a cook link goes', () => {
         expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
     });
 
+    // A redirect has no read to retry, so past 10 s it stays on the label frame and never shows the load error.
+    it('keeps a slow draft redirect on the loading label, with no load error', () => {
+        vi.useFakeTimers();
+        setup(ready({ recipe: draft, viewerIsOwner: true }));
+
+        act(() => {
+            vi.advanceTimersByTime(10_000);
+        });
+
+        expect(screen.getByText('Opening the recipe…')).toBeTruthy();
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    });
+
     it('tells another cook a draft is not available, and never why', () => {
         const { onEdit, container } = setup(ready({ recipe: draft, viewerIsOwner: false }));
 
@@ -709,6 +723,29 @@ describe('CookingScreen (native): the step swipe', () => {
         fireEvent.click(forward());
 
         drag({ x: 4, y: 300 }, { x: 330, y: 300 });
+
+        expect(screen.getByText('Step 2 of 6')).toBeTruthy();
+    });
+
+    it('leaves a swipe from the right screen edge to the system', () => {
+        setup();
+        fireEvent.click(forward());
+
+        drag({ x: 380, y: 300 }, { x: 110, y: 300 });
+
+        expect(screen.getByText('Step 2 of 6')).toBeTruthy();
+    });
+
+    // The system can take a gesture away part way (a call, a notification pull): that is a cancel, never a swipe.
+    it('makes no move when the system takes the gesture away', () => {
+        setup();
+        fireEvent.click(forward());
+        const step = screen.getByRole('region', { name: /^Step\s/u });
+        const at = (x: number) => ({ identifier: 0, pageX: x, pageY: 300, clientX: x, clientY: 300, target: step });
+
+        fireEvent.touchStart(step, { touches: [at(330)], changedTouches: [at(330)], timeStamp: 1 });
+        fireEvent.touchMove(step, { touches: [at(60)], changedTouches: [at(60)], timeStamp: 2 });
+        fireEvent.touchCancel(step, { touches: [], changedTouches: [at(60)], timeStamp: 3 });
 
         expect(screen.getByText('Step 2 of 6')).toBeTruthy();
     });

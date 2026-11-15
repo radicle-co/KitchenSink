@@ -7,10 +7,10 @@ them, and it holds the rules for editing them without losing another agent's wor
 copy links into other documents. Link to this folder instead. `designCanvasRegistry.test.ts` in `packages/tools/repoGuards`
 checks its shape.
 
-Each page and feature canvas has a folder here, named by its registry id and given in its `snapshot` field. The folder
-is a byte-for-byte snapshot of that canvas's published files, taken on 2026-11-15. Its `snapshot.json` records the
-link, the version read and the time. The published canvas stays authoritative until the owner moves the canvases to a
-repo-source workflow. Never edit a snapshot to change a design.
+Each page and feature canvas has a folder here, named in its registry `folder` field. The folder is the canvas: its
+`snapshot.json` records the link, the version first read and the time, and `project/` holds the files of the artifact.
+The repository is the truth, and the published canvas is a copy that a publish from `main` refreshes. Never edit or
+publish a registered screen canvas live.
 
 ## What each kind means
 
@@ -34,37 +34,83 @@ web and mobile canvases for the same subject, and say so in the reply.
 
 ## What each source means
 
-| Source | Where the truth lives                     | How to change it                                                                                                                                                                                 |
-| ------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `repo` | The repository. Only the Design System.   | Change `@commise/ui` or `packages/tools/designArtifact`, then follow "Regenerate the artifacts" in that package's README. Never edit the artifact directly: the next regeneration overwrites it. |
-| `live` | The published canvas itself. All screens. | Read the live canvas, edit it, and publish it back to the same link (the steps below).                                                                                                           |
-| `none` | Nothing. Only an `unused` canvas.         | Do not change it.                                                                                                                                                                                |
+| Source        | Where the truth lives                                | How to change it                                                                                                                                                                                 |
+| ------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `repo`        | The repository. Only the Design System.              | Change `@commise/ui` or `packages/tools/designArtifact`, then follow "Regenerate the artifacts" in that package's README. Never edit the artifact directly: the next regeneration overwrites it. |
+| `repo-canvas` | The entry's `folder` in this directory. All screens. | Edit the files in the folder on a branch, then publish from `main` (the sections below).                                                                                                         |
+| `none`        | Nothing. Only an `unused` canvas.                    | Do not change it.                                                                                                                                                                                |
 
-The screen canvases have no build that can recreate them. The first build scripts are on the unmerged branch
-`docs/offline-start-adr`, and `docs/design/uiRefreshWorkshop5/redesignCanvas/assembleRedesign.py` is on main. Owner
-comments and agent edits were made on the live canvases after those scripts last ran. Running one over a live canvas
-deletes those edits. Use them only to create a new canvas.
+A screen canvas is a `page` or `feature` entry, current or archive. It has source `repo-canvas` and a `folder`, and no
+other entry has either. `designCanvasRegistry.test.ts` and `designCanvasFolders.test.ts` in `packages/tools/repoGuards`
+check both.
 
-## How to edit a screen canvas
+## Repo-source canvases (`repo-canvas`)
 
-1. Find the canvas in `registry.json`. Use the `current` web and mobile canvases for the subject. A change to a screen
-   that exists on both platforms goes on both canvases in the same task.
-2. Read its comments first, with the `ArtifactComments` tool (`action: "read"`). An open owner comment can change
-   what you are about to do.
-3. Read the live canvas with the `Artifact` tool (`action: "read"`). Download only the files you change with `path` or
-   `paths`, into your scratchpad. Never start from a copy you saved earlier, from another worktree, or from a build.
-4. Make the change, then publish only the files you changed to the same `url`, with `files`. Files you leave out stay
-   as they are, so you cannot delete another agent's boards by accident.
-5. If the publish is refused because the canvas changed, another agent published after your read. Merge your change
-   onto the version the refusal hands you and publish again. Never pass `force`.
-6. Reply in any comment thread you acted on, then resolve it.
+Every screen canvas follows this section. `docs/design/canvases/<folder>/` holds `snapshot.json` and `project/…`, the
+files of the artifact. The repository folder is the truth.
 
-## Bulk changes across many canvases
+Before you change a screen, find its `current` web and mobile canvases in `registry.json`. A change to a screen that
+exists on both platforms goes on both canvases in the same PR. Read the comments on the canvas first, with the
+`ArtifactComments` tool (`action: "read"`): an open owner comment can change what you are about to do.
 
-A change that touches many canvases (for example, a new tab in every tab bar) follows the same steps for each canvas:
-read the live files, patch them, publish only the changed files. Commit the patch script under
-`docs/design/canvases/scripts/` before you run it, so another agent can rerun or extend it. A restart of the machine deletes
-scratchpad folders.
+### Edit
+
+Work on a branch, in your own worktree, in `docs/design/canvases/<folder>/project/`. Never edit or publish a
+registered canvas live. Start from the files in the repository, never from a copy saved earlier or from a build.
+Never put `index.html`, `SKILL.md`, `artifact-type/` or `project/published.json` in the folder:
+the artifact type owns the first three, and the publish writes the marker.
+
+### Preview
+
+To show work in progress, publish the branch files to an artifact that is not in the registry. Delete that artifact
+after the PR merges.
+
+### Check before merge
+
+- The repo guards pass: `designCanvasRegistry.test.ts` and `designCanvasFolders.test.ts`.
+- The LOCAL e2e renders every changed board in light and dark:
+  `DESIGN_CANVAS_RUNTIME=<runtime file> npm run test:e2e:canvases --workspace=packages/tools/designArtifact`. It picks the folders
+  changed against `origin/main`. `CANVASES=all` renders every canvas, and you run it before a publish. `CANVASES=id,id`
+  renders the ones you name. The runtime is the `artifact-type/dc-runtime.js` of any Design canvas artifact, read with
+  the `Artifact` tool. Never commit it.
+- The designer approves the PR.
+
+### Publish from main
+
+Run these after `git fetch origin main`. Only the `Artifact` tool can read and publish. `stage` writes `main`'s blobs
+from git, so the work tree needs no cleaning.
+
+0. **Marker.** For each `repo-canvas` entry, read `project/published.json` with the `Artifact` tool
+   (`action: "read"`) into `<dir>/<folder>/project/`. A canvas that was never published from the repo has none, so skip
+   the read. Without the marker the baseline falls back to the snapshot. Also save the `action: "list"` result as a
+   JSON array of paths (`<list.json>`): `check` and `stage` exit 2 when it names the marker and it was not downloaded.
+1. **Plan.** `npm run canvas:publishPlan --workspace=packages/tools/designArtifact -- plan --live <dir>`. It prints,
+   for each `repo-canvas` entry, the baseline (the live marker, or the snapshot commit when there is no marker), the
+   changed and deleted paths, and what to download. Skip a canvas with status `unchanged` and a `marker` baseline. A
+   canvas with a `snapshot` baseline downloads every baseline path, even when it is `unchanged`.
+2. **Read.** For each canvas, download the paths in `download` with the `Artifact` tool (`action: "read"`) into
+   `<dir>/<folder>/`.
+3. **Check.** `… -- check <id> --main <sha> --live <dir> --list <list.json>`. `<sha>` is the `main.sha` that `plan`
+   printed (the `origin/main` tip). Exit 0 is clean. A live file passes when it equals the baseline or `main`. Exit 1
+   is drift: stop and follow "Drift". Exit 2 is bad input, or a `<sha>` behind the tip whose canvas changed since.
+4. **Stage.** `… -- stage <id> --main <sha> --live <dir> --list <list.json> --out <out>`. It checks again, writes the
+   `main` blobs from git (a dirty work tree cannot leak in) and the marker outside the canvas folder, and prints the
+   `url`, `root`, `files` and `label` for the publish. When the marker already names `main` it prints nothing and
+   exits 0: there is nothing to publish.
+5. **Publish.** Pass `url`, `root` and `files` to the `Artifact` tool unchanged, and pass `label` as the Artifact
+   `label` unchanged. The label, `canvas <id>: <baselineSha>..<mainSha>`, lets a reviewer confirm the publish covers
+   every path that changed between the two commits. `files` is the dict form: a deletion is `null`. Never pass
+   `force`. If the publish is refused, restart at step 0 for that canvas.
+
+### Drift
+
+The check found a live edit that the repository does not have. This is the one case where a live file matters: import
+the live files into the folder in a PR titled `canvas drift: <id>`, merge it, then publish. After that merge the live
+file equals `main`, so the check passes.
+
+### Rollback
+
+`git revert` the merge on `main`, then publish.
 
 ## Comments
 
@@ -74,4 +120,8 @@ a watch with `ArtifactComments` (`action: "watch"`) so new comments reach you wh
 
 ## When a canvas is created, renamed or retired
 
-Update `registry.json` in the same change. A canvas that is not in the registry does not exist for other agents.
+Update `registry.json` in the same change. A canvas that is not in the registry does not exist for other agents. A new
+screen canvas gets `source: "repo-canvas"` and a `folder` of letters and digits that no other entry uses. Create it by
+adding the folder (`snapshot.json` and `project/canvas.json` at least), then publish it to a new artifact and put its
+link in the entry. A rename changes the `id` and keeps the `folder`, so the history stays with the files. To retire a
+canvas, set its `status` to `archive` or `unused`.

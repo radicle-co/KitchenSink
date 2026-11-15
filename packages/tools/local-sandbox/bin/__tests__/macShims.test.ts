@@ -8,7 +8,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -159,7 +159,7 @@ describe('laneHost.sh', () => {
         writeFileSync(
             file,
             `#!/usr/bin/env bash\nif [ "$2" = list ]; then cat "${fixture}"; exit 0; fi\n` +
-                `if [ "$2" = create ]; then echo NEW-UDID; exit 0; fi\n` +
+                `if [ "$2" = create ]; then printf 'XCRUN %s\\n' "$*" >> "${sandbox.log}"; echo NEW-UDID; exit 0; fi\n` +
                 `printf 'XCRUN %s\\n' "$*" >> "${sandbox.log}"\n`,
         );
         chmodSync(file, 0o755);
@@ -187,6 +187,66 @@ describe('laneHost.sh', () => {
         withSimulators(sandbox, [{ name: 'ks-maestro-lane-1', udid: 'AAAA' }]);
         const result = run('laneHost.sh', ['ensure', '3'], sandbox);
         expect(result.stdout.trim()).toBe('NEW-UDID');
+    });
+
+    const callsOf = (sandbox: Sandbox): string[] =>
+        (existsSync(sandbox.log) ? readFileSync(sandbox.log, 'utf8') : '')
+            .split('\n')
+            .filter((l) => l.startsWith('XCRUN'));
+    const RUNTIME = 'com.apple.CoreSimulator.SimRuntime.iOS-26-5';
+
+    it('reuses an iPad lane Simulator by its own name, never the iPhone lane of the same number', () => {
+        const sandbox = makeSandbox();
+        withSimulators(sandbox, [
+            { name: 'ks-maestro-lane-2', udid: 'PHONE' },
+            { name: 'ks-maestro-ipad-2', udid: 'PAD' },
+        ]);
+        expect(run('laneHost.sh', ['ensure', '2', 'ipad'], sandbox).stdout.trim()).toBe('PAD');
+        expect(run('laneHost.sh', ['ensure', '2', 'iphone'], sandbox).stdout.trim()).toBe('PHONE');
+        expect(run('laneHost.sh', ['ensure', '2'], sandbox).stdout.trim()).toBe('PHONE');
+    });
+
+    it('creates an iPad lane from the iPad device type, and an iPhone lane from the iPhone one', () => {
+        const sandbox = makeSandbox();
+        withSimulators(sandbox, []);
+        const env = { KS_SIM_IPAD_DEVICE_TYPE: 'type.pad', KS_SIM_DEVICE_TYPE: 'type.phone' };
+        run('laneHost.sh', ['ensure', '3', 'ipad'], sandbox, env);
+        run('laneHost.sh', ['ensure', '3'], sandbox, env);
+        expect(callsOf(sandbox)).toEqual([
+            `XCRUN simctl create ks-maestro-ipad-3 type.pad ${RUNTIME}`,
+            `XCRUN simctl create ks-maestro-lane-3 type.phone ${RUNTIME}`,
+        ]);
+    });
+
+    it('defaults the iPad device type to the 820 pt iPad Air 11-inch (M3) and the iPhone to the iPhone 17', () => {
+        const sandbox = makeSandbox();
+        withSimulators(sandbox, []);
+        run('laneHost.sh', ['ensure', '1', 'ipad'], sandbox);
+        run('laneHost.sh', ['ensure', '1'], sandbox);
+        expect(callsOf(sandbox)).toEqual([
+            `XCRUN simctl create ks-maestro-ipad-1 com.apple.CoreSimulator.SimDeviceType.iPad-Air-11-inch-M3 ${RUNTIME}`,
+            `XCRUN simctl create ks-maestro-lane-1 com.apple.CoreSimulator.SimDeviceType.iPhone-17 ${RUNTIME}`,
+        ]);
+    });
+
+    it('refuses a device class that is not iphone or ipad, and shell text in one', () => {
+        const sandbox = makeSandbox();
+        withSimulators(sandbox, []);
+        expect(run('laneHost.sh', ['ensure', '1', 'ipod'], sandbox).status).not.toBe(0);
+        expect(run('laneHost.sh', ['ensure', '1', ''], sandbox).status).not.toBe(0);
+        expect(run('laneHost.sh', ['udid', '1', 'x;rm'], sandbox).status).not.toBe(0);
+        expect(callsOf(sandbox)).toEqual([]);
+    });
+
+    it('prints the iPad UDID only for an iPad udid lookup, and nothing when only the iPhone lane exists', () => {
+        const sandbox = makeSandbox();
+        withSimulators(sandbox, [
+            { name: 'ks-maestro-lane-2', udid: 'PHONE' },
+            { name: 'ks-maestro-ipad-2', udid: 'PAD' },
+            { name: 'ks-maestro-lane-3', udid: 'PHONE3' },
+        ]);
+        expect(run('laneHost.sh', ['udid', '2', 'ipad'], sandbox).stdout.trim()).toBe('PAD');
+        expect(run('laneHost.sh', ['udid', '3', 'ipad'], sandbox).stdout.trim()).toBe('');
     });
 
     it('refuses a lane index that is not a positive integer', () => {
@@ -223,16 +283,22 @@ describe('laneHost.sh', () => {
         expect(run('laneHost.sh', ['install', 'AAAA', path.join(sandbox.root, 'empty')], sandbox).status).not.toBe(0);
     });
 
-    it('removes only lane Simulators on cleanup, never another one', () => {
+    it('removes the lane Simulators of both classes on cleanup, never another one', () => {
         const sandbox = makeSandbox();
         withSimulators(sandbox, [
             { name: 'ks-maestro-lane-1', udid: 'AAAA' },
+            { name: 'ks-maestro-ipad-1', udid: 'PAD1' },
             { name: 'ksS1Lane1', udid: 'BBBB' },
+            { name: 'ks-maestro-lane-x', udid: 'CCCC' },
+            { name: 'ks-maestro-ipad-', udid: 'DDDD' },
         ]);
         run('laneHost.sh', ['cleanup'], sandbox);
         const log = readFileSync(sandbox.log, 'utf8');
         expect(log).toContain('XCRUN simctl delete AAAA');
-        expect(log).not.toContain('BBBB');
+        expect(log).toContain('XCRUN simctl delete PAD1');
+        for (const kept of ['BBBB', 'CCCC', 'DDDD']) {
+            expect(log).not.toContain(kept);
+        }
     });
 });
 

@@ -14,7 +14,7 @@ import path from 'node:path';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
 
-import { IOS_MAX_LANES, laneSimulatorName, tunnelsFromManifest } from './iosLane.js';
+import { IOS_MAX_LANES, laneSimulatorName, tunnelsFromManifest, type IosDevice } from './iosLane.js';
 import type { DeviceAdapter, HostFacts, LaneSpec, RunContext } from './laneTypes.js';
 import type { LocalSettings } from './localSettings.js';
 import { MAC_DIR, MacSession, macPathsOf, remote, type MacShell } from './macSession.js';
@@ -28,6 +28,8 @@ export interface IosAdapterOptions {
     readonly shell: IosShell;
     readonly env: Readonly<Record<string, string | undefined>>;
     readonly repoRoot: string;
+    /** The class of every lane of this run: it picks the Simulator name, the cost and the device type on the Mac. */
+    readonly device: IosDevice;
 }
 
 const HEX = /^[0-9a-f]+$/u;
@@ -41,11 +43,19 @@ const RUNNER = 'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh';
  * 2.1 GiB. It counts only a lane's own processes, not the shared Simulator services, which is what the planner's
  * safety margin on free memory is for.
  */
-const IOS_LANE_COST: LaneCost = { cpus: 1, memBytes: Math.round(2.1 * 1024 ** 3) };
+const IPHONE_LANE_COST: LaneCost = { cpus: 1, memBytes: Math.round(2.1 * 1024 ** 3) };
+
+/**
+ * An iPad lane. Deliberate overestimate, not measured: the larger screen and framebuffer cost more than an iPhone's, so
+ * the iPhone figure raised by half is the starting value until `maestro:macUsage ipad` measures a run.
+ */
+const IPAD_LANE_COST: LaneCost = { cpus: 1.5, memBytes: Math.round(3.2 * 1024 ** 3) };
+
+const IOS_LANE_COSTS: Readonly<Record<IosDevice, LaneCost>> = { iphone: IPHONE_LANE_COST, ipad: IPAD_LANE_COST };
 
 export class IosAdapter implements DeviceAdapter {
     readonly platform = 'ios' as const;
-    readonly laneCost = IOS_LANE_COST;
+    readonly laneCost: LaneCost;
     readonly maxLanes = IOS_MAX_LANES;
 
     private readonly session: MacSession;
@@ -54,10 +64,11 @@ export class IosAdapter implements DeviceAdapter {
 
     constructor(private readonly options: IosAdapterOptions) {
         this.session = new MacSession(options);
+        this.laneCost = IOS_LANE_COSTS[options.device];
     }
 
     deviceFor(index: number): string {
-        return laneSimulatorName(index);
+        return laneSimulatorName(index, this.options.device);
     }
 
     hostFacts(): Promise<HostFacts> {
@@ -94,7 +105,7 @@ export class IosAdapter implements DeviceAdapter {
     }
 
     async startDevice(lane: LaneSpec): Promise<void> {
-        const udid = (await this.session.laneHost('ensure', String(lane.index))).trim();
+        const udid = (await this.session.laneHost('ensure', String(lane.index), this.options.device)).trim();
         this.udids.set(lane.index, udid);
         // A Simulator that kept a previous run's app data would start signed in: erase, then boot, then install.
         await this.session.laneHost('erase', udid);

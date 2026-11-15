@@ -76,6 +76,7 @@ const lane: LaneSpec = {
 
 const adapter = (shell: IosShell): IosAdapter =>
     new IosAdapter({
+        device: 'iphone',
         shell,
         env: { LOCAL_MAESTRO_IOS_HOST: 'me@mac' },
         repoRoot: '/repo',

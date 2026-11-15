@@ -124,8 +124,32 @@ describe('parseLaneArgs — the maestro:lanes command line', () => {
                 requested: 3,
                 selection: ['home', 'recipes/edit'],
                 staggerSeconds: 20,
+                iosDevice: 'iphone',
             },
         );
+    });
+
+    it('runs iPhone lanes unless the run asks for an iPad, flag first and then E2E_IOS_DEVICE', () => {
+        const ios = ['--platform', 'ios'];
+
+        expect(parseLaneArgs(ios, {}).iosDevice).toBe('iphone');
+        expect(parseLaneArgs([...ios, '--ios-device', 'ipad'], {}).iosDevice).toBe('ipad');
+        expect(parseLaneArgs(ios, { E2E_IOS_DEVICE: 'ipad' }).iosDevice).toBe('ipad');
+        expect(parseLaneArgs([...ios, '--ios-device', 'iphone'], { E2E_IOS_DEVICE: 'ipad' }).iosDevice).toBe('iphone');
+        expect(parseLaneArgs([...ios, '--ios-device', 'ipad'], { E2E_IOS_DEVICE: 'iphone' }).iosDevice).toBe('ipad');
+    });
+
+    it.each(['banana', '', 'iPad'])('refuses the device %j and names the flag and the variable', (raw) => {
+        const ios = ['--platform', 'ios'];
+
+        expect(() => parseLaneArgs([...ios, '--ios-device', raw], {})).toThrow(/--ios-device\/E2E_IOS_DEVICE/u);
+        expect(() => parseLaneArgs(ios, { E2E_IOS_DEVICE: raw })).toThrow(/--ios-device\/E2E_IOS_DEVICE/u);
+    });
+
+    it('refuses an iPad when the run has no iOS platform, and accepts it beside Android', () => {
+        expect(() => parseLaneArgs(['--platform', 'android', '--ios-device', 'ipad'], {})).toThrow(/iOS only/u);
+        expect(() => parseLaneArgs(['--platform', 'android'], { E2E_IOS_DEVICE: 'ipad' })).toThrow(/iOS only/u);
+        expect(parseLaneArgs(['--platform', 'both', '--ios-device', 'ipad'], {}).iosDevice).toBe('ipad');
     });
 
     it('reads the lane stagger from MAESTRO_LANE_STAGGER_SECONDS, whole seconds, zero allowed', () => {

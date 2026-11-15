@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { IosAdapter, type IosShell } from '../iosAdapter.js';
+import type { IosDevice } from '../iosLane.js';
 
 const MANIFEST = [
     'platform=ios',
@@ -70,7 +71,9 @@ const options = (
     shell: IosShell,
     env: Record<string, string | undefined> = { LOCAL_MAESTRO_IOS_HOST: 'me@mac' },
     settings = SETTINGS,
+    device: IosDevice = 'iphone',
 ) => ({
+    device,
     shell,
     env,
     repoRoot: '/repo',
@@ -88,6 +91,41 @@ describe('IosAdapter', () => {
         const { cpus, memBytes } = new IosAdapter(options(makeShell().shell)).laneCost;
         expect(cpus).toBe(1);
         expect(memBytes).toBe(Math.round(2.1 * 1024 ** 3));
+    });
+
+    it('names an iPad lane device and sends the iPad class to the Mac, always explicitly', async () => {
+        const adapter = (device: IosDevice, recorder: Recorder) =>
+            new IosAdapter(options(recorder.shell, undefined, SETTINGS, device));
+        expect(adapter('ipad', makeShell()).deviceFor(2)).toBe('ks-maestro-ipad-2');
+        expect(adapter('iphone', makeShell()).deviceFor(2)).toBe('ks-maestro-lane-2');
+
+        for (const device of ['iphone', 'ipad'] as const) {
+            const recorder = makeShell({
+                'content-key': 'abc\n',
+                'testApp.manifest': MANIFEST,
+                'ensure 2': 'UDID-2\n',
+            });
+            const lanes = adapter(device, recorder);
+            await lanes.prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
+            await lanes.startDevice({
+                platform: 'ios',
+                index: 2,
+                count: 2,
+                device: lanes.deviceFor(2),
+                driverPort: 7002,
+                stateDir: '/s/lanes/ios-2',
+                fixtureEnvFile: '/s/lanes/ios-2/fixture.env',
+            });
+            expect(recorder.commands.join('\n')).toContain(`laneHost.sh ensure 2 ${device}`);
+        }
+    });
+
+    it('costs an iPad lane its own figure, and never the iPhone one', () => {
+        const phone = new IosAdapter(options(makeShell().shell)).laneCost;
+        const pad = new IosAdapter(options(makeShell().shell, undefined, SETTINGS, 'ipad')).laneCost;
+        expect(pad).not.toBe(phone);
+        expect(pad.cpus).toBeGreaterThanOrEqual(phone.cpus);
+        expect(pad.memBytes).toBeGreaterThanOrEqual(phone.memBytes);
     });
 
     it('refuses to be built without a Mac host', () => {
@@ -169,7 +207,7 @@ describe('IosAdapter', () => {
             fixtureEnvFile: '/s/lanes/ios-2/fixture.env',
         });
         const joined = recorder.commands.join('\n');
-        expect(joined).toContain('laneHost.sh ensure 2');
+        expect(joined).toContain('laneHost.sh ensure 2 iphone');
         expect(joined).toContain('laneHost.sh erase UDID-2');
         expect(joined).toContain('laneHost.sh boot UDID-2');
         expect(joined).toContain('laneHost.sh install UDID-2 ksIos/apps/abc');

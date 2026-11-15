@@ -137,8 +137,11 @@ The host comes from `LOCAL_MAESTRO_IOS_HOST` (the name stays for now; Android la
 - A shim named `maestro` and a shim named `xcrun` sit first on `PATH`. They forward every argument with `printf %q`
   because manifest values hold spaces. They rewrite the flow path to the Mac's synced tree. They never read a
   manifest on the Mac.
-- A script on the Mac creates or reuses a simulator named `ks-maestro-lane-<k>`, boots it, erases it and installs the
-  app. It also reports the Mac's CPU and memory, read with `sysctl` and `vm_stat`.
+- A script on the Mac creates or reuses a lane simulator, boots it, erases it and installs the app. A lane is an iPhone
+  named `ks-maestro-lane-<k>` unless the run asks for `--ios-device ipad` (or `E2E_IOS_DEVICE=ipad`). Then every lane
+  of that run is an iPad named `ks-maestro-ipad-<k>`, of its own device type. The class covers the whole run, so lane
+  numbers, driver ports and lane HOMEs are never shared between classes at once. Cleanup deletes lanes of both classes
+  and nothing else. The script also reports the Mac's CPU and memory, read with `sysctl` and `memory_pressure`.
 - The run opens one ssh connection that all lanes share, and one reverse tunnel for the ports the app was built with
   (13000 to 13002, because Docker holds the Mac's 3000). The ports on the WSL side come from `local_maestro_settings`.
 - The orchestrator computes the content key of the test app on WSL and looks for that key on the Mac. A missing or

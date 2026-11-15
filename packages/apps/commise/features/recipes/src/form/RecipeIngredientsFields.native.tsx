@@ -16,6 +16,7 @@ import { DialogActions } from '@commise/ui/dialog-actions';
 import { Combobox, type ComboboxArrival } from '@commise/ui/combobox';
 import { Icon } from '@commise/ui/icon';
 import { LiveRegion } from '@commise/ui/live-region';
+import { useOptionalScrollHost } from '@commise/ui/scroll-host';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { Surface } from '@commise/ui/surface-tone';
@@ -29,6 +30,7 @@ import { useLastDefined } from '../hooks/useLastDefined.js';
 import { AuthoredFoodSheet } from './AuthoredFoodSheet.native.js';
 import { FoodDetailsSheet } from './FoodDetailsSheet.native.js';
 import { ingredientsErrorId, trailingCommitFailureId } from './fieldErrorIds.js';
+import { ingredientRowId } from './fieldIds.js';
 import { GroupNameField } from './GroupNameField.native.js';
 import { IngredientGroupHeading } from './IngredientGroupHeading.native.js';
 import { IngredientLineEditor } from './IngredientLineEditor.native.js';
@@ -193,6 +195,17 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
     const detailsOf = (row: IngredientRowView): ReactNode => panelOf(row)(row.lineEditor.onToggleDetails);
     const empty = model.sections.length === 0 && reading.length === 0 && matching === undefined;
 
+    // The keyboard reveal scrolled so Done and Cancel sat above the keyboard, and closing drops the keyboard without moving the
+    // scroll, so the edited row would be left off the top. Closing asks the host for the row's start (`useFieldStartReveal`
+    // answers it). It runs in the press handler, which is the event that closes the editor, so it needs no effect. The sheet
+    // path does not: it returns the reading cursor to the row's ⋯.
+    const scrollHost = useOptionalScrollHost();
+
+    const closeInline = (row: IngredientRowView, close: () => void) => (): void => {
+        close();
+        scrollHost?.scrollToStart(ingredientRowId(row.line.key));
+    };
+
     const rowOf = (row: IngredientRowView): ReactNode => (
         <IngredientRow
             key={row.line.key}
@@ -214,10 +227,14 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                     <Surface tone="muted" style={[styles.inlineEditor]}>
                         <IngredientLineEditor view={row.lineEditor} index={row.index} m={m} details={detailsOf(row)} />
                         <DialogActions sideBySideFrom={400}>
-                            <Button variant="secondary" width="fill" onPress={row.lineEditor.onCancel}>
+                            <Button
+                                variant="secondary"
+                                width="fill"
+                                onPress={closeInline(row, row.lineEditor.onCancel)}
+                            >
                                 {m.rowCancel}
                             </Button>
-                            <Button icon="check" width="fill" onPress={row.lineEditor.onDone}>
+                            <Button icon="check" width="fill" onPress={closeInline(row, row.lineEditor.onDone)}>
                                 {m.rowDone}
                             </Button>
                         </DialogActions>

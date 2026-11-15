@@ -345,6 +345,13 @@
       "w": 2400,
       "h": 3744,
       "title": "Cooking mode, S3a Add a timer (web: 390, 1024, 1280, 320 at 200%)"
+    },
+    "CookingModeResumeS4aWeb.dc.html": {
+      "x": 0,
+      "y": 21914,
+      "w": 2800,
+      "h": 3244,
+      "title": "Cooking mode, S4a leave and come back (web: 390, 768, 1024, 1280, 320 at 200%)"
     }
   },
   "order": [
@@ -395,7 +402,8 @@
     "CookingModeDockRowS3Web.dc.html",
     "CookingModeAlarmGoToStepS3bWeb.dc.html",
     "CookingModeIngredientsS2Web.dc.html",
-    "CookingModeAddTimerS3aWeb.dc.html"
+    "CookingModeAddTimerS3aWeb.dc.html",
+    "CookingModeResumeS4aWeb.dc.html"
   ],
   "notes": {
     "row0": {
@@ -437,6 +445,13 @@
       "x": 0,
       "y": 17490,
       "text": "Cooking mode: S3a Add a timer (SPECIFY S36, KTD16)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nCookingModeResumeS4aWeb": {
+      "x": 0,
+      "y": 21654,
+      "text": "Cooking mode: S4a leave and come back, the Resume lines, the Done row and the entry meta lines (Luna plan 0003, designer D16-D24)",
       "kind": "title1",
       "maxW": 2400
     }

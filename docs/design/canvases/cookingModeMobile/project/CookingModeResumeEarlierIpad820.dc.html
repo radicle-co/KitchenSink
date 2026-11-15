@@ -364,6 +364,8 @@ b, strong { font-weight: 600; }
 b, strong { font-weight: 600; }
 
                 
+.dockRow { flex-wrap: wrap; } .dockRow .lab { flex: 1 1 160px; }
+.dockActs { display: flex; gap: 12px; margin-left: auto; }
 </style></helmet><link
                     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600&display=swap"
                     rel="stylesheet"
@@ -412,11 +414,11 @@ b, strong { font-weight: 600; }
 <div class="colStep" style="flex: 1 1 0%; min-width: 0">
 <div class="body">
 <div class="center">
-<div class="resumeNote">
+<div class="t28">Carry on from earlier?</div><div class="resumeNote">
 <span class="t16"><span class="w500">Welcome back.</span> You left this yesterday at 19:40, at
-                                        step 4. The roast timer ended at 20:52.</span>
+                                        step 4. The Roast timer ended 12 h 49 min ago.</span>
 </div>
-<div class="t28">Carry on from earlier?</div>
+
 <span class="t16">Your finished steps and ticks are kept. If you already ate it, end the
                                     session.</span>
 <div class="decide">
@@ -461,14 +463,14 @@ b, strong { font-weight: 600; }
 </div>
 </div>
 <div class="nested">
-<div class="dockRow" role="status">
+<div class="dockRow">
 <svg aria-hidden="true" class="doneBell" fill="none" height="22" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.0" viewbox="0 0 24 24" width="22">
 <path d="M6 16v-5a6 6 0 0112 0v5l2 2H4l2-2zM10 21a2 2 0 004 0"></path>
 </svg>
 <div class="lab">
-<span class="t28">Done</span><span class="t14 muted">Roast · step 4 · ended yesterday at 20:52</span>
+<span class="t28">Done</span><span class="t14 muted">Roast · step 4 · ended 12 h 49 min ago</span>
 </div>
-<span aria-label="Clear the Roast timer" class="clearBtn t16" role="button">Clear</span>
+<span class="dockActs"><span class="clearBtn t16" role="button" aria-label="Add 10 minutes to the Roast timer">+ 10 min</span><span aria-label="Clear the Roast timer" class="clearBtn t16" role="button">Clear</span></span>
 </div>
 </div>
 <div class="stepItem">

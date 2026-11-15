@@ -364,6 +364,8 @@ b, strong { font-weight: 600; }
 b, strong { font-weight: 600; }
 
                 
+.dockRow { flex-wrap: wrap; } .dockRow .lab { flex: 1 1 160px; }
+.dockActs { display: flex; gap: 12px; margin-left: auto; }
 </style></helmet><link
                     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600&display=swap"
                     rel="stylesheet"
@@ -413,15 +415,10 @@ b, strong { font-weight: 600; }
 <div class="body">
 <div class="center">
 <div class="resumeNote">
-<span class="t16"><span class="w500">Welcome back.</span> You left at step 4, 1 h 40 min ago. The
-                                        roast timer ended 18 min ago.</span><span class="noteActions"><span class="noteAction t16" role="button">Start from step 1</span><span class="noteAction t16" role="button">End this session</span></span>
+<span class="t16"><span class="w500">Welcome back.</span> You left at step 4, 1 h 40 min ago. The Roast timer ended 18 min ago.</span><span class="noteActions"><span class="noteAction t16" role="button">Start from step 1</span><span class="noteAction t16" role="button">End this session</span></span>
 </div>
 <div class="t28">Check the chicken.</div>
-<div class="offerRow">
-<span class="t16">It is done when the juices run clear. Not yet? Add time.</span><span class="offer textAction"><svg aria-hidden="true" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.0" viewbox="0 0 24 24" width="18">
-<circle cx="12" cy="13" r="8"></circle>
-<path d="M12 9v4l2 2M9 2h6"></path></svg>Add 10 min</span>
-</div>
+<div class="offerRow"><span class="t16">It is done when the juices run clear.</span></div>
 <div class="jobs">
 <div class="over">If you like, get ready for step 5</div>
 <div aria-checked="false" class="job" role="checkbox">
@@ -464,14 +461,14 @@ b, strong { font-weight: 600; }
 </div>
 </div>
 <div class="nested">
-<div class="dockRow" role="status">
+<div class="dockRow">
 <svg aria-hidden="true" class="doneBell" fill="none" height="22" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.0" viewbox="0 0 24 24" width="22">
 <path d="M6 16v-5a6 6 0 0112 0v5l2 2H4l2-2zM10 21a2 2 0 004 0"></path>
 </svg>
 <div class="lab">
 <span class="t28">Done</span><span class="t14 muted">Roast · step 4 · ended 18 min ago</span>
 </div>
-<span aria-label="Clear the Roast timer" class="clearBtn t16" role="button">Clear</span>
+<span class="dockActs"><span class="clearBtn t16" role="button" aria-label="Add 10 minutes to the Roast timer">+ 10 min</span><span aria-label="Clear the Roast timer" class="clearBtn t16" role="button">Clear</span></span>
 </div>
 </div>
 <div class="stepItem">

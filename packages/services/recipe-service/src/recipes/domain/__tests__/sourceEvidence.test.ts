@@ -19,7 +19,11 @@ function defined<T>(value: T | undefined): T {
 
 describe('evidenceRowOf — the row a statement leaves behind', () => {
     it.each([
-        ['a fragment', 'https://www.allrecipes.com/recipe/1/soup/#comments', 'https://www.allrecipes.com/recipe/1/soup/'],
+        [
+            'a fragment',
+            'https://www.allrecipes.com/recipe/1/soup/#comments',
+            'https://www.allrecipes.com/recipe/1/soup/',
+        ],
         ['a bare #', 'https://www.allrecipes.com/recipe/1/soup/#', 'https://www.allrecipes.com/recipe/1/soup/'],
         [
             'a fragment holding a ?',
@@ -70,6 +74,7 @@ describe('evidenceRowOf — the row a statement leaves behind', () => {
                     sourceUrl: 'https://gutenberg.org/x',
                     sourceAttribution: 'PG',
                     sourceKind: null,
+                    statementKind: null,
                 },
                 'editorLink',
             ),

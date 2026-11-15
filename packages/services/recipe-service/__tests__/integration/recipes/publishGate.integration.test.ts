@@ -132,6 +132,15 @@ beforeAll(async () => {
                     findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
                     // ADR-0029 section 4: the database holds no private food in these suites.
                     privateFoodLines: async () => [],
+                    // A write that leaves the recipe published judges it under the row lock (0087): the stored row, unchanged.
+                    lockSlotFacts: async () => ({
+                        visibility: stored.visibility,
+                        status: stored.status,
+                        sourceType: stored.sourceType,
+                        sourceKind: stored.sourceKind,
+                        statementKind: stored.statementKind,
+                        contentPastedAt: stored.contentPastedAt,
+                    }),
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
                 },
             },
@@ -161,7 +170,11 @@ beforeAll(async () => {
             { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
             {
                 provide: RecipeSourceEvidenceDal,
-                useValue: { insert: async () => undefined, listForRecipe: async () => [] },
+                useValue: {
+                    insert: async () => undefined,
+                    listForRecipe: async () => [],
+                    listCommitted: async () => [],
+                },
             },
         ],
     });

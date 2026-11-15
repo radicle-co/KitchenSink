@@ -27,7 +27,12 @@
  *
  * @pattern Specification — one pure predicate over the stored source and the statement
  */
-import { sourceIsCorrectable, type CorrectableSourceFacts, type RecipeSourceKind } from '@kitchensink/recipe-core';
+import {
+    sourceIsCorrectable,
+    type CorrectableSourceFacts,
+    type RecipeSourceKind,
+    type RecipeStatementKind,
+} from '@kitchensink/recipe-core';
 
 import type { RecipeStatementInput } from '../recipes.schema.js';
 import { evaluateProvenance, type ResolvedProvenance } from './provenancePolicy.js';
@@ -36,7 +41,11 @@ import { evaluateProvenance, type ResolvedProvenance } from './provenancePolicy.
  * The facts of the stored recipe the decision reads: exactly what `sourceIsCorrectable` reads, the one lock rule. The
  * service reads them from its own database, so the kind is always one it knows (a client may hold an unrecognised one).
  */
-export type StoredSource = CorrectableSourceFacts & { readonly sourceKind: RecipeSourceKind | null };
+export type StoredSource = CorrectableSourceFacts & {
+    readonly sourceKind: RecipeSourceKind | null;
+    /** What the cook stated (`recipes.statement_kind`), or `null`. The database CHECK keeps it to the known vocabulary. */
+    readonly statementKind: RecipeStatementKind | null;
+};
 
 /**
  * What a PATCH does to the source.
@@ -53,7 +62,26 @@ export type SourceCorrection =
     | { readonly kind: 'unusable' };
 
 /**
+ * Whether the stored recipe has no statement and no source of its own: a recipe the cook wrote, with nothing stated.
+ * The only state "I wrote this" may be said from after the first publish.
+ */
+function statesNothing(stored: StoredSource): boolean {
+    return stored.sourceType === 'user_created' && stored.sourceKind === null && stored.statementKind === null;
+}
+
+/**
  * Decide what a PATCH's `statement` does. Pure.
+ *
+ * ## The one move the lock lets through (Option B)
+ *
+ * After the first publish the source stays frozen, with one exception: "I wrote this" from NO statement. Without it a recipe
+ * published private (or one whose paste was reported after it went public) could never be made public, because the cook
+ * could never attest. It writes no source and no visibility, so it relabels nothing: it is the cook's attestation, on a recipe
+ * that has none. Saying it AGAIN after the first publish is `unchanged` (nothing to write), so a retry of "attest, then
+ * make public" does not meet a lock the first half already passed. Every other move keeps the lock it had.
+ *
+ * ⛔ Authored over a recipe that has source evidence is still refused Public, by `sourceConflict` and not here: the attestation
+ * is recorded, and the evidence rule (the seam the feature-020 hold replaces) is a separate question.
  *
  * @param input.statement - The body's statement: `undefined` (absent), `null` (remove the source) or a statement.
  * @param input.stored - The stored recipe's source facts.
@@ -70,26 +98,46 @@ export function evaluateSourceCorrection(input: {
     }
 
     // ONE lock rule, shared with the editor (`sourceIsCorrectable`, recipe-core): published once, not stated by link, or
-    // inherited by a clone.
+    // inherited by a clone. The editor's rule is unchanged; the one exception is made HERE, so the editor's reading of "can the
+    // link still change" stays true.
     if (!sourceIsCorrectable(stored)) {
+        if (statement?.kind === 'authored') {
+            if (statesNothing(stored)) {
+                return applyOf(evaluateProvenance({ statement, grantedScopes: [] }));
+            }
+
+            if (
+                stored.sourceType === 'user_created' &&
+                stored.sourceKind === null &&
+                stored.statementKind === 'authored'
+            ) {
+                return { kind: 'unchanged' };
+            }
+        }
+
         return { kind: 'locked' };
     }
 
     // No statement is the shipped default reading: user_created with no source fields. No grant is read on either branch.
-    const decision =
+    return applyOf(
         statement === null
             ? evaluateProvenance({ declared: undefined, grantedScopes: [] })
-            : evaluateProvenance({ statement, grantedScopes: [] });
+            : evaluateProvenance({ statement, grantedScopes: [] }),
+    );
+}
 
+/**
+ * The correction a provenance decision stands for. Pure.
+ *
+ * Every write that SETS a source sets Private with it, keyed on the provenance that results (`sourceKind`) and not on the
+ * statement's presence: "I wrote this" sets no source, so it never makes a recipe private, and a published recipe attested
+ * after its first publish keeps the visibility it has. It is not decided from a visibility read outside the lock: a draft that
+ * raced to public between that read and this write must still end private.
+ */
+function applyOf(decision: ReturnType<typeof evaluateProvenance>): SourceCorrection {
     if (!decision.allowed) {
         return { kind: 'unusable' };
     }
 
-    return {
-        kind: 'apply',
-        provenance: decision.provenance,
-        // Every write that SETS a source sets Private with it. It is not decided from a visibility read outside the lock: a
-        // draft that raced to public between that read and this write must still end private.
-        makePrivate: statement !== null,
-    };
+    return { kind: 'apply', provenance: decision.provenance, makePrivate: decision.provenance.sourceKind !== null };
 }

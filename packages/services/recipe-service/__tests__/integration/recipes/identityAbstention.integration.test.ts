@@ -16,6 +16,7 @@ import { recipeDetailSchema } from '@kitchensink/schema-recipe';
 
 import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
+import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import type { LineVerdictRow } from '../../../src/recipes/dal/lineVerifications.dal.js';
@@ -89,6 +90,14 @@ beforeAll(async () => {
                 useValue: { findByIds: async () => new Map([[ARM.lookupId, ARM]]) },
             },
             { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
+            {
+                provide: RecipeSourceEvidenceDal,
+                useValue: {
+                    insert: async () => undefined,
+                    listForRecipe: async () => [],
+                    listCommitted: async () => [],
+                },
+            },
         ],
     });
 });

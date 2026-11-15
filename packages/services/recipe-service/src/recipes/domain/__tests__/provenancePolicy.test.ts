@@ -40,7 +40,7 @@ function expectDecision(decision: ProvenanceDecision, allowed: boolean): void {
     expect(decision.reason.length).toBeGreaterThan(0);
 }
 
-describe('evaluateProvenance — an absent declaration (004-FR-024: existing behaviour unchanged)', () => {
+describe('evaluateProvenance — an absent declaration (004-FR-024: no statement, no source)', () => {
     it('resolves to user_created with NO source fields, whatever the caller holds', () => {
         for (const grantedScopes of [[], [CURATOR_IMPORT_SCOPE], ['admin:users']]) {
             const decision = evaluateProvenance({ declared: undefined, grantedScopes });
@@ -51,6 +51,8 @@ describe('evaluateProvenance — an absent declaration (004-FR-024: existing beh
                 sourceUrl: null,
                 sourceAttribution: null,
                 sourceKind: null,
+                // No statement: only the cook's own "I wrote this" ever makes it `authored`.
+                statementKind: null,
             });
         }
     });
@@ -69,6 +71,8 @@ describe('evaluateProvenance — an explicit user_created declaration', () => {
             sourceUrl: null,
             sourceAttribution: null,
             sourceKind: null,
+            // The curator's own declaration of the default is not the cook's statement either.
+            statementKind: null,
         });
     });
 });
@@ -104,6 +108,8 @@ describe('evaluateProvenance — imported_public is grant-gated (004-FR-025 / AD
             sourceUrl: CURATED.sourceUrl,
             sourceAttribution: CURATED.sourceAttribution,
             sourceKind: null,
+            // The curator's text states no source KIND, so it takes no statement either (the 0087 pairing CHECK).
+            statementKind: null,
         });
     });
 
@@ -138,6 +144,7 @@ describe('resolveStatementProvenance — the one reading of a statement, for cre
                 sourceUrl: 'https://www.allrecipes.com/r/1/',
                 sourceAttribution: 'allrecipes.com',
                 sourceKind: 'public_web',
+                statementKind: 'source',
             },
         );
     });
@@ -151,15 +158,17 @@ describe('resolveStatementProvenance — the one reading of a statement, for cre
             sourceUrl: null,
             sourceAttribution: 'Joy of Cooking, p. 12',
             sourceKind: kind,
+            statementKind: 'source',
         });
     });
 
-    it('"I wrote this" is the shipped default: user_created and no source at all', () => {
+    it('"I wrote this" is user_created with no source at all, and it is the ONE resolution that is `authored`', () => {
         expect(resolveStatementProvenance({ kind: 'authored' })).toEqual({
             sourceType: RecipeSourceType.USER_CREATED,
             sourceUrl: null,
             sourceAttribution: null,
             sourceKind: null,
+            statementKind: 'authored',
         });
     });
 
@@ -176,6 +185,8 @@ describe('resolveStatementProvenance — the one reading of a statement, for cre
             const resolved = resolveStatementProvenance(statement);
 
             expect(resolved?.sourceKind).toBe(statement.kind);
+            // The 0087 pairing CHECK: a stated kind is always the `source` statement.
+            expect(resolved?.statementKind).toBe('source');
             expect(resolved?.sourceType).toBe(PAIRING[statement.kind]);
             expect(statement.kind === 'public_web' ? resolved?.sourceUrl : 'n/a').not.toBeNull();
         }
@@ -203,6 +214,7 @@ describe('evaluateProvenance — a pasted web link as the cook’s statement (AD
                 sourceUrl: 'https://www.allrecipes.com/recipe/1/soup/',
                 sourceAttribution: 'allrecipes.com',
                 sourceKind: 'public_web',
+                statementKind: 'source',
             });
         },
     );
@@ -233,6 +245,40 @@ describe('evaluateProvenance — a pasted web link as the cook’s statement (AD
             const decision = evaluateProvenance({ declared, grantedScopes: [] });
 
             expect(decision.allowed && decision.provenance.sourceKind).toBeNull();
+        }
+    });
+});
+
+describe('evaluateProvenance — an authored statement (Option B)', () => {
+    it.each([[[]], [['admin:users']], [[CURATOR_IMPORT_SCOPE]]])(
+        'is ALLOWED for any caller (grants %j) and resolves to user_created, `authored`, with no source',
+        (grantedScopes) => {
+            const decision = evaluateProvenance({
+                declared: undefined,
+                statement: { kind: 'authored' },
+                grantedScopes,
+            });
+
+            expectDecision(decision, true);
+            expect(decision.allowed && decision.provenance).toEqual({
+                sourceType: RecipeSourceType.USER_CREATED,
+                sourceUrl: null,
+                sourceAttribution: null,
+                sourceKind: null,
+                statementKind: 'authored',
+            });
+        },
+    );
+
+    it('is the one resolution that is authored: no declaration, no curator text, no source reads as an attestation', () => {
+        const resolutions = [
+            evaluateProvenance({ declared: undefined, grantedScopes: [] }),
+            evaluateProvenance({ declared: { sourceType: RecipeSourceType.USER_CREATED }, grantedScopes: [] }),
+            evaluateProvenance({ declared: CURATED, grantedScopes: [CURATOR_IMPORT_SCOPE] }),
+        ];
+
+        for (const decision of resolutions) {
+            expect(decision.allowed && decision.provenance.statementKind).toBeNull();
         }
     });
 });

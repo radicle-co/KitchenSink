@@ -9,6 +9,9 @@
  * that every refusal reaches the wire as the published envelope.
  *
  * Whether the real database stores and constrains the columns is the LOCAL e2e tier's (`recipeSourceKind.e2e.test.ts`).
+ *
+ * 0087: the provenance expectations here were rewritten to prove the NEW behaviour, a fifth resolved column `statementKind`
+ * (`source` for a stated web copy, `null` for no statement); the statement rule's own routes are `statementRule.integration.test.ts`.
  */
 import 'reflect-metadata';
 
@@ -172,6 +175,8 @@ beforeAll(async () => {
                             status: row.status,
                             sourceType: row.sourceType,
                             sourceKind: row.sourceKind,
+                            statementKind: row.statementKind,
+                            contentPastedAt: row.contentPastedAt,
                         };
                     },
                     setVisibility,
@@ -179,7 +184,14 @@ beforeAll(async () => {
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
                 },
             },
-            { provide: RecipeSourceEvidenceDal, useValue: { insert: insertEvidence, listForRecipe: listEvidence } },
+            {
+                provide: RecipeSourceEvidenceDal,
+                useValue: {
+                    insert: insertEvidence,
+                    listForRecipe: listEvidence,
+                    listCommitted: async (recipeId: string) => evidence.filter((row) => row.recipeId === recipeId),
+                },
+            },
             {
                 provide: VERSIONS_DAL,
                 useValue: {
@@ -334,6 +346,7 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled until the fir
                     sourceUrl: LINK,
                     sourceAttribution: 'allrecipes.com',
                     sourceKind: 'public_web',
+                    statementKind: 'source',
                 },
             }),
             expect.anything(),
@@ -386,7 +399,13 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled until the fir
         expect(update).toHaveBeenCalledWith(
             RECIPE_ID,
             expect.objectContaining({
-                provenance: { sourceType: 'user_created', sourceUrl: null, sourceAttribution: null, sourceKind: null },
+                provenance: {
+                    sourceType: 'user_created',
+                    sourceUrl: null,
+                    sourceAttribution: null,
+                    sourceKind: null,
+                    statementKind: null,
+                },
             }),
             expect.anything(),
         );

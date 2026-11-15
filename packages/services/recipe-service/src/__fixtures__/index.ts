@@ -46,6 +46,8 @@ export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
         firstPublishedAt: status === 'published' ? BASE_DATE : null,
         sourceType: 'user_created',
         sourceKind: null,
+        statementKind: null,
+        contentPastedAt: null,
         sourceUrl: null,
         sourceAttribution: null,
         clonedFromId: null,

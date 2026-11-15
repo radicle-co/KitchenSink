@@ -118,8 +118,12 @@ import { CURATION_DISAGREEMENT_SINK, emitCurationDisagreement, ParseJobMatchView
             useFactory: (db: RecipeDrizzle): RecipesDal => new RecipesDal(db),
         },
         // Migration 0086 — the append-only evidence of every third-party source ever stated. Stateless: each call takes the
-        // write's own transaction.
-        RecipeSourceEvidenceDal,
+        // write's own transaction; its one committed read serves the owner-only hints on a detail response.
+        {
+            provide: RecipeSourceEvidenceDal,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): RecipeSourceEvidenceDal => new RecipeSourceEvidenceDal(db),
+        },
         {
             // Plan 2026-10-15-010 D8 — the byline read model a write resolves its author from. Its OWN instance over
             // the shared Drizzle client, the embedded-DAL pattern `CollectionsModule` already uses for it.

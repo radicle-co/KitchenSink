@@ -79,7 +79,10 @@ export interface VisibilityPolicyInput extends ContainmentSubject {
  * - `privateSlots` — ADR-0073: a free cook has no private slot left (→ `403 PRIVATE_SLOTS_FULL`, with `used` and
  *   `limit`, which the caller holds and this pure module does not);
  * - `sourceConflict` — a third-party source was once stated for the recipe, so it may not be Public (→ the same
- *   `400 INVALID_VISIBILITY`, told apart by `details.reason: 'SOURCE_CONFLICT'`).
+ *   `400 INVALID_VISIBILITY`, told apart by `details.reason: 'SOURCE_CONFLICT'`);
+ * - `statementRequired` — the cook has not said "I wrote this" for a recipe whose content was pasted or that has evidence, so it
+ *   may not be left published and Public (→ the same `400`, `details.reason: 'STATEMENT_REQUIRED'`). It is a SEPARATE rule from
+ *   `sourceConflict` on purpose: the feature-020 hold replaces that one and not this.
  *
  * All carry a human-readable reason, surfaced as the error message.
  */
@@ -87,7 +90,7 @@ export type VisibilityDecision =
     | { readonly allowed: true; readonly reason: string }
     | {
           readonly allowed: false;
-          readonly denial: 'policy' | 'contained' | 'privateSlots' | 'sourceConflict';
+          readonly denial: 'policy' | 'contained' | 'privateSlots' | 'sourceConflict' | 'statementRequired';
           readonly reason: string;
       };
 
@@ -115,6 +118,15 @@ function denySourceConflict(): VisibilityDecision {
     };
 }
 
+/** Build a statement-rule deny decision. Pure. */
+function denyStatementRequired(): VisibilityDecision {
+    return {
+        allowed: false,
+        denial: 'statementRequired',
+        reason: 'Say where this recipe is from before making it public: that you wrote it, or its source.',
+    };
+}
+
 /** Why a private-only recipe may not be public. The only `imported_public` that is private-only is a web copy (ADR-0089). */
 function privateOnlyReason(sourceType: RecipeSourceType): string {
     switch (sourceType) {
@@ -130,32 +142,52 @@ function privateOnlyReason(sourceType: RecipeSourceType): string {
 }
 
 /**
- * The state a write LEAVES (ADR-0089): a private-only recipe is never PUBLISHED and PUBLIC, whichever path made it public.
- * `evaluateVisibility` judges a requested move; this judges the result, so a public draft that reached its state by a race
- * is still refused at publish. An owner-only public DRAFT is allowed, because no one else can read it. Pure.
+ * The state a write LEAVES (ADR-0089): a recipe is never PUBLISHED and PUBLIC unless every refusal below is answered, whichever
+ * path made it public. `evaluateVisibility` judges a requested move; this judges the result, so a public draft that reached its
+ * state by a race is still refused at publish. An owner-only public DRAFT is allowed, because no one else can read it.
  *
- * @param input - The status and visibility after the write, and the source.
- * @returns A `policy` denial for a published, public, private-only recipe; else an allow.
+ * ⛔ The ORDER of refusals is the contract, and each route's composition meets it: containment (a contained test principal
+ * never publishes, ADR-0040), then private-only, then `sourceConflict` (the feature-020 seam), then `statementRequired` (which
+ * survives 020). One call asks all four, so no route can ask them in another order. Pure.
+ *
+ * @param input - The status and visibility after the write, the source, the caller's containment, and the two evidence-derived facts.
+ * @returns The first refusal for a published, public result; else an allow.
  */
-export function evaluatePublishedState(input: {
-    readonly status: RecipeStatus;
-    readonly visibility: RecipeVisibility;
-    readonly sourceType: RecipeSourceType;
-    readonly sourceKind: RecipeSourceKind | null;
-    /** Whether a third-party source was ever stated (`sourceConflictOf`). REQUIRED. */
-    readonly sourceConflict: boolean;
-}): VisibilityDecision {
-    if (input.status === RecipeStatus.PUBLISHED && input.visibility === RecipeVisibility.PUBLIC) {
-        if (privateRuleOf(input.sourceType, input.sourceKind) === 'privateOnly') {
-            return deny(privateOnlyReason(input.sourceType));
-        }
-
-        if (input.sourceConflict) {
-            return denySourceConflict();
-        }
+export function evaluatePublishedState(
+    input: ContainmentSubject & {
+        readonly status: RecipeStatus;
+        readonly visibility: RecipeVisibility;
+        readonly sourceType: RecipeSourceType;
+        readonly sourceKind: RecipeSourceKind | null;
+        /** Whether a third-party source was ever stated (`sourceConflictOf`). REQUIRED. */
+        readonly sourceConflict: boolean;
+        /** Whether the cook must still say "I wrote this" (`statementRequiredOf`). REQUIRED. */
+        readonly statementRequired: boolean;
+    },
+): VisibilityDecision {
+    if (input.status !== RecipeStatus.PUBLISHED || input.visibility !== RecipeVisibility.PUBLIC) {
+        return allow('The recipe is not left published and public.');
     }
 
-    return allow('The recipe is not left published and public while private-only.');
+    const containment = evaluateContainment({
+        principalKind: input.principalKind,
+        containment: input.containment,
+        action: 'publish',
+    });
+
+    if (!containment.allowed) {
+        return { allowed: false, denial: 'contained', reason: containment.reason };
+    }
+
+    if (privateRuleOf(input.sourceType, input.sourceKind) === 'privateOnly') {
+        return deny(privateOnlyReason(input.sourceType));
+    }
+
+    if (input.sourceConflict) {
+        return denySourceConflict();
+    }
+
+    return input.statementRequired ? denyStatementRequired() : allow('The recipe may be left published and public.');
 }
 
 /**

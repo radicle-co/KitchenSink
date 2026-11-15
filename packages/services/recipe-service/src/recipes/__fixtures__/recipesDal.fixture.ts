@@ -42,12 +42,21 @@ export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal 
             const found: RecipeAggregate | undefined = await findById(id);
 
             return found === undefined
-                ? { visibility: 'public', status: 'draft', sourceType: 'user_created', sourceKind: null }
+                ? {
+                      visibility: 'public',
+                      status: 'draft',
+                      sourceType: 'user_created',
+                      sourceKind: null,
+                      statementKind: null,
+                      contentPastedAt: null,
+                  }
                 : {
                       visibility: found.recipe.visibility,
                       status: found.recipe.status,
                       sourceType: found.recipe.sourceType,
                       sourceKind: found.recipe.sourceKind,
+                      statementKind: found.recipe.statementKind,
+                      contentPastedAt: found.recipe.contentPastedAt,
                   };
         }),
         // ADR-0029 section 4: no captured owners to clear and no private lines by default.

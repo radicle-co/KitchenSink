@@ -325,18 +325,11 @@ export const authoredStatementSchema = z.object({ kind: z.literal('authored') })
 export const publicWebStatementSchema = z.object({ kind: z.literal('public_web'), citation: citationUrlSchema });
 
 /**
- * What a cook says about where THIS recipe came from, on a create or an update (ADR-0089): the address they pasted.
+ * The refined "copied from a public web page" member: the address must be a usable source, not just an address.
  *
- * ⚠️ NOT the curator's `source` ({@link recipeSourceInputSchema}). That one is grant-gated and carries its own attribution;
- * this one is open to any cook and the server derives the label, the address and the site from it (`evaluateProvenance`).
- * The two never travel together: a body carrying both is a `400` (the service answers it, because a refinement on the
- * create body would stop `importRecipeSchema` picking from it).
- *
- * One member today. A book or a paid site joins as another member of the same statement vocabulary when it has a surface.
- *
- * ⛔ The citation must be a usable source, not just an address: our own site, `localhost` and a bare IP are refused here,
- * by the same reading (`parseSourceLink`) the editor uses, so the client's "that is not a source" and the server's `400`
- * are one rule. The refinement sits on this member, which nothing picks from.
+ * ⛔ Our own site, `localhost` and a bare IP are refused here, by the same reading (`parseSourceLink`) the editor uses, so the
+ * client's "that is not a source" and the server's `400` are one rule. The refinement sits on this member, which the bulk
+ * import composes into its own statement union (`import.schema.ts`) and a recipe's own `statement` composes into its union below.
  */
 export const recipeStatementSchema = publicWebStatementSchema
     .strict()
@@ -345,8 +338,36 @@ export const recipeStatementSchema = publicWebStatementSchema
         path: ['citation'],
     });
 
+/**
+ * What a cook says about where THIS recipe came from, on a create or an update (ADR-0089): "I wrote this" or the address they
+ * pasted.
+ *
+ * ⚠️ NOT the curator's `source` ({@link recipeSourceInputSchema}). That one is grant-gated and carries its own attribution;
+ * this one is open to any cook and the server derives the label, the address and the site from it (`evaluateProvenance`).
+ * The two never travel together: a body carrying both is a `400` (the service answers it, because a refinement on the
+ * create body would stop `importRecipeSchema` picking from it).
+ *
+ * ⚠️ A DISCRIMINATED UNION of strict members, so "I wrote this" with a citation is a state the wire cannot say. Two members
+ * today; a book or a paid site joins as another member of the same statement vocabulary when it has a surface (the bulk import
+ * already has them, and composes its own union from the same members).
+ */
+export const recipeOwnStatementSchema = z.discriminatedUnion('kind', [
+    authoredStatementSchema.strict(),
+    recipeStatementSchema,
+]);
+
 /** A recipe's statement, as a create or an update request carries it. */
-export type RecipeStatementInput = z.infer<typeof recipeStatementSchema>;
+export type RecipeStatementInput = z.infer<typeof recipeOwnStatementSchema>;
+
+/**
+ * The client's word that content was PASTED into the recipe (the statement rule). Only ever `true`: a body cannot say "it was
+ * not pasted", because the server keeps the fact once set (`content_pasted_at` is written with `COALESCE`, never cleared), so
+ * the flag can only make the rule stricter. ABSENT means no claim, and a recipe with no claim reads as typed.
+ *
+ * ⚠️ Not on any response: the fact is an input to the rule (`statementRequiredOf`), and the owner reads its result
+ * (`publicNeedsStatement`), never the fact.
+ */
+const contentPastedSchema = z.literal(true).optional();
 
 /**
  * Body of `POST /api/v1/recipes`.
@@ -416,7 +437,8 @@ export const createRecipeRequestSchema = createRecipeRequestBaseSchema
     .extend({
         source: recipeSourceInputSchema.optional(),
         // The cook's pasted web link (ADR-0089). Never together with `source`: the service answers that `400`.
-        statement: recipeStatementSchema.optional(),
+        statement: recipeOwnStatementSchema.optional(),
+        contentPasted: contentPastedSchema,
         // ⚠️ OVERRIDES the base's `ingredients` key with the widened element — see
         // `createRecipeIngredientInputSchema`. The cardinality bound is restated because `.extend()` replaces
         // the whole field; `ingredientArrayCap.test.ts`-style identity is preserved by composing the SAME
@@ -455,7 +477,8 @@ export const updateRecipeRequestSchema = createRecipeRequestBaseSchema.omit({ vi
     // sets it, and an explicit `null` removes it. The editor's draft checkpoints may create the row before the cook pastes
     // the link, so the link has to be settable on a draft; after the first publish the source is frozen and the service
     // answers `403 FORBIDDEN` (`details.reason: 'SOURCE_LOCKED'`). `source` is still never accepted here.
-    statement: recipeStatementSchema.nullable().optional(),
+    statement: recipeOwnStatementSchema.nullable().optional(),
+    contentPasted: contentPastedSchema,
 });
 
 /** Request body for updating a recipe. */

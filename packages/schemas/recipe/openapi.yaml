@@ -6006,6 +6006,18 @@ components:
           type: integer
           minimum: 1
           maximum: 5
+        statementKind:
+          type: string
+          enum:
+            - authored
+            - source
+            - unrecognised
+          description: "unrecognised is client-side only: what a client reads for a statement kind newer than it knows. The server
+            never sends it."
+        publicNeedsCheck:
+          type: boolean
+        publicNeedsStatement:
+          type: boolean
         clonePrivateFoodLineCount:
           type: integer
           minimum: 0
@@ -6332,20 +6344,34 @@ components:
                 - sourceAttribution
               additionalProperties: false
         statement:
-          type: object
-          properties:
-            kind:
-              type: string
-              enum:
-                - public_web
-            citation:
-              type: string
-              maxLength: 2000
-              format: uri
-          required:
-            - kind
-            - citation
-          additionalProperties: false
+          oneOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - authored
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - public_web
+                citation:
+                  type: string
+                  maxLength: 2000
+                  format: uri
+              required:
+                - kind
+                - citation
+              additionalProperties: false
+        contentPasted:
+          type: boolean
+          enum:
+            - true
       required:
         - title
         - ingredients
@@ -6537,20 +6563,34 @@ components:
           maximum: 2147483647
         statement:
           nullable: true
-          type: object
-          properties:
-            kind:
-              type: string
-              enum:
-                - public_web
-            citation:
-              type: string
-              maxLength: 2000
-              format: uri
-          required:
-            - kind
-            - citation
-          additionalProperties: false
+          oneOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - authored
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - public_web
+                citation:
+                  type: string
+                  maxLength: 2000
+                  format: uri
+              required:
+                - kind
+                - citation
+              additionalProperties: false
+        contentPasted:
+          type: boolean
+          enum:
+            - true
       required:
         - expectedVersion
       additionalProperties: false

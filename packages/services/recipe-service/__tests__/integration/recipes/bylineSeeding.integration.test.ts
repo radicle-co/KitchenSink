@@ -88,7 +88,11 @@ beforeAll(async () => {
             { provide: AuthorHandlesDal, useValue: { findByline } },
             {
                 provide: RecipeSourceEvidenceDal,
-                useValue: { insert: async () => undefined, listForRecipe: async () => [] },
+                useValue: {
+                    insert: async () => undefined,
+                    listForRecipe: async () => [],
+                    listCommitted: async () => [],
+                },
             },
         ],
     });

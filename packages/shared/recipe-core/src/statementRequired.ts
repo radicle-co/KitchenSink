@@ -19,7 +19,7 @@
  */
 import { z } from 'zod';
 
-import { RecipeSourceType } from './recipe.types.js';
+import type { RecipeSourceType } from './recipe.types.js';
 import type { SourceEvidenceFacts } from './sourceConflict.js';
 
 /**
@@ -80,7 +80,8 @@ export interface StatementRequiredInput {
  * @returns `true` when Public must be refused for want of a statement. Pure.
  */
 export function statementRequiredOf(input: StatementRequiredInput): boolean {
-    if (input.sourceType !== RecipeSourceType.USER_CREATED) {
+    // A literal, not `RecipeSourceType.USER_CREATED`: `recipe.types` composes this module's view schema into the detail response.
+    if (input.sourceType !== 'user_created') {
         return false;
     }
 

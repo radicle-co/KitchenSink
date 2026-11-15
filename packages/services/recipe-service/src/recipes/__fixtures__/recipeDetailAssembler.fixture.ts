@@ -22,6 +22,7 @@ import type { FoodRefLookup, FoodRefsGateway } from '../../ingredients/foodRefs.
 import { LineIdentityReader } from '../../ingredients/lineIdentity.reader.js';
 import type { PhotosDal } from '../../photos/dal/photos.dal.js';
 import type { LineVerificationsDal } from '../dal/lineVerifications.dal.js';
+import type { RecipeSourceEvidenceDal } from '../dal/recipeSourceEvidence.dal.js';
 import type { RecipesDal } from '../dal/recipes.dal.js';
 import { RecipeDetailAssembler } from '../recipeDetail.assembler.js';
 import { fakeLineVerificationsDal } from './lineVerificationsDal.fixture.js';
@@ -37,6 +38,8 @@ export interface RecipeDetailAssemblerCollaborators {
     readonly photosCdnUrl: string;
     readonly foodNutrition: FoodNutritionGateway;
     readonly lineVerificationsDal: LineVerificationsDal;
+    /** The committed evidence read behind the owner-only hints; empty by default. */
+    readonly sourceEvidence: Pick<RecipeSourceEvidenceDal, 'listCommitted'>;
 }
 
 /**
@@ -130,6 +133,7 @@ export function makeRecipeDetailAssembler(
         photosCdnUrl: RECIPE_PHOTOS_CDN,
         foodNutrition: emptyFoodNutrition(),
         lineVerificationsDal: fakeLineVerificationsDal(new Map()),
+        sourceEvidence: { listCommitted: async () => [] },
         ...overrides,
     };
 
@@ -141,5 +145,6 @@ export function makeRecipeDetailAssembler(
         collaborators.photosCdnUrl,
         collaborators.foodNutrition,
         collaborators.lineVerificationsDal,
+        collaborators.sourceEvidence,
     );
 }

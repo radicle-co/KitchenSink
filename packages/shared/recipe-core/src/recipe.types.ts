@@ -10,6 +10,7 @@ import {
     type CatalogFoodResolutionStatus,
     type LineResolutionStatus,
 } from './foodResolutionStatus.js';
+import { recipeStatementKindViewSchema, type RecipeStatementKindView } from './statementRequired.js';
 import { unresolvedFoodReasonSchema, type UnresolvedFoodReasonCode } from './unresolvedFood.js';
 
 const idSchema = z.string().min(1);
@@ -822,6 +823,23 @@ export interface RecipeDetail extends Recipe {
      */
     viewerRating?: number;
     /**
+     * What the cook stated about the recipe (`authored` for "I wrote this", `source` for a stated web page, book or paid
+     * site), ABSENT when nothing was stated. ⛔ OWNER-ONLY, like the two flags below: it is the cook's own attestation, and
+     * it is never sent to anyone else. A client reads a newer server's kind as `unrecognised`.
+     */
+    statementKind?: RecipeStatementKindView;
+    /**
+     * Whether Public is refused for this recipe because a third-party source was once stated for it (`sourceConflictOf`).
+     * ⛔ OWNER-ONLY and ABSENT for every other viewer: it would reveal that a source was once stated, even after the cook
+     * cleared it. The Public card shows a refusal, with no promise of a review.
+     */
+    publicNeedsCheck?: boolean;
+    /**
+     * Whether the cook must still say "I wrote this" before this recipe may be left published and Public
+     * (`statementRequiredOf`). ⛔ OWNER-ONLY and ABSENT for every other viewer, for the same reason as `publicNeedsCheck`.
+     */
+    publicNeedsStatement?: boolean;
+    /**
      * On a CLONE response only — how many lines KEPT their binding to a food the cloner may not see (plan 002:
      * a clone no longer unbinds them, so each reads `RESOLVED_UNAVAILABLE` with no name). The one-time clone
      * banner's number. Absent on every other read and on a clone with no such line.
@@ -1107,6 +1125,10 @@ export const recipeDetailSchema = recipeSchema.extend({
     // 1..5 whole stars; absent (never 0) when the viewer has not rated — see the RecipeDetail.viewerRating
     // docstring. The schema is non-strict, so without this line the client would silently STRIP the field.
     viewerRating: z.number().int().min(1).max(5).optional(),
+    // The owner-only statement facts — see the interface docstring. Non-strict schema: without these lines a client would STRIP them.
+    statementKind: recipeStatementKindViewSchema.optional(),
+    publicNeedsCheck: z.boolean().optional(),
+    publicNeedsStatement: z.boolean().optional(),
     // U13 — see the interface docstring. Non-strict schema: without this line a client would STRIP it.
     clonePrivateFoodLineCount: nonNegativeIntSchema.optional(),
     // ADR-0030 §8 — same stripping hazard as the two lines above; absent = UNKNOWN, zeros = never.

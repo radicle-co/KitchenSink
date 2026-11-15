@@ -38,6 +38,7 @@ import {
     FoodResolutionStatus,
     lineNutritionSource,
     nutritionFreshness,
+    recipeSourceTypeSchema,
     toNutritionLine,
     type LineCatalogNutrition,
     type LineMeasure,
@@ -49,6 +50,7 @@ import {
 
 import { PhotosDal } from '../photos/dal/photos.dal.js';
 import { resolveCoverUrl, resolvePhotoView } from '../photos/photoView.js';
+import { RecipeSourceEvidenceDal } from './dal/recipeSourceEvidence.dal.js';
 import { RecipesDal, type RecipeAggregate } from './dal/recipes.dal.js';
 import { toRecipeNutritionState } from './domain/nutritionState.js';
 import {
@@ -65,7 +67,9 @@ import { sha256Hex } from '../common/sha256.js';
 import type { RecipeNutritionResponse, RecipeNutritionState } from './recipes.schema.js';
 import { quantityFromColumns, statedMeasureFromColumns } from './dal/quantityColumns.js';
 import { userNutritionFromColumns } from './dal/userNutritionColumns.js';
+import { sourceConflictOfEvidence, statementRequiredOfEvidence } from './domain/sourceEvidence.js';
 import type { RecipeResponse } from './dto/recipeResponse.dto.js';
+import type { OwnerStatementView } from './mappers/recipeResponse.js';
 import { FoodLookupsDal } from '../ingredients/dal/foodLookups.dal.js';
 import {
     catalogStatusOf,
@@ -237,6 +241,8 @@ export class RecipeDetailAssembler {
         @Inject(RECIPE_PHOTOS_CDN_URL) private readonly photosCdnUrl: string,
         private readonly foodNutrition: FoodNutritionGateway,
         @Inject(RECIPE_LINE_VERIFICATIONS_DAL) private readonly lineVerificationsDal: LineVerificationsDal,
+        @Inject(RecipeSourceEvidenceDal)
+        private readonly sourceEvidence: Pick<RecipeSourceEvidenceDal, 'listCommitted'>,
     ) {}
 
     /** Its own logger — a quiet-and-total read that failed open must still be visible. */
@@ -301,6 +307,9 @@ export class RecipeDetailAssembler {
 
         // Decided ONCE per read; the line mapper receives a verdict, never a viewer id.
         const audience = transcriptionAudienceOf(aggregate.recipe, options.viewerId);
+        // ⛔ The statement facts are the OWNER's: they reveal that a source was once stated, even after the cook cleared it.
+        const ownerStatement =
+            options.viewerId === aggregate.recipe.ownerId ? await this.ownerStatementOf(aggregate.recipe) : undefined;
 
         return toRecipeResponse(aggregate, lineViews, audience, {
             photos,
@@ -309,7 +318,33 @@ export class RecipeDetailAssembler {
             nutrition,
             ...(coverRow !== undefined ? { coverPhotoUrl: resolveCoverUrl(coverRow, this.photosCdnUrl) } : {}),
             ...(options.viewerRating !== undefined ? { viewerRating: options.viewerRating } : {}),
+            ...(ownerStatement !== undefined ? { ownerStatement } : {}),
         });
+    }
+
+    /**
+     * What only the recipe's owner is told about its statement: the kind stated, whether the evidence rule refuses Public, and
+     * whether the cook still owes the statement. Both rules are asked through the ONE adapter each, never re-derived here.
+     *
+     * ⚠️ A hint for a screen, decided from COMMITTED evidence outside any write; every write re-reads the evidence under its own
+     * row lock and judges for itself, so a stale hint is never a stale decision.
+     *
+     * @param recipe - The recipe row, read for its owner.
+     * @sideEffect One `recipe_source_evidence` read.
+     */
+    private async ownerStatementOf(recipe: RecipeAggregate['recipe']): Promise<OwnerStatementView> {
+        const evidence = await this.sourceEvidence.listCommitted(recipe.id);
+        const sourceType = recipeSourceTypeSchema.parse(recipe.sourceType);
+
+        return {
+            ...(recipe.statementKind === null ? {} : { statementKind: recipe.statementKind }),
+            publicNeedsCheck: sourceConflictOfEvidence(evidence, { sourceType, sourceKind: recipe.sourceKind }),
+            publicNeedsStatement: statementRequiredOfEvidence(evidence, {
+                sourceType,
+                statementKind: recipe.statementKind,
+                contentPastedAt: recipe.contentPastedAt,
+            }),
+        };
     }
 
     /**

@@ -15,9 +15,12 @@ import type {
     NewRecipeSourceEvidenceRow,
     RecipeSourceEvidenceRow,
 } from '../../database/schema/recipeSourceEvidence.js';
+import type { RecipeDrizzle } from '../../database/client.js';
 import type { RecipeTx } from '../../database/unitOfWork.js';
 
 export class RecipeSourceEvidenceDal {
+    public constructor(private readonly db: RecipeDrizzle) {}
+
     /**
      * Append one evidence row.
      *
@@ -39,6 +42,23 @@ export class RecipeSourceEvidenceDal {
      */
     public async listForRecipe(tx: RecipeTx, recipeId: string): Promise<RecipeSourceEvidenceRow[]> {
         return tx
+            .select()
+            .from(recipeSourceEvidence)
+            .where(eq(recipeSourceEvidence.recipeId, recipeId))
+            .orderBy(recipeSourceEvidence.recordedAt);
+    }
+
+    /**
+     * Every evidence row of a recipe, committed, for a READ that decides nothing (the owner-only `publicNeeds*` hints on a
+     * detail response). ⛔ Never decide a write from it: a write reads the evidence under its own row lock with
+     * {@link listForRecipe}, in its own transaction.
+     *
+     * @param recipeId - The recipe.
+     * @returns The rows, possibly none.
+     * @sideEffect Reads `recipe_source_evidence`.
+     */
+    public async listCommitted(recipeId: string): Promise<RecipeSourceEvidenceRow[]> {
+        return this.db
             .select()
             .from(recipeSourceEvidence)
             .where(eq(recipeSourceEvidence.recipeId, recipeId))

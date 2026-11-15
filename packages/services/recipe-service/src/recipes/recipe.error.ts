@@ -301,6 +301,22 @@ export function sourceConflictRefused(reason: string, details: Record<string, un
     return invalidVisibility(reason, { ...details, reason: SOURCE_CONFLICT_REASON });
 }
 
+/** `details.reason` of the `INVALID_VISIBILITY` the statement rule answers with. */
+const STATEMENT_REQUIRED_REASON = 'STATEMENT_REQUIRED';
+
+/**
+ * `INVALID_VISIBILITY` with `details.reason: 'STATEMENT_REQUIRED'` (→ 400): the cook has not said "I wrote this" for a recipe
+ * whose content was pasted or that has source evidence, so it may not be left published and Public (`statementRequiredOf`).
+ * The same shape as {@link sourceConflictRefused}, and for the same reason: no new published code.
+ *
+ * @param reason - The policy's deny-reason, surfaced as the error message.
+ * @param details - The attempted visibility and source type, as {@link invalidVisibility} carries.
+ * @returns The error to throw.
+ */
+export function statementRequiredRefused(reason: string, details: Record<string, unknown> = {}): RecipeDomainError {
+    return invalidVisibility(reason, { ...details, reason: STATEMENT_REQUIRED_REASON });
+}
+
 /**
  * `FORBIDDEN` — the caller declared a provenance it is not granted to declare (004-FR-025, ADR-0023).
  *

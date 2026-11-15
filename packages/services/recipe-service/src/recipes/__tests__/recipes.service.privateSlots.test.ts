@@ -287,6 +287,8 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
             status,
             sourceType,
             sourceKind: null,
+            statementKind: null,
+            contentPastedAt: null,
         }));
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(found),
@@ -410,6 +412,8 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
             status: 'published',
             sourceType: 'imported_public',
             sourceKind: 'public_web',
+            statementKind: 'source',
+            contentPastedAt: null,
         });
 
         const error = await refusalOf(
@@ -535,6 +539,8 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
             ...facts,
             sourceType,
             sourceKind: null,
+            statementKind: null,
+            contentPastedAt: null,
         }));
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(found),
@@ -613,6 +619,8 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
                 status: 'draft',
                 sourceType: 'user_created',
                 sourceKind: null,
+                statementKind: null,
+                contentPastedAt: null,
             })),
         });
 

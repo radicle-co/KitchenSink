@@ -87,12 +87,12 @@ export interface RecipesServiceCollaborators {
     /** The byline read model. Defaults to one that has never seen the cook, so writes fall back to the claims. */
     readonly authorHandles: Pick<AuthorHandlesDal, 'findByline'>;
     /** The evidence table: by default one that holds no evidence, so a recipe is never held out of Public. */
-    readonly sourceEvidence: Pick<RecipeSourceEvidenceDal, 'insert' | 'listForRecipe'>;
+    readonly sourceEvidence: Pick<RecipeSourceEvidenceDal, 'insert' | 'listForRecipe' | 'listCommitted'>;
 }
 
 /** An evidence table that is empty and accepts every append. */
-function noSourceEvidence(): Pick<RecipeSourceEvidenceDal, 'insert' | 'listForRecipe'> {
-    return { insert: async () => undefined, listForRecipe: async () => [] };
+function noSourceEvidence(): Pick<RecipeSourceEvidenceDal, 'insert' | 'listForRecipe' | 'listCommitted'> {
+    return { insert: async () => undefined, listForRecipe: async () => [], listCommitted: async () => [] };
 }
 
 /**
@@ -127,6 +127,8 @@ export function makeRecipesService(overrides: Partial<RecipesServiceCollaborator
         photosCdnUrl: collaborators.photosCdnUrl,
         foodNutrition: collaborators.foodNutrition,
         lineVerificationsDal: collaborators.lineVerificationsDal,
+        // ONE evidence double for the service and the assembler it projects through: a staged row is read by both.
+        sourceEvidence: collaborators.sourceEvidence,
     });
 
     return new RecipesService(

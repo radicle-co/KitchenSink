@@ -248,6 +248,9 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             status: 'draft',
             sourceType: 'imported_public',
             sourceKind: 'public_web',
+            // 0087: the statement facts the rule judges under the same lock. A stated web copy is `source`; nothing was pasted.
+            statementKind: 'source',
+            contentPastedAt: null,
         });
     });
 

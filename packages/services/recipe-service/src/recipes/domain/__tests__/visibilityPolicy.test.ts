@@ -246,6 +246,8 @@ describe('evaluatePublishedState — a private-only recipe is never left publish
             status: 'published',
             visibility: PUBLIC,
             sourceConflict: false,
+            statementRequired: false,
+            ...REAL_ENFORCING,
             sourceType: RecipeSourceType.IMPORTED_PUBLIC,
             sourceKind: 'public_web',
             ...over,
@@ -460,6 +462,8 @@ describe('evaluatePublishedState — sourceConflict', () => {
             sourceType: RecipeSourceType.USER_CREATED,
             sourceKind: null,
             sourceConflict: false,
+            statementRequired: false,
+            ...REAL_ENFORCING,
             ...over,
         });
 
@@ -484,5 +488,108 @@ describe('defaultCloneVisibility — sourceConflict', () => {
     it('lands a clone of a conflicted public recipe Private, and leaves an unconflicted one Public', () => {
         expect(defaultCloneVisibility(RecipeSourceType.USER_CREATED, null, REAL_ENFORCING, PUBLIC, true)).toBe(PRIVATE);
         expect(defaultCloneVisibility(RecipeSourceType.USER_CREATED, null, REAL_ENFORCING, PUBLIC, false)).toBe(PUBLIC);
+    });
+});
+
+// The statement rule (Option B): the state a write LEAVES is refused when the cook has not yet said "I wrote this".
+describe('evaluatePublishedState — statementRequired and the order of refusals', () => {
+    const REFUSALS = ['privateOnly', 'sourceConflict', 'statementRequired'] as const;
+    type Refusal = (typeof REFUSALS)[number];
+
+    /** A recipe the cook wrote, with exactly the named refusals present. */
+    function leave(
+        status: RecipeStatus,
+        visibility: RecipeVisibility,
+        present: readonly Refusal[],
+        subject: ContainmentSubject = REAL_ENFORCING,
+    ): VisibilityDecision {
+        return evaluatePublishedState({
+            status,
+            visibility,
+            ...(present.includes('privateOnly')
+                ? { sourceType: RecipeSourceType.IMPORTED_PUBLIC, sourceKind: 'public_web' as const }
+                : { sourceType: RecipeSourceType.USER_CREATED, sourceKind: null }),
+            sourceConflict: present.includes('sourceConflict'),
+            statementRequired: present.includes('statementRequired'),
+            ...subject,
+        });
+    }
+
+    /** Every subset of the three refusals, so a precedence mutant (swapped order, dropped arm) fails some row. */
+    const SUBSETS: ReadonlyArray<readonly Refusal[]> = [
+        [],
+        ['privateOnly'],
+        ['sourceConflict'],
+        ['statementRequired'],
+        ['privateOnly', 'sourceConflict'],
+        ['privateOnly', 'statementRequired'],
+        ['sourceConflict', 'statementRequired'],
+        ['privateOnly', 'sourceConflict', 'statementRequired'],
+    ];
+
+    /** The one refusal that speaks, in the policy's order; `allow` when none is present. */
+    function firstOf(present: readonly Refusal[]): 'policy' | 'sourceConflict' | 'statementRequired' | 'allow' {
+        if (present.includes('privateOnly')) {
+            return 'policy';
+        }
+
+        if (present.includes('sourceConflict')) {
+            return 'sourceConflict';
+        }
+
+        return present.includes('statementRequired') ? 'statementRequired' : 'allow';
+    }
+
+    it.each(SUBSETS)('a published, public recipe with %j answers the first refusal in order', (...present) => {
+        const decision = leave(RecipeStatus.PUBLISHED, PUBLIC, present);
+        const expected = firstOf(present);
+
+        if (expected === 'allow') {
+            expectDecision(decision, true);
+        } else {
+            expectDecision(decision, false);
+            expect(decision.allowed === false && decision.denial).toBe(expected);
+        }
+    });
+
+    it.each(SUBSETS)('a published, PRIVATE recipe with %j is never refused', (...present) => {
+        expectDecision(leave(RecipeStatus.PUBLISHED, PRIVATE, present), true);
+    });
+
+    it.each(SUBSETS)(
+        'a DRAFT (public or private) with %j is never refused: only its owner can read it',
+        (...present) => {
+            expectDecision(leave(RecipeStatus.DRAFT, PUBLIC, present), true);
+            expectDecision(leave(RecipeStatus.DRAFT, PRIVATE, present), true);
+        },
+    );
+
+    it('a contained test principal is refused as contained BEFORE any of the three', () => {
+        const decision = leave(RecipeStatus.PUBLISHED, PUBLIC, REFUSALS, {
+            principalKind: 'test',
+            containment: 'enforce',
+        });
+
+        expectDecision(decision, false);
+        expect(decision.allowed === false && decision.denial).toBe('contained');
+    });
+
+    it('a contained principal is not asked about containment for a result that is not published and public', () => {
+        expectDecision(
+            leave(RecipeStatus.PUBLISHED, PRIVATE, ['statementRequired'], {
+                principalKind: 'test',
+                containment: 'enforce',
+            }),
+            true,
+        );
+    });
+
+    it('a test principal on a stage that does not enforce containment gets the statement refusal like anyone', () => {
+        const decision = leave(RecipeStatus.PUBLISHED, PUBLIC, ['statementRequired'], {
+            principalKind: 'test',
+            containment: 'off',
+        });
+
+        expect(decision.allowed === false && decision.denial).toBe('statementRequired');
     });
 });

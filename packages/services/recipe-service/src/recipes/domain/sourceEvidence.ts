@@ -9,9 +9,11 @@
  */
 import {
     sourceConflictOf,
+    statementRequiredOf,
     type RecipeSourceKind,
     type RecipeSourceKindView,
     type RecipeSourceType,
+    type RecipeStatementKind,
 } from '@kitchensink/recipe-core';
 
 import type { NewRecipeSourceEvidenceRow, SourceEvidenceCapture } from '../../database/schema/recipeSourceEvidence.js';
@@ -105,5 +107,34 @@ export function sourceConflictOfEvidence(
         })),
         ...recipe,
         verifiedSiteClaims: NO_VERIFIED_SITE_CLAIMS,
+    });
+}
+
+/**
+ * Whether the recipe still needs the cook's statement before it may be left published and Public. The ONE call of
+ * `statementRequiredOf` in this service, beside the one call of `sourceConflictOf`: the two rules are separate on purpose (the
+ * feature-020 hold replaces only the first), and each is asked here and in the policy's order, never merged.
+ *
+ * @param evidence - Every evidence row of the recipe (or the facts of the rows about to be written).
+ * @param recipe - The recipe's label and statement AS THE WRITE LEAVES THEM, and when content was first reported pasted
+ *   (`null` or absent: never).
+ * @returns `true` when the statement is still owed. Pure.
+ */
+export function statementRequiredOfEvidence(
+    evidence: readonly EvidenceFacts[],
+    recipe: {
+        readonly sourceType: RecipeSourceType;
+        readonly statementKind: RecipeStatementKind | null;
+        readonly contentPastedAt: Date | string | null | undefined;
+    },
+): boolean {
+    return statementRequiredOf({
+        evidence: evidence.map((row) => ({
+            sourceDomain: row.sourceDomain ?? null,
+            sourceKind: row.sourceKind ?? null,
+        })),
+        sourceType: recipe.sourceType,
+        statementKind: recipe.statementKind,
+        contentPasted: recipe.contentPastedAt !== null && recipe.contentPastedAt !== undefined,
     });
 }

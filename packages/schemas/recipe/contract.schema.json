@@ -755,6 +755,20 @@
             ],
             "type": "object"
         },
+        "authoredStatementSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "kind": {
+                    "const": "authored",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "kind"
+            ],
+            "type": "object"
+        },
         "cloneCollectionRequestSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -2291,6 +2305,10 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "contentPasted": {
+                    "const": true,
+                    "type": "boolean"
+                },
                 "cookTimeMinutes": {
                     "maximum": 2147483647,
                     "minimum": 0,
@@ -2579,23 +2597,40 @@
                     ]
                 },
                 "statement": {
-                    "additionalProperties": false,
-                    "properties": {
-                        "citation": {
-                            "format": "uri",
-                            "maxLength": 2000,
-                            "type": "string"
+                    "oneOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "kind": {
+                                    "const": "authored",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind"
+                            ],
+                            "type": "object"
                         },
-                        "kind": {
-                            "const": "public_web",
-                            "type": "string"
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "format": "uri",
+                                    "maxLength": 2000,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "public_web",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
                         }
-                    },
-                    "required": [
-                        "kind",
-                        "citation"
-                    ],
-                    "type": "object"
+                    ]
                 },
                 "status": {
                     "enum": [
@@ -11568,6 +11603,12 @@
                     "minimum": 0,
                     "type": "integer"
                 },
+                "publicNeedsCheck": {
+                    "type": "boolean"
+                },
+                "publicNeedsStatement": {
+                    "type": "boolean"
+                },
                 "ratingCount": {
                     "maximum": 9007199254740991,
                     "minimum": 0,
@@ -11603,6 +11644,15 @@
                 },
                 "sourceUrl": {
                     "format": "uri",
+                    "type": "string"
+                },
+                "statementKind": {
+                    "description": "unrecognised is client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.",
+                    "enum": [
+                        "authored",
+                        "source",
+                        "unrecognised"
+                    ],
                     "type": "string"
                 },
                 "status": {
@@ -12280,6 +12330,43 @@
                     "required": [
                         "state",
                         "reason"
+                    ],
+                    "type": "object"
+                }
+            ]
+        },
+        "recipeOwnStatementSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "oneOf": [
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "kind": {
+                            "const": "authored",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "format": "uri",
+                            "maxLength": 2000,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "public_web",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
                     ],
                     "type": "object"
                 }
@@ -14171,6 +14258,12 @@
                             "minimum": 0,
                             "type": "integer"
                         },
+                        "publicNeedsCheck": {
+                            "type": "boolean"
+                        },
+                        "publicNeedsStatement": {
+                            "type": "boolean"
+                        },
                         "ratingCount": {
                             "maximum": 9007199254740991,
                             "minimum": 0,
@@ -14206,6 +14299,15 @@
                         },
                         "sourceUrl": {
                             "format": "uri",
+                            "type": "string"
+                        },
+                        "statementKind": {
+                            "description": "unrecognised is client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.",
+                            "enum": [
+                                "authored",
+                                "source",
+                                "unrecognised"
+                            ],
                             "type": "string"
                         },
                         "status": {
@@ -14508,6 +14610,10 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "contentPasted": {
+                    "const": true,
+                    "type": "boolean"
+                },
                 "cookTimeMinutes": {
                     "maximum": 2147483647,
                     "minimum": 0,
@@ -14710,23 +14816,40 @@
                 "statement": {
                     "anyOf": [
                         {
-                            "additionalProperties": false,
-                            "properties": {
-                                "citation": {
-                                    "format": "uri",
-                                    "maxLength": 2000,
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "kind": {
+                                            "const": "authored",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind"
+                                    ],
+                                    "type": "object"
                                 },
-                                "kind": {
-                                    "const": "public_web",
-                                    "type": "string"
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "citation": {
+                                            "format": "uri",
+                                            "maxLength": 2000,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "const": "public_web",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "citation"
+                                    ],
+                                    "type": "object"
                                 }
-                            },
-                            "required": [
-                                "kind",
-                                "citation"
-                            ],
-                            "type": "object"
+                            ]
                         },
                         {
                             "type": "null"

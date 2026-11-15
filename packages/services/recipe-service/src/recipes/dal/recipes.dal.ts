@@ -27,6 +27,7 @@ import type {
     RecipeDifficulty,
     RecipeMealType,
     RecipeSourceKind,
+    RecipeStatementKind,
     RecipeSourceType,
     RecipeStatus,
     RecipeVisibility,
@@ -80,6 +81,10 @@ export interface CreateRecipeInput {
     sourceType?: RecipeSourceType;
     /** What the cook said the source is (ADR-0089), or `null`. Omitted: the column stays NULL. */
     sourceKind?: RecipeSourceKind | null;
+    /** What the cook stated (0087): `authored`, `source`, or `null`. Omitted: the column stays NULL. A clone copies it. */
+    statementKind?: RecipeStatementKind | null;
+    /** When the client first said content was pasted (0087), or `null`. Omitted: NULL. A clone copies it as it is. */
+    contentPastedAt?: Date | null;
     /** Original source URL (imported/cloned recipes), or `null`. */
     sourceUrl?: string | null;
     /** Human-readable attribution string (imported/cloned recipes), or `null`. */
@@ -147,9 +152,16 @@ export interface UpdateRecipeInput {
     provenance?: {
         sourceType: RecipeSourceType;
         sourceKind: RecipeSourceKind | null;
+        /** What the cook stated with it (0087): the pairing CHECK ties it to `sourceKind`, so it is written in the same set. */
+        statementKind: RecipeStatementKind | null;
         sourceUrl: string | null;
         sourceAttribution: string | null;
     };
+    /**
+     * The client said content was pasted (0087). ONLY ever `true`: stored as `COALESCE(content_pasted_at, now())`, so a recipe
+     * that already has the fact keeps its first instant and nothing can clear it. ABSENT leaves the column alone.
+     */
+    contentPasted?: true;
     /**
      * Set the visibility in this same write, for a statement that makes a public draft private (ADR-0089). ABSENT leaves it
      * alone; every other visibility change goes through {@link RecipesDal.setVisibility}.
@@ -175,10 +187,14 @@ export interface RecipeAggregate {
     ingredients: IngredientRow[];
 }
 
-/** A recipe's slot facts and source facts, as read under its row lock (`lockSlotFacts`). */
+/** A recipe's slot facts, source facts and statement facts, as read under its row lock (`lockSlotFacts`). */
 export interface LockedRecipeFacts extends SlotFacts {
     readonly sourceType: RecipeRow['sourceType'];
     readonly sourceKind: RecipeRow['sourceKind'];
+    /** What the cook stated (0087), under the same lock: the statement rule reads it where it is decided. */
+    readonly statementKind: RecipeRow['statementKind'];
+    /** When content was first reported pasted (0087), under the same lock. */
+    readonly contentPastedAt: RecipeRow['contentPastedAt'];
 }
 
 /**
@@ -294,6 +310,8 @@ export class RecipesDal {
                 status: recipes.status,
                 sourceType: recipes.sourceType,
                 sourceKind: recipes.sourceKind,
+                statementKind: recipes.statementKind,
+                contentPastedAt: recipes.contentPastedAt,
             })
             .from(recipes)
             .where(and(eq(recipes.id, id), activeRecipe()))
@@ -398,6 +416,8 @@ export class RecipesDal {
                     // Provenance is only present when cloning; omit otherwise so the column defaults apply.
                     ...(input.sourceType !== undefined ? { sourceType: input.sourceType } : {}),
                     ...(input.sourceKind !== undefined ? { sourceKind: input.sourceKind } : {}),
+                    ...(input.statementKind !== undefined ? { statementKind: input.statementKind } : {}),
+                    ...(input.contentPastedAt !== undefined ? { contentPastedAt: input.contentPastedAt } : {}),
                     ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
                     ...(input.sourceAttribution !== undefined ? { sourceAttribution: input.sourceAttribution } : {}),
                     ...(input.clonedFromId !== undefined ? { clonedFromId: input.clonedFromId } : {}),
@@ -704,6 +724,10 @@ export class RecipesDal {
                     // Publication status (W8-a.3) — absent leaves it unchanged; a value sets it (publish/re-draft).
                     ...(input.status !== undefined ? { status: input.status } : {}),
                     ...(input.provenance !== undefined ? input.provenance : {}),
+                    // Once set, never cleared, and the first instant is kept: the rule is only ever made stricter by the flag.
+                    ...(input.contentPasted === true
+                        ? { contentPastedAt: sql`COALESCE(${recipes.contentPastedAt}, now())` }
+                        : {}),
                     ...(input.visibility !== undefined ? { visibility: input.visibility } : {}),
                     ...(input.tags !== undefined ? { tags: input.tags } : {}),
                     ...(input.dietaryFlags !== undefined ? { dietaryFlags: input.dietaryFlags } : {}),

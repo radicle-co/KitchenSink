@@ -197,9 +197,9 @@ describe('recipes.statement_kind and content_pasted_at (migration 0087)', () => 
             code: CHECK_VIOLATION,
             constraint: 'recipes_statement_kind_pairs_source_kind',
         });
-        await expect(
-            insert({ sourceType: 'imported_public', statementKind: 'source' }),
-        ).rejects.toMatchObject({ code: CHECK_VIOLATION });
+        await expect(insert({ sourceType: 'imported_public', statementKind: 'source' })).rejects.toMatchObject({
+            code: CHECK_VIOLATION,
+        });
 
         await insert({ sourceType: 'imported_public' });
     });

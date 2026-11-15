@@ -962,6 +962,21 @@ describe('ImportAdvanceService — saving what is ready', () => {
         expect(lines[3]).not.toHaveProperty('sourcePhrase');
     });
 
+    // ADR-0090 section 2: `create` raises `source_line_transcribed_by_owner` for every line that carries a `sourceLine` (the import
+    // passes `ownerVouches`), so a line without one would be saved as NOT the cook's words. This pins the import's half of that rule.
+    it('⛔ hands create the file’s RAW line on EVERY line, so create can mark each one the cook’s own words (ADR-0090 §2)', async () => {
+        const { answered, recipes } = run(world());
+
+        await answered;
+
+        const lines = firstCreate(recipes).dto.ingredients;
+        // The file's lines by index: the bound line, the two foods of one line (both carry that line), then the heading kept whole.
+        const fileLineOf = [0, 1, 1, 2];
+
+        expect(lines).toHaveLength(fileLineOf.length);
+        expect(lines.map((line) => line.sourceLine)).toEqual(fileLineOf.map((index) => payloadLines[index]));
+    });
+
     it('names a line kept as written with its parsed phrase, and a heading with its text (declared, never converging)', async () => {
         const { answered, ingredients } = run(world());
 

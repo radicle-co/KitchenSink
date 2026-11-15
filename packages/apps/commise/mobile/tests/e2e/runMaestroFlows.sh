@@ -1332,13 +1332,13 @@ maestro_disable_password_autofill_ios() {
 #
 # Keep the "Ready for Apple Intelligence" banner off the booted Simulator `MAESTRO_IOS_UDID`. About 25 s after boot,
 # `generativeexperiencesd` posts that FollowUp as a banner over whatever app is in front. The banner belongs to another
-# process, so no flow can dismiss it, and the next tap can open Settings instead of Commise (the detailBack flake).
-# The switch is `launchctl disable` on that daemon inside the Simulator (LB.U1 spike: Luna squad `reviews/0001-LB-spike.md`).
+# process, so no flow can dismiss it, and the next tap can open Settings instead of Commise.
+# The switch is `launchctl disable` on that daemon inside the Simulator.
 #
 # ⛔ THE READ-BACK DECIDES, never the disable's exit status: only the exact line `"<daemon>" => disabled` in
 # `launchctl print-disabled system` passes. A name-only match would also pass `=> enabled`, and a missing daemon fails.
-# ⚠️ A Simulator erase resets the switch, so the caller runs this after every erase and boot. `bootout` stops a daemon
-# that is already running and is allowed to fail: right after boot it is often not running yet ("No such process").
+# ⚠️ A Simulator erase resets the switch. `bootout` stops a daemon that is already running and is allowed to fail: right
+# after boot it is often not running yet ("No such process").
 #
 # @sideEffect Disables a daemon inside the Simulator, stopping it if it runs.
 maestro_disable_apple_intelligence_banner_ios() {

@@ -227,8 +227,10 @@ describe('IosAdapter', () => {
         });
         const setup = calls.find((c) => c.includes('maestro_disable_apple_intelligence_banner_ios')) ?? '';
 
-        // One `&&` chain: the banner step runs only after AutoFill's shutdown and reboot, and a failure of either stops both.
-        expect(setup).toMatch(/maestro_disable_password_autofill_ios && maestro_disable_apple_intelligence_banner_ios/u);
+        // One `&&` chain: the banner step runs only after AutoFill's shutdown and reboot succeed.
+        expect(setup).toMatch(
+            /maestro_disable_password_autofill_ios && maestro_disable_apple_intelligence_banner_ios/u,
+        );
     });
 
     it('hands the runner the lane Simulator, skips its own install and puts the shims first on PATH', async () => {

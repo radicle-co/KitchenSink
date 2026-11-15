@@ -3,8 +3,7 @@
  *
  * About 25 s after a Simulator boots, `generativeexperiencesd` posts a FollowUp banner over whatever app is in front. The
  * banner is another process's, so Maestro's hierarchy cannot tap it away, and the next tap can open Settings instead of
- * Commise (the detailBack flake). The LB.U1 spike found the switch: `launchctl disable` on that daemon inside the booted
- * Simulator. Cause, command and red/green runs: the spike record in the Luna squad folder (`reviews/0001-LB-spike.md`).
+ * Commise. The switch is `launchctl disable` on that daemon inside the booted Simulator.
  *
  * `maestro_disable_apple_intelligence_banner_ios` is asserted by RUNNING it with `xcrun` stubbed. The READ-BACK decides:
  * a `disable` that exits 0 while the daemon is still enabled must fail the lane's setup (a missed switch looks like a
@@ -28,6 +27,7 @@ afterAll(() => {
     rmSync(scratch, { recursive: true, force: true });
 });
 
+const CALL = 'MAESTRO_IOS_UDID=SIM-1 maestro_disable_apple_intelligence_banner_ios';
 const DISABLED = `\t\t"${DAEMON}" => disabled`;
 const ENABLED = `\t\t"${DAEMON}" => enabled`;
 
@@ -80,7 +80,7 @@ function run(
 
 describe('maestro_disable_apple_intelligence_banner_ios', () => {
     it('⛔ disables the daemon on the named Simulator, then reads the disabled list back', () => {
-        const { status, calls } = run('MAESTRO_IOS_UDID=SIM-1 maestro_disable_apple_intelligence_banner_ios');
+        const { status, calls } = run(CALL);
         const disable = calls.indexOf(`xcrun simctl spawn SIM-1 launchctl disable system/${DAEMON}`);
         const readBack = calls.indexOf('xcrun simctl spawn SIM-1 launchctl print-disabled system');
 
@@ -91,7 +91,7 @@ describe('maestro_disable_apple_intelligence_banner_ios', () => {
     });
 
     it('⛔ fails when the read-back shows the daemon enabled, although the disable exited 0', () => {
-        const { status, calls } = run('MAESTRO_IOS_UDID=SIM-1 maestro_disable_apple_intelligence_banner_ios', ENABLED);
+        const { status, calls } = run(CALL, ENABLED);
 
         // 127 is bash's "command not found": a failure for the wrong reason. The read-back must have run and decided.
         expect(calls).toContain(`xcrun simctl spawn SIM-1 launchctl disable system/${DAEMON}`);
@@ -102,7 +102,7 @@ describe('maestro_disable_apple_intelligence_banner_ios', () => {
 
     it('⛔ fails when the daemon is missing from a read-back that lists other daemons', () => {
         const { status, calls } = run(
-            'MAESTRO_IOS_UDID=SIM-1 maestro_disable_apple_intelligence_banner_ios',
+            CALL,
             '\t\t"com.apple.foo" => disabled\n\t\t"com.apple.generativeexperiencesd.other" => enabled',
         );
 
@@ -111,14 +111,25 @@ describe('maestro_disable_apple_intelligence_banner_ios', () => {
         expect(status).not.toBe(127);
     });
 
+    it('⛔ fails when the name differs by one character where the dot is, or has a prefix, so the pattern is exact', () => {
+        for (const readBack of [
+            '\t\t"comXapple.generativeexperiencesd" => disabled',
+            `x\t\t"${DAEMON}" => disabled`,
+            `\t\t"${DAEMON}" => disabled extra`,
+        ]) {
+            const { status } = run(CALL, readBack);
+
+            expect(status, readBack).not.toBe(0);
+            expect(status, readBack).not.toBe(127);
+        }
+    });
+
     it('lets the read-back decide: a disable that exits non-zero passes when the daemon reads back disabled', () => {
-        expect(run('MAESTRO_IOS_UDID=SIM-1 maestro_disable_apple_intelligence_banner_ios', DISABLED, 0, 1).status).toBe(
-            0,
-        );
+        expect(run(CALL, DISABLED, 0, 1).status).toBe(0);
     });
 
     it('does not fail the setup when the daemon is not running yet (bootout: no such process)', () => {
-        expect(run('MAESTRO_IOS_UDID=SIM-1 maestro_disable_apple_intelligence_banner_ios', DISABLED, 3).status).toBe(0);
+        expect(run(CALL, DISABLED, 3).status).toBe(0);
     });
 
     it('refuses to guess the Simulator, and says so', () => {

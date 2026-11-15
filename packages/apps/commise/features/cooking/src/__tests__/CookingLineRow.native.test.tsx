@@ -25,7 +25,8 @@ vi.mock('react-native', async (importOriginal) => {
 
 import { CookingLineRow } from '../CookingLineRow.native.js';
 import type { CookingLineView } from '../cookingViewProps.js';
-import { glyphCount, tallestMinHeight } from './utils/buttonPill.js';
+import { glyphCount } from '@commise/ui/testing/button-pill';
+import { tallestMinHeight } from './utils/buttonPill.js';
 
 const user = userEvent.setup({ delay: null });
 

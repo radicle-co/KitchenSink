@@ -51,6 +51,7 @@ export const CookingNav: FC<NativeCookingNavProps> = ({
             </Button>
         </YStack>
         <YStack flex={1}>
+            {/* Two branches: `ButtonProps` is a union on `variant`, so one Button with a computed variant does not type. */}
             {forward.tone === 'filled' ? (
                 <Button
                     variant="primary"

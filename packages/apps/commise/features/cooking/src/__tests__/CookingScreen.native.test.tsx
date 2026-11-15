@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CookingScreen } from '../CookingScreen.native.js';
 import type { CookingScreenProps, CookingScreenRead } from '../cookingViewProps.js';
-import { pillOf } from './utils/buttonPill.js';
+import { pillOf } from '@commise/ui/testing/button-pill';
 
 const user = userEvent.setup({ delay: null });
 

@@ -22,3 +22,15 @@ export function cookingFocusTargetOf({
 }): CookingFocusTarget {
     return tickedCount > 0 && !everyLineTicked ? 'focusLine' : 'forward';
 }
+
+/** What decides where the cook's focus goes, on either platform. */
+export interface CookingFocusRecoveryInput {
+    /** How many times the cook has moved between steps (Cook it again counts). */
+    readonly moves: number;
+    /** How many lines of the current step are ticked. */
+    readonly tickedCount: number;
+    /** Whether every line of the current step is ticked. */
+    readonly everyLineTicked: boolean;
+    /** Whether the session is on Done, which has its own focus move. */
+    readonly finished: boolean;
+}

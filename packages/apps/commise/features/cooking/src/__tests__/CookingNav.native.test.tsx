@@ -14,7 +14,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CookingNav, type NativeCookingNavProps } from '../CookingNav.native.js';
-import { glyphCount, pillOf } from './utils/buttonPill.js';
+import { glyphCount, pillOf } from '@commise/ui/testing/button-pill';
 
 const user = userEvent.setup({ delay: null });
 

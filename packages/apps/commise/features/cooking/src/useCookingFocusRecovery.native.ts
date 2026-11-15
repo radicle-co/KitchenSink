@@ -12,19 +12,7 @@
  */
 import { useState } from 'react';
 
-import { cookingFocusTargetOf, type CookingFocusTarget } from './cookingFocusTarget.js';
-
-/** What decides where the cursor goes. */
-export interface CookingFocusRecoveryInput {
-    /** How many times the cook has moved between steps (Cook it again counts). */
-    readonly moves: number;
-    /** How many lines of the current step are ticked. */
-    readonly tickedCount: number;
-    /** Whether every line of the current step is ticked. */
-    readonly everyLineTicked: boolean;
-    /** Whether the session is on Done, which moves the cursor to its own title. */
-    readonly finished: boolean;
-}
+import { cookingFocusTargetOf, type CookingFocusRecoveryInput, type CookingFocusTarget } from './cookingFocusTarget.js';
 
 /** The request: the control that should take the cursor, or `null`, and how a control acknowledges it. */
 export interface CookingFocusRecovery {

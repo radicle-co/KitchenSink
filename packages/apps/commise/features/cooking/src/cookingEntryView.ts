@@ -22,6 +22,51 @@ export interface CookingEntryViewInput
     readonly copy: CookingMessages;
 }
 
+/** The back action every load notice carries. */
+type BackAction = NonNullable<StateNoticeProps['secondary']>;
+
+/** A pending read that has been slow for 10 s is the load error; a slow draft redirect has no read to retry. */
+function loadingView(
+    phase: LoadingPhase,
+    read: CookingEntryViewInput['read'],
+    copy: CookingMessages,
+    back: BackAction,
+): CookingEntryView {
+    if (phase === 'slow' && read.kind === 'pending') {
+        return {
+            kind: 'notice',
+            notice: {
+                title: copy.error.title,
+                body: copy.error.body,
+                primary: { label: copy.error.retry, icon: 'refreshCw', onPress: read.retry },
+                secondary: back,
+            },
+        };
+    }
+
+    return { kind: 'loading', phase: phase === 'slow' ? 'label' : phase };
+}
+
+/** A recipe with no steps: its owner is offered the editor, anyone else a plain way back. */
+function noStepsView(
+    read: CookingEntryViewInput['read'],
+    copy: CookingMessages,
+    onEdit: () => void,
+    onLeave: () => void,
+): CookingEntryView {
+    const owner = read.kind === 'ready' && read.viewerIsOwner;
+
+    return {
+        kind: 'notice',
+        notice: {
+            title: copy.empty.title,
+            body: owner ? copy.empty.body : copy.empty.bodyOther,
+            ...(owner ? { primary: { label: copy.empty.edit, icon: 'pencilLine', onPress: onEdit } } : {}),
+            secondary: { label: copy.empty.back, icon: 'chevronLeft', onPress: onLeave },
+        },
+    };
+}
+
 /**
  * What the read draws. A pending read that has been slow for 10 s becomes the load error, so a cook is never left on a
  * skeleton, but a draft redirect that is slow has no read to retry and stays on the label frame.
@@ -42,17 +87,7 @@ export function cookingEntryViewOf({
 
     switch (state.kind) {
         case 'loading':
-            return phase === 'slow' && read.kind === 'pending'
-                ? {
-                      kind: 'notice',
-                      notice: {
-                          title: copy.error.title,
-                          body: copy.error.body,
-                          primary: { label: copy.error.retry, icon: 'refreshCw', onPress: read.retry },
-                          secondary: back,
-                      },
-                  }
-                : { kind: 'loading', phase: phase === 'slow' ? 'label' : phase };
+            return loadingView(phase, read, copy, back);
         case 'error':
             return {
                 kind: 'notice',
@@ -74,19 +109,8 @@ export function cookingEntryViewOf({
                 },
             };
 
-        case 'noSteps': {
-            const owner = read.kind === 'ready' && read.viewerIsOwner;
-
-            return {
-                kind: 'notice',
-                notice: {
-                    title: copy.empty.title,
-                    body: owner ? copy.empty.body : copy.empty.bodyOther,
-                    ...(owner ? { primary: { label: copy.empty.edit, icon: 'pencilLine', onPress: onEdit } } : {}),
-                    secondary: { label: copy.empty.back, icon: 'chevronLeft', onPress: onLeave },
-                },
-            };
-        }
+        case 'noSteps':
+            return noStepsView(read, copy, onEdit, onLeave);
 
         case 'ready':
             // `useCookingEntry` only reaches `ready` with a ready read; the narrowing keeps the type honest.

@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CookingDoneActions } from '../CookingDoneActions.native.js';
 import type { CookingDoneActionsProps } from '../cookingViewProps.js';
-import { pillOf } from './utils/buttonPill.js';
+import { pillOf } from '@commise/ui/testing/button-pill';
 
 const user = userEvent.setup({ delay: null });
 

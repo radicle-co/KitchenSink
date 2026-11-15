@@ -9,7 +9,7 @@
         "platform-singleton": 113,
         "ref-api": 19,
         "unclassified-layer": 93,
-        "undocumented-prop": 229
+        "undocumented-prop": 223
     },
     "findings": [
         {
@@ -5265,17 +5265,6 @@
             ]
         },
         {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresCooking/CookingFrame",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "body",
-                "topBar"
-            ]
-        },
-        {
             "rule": "platform-singleton",
             "severity": "review",
             "component": "featuresCooking/CookingLineRow",
@@ -5283,16 +5272,6 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"
-            ]
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresCooking/CookingLineRow",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingLineRow.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "line"
             ]
         },
         {
@@ -5306,16 +5285,6 @@
             ]
         },
         {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresCooking/CookingLoading",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingLoading.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "phase"
-            ]
-        },
-        {
             "rule": "platform-singleton",
             "severity": "review",
             "component": "featuresCooking/CookingNav",
@@ -5326,17 +5295,6 @@
             ]
         },
         {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresCooking/CookingNav",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingNav.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "back",
-                "forward"
-            ]
-        },
-        {
             "rule": "platform-singleton",
             "severity": "review",
             "component": "featuresCooking/CookingNextPreview",
@@ -5344,16 +5302,6 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"
-            ]
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresCooking/CookingNextPreview",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingNextPreview.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "preview"
             ]
         },
         {
@@ -5384,17 +5332,6 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"
-            ]
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresCooking/CookingSessionScreen",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingSessionScreen.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "onLeave",
-                "recipe"
             ]
         },
         {

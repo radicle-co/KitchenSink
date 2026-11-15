@@ -10,7 +10,7 @@
         "documentedComponents": 12,
         "implementationsWithModuleDoc": 12,
         "implementationsWithComponentDoc": 12,
-        "documentedProps": 25,
+        "documentedProps": 34,
         "classifiedComponents": 12,
         "componentsWithPatternTag": 2,
         "crossPlatformComponents": 0
@@ -186,7 +186,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "The scrolling body between the bar and the foot.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -213,7 +213,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "The bar pinned at the top; `null` for a full-screen notice.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         }
                     ],
@@ -277,7 +277,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "The line: its text, whether it is ticked, and what a press does.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         }
                     ],
@@ -342,7 +342,7 @@
                             ],
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "How long the recipe has been loading, as what the body draws.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         }
                     ],
@@ -394,7 +394,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "Back: to the step before, or to the recipe on step 1.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -412,7 +412,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "Forward: Next step, Start step n or Finish, and how it looks now.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         }
                     ],
@@ -464,7 +464,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "The next step's overline and first line.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         }
                     ],
@@ -607,7 +607,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "Exit, Back on step 1 and Back to the recipe: to the recipe page.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/CookingSessionScreen.tsx"
                         },
                         {
@@ -616,7 +616,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "The recipe to cook, read once when the session opens.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/CookingSessionScreen.tsx"
                         }
                     ],

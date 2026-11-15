@@ -1,4 +1,4 @@
--- 0088 — a bulk-import item stores the byte size of its payload, so the unpaid-byte cap sums a number (GATE finding SCQ-1).
+-- 0089 — a bulk-import item stores the byte size of its payload, so the unpaid-byte cap sums a number (GATE finding SCQ-1).
 --
 -- The cap (`RecipeImportItemsDal`, ADR-0072 §8) measures the cook's whole unpaid backlog twice on every chunk that adds
 -- bytes. It used to do that with `sum(octet_length(payload::text))`, which serialises every unpaid payload of the cook on each

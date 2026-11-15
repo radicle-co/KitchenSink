@@ -42,7 +42,7 @@ const UNIQUE_VIOLATION = '23505';
 
 type Columns = Record<string, unknown>;
 
-describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 to 0085, 0088)', () => {
+describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 to 0085, 0089)', () => {
     let pool: pg.Pool;
 
     beforeAll(async () => {
@@ -257,7 +257,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 t
             ]);
         });
 
-        it('⛔ payload_bytes is a STORED generated column equal to octet_length(payload::text), and NULL once the payload is shed (0088)', async () => {
+        it('⛔ payload_bytes is a STORED generated column equal to octet_length(payload::text), and NULL once the payload is shed (0089)', async () => {
             const meta = await pool.query(
                 `SELECT is_generated, generation_expression, is_nullable, data_type FROM information_schema.columns
                   WHERE table_name = 'recipe_import_items' AND column_name = 'payload_bytes'`,

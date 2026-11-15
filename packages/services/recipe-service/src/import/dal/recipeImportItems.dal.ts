@@ -394,7 +394,7 @@ export class RecipeImportItemsDal {
 
     /**
      * The stored size of every recipe the cook holds that has not spent an allowance unit, across ALL their imports.
-     * Refused recipes count (they are stored). One measure, the generated `payload_bytes` (0088: `octet_length` of the stored
+     * Refused recipes count (they are stored). One measure, the generated `payload_bytes` (0089: `octet_length` of the stored
      * JSON text), so before and after agree and no payload is serialised per measure.
      *
      * @sideEffect Reads.

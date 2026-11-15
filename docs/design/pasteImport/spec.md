@@ -90,6 +90,9 @@ My recipes ─ New recipe ─► P1 Add a recipe (chooser)
 | P5 Review        | Two columns at the `wide` container class, else one     | One column, Save pinned at the bottom | 834: one column. 1194: two columns       |
 | P6 Recipe detail | Exists. Gains the Checking badge                        | Exists                                | Exists                                   |
 
+On mobile, until the spec 004 AI fallback ships, there is no P1: "New recipe" opens the editor directly, as it does
+today, and no one-row chooser is drawn or built. When it ships, mobile gets P1 with both rows (§14).
+
 Back from P5 returns to P2 with the card and the paste kept. Back from P3 or P4 returns to P2. P2's Back leaves the
 flow without a prompt: nothing is saved yet and the clipboard still holds the paste. Once an import exists (after
 Import), leaving keeps the item under "To review" in My recipes (S39).
@@ -122,7 +125,8 @@ from 840) and whether actions pin (below 840).
   is a defect. Each is a registry entry that is absent, not disabled and not marked "soon". When the link field ships it
   needs a `link` glyph, which `glyphs.ts` does not have (a design-system addition, §8.3).
 - N1 holds: the trigger is the existing "New recipe" button on the My recipes search row. Today it opens the editor.
-  After PR C it opens P1.
+  After PR C it opens P1 on web. On mobile it keeps opening the editor until the spec 004 AI fallback ships, and then
+  opens P1 with both rows (§14).
 
 ### 3.2 P2 Paste screen
 
@@ -134,7 +138,8 @@ Order, top to bottom, at every size:
 4. Status line (S2, S6, S7) or inline error (S23 to S28), in one region under the entry.
 5. Web only, fine pointer only: the "How to copy a whole page" disclosure (§3.6).
 6. Actions: Import (primary). On web from 840, Import sits at the end of an in-flow row, content width, with no Cancel
-   (Back is the way out). Below 840 and on native, Import is full width and pinned at the bottom above the keyboard.
+   (Back is the way out). Below 840 on web, on phones and on iPad 834, Import is full width and pinned at the bottom
+   above the keyboard. iPad 1194 keeps Import in flow at the end of the column, as web from 840 does.
 
 Widths: the column is `max-w-reading` (640) on web, left-aligned to the gutter. The box is never wider than the column.
 
@@ -164,7 +169,7 @@ H1, body, the saved copy's title as a link, then three actions (§6.5). One colu
 | Container class       | Arrangement                                                                                                                                                                                                          |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | narrow and regular    | One column: header, Needed group, source and visibility, lines, Save area. Save is pinned at the bottom (sticky bar, `data-import-bar`, as `ImportWizardStep` does today) so it is in reach however long the recipe. |
-| wide (960 of content) | Two columns. Left, flexible: header and lines. Right, 320 wide: Needed group at the top, then source and visibility, then the Save area in flow. The right column sticks to the top while the lines scroll.          |
+| wide (960 of content) | Two columns. Left, flexible: header and lines. Right, 320 wide: Needed group at the top, then source and visibility, then the Save area in flow. The right column sticks to the top while the lines scroll. DOM order: header, Needed group, source and visibility, Save area, lines. The grid places the lines in the left column. Reading and Tab order reach Save before the lines. |
 
 On phones the source block comes **before** the lines, because the source is the thing the cook must confirm, and the
 lines are the long part (priority order, cross-platform-translation "multi-column becomes single column with a stated
@@ -195,7 +200,7 @@ reach, holds at both.
 | How to copy a whole page | Disclosure, fine pointer only                                 | Absent                                                                                    | dropped     | Phones have no built-in source view (draft §1b, Apple Community 2026)                      |
 | Box height               | 10 to 16 rows                                                 | Phone 8 to 12 rows, tablet 10 to 16                                                       | collapsed   | The box and Import fit above the phone keyboard                                            |
 | Paste gesture            | Ctrl or Command+V, or the context menu                        | The system paste menu on long press. No paste button, so no clipboard prompt (Settled 34) | translated  | No clipboard read                                                                          |
-| Import                   | End of an in-flow row from 840, content width                 | Full width, pinned at the bottom, above the keyboard                                      | moved       | Thumb reach. Full width removes wrap risk on "Import recipe" at +35%                       |
+| Import                   | End of an in-flow row from 840, content width                 | Phones and iPad 834: full width, pinned at the bottom, above the keyboard. iPad 1194: in flow | moved       | Thumb reach. Full width removes wrap risk on "Import recipe" at +35%                       |
 | Card URL                 | Wraps anywhere, at most 2 lines, then an ellipsis             | Same                                                                                      | kept        | The full address is in the review's Source field, so the card shows enough to recognise it |
 | Clear                    | Ghost button in the card                                      | Same, 44 pt or 48 dp target                                                               | kept        | Always visible. No hover reveal                                                            |
 | Pick one                 | Radio list, Import in flow                                    | Radio list rows full width, Import pinned                                                 | moved       | Reach                                                                                      |
@@ -205,7 +210,7 @@ reach, holds at both.
 
 **Primary action per platform.** Import, Save and the duplicate primary sit bottom and full width on phones and on web
 below 840 (thumb zone, Fitts). From 840 on web they sit in flow at the end of the content, because the pointer is
-precise and the eye ends there. Tablet 834 pins like a phone. Tablet 1194 keeps Save at the foot of the right column,
+precise and the eye ends there. Tablet 834 pins like a phone. Tablet 1194 keeps Import in flow and Save at the foot of the right column,
 which is within the lower side reach for two hands at the edges.
 
 **Hover, right-click, keyboard, drag.** Nothing depends on hover. The disclosure needs a click or Enter, not hover. The
@@ -303,7 +308,7 @@ is final unless marked "verify before ship". `{tokens}` are filled with `fillTem
 
 | #   | State            | What the cook sees                                                                                                                                                                                                                       | Copy (key)                                                                                                                                                                                                                                                                                                                                                                |
 | --- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| S1  | Empty, first run | Title, hint, empty box with its label, Import. Web fine pointer: the collapsed disclosure. Import pressed while empty: the box takes focus and an alert under it.                                                                        | Title "Paste a recipe" (`title`). Box label "Recipe" (`boxLabel`). Hint, web: "Paste the recipe’s text, or the whole page. We read it here and never visit the site." (`hint`). Hint, native: "Paste the recipe’s text. We read it here and never visit the site." (`hintNative`). Import "Import recipe" (`import`). Empty press: "Paste a recipe first." (`emptyAlert`) |
+| S1  | Empty, first run | Title, hint, empty box with its label, Import. Web fine pointer: the collapsed disclosure. Import pressed while empty: the box takes focus and an alert under it.                                                                        | Title "Paste a recipe" (`title`). Box label "Recipe" (`boxLabel`). Hint, web: "Paste the recipe’s text, or the whole page. We read it here and never visit the site." (`hint`). Hint, native: "Paste the recipe’s text. We read it here and never visit the site." (`hintNative`). Hint, web in PR C (paired with `chooser.pasteHintPageOnly`): "Paste the whole web page. We read it here and never visit the site." (`hintPageOnly`). `hint` replaces it, and it is deleted, when the spec 004 AI fallback ships. Import "Import recipe" (`import`). Empty press: "Paste a recipe first." (`emptyAlert`) |
 | S2  | Reading          | Only when classifying or reading a page takes over 1 s. A static `clock` glyph and a line under the entry. Import is busy.                                                                                                               | "Reading what you pasted…" (`reading`)                                                                                                                                                                                                                                                                                                                                    |
 | S3  | Short text       | The box, editable, with the text. Import enabled.                                                                                                                                                                                        | No new copy                                                                                                                                                                                                                                                                                                                                                               |
 | S4  | Page card        | `PastedContentCard`, page kind: `globe` glyph, kind line, recipe name if one was found, the site, the URL, the size, Clear. When several recipes were found, the recipe line gives the count instead. No address: the site line says so. | Kind "Web page pasted" (`card.pageKind`). Site "From {site}" (`card.from`). No address: "No web address in this page" (`card.noAddress`). Several: `card.recipeCount` one "{count} recipe on this page", other "{count} recipes on this page". Size "{size}" (`card.size`). Clear "Clear" (`card.clear`), accessible name "Clear the pasted page" (`card.clearPageName`)  |
@@ -316,12 +321,15 @@ is final unless marked "verify before ship". `{tokens}` are filled with `fillTem
 Each shows under the entry as `role="alert"`, with `triangleAlert` in `attention`. The paste is always kept, except S25,
 which never kept it.
 
+In S19, S20, S21, S22, S26 and S28 the same paste would be refused again, so "Write it yourself" is the primary action
+and Import is not shown, pinned or in flow. Clear (or "Paste again") returns to S1, which shows Import.
+
 | #   | State                                                        | Trigger                                                                                                                        | Copy (key)                                                                                                                                                                                                                                                                                                 | Actions                                                                                                                                          |
 | --- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | S19 | No ingredients                                               | The page's recipe has no ingredient lines (device), or the item's issue is `noIngredients`.                                    | "We found {title}, but no ingredients in it." (`refused.noIngredients`)                                                                                                                                                                                                                                    | "Write it yourself" (`writeIt`), Clear                                                                                                           |
 | S20 | No steps                                                     | No steps (device), or issue `noSteps`.                                                                                         | "We found {title}, but no steps in it." (`refused.noSteps`)                                                                                                                                                                                                                                                | Same                                                                                                                                             |
-| S21 | No recipe in the page                                        | The page reader finds no recipe (PR C, before the LLM fallback).                                                               | "We couldn’t find a recipe in this page. Try copying just the recipe’s text, or write it yourself." (`refused.noRecipe`)                                                                                                                                                                                   | Same                                                                                                                                             |
-| S22 | Text not readable yet (web, before the spec 004 AI fallback) | `shortText` or `longText` before the spec 004 AI fallback ships.                                                               | "Plain text can’t be imported yet. That comes later. For now, paste the whole web page, or write the recipe yourself and paste the ingredients and the steps into it." Actions: "Write it yourself" (primary), "Paste again". (`refused.textNotYet`, `writeIt`, `pasteAgain`)                              | Not reached: the mobile row is hidden until the spec 004 AI fallback (§14, owner exception). Removed on web when the spec 004 AI fallback ships. |
+| S21 | No recipe in the page                                        | The page reader finds no recipe (PR C, before the LLM fallback).                                                               | After the spec 004 AI fallback: "We couldn’t find a recipe in this page. Try copying just the recipe’s text, or write it yourself." (`refused.noRecipe`). PR C web, where plain text is refused (S22): "We couldn’t find a recipe in this page. Write it yourself, and paste the ingredients and the steps into it." (`refused.noRecipePageOnly`). `refused.noRecipe` replaces it, and it is deleted, when the spec 004 AI fallback ships | Same                                                                                                                                             |
+| S22 | Text not readable yet (web, before the spec 004 AI fallback) | `shortText` or `longText` before the spec 004 AI fallback ships.                                                               | "Plain text can’t be imported yet. That comes later. For now, paste the whole web page, or write the recipe yourself and paste the ingredients and the steps into it." Actions: "Write it yourself" (primary), "Paste again". (`refused.textNotYet`, `writeIt`, `pasteAgain`)                              | Not reached on mobile: there is no paste route there until the spec 004 AI fallback (§14, owner exception). Removed on web when the spec 004 AI fallback ships. |
 | S23 | Offline                                                      | No connection at Import.                                                                                                       | "You’re offline. Your paste is kept here. Import it when you’re back online." (`error.offline`)                                                                                                                                                                                                            | "Try again" (**reuse** `wizard.retry`)                                                                                                           |
 | S24 | Server error                                                 | A 5xx, a timeout, or `failed`.                                                                                                 | "We couldn’t import this just now. Your paste is kept here. Try again in a moment." (`error.server`)                                                                                                                                                                                                       | "Try again"                                                                                                                                      |
 | S25 | Too large                                                    | Over 2,000,000 UTF-8 bytes, before any parsing.                                                                                | "This paste is {size}, and the most we can read is {limit}. Copy just the recipe and paste that." (`error.tooLarge`)                                                                                                                                                                                       | None. The box is empty and focused                                                                                                               |
@@ -351,8 +359,13 @@ check in review reuses the existing no-AI-check copy (**reuse**, the `ImportPast
 | S34 | Saving                              | Save is busy. Over 10 s, a line above it.                                                                                                                                                                                                                                                                                                                                           | "Still saving. Stay on this page until it’s done." (`review.savingSlow`)                                                                                                                                                                                                                                                                                                                                                                                    |
 | S37 | Lines from a page (D12)             | A matched line's original text, where the line list shows it, reads "Pasted:" for a paste and "You wrote:" for typed text.                                                                                                                                                                                                                                                          | "Pasted: “{line}”" (`review.linePasted`). "You wrote:" is **reuse** (the existing row view copy)                                                                                                                                                                                                                                                                                                                                                            |
 | S38 | Offline in review                   | A banner above the lines. Choices stay in memory on this device. Save shows S23's sentence as an alert if pressed.                                                                                                                                                                                                                                                                  | "You’re offline. Your choices are kept on this device. Save when you’re back online." (`review.offline`)                                                                                                                                                                                                                                                                                                                                                    |
-| S40 | Changed to "I wrote this" (D18)     | The cook changes a detected third-party source to "I wrote this". "Who can see it" appears with Private selected. A neutral note sits under the choice in `inkMuted` `meta`, with no glyph and no colour. No dialog. Choosing Private hides the note. The S8 note and the confirmation line "Saving confirms this recipe is from {site}." are removed, because they no longer hold. | `review.wroteItNote`: "If you make it public, a person checks it before others can see it. Private is not affected."                                                                                                                                                                                                                                                                                                                                        |
+| S40 | Changed to "I wrote this" (D18)     | The cook changes a detected third-party source to "I wrote this". "Who can see it" appears with Private selected. A neutral note sits under the "Where is it from?" choice, its one position, in `inkMuted` `meta`, with no glyph and no colour. It shows whenever "I wrote this" replaced a detected source, whichever visibility is chosen. No dialog. The S8 note and the confirmation line "Saving confirms this recipe is from {site}." are removed, because they no longer hold. | `review.wroteItNote`: "If you make it public, a person checks it before others can see it. Private is not affected."                                                                                                                                                                                                                                                                                                                                        |
 | S39 | Leaving after Import                | Back from P2, or closing the app, after an import exists and before Save. A polite snackbar on the next screen.                                                                                                                                                                                                                                                                     | "{title} waits under “To review” in My recipes." (`review.waits`)                                                                                                                                                                                                                                                                                                                                                                                           |
+
+**Hold field labels.** The controls in S12 to S14 keep the editor's labels: the keys `cuisineLabel`, `servingsLabel`,
+`prepTimeLabel` and `cookTimeLabel` in `recipeFormMessages` (`packages/apps/commise/features/recipes/src/form/messages.ts`),
+with that file's other cuisine and servings keys for the controls' own parts. No new `paste.*` key is added for them.
+Only the hold sentences (`hold.*`) are new.
 
 **Steps with section names.** A step that starts with the blueprint's "For the glaze: " prefix shows it as plain text,
 part of the step. No heading, no bold.
@@ -408,6 +421,8 @@ decision ends it, and only a verified claim by the site itself can clear the und
 2026-11-15). Editing the recipe does not clear it either. The cook can always keep the recipe private, which is never
 blocked.
 
+The boards draw S41 in its "In review" state, with the held line under the badge, on both platforms (W13, M14).
+
 This is the ADR-0074 review path, not a new state of the recipe. What makes it go to a person rather than clear on its own is a server rule (§15, A7). The copy never says why, never mentions the detected site and never asks the cook to justify the choice.
 
 ### 6.7 Disclosure and chooser copy
@@ -460,8 +475,10 @@ See §7.2 and §7.3. **State count: 41 (S1 to S41).**
 The chooser keys sit under `importMessages.chooser.*`, not `paste.*`, because the chooser outlives this feature.
 
 Until the spec 004 AI fallback ships, the web row uses `chooser.pasteHintPageOnly`, because plain text cannot be read yet and the hint must
-not promise it. When the spec 004 AI fallback ships, the hint becomes `chooser.pasteHint` and `pasteHintPageOnly` is deleted. Mobile shows
-no paste row until the spec 004 AI fallback (§14, owner exception).
+not promise it. P2 pairs it with `paste.hintPageOnly` and S21 with `paste.refused.noRecipePageOnly`. When the spec 004 AI
+fallback ships, the hint becomes `chooser.pasteHint` and the three page-only keys are deleted. Mobile has no chooser
+until the spec 004 AI fallback: "New recipe" opens the editor directly, with no one-row chooser. After it ships, mobile
+shows the chooser with both rows (§14, owner exception).
 
 ### 7.4 Statement block keys (`importMessages.statement.*`)
 
@@ -691,6 +708,9 @@ Claimed level: WCAG 2.2 AA, both platforms. EN 301 549 cites 2.1 AA, which 2.2 A
 
 - **Headings.** One H1 per screen (P2, P3, P4, P5). In P5 "Needed before saving", the source block and "Ingredients"
   are H2. The chooser's title is the dialog's name.
+- **Reading order (1.3.2, 2.4.3).** In P5's two columns the DOM order is header, Needed group, source and visibility,
+  Save area, then lines. The grid places the lines in the left column. Visual order differs, but Tab and the screen
+  reader reach Save without passing every line. One column uses the same DOM order.
 - **Landmarks and names.** The pinned action bars are groups named "Paste" (`actionsLabel`) and "Save"
   (`review.actionsLabel`).
 - **The box.** Visible label "Recipe", tied to the hint by `aria-describedby` (1.3.1). Plain text. Tab leaves it (2.1.2).
@@ -758,6 +778,11 @@ type-scale ruling retired), and no Public option for a web page.
 The boards draw the state after the spec 004 AI fallback: both platforms show the paste row with "Text, or a whole web page". The web chooser
 board adds one more variant with the page-only hint and the S22 board, for the PR C release (§14).
 
+**Sample values, the same on every board.** URL `https://www.allrecipes.com/recipe/26317/chicken-pot-pie-ix/` (site
+`allrecipes.com`, recipe "Chicken pot pie"). Dates as `Intl` long form, day month year: "2 November 2026". Private
+slots: "12 are left". S27: an allowance of 200 recipes in 24 hours (ADR-0072), with `{time}` as a time of day today,
+"8:15 am".
+
 ### 12.1 `recipeImportingWeb`
 
 | #   | Board                    | States shown                       | Sizes           |
@@ -774,7 +799,7 @@ board adds one more variant with the page-only hint and the S22 board, for the P
 | W10 | ImportPasteReview        | S8, S10, S37, S40                  | 1280, 1024, 768 |
 | W11 | ImportPasteReviewHolds   | S9, S11 to S15 after Save          | 1280, 768       |
 | W12 | ImportPasteSlotsFull     | S17, S18                           | 1280            |
-| W13 | ImportPasteSaved         | S35, and S41 beside it             | 1280, 768       |
+| W13 | ImportPasteSaved         | S35, and S41 ("In review" and the held line) beside it | 1280, 768       |
 
 ### 12.2 `recipeImportingMobile`
 
@@ -793,7 +818,7 @@ board adds one more variant with the page-only hint and the S22 board, for the P
 | M11 | ImportPasteReview        | S8, S10, S40                               | Iphone390, Android384, Ipad834, Ipad1194 |
 | M12 | ImportPasteReviewHolds   | S9, S15                                    | Iphone390, Android384, Ipad1194          |
 | M13 | ImportPasteSlotsFull     | S17                                        | Iphone390                                |
-| M14 | ImportPasteSaved         | S35, S41                                   | Iphone390, Ipad834                       |
+| M14 | ImportPasteSaved         | S35, S41 ("In review" and the held line)   | Iphone390, Ipad834                       |
 
 ### 12.3 Redrawn this round (D13), at their existing sizes (web 1280 and 390, mobile Iphone390, Android384 and Ipad820 redrawn at Ipad834)
 
@@ -839,14 +864,17 @@ The owner ruled on 2026-11-15, relayed by Nova Squad, that whole-page paste goes
 fallback, and accepted an exception to the rule that every user-facing feature ships to web and mobile in the same release
 (`docs/CODING_STANDARDS.md` §14).
 
-- **Web, from PR C:** the "Paste a recipe" row is live, with the page-only hint. A whole page is imported. A plain text
-  paste gets S22, which says plain text comes later and offers "Write it yourself".
-- **Mobile, until the spec 004 AI fallback:** the paste row is hidden. The chooser shows "Write it yourself" only.
+- **Web, from PR C:** the "Paste a recipe" row is live, with the page-only hint (`chooser.pasteHintPageOnly`), P2's
+  page-only hint (`paste.hintPageOnly`) and the page-only S21 (`paste.refused.noRecipePageOnly`). A whole page is
+  imported. A plain text paste gets S22, which says plain text comes later and offers "Write it yourself".
+- **Mobile, until the spec 004 AI fallback:** no chooser. "New recipe" opens the editor directly, as today. A one-row
+  chooser is not drawn or built.
 - **Why:** a phone cannot practically copy a page's source, so a phone paste is plain text. Nothing reads plain text
   before the spec 004 AI fallback, so a mobile row would refuse every paste. A desktop cook can copy a whole page, so web gets real value
   now.
-- **Ends when:** the spec 004 AI fallback ships. Then both platforms show the row, with the hint "Text, or a whole web page", and S22 is
-  removed.
+- **Ends when:** the spec 004 AI fallback ships. Then both platforms open the chooser with both rows, with the hint
+  "Text, or a whole web page". S22 and the three page-only keys are removed, and P2 and S21 use `paste.hint` and
+  `paste.refused.noRecipe`.
 - **Scope:** this feature only. It sets no precedent for other features.
 
 ---
@@ -906,7 +934,7 @@ fallback, and accepted an exception to the rule that every user-facing feature s
 These are decided. They change the open items above as follows.
 
 - **D20, on A2. Superseded by the owner, 2026-11-15: web first.** The web row is live with PR C, with a page-only hint,
-  and the mobile row stays hidden until the spec 004 AI fallback. The owner's exception and its reason are recorded in §14. S22 tells a web
+  and mobile has no chooser ("New recipe" opens the editor) until the spec 004 AI fallback. The owner's exception and its reason are recorded in §14. S22 tells a web
   cook who pastes plain text that it comes later, and offers "Write it yourself".
 - **On A5.** Follow the house container rule: two columns from the `wide` class (960 px of content). D7's "from 1024" means
   "where the layout is two columns".

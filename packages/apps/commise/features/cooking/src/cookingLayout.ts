@@ -13,8 +13,7 @@ export const NOTICE_COLUMN = { maxPx: 480, webClassName: 'max-w-[480px]' } as co
 /**
  * Under 360 the place drops to its own full-width row and the Back and Next chevrons hide, so the labels keep their
  * width. Web writes the width in rem, 22.5 at 16 px a rem, so the rule also fires when the cook enlarges the text.
- * Native reads `maxPx`. The container-query classes are written whole, each holding its
- * number.
+ * Native reads `maxPx`. The container-query classes are written whole, each holding its number.
  */
 export const NARROW_ROW = {
     maxPx: 360,

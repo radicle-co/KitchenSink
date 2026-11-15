@@ -60,14 +60,13 @@ export function cookingEntryOf(read: CookingScreenRead): CookingEntryRule {
         case 'cook':
         case 'noSteps':
             return { redirecting: false, state: cookingReadStateOf({ read: 'ready', offline: false, stepCount }) };
-        default:
-            return assertNever(outcome);
-    }
-}
+        // A cook link outcome this switch does not map is a compile error here, not a silent fall-through.
+        default: {
+            const unmapped: never = outcome;
 
-/** A cook link outcome this file does not map is a compile error here, not a silent fall-through. */
-function assertNever(value: never): never {
-    throw new Error(`cookingEntryOf: unmapped cook link outcome ${String(value)}`);
+            throw new Error(`cookingEntryOf: unmapped cook link outcome ${String(unmapped)}`);
+        }
+    }
 }
 
 /** What the entry hook hands a screen. */

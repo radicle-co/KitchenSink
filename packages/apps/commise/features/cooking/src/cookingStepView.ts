@@ -47,6 +47,31 @@ export interface CookingStepView {
     readonly after?: CookingStepAfter;
 }
 
+/**
+ * What comes after the current step: the foot's preview while a line is unticked, the body's Up next once every line is
+ * ticked, nothing on the last step. `place.next` is 1-based and `steps` is read by 0-based index; every cooked step has
+ * a line, but the read is an index, so the guard stays (`noUncheckedIndexedAccess` is off).
+ */
+function afterOf(session: CookingStepViewInput['session'], copy: CookingMessages): CookingStepAfter | undefined {
+    const { steps, place, everyLineTicked } = session;
+
+    if (place.next === null) {
+        return undefined;
+    }
+
+    const following = steps[place.next - 1];
+
+    if (following === undefined) {
+        return undefined;
+    }
+
+    const [lead = '', ...rest] = following.lines;
+
+    return everyLineTicked
+        ? { kind: 'upNext', upNext: { overline: fillTemplate(copy.next.upNext, { n: place.next }), lead, rest } }
+        : { kind: 'preview', preview: { overline: fillTemplate(copy.nav.nextPreview, { n: place.next }), line: lead } };
+}
+
 /** The step's display props: its focus line, the lines after it, the ticked record and what comes next. Pure. */
 export function cookingStepViewOf({
     session,
@@ -56,9 +81,9 @@ export function cookingStepViewOf({
     expanded,
     onToggleShow,
 }: CookingStepViewInput): CookingStepView {
-    const { step, steps, place, focusLine, focusPlace, tickedCount, everyLineTicked, isTicked } = session;
+    const { step, place, focusLine, focusPlace, tickedCount, isTicked } = session;
 
-    const lineOf = (index: number): CookingLineView => {
+    const lineViewOf = (index: number): CookingLineView => {
         const checked = isTicked(index);
 
         return {
@@ -77,21 +102,9 @@ export function cookingStepViewOf({
                   summary: pluralOf(copy.step.tickedSummary, tickedCount, locale),
                   show: { label: copy.step.show, onPress: onToggleShow },
                   expanded,
-                  lines: indexes.filter((index) => isTicked(index)).map(lineOf),
+                  lines: indexes.filter((index) => isTicked(index)).map(lineViewOf),
               };
-    // The step after this one, by its 0-based index; `place.next` is 1-based. Every cooked step has a line, but the read
-    // is an index, so the guard stays (noUncheckedIndexedAccess is off).
-    const following = place.next === null ? undefined : steps[place.next - 1];
-    const [lead = '', ...rest] = following?.lines ?? [];
-    const after: CookingStepAfter | undefined =
-        following === undefined || place.next === null
-            ? undefined
-            : everyLineTicked
-              ? { kind: 'upNext', upNext: { overline: fillTemplate(copy.next.upNext, { n: place.next }), lead, rest } }
-              : {
-                    kind: 'preview',
-                    preview: { overline: fillTemplate(copy.nav.nextPreview, { n: place.next }), line: lead },
-                };
+    const after = afterOf(session, copy);
 
     return {
         step: {
@@ -103,8 +116,11 @@ export function cookingStepViewOf({
                       lineOf: fillTemplate(copy.step.lineOf, { current: focusPlace.position, total: focusPlace.total }),
                   }),
             ...(ticked === undefined ? {} : { ticked }),
-            ...(focusLine === null ? {} : { focus: lineOf(focusLine) }),
-            then: indexes.filter((index) => focusLine !== null && index > focusLine && !isTicked(index)).map(lineOf),
+            ...(focusLine === null ? {} : { focus: lineViewOf(focusLine) }),
+            then:
+                focusLine === null
+                    ? []
+                    : indexes.filter((index) => index > focusLine && !isTicked(index)).map(lineViewOf),
         },
         ...(after === undefined ? {} : { after }),
     };

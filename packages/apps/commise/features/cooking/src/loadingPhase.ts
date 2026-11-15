@@ -39,7 +39,7 @@ export function useLoadingPhase(active: boolean): LoadingPhase {
     const [clock, setClock] = useState({ active, elapsedMs: 0 });
 
     // A read that begins again starts from zero on the render it begins, not after its first timer fires. The clock
-    // remembers which read it counted, as `useReadDeadline` does.
+    // remembers which read it counted.
     if (clock.active !== active) {
         setClock({ active, elapsedMs: 0 });
     }

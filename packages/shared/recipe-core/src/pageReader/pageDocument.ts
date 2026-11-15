@@ -11,7 +11,7 @@
  */
 import { DomHandler, ElementType, Parser } from 'htmlparser2';
 
-import { MAX_WALK_NODES } from './pageCaps.js';
+import { MAX_VISIBLE_NODES, MAX_WALK_NODES } from './pageCaps.js';
 
 type DomDocument = DomHandler['root'];
 type DomNode = DomDocument['children'][number];
@@ -29,8 +29,10 @@ export interface PageElement {
     attr(name: string): string | undefined;
     /** The element's child ELEMENTS, in order. */
     children(): readonly PageElement[];
-    /** The element's visible text in blocks: a new block starts at a block element or a line break. */
+    /** The element's visible text in blocks: a new block starts at a block element or a line break. At most {@link MAX_WALK_NODES} nodes are read. */
     blocks(): readonly string[];
+    /** The same blocks, read to the page's own budget ({@link MAX_VISIBLE_NODES}), and whether that budget cut them short. */
+    visibleText(): { readonly blocks: readonly string[]; readonly truncated: boolean };
     /** The text children exactly as written, with no entity decoding. For a `<script>`, its source. */
     rawText(): string;
 }
@@ -145,7 +147,11 @@ const collapseSpace = (text: string): string =>
  * @param newlineBreaks - Whether a newline inside text starts a new block (true for a plain string, false for markup,
  *   where a newline is only whitespace).
  */
-function blocksOf(roots: readonly DomNode[], newlineBreaks: boolean): readonly string[] {
+function blocksOf(
+    roots: readonly DomNode[],
+    newlineBreaks: boolean,
+    maxNodes = MAX_WALK_NODES,
+): { readonly blocks: readonly string[]; readonly truncated: boolean } {
     const blocks: string[] = [];
     let current = '';
 
@@ -163,8 +169,9 @@ function blocksOf(roots: readonly DomNode[], newlineBreaks: boolean): readonly s
     const stack: (DomNode | null)[] = [...roots].reverse();
 
     let visited = 0;
+    let next = stack.pop();
 
-    for (let next = stack.pop(); next !== undefined && visited <= MAX_WALK_NODES; next = stack.pop()) {
+    for (; next !== undefined && visited <= maxNodes; next = stack.pop()) {
         visited += 1;
 
         if (next === null) {
@@ -201,7 +208,7 @@ function blocksOf(roots: readonly DomNode[], newlineBreaks: boolean): readonly s
 
     flush();
 
-    return blocks;
+    return { blocks, truncated: next !== undefined };
 }
 
 /**
@@ -212,7 +219,7 @@ function blocksOf(roots: readonly DomNode[], newlineBreaks: boolean): readonly s
  * @returns The non-blank blocks, in order. Pure.
  */
 export function textBlocks(html: string): readonly string[] {
-    return blocksOf(parseDocument(html).root.children, true);
+    return blocksOf(parseDocument(html).root.children, true).blocks;
 }
 
 /**
@@ -262,7 +269,8 @@ function elementView(node: DomNode): PageElement | undefined {
         tag: node.name,
         attr: (name) => (Object.hasOwn(node.attribs, name) ? node.attribs[name] : undefined),
         children: () => node.children.flatMap((child) => elementView(child) ?? []),
-        blocks: () => blocksOf(node.children, false),
+        blocks: () => blocksOf(node.children, false).blocks,
+        visibleText: () => blocksOf(node.children, false, MAX_VISIBLE_NODES),
         rawText: () => node.children.map((child) => (isText(child) ? child.data : '')).join(''),
     };
 }

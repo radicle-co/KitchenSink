@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_WALK_NODES } from '../pageCaps.js';
+import { MAX_VISIBLE_NODES, MAX_WALK_NODES } from '../pageCaps.js';
 import { MAX_ELEMENT_DEPTH, parsePage, plainText, textBlocks } from '../pageDocument.js';
 
 describe('textBlocks', () => {
@@ -123,6 +123,20 @@ describe('parsePage', () => {
 
         expect(text.length).toBeGreaterThan(MAX_WALK_NODES / 4);
         expect(text.length).toBeLessThanOrEqual(MAX_WALK_NODES / 2);
+    });
+
+    it('reads a whole body past the property budget, and says so when even the visible budget cuts it', () => {
+        const paragraphs = MAX_WALK_NODES * 2;
+        const [body] = parsePage(`<body>${'<p>x</p>'.repeat(paragraphs)}</body>`).byTag('body');
+        const all = body?.visibleText();
+
+        expect(all?.truncated).toBe(false);
+        expect(all?.blocks).toHaveLength(paragraphs);
+
+        const [wide] = parsePage(`<body>${'<b>x</b>'.repeat(MAX_VISIBLE_NODES)}</body>`).byTag('body');
+
+        expect(wide?.visibleText().truncated).toBe(true);
+        expect(wide?.blocks().join('').length).toBeLessThanOrEqual(MAX_WALK_NODES);
     });
 
     it('reads 200,000 sibling elements without slowing down', () => {

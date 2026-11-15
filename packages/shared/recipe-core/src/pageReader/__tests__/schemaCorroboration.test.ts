@@ -1,0 +1,201 @@
+import { describe, expect, it } from 'vitest';
+
+import { jsonLdRecipe } from '../jsonLdRecipe.js';
+import { microdataRecipe } from '../microdataRecipe.js';
+import { parsePage } from '../pageDocument.js';
+import type { PageCandidate } from '../pageRecipeCandidate.js';
+import { corroborate, withShownStepNames } from '../schemaCorroboration.js';
+import { memoizedVisibleText } from '../visiblePageText.js';
+import { makeMicrodataBody, makePage, makeRecipeCard, makeRecipeNode } from '../__fixtures__/pageFixtures.js';
+
+/** The one candidate a JSON-LD page holds, and the page. */
+function jsonLdCase(node: Record<string, unknown>, body?: string) {
+    const page = parsePage(makePage({ jsonLd: [node], ...(body === undefined ? {} : { body }) }));
+    const extraction = jsonLdRecipe(page);
+
+    if (extraction.kind !== 'candidates') {
+        throw new Error('no candidate');
+    }
+
+    return { page, candidate: extraction.candidates[0] as PageCandidate };
+}
+
+const NODE = makeRecipeNode({
+    recipeIngredient: ['1 cup flour', '2 eggs (beaten)'],
+    recipeInstructions: ['Mix the flour and eggs.', 'Cook it.'],
+});
+
+describe('corroborate: G-CORR, the page shows what the JSON-LD says', () => {
+    it('agrees when the page shows every ingredient to the end of its line and every step', () => {
+        const { page, candidate } = jsonLdCase(NODE);
+
+        expect(corroborate(candidate, 'jsonLd', memoizedVisibleText(page))).toEqual({ ok: true });
+    });
+
+    it('agrees through case, brackets, commas, a times sign and a vulgar fraction', () => {
+        const { page, candidate } = jsonLdCase(
+            {
+                ...NODE,
+                recipeIngredient: ['1 1/2 cups Flour, sifted (fine)', 'a 9x13 pan'],
+                recipeInstructions: ['Mix.'],
+            },
+            '<ul><li>1½ cups flour sifted fine</li><li>A 9×13 pan</li></ul><p>mix</p>',
+        );
+
+        expect(corroborate(candidate, 'jsonLd', memoizedVisibleText(page))).toEqual({ ok: true });
+    });
+
+    it.each([
+        [
+            'the page shows more at the end of an ingredient line',
+            '<ul><li>1 cup flour, sifted</li><li>2 eggs beaten</li></ul><p>Mix the flour and eggs. Cook it.</p>',
+        ],
+        [
+            'the amount differs',
+            '<ul><li>2 cup flour</li><li>2 eggs beaten</li></ul><p>Mix the flour and eggs. Cook it.</p>',
+        ],
+        [
+            'a step is not on the page',
+            '<ul><li>1 cup flour</li><li>2 eggs beaten</li></ul><p>Mix the flour and eggs.</p>',
+        ],
+        ['an ingredient is not on the page', '<ul><li>1 cup flour</li></ul><p>Mix the flour and eggs. Cook it.</p>'],
+        [
+            'a step has a word the page lacks',
+            '<ul><li>1 cup flour</li><li>2 eggs beaten</li></ul><p>Mix the flour and eggs. Cook.</p>',
+        ],
+    ])('refuses as pageDisagreesWithSchema when %s', (_name, body) => {
+        const { page, candidate } = jsonLdCase(NODE, body);
+
+        expect(corroborate(candidate, 'jsonLd', memoizedVisibleText(page))).toEqual({
+            ok: false,
+            reason: 'pageDisagreesWithSchema',
+        });
+    });
+
+    it('reads the raw step, not the built text: a section heading the page lacks is no disagreement', () => {
+        const { page, candidate } = jsonLdCase(
+            {
+                ...NODE,
+                recipeInstructions: [
+                    {
+                        '@type': 'HowToSection',
+                        name: 'For the glaze',
+                        itemListElement: [{ '@type': 'HowToStep', text: 'Whisk it.' }],
+                    },
+                ],
+            },
+            '<ul><li>1 cup flour</li><li>2 eggs beaten</li></ul><p>Whisk it.</p>',
+        );
+
+        expect(candidate.recipe.steps[0]?.instruction).toBe('For the glaze: Whisk it.');
+        expect(corroborate(candidate, 'jsonLd', memoizedVisibleText(page))).toEqual({ ok: true });
+    });
+
+    it('refuses a paste with no body', () => {
+        const { candidate } = jsonLdCase(NODE);
+        const noBody = parsePage(
+            `<html><head><script type="application/ld+json">{}</script></head><ul><li>1 cup flour</li></ul></html>`,
+        );
+
+        expect(corroborate(candidate, 'jsonLd', memoizedVisibleText(noBody))).toEqual({
+            ok: false,
+            reason: 'pageHasNoBody',
+        });
+    });
+
+    it('answers pageTooComplex when the page is too big to check against', () => {
+        const { candidate } = jsonLdCase(NODE);
+        const huge = parsePage(`<body><p>${'word '.repeat(300_000)}</p></body>`);
+
+        expect(corroborate(candidate, 'jsonLd', memoizedVisibleText(huge))).toEqual({
+            ok: false,
+            reason: 'pageTooComplex',
+        });
+    });
+
+    it('does not look at the page for microdata', () => {
+        const page = parsePage(makePage({ body: makeMicrodataBody() }));
+        const extraction = microdataRecipe(page);
+
+        if (extraction.kind !== 'candidates') {
+            throw new Error('no candidate');
+        }
+
+        const empty = parsePage('<html><head></head></html>');
+
+        expect(corroborate(extraction.candidates[0] as PageCandidate, 'microdata', memoizedVisibleText(empty))).toEqual(
+            { ok: true },
+        );
+    });
+});
+
+describe('corroborate: G-EMPTY, a declared recipeInstructions property holds no text', () => {
+    const microdata = (inner: string) => {
+        const page = parsePage(
+            makePage({
+                body: `<div itemscope itemtype="https://schema.org/Recipe"><span itemprop="name">Pie</span><span itemprop="recipeIngredient">1 apple</span>${inner}</div>`,
+            }),
+        );
+        const extraction = microdataRecipe(page);
+
+        if (extraction.kind !== 'candidates') {
+            throw new Error('no candidate');
+        }
+
+        return { page, candidate: extraction.candidates[0] as PageCandidate };
+    };
+
+    it('refuses a microdata recipe with an empty declared step as declaredStepsEmpty', () => {
+        const { page, candidate } = microdata('<p itemprop="recipeInstructions"><p>Bake.</p>');
+
+        expect(corroborate(candidate, 'microdata', memoizedVisibleText(page))).toEqual({
+            ok: false,
+            reason: 'declaredStepsEmpty',
+        });
+    });
+
+    it('agrees when every declared step holds text', () => {
+        const { page, candidate } = microdata('<p itemprop="recipeInstructions">Bake.</p>');
+
+        expect(corroborate(candidate, 'microdata', memoizedVisibleText(page))).toEqual({ ok: true });
+    });
+
+    it('is a microdata rule: a JSON-LD candidate with the fact set is judged by the page alone', () => {
+        const { page, candidate } = jsonLdCase(NODE);
+
+        expect(corroborate({ ...candidate, emptyDeclaredSteps: true }, 'jsonLd', memoizedVisibleText(page))).toEqual({
+            ok: true,
+        });
+    });
+});
+
+describe('withShownStepNames (R3 under D5)', () => {
+    const named = (name: string, text: string) => ({ '@type': 'HowToStep', name, text });
+    const NAMED = makeRecipeNode({
+        recipeIngredient: ['1 cup flour'],
+        recipeInstructions: [named('Scramble the egg', 'Whisk the eggs.'), named('Top', 'Remove the pan.')],
+    });
+
+    it('writes a step name in front of its text only when the page shows the name', () => {
+        const { page, candidate } = jsonLdCase(NAMED, `${makeRecipeCard(NAMED)}<h3>Scramble the egg</h3>`);
+        const recipe = withShownStepNames(candidate, memoizedVisibleText(page));
+
+        expect(recipe.steps.map((step) => step.instruction)).toEqual([
+            'Scramble the egg: Whisk the eggs.',
+            'Remove the pan.',
+        ]);
+    });
+
+    it('leaves the recipe itself when no name is shown', () => {
+        const { page, candidate } = jsonLdCase(NAMED);
+
+        expect(withShownStepNames(candidate, memoizedVisibleText(page))).toBe(candidate.recipe);
+    });
+
+    it('drops every name on a page it cannot read', () => {
+        const { candidate } = jsonLdCase(NAMED);
+        const noBody = parsePage('<html><head></head></html>');
+
+        expect(withShownStepNames(candidate, memoizedVisibleText(noBody))).toBe(candidate.recipe);
+    });
+});

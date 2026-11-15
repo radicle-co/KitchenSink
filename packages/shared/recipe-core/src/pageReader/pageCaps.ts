@@ -30,6 +30,19 @@ export const MAX_WALK_DEPTH = 32;
 /** The most nodes one walk visits, and the most one element's text is read from. */
 export const MAX_WALK_NODES = 10_000;
 
+/**
+ * The most nodes the visible text of a whole page's body is read from. A real body holds tens of thousands of nodes
+ * (whitespace counts), well past {@link MAX_WALK_NODES}, which bounds one property. A body that passes this is cut, and the
+ * reader says so: a recipe is never judged against half a page.
+ */
+export const MAX_VISIBLE_NODES = 400_000;
+
+/** The most tokens the visible text of a page may hold before the page is called too complex to check a recipe against. */
+export const MAX_VISIBLE_TOKENS = 250_000;
+
+/** The most token comparisons all the checks of one paste may make in all, so a page built to repeat one token costs a bounded scan. */
+export const MAX_TOKEN_COMPARISONS = 4_000_000;
+
 const UTF8_MAX_BYTES_PER_UTF16_UNIT = 3;
 const ENCODER = new TextEncoder();
 

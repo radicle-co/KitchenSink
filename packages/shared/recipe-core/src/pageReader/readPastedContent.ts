@@ -1,7 +1,7 @@
 /**
  * What a cook pasted, read on their device into a recipe and a suggested source.
  *
- * DESIGN PATTERN: **Pipeline**. Size check → detect markup → parse → extract (the chain) → select one → gate → detect the source. Every
+ * DESIGN PATTERN: **Pipeline**. Size check → detect markup → parse → extract (the chain) → select one → corroborate with the page → gate → detect the source. Every
  * stage is pure, and the raw page never leaves the device: only the extracted recipe is sent (ADR-0072's rule that the
  * server receives recipes, not the file).
  *
@@ -27,10 +27,14 @@ import { acceptRecipe } from './recipeAcceptance.js';
 import type { AcceptanceReason } from './recipeAcceptance.js';
 import { extractRecipe } from './recipeExtractors.js';
 import { selectCandidate } from './recipeSelection.js';
+import { corroborate, withShownStepNames } from './schemaCorroboration.js';
+import type { CorroborationReason } from './schemaCorroboration.js';
+import { memoizedVisibleText } from './visiblePageText.js';
 
 /** Why a paste gives no recipe: the page, the selection, or the first gate predicate it fails. */
 export type NotExtractableReason =
     | AcceptanceReason
+    | CorroborationReason
     /** Not a page: a text paste. */
     | 'notAPage'
     /** The page is nested deeper than the reader looks, and no recipe was found before the cut. */
@@ -59,6 +63,8 @@ export type PasteReadResult =
           readonly reason: NotExtractableReason;
           /** The title of the recipe that was found and refused, so "We found {title}" can be said. */
           readonly title?: string;
+          /** Which strategy read the recipe that was refused, when one was found: for measurement, never sent to the server. */
+          readonly tier?: ExtractionTier;
           readonly source: DetectedSource;
           readonly pasteDigest: string;
       }
@@ -71,9 +77,16 @@ function notExtractable(
     reason: NotExtractableReason,
     source: DetectedSource,
     pasteDigest: string,
-    title?: string,
+    found?: { readonly title?: string; readonly tier: ExtractionTier },
 ): PasteReadResult {
-    return { kind: 'notExtractable', reason, ...(title === undefined ? {} : { title }), source, pasteDigest };
+    return {
+        kind: 'notExtractable',
+        reason,
+        ...(found?.title === undefined ? {} : { title: found.title }),
+        ...(found === undefined ? {} : { tier: found.tier }),
+        source,
+        pasteDigest,
+    };
 }
 
 /** The evidence for one found recipe: its credit, and its image made absolute against the detected source. */
@@ -135,21 +148,33 @@ export function readPastedContent(text: string): PasteReadResult {
     const selection = selectCandidate(extraction.candidates, addresses);
 
     if (selection.kind === 'several') {
-        return notExtractable('severalRecipes', detectPageSource(addresses, []), pasteDigest);
+        return notExtractable('severalRecipes', detectPageSource(addresses, []), pasteDigest, {
+            tier: extraction.tier,
+        });
     }
 
     const { candidate } = selection;
+    const { tier } = extraction;
+    const found = { title: candidate.title, tier };
     const source = detectPageSource(addresses, candidate.links);
-    const acceptance = acceptRecipe(candidate.recipe, extraction.tier);
+    const visible = memoizedVisibleText(page);
+    const corroboration = corroborate(candidate, tier, visible);
+
+    if (!corroboration.ok) {
+        return notExtractable(corroboration.reason, source, pasteDigest, found);
+    }
+
+    const recipe = withShownStepNames(candidate, visible);
+    const acceptance = acceptRecipe(recipe, tier);
 
     return acceptance.ok
         ? {
               kind: 'extracted',
-              recipe: candidate.recipe,
+              recipe,
               evidence: evidenceOf(candidate.credit, candidate.imageRefs, source),
               source,
-              tier: extraction.tier,
+              tier,
               pasteDigest,
           }
-        : notExtractable(acceptance.reason, source, pasteDigest, candidate.title);
+        : notExtractable(acceptance.reason, source, pasteDigest, found);
 }

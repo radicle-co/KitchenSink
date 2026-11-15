@@ -4,7 +4,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MAX_PASTE_BYTES } from '../pageCaps.js';
 import { readPastedContent } from '../readPastedContent.js';
-import { makeLinkHead, makeMicrodataBody, makePage, makeRecipeNode } from '../__fixtures__/pageFixtures.js';
+import {
+    makeLinkHead,
+    makeMicrodataBody,
+    makePage,
+    makeRecipeCard,
+    makeRecipeNode,
+} from '../__fixtures__/pageFixtures.js';
 
 const SOURCE = { kind: 'found', citation: { url: 'https://www.example.com/recipe/1/pancakes/', site: 'example.com' } };
 
@@ -120,7 +126,9 @@ describe('readPastedContent', () => {
     });
 
     it('does not fall through to microdata when the JSON-LD recipe is refused: a structured candidate that fails is a no', () => {
-        const page = makePage({ jsonLd: [makeRecipeNode({ recipeInstructions: [] })], body: makeMicrodataBody() });
+        const stepless = makeRecipeNode({ recipeInstructions: [] });
+        // Rewritten for round 5: the page now shows the JSON-LD recipe (a card), so the gate's own refusal is what is tested.
+        const page = makePage({ jsonLd: [stepless], body: makeRecipeCard(stepless) + makeMicrodataBody() });
 
         expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'noSteps' });
     });
@@ -146,7 +154,11 @@ describe('readPastedContent', () => {
         ).toBe(true);
     });
 
-    /** Rewritten: a page cut for depth was `unusable: pageTooDeep`; it is `notExtractable: pageTooComplex`. */
+    /**
+     * Rewritten: a page cut for depth was `unusable: pageTooDeep`; it is `notExtractable: pageTooComplex`. Rewritten again
+     * for round 5: a recipe found before the cut is no longer a yes, because a page cut short cannot be checked against its
+     * data (G-CORR), so it is `pageTooComplex` too, with the tier and the title.
+     */
     it('says a page nested past the depth cap is pageTooComplex when no recipe was found before the cut', () => {
         const deep = `${'<div>'.repeat(5_000)}x${'</div>'.repeat(5_000)}`;
 
@@ -155,7 +167,10 @@ describe('readPastedContent', () => {
             reason: 'pageTooComplex',
         });
         expect(readPastedContent(makePage({ jsonLd: [makeRecipeNode()], body: deep }))).toMatchObject({
-            kind: 'extracted',
+            kind: 'notExtractable',
+            reason: 'pageTooComplex',
+            title: 'Test Pancakes',
+            tier: 'jsonLd',
         });
     });
 
@@ -387,7 +402,8 @@ describe('readPastedContent', () => {
         });
 
         it('reads a page only when it has the html, script or ld+json marks, in any case', () => {
-            const markup = `<SCRIPT TYPE="APPLICATION/LD+JSON">${JSON.stringify(makeRecipeNode())}</SCRIPT>`;
+            const node = makeRecipeNode();
+            const markup = `<SCRIPT TYPE="APPLICATION/LD+JSON">${JSON.stringify(node)}</SCRIPT><body>${makeRecipeCard(node)}</body>`;
 
             expect(readPastedContent(markup)).toMatchObject({ kind: 'extracted' });
             expect(readPastedContent(makeMicrodataBody())).toMatchObject({
@@ -417,6 +433,79 @@ describe('readPastedContent', () => {
             for (const spy of spies) {
                 expect(spy).not.toHaveBeenCalled();
             }
+        });
+    });
+
+    describe('round 5: the page must agree with its structured data (G-CORR, G-EMPTY) and names are shown or dropped (R3)', () => {
+        const NODE = makeRecipeNode({ recipeIngredient: ['1 cup flour', '2 eggs'] });
+
+        it('says no, with the reason, the title and the tier, when the page does not show the recipe', () => {
+            const page = makePage({ jsonLd: [NODE], body: '<main><h1>Another page</h1><p>1 cup flour</p></main>' });
+
+            expect(readPastedContent(page)).toMatchObject({
+                kind: 'notExtractable',
+                reason: 'pageDisagreesWithSchema',
+                title: 'Test Pancakes',
+                tier: 'jsonLd',
+            });
+        });
+
+        it('says no to a paste with no body', () => {
+            const page = makePage({ jsonLd: [NODE] })
+                .replace('<body>', '')
+                .replace('</body>', '');
+
+            expect(readPastedContent(page)).toMatchObject({
+                kind: 'notExtractable',
+                reason: 'pageHasNoBody',
+                tier: 'jsonLd',
+            });
+        });
+
+        it('says no to a microdata recipe with an empty declared step, and names the tier', () => {
+            const page = makePage({
+                body: makeMicrodataBody('<p itemprop="recipeInstructions"></p>'),
+            });
+
+            expect(readPastedContent(page)).toMatchObject({
+                kind: 'notExtractable',
+                reason: 'declaredStepsEmpty',
+                tier: 'microdata',
+            });
+        });
+
+        it('reports the tier on a recipe the gate refuses', () => {
+            expect(readPastedContent(makePage({ jsonLd: [makeRecipeNode({ recipeInstructions: [] })] }))).toMatchObject(
+                {
+                    kind: 'notExtractable',
+                    reason: 'noSteps',
+                    tier: 'jsonLd',
+                },
+            );
+        });
+
+        it('carries no tier when no recipe was found', () => {
+            expect(readPastedContent(makePage({ body: '<p>nothing</p>' }))).not.toHaveProperty('tier');
+        });
+
+        it('writes a step name in front of the step only on a page that shows the name', () => {
+            const named = makeRecipeNode({
+                recipeInstructions: [
+                    { '@type': 'HowToStep', name: 'Scramble the egg', text: 'Whisk the eggs.' },
+                    { '@type': 'HowToStep', name: 'Top', text: 'Remove the pan.' },
+                ],
+            });
+            const card = makePage({ jsonLd: [named] });
+            const shown = card.replace('</article>', '<h3>Scramble the egg</h3></article>');
+
+            expect(readPastedContent(shown)).toMatchObject({
+                recipe: {
+                    steps: [{ instruction: 'Scramble the egg: Whisk the eggs.' }, { instruction: 'Remove the pan.' }],
+                },
+            });
+            expect(readPastedContent(card)).toMatchObject({
+                recipe: { steps: [{ instruction: 'Whisk the eggs.' }, { instruction: 'Remove the pan.' }] },
+            });
         });
     });
 });

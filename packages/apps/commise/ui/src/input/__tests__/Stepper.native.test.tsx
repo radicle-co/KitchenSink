@@ -127,8 +127,10 @@ describe('Stepper (native)', () => {
         }
     });
 
-    // The same widths as the web Stepper: the row's gap is spacing 2 (8), the count's minimum width is 24 (a MINIMUM, so a
-    // three-digit count still widens it), and the buttons keep the touch floor.
+    // The same widths as the web Stepper: the row's gap is spacing 2 (8), the count's minimum width is 24, and the buttons
+    // keep the touch floor. The count sets no fixed width and no cap of any size, which is the width defect: jsdom reads
+    // the inline style, so this catches one. That the count widens for a three-digit number is proven by the native
+    // shots at the largest text, not here.
     it('keeps its row narrow enough for 320 at the largest text: an 8 gap and a 24 minimum count width', () => {
         render(<Servings />);
 
@@ -137,7 +139,8 @@ describe('Stepper (native)', () => {
 
         expect(getComputedStyle(group).gap).toBe('8px');
         expect(getComputedStyle(count).minWidth).toBe('24px');
-        expect(getComputedStyle(count).width).not.toBe('24px');
+        expect(getComputedStyle(count).width).toBe('auto');
+        expect(getComputedStyle(count).maxWidth).toBe('none');
     });
 
     // The recipe page puts the Stepper in the Ingredients heading row beside "for {n}" (`buildSpec.md` §6.1), where a

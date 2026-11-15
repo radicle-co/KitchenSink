@@ -24,7 +24,7 @@ vi.mock('react-native', async (importOriginal) => {
 
 import { CookingLineRow } from '../CookingLineRow.native.js';
 import type { CookingLineView } from '../cookingViewProps.js';
-import { tallestMinHeight } from './utils/buttonPill.js';
+import { glyphCount, tallestMinHeight } from './utils/buttonPill.js';
 
 interface Face {
     readonly fontFamily: string;
@@ -75,6 +75,23 @@ describe('CookingLineRow (native)', () => {
         render(<CookingLineRow line={lineOf(true, vi.fn())} emphasis="other" />);
 
         expect(screen.getByRole('checkbox', { name: LINE }).getAttribute('aria-checked')).toBe('true');
+    });
+
+    // The box and the muted text are what a sighted cook sees of a tick: the check glyph is drawn only when ticked, and the
+    // text turns from ink to muted ink. A leaf that hard-codes `checked` on the glyph, or on the colour, fails here.
+    it('draws the check and mutes the text only when the line is ticked', () => {
+        const { unmount } = render(<CookingLineRow line={lineOf(false, vi.fn())} emphasis="other" />);
+        const open = screen.getByRole('checkbox', { name: LINE });
+        const openColour = getComputedStyle(screen.getByText(LINE)).color;
+
+        expect(glyphCount(open)).toBe(0);
+        unmount();
+
+        render(<CookingLineRow line={lineOf(true, vi.fn())} emphasis="other" />);
+        const done = screen.getByRole('checkbox', { name: LINE });
+
+        expect(glyphCount(done)).toBe(1);
+        expect(getComputedStyle(screen.getByText(LINE)).color).not.toBe(openColour);
     });
 
     it('toggles on a press of the row and of its text', () => {

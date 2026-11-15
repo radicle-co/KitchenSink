@@ -25,6 +25,7 @@ import type { CookingScreenProps } from './cookingViewProps.js';
 import type { LoadingPhase } from './loadingPhase.js';
 import { cookingMessages, type CookingMessages } from './messages.js';
 import { useCookingEntry } from './cookingEntry.js';
+import { cookingEntryViewOf } from './cookingEntryView.js';
 
 /** The disabled pair's handler while loading: a disabled control is never pressed. */
 const noop = (): void => undefined;
@@ -37,7 +38,7 @@ const noticeFrame = (notice: StateNoticeProps) => (
 /** What {@link loadingFrame} draws from. */
 interface LoadingFrameInput {
     readonly copy: CookingMessages;
-    readonly phase: LoadingPhase;
+    readonly phase: Exclude<LoadingPhase, 'slow'>;
     readonly narrow: boolean;
     readonly onLeave: () => void;
 }
@@ -53,7 +54,7 @@ const loadingFrame = ({ copy, phase, narrow, onLeave }: LoadingFrameInput) => (
                 narrow={narrow}
             />
         }
-        body={<CookingLoading phase={phase === 'slow' ? 'label' : phase} label={copy.loading.label} />}
+        body={<CookingLoading phase={phase} label={copy.loading.label} />}
         foot={{
             actions: (
                 <CookingNav
@@ -70,7 +71,7 @@ const loadingFrame = ({ copy, phase, narrow, onLeave }: LoadingFrameInput) => (
 /** The native cooking screen. */
 export const CookingScreen: FC<CookingScreenProps> = ({ read, onLeave, onEdit, onHome }) => {
     const copy = useMessages(cookingMessages);
-    const { state, phase } = useCookingEntry(read, onEdit);
+    const entry = useCookingEntry(read, onEdit);
     // The window is read once, here, because a leaf never reads the device. Both rules are measured in text, like web's
     // rem container queries: the width and height are divided by the cook's text size, so the largest text on a wide phone
     // still takes the narrow layout.
@@ -78,55 +79,23 @@ export const CookingScreen: FC<CookingScreenProps> = ({ read, onLeave, onEdit, o
     const narrow = width / fontScale < NARROW_ROW.maxPx;
     const short = height / fontScale < SHORT_SCREEN.maxHeightPx;
 
-    switch (state.kind) {
+    const view = cookingEntryViewOf({ ...entry, read, copy, onLeave, onEdit, onHome });
+
+    switch (view.kind) {
         case 'loading':
-            if (phase === 'slow' && read.kind === 'pending') {
-                return noticeFrame({
-                    title: copy.error.title,
-                    body: copy.error.body,
-                    primary: { label: copy.error.retry, icon: 'refreshCw', onPress: read.retry },
-                    secondary: { label: copy.error.back, icon: 'chevronLeft', onPress: onLeave },
-                });
-            }
-
-            return loadingFrame({ copy, phase, narrow, onLeave });
-        case 'error':
-            return noticeFrame({
-                title: copy.error.title,
-                body: state.offline ? copy.error.offlineBody : copy.error.body,
-                ...(read.kind === 'failed'
-                    ? { primary: { label: copy.error.retry, icon: 'refreshCw', onPress: read.retry } }
-                    : {}),
-                secondary: { label: copy.error.back, icon: 'chevronLeft', onPress: onLeave },
-            });
-        case 'gone':
-            return noticeFrame({
-                title: copy.gone.title,
-                secondary: { label: copy.gone.home, icon: 'house', onPress: onHome },
-            });
-
-        case 'noSteps': {
-            const owner = read.kind === 'ready' && read.viewerIsOwner;
-
-            return noticeFrame({
-                title: copy.empty.title,
-                body: owner ? copy.empty.body : copy.empty.bodyOther,
-                ...(owner ? { primary: { label: copy.empty.edit, icon: 'pencilLine', onPress: onEdit } } : {}),
-                secondary: { label: copy.empty.back, icon: 'chevronLeft', onPress: onLeave },
-            });
-        }
-
-        case 'ready':
-            // `useCookingEntry` only reaches `ready` with a ready read; the narrowing keeps the type honest.
-            return read.kind === 'ready' ? (
+            return loadingFrame({ copy, phase: view.phase, narrow, onLeave });
+        case 'notice':
+            return noticeFrame(view.notice);
+        case 'session':
+            return (
                 <CookingSessionScreen
-                    key={read.recipe.id}
-                    recipe={read.recipe}
+                    key={view.recipe.id}
+                    recipe={view.recipe}
                     onLeave={onLeave}
                     narrow={narrow}
                     short={short}
                     width={width}
                 />
-            ) : null;
+            );
     }
 };

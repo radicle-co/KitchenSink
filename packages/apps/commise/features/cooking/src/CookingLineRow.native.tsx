@@ -28,10 +28,7 @@ interface Leading {
     readonly lineHeight: number;
 }
 
-/**
- * A role's leading. A role with one style per container class (largeTitle) is read at its regular class, which a phone
- * column uses. Taking both shapes as a parameter keeps the read compiling whichever role the seam names. Pure.
- */
+/** A role's leading; a role with one style per container class is read at its regular class. Pure. */
 function leadingOf(style: Leading | { readonly regular: Leading }): number {
     return 'regular' in style ? style.regular.lineHeight : style.lineHeight;
 }

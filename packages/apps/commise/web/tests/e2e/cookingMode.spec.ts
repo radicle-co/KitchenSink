@@ -5,6 +5,7 @@ import { fonts, typeRole } from '@commise/ui/tokens/typography';
 import { signInWithTicket } from './utils/auth';
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { resolveServiceUrls } from './utils/serviceUrls';
 import { applyTextScale } from './utils/textScale';
 
 /**
@@ -48,13 +49,18 @@ const SECOND_LINE = 'Season the chicken well.';
 /** Done holds a press for its first moments (`DONE_SETTLE_MS`, 400); this is comfortably past it. */
 const PAST_DONE_SETTLE_MS = 1000;
 
-/** Collect console errors and page errors (a hydration mismatch is reported as one), to assert none happened. */
+/**
+ * Collect console errors and page errors (a hydration mismatch is reported as one), to assert none happened. The one
+ * exception is a failed fetch of the FOOD service: the recipe page asks it for nutrition, and no food service runs in a
+ * mocked spec. A failed fetch of anything else (a script chunk, the recipe API) is still an error. Call it after
+ * {@link seed}: signing in lands on Home before the recipe routes are mocked, and that is not the flow under test.
+ */
 function watchErrors(page: Page): readonly string[] {
     const errors: string[] = [];
+    const foodOrigin = new URL(resolveServiceUrls(process.env).food).origin;
     page.on('console', (message) => {
-        // A failed fetch of something the recipe page asks for (the mocked run has no food service) is not a React error.
-        if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) {
-            errors.push(message.text());
+        if (message.type() === 'error' && !message.location().url.startsWith(foodOrigin)) {
+            errors.push(`${message.text()} (${message.location().url})`);
         }
     });
     page.on('pageerror', (error) => errors.push(error.message));
@@ -64,6 +70,10 @@ function watchErrors(page: Page): readonly string[] {
 
 /** Sign in and mock the test cook's roast (published) and stew (a draft). */
 async function seed(page: Page, extra: readonly ReturnType<typeof makeRecipeDetail>[] = []): Promise<void> {
+    // The page loads Vercel's analytics script, which only a Vercel host serves; a local build answers 404 for it.
+    await page.route('**/_vercel/insights/**', (request) =>
+        request.fulfill({ status: 200, contentType: 'text/javascript', body: '' }),
+    );
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {
@@ -95,7 +105,7 @@ const stepRegion = (page: Page, step: number, total: number): Locator =>
 
 /** The next step's pinned preview: the paragraph holding that step's first words, in the foot. */
 const previewOf = (page: Page, words: string): Locator =>
-    page.getByRole('main').getByRole('paragraph').filter({ hasText: words }).last();
+    page.getByRole('main').getByRole('paragraph').filter({ hasText: words });
 
 /** Open the roast's cook route directly, at step 1. */
 async function openCooking(page: Page): Promise<void> {
@@ -133,8 +143,8 @@ for (const width of [1280, 390] as const) {
         test.use({ viewport: { width, height: width === 1280 ? 800 : 844 } });
 
         test('cooks the roast from Start cooking to Done and back to the recipe (po’s flow)', async ({ page }) => {
-            const errors = watchErrors(page);
             await seed(page);
+            const errors = watchErrors(page);
             // Fake time, so Done's settle hold is stepped past rather than waited for. Installed after sign-in.
             await page.clock.install();
 
@@ -355,7 +365,7 @@ const LONG_STEPS = [
 ];
 const NEXT_STEP_WORDS = 'Serve the onions on warm toast';
 
-/** Open the long recipe's cook route with the first line ticked, so the next step shows in the foot. */
+/** Open the long recipe's cook route at step 1, whose lines are unticked, so the next step shows pinned in the foot. */
 async function openLong(page: Page): Promise<void> {
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
@@ -374,6 +384,7 @@ test.describe('the Next preview by screen height (qse item 8)', () => {
 
         test('shows the next step on one line', async ({ page }) => {
             await openLong(page);
+            await expect(previewOf(page, NEXT_STEP_WORDS)).toHaveCount(1);
             const { lineHeight, height } = await lineMetrics(previewOf(page, NEXT_STEP_WORDS));
 
             expect(height).toBeLessThanOrEqual(lineHeight + 1);
@@ -385,6 +396,7 @@ test.describe('the Next preview by screen height (qse item 8)', () => {
 
         test('lets a long next step wrap', async ({ page }) => {
             await openLong(page);
+            await expect(previewOf(page, NEXT_STEP_WORDS)).toHaveCount(1);
             const { lineHeight, height } = await lineMetrics(previewOf(page, NEXT_STEP_WORDS));
 
             expect(height).toBeGreaterThan(lineHeight + 1);
@@ -424,6 +436,7 @@ test.describe('cooking mode at 390 with 200% text (plans 0002 and 0003a)', () =>
         expect(box?.scroll ?? 0, 'the step body overflows at this text size').toBeGreaterThan(box?.client ?? 0);
 
         // The next step is still one line: the frame is shorter than 43.75 rem at this text size.
+        await expect(previewOf(page, NEXT_STEP_WORDS)).toHaveCount(1);
         const { lineHeight, height } = await lineMetrics(previewOf(page, NEXT_STEP_WORDS));
         expect(height).toBeLessThanOrEqual(lineHeight + 1);
 

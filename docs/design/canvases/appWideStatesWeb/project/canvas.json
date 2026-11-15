@@ -1,0 +1,169 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T05:52:09Z"
+  },
+  "title": "Commise Screens, web: App-wide states",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "AppSnackbarsWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 1271,
+      "title": "App, snackbars (web, 1280)"
+    },
+    "AppRouteLoadingWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 1572,
+      "title": "App, loading a page (web, 1280)"
+    },
+    "AppRouteErrorWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 803,
+      "title": "App, something went wrong (web, 1280)"
+    },
+    "AppNotFoundWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 983,
+      "title": "App, page not found (web, 1280)"
+    },
+    "AppOfflineReadWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 720,
+      "title": "App, waiting for a connection (web, 1280)"
+    },
+    "AppSyncOfflineWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 909,
+      "title": "App, you're offline (web, 1280)"
+    },
+    "AppSyncSyncingWeb1280.dc.html": {
+      "x": 8160,
+      "y": 260,
+      "w": 1280,
+      "h": 909,
+      "title": "App, back online (web, 1280)"
+    },
+    "AppUnreadableWorkWeb1280.dc.html": {
+      "x": 9520,
+      "y": 260,
+      "w": 1280,
+      "h": 931,
+      "title": "App, work could not be opened (web, 1280)"
+    },
+    "AppSnackbarsWeb390.dc.html": {
+      "x": 0,
+      "y": 2492,
+      "w": 390,
+      "h": 1350,
+      "title": "App, snackbars (web, 390)"
+    },
+    "AppRouteLoadingWeb390.dc.html": {
+      "x": 470,
+      "y": 2492,
+      "w": 390,
+      "h": 400,
+      "title": "App, loading a page (web, 390)"
+    },
+    "AppRouteErrorWeb390.dc.html": {
+      "x": 940,
+      "y": 2492,
+      "w": 390,
+      "h": 1394,
+      "title": "App, something went wrong (web, 390)"
+    },
+    "AppNotFoundWeb390.dc.html": {
+      "x": 1410,
+      "y": 2492,
+      "w": 390,
+      "h": 400,
+      "title": "App, page not found (web, 390)"
+    },
+    "AppOfflineReadWeb390.dc.html": {
+      "x": 1880,
+      "y": 2492,
+      "w": 390,
+      "h": 844,
+      "title": "App, waiting for a connection (web, 390)"
+    },
+    "AppSyncOfflineWeb390.dc.html": {
+      "x": 2350,
+      "y": 2492,
+      "w": 390,
+      "h": 844,
+      "title": "App, you're offline (web, 390)"
+    },
+    "AppSyncSyncingWeb390.dc.html": {
+      "x": 2820,
+      "y": 2492,
+      "w": 390,
+      "h": 844,
+      "title": "App, back online (web, 390)"
+    },
+    "AppUnreadableWorkWeb390.dc.html": {
+      "x": 3290,
+      "y": 2492,
+      "w": 390,
+      "h": 844,
+      "title": "App, work could not be opened (web, 390)"
+    }
+  },
+  "order": [
+    "AppSnackbarsWeb1280.dc.html",
+    "AppRouteLoadingWeb1280.dc.html",
+    "AppRouteErrorWeb1280.dc.html",
+    "AppNotFoundWeb1280.dc.html",
+    "AppOfflineReadWeb1280.dc.html",
+    "AppSyncOfflineWeb1280.dc.html",
+    "AppSyncSyncingWeb1280.dc.html",
+    "AppUnreadableWorkWeb1280.dc.html",
+    "AppSnackbarsWeb390.dc.html",
+    "AppRouteLoadingWeb390.dc.html",
+    "AppRouteErrorWeb390.dc.html",
+    "AppNotFoundWeb390.dc.html",
+    "AppOfflineReadWeb390.dc.html",
+    "AppSyncOfflineWeb390.dc.html",
+    "AppSyncSyncingWeb390.dc.html",
+    "AppUnreadableWorkWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "App-wide states: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 2232,
+      "text": "App-wide states: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

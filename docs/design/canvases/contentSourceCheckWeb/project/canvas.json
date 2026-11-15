@@ -1,0 +1,265 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:37Z"
+  },
+  "title": "Commise Screens, web: Content source check",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "SourceCheckCheckingWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 940,
+      "title": "Content source check, checking (web, 1280)"
+    },
+    "SourceCheckInReviewWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 940,
+      "title": "Content source check, in review (web, 1280)"
+    },
+    "SourceCheckLibraryWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 1040,
+      "title": "Content source check, library (web, 1280)"
+    },
+    "SourceCheckEditorInReviewWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Content source check, editor in review (web, 1280)"
+    },
+    "SourceCheckEditorPrivateNoSlotWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Content source check, editor private no slot (web, 1280)"
+    },
+    "SourceCheckPublishBlockedNoSlotWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Content source check, publish blocked no slot (web, 1280)"
+    },
+    "SourceCheckPublishBlockedWebImportWeb1280.dc.html": {
+      "x": 8160,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Content source check, publish blocked web import (web, 1280)"
+    },
+    "SourceCheckApprovedWeb1280.dc.html": {
+      "x": 9520,
+      "y": 260,
+      "w": 1280,
+      "h": 940,
+      "title": "Content source check, approved (web, 1280)"
+    },
+    "SourceCheckNotApprovedWeb1280.dc.html": {
+      "x": 10880,
+      "y": 260,
+      "w": 1280,
+      "h": 940,
+      "title": "Content source check, not approved (web, 1280)"
+    },
+    "SourceCheckNotApprovedOverLimitWeb1280.dc.html": {
+      "x": 12240,
+      "y": 260,
+      "w": 1280,
+      "h": 940,
+      "title": "Content source check, not approved over limit (web, 1280)"
+    },
+    "SourceCheckAskAgainWeb1280.dc.html": {
+      "x": 13600,
+      "y": 260,
+      "w": 1280,
+      "h": 940,
+      "title": "Content source check, ask again (web, 1280)"
+    },
+    "SourceCheckAskAgainSentWeb1280.dc.html": {
+      "x": 14960,
+      "y": 260,
+      "w": 1280,
+      "h": 940,
+      "title": "Content source check, ask again sent (web, 1280)"
+    },
+    "SourceCheckPlanInReviewWeb1280.dc.html": {
+      "x": 16320,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Content source check, plan in review (web, 1280)"
+    },
+    "SourceCheckCollectionInReviewWeb1280.dc.html": {
+      "x": 17680,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Content source check, collection in review (web, 1280)"
+    },
+    "SourceCheckCheckingWeb390.dc.html": {
+      "x": 0,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, checking (web, 390)"
+    },
+    "SourceCheckInReviewWeb390.dc.html": {
+      "x": 470,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, in review (web, 390)"
+    },
+    "SourceCheckLibraryWeb390.dc.html": {
+      "x": 940,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, library (web, 390)"
+    },
+    "SourceCheckEditorInReviewWeb390.dc.html": {
+      "x": 1410,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, editor in review (web, 390)"
+    },
+    "SourceCheckEditorPrivateNoSlotWeb390.dc.html": {
+      "x": 1880,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, editor private no slot (web, 390)"
+    },
+    "SourceCheckPublishBlockedNoSlotWeb390.dc.html": {
+      "x": 2350,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, publish blocked no slot (web, 390)"
+    },
+    "SourceCheckPublishBlockedWebImportWeb390.dc.html": {
+      "x": 2820,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, publish blocked web import (web, 390)"
+    },
+    "SourceCheckApprovedWeb390.dc.html": {
+      "x": 3290,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, approved (web, 390)"
+    },
+    "SourceCheckNotApprovedWeb390.dc.html": {
+      "x": 3760,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, not approved (web, 390)"
+    },
+    "SourceCheckNotApprovedOverLimitWeb390.dc.html": {
+      "x": 4230,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, not approved over limit (web, 390)"
+    },
+    "SourceCheckAskAgainWeb390.dc.html": {
+      "x": 4700,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, ask again (web, 390)"
+    },
+    "SourceCheckAskAgainSentWeb390.dc.html": {
+      "x": 5170,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, ask again sent (web, 390)"
+    },
+    "SourceCheckPlanInReviewWeb390.dc.html": {
+      "x": 5640,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, plan in review (web, 390)"
+    },
+    "SourceCheckCollectionInReviewWeb390.dc.html": {
+      "x": 6110,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, collection in review (web, 390)"
+    }
+  },
+  "order": [
+    "SourceCheckCheckingWeb1280.dc.html",
+    "SourceCheckInReviewWeb1280.dc.html",
+    "SourceCheckLibraryWeb1280.dc.html",
+    "SourceCheckEditorInReviewWeb1280.dc.html",
+    "SourceCheckEditorPrivateNoSlotWeb1280.dc.html",
+    "SourceCheckPublishBlockedNoSlotWeb1280.dc.html",
+    "SourceCheckPublishBlockedWebImportWeb1280.dc.html",
+    "SourceCheckApprovedWeb1280.dc.html",
+    "SourceCheckNotApprovedWeb1280.dc.html",
+    "SourceCheckNotApprovedOverLimitWeb1280.dc.html",
+    "SourceCheckAskAgainWeb1280.dc.html",
+    "SourceCheckAskAgainSentWeb1280.dc.html",
+    "SourceCheckPlanInReviewWeb1280.dc.html",
+    "SourceCheckCollectionInReviewWeb1280.dc.html",
+    "SourceCheckCheckingWeb390.dc.html",
+    "SourceCheckInReviewWeb390.dc.html",
+    "SourceCheckLibraryWeb390.dc.html",
+    "SourceCheckEditorInReviewWeb390.dc.html",
+    "SourceCheckEditorPrivateNoSlotWeb390.dc.html",
+    "SourceCheckPublishBlockedNoSlotWeb390.dc.html",
+    "SourceCheckPublishBlockedWebImportWeb390.dc.html",
+    "SourceCheckApprovedWeb390.dc.html",
+    "SourceCheckNotApprovedWeb390.dc.html",
+    "SourceCheckNotApprovedOverLimitWeb390.dc.html",
+    "SourceCheckAskAgainWeb390.dc.html",
+    "SourceCheckAskAgainSentWeb390.dc.html",
+    "SourceCheckPlanInReviewWeb390.dc.html",
+    "SourceCheckCollectionInReviewWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Content source check: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1700,
+      "text": "Content source check: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

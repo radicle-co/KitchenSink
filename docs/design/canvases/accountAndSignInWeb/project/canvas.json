@@ -1,0 +1,463 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T05:52:09Z"
+  },
+  "title": "Commise Screens, web: Account and sign in",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "ProfileWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 1191,
+      "title": "Profile, proposal (web, 1280)"
+    },
+    "AccountCloseDialogWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 1150,
+      "title": "Profile, close account, proposal (web, 1280)"
+    },
+    "AccountEraseDialogWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 1844,
+      "title": "Profile, erase my data, proposal (web, 1280)"
+    },
+    "AccountEraseDialogStatesWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 3592,
+      "title": "Profile, erase and close: states, proposal (web, 1280)"
+    },
+    "AccountBlockedWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 836,
+      "title": "Account, blocked, proposal (web, 1280)"
+    },
+    "ProfileLoadingWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 1556,
+      "title": "Profile, loading and failed, proposal (web, 1280)"
+    },
+    "ProfileDisplayNameWeb1280.dc.html": {
+      "x": 8160,
+      "y": 260,
+      "w": 1280,
+      "h": 2362,
+      "title": "Profile, display name, proposal (web, 1280)"
+    },
+    "ProfileDisplayNameStatesWeb1280.dc.html": {
+      "x": 9520,
+      "y": 260,
+      "w": 1280,
+      "h": 2944,
+      "title": "Profile, display name: states, proposal (web, 1280)"
+    },
+    "ProfileInlineStatesWeb1280.dc.html": {
+      "x": 10880,
+      "y": 260,
+      "w": 1280,
+      "h": 774,
+      "title": "Profile, sign out and settings, proposal (web, 1280)"
+    },
+    "ProfileAvatarWeb1280.dc.html": {
+      "x": 12240,
+      "y": 260,
+      "w": 1280,
+      "h": 400,
+      "title": "Profile, photo, proposal (web, 1280)"
+    },
+    "ProfileNoNameWeb1280.dc.html": {
+      "x": 13600,
+      "y": 260,
+      "w": 1280,
+      "h": 1191,
+      "title": "Profile, no display name, proposal (web, 1280)"
+    },
+    "SignInWeb1280.dc.html": {
+      "x": 14960,
+      "y": 260,
+      "w": 1280,
+      "h": 566,
+      "title": "Sign in (web, 1280)"
+    },
+    "AuthSessionLoadingWeb1280.dc.html": {
+      "x": 16320,
+      "y": 260,
+      "w": 1280,
+      "h": 400,
+      "title": "Sign in, checking your session (web, 1280)"
+    },
+    "SignInVerifyCodeWeb1280.dc.html": {
+      "x": 17680,
+      "y": 260,
+      "w": 1280,
+      "h": 844,
+      "title": "Sign in, verification code (web, 1280)"
+    },
+    "SignInErrorsWeb1280.dc.html": {
+      "x": 19040,
+      "y": 260,
+      "w": 1280,
+      "h": 478,
+      "title": "Sign in, errors (web, 1280)"
+    },
+    "SignInSocialStatesWeb1280.dc.html": {
+      "x": 20400,
+      "y": 260,
+      "w": 1280,
+      "h": 844,
+      "title": "Sign in, Google and Apple (web, 1280)"
+    },
+    "SignUpWeb1280.dc.html": {
+      "x": 21760,
+      "y": 260,
+      "w": 1280,
+      "h": 908,
+      "title": "Sign up (web, 1280)"
+    },
+    "SignUpFinishWeb1280.dc.html": {
+      "x": 23120,
+      "y": 260,
+      "w": 1280,
+      "h": 844,
+      "title": "Sign up, finish creating your account (web, 1280)"
+    },
+    "LegalSourcesWeb1280.dc.html": {
+      "x": 24480,
+      "y": 260,
+      "w": 1280,
+      "h": 828,
+      "title": "Data sources, proposal (web, 1280)"
+    },
+    "LegalSourcesStatesWeb1280.dc.html": {
+      "x": 25840,
+      "y": 260,
+      "w": 1280,
+      "h": 1375,
+      "title": "Data sources, loading and problems (web, 1280)"
+    },
+    "ProfileWeb1024.dc.html": {
+      "x": 0,
+      "y": 4512,
+      "w": 1024,
+      "h": 1191,
+      "title": "Profile, proposal (web, 1024)"
+    },
+    "ProfileNoNameWeb1024.dc.html": {
+      "x": 1104,
+      "y": 4512,
+      "w": 1024,
+      "h": 1191,
+      "title": "Profile, no display name, proposal (web, 1024)"
+    },
+    "SignInWeb1024.dc.html": {
+      "x": 2208,
+      "y": 4512,
+      "w": 1024,
+      "h": 566,
+      "title": "Sign in (web, 1024)"
+    },
+    "SignUpWeb1024.dc.html": {
+      "x": 3312,
+      "y": 4512,
+      "w": 1024,
+      "h": 908,
+      "title": "Sign up (web, 1024)"
+    },
+    "LegalSourcesWeb1024.dc.html": {
+      "x": 4416,
+      "y": 4512,
+      "w": 1024,
+      "h": 828,
+      "title": "Data sources, proposal (web, 1024)"
+    },
+    "ProfileWeb768.dc.html": {
+      "x": 0,
+      "y": 6363,
+      "w": 768,
+      "h": 1233,
+      "title": "Profile, proposal (web, 768)"
+    },
+    "ProfileNoNameWeb768.dc.html": {
+      "x": 848,
+      "y": 6363,
+      "w": 768,
+      "h": 1233,
+      "title": "Profile, no display name, proposal (web, 768)"
+    },
+    "SignInWeb768.dc.html": {
+      "x": 1696,
+      "y": 6363,
+      "w": 768,
+      "h": 566,
+      "title": "Sign in (web, 768)"
+    },
+    "SignUpWeb768.dc.html": {
+      "x": 2544,
+      "y": 6363,
+      "w": 768,
+      "h": 908,
+      "title": "Sign up (web, 768)"
+    },
+    "LegalSourcesWeb768.dc.html": {
+      "x": 3392,
+      "y": 6363,
+      "w": 768,
+      "h": 864,
+      "title": "Data sources, proposal (web, 768)"
+    },
+    "ProfileWeb390.dc.html": {
+      "x": 0,
+      "y": 8256,
+      "w": 390,
+      "h": 1031,
+      "title": "Profile (web, 390)"
+    },
+    "ProfileScrolledWeb390.dc.html": {
+      "x": 470,
+      "y": 8256,
+      "w": 390,
+      "h": 844,
+      "title": "Profile, scrolled (web, 390)"
+    },
+    "AccountCloseDialogWeb390.dc.html": {
+      "x": 940,
+      "y": 8256,
+      "w": 390,
+      "h": 1416,
+      "title": "Profile, close account (web, 390)"
+    },
+    "AccountEraseDialogWeb390.dc.html": {
+      "x": 1410,
+      "y": 8256,
+      "w": 390,
+      "h": 1997,
+      "title": "Profile, erase my data (web, 390)"
+    },
+    "AccountEraseDialogStatesWeb390.dc.html": {
+      "x": 1880,
+      "y": 8256,
+      "w": 390,
+      "h": 5626,
+      "title": "Profile, erase and close: states (web, 390)"
+    },
+    "AccountBlockedWeb390.dc.html": {
+      "x": 2350,
+      "y": 8256,
+      "w": 390,
+      "h": 1605,
+      "title": "Account, blocked (web, 390)"
+    },
+    "ProfileLoadingWeb390.dc.html": {
+      "x": 2820,
+      "y": 8256,
+      "w": 390,
+      "h": 1506,
+      "title": "Profile, loading and failed (web, 390)"
+    },
+    "ProfileDisplayNameWeb390.dc.html": {
+      "x": 3290,
+      "y": 8256,
+      "w": 390,
+      "h": 2337,
+      "title": "Profile, display name (web, 390)"
+    },
+    "ProfileDisplayNameStatesWeb390.dc.html": {
+      "x": 3760,
+      "y": 8256,
+      "w": 390,
+      "h": 3200,
+      "title": "Profile, display name: states (web, 390)"
+    },
+    "ProfileInlineStatesWeb390.dc.html": {
+      "x": 4230,
+      "y": 8256,
+      "w": 390,
+      "h": 724,
+      "title": "Profile, sign out and settings (web, 390)"
+    },
+    "ProfileAvatarWeb390.dc.html": {
+      "x": 4700,
+      "y": 8256,
+      "w": 390,
+      "h": 1228,
+      "title": "Profile, photo (web, 390)"
+    },
+    "SignInWeb390.dc.html": {
+      "x": 5170,
+      "y": 8256,
+      "w": 390,
+      "h": 671,
+      "title": "Sign in (web, 390)"
+    },
+    "AuthSessionLoadingWeb390.dc.html": {
+      "x": 5640,
+      "y": 8256,
+      "w": 390,
+      "h": 844,
+      "title": "Sign in, checking your session (web, 390)"
+    },
+    "SignInVerifyCodeWeb390.dc.html": {
+      "x": 6110,
+      "y": 8256,
+      "w": 390,
+      "h": 1392,
+      "title": "Sign in, verification code (web, 390)"
+    },
+    "SignInErrorsWeb390.dc.html": {
+      "x": 6580,
+      "y": 8256,
+      "w": 390,
+      "h": 3690,
+      "title": "Sign in, errors (web, 390)"
+    },
+    "SignInSocialStatesWeb390.dc.html": {
+      "x": 7050,
+      "y": 8256,
+      "w": 390,
+      "h": 1744,
+      "title": "Sign in, Google and Apple (web, 390)"
+    },
+    "SignUpWeb390.dc.html": {
+      "x": 7520,
+      "y": 8256,
+      "w": 390,
+      "h": 950,
+      "title": "Sign up (web, 390)"
+    },
+    "SignUpFinishWeb390.dc.html": {
+      "x": 7990,
+      "y": 8256,
+      "w": 390,
+      "h": 1530,
+      "title": "Sign up, finish creating your account (web, 390)"
+    },
+    "LegalSourcesWeb390.dc.html": {
+      "x": 8460,
+      "y": 8256,
+      "w": 390,
+      "h": 1144,
+      "title": "Data sources (web, 390)"
+    },
+    "LegalSourcesScrolledWeb390.dc.html": {
+      "x": 8930,
+      "y": 8256,
+      "w": 390,
+      "h": 844,
+      "title": "Data sources, scrolled (web, 390)"
+    },
+    "LegalSourcesStatesWeb390.dc.html": {
+      "x": 9400,
+      "y": 8256,
+      "w": 390,
+      "h": 2876,
+      "title": "Data sources, loading and problems (web, 390)"
+    }
+  },
+  "order": [
+    "ProfileWeb1280.dc.html",
+    "AccountCloseDialogWeb1280.dc.html",
+    "AccountEraseDialogWeb1280.dc.html",
+    "AccountEraseDialogStatesWeb1280.dc.html",
+    "AccountBlockedWeb1280.dc.html",
+    "ProfileLoadingWeb1280.dc.html",
+    "ProfileDisplayNameWeb1280.dc.html",
+    "ProfileDisplayNameStatesWeb1280.dc.html",
+    "ProfileInlineStatesWeb1280.dc.html",
+    "ProfileAvatarWeb1280.dc.html",
+    "ProfileNoNameWeb1280.dc.html",
+    "SignInWeb1280.dc.html",
+    "AuthSessionLoadingWeb1280.dc.html",
+    "SignInVerifyCodeWeb1280.dc.html",
+    "SignInErrorsWeb1280.dc.html",
+    "SignInSocialStatesWeb1280.dc.html",
+    "SignUpWeb1280.dc.html",
+    "SignUpFinishWeb1280.dc.html",
+    "LegalSourcesWeb1280.dc.html",
+    "LegalSourcesStatesWeb1280.dc.html",
+    "ProfileWeb1024.dc.html",
+    "ProfileNoNameWeb1024.dc.html",
+    "SignInWeb1024.dc.html",
+    "SignUpWeb1024.dc.html",
+    "LegalSourcesWeb1024.dc.html",
+    "ProfileWeb768.dc.html",
+    "ProfileNoNameWeb768.dc.html",
+    "SignInWeb768.dc.html",
+    "SignUpWeb768.dc.html",
+    "LegalSourcesWeb768.dc.html",
+    "ProfileWeb390.dc.html",
+    "ProfileScrolledWeb390.dc.html",
+    "AccountCloseDialogWeb390.dc.html",
+    "AccountEraseDialogWeb390.dc.html",
+    "AccountEraseDialogStatesWeb390.dc.html",
+    "AccountBlockedWeb390.dc.html",
+    "ProfileLoadingWeb390.dc.html",
+    "ProfileDisplayNameWeb390.dc.html",
+    "ProfileDisplayNameStatesWeb390.dc.html",
+    "ProfileInlineStatesWeb390.dc.html",
+    "ProfileAvatarWeb390.dc.html",
+    "SignInWeb390.dc.html",
+    "AuthSessionLoadingWeb390.dc.html",
+    "SignInVerifyCodeWeb390.dc.html",
+    "SignInErrorsWeb390.dc.html",
+    "SignInSocialStatesWeb390.dc.html",
+    "SignUpWeb390.dc.html",
+    "SignUpFinishWeb390.dc.html",
+    "LegalSourcesWeb390.dc.html",
+    "LegalSourcesScrolledWeb390.dc.html",
+    "LegalSourcesStatesWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Account and sign in: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 4252,
+      "text": "Account and sign in: web 1024",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 6103,
+      "text": "Account and sign in: web 768",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row3": {
+      "x": 0,
+      "y": 7996,
+      "text": "Account and sign in: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

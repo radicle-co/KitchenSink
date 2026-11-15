@@ -1,0 +1,240 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:33Z"
+  },
+  "title": "Commise Screens, mobile: Recipe digitization and family circles",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "CirclePhotoCaptureIphone390.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, photo capture (mobile, iPhone 390)"
+    },
+    "CircleReadingIphone390.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, reading (mobile, iPhone 390)"
+    },
+    "CircleCorrectionIphone390.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 1013,
+      "title": "Recipe digitization and family circles, correction (mobile, iPhone 390)"
+    },
+    "CircleCardsInRecipesIphone390.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, cards in recipes (mobile, iPhone 390)"
+    },
+    "CircleCircleCreateIphone390.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, circle create (mobile, iPhone 390)"
+    },
+    "CircleCircleInviteIphone390.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, circle invite (mobile, iPhone 390)"
+    },
+    "CircleCircleJoinIphone390.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, circle join (mobile, iPhone 390)"
+    },
+    "CircleCircleViewIphone390.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, circle view (mobile, iPhone 390)"
+    },
+    "CirclePhotoCaptureAndroid384.dc.html": {
+      "x": 0,
+      "y": 1933,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe digitization and family circles, photo capture (mobile, Android 384)"
+    },
+    "CircleReadingAndroid384.dc.html": {
+      "x": 464,
+      "y": 1933,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe digitization and family circles, reading (mobile, Android 384)"
+    },
+    "CircleCorrectionAndroid384.dc.html": {
+      "x": 928,
+      "y": 1933,
+      "w": 384,
+      "h": 970,
+      "title": "Recipe digitization and family circles, correction (mobile, Android 384)"
+    },
+    "CircleCardsInRecipesAndroid384.dc.html": {
+      "x": 1392,
+      "y": 1933,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe digitization and family circles, cards in recipes (mobile, Android 384)"
+    },
+    "CircleCircleCreateAndroid384.dc.html": {
+      "x": 1856,
+      "y": 1933,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe digitization and family circles, circle create (mobile, Android 384)"
+    },
+    "CircleCircleInviteAndroid384.dc.html": {
+      "x": 2320,
+      "y": 1933,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe digitization and family circles, circle invite (mobile, Android 384)"
+    },
+    "CircleCircleJoinAndroid384.dc.html": {
+      "x": 2784,
+      "y": 1933,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe digitization and family circles, circle join (mobile, Android 384)"
+    },
+    "CircleCircleViewAndroid384.dc.html": {
+      "x": 3248,
+      "y": 1933,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe digitization and family circles, circle view (mobile, Android 384)"
+    },
+    "CirclePhotoCaptureIpad820.dc.html": {
+      "x": 0,
+      "y": 3563,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe digitization and family circles, photo capture (mobile, iPad 820)"
+    },
+    "CircleReadingIpad820.dc.html": {
+      "x": 900,
+      "y": 3563,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe digitization and family circles, reading (mobile, iPad 820)"
+    },
+    "CircleCorrectionIpad820.dc.html": {
+      "x": 1800,
+      "y": 3563,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe digitization and family circles, correction (mobile, iPad 820)"
+    },
+    "CircleCardsInRecipesIpad820.dc.html": {
+      "x": 2700,
+      "y": 3563,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe digitization and family circles, cards in recipes (mobile, iPad 820)"
+    },
+    "CircleCircleCreateIpad820.dc.html": {
+      "x": 3600,
+      "y": 3563,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe digitization and family circles, circle create (mobile, iPad 820)"
+    },
+    "CircleCircleInviteIpad820.dc.html": {
+      "x": 4500,
+      "y": 3563,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe digitization and family circles, circle invite (mobile, iPad 820)"
+    },
+    "CircleCircleJoinIpad820.dc.html": {
+      "x": 5400,
+      "y": 3563,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe digitization and family circles, circle join (mobile, iPad 820)"
+    },
+    "CircleCircleViewIpad820.dc.html": {
+      "x": 6300,
+      "y": 3563,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe digitization and family circles, circle view (mobile, iPad 820)"
+    }
+  },
+  "order": [
+    "CirclePhotoCaptureIphone390.dc.html",
+    "CircleReadingIphone390.dc.html",
+    "CircleCorrectionIphone390.dc.html",
+    "CircleCardsInRecipesIphone390.dc.html",
+    "CircleCircleCreateIphone390.dc.html",
+    "CircleCircleInviteIphone390.dc.html",
+    "CircleCircleJoinIphone390.dc.html",
+    "CircleCircleViewIphone390.dc.html",
+    "CirclePhotoCaptureAndroid384.dc.html",
+    "CircleReadingAndroid384.dc.html",
+    "CircleCorrectionAndroid384.dc.html",
+    "CircleCardsInRecipesAndroid384.dc.html",
+    "CircleCircleCreateAndroid384.dc.html",
+    "CircleCircleInviteAndroid384.dc.html",
+    "CircleCircleJoinAndroid384.dc.html",
+    "CircleCircleViewAndroid384.dc.html",
+    "CirclePhotoCaptureIpad820.dc.html",
+    "CircleReadingIpad820.dc.html",
+    "CircleCorrectionIpad820.dc.html",
+    "CircleCardsInRecipesIpad820.dc.html",
+    "CircleCircleCreateIpad820.dc.html",
+    "CircleCircleInviteIpad820.dc.html",
+    "CircleCircleJoinIpad820.dc.html",
+    "CircleCircleViewIpad820.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Recipe digitization and family circles: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1673,
+      "text": "Recipe digitization and family circles: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 3303,
+      "text": "Recipe digitization and family circles: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

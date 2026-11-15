@@ -7,6 +7,11 @@ them, and it holds the rules for editing them without losing another agent's wor
 copy links into other documents. Link to this folder instead. `designCanvasRegistry.test.ts` in `packages/tools/repoGuards`
 checks its shape.
 
+Each page and feature canvas has a folder here, named by its registry id and given in its `snapshot` field. The folder
+is a byte-for-byte snapshot of that canvas's published files, taken on 2026-11-15. Its `snapshot.json` records the
+link, the version read and the time. The published canvas stays authoritative until the owner moves the canvases to a
+repo-source workflow. Never edit a snapshot to change a design.
+
 ## What each kind means
 
 | Kind           | Meaning                                                             |

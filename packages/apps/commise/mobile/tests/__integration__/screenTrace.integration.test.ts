@@ -56,6 +56,7 @@ describe('a production build carries none of the recorder', () => {
     const tracked = execFileSync('git', ['ls-files', '-co', '--exclude-standard', '-z'], {
         cwd: REPO,
         encoding: 'utf8',
+        maxBuffer: 1024 * 1024 * 64,
     })
         .split('\0')
         .filter((file) => file !== '' && existsSync(join(REPO, file)));

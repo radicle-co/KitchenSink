@@ -1,0 +1,1728 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T05:52:09Z"
+  },
+  "title": "Commise Screens, mobile: Recipe editor",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "RecipeEditorIphone390.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 4843,
+      "title": "Recipe editor (mobile, iPhone 390)"
+    },
+    "RecipeEditorTypingIphone390.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, typing the title (mobile, iPhone 390)"
+    },
+    "RecipeEditorSheetIphone390.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, Paste a list sheet (mobile, iPhone 390)"
+    },
+    "RecipeEditorEditExistingIphone390.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 4799,
+      "title": "Recipe editor, editing a saved recipe (mobile, iPhone 390)"
+    },
+    "RecipeEditorEmptyIphone390.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 3058,
+      "title": "Recipe editor, new and empty (mobile, iPhone 390)"
+    },
+    "RecipeEditorReadyUnmatchedIphone390.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 2477,
+      "title": "Recipe editor, ready with unmatched ingredients (mobile, iPhone 390)"
+    },
+    "RecipeEditorFixToPublishIphone390.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 4145,
+      "title": "Recipe editor, fix to publish (mobile, iPhone 390)"
+    },
+    "RecipeEditorLoadingIphone390.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 878,
+      "title": "Recipe editor, opening a saved recipe (mobile, iPhone 390)"
+    },
+    "RecipeEditorPreviewIphone390.dc.html": {
+      "x": 3760,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, preview (mobile, iPhone 390)"
+    },
+    "RecipeEditorCuisineIphone390.dc.html": {
+      "x": 4230,
+      "y": 260,
+      "w": 390,
+      "h": 1081,
+      "title": "Recipe editor, cuisine (mobile, iPhone 390)"
+    },
+    "RecipeEditorPasteStepsIphone390.dc.html": {
+      "x": 4700,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, paste steps (mobile, iPhone 390)"
+    },
+    "RecipeEditorPhotosUploadingIphone390.dc.html": {
+      "x": 5170,
+      "y": 260,
+      "w": 390,
+      "h": 1277,
+      "title": "Recipe editor, photos uploading (mobile, iPhone 390)"
+    },
+    "RecipeEditorPhotosErrorsIphone390.dc.html": {
+      "x": 5640,
+      "y": 260,
+      "w": 390,
+      "h": 1627,
+      "title": "Recipe editor, photo problems (mobile, iPhone 390)"
+    },
+    "RecipeEditorPhotoSourceIphone390.dc.html": {
+      "x": 6110,
+      "y": 260,
+      "w": 390,
+      "h": 1837,
+      "title": "Recipe editor, add photos sheet (mobile, iPhone 390)"
+    },
+    "RecipeEditorVisibilityIphone390.dc.html": {
+      "x": 6580,
+      "y": 260,
+      "w": 390,
+      "h": 2409,
+      "title": "Recipe editor, who can see it (mobile, iPhone 390)"
+    },
+    "RecipeEditorSaveStatusIphone390.dc.html": {
+      "x": 7050,
+      "y": 260,
+      "w": 390,
+      "h": 1141,
+      "title": "Recipe editor, save status (mobile, iPhone 390)"
+    },
+    "RecipeEditorResumeIphone390.dc.html": {
+      "x": 7520,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, unsaved changes found (mobile, iPhone 390)"
+    },
+    "RecipeEditorSaveFailedIphone390.dc.html": {
+      "x": 7990,
+      "y": 260,
+      "w": 390,
+      "h": 1653,
+      "title": "Recipe editor, save failed (mobile, iPhone 390)"
+    },
+    "RecipeEditorDiscardDraftIphone390.dc.html": {
+      "x": 8460,
+      "y": 260,
+      "w": 390,
+      "h": 2165,
+      "title": "Recipe editor, discard this draft? (mobile, iPhone 390)"
+    },
+    "RecipeEditorDiscardChangesIphone390.dc.html": {
+      "x": 8930,
+      "y": 260,
+      "w": 390,
+      "h": 1649,
+      "title": "Recipe editor, discard your changes? (mobile, iPhone 390)"
+    },
+    "RecipeEditorConflictIphone390.dc.html": {
+      "x": 9400,
+      "y": 260,
+      "w": 390,
+      "h": 1671,
+      "title": "Recipe editor, changed while you were editing (mobile, iPhone 390)"
+    },
+    "RecipeEditorConflictDraftIphone390.dc.html": {
+      "x": 9870,
+      "y": 260,
+      "w": 390,
+      "h": 1335,
+      "title": "Recipe editor, draft changed elsewhere (mobile, iPhone 390)"
+    },
+    "RecipeEditorConflictMergeIphone390.dc.html": {
+      "x": 10340,
+      "y": 260,
+      "w": 390,
+      "h": 1171,
+      "title": "Recipe editor, merge field by field (mobile, iPhone 390)"
+    },
+    "RecipeEditorConflictStaleBaseIphone390.dc.html": {
+      "x": 10810,
+      "y": 260,
+      "w": 390,
+      "h": 1749,
+      "title": "Recipe editor, far behind (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchTooShortIphone390.dc.html": {
+      "x": 11280,
+      "y": 260,
+      "w": 390,
+      "h": 871,
+      "title": "Recipe editor, food search: too short (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchSearchingIphone390.dc.html": {
+      "x": 11750,
+      "y": 260,
+      "w": 390,
+      "h": 1010,
+      "title": "Recipe editor, food search: searching (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchResultsIphone390.dc.html": {
+      "x": 12220,
+      "y": 260,
+      "w": 390,
+      "h": 1304,
+      "title": "Recipe editor, food search: results (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchTypingIphone390.dc.html": {
+      "x": 12690,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, food search: results, typing a food (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchDefaultIphone390.dc.html": {
+      "x": 13160,
+      "y": 260,
+      "w": 390,
+      "h": 1165,
+      "title": "Recipe editor, food search default (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchMoreSourcesIphone390.dc.html": {
+      "x": 13630,
+      "y": 260,
+      "w": 390,
+      "h": 1196,
+      "title": "Recipe editor, food search: more sources still searching (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchMoreSourcesDoneIphone390.dc.html": {
+      "x": 14100,
+      "y": 260,
+      "w": 390,
+      "h": 1312,
+      "title": "Recipe editor, food search: results from more sources (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchNoResultsIphone390.dc.html": {
+      "x": 14570,
+      "y": 260,
+      "w": 390,
+      "h": 1142,
+      "title": "Recipe editor, food search: no matches (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchReadingIphone390.dc.html": {
+      "x": 15040,
+      "y": 260,
+      "w": 390,
+      "h": 2031,
+      "title": "Recipe editor, food search: reading the typed text (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchPickInFlightIphone390.dc.html": {
+      "x": 15510,
+      "y": 260,
+      "w": 390,
+      "h": 1038,
+      "title": "Recipe editor, food search: adding a food (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchPickFailedIphone390.dc.html": {
+      "x": 15980,
+      "y": 260,
+      "w": 390,
+      "h": 2006,
+      "title": "Recipe editor, food search: a pick did not take (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchPendingTextIphone390.dc.html": {
+      "x": 16450,
+      "y": 260,
+      "w": 390,
+      "h": 1560,
+      "title": "Recipe editor, food search: text not added (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchAddedNeedsChoiceIphone390.dc.html": {
+      "x": 16920,
+      "y": 260,
+      "w": 390,
+      "h": 1079,
+      "title": "Recipe editor, food search: added, needs a choice (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchCatalogUnavailableIphone390.dc.html": {
+      "x": 17390,
+      "y": 260,
+      "w": 390,
+      "h": 1187,
+      "title": "Recipe editor, food search: food catalog unavailable (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchYourFoodsUnavailableIphone390.dc.html": {
+      "x": 17860,
+      "y": 260,
+      "w": 390,
+      "h": 1331,
+      "title": "Recipe editor, food search: your foods unavailable (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchBothUnavailableIphone390.dc.html": {
+      "x": 18330,
+      "y": 260,
+      "w": 390,
+      "h": 1193,
+      "title": "Recipe editor, food search: your foods and catalog unavailable (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchFailedIphone390.dc.html": {
+      "x": 18800,
+      "y": 260,
+      "w": 390,
+      "h": 1089,
+      "title": "Recipe editor, food search: search failed (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchOfflineIphone390.dc.html": {
+      "x": 19270,
+      "y": 260,
+      "w": 390,
+      "h": 1117,
+      "title": "Recipe editor, food search: offline (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchSourceLimitedIphone390.dc.html": {
+      "x": 19740,
+      "y": 260,
+      "w": 390,
+      "h": 1315,
+      "title": "Recipe editor, food search: lookup limit and busy source (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodSearchIncompleteIphone390.dc.html": {
+      "x": 20210,
+      "y": 260,
+      "w": 390,
+      "h": 1240,
+      "title": "Recipe editor, food search: search did not finish (mobile, iPhone 390)"
+    },
+    "RecipeEditorChangeFoodIphone390.dc.html": {
+      "x": 20680,
+      "y": 260,
+      "w": 390,
+      "h": 1436,
+      "title": "Recipe editor, change food on a saved recipe (mobile, iPhone 390)"
+    },
+    "RecipeEditorChangeFoodRefusedIphone390.dc.html": {
+      "x": 21150,
+      "y": 260,
+      "w": 390,
+      "h": 1355,
+      "title": "Recipe editor, change food: not saved (mobile, iPhone 390)"
+    },
+    "RecipeEditorIngredientRowStatesIphone390.dc.html": {
+      "x": 21620,
+      "y": 260,
+      "w": 390,
+      "h": 2147,
+      "title": "Recipe editor, every ingredient row state (mobile, iPhone 390)"
+    },
+    "RecipeEditorIngredientGroupsIphone390.dc.html": {
+      "x": 22090,
+      "y": 260,
+      "w": 390,
+      "h": 1373,
+      "title": "Recipe editor, ingredient groups (mobile, iPhone 390)"
+    },
+    "RecipeEditorRowEditorIphone390.dc.html": {
+      "x": 22560,
+      "y": 260,
+      "w": 390,
+      "h": 1000,
+      "title": "Recipe editor, edit an ingredient (mobile, iPhone 390)"
+    },
+    "RecipeEditorNutritionTotalIphone390.dc.html": {
+      "x": 23030,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, nutrition total states (mobile, iPhone 390)"
+    },
+    "RecipeEditorRowChooseMatchIphone390.dc.html": {
+      "x": 23500,
+      "y": 260,
+      "w": 390,
+      "h": 1481,
+      "title": "Recipe editor, choose a match (mobile, iPhone 390)"
+    },
+    "RecipeEditorRowChooseMatchStatesIphone390.dc.html": {
+      "x": 23970,
+      "y": 260,
+      "w": 390,
+      "h": 2479,
+      "title": "Recipe editor, choose a match: loading and problems (mobile, iPhone 390)"
+    },
+    "RecipeEditorRowNeedsReviewIphone390.dc.html": {
+      "x": 24440,
+      "y": 260,
+      "w": 390,
+      "h": 950,
+      "title": "Recipe editor, needs review (mobile, iPhone 390)"
+    },
+    "RecipeEditorRowNoMatchIphone390.dc.html": {
+      "x": 24910,
+      "y": 260,
+      "w": 390,
+      "h": 902,
+      "title": "Recipe editor, no match found (mobile, iPhone 390)"
+    },
+    "RecipeEditorRowLookupFailedIphone390.dc.html": {
+      "x": 25380,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, couldn't look up (mobile, iPhone 390)"
+    },
+    "RecipeEditorRowFoodRemovedIphone390.dc.html": {
+      "x": 25850,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, food no longer listed (mobile, iPhone 390)"
+    },
+    "RecipeEditorRowNutritionIphone390.dc.html": {
+      "x": 26320,
+      "y": 260,
+      "w": 390,
+      "h": 2073,
+      "title": "Recipe editor, an ingredient's nutrition (mobile, iPhone 390)"
+    },
+    "RecipeEditorCreateFoodIphone390.dc.html": {
+      "x": 26790,
+      "y": 260,
+      "w": 390,
+      "h": 1277,
+      "title": "Recipe editor, create my own food (mobile, iPhone 390)"
+    },
+    "RecipeEditorCreateFoodErrorsIphone390.dc.html": {
+      "x": 27260,
+      "y": 260,
+      "w": 390,
+      "h": 1371,
+      "title": "Recipe editor, create my own food: errors (mobile, iPhone 390)"
+    },
+    "RecipeEditorCreateFoodDuplicateIphone390.dc.html": {
+      "x": 27730,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, create my own food: name taken (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodDetailsIphone390.dc.html": {
+      "x": 28200,
+      "y": 260,
+      "w": 390,
+      "h": 1623,
+      "title": "Recipe editor, add details (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodDetailsSearchIphone390.dc.html": {
+      "x": 28670,
+      "y": 260,
+      "w": 390,
+      "h": 1725,
+      "title": "Recipe editor, add details: long list (mobile, iPhone 390)"
+    },
+    "RecipeEditorFoodDetailsStatesIphone390.dc.html": {
+      "x": 29140,
+      "y": 260,
+      "w": 390,
+      "h": 2270,
+      "title": "Recipe editor, add details: loading and problems (mobile, iPhone 390)"
+    },
+    "RecipeEditorPasteRefusedIphone390.dc.html": {
+      "x": 29610,
+      "y": 260,
+      "w": 390,
+      "h": 1961,
+      "title": "Recipe editor, paste a list: refused (mobile, iPhone 390)"
+    },
+    "RecipeEditorPasteReadingIphone390.dc.html": {
+      "x": 30080,
+      "y": 260,
+      "w": 390,
+      "h": 1180,
+      "title": "Recipe editor, paste a list: reading (mobile, iPhone 390)"
+    },
+    "RecipeEditorPasteNeedsYouIphone390.dc.html": {
+      "x": 30550,
+      "y": 260,
+      "w": 390,
+      "h": 1416,
+      "title": "Recipe editor, paste a list: lines need you (mobile, iPhone 390)"
+    },
+    "RecipeEditorPasteChooseIphone390.dc.html": {
+      "x": 31020,
+      "y": 260,
+      "w": 390,
+      "h": 1632,
+      "title": "Recipe editor, paste choose (mobile, iPhone 390)"
+    },
+    "RecipeEditorPasteChooseStatesIphone390.dc.html": {
+      "x": 31490,
+      "y": 260,
+      "w": 390,
+      "h": 1718,
+      "title": "Recipe editor, paste choose states (mobile, iPhone 390)"
+    },
+    "RecipeEditorPasteStalledIphone390.dc.html": {
+      "x": 31960,
+      "y": 260,
+      "w": 390,
+      "h": 1540,
+      "title": "Recipe editor, paste a list: taking longer (mobile, iPhone 390)"
+    },
+    "RecipeEditorPasteOfflineIphone390.dc.html": {
+      "x": 32430,
+      "y": 260,
+      "w": 390,
+      "h": 1276,
+      "title": "Recipe editor, paste a list: offline (mobile, iPhone 390)"
+    },
+    "RecipeEditorAndroid384.dc.html": {
+      "x": 0,
+      "y": 5763,
+      "w": 384,
+      "h": 4805,
+      "title": "Recipe editor (mobile, Android 384)"
+    },
+    "RecipeEditorTypingAndroid384.dc.html": {
+      "x": 464,
+      "y": 5763,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe editor, typing the title (mobile, Android 384)"
+    },
+    "RecipeEditorSheetAndroid384.dc.html": {
+      "x": 928,
+      "y": 5763,
+      "w": 384,
+      "h": 844,
+      "title": "Recipe editor, Paste a list sheet (mobile, Android 384)"
+    },
+    "RecipeEditorEditExistingAndroid384.dc.html": {
+      "x": 1392,
+      "y": 5763,
+      "w": 384,
+      "h": 4761,
+      "title": "Recipe editor, editing a saved recipe (mobile, Android 384)"
+    },
+    "RecipeEditorEmptyAndroid384.dc.html": {
+      "x": 1856,
+      "y": 5763,
+      "w": 384,
+      "h": 3020,
+      "title": "Recipe editor, new and empty (mobile, Android 384)"
+    },
+    "RecipeEditorReadyUnmatchedAndroid384.dc.html": {
+      "x": 2320,
+      "y": 5763,
+      "w": 384,
+      "h": 2439,
+      "title": "Recipe editor, ready with unmatched ingredients (mobile, Android 384)"
+    },
+    "RecipeEditorFixToPublishAndroid384.dc.html": {
+      "x": 2784,
+      "y": 5763,
+      "w": 384,
+      "h": 4107,
+      "title": "Recipe editor, fix to publish (mobile, Android 384)"
+    },
+    "RecipeEditorLoadingAndroid384.dc.html": {
+      "x": 3248,
+      "y": 5763,
+      "w": 384,
+      "h": 868,
+      "title": "Recipe editor, opening a saved recipe (mobile, Android 384)"
+    },
+    "RecipeEditorPreviewAndroid384.dc.html": {
+      "x": 3712,
+      "y": 5763,
+      "w": 384,
+      "h": 844,
+      "title": "Recipe editor, preview (mobile, Android 384)"
+    },
+    "RecipeEditorCuisineAndroid384.dc.html": {
+      "x": 4176,
+      "y": 5763,
+      "w": 384,
+      "h": 1048,
+      "title": "Recipe editor, cuisine (mobile, Android 384)"
+    },
+    "RecipeEditorPasteStepsAndroid384.dc.html": {
+      "x": 4640,
+      "y": 5763,
+      "w": 384,
+      "h": 844,
+      "title": "Recipe editor, paste steps (mobile, Android 384)"
+    },
+    "RecipeEditorPhotosUploadingAndroid384.dc.html": {
+      "x": 5104,
+      "y": 5763,
+      "w": 384,
+      "h": 1240,
+      "title": "Recipe editor, photos uploading (mobile, Android 384)"
+    },
+    "RecipeEditorPhotosErrorsAndroid384.dc.html": {
+      "x": 5568,
+      "y": 5763,
+      "w": 384,
+      "h": 1585,
+      "title": "Recipe editor, photo problems (mobile, Android 384)"
+    },
+    "RecipeEditorPhotoSourceAndroid384.dc.html": {
+      "x": 6032,
+      "y": 5763,
+      "w": 384,
+      "h": 1804,
+      "title": "Recipe editor, add photos sheet (mobile, Android 384)"
+    },
+    "RecipeEditorVisibilityAndroid384.dc.html": {
+      "x": 6496,
+      "y": 5763,
+      "w": 384,
+      "h": 2396,
+      "title": "Recipe editor, who can see it (mobile, Android 384)"
+    },
+    "RecipeEditorSaveStatusAndroid384.dc.html": {
+      "x": 6960,
+      "y": 5763,
+      "w": 384,
+      "h": 1128,
+      "title": "Recipe editor, save status (mobile, Android 384)"
+    },
+    "RecipeEditorResumeAndroid384.dc.html": {
+      "x": 7424,
+      "y": 5763,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe editor, unsaved changes found (mobile, Android 384)"
+    },
+    "RecipeEditorSaveFailedAndroid384.dc.html": {
+      "x": 7888,
+      "y": 5763,
+      "w": 384,
+      "h": 1620,
+      "title": "Recipe editor, save failed (mobile, Android 384)"
+    },
+    "RecipeEditorDiscardDraftAndroid384.dc.html": {
+      "x": 8352,
+      "y": 5763,
+      "w": 384,
+      "h": 2132,
+      "title": "Recipe editor, discard this draft? (mobile, Android 384)"
+    },
+    "RecipeEditorDiscardChangesAndroid384.dc.html": {
+      "x": 8816,
+      "y": 5763,
+      "w": 384,
+      "h": 1616,
+      "title": "Recipe editor, discard your changes? (mobile, Android 384)"
+    },
+    "RecipeEditorConflictAndroid384.dc.html": {
+      "x": 9280,
+      "y": 5763,
+      "w": 384,
+      "h": 1638,
+      "title": "Recipe editor, changed while you were editing (mobile, Android 384)"
+    },
+    "RecipeEditorConflictDraftAndroid384.dc.html": {
+      "x": 9744,
+      "y": 5763,
+      "w": 384,
+      "h": 1302,
+      "title": "Recipe editor, draft changed elsewhere (mobile, Android 384)"
+    },
+    "RecipeEditorConflictMergeAndroid384.dc.html": {
+      "x": 10208,
+      "y": 5763,
+      "w": 384,
+      "h": 1138,
+      "title": "Recipe editor, merge field by field (mobile, Android 384)"
+    },
+    "RecipeEditorConflictStaleBaseAndroid384.dc.html": {
+      "x": 10672,
+      "y": 5763,
+      "w": 384,
+      "h": 1736,
+      "title": "Recipe editor, far behind (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchTooShortAndroid384.dc.html": {
+      "x": 11136,
+      "y": 5763,
+      "w": 384,
+      "h": 838,
+      "title": "Recipe editor, food search: too short (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchSearchingAndroid384.dc.html": {
+      "x": 11600,
+      "y": 5763,
+      "w": 384,
+      "h": 977,
+      "title": "Recipe editor, food search: searching (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchResultsAndroid384.dc.html": {
+      "x": 12064,
+      "y": 5763,
+      "w": 384,
+      "h": 1271,
+      "title": "Recipe editor, food search: results (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchTypingAndroid384.dc.html": {
+      "x": 12528,
+      "y": 5763,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe editor, food search: results, typing a food (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchDefaultAndroid384.dc.html": {
+      "x": 12992,
+      "y": 5763,
+      "w": 384,
+      "h": 1122,
+      "title": "Recipe editor, food search default (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchMoreSourcesAndroid384.dc.html": {
+      "x": 13456,
+      "y": 5763,
+      "w": 384,
+      "h": 1163,
+      "title": "Recipe editor, food search: more sources still searching (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchMoreSourcesDoneAndroid384.dc.html": {
+      "x": 13920,
+      "y": 5763,
+      "w": 384,
+      "h": 1279,
+      "title": "Recipe editor, food search: results from more sources (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchNoResultsAndroid384.dc.html": {
+      "x": 14384,
+      "y": 5763,
+      "w": 384,
+      "h": 1109,
+      "title": "Recipe editor, food search: no matches (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchReadingAndroid384.dc.html": {
+      "x": 14848,
+      "y": 5763,
+      "w": 384,
+      "h": 1998,
+      "title": "Recipe editor, food search: reading the typed text (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchPickInFlightAndroid384.dc.html": {
+      "x": 15312,
+      "y": 5763,
+      "w": 384,
+      "h": 1005,
+      "title": "Recipe editor, food search: adding a food (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchPickFailedAndroid384.dc.html": {
+      "x": 15776,
+      "y": 5763,
+      "w": 384,
+      "h": 1997,
+      "title": "Recipe editor, food search: a pick did not take (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchPendingTextAndroid384.dc.html": {
+      "x": 16240,
+      "y": 5763,
+      "w": 384,
+      "h": 1551,
+      "title": "Recipe editor, food search: text not added (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchAddedNeedsChoiceAndroid384.dc.html": {
+      "x": 16704,
+      "y": 5763,
+      "w": 384,
+      "h": 1046,
+      "title": "Recipe editor, food search: added, needs a choice (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchCatalogUnavailableAndroid384.dc.html": {
+      "x": 17168,
+      "y": 5763,
+      "w": 384,
+      "h": 1154,
+      "title": "Recipe editor, food search: food catalog unavailable (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchYourFoodsUnavailableAndroid384.dc.html": {
+      "x": 17632,
+      "y": 5763,
+      "w": 384,
+      "h": 1298,
+      "title": "Recipe editor, food search: your foods unavailable (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchBothUnavailableAndroid384.dc.html": {
+      "x": 18096,
+      "y": 5763,
+      "w": 384,
+      "h": 1160,
+      "title": "Recipe editor, food search: your foods and catalog unavailable (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchFailedAndroid384.dc.html": {
+      "x": 18560,
+      "y": 5763,
+      "w": 384,
+      "h": 1056,
+      "title": "Recipe editor, food search: search failed (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchOfflineAndroid384.dc.html": {
+      "x": 19024,
+      "y": 5763,
+      "w": 384,
+      "h": 1084,
+      "title": "Recipe editor, food search: offline (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchSourceLimitedAndroid384.dc.html": {
+      "x": 19488,
+      "y": 5763,
+      "w": 384,
+      "h": 1282,
+      "title": "Recipe editor, food search: lookup limit and busy source (mobile, Android 384)"
+    },
+    "RecipeEditorFoodSearchIncompleteAndroid384.dc.html": {
+      "x": 19952,
+      "y": 5763,
+      "w": 384,
+      "h": 1207,
+      "title": "Recipe editor, food search: search did not finish (mobile, Android 384)"
+    },
+    "RecipeEditorChangeFoodAndroid384.dc.html": {
+      "x": 20416,
+      "y": 5763,
+      "w": 384,
+      "h": 1403,
+      "title": "Recipe editor, change food on a saved recipe (mobile, Android 384)"
+    },
+    "RecipeEditorChangeFoodRefusedAndroid384.dc.html": {
+      "x": 20880,
+      "y": 5763,
+      "w": 384,
+      "h": 1346,
+      "title": "Recipe editor, change food: not saved (mobile, Android 384)"
+    },
+    "RecipeEditorIngredientRowStatesAndroid384.dc.html": {
+      "x": 21344,
+      "y": 5763,
+      "w": 384,
+      "h": 2114,
+      "title": "Recipe editor, every ingredient row state (mobile, Android 384)"
+    },
+    "RecipeEditorIngredientGroupsAndroid384.dc.html": {
+      "x": 21808,
+      "y": 5763,
+      "w": 384,
+      "h": 1340,
+      "title": "Recipe editor, ingredient groups (mobile, Android 384)"
+    },
+    "RecipeEditorRowEditorAndroid384.dc.html": {
+      "x": 22272,
+      "y": 5763,
+      "w": 384,
+      "h": 1000,
+      "title": "Recipe editor, edit an ingredient (mobile, Android 384)"
+    },
+    "RecipeEditorNutritionTotalAndroid384.dc.html": {
+      "x": 22736,
+      "y": 5763,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe editor, nutrition total states (mobile, Android 384)"
+    },
+    "RecipeEditorRowChooseMatchAndroid384.dc.html": {
+      "x": 23200,
+      "y": 5763,
+      "w": 384,
+      "h": 1448,
+      "title": "Recipe editor, choose a match (mobile, Android 384)"
+    },
+    "RecipeEditorRowChooseMatchStatesAndroid384.dc.html": {
+      "x": 23664,
+      "y": 5763,
+      "w": 384,
+      "h": 2446,
+      "title": "Recipe editor, choose a match: loading and problems (mobile, Android 384)"
+    },
+    "RecipeEditorRowNeedsReviewAndroid384.dc.html": {
+      "x": 24128,
+      "y": 5763,
+      "w": 384,
+      "h": 917,
+      "title": "Recipe editor, needs review (mobile, Android 384)"
+    },
+    "RecipeEditorRowNoMatchAndroid384.dc.html": {
+      "x": 24592,
+      "y": 5763,
+      "w": 384,
+      "h": 869,
+      "title": "Recipe editor, no match found (mobile, Android 384)"
+    },
+    "RecipeEditorRowLookupFailedAndroid384.dc.html": {
+      "x": 25056,
+      "y": 5763,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe editor, couldn't look up (mobile, Android 384)"
+    },
+    "RecipeEditorRowFoodRemovedAndroid384.dc.html": {
+      "x": 25520,
+      "y": 5763,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe editor, food no longer listed (mobile, Android 384)"
+    },
+    "RecipeEditorRowNutritionAndroid384.dc.html": {
+      "x": 25984,
+      "y": 5763,
+      "w": 384,
+      "h": 2060,
+      "title": "Recipe editor, an ingredient's nutrition (mobile, Android 384)"
+    },
+    "RecipeEditorCreateFoodAndroid384.dc.html": {
+      "x": 26448,
+      "y": 5763,
+      "w": 384,
+      "h": 1244,
+      "title": "Recipe editor, create my own food (mobile, Android 384)"
+    },
+    "RecipeEditorCreateFoodErrorsAndroid384.dc.html": {
+      "x": 26912,
+      "y": 5763,
+      "w": 384,
+      "h": 1338,
+      "title": "Recipe editor, create my own food: errors (mobile, Android 384)"
+    },
+    "RecipeEditorCreateFoodDuplicateAndroid384.dc.html": {
+      "x": 27376,
+      "y": 5763,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe editor, create my own food: name taken (mobile, Android 384)"
+    },
+    "RecipeEditorFoodDetailsAndroid384.dc.html": {
+      "x": 27840,
+      "y": 5763,
+      "w": 384,
+      "h": 1590,
+      "title": "Recipe editor, add details (mobile, Android 384)"
+    },
+    "RecipeEditorFoodDetailsSearchAndroid384.dc.html": {
+      "x": 28304,
+      "y": 5763,
+      "w": 384,
+      "h": 1692,
+      "title": "Recipe editor, add details: long list (mobile, Android 384)"
+    },
+    "RecipeEditorFoodDetailsStatesAndroid384.dc.html": {
+      "x": 28768,
+      "y": 5763,
+      "w": 384,
+      "h": 2237,
+      "title": "Recipe editor, add details: loading and problems (mobile, Android 384)"
+    },
+    "RecipeEditorPasteRefusedAndroid384.dc.html": {
+      "x": 29232,
+      "y": 5763,
+      "w": 384,
+      "h": 1928,
+      "title": "Recipe editor, paste a list: refused (mobile, Android 384)"
+    },
+    "RecipeEditorPasteReadingAndroid384.dc.html": {
+      "x": 29696,
+      "y": 5763,
+      "w": 384,
+      "h": 1147,
+      "title": "Recipe editor, paste a list: reading (mobile, Android 384)"
+    },
+    "RecipeEditorPasteNeedsYouAndroid384.dc.html": {
+      "x": 30160,
+      "y": 5763,
+      "w": 384,
+      "h": 1435,
+      "title": "Recipe editor, paste a list: lines need you (mobile, Android 384)"
+    },
+    "RecipeEditorPasteChooseAndroid384.dc.html": {
+      "x": 30624,
+      "y": 5763,
+      "w": 384,
+      "h": 1589,
+      "title": "Recipe editor, paste choose (mobile, Android 384)"
+    },
+    "RecipeEditorPasteChooseStatesAndroid384.dc.html": {
+      "x": 31088,
+      "y": 5763,
+      "w": 384,
+      "h": 1675,
+      "title": "Recipe editor, paste choose states (mobile, Android 384)"
+    },
+    "RecipeEditorPasteStalledAndroid384.dc.html": {
+      "x": 31552,
+      "y": 5763,
+      "w": 384,
+      "h": 1507,
+      "title": "Recipe editor, paste a list: taking longer (mobile, Android 384)"
+    },
+    "RecipeEditorPasteOfflineAndroid384.dc.html": {
+      "x": 32016,
+      "y": 5763,
+      "w": 384,
+      "h": 1243,
+      "title": "Recipe editor, paste a list: offline (mobile, Android 384)"
+    },
+    "RecipeEditorIpad820.dc.html": {
+      "x": 0,
+      "y": 11228,
+      "w": 820,
+      "h": 4579,
+      "title": "Recipe editor (mobile, iPad 820)"
+    },
+    "RecipeEditorTypingIpad820.dc.html": {
+      "x": 900,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, typing the title (mobile, iPad 820)"
+    },
+    "RecipeEditorSheetIpad820.dc.html": {
+      "x": 1800,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, Paste a list sheet (mobile, iPad 820)"
+    },
+    "RecipeEditorEditExistingIpad820.dc.html": {
+      "x": 2700,
+      "y": 11228,
+      "w": 820,
+      "h": 4813,
+      "title": "Recipe editor, editing a saved recipe (mobile, iPad 820)"
+    },
+    "RecipeEditorEmptyIpad820.dc.html": {
+      "x": 3600,
+      "y": 11228,
+      "w": 820,
+      "h": 3096,
+      "title": "Recipe editor, new and empty (mobile, iPad 820)"
+    },
+    "RecipeEditorReadyUnmatchedIpad820.dc.html": {
+      "x": 4500,
+      "y": 11228,
+      "w": 820,
+      "h": 2523,
+      "title": "Recipe editor, ready with unmatched ingredients (mobile, iPad 820)"
+    },
+    "RecipeEditorFixToPublishIpad820.dc.html": {
+      "x": 5400,
+      "y": 11228,
+      "w": 820,
+      "h": 4135,
+      "title": "Recipe editor, fix to publish (mobile, iPad 820)"
+    },
+    "RecipeEditorLoadingIpad820.dc.html": {
+      "x": 6300,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, opening a saved recipe (mobile, iPad 820)"
+    },
+    "RecipeEditorPreviewIpad820.dc.html": {
+      "x": 7200,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, preview (mobile, iPad 820)"
+    },
+    "RecipeEditorCuisineIpad820.dc.html": {
+      "x": 8100,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, cuisine (mobile, iPad 820)"
+    },
+    "RecipeEditorPasteStepsIpad820.dc.html": {
+      "x": 9000,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, paste steps (mobile, iPad 820)"
+    },
+    "RecipeEditorPhotosUploadingIpad820.dc.html": {
+      "x": 9900,
+      "y": 11228,
+      "w": 820,
+      "h": 1355,
+      "title": "Recipe editor, photos uploading (mobile, iPad 820)"
+    },
+    "RecipeEditorPhotosErrorsIpad820.dc.html": {
+      "x": 10800,
+      "y": 11228,
+      "w": 820,
+      "h": 1865,
+      "title": "Recipe editor, photo problems (mobile, iPad 820)"
+    },
+    "RecipeEditorPhotoSourceIpad820.dc.html": {
+      "x": 11700,
+      "y": 11228,
+      "w": 820,
+      "h": 1712,
+      "title": "Recipe editor, add photos sheet (mobile, iPad 820)"
+    },
+    "RecipeEditorVisibilityIpad820.dc.html": {
+      "x": 12600,
+      "y": 11228,
+      "w": 820,
+      "h": 2232,
+      "title": "Recipe editor, who can see it (mobile, iPad 820)"
+    },
+    "RecipeEditorSaveStatusIpad820.dc.html": {
+      "x": 13500,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, save status (mobile, iPad 820)"
+    },
+    "RecipeEditorResumeIpad820.dc.html": {
+      "x": 14400,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, unsaved changes found (mobile, iPad 820)"
+    },
+    "RecipeEditorSaveFailedIpad820.dc.html": {
+      "x": 15300,
+      "y": 11228,
+      "w": 820,
+      "h": 1452,
+      "title": "Recipe editor, save failed (mobile, iPad 820)"
+    },
+    "RecipeEditorDiscardDraftIpad820.dc.html": {
+      "x": 16200,
+      "y": 11228,
+      "w": 820,
+      "h": 2068,
+      "title": "Recipe editor, discard this draft? (mobile, iPad 820)"
+    },
+    "RecipeEditorDiscardChangesIpad820.dc.html": {
+      "x": 17100,
+      "y": 11228,
+      "w": 820,
+      "h": 1552,
+      "title": "Recipe editor, discard your changes? (mobile, iPad 820)"
+    },
+    "RecipeEditorConflictIpad820.dc.html": {
+      "x": 18000,
+      "y": 11228,
+      "w": 820,
+      "h": 1550,
+      "title": "Recipe editor, changed while you were editing (mobile, iPad 820)"
+    },
+    "RecipeEditorConflictDraftIpad820.dc.html": {
+      "x": 18900,
+      "y": 11228,
+      "w": 820,
+      "h": 1218,
+      "title": "Recipe editor, draft changed elsewhere (mobile, iPad 820)"
+    },
+    "RecipeEditorConflictMergeIpad820.dc.html": {
+      "x": 19800,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, merge field by field (mobile, iPad 820)"
+    },
+    "RecipeEditorConflictStaleBaseIpad820.dc.html": {
+      "x": 20700,
+      "y": 11228,
+      "w": 820,
+      "h": 1580,
+      "title": "Recipe editor, far behind (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchTooShortIpad820.dc.html": {
+      "x": 21600,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food search: too short (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchSearchingIpad820.dc.html": {
+      "x": 22500,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food search: searching (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchResultsIpad820.dc.html": {
+      "x": 23400,
+      "y": 11228,
+      "w": 820,
+      "h": 1223,
+      "title": "Recipe editor, food search: results (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchTypingIpad820.dc.html": {
+      "x": 24300,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food search: results, typing a food (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchDefaultIpad820.dc.html": {
+      "x": 25200,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food search default (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchMoreSourcesIpad820.dc.html": {
+      "x": 26100,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food search: more sources still searching (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchMoreSourcesDoneIpad820.dc.html": {
+      "x": 27000,
+      "y": 11228,
+      "w": 820,
+      "h": 1231,
+      "title": "Recipe editor, food search: results from more sources (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchNoResultsIpad820.dc.html": {
+      "x": 27900,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food search: no matches (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchReadingIpad820.dc.html": {
+      "x": 28800,
+      "y": 11228,
+      "w": 820,
+      "h": 1830,
+      "title": "Recipe editor, food search: reading the typed text (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchPickInFlightIpad820.dc.html": {
+      "x": 29700,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food search: adding a food (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchPickFailedIpad820.dc.html": {
+      "x": 30600,
+      "y": 11228,
+      "w": 820,
+      "h": 1805,
+      "title": "Recipe editor, food search: a pick did not take (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchPendingTextIpad820.dc.html": {
+      "x": 31500,
+      "y": 11228,
+      "w": 820,
+      "h": 1395,
+      "title": "Recipe editor, food search: text not added (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchAddedNeedsChoiceIpad820.dc.html": {
+      "x": 32400,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food search: added, needs a choice (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchCatalogUnavailableIpad820.dc.html": {
+      "x": 33300,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food search: food catalog unavailable (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchYourFoodsUnavailableIpad820.dc.html": {
+      "x": 34200,
+      "y": 11228,
+      "w": 820,
+      "h": 1228,
+      "title": "Recipe editor, food search: your foods unavailable (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchBothUnavailableIpad820.dc.html": {
+      "x": 35100,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food search: your foods and catalog unavailable (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchFailedIpad820.dc.html": {
+      "x": 36000,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food search: search failed (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchOfflineIpad820.dc.html": {
+      "x": 36900,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food search: offline (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchSourceLimitedIpad820.dc.html": {
+      "x": 37800,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food search: lookup limit and busy source (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodSearchIncompleteIpad820.dc.html": {
+      "x": 38700,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food search: search did not finish (mobile, iPad 820)"
+    },
+    "RecipeEditorChangeFoodIpad820.dc.html": {
+      "x": 39600,
+      "y": 11228,
+      "w": 820,
+      "h": 1291,
+      "title": "Recipe editor, change food on a saved recipe (mobile, iPad 820)"
+    },
+    "RecipeEditorChangeFoodRefusedIpad820.dc.html": {
+      "x": 40500,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, change food: not saved (mobile, iPad 820)"
+    },
+    "RecipeEditorIngredientRowStatesIpad820.dc.html": {
+      "x": 41400,
+      "y": 11228,
+      "w": 820,
+      "h": 2026,
+      "title": "Recipe editor, every ingredient row state (mobile, iPad 820)"
+    },
+    "RecipeEditorIngredientGroupsIpad820.dc.html": {
+      "x": 42300,
+      "y": 11228,
+      "w": 820,
+      "h": 1292,
+      "title": "Recipe editor, ingredient groups (mobile, iPad 820)"
+    },
+    "RecipeEditorRowEditorIpad820.dc.html": {
+      "x": 43200,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, edit an ingredient (mobile, iPad 820)"
+    },
+    "RecipeEditorNutritionTotalIpad820.dc.html": {
+      "x": 44100,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, nutrition total states (mobile, iPad 820)"
+    },
+    "RecipeEditorRowChooseMatchIpad820.dc.html": {
+      "x": 45000,
+      "y": 11228,
+      "w": 820,
+      "h": 1404,
+      "title": "Recipe editor, choose a match (mobile, iPad 820)"
+    },
+    "RecipeEditorRowChooseMatchStatesIpad820.dc.html": {
+      "x": 45900,
+      "y": 11228,
+      "w": 820,
+      "h": 2338,
+      "title": "Recipe editor, choose a match: loading and problems (mobile, iPad 820)"
+    },
+    "RecipeEditorRowNeedsReviewIpad820.dc.html": {
+      "x": 46800,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, needs review (mobile, iPad 820)"
+    },
+    "RecipeEditorRowNoMatchIpad820.dc.html": {
+      "x": 47700,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, no match found (mobile, iPad 820)"
+    },
+    "RecipeEditorRowLookupFailedIpad820.dc.html": {
+      "x": 48600,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, couldn't look up (mobile, iPad 820)"
+    },
+    "RecipeEditorRowFoodRemovedIpad820.dc.html": {
+      "x": 49500,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, food no longer listed (mobile, iPad 820)"
+    },
+    "RecipeEditorRowNutritionIpad820.dc.html": {
+      "x": 50400,
+      "y": 11228,
+      "w": 820,
+      "h": 1948,
+      "title": "Recipe editor, an ingredient's nutrition (mobile, iPad 820)"
+    },
+    "RecipeEditorCreateFoodIpad820.dc.html": {
+      "x": 51300,
+      "y": 11228,
+      "w": 820,
+      "h": 1240,
+      "title": "Recipe editor, create my own food (mobile, iPad 820)"
+    },
+    "RecipeEditorCreateFoodErrorsIpad820.dc.html": {
+      "x": 52200,
+      "y": 11228,
+      "w": 820,
+      "h": 1314,
+      "title": "Recipe editor, create my own food: errors (mobile, iPad 820)"
+    },
+    "RecipeEditorCreateFoodDuplicateIpad820.dc.html": {
+      "x": 53100,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, create my own food: name taken (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodDetailsIpad820.dc.html": {
+      "x": 54000,
+      "y": 11228,
+      "w": 820,
+      "h": 1526,
+      "title": "Recipe editor, add details (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodDetailsSearchIpad820.dc.html": {
+      "x": 54900,
+      "y": 11228,
+      "w": 820,
+      "h": 1668,
+      "title": "Recipe editor, add details: long list (mobile, iPad 820)"
+    },
+    "RecipeEditorFoodDetailsStatesIpad820.dc.html": {
+      "x": 55800,
+      "y": 11228,
+      "w": 820,
+      "h": 2141,
+      "title": "Recipe editor, add details: loading and problems (mobile, iPad 820)"
+    },
+    "RecipeEditorPasteRefusedIpad820.dc.html": {
+      "x": 56700,
+      "y": 11228,
+      "w": 820,
+      "h": 1852,
+      "title": "Recipe editor, paste a list: refused (mobile, iPad 820)"
+    },
+    "RecipeEditorPasteReadingIpad820.dc.html": {
+      "x": 57600,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, paste a list: reading (mobile, iPad 820)"
+    },
+    "RecipeEditorPasteNeedsYouIpad820.dc.html": {
+      "x": 58500,
+      "y": 11228,
+      "w": 820,
+      "h": 1315,
+      "title": "Recipe editor, paste a list: lines need you (mobile, iPad 820)"
+    },
+    "RecipeEditorPasteChooseIpad820.dc.html": {
+      "x": 59400,
+      "y": 11228,
+      "w": 820,
+      "h": 1557,
+      "title": "Recipe editor, paste choose (mobile, iPad 820)"
+    },
+    "RecipeEditorPasteChooseStatesIpad820.dc.html": {
+      "x": 60300,
+      "y": 11228,
+      "w": 820,
+      "h": 1463,
+      "title": "Recipe editor, paste choose states (mobile, iPad 820)"
+    },
+    "RecipeEditorPasteStalledIpad820.dc.html": {
+      "x": 61200,
+      "y": 11228,
+      "w": 820,
+      "h": 1459,
+      "title": "Recipe editor, paste a list: taking longer (mobile, iPad 820)"
+    },
+    "RecipeEditorPasteOfflineIpad820.dc.html": {
+      "x": 62100,
+      "y": 11228,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe editor, paste a list: offline (mobile, iPad 820)"
+    }
+  },
+  "order": [
+    "RecipeEditorIphone390.dc.html",
+    "RecipeEditorTypingIphone390.dc.html",
+    "RecipeEditorSheetIphone390.dc.html",
+    "RecipeEditorEditExistingIphone390.dc.html",
+    "RecipeEditorEmptyIphone390.dc.html",
+    "RecipeEditorReadyUnmatchedIphone390.dc.html",
+    "RecipeEditorFixToPublishIphone390.dc.html",
+    "RecipeEditorLoadingIphone390.dc.html",
+    "RecipeEditorPreviewIphone390.dc.html",
+    "RecipeEditorCuisineIphone390.dc.html",
+    "RecipeEditorPasteStepsIphone390.dc.html",
+    "RecipeEditorPhotosUploadingIphone390.dc.html",
+    "RecipeEditorPhotosErrorsIphone390.dc.html",
+    "RecipeEditorPhotoSourceIphone390.dc.html",
+    "RecipeEditorVisibilityIphone390.dc.html",
+    "RecipeEditorSaveStatusIphone390.dc.html",
+    "RecipeEditorResumeIphone390.dc.html",
+    "RecipeEditorSaveFailedIphone390.dc.html",
+    "RecipeEditorDiscardDraftIphone390.dc.html",
+    "RecipeEditorDiscardChangesIphone390.dc.html",
+    "RecipeEditorConflictIphone390.dc.html",
+    "RecipeEditorConflictDraftIphone390.dc.html",
+    "RecipeEditorConflictMergeIphone390.dc.html",
+    "RecipeEditorConflictStaleBaseIphone390.dc.html",
+    "RecipeEditorFoodSearchTooShortIphone390.dc.html",
+    "RecipeEditorFoodSearchSearchingIphone390.dc.html",
+    "RecipeEditorFoodSearchResultsIphone390.dc.html",
+    "RecipeEditorFoodSearchTypingIphone390.dc.html",
+    "RecipeEditorFoodSearchDefaultIphone390.dc.html",
+    "RecipeEditorFoodSearchMoreSourcesIphone390.dc.html",
+    "RecipeEditorFoodSearchMoreSourcesDoneIphone390.dc.html",
+    "RecipeEditorFoodSearchNoResultsIphone390.dc.html",
+    "RecipeEditorFoodSearchReadingIphone390.dc.html",
+    "RecipeEditorFoodSearchPickInFlightIphone390.dc.html",
+    "RecipeEditorFoodSearchPickFailedIphone390.dc.html",
+    "RecipeEditorFoodSearchPendingTextIphone390.dc.html",
+    "RecipeEditorFoodSearchAddedNeedsChoiceIphone390.dc.html",
+    "RecipeEditorFoodSearchCatalogUnavailableIphone390.dc.html",
+    "RecipeEditorFoodSearchYourFoodsUnavailableIphone390.dc.html",
+    "RecipeEditorFoodSearchBothUnavailableIphone390.dc.html",
+    "RecipeEditorFoodSearchFailedIphone390.dc.html",
+    "RecipeEditorFoodSearchOfflineIphone390.dc.html",
+    "RecipeEditorFoodSearchSourceLimitedIphone390.dc.html",
+    "RecipeEditorFoodSearchIncompleteIphone390.dc.html",
+    "RecipeEditorChangeFoodIphone390.dc.html",
+    "RecipeEditorChangeFoodRefusedIphone390.dc.html",
+    "RecipeEditorIngredientRowStatesIphone390.dc.html",
+    "RecipeEditorIngredientGroupsIphone390.dc.html",
+    "RecipeEditorRowEditorIphone390.dc.html",
+    "RecipeEditorNutritionTotalIphone390.dc.html",
+    "RecipeEditorRowChooseMatchIphone390.dc.html",
+    "RecipeEditorRowChooseMatchStatesIphone390.dc.html",
+    "RecipeEditorRowNeedsReviewIphone390.dc.html",
+    "RecipeEditorRowNoMatchIphone390.dc.html",
+    "RecipeEditorRowLookupFailedIphone390.dc.html",
+    "RecipeEditorRowFoodRemovedIphone390.dc.html",
+    "RecipeEditorRowNutritionIphone390.dc.html",
+    "RecipeEditorCreateFoodIphone390.dc.html",
+    "RecipeEditorCreateFoodErrorsIphone390.dc.html",
+    "RecipeEditorCreateFoodDuplicateIphone390.dc.html",
+    "RecipeEditorFoodDetailsIphone390.dc.html",
+    "RecipeEditorFoodDetailsSearchIphone390.dc.html",
+    "RecipeEditorFoodDetailsStatesIphone390.dc.html",
+    "RecipeEditorPasteRefusedIphone390.dc.html",
+    "RecipeEditorPasteReadingIphone390.dc.html",
+    "RecipeEditorPasteNeedsYouIphone390.dc.html",
+    "RecipeEditorPasteChooseIphone390.dc.html",
+    "RecipeEditorPasteChooseStatesIphone390.dc.html",
+    "RecipeEditorPasteStalledIphone390.dc.html",
+    "RecipeEditorPasteOfflineIphone390.dc.html",
+    "RecipeEditorAndroid384.dc.html",
+    "RecipeEditorTypingAndroid384.dc.html",
+    "RecipeEditorSheetAndroid384.dc.html",
+    "RecipeEditorEditExistingAndroid384.dc.html",
+    "RecipeEditorEmptyAndroid384.dc.html",
+    "RecipeEditorReadyUnmatchedAndroid384.dc.html",
+    "RecipeEditorFixToPublishAndroid384.dc.html",
+    "RecipeEditorLoadingAndroid384.dc.html",
+    "RecipeEditorPreviewAndroid384.dc.html",
+    "RecipeEditorCuisineAndroid384.dc.html",
+    "RecipeEditorPasteStepsAndroid384.dc.html",
+    "RecipeEditorPhotosUploadingAndroid384.dc.html",
+    "RecipeEditorPhotosErrorsAndroid384.dc.html",
+    "RecipeEditorPhotoSourceAndroid384.dc.html",
+    "RecipeEditorVisibilityAndroid384.dc.html",
+    "RecipeEditorSaveStatusAndroid384.dc.html",
+    "RecipeEditorResumeAndroid384.dc.html",
+    "RecipeEditorSaveFailedAndroid384.dc.html",
+    "RecipeEditorDiscardDraftAndroid384.dc.html",
+    "RecipeEditorDiscardChangesAndroid384.dc.html",
+    "RecipeEditorConflictAndroid384.dc.html",
+    "RecipeEditorConflictDraftAndroid384.dc.html",
+    "RecipeEditorConflictMergeAndroid384.dc.html",
+    "RecipeEditorConflictStaleBaseAndroid384.dc.html",
+    "RecipeEditorFoodSearchTooShortAndroid384.dc.html",
+    "RecipeEditorFoodSearchSearchingAndroid384.dc.html",
+    "RecipeEditorFoodSearchResultsAndroid384.dc.html",
+    "RecipeEditorFoodSearchTypingAndroid384.dc.html",
+    "RecipeEditorFoodSearchDefaultAndroid384.dc.html",
+    "RecipeEditorFoodSearchMoreSourcesAndroid384.dc.html",
+    "RecipeEditorFoodSearchMoreSourcesDoneAndroid384.dc.html",
+    "RecipeEditorFoodSearchNoResultsAndroid384.dc.html",
+    "RecipeEditorFoodSearchReadingAndroid384.dc.html",
+    "RecipeEditorFoodSearchPickInFlightAndroid384.dc.html",
+    "RecipeEditorFoodSearchPickFailedAndroid384.dc.html",
+    "RecipeEditorFoodSearchPendingTextAndroid384.dc.html",
+    "RecipeEditorFoodSearchAddedNeedsChoiceAndroid384.dc.html",
+    "RecipeEditorFoodSearchCatalogUnavailableAndroid384.dc.html",
+    "RecipeEditorFoodSearchYourFoodsUnavailableAndroid384.dc.html",
+    "RecipeEditorFoodSearchBothUnavailableAndroid384.dc.html",
+    "RecipeEditorFoodSearchFailedAndroid384.dc.html",
+    "RecipeEditorFoodSearchOfflineAndroid384.dc.html",
+    "RecipeEditorFoodSearchSourceLimitedAndroid384.dc.html",
+    "RecipeEditorFoodSearchIncompleteAndroid384.dc.html",
+    "RecipeEditorChangeFoodAndroid384.dc.html",
+    "RecipeEditorChangeFoodRefusedAndroid384.dc.html",
+    "RecipeEditorIngredientRowStatesAndroid384.dc.html",
+    "RecipeEditorIngredientGroupsAndroid384.dc.html",
+    "RecipeEditorRowEditorAndroid384.dc.html",
+    "RecipeEditorNutritionTotalAndroid384.dc.html",
+    "RecipeEditorRowChooseMatchAndroid384.dc.html",
+    "RecipeEditorRowChooseMatchStatesAndroid384.dc.html",
+    "RecipeEditorRowNeedsReviewAndroid384.dc.html",
+    "RecipeEditorRowNoMatchAndroid384.dc.html",
+    "RecipeEditorRowLookupFailedAndroid384.dc.html",
+    "RecipeEditorRowFoodRemovedAndroid384.dc.html",
+    "RecipeEditorRowNutritionAndroid384.dc.html",
+    "RecipeEditorCreateFoodAndroid384.dc.html",
+    "RecipeEditorCreateFoodErrorsAndroid384.dc.html",
+    "RecipeEditorCreateFoodDuplicateAndroid384.dc.html",
+    "RecipeEditorFoodDetailsAndroid384.dc.html",
+    "RecipeEditorFoodDetailsSearchAndroid384.dc.html",
+    "RecipeEditorFoodDetailsStatesAndroid384.dc.html",
+    "RecipeEditorPasteRefusedAndroid384.dc.html",
+    "RecipeEditorPasteReadingAndroid384.dc.html",
+    "RecipeEditorPasteNeedsYouAndroid384.dc.html",
+    "RecipeEditorPasteChooseAndroid384.dc.html",
+    "RecipeEditorPasteChooseStatesAndroid384.dc.html",
+    "RecipeEditorPasteStalledAndroid384.dc.html",
+    "RecipeEditorPasteOfflineAndroid384.dc.html",
+    "RecipeEditorIpad820.dc.html",
+    "RecipeEditorTypingIpad820.dc.html",
+    "RecipeEditorSheetIpad820.dc.html",
+    "RecipeEditorEditExistingIpad820.dc.html",
+    "RecipeEditorEmptyIpad820.dc.html",
+    "RecipeEditorReadyUnmatchedIpad820.dc.html",
+    "RecipeEditorFixToPublishIpad820.dc.html",
+    "RecipeEditorLoadingIpad820.dc.html",
+    "RecipeEditorPreviewIpad820.dc.html",
+    "RecipeEditorCuisineIpad820.dc.html",
+    "RecipeEditorPasteStepsIpad820.dc.html",
+    "RecipeEditorPhotosUploadingIpad820.dc.html",
+    "RecipeEditorPhotosErrorsIpad820.dc.html",
+    "RecipeEditorPhotoSourceIpad820.dc.html",
+    "RecipeEditorVisibilityIpad820.dc.html",
+    "RecipeEditorSaveStatusIpad820.dc.html",
+    "RecipeEditorResumeIpad820.dc.html",
+    "RecipeEditorSaveFailedIpad820.dc.html",
+    "RecipeEditorDiscardDraftIpad820.dc.html",
+    "RecipeEditorDiscardChangesIpad820.dc.html",
+    "RecipeEditorConflictIpad820.dc.html",
+    "RecipeEditorConflictDraftIpad820.dc.html",
+    "RecipeEditorConflictMergeIpad820.dc.html",
+    "RecipeEditorConflictStaleBaseIpad820.dc.html",
+    "RecipeEditorFoodSearchTooShortIpad820.dc.html",
+    "RecipeEditorFoodSearchSearchingIpad820.dc.html",
+    "RecipeEditorFoodSearchResultsIpad820.dc.html",
+    "RecipeEditorFoodSearchTypingIpad820.dc.html",
+    "RecipeEditorFoodSearchDefaultIpad820.dc.html",
+    "RecipeEditorFoodSearchMoreSourcesIpad820.dc.html",
+    "RecipeEditorFoodSearchMoreSourcesDoneIpad820.dc.html",
+    "RecipeEditorFoodSearchNoResultsIpad820.dc.html",
+    "RecipeEditorFoodSearchReadingIpad820.dc.html",
+    "RecipeEditorFoodSearchPickInFlightIpad820.dc.html",
+    "RecipeEditorFoodSearchPickFailedIpad820.dc.html",
+    "RecipeEditorFoodSearchPendingTextIpad820.dc.html",
+    "RecipeEditorFoodSearchAddedNeedsChoiceIpad820.dc.html",
+    "RecipeEditorFoodSearchCatalogUnavailableIpad820.dc.html",
+    "RecipeEditorFoodSearchYourFoodsUnavailableIpad820.dc.html",
+    "RecipeEditorFoodSearchBothUnavailableIpad820.dc.html",
+    "RecipeEditorFoodSearchFailedIpad820.dc.html",
+    "RecipeEditorFoodSearchOfflineIpad820.dc.html",
+    "RecipeEditorFoodSearchSourceLimitedIpad820.dc.html",
+    "RecipeEditorFoodSearchIncompleteIpad820.dc.html",
+    "RecipeEditorChangeFoodIpad820.dc.html",
+    "RecipeEditorChangeFoodRefusedIpad820.dc.html",
+    "RecipeEditorIngredientRowStatesIpad820.dc.html",
+    "RecipeEditorIngredientGroupsIpad820.dc.html",
+    "RecipeEditorRowEditorIpad820.dc.html",
+    "RecipeEditorNutritionTotalIpad820.dc.html",
+    "RecipeEditorRowChooseMatchIpad820.dc.html",
+    "RecipeEditorRowChooseMatchStatesIpad820.dc.html",
+    "RecipeEditorRowNeedsReviewIpad820.dc.html",
+    "RecipeEditorRowNoMatchIpad820.dc.html",
+    "RecipeEditorRowLookupFailedIpad820.dc.html",
+    "RecipeEditorRowFoodRemovedIpad820.dc.html",
+    "RecipeEditorRowNutritionIpad820.dc.html",
+    "RecipeEditorCreateFoodIpad820.dc.html",
+    "RecipeEditorCreateFoodErrorsIpad820.dc.html",
+    "RecipeEditorCreateFoodDuplicateIpad820.dc.html",
+    "RecipeEditorFoodDetailsIpad820.dc.html",
+    "RecipeEditorFoodDetailsSearchIpad820.dc.html",
+    "RecipeEditorFoodDetailsStatesIpad820.dc.html",
+    "RecipeEditorPasteRefusedIpad820.dc.html",
+    "RecipeEditorPasteReadingIpad820.dc.html",
+    "RecipeEditorPasteNeedsYouIpad820.dc.html",
+    "RecipeEditorPasteChooseIpad820.dc.html",
+    "RecipeEditorPasteChooseStatesIpad820.dc.html",
+    "RecipeEditorPasteStalledIpad820.dc.html",
+    "RecipeEditorPasteOfflineIpad820.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Recipe editor: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 5503,
+      "text": "Recipe editor: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 10968,
+      "text": "Recipe editor: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

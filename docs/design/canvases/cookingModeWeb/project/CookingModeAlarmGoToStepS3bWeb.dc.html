@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Cooking mode, S3b alarm with "Stop and go to step" (web)</title>
+        <script src="./support.js"></script>
+    </head>
+    <body>
+        <!-- S3b board, built by buildS3bBoards.py (squad Stellar designer, plan 0111). Design artifact, not app code. -->
+        <x-dc><helmet><style>
+[data-theme='light'] { --canvas: #eff3f6; --paper: #fcfdff; --ink: #171b20; --ink-muted: #5c646e; --line-control: #80878f; --line-divider: #dfe3e8; --action: #325c7f; --action-text: #325c7f; --here-bar: #325c7f; --attention: #8c5a00; --paper-raised: #ffffff; --paper-overlay: #ffffff; --surface-muted: #e9edf2; --inverse: #171b20; --inverse-ink: #ffffff; --scrim: rgba(10, 16, 24, 0.42); --on-action: #ffffff; --shadow-lg: 0 2px 4px rgba(10, 20, 30, 0.08), 0 8px 22px rgba(10, 20, 30, 0.12); }
+[data-theme='dark'] { --canvas: #0e161e; --paper: #172029; --ink: #ebeff2; --ink-muted: #a3acb6; --line-control: #7d8792; --line-divider: #262f38; --action: #96bcde; --action-text: #96bcde; --here-bar: #96bcde; --attention: #efba64; --paper-raised: #212b36; --paper-overlay: #26313d; --surface-muted: #212b36; --inverse: #ebeff2; --inverse-ink: #171b20; --scrim: rgba(0, 0, 0, 0.66); --on-action: #0e161e; --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.4); }
+[data-theme='dark'].osScreen, [data-theme='dark'] .osScreen { --os-wall: linear-gradient(180deg, #2b3440, #11161c); --os-wall-ink: #ffffff; --os-card: rgba(56, 66, 79, 0.94); --os-card-ink: #ebeff2; --os-card-muted: #a3acb6; }
+[data-theme='light'] { --selected-fill: #e4eef7; }
+[data-theme='light'] .alarm .ghost, .alarm .ghost { border: 1px solid currentColor; opacity: 0.85; }
+
+body { margin: 0; background: #e4e8ec; font-family: Inter, system-ui, sans-serif; color: #171b20; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.sheet { padding: 48px; }
+.sheetTitle { font: 600 28px/32px Manrope, Inter, sans-serif; margin-bottom: 8px; }
+.sheetNote { font-size: 16px; line-height: 24px; color: #5c646e; max-width: 900px; margin-bottom: 40px; }
+section { margin-bottom: 56px; }
+.secTitle { font-size: 18px; line-height: 24px; font-weight: 600; margin-bottom: 16px; }
+.row { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; }
+figure { display: flex; flex-direction: column; gap: 10px; }
+figcaption { font-size: 14px; line-height: 20px; color: #5c646e; max-width: 420px; }
+figcaption b { color: #171b20; font-weight: 600; }
+.scr { background: var(--canvas); color: var(--ink); position: relative; overflow: hidden; border-radius: 16px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.14); display: flex; flex-direction: column; }
+/* The alarm (S17), opened outside cooking mode: the inverse surface. */
+.alarm { background: var(--inverse); color: var(--inverse-ink); flex: 1; display: flex; flex-direction: column;
+  justify-content: safe center; padding: 32px 20px; gap: 16px; overflow: auto; }
+.alarmCol { width: 100%; max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.over { font-size: 14px; line-height: 20px; font-weight: 600; opacity: .85; display: flex; align-items: center; gap: 8px; }
+.over svg { flex: none; }
+.headline { font-size: 28px; line-height: 32px; font-weight: 600; }
+.body { font-size: 18px; line-height: 28px; }
+.note { font-size: 16px; line-height: 24px; opacity: .85; }
+.stop { height: 52px; border-radius: 999px; background: var(--inverse-ink); color: var(--inverse); font-size: 16px; font-weight: 600;
+  width: 100%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 3px var(--inverse), 0 0 0 5px var(--inverse-ink); }
+.pair { display: flex; gap: 12px; }
+.quiet { flex: 1; height: 52px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--inverse-ink); font-size: 16px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; }
+.goStep { min-height: 48px; font-size: 16px; font-weight: 600; text-decoration: underline; text-underline-offset: 4px;
+  align-self: center; padding: 0 12px; }
+.big .over { font-size: 28px; line-height: 40px; }
+.big .headline { font-size: 42px; line-height: 48px; }
+.big .body { font-size: 36px; line-height: 48px; }
+.big .note { font-size: 32px; line-height: 40px; }
+.big .stop, .big .quiet { height: auto; min-height: 52px; padding: 8px 12px; font-size: 32px; line-height: 40px; text-align: center; }
+.big .pair { flex-direction: column; }
+/* Largest text: the content scrolls from the top, and Stop alarm stays pinned in view at the foot of the alarm. */
+.big .stop { position: sticky; bottom: 0; z-index: 1;
+  box-shadow: 0 0 0 3px var(--inverse), 0 0 0 5px var(--inverse-ink), 0 0 0 20px var(--inverse); }
+.big .over svg { width: 28px; height: 28px; }
+.big .goStep { font-size: 32px; line-height: 40px; text-align: center; }
+/* The recipe page under an exit snackbar (house tab chrome comes from the linked house stylesheets). */
+.xb-scr { background: var(--canvas); color: var(--ink); position: relative; overflow: hidden; border-radius: 16px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.14); display: flex; flex-direction: column; }
+.xb-page { flex: 1; min-height: 0; overflow: hidden; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.xb-title { font: 600 28px/32px Manrope, Inter, sans-serif; }
+.xb-start { height: 52px; border-radius: 999px; background: var(--action); color: var(--on-action); font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; padding: 0 24px; align-self: flex-start; }
+.xb-step { background: var(--paper); border-radius: 14px; padding: 12px 16px; font-size: 16px; line-height: 24px; }
+/* The house web tab glyph's own svg attributes are not carried by a <use>-less copy, so state the stroke here. */
+.rd .tab .ic { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+/* 8 px above the tab bar's top edge: FAB_SNACKBAR_GAP (ui/src/createFab/fabLift.ts). */
+.xb-snack { flex: none; margin: 0 12px 8px; display: flex; align-items: center; min-height: 56px; padding: 12px 16px;
+  border-radius: 14px; background: var(--inverse); color: var(--inverse-ink); font-size: 16px; line-height: 24px; }
+.xb-wide .xb-snack { align-self: center; width: 440px; margin: 0 0 24px; }
+.avatar.xs { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600; background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-divider); }
+
+.rd .tabbar {
+                        background: var(--paper);
+                        border-top: 1px solid var(--line-divider);
+                        display: grid;
+                        grid-template-columns: repeat(4, 1fr);
+                        padding: 8px 0 30px;
+                        flex: none;
+                        margin-top: auto;
+                    }
+.rd .vp .tabbar {
+                        position: absolute;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        z-index: 3;
+                    }
+.rd .tab {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        color: var(--ink-muted);
+                        font-size: 14px;
+                        font-weight: 500;
+                        min-height: 44px;
+                        justify-content: center;
+                    }
+.rd .tab .ic {
+                        width: 24px;
+                        height: 24px;
+                        stroke-width: 1.5;
+                    }
+.rd .tab.on {
+                        color: var(--action-text);
+                    }
+.rd .tab.on .ic {
+                        stroke-width: 1.9;
+                    }
+.rd .tabbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
+.rd .tabbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
+</style></helmet><div class="sheet"><h1 class="sheetTitle">Cooking mode, S3b alarm with "Stop and go to step" (web)</h1><p class="sheetNote">Plan 0111 (S3b), R16. The alarm opened OUTSIDE that recipe's cooking mode adds one quiet text action under "+ 10 min": "Stop and go to step N" (cooking.alarm.goToStep). It does what Stop alarm does, then opens that recipe's cooking mode at step N, pushed, so Back returns to where the cook was; focus lands on the step's focus line. Stop alarm keeps the one fill and first focus; tab order Stop alarm, + 5 min, + 10 min, Stop and go to step. The dialog is labelled by the headline and described by the step text (native: the container accessibility label). Escape is Stop alarm. Hidden when the recipe is known to be gone. Inside the recipe's own cooking mode the action is not shown (the S17 board).</p><section><h2 class="secTitle">Web 1024</h2><div class="row"><figure><div class="scr " data-theme="light" style="width:1024px;height:700px"><div class="alarm" role="alertdialog" aria-modal="true" aria-labelledby="h" aria-describedby="b"><div class="alarmCol"><p class="over"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg>Roast timer · rang just now</p><h2 class="headline" id="h">Check the chicken: the juices should run clear</h2><p class="body" id="b">Step 4: Roast for 20 minutes, then lower the oven to 190°C.</p><p class="note">Not yet? Add time. The oven sets the pace.</p><button type="button" class="stop">Stop alarm</button><div class="pair"><button type="button" class="quiet">+ 5 min</button><button type="button" class="quiet">+ 10 min</button></div><button type="button" class="goStep">Stop and go to step 4</button></div></div></div><figcaption><b>Light</b>. Modal alertdialog over the page; Escape = Stop alarm.</figcaption></figure><figure><div class="scr " data-theme="dark" style="width:1024px;height:700px"><div class="alarm" role="alertdialog" aria-modal="true" aria-labelledby="h" aria-describedby="b"><div class="alarmCol"><p class="over"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg>Roast timer · rang just now</p><h2 class="headline" id="h">Check the chicken: the juices should run clear</h2><p class="body" id="b">Step 4: Roast for 20 minutes, then lower the oven to 190°C.</p><p class="note">Not yet? Add time. The oven sets the pace.</p><button type="button" class="stop">Stop alarm</button><div class="pair"><button type="button" class="quiet">+ 5 min</button><button type="button" class="quiet">+ 10 min</button></div><button type="button" class="goStep">Stop and go to step 4</button></div></div></div><figcaption><b>Dark</b>.</figcaption></figure></div></section><section><h2 class="secTitle">Web 320 · 200% text</h2><div class="row"><figure><div class="scr big" data-theme="light" style="width:320px;height:568px"><div class="alarm" role="alertdialog" aria-modal="true" aria-labelledby="h" aria-describedby="b"><div class="alarmCol"><p class="over"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg>Roast timer · rang just now</p><h2 class="headline" id="h">Check the chicken: the juices should run clear</h2><p class="body" id="b">Step 4: Roast for 20 minutes, then lower the oven to 190°C.</p><p class="note">Not yet? Add time. The oven sets the pace.</p><button type="button" class="stop">Stop alarm</button><div class="pair"><button type="button" class="quiet">+ 5 min</button><button type="button" class="quiet">+ 10 min</button></div><button type="button" class="goStep">Stop and go to step 4</button></div></div></div><figcaption><b>Light, 200%</b>. Same fit mark as mobile.</figcaption></figure></div></section></div></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 2400, "height": 1890}}'>
+            class Component extends DCLogic {
+            renderVals() {
+            return {};
+            }
+            }
+        </script>
+    </body>
+</html>

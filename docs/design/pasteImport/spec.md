@@ -311,18 +311,18 @@ is final unless marked "verify before ship". `{tokens}` are filled with `fillTem
 Each shows under the entry as `role="alert"`, with `triangleAlert` in `attention`. The paste is always kept, except S25,
 which never kept it.
 
-| #   | State                                | Trigger                                                                                     | Copy (key)                                                                                                                                                                                                                                                                                                 | Actions                                                                                  |
-| --- | ------------------------------------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| S19 | No ingredients                       | The page's recipe has no ingredient lines (device), or the item's issue is `noIngredients`. | "We found {title}, but no ingredients in it." (`refused.noIngredients`)                                                                                                                                                                                                                                    | "Write it yourself" (`writeIt`), Clear                                                   |
-| S20 | No steps                             | No steps (device), or issue `noSteps`.                                                      | "We found {title}, but no steps in it." (`refused.noSteps`)                                                                                                                                                                                                                                                | Same                                                                                     |
-| S21 | No recipe in the page                | The page reader finds no recipe (PR C, before the LLM fallback).                            | "We couldn’t find a recipe in this page. Try copying just the recipe’s text, or write it yourself." (`refused.noRecipe`)                                                                                                                                                                                   | Same                                                                                     |
-| S22 | Text not readable yet (PR C only)    | `shortText` or `longText` before PR D ships.                                                | "We can’t sort plain text into a recipe yet. Write it yourself, and paste the ingredients and the steps into it." (`refused.textNotYet`)                                                                                                                                                                   | Same. Removed when PR D ships. See §15, A2                                               |
-| S23 | Offline                              | No connection at Import.                                                                    | "You’re offline. Your paste is kept here. Import it when you’re back online." (`error.offline`)                                                                                                                                                                                                            | "Try again" (**reuse** `wizard.retry`)                                                   |
-| S24 | Server error                         | A 5xx, a timeout, or `failed`.                                                              | "We couldn’t import this just now. Your paste is kept here. Try again in a moment." (`error.server`)                                                                                                                                                                                                       | "Try again"                                                                              |
-| S25 | Too large                            | Over 2,000,000 UTF-8 bytes, before any parsing.                                             | "This paste is {size}, and the most we can read is {limit}. Copy just the recipe and paste that." (`error.tooLarge`)                                                                                                                                                                                       | None. The box is empty and focused                                                       |
-| S26 | Recipe too large                     | The extracted recipe fails `importRecipeSchema`'s 90,000-byte bound on the device.          | "We found {title}, but it’s too long to import. Write it yourself, and paste the ingredients and the steps into it." (`error.recipeTooLarge`)                                                                                                                                                              | "Write it yourself", Clear                                                               |
-| S27 | Import allowance used (D16)          | The view's `allowance.used >= limit`, or the item's issue is `waitingForAllowance`.         | `error.allowance`, one: "You’ve used your import allowance of {count} recipe in 24 hours. You can import again from {time}. Your paste is kept here." other: "You’ve used your import allowance of {count} recipes in 24 hours. You can import again from {time}. Your paste is kept here."                | None. `{time}` is `resetsAt`, formatted for the locale with the day when it is not today |
-| S28 | AI spend ceiling reached (PR D, D19) | The text job answers `budgetSpent`. The paste ends here. Nothing waits for next month.      | Page: "We can’t read this page right now. Write the recipe yourself. You can paste its ingredients and its steps into it." (`error.budgetSpentPage`). Text: "We can’t read this text right now. Write the recipe yourself. You can paste its ingredients and its steps into it." (`error.budgetSpentText`) | "Write it yourself" (primary), Clear                                                     |
+| #   | State                                    | Trigger                                                                                     | Copy (key)                                                                                                                                                                                                                                                                                                 | Actions                                                                                                  |
+| --- | ---------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| S19 | No ingredients                           | The page's recipe has no ingredient lines (device), or the item's issue is `noIngredients`. | "We found {title}, but no ingredients in it." (`refused.noIngredients`)                                                                                                                                                                                                                                    | "Write it yourself" (`writeIt`), Clear                                                                   |
+| S20 | No steps                                 | No steps (device), or issue `noSteps`.                                                      | "We found {title}, but no steps in it." (`refused.noSteps`)                                                                                                                                                                                                                                                | Same                                                                                                     |
+| S21 | No recipe in the page                    | The page reader finds no recipe (PR C, before the LLM fallback).                            | "We couldn’t find a recipe in this page. Try copying just the recipe’s text, or write it yourself." (`refused.noRecipe`)                                                                                                                                                                                   | Same                                                                                                     |
+| S22 | Text not readable yet (web, before PR D) | `shortText` or `longText` before PR D ships.                                                | "Plain text can’t be imported yet. That comes later. For now, paste the whole web page, or write the recipe yourself and paste the ingredients and the steps into it." Actions: "Write it yourself" (primary), "Paste again". (`refused.textNotYet`, `writeIt`, `pasteAgain`)                              | Not reached: the mobile row is hidden until PR D (§14, owner exception). Removed on web when PR D ships. |
+| S23 | Offline                                  | No connection at Import.                                                                    | "You’re offline. Your paste is kept here. Import it when you’re back online." (`error.offline`)                                                                                                                                                                                                            | "Try again" (**reuse** `wizard.retry`)                                                                   |
+| S24 | Server error                             | A 5xx, a timeout, or `failed`.                                                              | "We couldn’t import this just now. Your paste is kept here. Try again in a moment." (`error.server`)                                                                                                                                                                                                       | "Try again"                                                                                              |
+| S25 | Too large                                | Over 2,000,000 UTF-8 bytes, before any parsing.                                             | "This paste is {size}, and the most we can read is {limit}. Copy just the recipe and paste that." (`error.tooLarge`)                                                                                                                                                                                       | None. The box is empty and focused                                                                       |
+| S26 | Recipe too large                         | The extracted recipe fails `importRecipeSchema`'s 90,000-byte bound on the device.          | "We found {title}, but it’s too long to import. Write it yourself, and paste the ingredients and the steps into it." (`error.recipeTooLarge`)                                                                                                                                                              | "Write it yourself", Clear                                                                               |
+| S27 | Import allowance used (D16)              | The view's `allowance.used >= limit`, or the item's issue is `waitingForAllowance`.         | `error.allowance`, one: "You’ve used your import allowance of {count} recipe in 24 hours. You can import again from {time}. Your paste is kept here." other: "You’ve used your import allowance of {count} recipes in 24 hours. You can import again from {time}. Your paste is kept here."                | None. `{time}` is `resetsAt`, formatted for the locale with the day when it is not today                 |
+| S28 | AI spend ceiling reached (PR D, D19)     | The text job answers `budgetSpent`. The paste ends here. Nothing waits for next month.      | Page: "We can’t read this page right now. Write the recipe yourself. You can paste its ingredients and its steps into it." (`error.budgetSpentPage`). Text: "We can’t read this text right now. Write the recipe yourself. You can paste its ingredients and its steps into it." (`error.budgetSpentText`) | "Write it yourself" (primary), Clear                                                                     |
 
 The draft's "budget spent" is two different limits. S27 is the import allowance (owner ruling 3). S28 is the AI spend
 ceiling (PR D, blueprint §7), and it never names the allowance because it is not one. Matching lines without the AI
@@ -436,16 +436,21 @@ See §7.2 and §7.3. **State count: 41 (S1 to S41).**
 
 ### 7.3 Chooser
 
-| Key                 | Copy                         |
-| ------------------- | ---------------------------- |
-| `chooser.title`     | "Add a recipe"               |
-| `chooser.close`     | "Close Add a recipe"         |
-| `chooser.paste`     | "Paste a recipe"             |
-| `chooser.pasteHint` | "Text, or a whole web page"  |
-| `chooser.write`     | "Write it yourself"          |
-| `chooser.writeHint` | "Start from an empty recipe" |
+| Key                         | Copy                                 |
+| --------------------------- | ------------------------------------ |
+| `chooser.title`             | "Add a recipe"                       |
+| `chooser.close`             | "Close Add a recipe"                 |
+| `chooser.paste`             | "Paste a recipe"                     |
+| `chooser.pasteHint`         | "Text, or a whole web page"          |
+| `chooser.pasteHintPageOnly` | "Copy a whole web page and paste it" |
+| `chooser.write`             | "Write it yourself"                  |
+| `chooser.writeHint`         | "Start from an empty recipe"         |
 
 The chooser keys sit under `importMessages.chooser.*`, not `paste.*`, because the chooser outlives this feature.
+
+Until PR D ships, the web row uses `chooser.pasteHintPageOnly`, because plain text cannot be read yet and the hint must
+not promise it. When PR D ships, the hint becomes `chooser.pasteHint` and `pasteHintPageOnly` is deleted. Mobile shows
+no paste row until PR D (§14, owner exception).
 
 ### 7.4 Statement block keys (`importMessages.statement.*`)
 
@@ -725,6 +730,9 @@ Each new board is drawn from the decisions and the existing `ImportWizardStep` a
 old paste board. Every redrawn board uses role names, even sizes only (the existing boards use 13, 15 and 17, which the
 type-scale ruling retired), and no Public option for a web page.
 
+The boards draw the state after PR D: both platforms show the paste row with "Text, or a whole web page". The web chooser
+board adds one more variant with the page-only hint and the S22 board, for the PR C release (§14).
+
 ### 12.1 `recipeImportingWeb`
 
 | #   | Board                    | States shown                       | Sizes           |
@@ -755,7 +763,7 @@ New web boards: 25.
 | M4  | ImportPasteTextCard      | S5                                         | Iphone390, Android384                    |
 | M5  | ImportPastePageCard      | S4                                         | Iphone390, Ipad1194                      |
 | M6  | ImportPasteWaiting       | S6, S7                                     | Iphone390                                |
-| M7  | ImportPasteRefused       | S22, S25, S26                              | Iphone390, Ipad834                       |
+| M7  | ImportPasteRefused       | S25, S26                                   | Iphone390, Ipad834                       |
 | M8  | ImportPasteErrors        | S23, S27                                   | Iphone390                                |
 | M9  | ImportPastePickOne       | S29                                        | Iphone390, Ipad1194                      |
 | M10 | ImportPasteDuplicate     | S30, S31                                   | Iphone390, Ipad834                       |
@@ -805,7 +813,24 @@ ADR-0089 §5. They are bulk boards, and D6 borrows their look, so they should be
   S21 and S22 refusals, and recipes deleted within 24 hours of a pasted save.
 - **Instrumentation:** events at Import, review shown, Save pressed with holds, saved, and each refusal key. Who reads it:
   the lead, weekly, for the first month.
-- **First sign of trouble:** S22 (text not readable yet) dominating mobile refusals, which would confirm A2.
+- **First sign of trouble:** S22 (plain text not readable yet) dominating web refusals before PR D. It would mean web
+  cooks paste text rather than pages, and PR D is more urgent than planned.
+
+### Owner exception to the both-platforms rule
+
+The owner ruled on 2026-11-15, relayed by Nova Squad, that whole-page paste goes live on **web with PR C**, before PR
+D, and accepted an exception to the rule that every user-facing feature ships to web and mobile in the same release
+(`docs/CODING_STANDARDS.md` §14).
+
+- **Web, from PR C:** the "Paste a recipe" row is live, with the page-only hint. A whole page is imported. A plain text
+  paste gets S22, which says plain text comes later and offers "Write it yourself".
+- **Mobile, until PR D:** the paste row is hidden. The chooser shows "Write it yourself" only.
+- **Why:** a phone cannot practically copy a page's source, so a phone paste is plain text. Nothing reads plain text
+  before PR D, so a mobile row would refuse every paste. A desktop cook can copy a whole page, so web gets real value
+  now.
+- **Ends when:** PR D ships. Then both platforms show the row, with the hint "Text, or a whole web page", and S22 is
+  removed.
+- **Scope:** this feature only. It sets no precedent for other features.
 
 ---
 
@@ -862,11 +887,9 @@ ADR-0089 §5. They are bulk boards, and D6 borrows their look, so they should be
 
 These are decided. They change the open items above as follows.
 
-- **D20, on A2. The paste row ships on both platforms only with PR D.** A row whose hint promises text must not reach a
-  phone cook who can only paste text and is refused every time. The cross-platform rule (`docs/CODING_STANDARDS.md`
-  §14) rules out a web-first row. PR C merges with the chooser row dark. The row turns on when PR D lands. If the
-  owner wants HTML paste on web sooner, that is a scope change for the owner, not a hint change. S22 stays specified
-  for a plain text paste that PR D still cannot read.
+- **D20, on A2. Superseded by the owner, 2026-11-15: web first.** The web row is live with PR C, with a page-only hint,
+  and the mobile row stays hidden until PR D. The owner's exception and its reason are recorded in §14. S22 tells a web
+  cook who pastes plain text that it comes later, and offers "Write it yourself".
 - **On A5.** Follow the house container rule: two columns from the `wide` class (960 px of content). D7's "from 1024" means
   "where the layout is two columns".
 - **On U1.** D7 applies to a form with several required parts, where Save must lead the cook to what is missing. A

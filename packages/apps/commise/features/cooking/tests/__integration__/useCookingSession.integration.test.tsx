@@ -195,7 +195,7 @@ describe('useCookingSession — ticking lines', () => {
     });
 });
 
-describe('useCookingSession — the recipe is read once (R-15)', () => {
+describe('useCookingSession — the recipe is read once', () => {
     it('ignores a later change to the recipe’s steps', () => {
         const { result, rerender } = mount();
 

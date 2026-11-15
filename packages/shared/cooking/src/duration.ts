@@ -56,6 +56,12 @@ const JOINER = String.raw`(?:\s*,\s*|\s+and\s+|\s+)`;
 /** A bare number straight after an hour amount, read as minutes: only at the end or before punctuation. */
 const BARE_MINUTES = String.raw`(?:\s+(?<bare>\d{1,2})(?=\s*(?:$|[.,;:!?)])))`;
 
+/**
+ * A number and a bare `m` or `s` straight after a span ("1 h 15 m"): time the reader does not read, so the span before it
+ * would give a wrong total (1 h for 75 minutes). The line then reads `none`.
+ */
+const UNREAD_TIME_AFTER = /^(?:\s*,\s*|\s+and\s+|\s+)\d+(?:[.,]\d+)?\s*[ms](?![a-z])/iu;
+
 /** One whole span of time: amounts joined by space, comma or "and", then an optional bare minute part. */
 const SPAN = new RegExp(`${amountSource(false)}(?:${JOINER}${amountSource(false)})*${BARE_MINUTES}?`, 'giu');
 
@@ -104,6 +110,11 @@ export function readDuration(line: string): DurationReading {
     }
 
     const [span = ''] = spans[0] ?? [];
+
+    if (UNREAD_TIME_AFTER.test(line.slice((spans[0]?.index ?? 0) + span.length))) {
+        return { kind: 'none' };
+    }
+
     const amounts = [...span.matchAll(AMOUNT)].map((amount) => ({
         seconds: secondsOfAmount(amount[1] ?? '', amount[2] ?? ''),
         rank: unitSeconds(amount[2] ?? ''),

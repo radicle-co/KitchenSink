@@ -102,6 +102,13 @@ describe('readDuration reads the number a cook wrote, or nothing', () => {
         },
     );
 
+    it.each(['Bake 1 h 15 m', 'Bake 1h 15m', 'Bake 1 hour 30 s', 'Bake 10 minutes 5 s'])(
+        '%s gives none: a bare m or s after the span is time it cannot read, so no wrong timer is offered',
+        (line) => {
+            expect(readDuration(line)).toEqual({ kind: 'none' });
+        },
+    );
+
     it('reads two amounts of the same unit as many', () => {
         expect(readDuration('Rest 10 minutes, 5 minutes')).toEqual({ kind: 'many' });
     });

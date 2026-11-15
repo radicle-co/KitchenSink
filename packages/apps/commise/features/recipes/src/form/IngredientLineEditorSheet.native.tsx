@@ -29,6 +29,9 @@ export const IngredientLineEditorSheet: FC<IngredientLineEditorSheetProps> = ({ 
         title={row?.lineEditor.title ?? ''}
         closeLabel={row?.lineEditor.closeLabel ?? ''}
         size="content"
+        // The jump to a line under review raises the notice's own focus request, which is then the only cursor move. Any
+        // other opening lands on the title.
+        screenReaderLanding={row?.lineEditor.noticeFocus?.requested === true ? 'content' : 'title'}
         footer={
             <DialogActions sideBySideFrom={400}>
                 <Button variant="secondary" width="fill" onPress={() => row?.lineEditor.onCancel()}>

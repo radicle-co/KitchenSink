@@ -19995,6 +19995,7 @@
             "dir": "packages/apps/commise/features/recipes/src/form",
             "kind": "presentational",
             "patterns": [
+                "Adapter over the screen-reader focus API — the review notice holds the ref the jump's focus request moves\n    the cursor to",
                 "Template — one field layout, framed by `IngredientLineEditorSheet` and the row's inline panel"
             ],
             "platforms": [
@@ -20086,6 +20087,10 @@
                         {
                             "name": "pattern",
                             "text": "Template — one field layout, framed by `IngredientLineEditorSheet` and the row's inline panel"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the screen-reader focus API — the review notice holds the ref the jump's focus request moves\n    the cursor to"
                         }
                     ],
                     "description": "The row editor's fields.",
@@ -20130,7 +20135,9 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/IngredientLineEditor.tsx"
                         }
                     ],
-                    "usesRefApi": [],
+                    "usesRefApi": [
+                        "useRef"
+                    ],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,

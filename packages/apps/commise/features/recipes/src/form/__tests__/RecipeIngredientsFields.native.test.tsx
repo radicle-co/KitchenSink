@@ -635,6 +635,58 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
         expect(queryDialogTitled('Arborio rice')).toBeNull();
     });
 
+    /**
+     * The jump end to end (designer, 2026-11-14): when the page opens a needs-review row's editor, the screen-reader cursor
+     * goes onto the Needs review notice, once, and onto nothing else: not a field, not the sheet's title.
+     */
+    /** The text of a node the screen-reader cursor was sent to (a DOM element under jsdom). */
+    const textOf = (node: unknown): string => (node instanceof HTMLElement ? (node.textContent ?? '') : '');
+
+    const jump = (): string[] => {
+        const review = { ...RICE, resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW };
+        const key = withLineKeys([review])[0]!.key;
+        const sendEvent = vi.mocked(AccessibilityInfo.sendAccessibilityEvent);
+        sendEvent.mockClear();
+
+        render(
+            <StatefulLeaf
+                initial={[review]}
+                initialLine={key}
+                originalLines={new Map([[key, '2 cups rice, or so']])}
+            />,
+        );
+
+        return sendEvent.mock.calls.filter(([, event]) => event === 'focus').map(([node]) => textOf(node));
+    };
+
+    it('the jump moves the screen-reader cursor onto the notice, as one element holding its words', () => {
+        const notice = jump().filter((text) => text.includes(en.statusNeedsReview));
+
+        expect(notice).toHaveLength(1);
+        expect(notice[0]).toContain('2 cups rice, or so');
+    });
+
+    // The phone's sheet used to move the cursor to its own title after the notice, so the notice lost it. The row editor now
+    // asks the sheet to leave the landing to its content (`screenReaderLanding="content"`) when a jump raises the notice's focus.
+    it('the notice is the ONLY and last cursor move of the jump on a phone: the sheet does not take it back', () => {
+        const moves = jump();
+
+        expect(moves).toHaveLength(1);
+        expect(moves.at(-1)).toContain(en.statusNeedsReview);
+    });
+
+    it('a sheet with no notice to focus still lands the cursor on its title', () => {
+        const sendEvent = vi.mocked(AccessibilityInfo.sendAccessibilityEvent);
+        sendEvent.mockClear();
+
+        render(<StatefulLeaf initial={[RICE]} />);
+        press('Edit 300 g Arborio rice');
+
+        expect(sendEvent.mock.calls.filter(([, event]) => event === 'focus').map(([node]) => textOf(node))).toEqual([
+            'Arborio rice',
+        ]);
+    });
+
     it('a needs-review line opens with the notice and the cook’s original line, and Change is secondary', () => {
         const review = { ...RICE, resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW };
         const key = withLineKeys([review])[0]!.key;

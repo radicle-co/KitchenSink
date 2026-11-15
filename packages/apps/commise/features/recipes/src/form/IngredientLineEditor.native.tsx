@@ -7,19 +7,25 @@
  * Presentational: `props → JSX` over the row editor's view (`RowLineEditorView`); every edit is the view's.
  *
  * @pattern Template — one field layout, framed by `IngredientLineEditorSheet` and the row's inline panel
+ * @pattern Adapter over the screen-reader focus API — the review notice holds the ref the jump's focus request moves
+ *     the cursor to
  */
 import { Button } from '@commise/ui/button';
 import { Combobox } from '@commise/ui/combobox';
+import { useFocusRequest } from '@commise/ui/focus-request';
 import { FieldLabel, Input } from '@commise/ui/input';
 import { PressScale } from '@commise/ui/press-scale';
+import { moveScreenReaderFocus } from '@commise/ui/screen-reader-focus';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { Text as DesignText } from '@commise/ui/text';
-import type { FC } from 'react';
-import { useWindowDimensions } from 'react-native';
+import { useRef, type FC } from 'react';
+import { useWindowDimensions, View } from 'react-native';
 import { XStack, YStack } from 'tamagui';
 
 import { ingredientUnitNoteId } from './fieldErrorIds.js';
 import type { IngredientLineEditorProps } from './IngredientLineEditor.js';
+import type { RecipeFormMessages } from './messages.js';
+import type { RowLineEditorView } from './ingredientRowView.js';
 
 /**
  * One bound of the amount: empty means no amount, never "0" (R40). Its text is the view's (`amountLow`/`amountHigh`),
@@ -50,6 +56,52 @@ const AmountField: FC<{
     </YStack>
 );
 
+/**
+ * The notice that heads the editor of a line under review: what is wrong, then the cook's own words. The jump to a line
+ * under review raises `noticeFocus`, and the notice answers it by moving the SCREEN-READER cursor onto itself (never the
+ * keyboard), so a cook hears what is wrong first and no text field takes the keyboard, as on the web.
+ *
+ * It is ONE accessible element, so VoiceOver and TalkBack read the badge, the reason and the cook's words as one unit.
+ * It carries no label of its own: its badge says "Needs review" inside it, and a View a heading or label inside already
+ * names takes no name (`docs/design/nativeContainerNames.md` N1.2). The web group keeps its name (N1.7).
+ *
+ * @pattern Adapter over the screen-reader focus API, through the house focus request
+ */
+const ReviewNotice: FC<{
+    readonly notice: NonNullable<RowLineEditorView['reviewNotice']>;
+    readonly focus: RowLineEditorView['noticeFocus'];
+    readonly m: RecipeFormMessages;
+}> = ({ notice, focus, m }) => {
+    // The notice's node: moving the screen-reader cursor onto it has no declarative form.
+    const node = useRef<View>(null);
+
+    useFocusRequest(focus?.requested === true, () => moveScreenReaderFocus(node.current), focus?.onHandled);
+
+    return (
+        // The notice heads the editor: what is wrong, then the cook's own words.
+        <View ref={node} accessible>
+            <YStack gap="$1">
+                <YStack alignSelf="flex-start">
+                    <StatusBadge status="attention">{m.statusNeedsReview}</StatusBadge>
+                </YStack>
+                <DesignText typeRole="caption" color="$inkMuted">
+                    {m.statusExplainNeedsReview}
+                </DesignText>
+                {notice.originalLine !== undefined && (
+                    <>
+                        <DesignText typeRole="caption" color="$inkMuted">
+                            {m.rowYouWroteLabel}
+                        </DesignText>
+                        <DesignText typeRole="body" color="$ink" selectable>
+                            {notice.originalLine}
+                        </DesignText>
+                    </>
+                )}
+            </YStack>
+        </View>
+    );
+};
+
 /** The width from which "Name on the recipe" and "Note" share a row (a tablet). */
 const TABLET_WIDTH = 600;
 
@@ -67,26 +119,7 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
     return (
         <YStack gap="$3">
             {view.reviewNotice !== undefined && (
-                // The notice heads the editor: what is wrong, then the cook's own words. Its badge says its name, so the
-                // stack takes none (`docs/design/nativeContainerNames.md` N1).
-                <YStack gap="$1">
-                    <YStack alignSelf="flex-start">
-                        <StatusBadge status="attention">{m.statusNeedsReview}</StatusBadge>
-                    </YStack>
-                    <DesignText typeRole="caption" color="$inkMuted">
-                        {m.statusExplainNeedsReview}
-                    </DesignText>
-                    {view.reviewNotice.originalLine !== undefined && (
-                        <>
-                            <DesignText typeRole="caption" color="$inkMuted">
-                                {m.rowYouWroteLabel}
-                            </DesignText>
-                            <DesignText typeRole="body" color="$ink" selectable>
-                                {view.reviewNotice.originalLine}
-                            </DesignText>
-                        </>
-                    )}
-                </YStack>
+                <ReviewNotice notice={view.reviewNotice} focus={view.noticeFocus} m={m} />
             )}
             <YStack gap="$1">
                 <DesignText typeRole="caption" color="$inkMuted">

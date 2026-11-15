@@ -41,6 +41,9 @@ export const IngredientLineEditorSheet: FC<IngredientLineEditorSheetProps> = ({ 
         title={row?.lineEditor.title ?? ''}
         closeLabel={row?.lineEditor.closeLabel ?? ''}
         size="content"
+        // The jump to a line under review raises the notice's own focus request, which is then the only cursor move; any other
+        // opening lands on the title.
+        screenReaderLanding={row?.lineEditor.noticeFocus?.requested === true ? 'content' : 'title'}
         footer={
             // `DialogActions` owns the pair's layout (side by side from 400, else stacked with Done on top). Both buttons
             // are `fill`, as it asks (issue #176: a `fill` button in a bare flex row hugged its label).

@@ -13,8 +13,7 @@
  * package cannot import its `importRecipeSchema`; the caller parses a {@link PageRecipe} with it, which is the check that
  * a recipe's size and step limits hold.
  */
-import { PARSE_JOB_LINE_MAX_CHARS, MAX_PARSE_JOB_LINES } from '../parsing/parseJobText.js';
-import { recipeCuisineSchema, recipeDescriptionSchema, recipeTitleSchema } from '../recipeRequestBounds.js';
+import { recipeCuisineSchema, recipeDescriptionSchema } from '../recipeRequestBounds.js';
 import { MAX_RECIPES_PER_PAGE } from './pageCaps.js';
 import { instructionSteps } from './instructionSteps.js';
 import { creditOf, imageRefsOf } from './pageEvidence.js';
@@ -42,47 +41,27 @@ export interface PageRecipe {
     readonly steps: readonly PageRecipeStep[];
 }
 
-/** Why a recipe was found but cannot be sent. */
-export type UnusableReason = 'titleTooLong' | 'tooManyIngredientLines' | 'ingredientLineTooLong';
+/** Which strategy read a recipe: the page's JSON-LD, or its microdata. The gate's thresholds are held per tier. */
+export type ExtractionTier = 'jsonLd' | 'microdata';
 
-/** One recipe a page holds, read: usable (with the addresses its node names, for source detection) or over a limit. */
-type RecipeChoice =
-    | {
-          readonly kind: 'found';
-          readonly recipe: PageRecipe;
-          /** The addresses the recipe node itself names (`url`, `mainEntityOfPage`), for source detection. */
-          readonly links: readonly string[];
-          /** Who the node credits. */
-          readonly credit: PageCredit;
-          /** The image addresses as written, to be resolved against the canonical address. Never fetched. */
-          readonly imageRefs: readonly string[];
-      }
-    | { readonly kind: 'unusable'; readonly reason: UnusableReason };
+/** One recipe node, read. Not yet judged: the gate (`recipeAcceptance.ts`) decides whether it can be sent. */
+export interface PageCandidate {
+    readonly title: string;
+    /** Its identity for de-duplication: `@id`, else `url`, else name. */
+    readonly key: string;
+    readonly recipe: PageRecipe;
+    /** The addresses the recipe node itself names (`url`, `mainEntityOfPage`), for selection and source detection. */
+    readonly links: readonly string[];
+    /** Who the node credits. */
+    readonly credit: PageCredit;
+    /** The image addresses as written, to be resolved against the canonical address. Never fetched. */
+    readonly imageRefs: readonly string[];
+}
 
-/** What one strategy found on a page. */
+/** What one strategy found on a page: nothing, or every candidate it read, in page order. */
 export type RecipeExtraction =
     | { readonly kind: 'none' }
-    | RecipeChoice
-    | {
-          readonly kind: 'several';
-          /** The titles, in page order. `choices` is parallel to it. */
-          readonly titles: readonly string[];
-          /** Each recipe, read, so the cook's pick needs no second pass over the page. */
-          readonly choices: readonly RecipeChoice[];
-      };
-
-/** One recipe node, read: its identity for de-duplication, and either the recipe or why it cannot be one. */
-type Candidate =
-    | {
-          readonly ok: true;
-          readonly title: string;
-          readonly key: string;
-          readonly recipe: PageRecipe;
-          readonly links: readonly string[];
-          readonly credit: PageCredit;
-          readonly imageRefs: readonly string[];
-      }
-    | { readonly ok: false; readonly title: string; readonly key: string; readonly reason: UnusableReason };
+    | { readonly kind: 'candidates'; readonly tier: ExtractionTier; readonly candidates: readonly PageCandidate[] };
 
 const NONE: RecipeExtraction = Object.freeze({ kind: 'none' });
 
@@ -127,7 +106,7 @@ function stated<K extends string, V>(key: K, value: V | undefined): { readonly [
     return value === undefined ? {} : ({ [key]: value } as { readonly [P in K]?: V });
 }
 
-function candidateOf(node: SchemaNode): Candidate | undefined {
+function candidateOf(node: SchemaNode): PageCandidate | undefined {
     const name = textOf(field(node, 'name'));
 
     if (name === undefined) {
@@ -149,18 +128,6 @@ function candidateOf(node: SchemaNode): Candidate | undefined {
             : rawString(scalar(field(node, 'url'))) !== undefined
               ? `url:${links[0] ?? ''}`
               : `name:${name}`;
-    const refusal: UnusableReason | undefined = !recipeTitleSchema.safeParse(name).success
-        ? 'titleTooLong'
-        : ingredientLines.length > MAX_PARSE_JOB_LINES
-          ? 'tooManyIngredientLines'
-          : ingredientLines.some((line) => line.length > PARSE_JOB_LINE_MAX_CHARS)
-            ? 'ingredientLineTooLong'
-            : undefined;
-
-    if (refusal !== undefined) {
-        return { ok: false, title: name, key, reason: refusal };
-    }
-
     const description = textOf(field(node, 'description'));
     const recipe: PageRecipe = {
         title: name,
@@ -180,62 +147,41 @@ function candidateOf(node: SchemaNode): Candidate | undefined {
     };
 
     return {
-        ok: true,
         title: name,
         key,
         recipe: Object.freeze(recipe),
-        links,
+        links: Object.freeze(links),
         credit: creditOf(node),
-        imageRefs: imageRefsOf(node),
+        imageRefs: Object.freeze(imageRefsOf(node)),
     };
 }
 
 /**
- * What a list of Recipe nodes, in page order, comes to.
+ * Every recipe in a list of Recipe nodes, in page order.
  *
  * A node with no title, or with neither ingredients nor steps, is not a recipe and is passed over. The same recipe written
  * twice (a block repeated, or a node in `@graph` and again on its own) counts once, by its `@id`, else its `url`, else its
- * name (two with different `@id`s and one name stay two). One recipe is `found` (or `unusable` when it breaks a limit);
- * more than one is `several`: the titles to ask the cook with, and every recipe already read, so the pick needs no round trip.
+ * name (two with different `@id`s and one name stay two). Nothing is judged here: which candidate the page is about is
+ * `selectCandidate`'s, and whether it can be sent is `acceptRecipe`'s.
  *
  * @param nodes - Recipe nodes: JSON-LD objects, or microdata items shaped like them.
- * @returns The outcome. Pure.
+ * @param tier - The strategy that read them.
+ * @returns The candidates, or `none` when there is no recipe node. Pure.
  */
-export function extractionOf(nodes: readonly SchemaNode[]): RecipeExtraction {
+export function extractionOf(nodes: readonly SchemaNode[], tier: ExtractionTier): RecipeExtraction {
     const seen = new Set<string>();
-    const candidates: Candidate[] = [];
+    const candidates: PageCandidate[] = [];
 
     for (const node of nodes.slice(0, MAX_RECIPES_PER_PAGE)) {
         const candidate = candidateOf(node);
 
         if (candidate !== undefined && !seen.has(candidate.key)) {
             seen.add(candidate.key);
-            candidates.push(candidate);
+            candidates.push(Object.freeze(candidate));
         }
     }
 
-    const choices = candidates.map((candidate): RecipeChoice =>
-        candidate.ok
-            ? Object.freeze({
-                  kind: 'found',
-                  recipe: candidate.recipe,
-                  links: Object.freeze(candidate.links),
-                  credit: candidate.credit,
-                  imageRefs: Object.freeze(candidate.imageRefs),
-              })
-            : Object.freeze({ kind: 'unusable', reason: candidate.reason }),
-    );
-    const [only, ...others] = choices;
-
-    if (only === undefined) {
-        return NONE;
-    }
-
-    return others.length === 0
-        ? only
-        : Object.freeze({
-              kind: 'several',
-              titles: Object.freeze(candidates.map((candidate) => candidate.title)),
-              choices: Object.freeze(choices),
-          });
+    return candidates.length === 0
+        ? NONE
+        : Object.freeze({ kind: 'candidates', tier, candidates: Object.freeze(candidates) });
 }

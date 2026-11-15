@@ -7,14 +7,15 @@ import { makeJsonLdScript, makePage, makeRecipeNode } from '../__fixtures__/page
 
 const read = (...jsonLd: unknown[]) => jsonLdRecipe(parsePage(makePage({ jsonLd })));
 
+/** The one recipe a page of one candidate read. */
 function foundRecipe(...jsonLd: unknown[]) {
     const extraction = read(...jsonLd);
 
-    if (extraction.kind !== 'found') {
-        throw new Error(`expected a found recipe, got ${JSON.stringify(extraction)}`);
+    if (extraction.kind !== 'candidates' || extraction.candidates.length !== 1) {
+        throw new Error(`expected one candidate, got ${JSON.stringify(extraction)}`);
     }
 
-    return extraction.recipe;
+    return extraction.candidates[0]?.recipe ?? { title: '', ingredientLines: [], steps: [] };
 }
 
 describe('jsonLdRecipe: reading a Recipe node', () => {
@@ -178,8 +179,9 @@ describe('jsonLdRecipe: finding the node', () => {
         );
 
         expect(extraction).toMatchObject({
-            kind: 'found',
-            links: ['https://example.com/pancakes', 'https://example.com/p'],
+            kind: 'candidates',
+            tier: 'jsonLd',
+            candidates: [{ links: ['https://example.com/pancakes', 'https://example.com/p'] }],
         });
     });
 
@@ -189,53 +191,50 @@ describe('jsonLdRecipe: finding the node', () => {
     });
 });
 
-describe('jsonLdRecipe: several recipes', () => {
-    it('lists the titles when a page holds more than one, with each recipe to pick', () => {
+/**
+ * Rewritten for the 2026-11-15 ruling (a black-and-white verdict). These tests used to prove that a page of several
+ * recipes read as `several`, with a pick-one choice per recipe, and that a recipe over a limit read as `unusable`. A
+ * strategy now only READS every candidate: which one the page is about is `selectCandidate`'s (recipeSelection.test.ts) and
+ * whether it can be sent is `acceptRecipe`'s (recipeAcceptance.test.ts), so they prove what a strategy still owns.
+ */
+describe('jsonLdRecipe: reading every candidate', () => {
+    it('reads every recipe a page holds, in page order, with the links of each', () => {
         const a = makeRecipeNode({ name: 'A', url: 'https://e.com/a' });
         const b = makeRecipeNode({ name: 'B', recipeIngredient: ['1 pear'] });
-        const extraction = read(a, b);
 
-        expect(extraction).toMatchObject({ kind: 'several', titles: ['A', 'B'] });
-        expect(extraction.kind === 'several' ? extraction.choices : []).toMatchObject([
-            {
-                kind: 'found',
-                links: ['https://e.com/a'],
-                recipe: { title: 'A', ingredientLines: ['1 cup flour', '2 eggs'] },
-            },
-            { kind: 'found', links: [], recipe: { title: 'B', ingredientLines: ['1 pear'] } },
-        ]);
-    });
-
-    it('offers a recipe that breaks a limit as a choice that is unusable, and says why', () => {
-        const extraction = read(
-            makeRecipeNode({ name: 'A' }),
-            makeRecipeNode({ name: 'B', recipeIngredient: ['x'.repeat(1_001)] }),
-        );
-
-        expect(extraction.kind === 'several' ? extraction.choices.map((choice) => choice.kind) : []).toEqual([
-            'found',
-            'unusable',
-        ]);
-        expect(extraction.kind === 'several' ? extraction.choices[1] : undefined).toEqual({
-            kind: 'unusable',
-            reason: 'ingredientLineTooLong',
+        expect(read(a, b)).toMatchObject({
+            kind: 'candidates',
+            candidates: [
+                { title: 'A', links: ['https://e.com/a'], recipe: { ingredientLines: ['1 cup flour', '2 eggs'] } },
+                { title: 'B', links: [], recipe: { ingredientLines: ['1 pear'] } },
+            ],
         });
     });
 
+    it('reads a recipe that breaks a limit as a candidate and judges nothing: the gate refuses it', () => {
+        const extraction = read(makeRecipeNode({ name: 'x'.repeat(201), recipeIngredient: ['x'.repeat(1_001)] }));
+
+        expect(extraction).toMatchObject({ kind: 'candidates', candidates: [{ title: 'x'.repeat(201) }] });
+    });
+
     it('counts the same recipe once: by @id, then by url, then by name', () => {
+        const count = (...nodes: Record<string, unknown>[]) => {
+            const extraction = read(...nodes);
+
+            return extraction.kind === 'candidates' ? extraction.candidates.length : 0;
+        };
+
         expect(
-            read(makeRecipeNode({ '@id': '#r', name: 'A' }), makeRecipeNode({ '@id': '#r', name: 'A (copy)' })).kind,
-        ).toBe('found');
+            count(makeRecipeNode({ '@id': '#r', name: 'A' }), makeRecipeNode({ '@id': '#r', name: 'A (copy)' })),
+        ).toBe(1);
         expect(
-            read(
+            count(
                 makeRecipeNode({ url: 'https://e.com/a', name: 'A' }),
                 makeRecipeNode({ url: 'https://e.com/a', name: 'A2' }),
-            ).kind,
-        ).toBe('found');
-        expect(read(makeRecipeNode({ name: 'A' }), makeRecipeNode({ name: 'A' })).kind).toBe('found');
-        expect(read(makeRecipeNode({ '@id': '#1', name: 'A' }), makeRecipeNode({ '@id': '#2', name: 'A' })).kind).toBe(
-            'several',
-        );
+            ),
+        ).toBe(1);
+        expect(count(makeRecipeNode({ name: 'A' }), makeRecipeNode({ name: 'A' }))).toBe(1);
+        expect(count(makeRecipeNode({ '@id': '#1', name: 'A' }), makeRecipeNode({ '@id': '#2', name: 'A' }))).toBe(2);
     });
 
     it('treats an @id of __proto__ as plain data', () => {
@@ -245,33 +244,7 @@ describe('jsonLdRecipe: several recipes', () => {
             ),
         );
 
-        expect(extraction).toMatchObject({ kind: 'several', titles: ['A', 'B'] });
-    });
-
-    it('keeps two recipes that share a name but not an @id, as two choices', () => {
-        expect(
-            read(makeRecipeNode({ '@id': '#1', name: 'A' }), makeRecipeNode({ '@id': '#2', name: 'A' })),
-        ).toMatchObject({ kind: 'several', titles: ['A', 'A'] });
-    });
-});
-
-describe('jsonLdRecipe: unusable recipes', () => {
-    it('refuses a title past the title limit, and says so', () => {
-        expect(read(makeRecipeNode({ name: 'x'.repeat(201) }))).toEqual({ kind: 'unusable', reason: 'titleTooLong' });
-    });
-
-    it('refuses more ingredient lines than a parse job takes, and a line that is too long', () => {
-        expect(
-            read(makeRecipeNode({ recipeIngredient: Array.from({ length: 201 }, (_, i) => `${String(i)} g salt`) })),
-        ).toEqual({
-            kind: 'unusable',
-            reason: 'tooManyIngredientLines',
-        });
-        expect(read(makeRecipeNode({ recipeIngredient: ['x'.repeat(1_001)] }))).toEqual({
-            kind: 'unusable',
-            reason: 'ingredientLineTooLong',
-        });
-        expect(foundRecipe(makeRecipeNode({ recipeIngredient: ['x'.repeat(1_000)] })).ingredientLines).toHaveLength(1);
+        expect(extraction).toMatchObject({ kind: 'candidates', candidates: [{ title: 'A' }, { title: 'B' }] });
     });
 });
 
@@ -279,7 +252,7 @@ describe('jsonLdRecipe: blocks', () => {
     it('skips a block that is not JSON and reads the next', () => {
         const page = makePage({ jsonLd: ['{"@type": "Recipe", broken', makeRecipeNode()] });
 
-        expect(jsonLdRecipe(parsePage(page))).toMatchObject({ kind: 'found' });
+        expect(jsonLdRecipe(parsePage(page))).toMatchObject({ kind: 'candidates' });
     });
 
     it('only reads scripts of type application/ld+json, with any case or parameters', () => {
@@ -288,7 +261,10 @@ describe('jsonLdRecipe: blocks', () => {
             'type=" Application/LD+JSON ; charset=utf-8"',
         )}</head></html>`;
 
-        expect(jsonLdRecipe(parsePage(html))).toMatchObject({ kind: 'found', recipe: { title: 'Test Pancakes' } });
+        expect(jsonLdRecipe(parsePage(html))).toMatchObject({
+            kind: 'candidates',
+            candidates: [{ recipe: { title: 'Test Pancakes' } }],
+        });
     });
 
     it('skips a block over the byte limit without parsing it', () => {
@@ -296,8 +272,8 @@ describe('jsonLdRecipe: blocks', () => {
 
         expect(read(big).kind).toBe('none');
         expect(read(big, makeRecipeNode({ name: 'Small' }))).toMatchObject({
-            kind: 'found',
-            recipe: { title: 'Small' },
+            kind: 'candidates',
+            candidates: [{ recipe: { title: 'Small' } }],
         });
     });
 
@@ -313,7 +289,7 @@ describe('jsonLdRecipe: blocks', () => {
         const filler = Array.from({ length: MAX_JSON_LD_BLOCKS }, () => ({ '@type': 'Thing' }));
 
         expect(read(...filler, makeRecipeNode()).kind).toBe('none');
-        expect(read(...filler.slice(1), makeRecipeNode()).kind).toBe('found');
+        expect(read(...filler.slice(1), makeRecipeNode()).kind).toBe('candidates');
     });
 });
 
@@ -334,7 +310,7 @@ describe('jsonLdRecipe: hostile input', () => {
         }
 
         expect(read(nested).kind).toBe('none');
-        expect(read({ wrapper: { wrapper: makeRecipeNode() } }).kind).toBe('found');
+        expect(read({ wrapper: { wrapper: makeRecipeNode() } }).kind).toBe('candidates');
     });
 
     it('stops walking after the node budget: a recipe past 10,000 nodes is not found, one before it is', () => {
@@ -342,13 +318,13 @@ describe('jsonLdRecipe: hostile input', () => {
         const filler = Array.from({ length: MAX_WALK_NODES * 5 }, () => 0);
 
         expect(read([...filler, makeRecipeNode()]).kind).toBe('none');
-        expect(read([makeRecipeNode(), ...filler]).kind).toBe('found');
+        expect(read([makeRecipeNode(), ...filler]).kind).toBe('candidates');
     });
 
     it('does not pollute Object.prototype from a __proto__ key, and keeps the value as data', () => {
         const hostile = `{"__proto__":{"polluted":1},"@type":"Recipe","name":"Real","recipeIngredient":["1 egg"],"recipeInstructions":"Cook."}`;
 
-        expect(read(hostile)).toMatchObject({ kind: 'found', recipe: { title: 'Real' } });
+        expect(read(hostile)).toMatchObject({ kind: 'candidates', candidates: [{ recipe: { title: 'Real' } }] });
         expect(read('{"__proto__":{"polluted":1}}').kind).toBe('none');
         expect(({} as Record<string, unknown>)['polluted']).toBeUndefined();
         expect((Object.prototype as Record<string, unknown>)['polluted']).toBeUndefined();
@@ -357,6 +333,6 @@ describe('jsonLdRecipe: hostile input', () => {
     it('takes the name from the node itself, never from a __proto__ it carries', () => {
         const hostile = `{"@type":"Recipe","name":"Own","__proto__":{"name":"Inherited"},"recipeIngredient":["1 egg"]}`;
 
-        expect(read(hostile)).toMatchObject({ kind: 'found', recipe: { title: 'Own' } });
+        expect(read(hostile)).toMatchObject({ kind: 'candidates', candidates: [{ recipe: { title: 'Own' } }] });
     });
 });

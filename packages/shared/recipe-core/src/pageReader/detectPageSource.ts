@@ -93,6 +93,29 @@ export function pageAddressesOf(page: PageDocument): PageAddresses {
 }
 
 /**
+ * Read each address as a source link, a relative one against `<base href>`, else the first absolute address given.
+ *
+ * @param addresses - What the page states for itself.
+ * @param raws - The addresses to read, as written, in order.
+ * @returns The ones that are valid source links, in order. An address that cannot be made absolute or is refused by
+ *   `parseSourceLink` is dropped. Pure.
+ */
+export function sourceLinksOf(addresses: PageAddresses, raws: readonly string[]): readonly SourceLink[] {
+    const base = [addresses.baseHref, ...raws].find((raw) => {
+        const absolute = raw === undefined || !hasScheme(raw) ? undefined : parseSourceLink(raw);
+
+        return absolute?.ok === true;
+    });
+
+    return raws.flatMap((raw) => {
+        const absolute = resolved(raw, base);
+        const parsed = absolute === undefined ? undefined : parseSourceLink(absolute);
+
+        return parsed?.ok === true ? [parsed.link] : [];
+    });
+}
+
+/**
  * Detect the source of a pasted page.
  *
  * @param page - The parsed paste.
@@ -102,19 +125,11 @@ export function pageAddressesOf(page: PageDocument): PageAddresses {
  *   absolute address the page gives, and is dropped when there is neither. Pure.
  */
 export function detectPageSource(page: PageDocument | PageAddresses, nodeLinks: readonly string[]): DetectedSource {
-    const { canonical, ogUrl, baseHref } = 'byTag' in page ? pageAddressesOf(page) : page;
-    const raws = [canonical, ogUrl, ...nodeLinks].flatMap((raw) => (raw === undefined ? [] : [raw]));
-    const base = [baseHref, ...raws].find((raw) => {
-        const absolute = raw === undefined || !hasScheme(raw) ? undefined : parseSourceLink(raw);
-
-        return absolute?.ok === true;
-    });
-    const links = raws.flatMap((raw) => {
-        const absolute = resolved(raw, base);
-        const parsed = absolute === undefined ? undefined : parseSourceLink(absolute);
-
-        return parsed?.ok === true ? [parsed.link] : [];
-    });
+    const addresses = 'byTag' in page ? pageAddressesOf(page) : page;
+    const raws = [addresses.canonical, addresses.ogUrl, ...nodeLinks].flatMap((raw) =>
+        raw === undefined ? [] : [raw],
+    );
+    const links = sourceLinksOf(addresses, raws);
     const [first] = links;
 
     if (first === undefined || links.some((link) => link.site !== first.site)) {

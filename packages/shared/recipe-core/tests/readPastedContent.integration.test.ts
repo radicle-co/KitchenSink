@@ -52,7 +52,7 @@ describe('readPastedContent over a whole synthetic page', () => {
         const elapsed = performance.now() - started;
 
         expect(result).toMatchObject({
-            kind: 'found',
+            kind: 'extracted',
             recipe: {
                 title: 'Test Pancakes',
                 servings: 4,
@@ -78,10 +78,10 @@ describe('readPastedContent over a whole synthetic page', () => {
 
     it('keeps hostile __proto__ keys out of the recipe it reads', () => {
         const hostile =
-            '{"__proto__":{"polluted":1},"@graph":[{"@type":"Recipe","name":"Safe","recipeIngredient":["1 egg"],"__proto__":{"name":"Evil"}}]}';
+            '{"__proto__":{"polluted":1},"@graph":[{"@type":"Recipe","name":"Safe","recipeIngredient":["1 egg"],"recipeInstructions":"Cook it well.","__proto__":{"name":"Evil"}}]}';
 
         expect(readPastedContent(makePage({ jsonLd: [hostile] }))).toMatchObject({
-            kind: 'found',
+            kind: 'extracted',
             recipe: { title: 'Safe' },
         });
         expect(({} as Record<string, unknown>)['polluted']).toBeUndefined();
@@ -95,7 +95,11 @@ describe('readPastedContent over a whole synthetic page', () => {
         const started = performance.now();
         const result = readPastedContent(page);
 
-        expect(result).toMatchObject({ kind: 'none', source: { kind: 'found', citation: { site: 'example.com' } } });
+        expect(result).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'noRecipe',
+            source: { kind: 'found', citation: { site: 'example.com' } },
+        });
         expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
     });
 
@@ -111,34 +115,66 @@ describe('readPastedContent over a whole synthetic page', () => {
         const started = performance.now();
         const result = readPastedContent(page);
 
-        expect(result.kind).toBe('none');
+        expect(result).toMatchObject({ kind: 'notExtractable', reason: 'noRecipe' });
         expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
     });
 
-    it('reads a 1.4 MB microdata page of many Recipe items with ingredients, among 200,000 empty elements, down the several branch inside the time budget', () => {
-        const items = Array.from(
-            { length: 100 },
-            (_, index) =>
-                `<div itemscope itemtype="https://schema.org/Recipe"><i itemprop="name">r${index}</i><i itemprop="recipeIngredient">1 egg</i></div>`,
+    /** A microdata Recipe item that passes the gate: a name, an ingredient and a step. */
+    const microdataRecipe = (name: string, extra = '') =>
+        `<div itemscope itemtype="https://schema.org/Recipe"><i itemprop="name">${name}</i><i itemprop="recipeIngredient">1 egg</i><i itemprop="recipeInstructions">Cook it well.</i>${extra}</div>`;
+
+    /**
+     * Rewritten for the 2026-11-15 ruling: this page used to come back as `several`. It is now `severalRecipes`, a plain no,
+     * and it must still cost the same: one selection over 64 candidates, the addresses read once.
+     */
+    it('reads a 1.4 MB microdata page of many different Recipe items, among 200,000 empty elements, to severalRecipes inside the time budget', () => {
+        const items = Array.from({ length: 100 }, (_, index) => microdataRecipe(`r${index}`)).join('');
+        const started = performance.now();
+        const result = readPastedContent(makePage({ body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }));
+
+        expect(result).toMatchObject({ kind: 'notExtractable', reason: 'severalRecipes' });
+        expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+    });
+
+    it('collapses 64 near-duplicate microdata Recipe items, among 200,000 empty elements, to the one recipe inside the time budget', () => {
+        // Each differs from the first only in the case and spacing of its name, so none shares a key and all reach selection.
+        const items = Array.from({ length: MAX_RECIPES_PER_PAGE }, (_, index) =>
+            microdataRecipe(index % 2 === 0 ? 'Pancakes' : ` PANCAKES${' '.repeat(index)}`),
         ).join('');
         const started = performance.now();
         const result = readPastedContent(makePage({ body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }));
 
-        expect(result.kind).toBe('several');
+        expect(result).toMatchObject({ kind: 'extracted', tier: 'microdata', recipe: { title: 'Pancakes' } });
         expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
     });
 
-    it('reads a page whose JSON-LD holds thousands of Recipe nodes down the several branch inside the time budget', () => {
-        const nodes = Array.from({ length: 3_000 }, (_, index) => ({
+    it('selects among 64 microdata items that each name an address, one of them the page, inside the time budget', () => {
+        const page = 'https://www.example.com/recipe/32/';
+        const items = Array.from({ length: MAX_RECIPES_PER_PAGE }, (_, index) =>
+            microdataRecipe(`r${index}`, `<link itemprop="url" href="https://www.example.com/recipe/${index}/">`),
+        ).join('');
+        const started = performance.now();
+        const result = readPastedContent(
+            makePage({ head: makeLinkHead({ canonical: page }), body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }),
+        );
+
+        expect(result).toMatchObject({ kind: 'extracted', recipe: { title: 'r32' } });
+        expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+    });
+
+    it('reads a page whose JSON-LD holds over a thousand Recipe nodes to severalRecipes inside the time budget', () => {
+        // Small nodes, so the one block stays under the byte limit and only the per-page recipe cap bounds the work.
+        const nodes = Array.from({ length: 1_500 }, (_, index) => ({
             '@type': 'Recipe',
             '@id': `r${index}`,
             name: `r${index}`,
             recipeIngredient: ['1 egg'],
+            recipeInstructions: 'Cook it well.',
         }));
         const started = performance.now();
         const result = readPastedContent(makePage({ jsonLd: [{ '@graph': nodes }] }));
 
-        expect(result.kind === 'several' ? result.choices.length : 0).toBe(MAX_RECIPES_PER_PAGE);
+        expect(result).toMatchObject({ kind: 'notExtractable', reason: 'severalRecipes' });
         expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
     });
 

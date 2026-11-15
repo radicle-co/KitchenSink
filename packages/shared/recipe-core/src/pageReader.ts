@@ -11,4 +11,5 @@ export type { DetectedSource } from './pageReader/detectPageSource.js';
 export type { PageCredit, PageEvidence } from './pageReader/pageEvidence.js';
 export type { PageRecipe, PageRecipeStep } from './pageReader/pageRecipeCandidate.js';
 export { readPastedContent } from './pageReader/readPastedContent.js';
-export type { PasteChoice, PasteReadResult, PasteUnusableReason } from './pageReader/readPastedContent.js';
+export type { ExtractionTier } from './pageReader/pageRecipeCandidate.js';
+export type { NotExtractableReason, PasteReadResult } from './pageReader/readPastedContent.js';

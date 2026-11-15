@@ -13,19 +13,24 @@ const recipeScope = (inner: string, itemtype = 'https://schema.org/Recipe') =>
 describe('microdataRecipe', () => {
     it('reads a recipe, taking values from meta, time, link, list and plain elements', () => {
         expect(read(makeMicrodataBody())).toMatchObject({
-            kind: 'found',
-            links: ['https://example.com/soup'],
-            credit: { authors: [] },
-            imageRefs: [],
-            recipe: {
-                title: 'Micro Soup',
-                description: 'A warm soup.',
-                servings: 4,
-                prepTimeMinutes: 5,
-                cookTimeMinutes: 30,
-                ingredientLines: ['2 cups stock', '1 onion, diced'],
-                steps: [{ instruction: 'Simmer.' }, { instruction: 'Serve.' }],
-            },
+            kind: 'candidates',
+            tier: 'microdata',
+            candidates: [
+                {
+                    links: ['https://example.com/soup'],
+                    credit: { authors: [] },
+                    imageRefs: [],
+                    recipe: {
+                        title: 'Micro Soup',
+                        description: 'A warm soup.',
+                        servings: 4,
+                        prepTimeMinutes: 5,
+                        cookTimeMinutes: 30,
+                        ingredientLines: ['2 cups stock', '1 onion, diced'],
+                        steps: [{ instruction: 'Simmer.' }, { instruction: 'Serve.' }],
+                    },
+                },
+            ],
         });
     });
 
@@ -43,9 +48,10 @@ describe('microdataRecipe', () => {
         );
 
         expect(extraction).toMatchObject({
-            kind: 'found',
-            links: ['https://example.com/pie'],
-            recipe: { title: 'Pie', servings: 6, prepTimeMinutes: 20 },
+            kind: 'candidates',
+            candidates: [
+                { links: ['https://example.com/pie'], recipe: { title: 'Pie', servings: 6, prepTimeMinutes: 20 } },
+            ],
         });
     });
 
@@ -56,7 +62,7 @@ describe('microdataRecipe', () => {
             ),
         );
 
-        expect(extraction).toMatchObject({ recipe: { cookTimeMinutes: 7 } });
+        expect(extraction).toMatchObject({ candidates: [{ recipe: { cookTimeMinutes: 7 } }] });
     });
 
     it.each([
@@ -66,7 +72,7 @@ describe('microdataRecipe', () => {
     ])('finds a Recipe by itemtype %j', (itemtype) => {
         const body = recipeScope('<h1 itemprop="name">A</h1><i itemprop="recipeIngredient">1 egg</i>', itemtype);
 
-        expect(read(body).kind).toBe('found');
+        expect(read(body).kind).toBe('candidates');
     });
 
     it('reads steps written as nested HowToStep and HowToSection items', () => {
@@ -82,7 +88,7 @@ describe('microdataRecipe', () => {
         );
 
         expect(read(body)).toMatchObject({
-            recipe: { steps: [{ instruction: 'Glaze: Whisk.' }, { instruction: 'Pour.' }] },
+            candidates: [{ recipe: { steps: [{ instruction: 'Glaze: Whisk.' }, { instruction: 'Pour.' }] } }],
         });
     });
 
@@ -91,15 +97,21 @@ describe('microdataRecipe', () => {
             '<h1 itemprop="name">Real</h1><i itemprop="recipeIngredient">1 egg</i><div itemprop="author" itemscope itemtype="https://schema.org/Person"><span itemprop="name">Someone Else</span></div>',
         );
 
-        expect(read(body)).toMatchObject({ recipe: { title: 'Real' } });
+        expect(read(body)).toMatchObject({ candidates: [{ recipe: { title: 'Real' } }] });
     });
 
-    it('lists the titles of several recipes and counts a repeated one once', () => {
+    it('reads every recipe of a page in order and counts a repeated one once (rewritten: a strategy no longer reports "several", selection does)', () => {
         const one = (name: string) =>
             recipeScope(`<h1 itemprop="name">${name}</h1><i itemprop="recipeIngredient">1 egg</i>`);
 
-        expect(read(one('A') + one('B'))).toMatchObject({ kind: 'several', titles: ['A', 'B'] });
-        expect(read(one('A') + one('A')).kind).toBe('found');
+        const titles = (body: string) => {
+            const extraction = read(body);
+
+            return extraction.kind === 'candidates' ? extraction.candidates.map((candidate) => candidate.title) : [];
+        };
+
+        expect(titles(one('A') + one('B'))).toEqual(['A', 'B']);
+        expect(titles(one('A') + one('A'))).toEqual(['A']);
     });
 
     it('reads at most the first 64 recipe items of a page', () => {
@@ -108,14 +120,14 @@ describe('microdataRecipe', () => {
         const extraction = read(Array.from({ length: MAX_RECIPES_PER_PAGE + 36 }, (_, index) => one(index)).join(''));
 
         expect(MAX_RECIPES_PER_PAGE).toBe(64);
-        expect(extraction.kind === 'several' ? extraction.titles : []).toHaveLength(MAX_RECIPES_PER_PAGE);
-        expect(extraction.kind === 'several' ? extraction.titles[0] : undefined).toBe('R0');
+        expect(extraction.kind === 'candidates' ? extraction.candidates : []).toHaveLength(MAX_RECIPES_PER_PAGE);
+        expect(extraction.kind === 'candidates' ? extraction.candidates[0]?.title : undefined).toBe('R0');
     });
 
     it('applies one itemprop with several names to each', () => {
         const body = recipeScope('<h1 itemprop="name headline">Two names</h1><i itemprop="recipeIngredient">1 egg</i>');
 
-        expect(read(body)).toMatchObject({ recipe: { title: 'Two names' } });
+        expect(read(body)).toMatchObject({ candidates: [{ recipe: { title: 'Two names' } }] });
     });
 
     it('ignores an item that is not a recipe, and a page with no microdata', () => {
@@ -130,7 +142,7 @@ describe('microdataRecipe', () => {
             '<h1 itemprop="name">Safe</h1><i itemprop="recipeIngredient">1 egg</i><span itemprop="__proto__">x</span><span itemprop="constructor">y</span>',
         );
 
-        expect(read(body)).toMatchObject({ kind: 'found', recipe: { title: 'Safe' } });
+        expect(read(body)).toMatchObject({ kind: 'candidates', candidates: [{ recipe: { title: 'Safe' } }] });
         expect(({} as Record<string, unknown>)['x']).toBeUndefined();
         expect(Object.keys(Object.prototype)).toEqual([]);
     });
@@ -149,6 +161,6 @@ describe('microdataRecipe', () => {
 
         expect(
             read(recipeScope(`<h1 itemprop="name">Deep</h1><i itemprop="recipeIngredient">1 egg</i>${nested}`)).kind,
-        ).toBe('found');
+        ).toBe('candidates');
     });
 });

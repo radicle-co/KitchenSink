@@ -1,7 +1,7 @@
 /**
  * What a cook pasted, read on their device into a recipe and a suggested source.
  *
- * DESIGN PATTERN: **Pipeline**. Size check → detect markup → parse → extract (the chain) → detect the source. Every
+ * DESIGN PATTERN: **Pipeline**. Size check → detect markup → parse → extract (the chain) → select one → gate → detect the source. Every
  * stage is pure, and the raw page never leaves the device: only the extracted recipe is sent (ADR-0072's rule that the
  * server receives recipes, not the file).
  *
@@ -22,43 +22,59 @@ import { MAX_PASTE_BYTES, classifyPaste } from './pageCaps.js';
 import { parsePage } from './pageDocument.js';
 import { imageUrlOf } from './pageEvidence.js';
 import type { PageEvidence } from './pageEvidence.js';
-import type { PageRecipe, UnusableReason } from './pageRecipeCandidate.js';
+import type { ExtractionTier, PageRecipe } from './pageRecipeCandidate.js';
+import { acceptRecipe } from './recipeAcceptance.js';
+import type { AcceptanceReason } from './recipeAcceptance.js';
 import { extractRecipe } from './recipeExtractors.js';
+import { selectCandidate } from './recipeSelection.js';
 
-/** Why a paste cannot be used: its recipe breaks a limit, or the page is nested too deeply to read all of it. */
-export type PasteUnusableReason = UnusableReason | 'pageTooDeep';
+/** Why a paste gives no recipe: the page, the selection, or the first gate predicate it fails. */
+export type NotExtractableReason =
+    | AcceptanceReason
+    /** Not a page: a text paste. */
+    | 'notAPage'
+    /** The page is nested deeper than the reader looks, and no recipe was found before the cut. */
+    | 'pageTooComplex'
+    /** The page has no structured recipe. */
+    | 'noRecipe'
+    /** The page holds several distinct recipes and none is the page's own. There is no pick-one. */
+    | 'severalRecipes';
 
-/** What reading a paste came to. Every result but `tooLarge` carries the digest of the paste it read. */
+/**
+ * What reading a paste came to: a recipe, or a plain no (owner ruling 2026-11-15: no review in the middle, no AI).
+ * Every result but `tooLarge` carries the digest of the paste it read.
+ */
 export type PasteReadResult =
     | {
-          readonly kind: 'found';
+          readonly kind: 'extracted';
           readonly recipe: PageRecipe;
           readonly evidence: PageEvidence;
           readonly source: DetectedSource;
+          /** Which strategy read it: for measurement on the device, never sent to the server. */
+          readonly tier: ExtractionTier;
           readonly pasteDigest: string;
       }
     | {
-          readonly kind: 'several';
-          readonly titles: readonly string[];
-          /** Each recipe in `titles` order, read and with its own evidence and suggested source, for the cook's pick. */
-          readonly choices: readonly PasteChoice[];
-          readonly pasteDigest: string;
-      }
-    | { readonly kind: 'none'; readonly source: DetectedSource; readonly pasteDigest: string }
-    | { readonly kind: 'tooLarge'; readonly maxBytes: number }
-    | { readonly kind: 'unusable'; readonly reason: PasteUnusableReason; readonly pasteDigest: string };
-
-/** One of several recipes on a page: ready to send with its source, or over a limit. */
-export type PasteChoice =
-    | {
-          readonly kind: 'found';
-          readonly recipe: PageRecipe;
-          readonly evidence: PageEvidence;
+          readonly kind: 'notExtractable';
+          readonly reason: NotExtractableReason;
+          /** The title of the recipe that was found and refused, so "We found {title}" can be said. */
+          readonly title?: string;
           readonly source: DetectedSource;
+          readonly pasteDigest: string;
       }
-    | { readonly kind: 'unusable'; readonly reason: UnusableReason };
+    | { readonly kind: 'tooLarge'; readonly maxBytes: number };
 
 const NO_SOURCE: DetectedSource = { kind: 'none' };
+
+/** A no, with the source the page still names and, when a recipe was found and refused, its title. */
+function notExtractable(
+    reason: NotExtractableReason,
+    source: DetectedSource,
+    pasteDigest: string,
+    title?: string,
+): PasteReadResult {
+    return { kind: 'notExtractable', reason, ...(title === undefined ? {} : { title }), source, pasteDigest };
+}
 
 /** The evidence for one found recipe: its credit, and its image made absolute against the detected source. */
 function evidenceOf(
@@ -75,13 +91,14 @@ function evidenceOf(
  * Read a paste.
  *
  * What counts as a page, and as too large, is `classifyPaste`'s one rule. Anything that is not a page goes straight to
- * `none`, and a line that is only a link in it is the suggested source (`extractSourceLink`, ADR-0089). A page goes
- * through the extractor chain, and its source is the address it states for itself.
+ * `notAPage`, and a line that is only a link in it is the suggested source (`extractSourceLink`, ADR-0089). A page goes
+ * through the extractor chain; the one recipe it is about is selected (`recipeSelection.ts`) and judged (`recipeAcceptance.ts`).
+ * A structured recipe the gate refuses is a no, and never falls through to a weaker reading (`recipeExtractors.ts`).
  *
  * @param text - Everything the cook pasted.
- * @returns `found` (the recipe, its evidence and a suggested source), `several` (the titles and each choice), `none` (no
- *   structured recipe, with any source found), `tooLarge` (over {@link MAX_PASTE_BYTES}), or `unusable`. All but
- *   `tooLarge` carry `pasteDigest`, the SHA-256 hex of the UTF-8 paste. Pure.
+ * @returns `extracted` (the recipe, its evidence, a suggested source and the tier), `notExtractable` (why, and any source
+ *   found), or `tooLarge` (over {@link MAX_PASTE_BYTES}). All but `tooLarge` carry `pasteDigest`, the SHA-256 hex of the
+ *   UTF-8 paste. Pure.
  */
 export function readPastedContent(text: string): PasteReadResult {
     const kind = classifyPaste(text);
@@ -95,59 +112,44 @@ export function readPastedContent(text: string): PasteReadResult {
     if (kind !== 'page') {
         const { link } = extractSourceLink(text);
 
-        return {
-            kind: 'none',
-            source: link === undefined ? NO_SOURCE : { kind: 'found', citation: link },
+        return notExtractable(
+            'notAPage',
+            link === undefined ? NO_SOURCE : { kind: 'found', citation: link },
             pasteDigest,
-        };
+        );
     }
 
     const page = parsePage(text);
     const extraction = extractRecipe(page);
+    const addresses = pageAddressesOf(page);
 
-    switch (extraction.kind) {
-        case 'found': {
-            const source = detectPageSource(page, extraction.links);
-
-            return {
-                kind: 'found',
-                recipe: extraction.recipe,
-                evidence: evidenceOf(extraction.credit, extraction.imageRefs, source),
-                source,
-                pasteDigest,
-            };
-        }
-
-        case 'several': {
-            const addresses = pageAddressesOf(page);
-
-            return {
-                kind: 'several',
-                titles: extraction.titles,
-                choices: extraction.choices.map((choice): PasteChoice => {
-                    if (choice.kind === 'unusable') {
-                        return choice;
-                    }
-
-                    const source = detectPageSource(addresses, choice.links);
-
-                    return {
-                        kind: 'found',
-                        recipe: choice.recipe,
-                        evidence: evidenceOf(choice.credit, choice.imageRefs, source),
-                        source,
-                    };
-                }),
-                pasteDigest,
-            };
-        }
-
-        case 'unusable':
-            return { kind: 'unusable', reason: extraction.reason, pasteDigest };
-        case 'none':
-            // A page cut short for depth may have held the recipe past the cut: say so rather than "no recipe".
-            return page.truncated
-                ? { kind: 'unusable', reason: 'pageTooDeep', pasteDigest }
-                : { kind: 'none', source: detectPageSource(page, []), pasteDigest };
+    if (extraction.kind === 'none') {
+        // A page cut short for depth may have held the recipe past the cut: say so rather than "no recipe".
+        return notExtractable(
+            page.truncated ? 'pageTooComplex' : 'noRecipe',
+            detectPageSource(addresses, []),
+            pasteDigest,
+        );
     }
+
+    const selection = selectCandidate(extraction.candidates, addresses);
+
+    if (selection.kind === 'several') {
+        return notExtractable('severalRecipes', detectPageSource(addresses, []), pasteDigest);
+    }
+
+    const { candidate } = selection;
+    const source = detectPageSource(addresses, candidate.links);
+    const acceptance = acceptRecipe(candidate.recipe, extraction.tier);
+
+    return acceptance.ok
+        ? {
+              kind: 'extracted',
+              recipe: candidate.recipe,
+              evidence: evidenceOf(candidate.credit, candidate.imageRefs, source),
+              source,
+              tier: extraction.tier,
+              pasteDigest,
+          }
+        : notExtractable(acceptance.reason, source, pasteDigest, candidate.title);
 }

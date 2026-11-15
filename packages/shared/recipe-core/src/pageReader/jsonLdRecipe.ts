@@ -117,5 +117,8 @@ function parsedBlock(script: PageElement): unknown {
 export function jsonLdRecipe(page: PageDocument): RecipeExtraction {
     const blocks = page.byTag('script').filter(isJsonLdScript).slice(0, MAX_JSON_LD_BLOCKS);
 
-    return extractionOf(blocks.flatMap((block) => recipeNodesOf(parsedBlock(block))));
+    return extractionOf(
+        blocks.flatMap((block) => recipeNodesOf(parsedBlock(block))),
+        'jsonLd',
+    );
 }

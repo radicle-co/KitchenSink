@@ -13,7 +13,7 @@ describe('readPastedContent', () => {
         const page = makePage({ jsonLd: [makeRecipeNode()], head: makeLinkHead({ canonical: SOURCE.citation.url }) });
 
         expect(readPastedContent(page)).toMatchObject({
-            kind: 'found',
+            kind: 'extracted',
             recipe: { title: 'Test Pancakes', servings: 4, ingredientLines: ['1 cup flour', '2 eggs'] },
             source: SOURCE,
         });
@@ -22,69 +22,148 @@ describe('readPastedContent', () => {
     it("falls back to the recipe node's own url when the page states no address", () => {
         const page = makePage({ jsonLd: [makeRecipeNode({ url: SOURCE.citation.url })] });
 
-        expect(readPastedContent(page)).toMatchObject({ kind: 'found', source: SOURCE });
+        expect(readPastedContent(page)).toMatchObject({ kind: 'extracted', source: SOURCE });
     });
 
     it('finds the recipe but no source when the page names no address', () => {
         expect(readPastedContent(makePage({ jsonLd: [makeRecipeNode()] }))).toMatchObject({
-            kind: 'found',
+            kind: 'extracted',
             source: { kind: 'none' },
         });
     });
 
     it('reads a microdata page', () => {
         expect(readPastedContent(makePage({ body: makeMicrodataBody() }))).toMatchObject({
-            kind: 'found',
+            kind: 'extracted',
             recipe: { title: 'Micro Soup' },
             source: { kind: 'found', citation: { site: 'example.com' } },
         });
     });
 
-    it('lists the titles when the page has several recipes, each choice with its own recipe and source', () => {
-        const page = makePage({
-            jsonLd: [
-                makeRecipeNode({ name: 'A', url: SOURCE.citation.url }),
-                makeRecipeNode({ name: 'B', recipeIngredient: ['1 pear'] }),
-                makeRecipeNode({ name: 'C', recipeIngredient: ['x'.repeat(1_001)] }),
-            ],
-        });
-        const result = readPastedContent(page);
+    /**
+     * Rewritten for the 2026-11-15 ruling. This proved that several recipes on a page came back as `several`, with a
+     * pick-one choice each. There is no pick-one now: the page's own recipe is the one that names the page, else it is a no.
+     */
+    describe('several recipes on one page', () => {
+        it("is severalRecipes when no recipe is the page's own, and still carries the page's source", () => {
+            const page = makePage({
+                jsonLd: [makeRecipeNode({ name: 'A' }), makeRecipeNode({ name: 'B', recipeIngredient: ['1 pear'] })],
+                head: makeLinkHead({ canonical: SOURCE.citation.url }),
+            });
 
-        expect(result).toMatchObject({ kind: 'several', titles: ['A', 'B', 'C'] });
-        expect(result.kind === 'several' ? result.choices : []).toMatchObject([
-            { kind: 'found', recipe: { title: 'A' }, source: SOURCE },
-            { kind: 'found', recipe: { title: 'B', ingredientLines: ['1 pear'] }, source: { kind: 'none' } },
-            { kind: 'unusable', reason: 'ingredientLineTooLong' },
-        ]);
+            expect(readPastedContent(page)).toEqual(
+                expect.objectContaining({ kind: 'notExtractable', reason: 'severalRecipes', source: SOURCE }),
+            );
+        });
+
+        it('extracts the one recipe that names the page and passes over the related ones', () => {
+            const page = makePage({
+                jsonLd: [
+                    makeRecipeNode({ name: 'Related', url: 'https://www.example.com/recipe/2/waffles/' }),
+                    makeRecipeNode({ name: 'Own', url: SOURCE.citation.url }),
+                ],
+                head: makeLinkHead({ canonical: SOURCE.citation.url }),
+            });
+
+            expect(readPastedContent(page)).toMatchObject({
+                kind: 'extracted',
+                recipe: { title: 'Own' },
+                source: SOURCE,
+            });
+        });
+
+        it('counts every candidate before the gate: a roundup with only one recipe that would pass is still severalRecipes', () => {
+            const page = makePage({
+                jsonLd: [makeRecipeNode({ name: 'A' }), makeRecipeNode({ name: 'B', recipeIngredient: [] })],
+            });
+
+            expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'severalRecipes' });
+        });
+
+        it('counts a recipe written twice once', () => {
+            const page = makePage({ jsonLd: [makeRecipeNode({ name: 'A' }), makeRecipeNode({ name: ' a ' })] });
+
+            expect(readPastedContent(page)).toMatchObject({ kind: 'extracted', recipe: { title: 'A' } });
+        });
     });
 
     it('keeps the detected source on a page with no recipe, so the cook can be asked about it', () => {
         expect(readPastedContent(makePage({ head: makeLinkHead({ canonical: SOURCE.citation.url }) }))).toMatchObject({
-            kind: 'none',
+            kind: 'notExtractable',
+            reason: 'noRecipe',
             source: SOURCE,
         });
     });
 
-    it('says a recipe that breaks a limit is unusable, and why', () => {
+    /** Rewritten: a recipe over a limit was `unusable`; it is now the gate's `notExtractable`, with the reason and the title. */
+    it('says a recipe the gate refuses is notExtractable, why, and which recipe it was', () => {
         expect(readPastedContent(makePage({ jsonLd: [makeRecipeNode({ name: 'x'.repeat(201) })] }))).toMatchObject({
-            kind: 'unusable',
-            reason: 'titleTooLong',
+            kind: 'notExtractable',
+            reason: 'titleUnusable',
+            title: 'x'.repeat(201),
+        });
+        expect(readPastedContent(makePage({ jsonLd: [makeRecipeNode({ recipeInstructions: [] })] }))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'noSteps',
+            title: 'Test Pancakes',
         });
     });
 
-    it('says a page nested past the depth cap is unusable when no recipe was found before the cut', () => {
+    it("keeps the recipe node's own source on a refused recipe", () => {
+        const node = makeRecipeNode({ recipeIngredient: [], url: SOURCE.citation.url });
+
+        expect(readPastedContent(makePage({ jsonLd: [node] }))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'noIngredients',
+            source: SOURCE,
+        });
+    });
+
+    it('does not fall through to microdata when the JSON-LD recipe is refused: a structured candidate that fails is a no', () => {
+        const page = makePage({ jsonLd: [makeRecipeNode({ recipeInstructions: [] })], body: makeMicrodataBody() });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'noSteps' });
+    });
+
+    it('names the tier that read the recipe, for measurement', () => {
+        expect(readPastedContent(makePage({ jsonLd: [makeRecipeNode()] }))).toMatchObject({ tier: 'jsonLd' });
+        expect(readPastedContent(makePage({ body: makeMicrodataBody() }))).toMatchObject({ tier: 'microdata' });
+    });
+
+    it('has no kind of result left that asks the cook to pick, review or repair', () => {
+        const pages = [
+            makePage({ jsonLd: [makeRecipeNode()] }),
+            makePage({ jsonLd: [makeRecipeNode({ name: 'A' }), makeRecipeNode({ name: 'B' })] }),
+            makePage({ jsonLd: [makeRecipeNode({ name: '' })] }),
+            makePage(),
+            'text',
+        ];
+
+        expect(
+            pages
+                .map((page) => readPastedContent(page).kind)
+                .every((kind) => kind === 'extracted' || kind === 'notExtractable'),
+        ).toBe(true);
+    });
+
+    /** Rewritten: a page cut for depth was `unusable: pageTooDeep`; it is `notExtractable: pageTooComplex`. */
+    it('says a page nested past the depth cap is pageTooComplex when no recipe was found before the cut', () => {
         const deep = `${'<div>'.repeat(5_000)}x${'</div>'.repeat(5_000)}`;
 
-        expect(readPastedContent(makePage({ body: deep }))).toMatchObject({ kind: 'unusable', reason: 'pageTooDeep' });
+        expect(readPastedContent(makePage({ body: deep }))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageTooComplex',
+        });
         expect(readPastedContent(makePage({ jsonLd: [makeRecipeNode()], body: deep }))).toMatchObject({
-            kind: 'found',
+            kind: 'extracted',
         });
     });
 
     describe('plain text with no markup', () => {
         it('has no structured recipe and no source when there is no link', () => {
             expect(readPastedContent('Pancakes\n1 cup flour\n2 eggs\nMix and cook.')).toMatchObject({
-                kind: 'none',
+                kind: 'notExtractable',
+                reason: 'notAPage',
                 source: { kind: 'none' },
             });
         });
@@ -93,28 +172,36 @@ describe('readPastedContent', () => {
             expect(
                 readPastedContent('Source: https://www.example.com/recipe/1/pancakes/\nPancakes\n1 cup flour'),
             ).toMatchObject({
-                kind: 'none',
+                kind: 'notExtractable',
+                reason: 'notAPage',
                 source: SOURCE,
             });
         });
 
         it('does not take a link inside a sentence, a link to our own site, or one to an IP address', () => {
             expect(readPastedContent('See https://www.example.com/a for more')).toMatchObject({
-                kind: 'none',
+                kind: 'notExtractable',
+                reason: 'notAPage',
                 source: { kind: 'none' },
             });
             expect(readPastedContent('https://commise.app/recipes/1')).toMatchObject({
-                kind: 'none',
+                kind: 'notExtractable',
+                reason: 'notAPage',
                 source: { kind: 'none' },
             });
             expect(readPastedContent('http://10.0.0.1/recipe')).toMatchObject({
-                kind: 'none',
+                kind: 'notExtractable',
+                reason: 'notAPage',
                 source: { kind: 'none' },
             });
         });
 
         it('is none for an empty paste', () => {
-            expect(readPastedContent('')).toMatchObject({ kind: 'none', source: { kind: 'none' } });
+            expect(readPastedContent('')).toMatchObject({
+                kind: 'notExtractable',
+                reason: 'notAPage',
+                source: { kind: 'none' },
+            });
         });
     });
 
@@ -138,8 +225,8 @@ describe('readPastedContent', () => {
         });
 
         it('accepts a paste of exactly 2,000,000 bytes', () => {
-            expect(readPastedContent('a'.repeat(MAX_PASTE_BYTES)).kind).toBe('none');
-            expect(readPastedContent('€'.repeat(666_666)).kind).toBe('none');
+            expect(readPastedContent('a'.repeat(MAX_PASTE_BYTES)).kind).toBe('notExtractable');
+            expect(readPastedContent('€'.repeat(666_666)).kind).toBe('notExtractable');
         });
 
         it('checks the size before parsing anything', () => {
@@ -166,7 +253,7 @@ describe('readPastedContent', () => {
             const result = readPastedContent(page);
 
             expect(result).toMatchObject({
-                kind: 'found',
+                kind: 'extracted',
                 evidence: {
                     credit: { authors: ['Jane Cook'], publisher: 'Pie Site' },
                     imageUrl: 'https://www.example.com/img/pie.jpg',
@@ -177,7 +264,7 @@ describe('readPastedContent', () => {
         it('keeps the recipe exactly the fields that become the import: no credit or image in it', () => {
             const result = readPastedContent(makePage({ jsonLd: [credited()] }));
 
-            expect(result.kind === 'found' ? Object.keys(result.recipe).sort() : []).toEqual([
+            expect(result.kind === 'extracted' ? Object.keys(result.recipe).sort() : []).toEqual([
                 'cookTimeMinutes',
                 'cuisine',
                 'description',
@@ -193,33 +280,47 @@ describe('readPastedContent', () => {
         it('has an empty credit and no image when the markup states none, and never a licence', () => {
             const result = readPastedContent(makePage({ jsonLd: [makeRecipeNode()] }));
 
-            expect(result).toMatchObject({ kind: 'found', evidence: { credit: { authors: [] } } });
-            expect(result.kind === 'found' ? Object.keys(result.evidence) : []).toEqual(['credit']);
-            expect(result.kind === 'found' ? Object.keys(result.evidence.credit) : []).toEqual(['authors']);
+            expect(result).toMatchObject({ kind: 'extracted', evidence: { credit: { authors: [] } } });
+            expect(result.kind === 'extracted' ? Object.keys(result.evidence) : []).toEqual(['credit']);
+            expect(result.kind === 'extracted' ? Object.keys(result.evidence.credit) : []).toEqual(['authors']);
         });
 
         it('drops a relative image when the page names no canonical address, and keeps an absolute one', () => {
             const relative = readPastedContent(makePage({ jsonLd: [credited()] }));
             const absolute = readPastedContent(makePage({ jsonLd: [credited({ image: 'https://i.example/p.jpg' })] }));
 
-            expect(relative.kind === 'found' ? relative.evidence.imageUrl : 'x').toBeUndefined();
-            expect(absolute.kind === 'found' ? absolute.evidence.imageUrl : undefined).toBe('https://i.example/p.jpg');
+            expect(relative.kind === 'extracted' ? relative.evidence.imageUrl : 'x').toBeUndefined();
+            expect(absolute.kind === 'extracted' ? absolute.evidence.imageUrl : undefined).toBe(
+                'https://i.example/p.jpg',
+            );
         });
 
-        it('gives each of several recipes its own evidence', () => {
+        it("gives the selected recipe its own evidence, not a related recipe's", () => {
             const result = readPastedContent(
                 makePage({
                     jsonLd: [
-                        credited({ name: 'A', author: 'Ann', image: 'https://i.example/a.jpg' }),
-                        credited({ name: 'B', author: 'Bob', image: 'https://i.example/b.jpg' }),
+                        credited({
+                            name: 'A',
+                            author: 'Ann',
+                            image: 'https://i.example/a.jpg',
+                            url: 'https://i.example/a',
+                        }),
+                        credited({
+                            name: 'B',
+                            author: 'Bob',
+                            image: 'https://i.example/b.jpg',
+                            url: SOURCE.citation.url,
+                        }),
                     ],
+                    head: makeLinkHead({ canonical: SOURCE.citation.url }),
                 }),
             );
 
-            expect(result.kind === 'several' ? result.choices : []).toMatchObject([
-                { kind: 'found', evidence: { credit: { authors: ['Ann'] }, imageUrl: 'https://i.example/a.jpg' } },
-                { kind: 'found', evidence: { credit: { authors: ['Bob'] }, imageUrl: 'https://i.example/b.jpg' } },
-            ]);
+            expect(result).toMatchObject({
+                kind: 'extracted',
+                recipe: { title: 'B' },
+                evidence: { credit: { authors: ['Bob'] }, imageUrl: 'https://i.example/b.jpg' },
+            });
         });
 
         it('reads the credit and image from microdata', () => {
@@ -232,7 +333,7 @@ describe('readPastedContent', () => {
             );
 
             expect(readPastedContent(makePage({ body }))).toMatchObject({
-                kind: 'found',
+                kind: 'extracted',
                 evidence: {
                     credit: { authors: ['Micro Mo'], license: 'https://creativecommons.org/licenses/by/4.0/' },
                     imageUrl: 'https://i.example/soup.jpg',
@@ -274,11 +375,13 @@ describe('readPastedContent', () => {
     describe('what counts as a page (classifyPaste is the one rule)', () => {
         it('reads text that mentions "&lt; 1 tsp" or has a bare "<" as text, not a page', () => {
             expect(readPastedContent('1 cup flour\n&lt; 1 tsp salt')).toMatchObject({
-                kind: 'none',
+                kind: 'notExtractable',
+                reason: 'notAPage',
                 source: { kind: 'none' },
             });
             expect(readPastedContent('Bake < 20 minutes\nhttps://www.example.com/recipe/1/pancakes/')).toMatchObject({
-                kind: 'none',
+                kind: 'notExtractable',
+                reason: 'notAPage',
                 source: SOURCE,
             });
         });
@@ -286,8 +389,11 @@ describe('readPastedContent', () => {
         it('reads a page only when it has the html, script or ld+json marks, in any case', () => {
             const markup = `<SCRIPT TYPE="APPLICATION/LD+JSON">${JSON.stringify(makeRecipeNode())}</SCRIPT>`;
 
-            expect(readPastedContent(markup)).toMatchObject({ kind: 'found' });
-            expect(readPastedContent(makeMicrodataBody())).toMatchObject({ kind: 'none' });
+            expect(readPastedContent(markup)).toMatchObject({ kind: 'extracted' });
+            expect(readPastedContent(makeMicrodataBody())).toMatchObject({
+                kind: 'notExtractable',
+                reason: 'notAPage',
+            });
         });
     });
 

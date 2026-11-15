@@ -137,5 +137,8 @@ const isRecipeItem = (element: PageElement): boolean =>
 export function microdataRecipe(page: PageDocument): RecipeExtraction {
     const roots = page.withAttribute('itemscope').filter(isRecipeItem).slice(0, MAX_RECIPES_PER_PAGE);
 
-    return extractionOf(roots.map((root): SchemaNode => itemOf(root)));
+    return extractionOf(
+        roots.map((root): SchemaNode => itemOf(root)),
+        'microdata',
+    );
 }

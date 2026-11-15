@@ -568,6 +568,17 @@ describe('CookingScreen: swipe (web touch)', () => {
         expect(screen.getByText('Step 1 of 6')).toBeTruthy();
     });
 
+    it('forgets a cancelled gesture, so a later touch release is no swipe', () => {
+        setup();
+        const target = body();
+
+        fireEvent.pointerDown(target, { pointerType: 'touch', clientX: 300, clientY: 300, isPrimary: true });
+        fireEvent.pointerCancel(target, { pointerType: 'touch' });
+        fireEvent.pointerUp(target, { pointerType: 'touch', clientX: 150, clientY: 310, isPrimary: true });
+
+        expect(screen.getByText('Step 1 of 6')).toBeTruthy();
+    });
+
     it('announces a swiped step like a pressed one', () => {
         setup();
 
@@ -597,6 +608,8 @@ describe('CookingScreen: keys (web)', () => {
 
         fireEvent.keyDown(document, { key: 'ArrowRight', altKey: true });
         fireEvent.keyDown(document, { key: 'ArrowRight', metaKey: true });
+        fireEvent.keyDown(document, { key: 'ArrowRight', shiftKey: true });
+        fireEvent.keyDown(document, { key: 'ArrowRight', ctrlKey: true });
         fireEvent.keyDown(field, { key: 'ArrowRight' });
 
         expect(screen.getByText('Step 1 of 6')).toBeTruthy();

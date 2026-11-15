@@ -38,6 +38,7 @@ const ENABLED = `\t\t"${DAEMON}" => enabled`;
  * @param readBack - What a stubbed `launchctl print-disabled` prints.
  * @param bootoutStatus - The status a stubbed `launchctl bootout` returns.
  * @param disableStatus - The status a stubbed `launchctl disable` returns.
+ * @param padLines - How many other-daemon lines the stubbed `print-disabled` prints after the read-back.
  * @returns The exit status, its output, and every stubbed call, one per line.
  * @sideEffect Spawns bash and writes a log under the suite's temp dir.
  */
@@ -46,11 +47,14 @@ function run(
     readBack = DISABLED,
     bootoutStatus = 0,
     disableStatus = 0,
+    padLines = 0,
 ): { readonly status: number | null; readonly output: string; readonly calls: readonly string[] } {
     const log = path.join(scratch, `calls-${String(Math.random()).slice(2)}.log`);
     const stub = [
         'xcrun() { echo "xcrun $*" >> "$STUB_LOG"; case "$*" in',
-        '  *"launchctl print-disabled"*) printf "%s\\n" "$STUB_READ_BACK";;',
+        '  *"launchctl print-disabled"*) printf "%s\\n" "$STUB_READ_BACK"',
+        // After the read-back, STUB_PAD other-daemon lines: a long listing, with the match first.
+        `    awk -v n="$STUB_PAD" 'BEGIN { for (i = 0; i < n; i++) print "\\t\\t\\"com.apple.pad\\" => enabled" }';;`,
         '  *"launchctl disable"*) return "$STUB_DISABLE";;',
         '  *"launchctl bootout"*) return "$STUB_BOOTOUT";;',
         'esac; }',
@@ -63,6 +67,7 @@ function run(
             STUB_READ_BACK: readBack,
             STUB_BOOTOUT: String(bootoutStatus),
             STUB_DISABLE: String(disableStatus),
+            STUB_PAD: String(padLines),
             STUB_SCRIPT: SCRIPT,
         },
     });
@@ -114,6 +119,8 @@ describe('maestro_disable_apple_intelligence_banner_ios', () => {
     it('⛔ fails when the name differs by one character where the dot is, or has a prefix, so the pattern is exact', () => {
         for (const readBack of [
             '\t\t"comXapple.generativeexperiencesd" => disabled',
+            '\t\t"com.appleXgenerativeexperiencesd" => disabled',
+            `\t\t"${DAEMON}.other" => disabled`,
             `x\t\t"${DAEMON}" => disabled`,
             `\t\t"${DAEMON}" => disabled extra`,
         ]) {
@@ -122,6 +129,13 @@ describe('maestro_disable_apple_intelligence_banner_ios', () => {
             expect(status, readBack).not.toBe(0);
             expect(status, readBack).not.toBe(127);
         }
+    });
+
+    it('⛔ passes when the daemon line is first and the listing is far longer than a pipe buffer (no SIGPIPE under pipefail)', () => {
+        // 60,000 lines is about 2 MB: `grep -q` leaves at the first match while the writer still has most of it to send.
+        const { status } = run(CALL, DISABLED, 0, 0, 60_000);
+
+        expect(status).toBe(0);
     });
 
     it('lets the read-back decide: a disable that exits non-zero passes when the daemon reads back disabled', () => {

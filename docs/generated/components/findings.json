@@ -1,14 +1,14 @@
 {
     "schemaVersion": 1,
     "counts": {
-        "ambiguous-layer-signal": 11,
+        "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
         "cross-platform-props-diverge": 23,
         "missing-component-doc": 165,
         "missing-module-doc": 23,
         "platform-singleton": 113,
         "ref-api": 19,
-        "unclassified-layer": 95,
+        "unclassified-layer": 93,
         "undocumented-prop": 229
     },
     "findings": [
@@ -5316,14 +5316,6 @@
             ]
         },
         {
-            "rule": "ambiguous-layer-signal",
-            "severity": "review",
-            "component": "featuresCooking/CookingNav",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingNav.tsx",
-            "message": "the docblock names BOTH layers; the catalogue resolved it to orchestration",
-            "evidence": []
-        },
-        {
             "rule": "platform-singleton",
             "severity": "review",
             "component": "featuresCooking/CookingNav",
@@ -5375,14 +5367,6 @@
             ]
         },
         {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresCooking/CookingScreen",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingScreen.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
             "rule": "undocumented-prop",
             "severity": "gap",
             "component": "featuresCooking/CookingScreen",
@@ -5401,14 +5385,6 @@
             "evidence": [
                 "web"
             ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresCooking/CookingSessionScreen",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingSessionScreen.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
         },
         {
             "rule": "undocumented-prop",
@@ -5430,14 +5406,6 @@
             "evidence": [
                 "web"
             ]
-        },
-        {
-            "rule": "ambiguous-layer-signal",
-            "severity": "review",
-            "component": "featuresCooking/CookingStep",
-            "sourcePath": "packages/apps/commise/features/cooking/src/CookingStep.tsx",
-            "message": "the docblock names BOTH layers; the catalogue resolved it to orchestration",
-            "evidence": []
         },
         {
             "rule": "platform-singleton",

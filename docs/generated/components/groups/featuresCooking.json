@@ -11,7 +11,7 @@
         "implementationsWithModuleDoc": 12,
         "implementationsWithComponentDoc": 12,
         "documentedProps": 25,
-        "classifiedComponents": 10,
+        "classifiedComponents": 12,
         "componentsWithPatternTag": 2,
         "crossPlatformComponents": 0
     },
@@ -362,7 +362,7 @@
             "packageName": "@commise/features-cooking",
             "layer": "feature",
             "dir": "packages/apps/commise/features/cooking/src",
-            "kind": "orchestration",
+            "kind": "presentational",
             "patterns": [],
             "platforms": [
                 "web"
@@ -376,7 +376,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingNav.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingNav — the web Back / forward pair at the foot of the cooking column.\n\nTwo equal halves of one row, both the house `Button size=\"lg\"` (52). Back is first and forward is last in reading\norder, so forward sits on the reach side. Forward is quiet (the neutral secondary surface) until it is the action\nnow (\"Start step n\", \"Finish\" once every line is ticked); the orchestration layer says which with `tone`. Under 360\nwide the chevrons hide and the labels stay whole.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingNav — the web Back / forward pair at the foot of the cooking column.\n\nTwo equal halves of one row, both the house `Button size=\"lg\"` (52). Back is first and forward is last in reading\norder, so forward sits on the reach side. Forward is quiet (the neutral secondary surface) until it is the action\nnow (\"Start step n\", \"Finish\" once every line is ticked); the screen says which with `tone`. Under 360\nwide the chevrons hide and the labels stay whole.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -420,7 +420,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
-                        "orchestration": true
+                        "orchestration": false
                     }
                 }
             ]
@@ -484,7 +484,7 @@
             "packageName": "@commise/features-cooking",
             "layer": "feature",
             "dir": "packages/apps/commise/features/cooking/src",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
                 "Visitor — an exhaustive switch over the read-level screen state, each case picking one render component"
             ],
@@ -500,11 +500,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingScreen.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingScreen — the web cooking screen: the read level of cooking mode. It decides which screen to draw before\na session exists (`useCookingEntry`: loading, error, gone, no steps) and mounts `CookingSessionScreen` only once the\nrecipe is ready to cook. Where to go (the recipe, the editor, Home) is the route adapter's: it hands callbacks in.\n\nBecause the session is mounted below this switch and keyed by the recipe, the read always wins at the join: a read\nthat goes back to loading, or arrives with no steps, replaces Done rather than sitting under it.",
+                    "moduleDoc": "CookingScreen — the web cooking screen: the read-level orchestration of cooking mode. It decides which screen to draw before\na session exists (`useCookingEntry`: loading, error, gone, no steps) and mounts `CookingSessionScreen` only once the\nrecipe is ready to cook. Where to go (the recipe, the editor, Home) is the route adapter's: it hands callbacks in.\n\nBecause the session is mounted below this switch and keyed by the recipe, the read always wins at the join: a read\nthat goes back to loading, or arrives with no steps, replaces Done rather than sitting under it.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "CookingScreen — the web cooking screen: the read level of cooking mode. It decides which screen to draw before"
+                            "text": "CookingScreen — the web cooking screen: the read-level orchestration of cooking mode. It decides which screen to draw before"
                         },
                         {
                             "name": "pattern",
@@ -557,7 +557,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -569,10 +569,9 @@
             "packageName": "@commise/features-cooking",
             "layer": "feature",
             "dir": "packages/apps/commise/features/cooking/src",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
-                "Mediator — the session hook, the keep-awake hook, the step view model and the copy meet here, so no render component knows another",
-                "Visitor — an exhaustive switch over the session's screen state"
+                "Mediator — the session model, the web's key and swipe adapters and the render components meet here, so no render component knows another"
             ],
             "platforms": [
                 "web"
@@ -586,19 +585,15 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingSessionScreen.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingSessionScreen — the web cooking session: the steps and Done. Mounted by `CookingScreen` only once the\nrecipe has steps to cook, so the session hook never opens on an empty recipe. It reads the recipe once: a refetch\nre-renders this with new steps, which the session does not re-read.\n\nIt turns the session and the copy into the display props of the pure render components, and owns the web's behaviour:\nthe ← / → keys, the swipe, the polite announcement of a step change, the screen-on hold, and moving focus to Done's\ntitle. The read-level states (loading, error, gone, no steps) are `CookingScreen`'s, so the read always wins over the\nsession.",
+                    "moduleDoc": "CookingSessionScreen — the session-level orchestration of web cooking mode: the steps and Done. Mounted by\n`CookingScreen` only once the recipe has steps to cook, so the session never opens on an empty recipe. The model is\n`useCookingSessionScreen`'s; this screen draws it and adds the web's own behaviour: the ← / → keys, the swipe, the\npolite announcement of a step change, and moving focus to Done's title. The read-level states (loading, error, gone, no\nsteps) are `CookingScreen`'s, so the read always wins over the session.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "CookingSessionScreen — the web cooking session: the steps and Done. Mounted by `CookingScreen` only once the"
+                            "text": "CookingSessionScreen — the session-level orchestration of web cooking mode: the steps and Done. Mounted by"
                         },
                         {
                             "name": "pattern",
-                            "text": "Mediator — the session hook, the keep-awake hook, the step view model and the copy meet here, so no render component knows another"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Visitor — an exhaustive switch over the session's screen state"
+                            "text": "Mediator — the session model, the web's key and swipe adapters and the render components meet here, so no render component knows another"
                         }
                     ],
                     "description": "The web cooking session.",
@@ -629,7 +624,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -720,7 +715,7 @@
             "packageName": "@commise/features-cooking",
             "layer": "feature",
             "dir": "packages/apps/commise/features/cooking/src",
-            "kind": "orchestration",
+            "kind": "presentational",
             "patterns": [],
             "platforms": [
                 "web"
@@ -734,7 +729,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingStep.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingStep — the web cooking step body.\n\nTop to bottom: the step track, the record of ticked lines behind a Show disclosure, the line count, the focus line, the\n\"Then\" lines, and, once every line is ticked, Up next: the next step, its first line at the focus size. The one-line preview is not here: it is pinned in the foot. The body is a region named by the place, and the lines are checkboxes named by their text, in reading order. Which line is the\nfocus, and every string, are decided by the orchestration layer.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingStep — the web cooking step body.\n\nTop to bottom: the step track, the record of ticked lines behind a Show disclosure, the line count, the focus line, the\n\"Then\" lines, and, once every line is ticked, Up next: the next step, its first line at the focus size. The one-line preview is not here: it is pinned in the foot. The body is a region named by the place, and the lines are checkboxes named by their text, in reading order. Which line is the\nfocus, and every string, are decided by the screen.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -814,7 +809,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
-                        "orchestration": true
+                        "orchestration": false
                     }
                 }
             ]

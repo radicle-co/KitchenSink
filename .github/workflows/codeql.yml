@@ -72,6 +72,12 @@ jobs:
                   languages: ${{ matrix.language }}
                   build-mode: ${{ matrix.build-mode }}
                   queries: security-and-quality
+                  # The design-canvas snapshots are byte-for-byte copies of published claude.ai canvases
+                  # (docs/design/canvases/README.md), so no alert in them can be fixed here. Their only code,
+                  # ds/commise/bundle.js, is built from @commise/ui, which this analysis already scans.
+                  config: |
+                      paths-ignore:
+                          - docs/design/canvases/*/project
 
             - name: Perform CodeQL Analysis
               uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3

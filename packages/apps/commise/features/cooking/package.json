@@ -4,6 +4,7 @@
     "private": true,
     "type": "module",
     "exports": {
+        "./mobile": "./src/mobileEntry.ts",
         "./web": "./src/webEntry.ts"
     },
     "scripts": {

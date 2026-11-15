@@ -881,14 +881,18 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   a transport rate limit: it is evaluated in the domain layer and is expected to vary by subscription tier once
   [010-subscriptions](../010-subscriptions/spec.md) lands. Per-minute burst limiting remains the shipped
   throttler's job (D-006).
-    > ⚠️ **Where the count lives, and the bulk allowance.** Owner ruling, 2026-10-26. The quota is counted in
-    > the `import_allowance_events` ledger (recipe-service migration 0058), not over an `import_jobs` table, which
-    > was never built. Each channel counts only its own rows: **paste, 200 a rolling day**, one unit per paste,
-    > and **bulk import, 1,000 recipes a rolling day on a paid plan and 200 on Free** (owner ruling, 2026-10-27), one unit per recipe. The two never borrow from each other.
-    > This replaces "across all channels" for these two channels, and it replaces D-013's "one file is one
-    > import". Bulk import now sends every line through the LLM parse and the match review, so a file is no longer
-    > free of third-party calls. [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §8 holds
-    > the rule. The OCR sub-quota is unchanged and stays with 011.
+    > ⚠️ **Where the count lives, and the one allowance.** Owner rulings, 2026-10-26 and 2026-11-15. The quota is counted
+    > in the `import_allowance_events` ledger (recipe-service migration 0058), not over an `import_jobs` table, which was
+    > never built. **Every recipe import spends ONE allowance: 200 recipes a rolling day on Free and 1,000 on a paid plan,
+    > one unit per recipe**, whether it comes from a bulk file or a pasted recipe ("one pipeline, one allowance", owner,
+    > 2026-11-15). A pasted recipe is a one-recipe import through `/api/v1/import` and has no counter of its own. A test
+    > principal has no limit ("if this is for testing, then there are no limits", owner, 2026-11-15). The `paste` channel in
+    > the ledger is now only the **editor's ingredient-list paste**, which imports no recipe and still counts 200 a rolling
+    > day, one unit per paste; the owner's ruling of 2026-11-11 puts it in the one pipeline, so it moves to the one
+    > allowance (owed, ADR-0072 §8). This replaces "across all channels" and D-013's "one file is one import". Bulk import
+    > sends every line through the LLM parse and the match review, so a file is not free of third-party calls.
+    > [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §8 holds the rule. The OCR sub-quota is
+    > unchanged and stays with 011.
 - **FR-018**: System MUST expire unconfirmed import drafts **7 days** after creation, and MUST delete any OCR
   source image on confirm, discard, or expiry — whichever occurs first. The draft and its image share one
   lifetime: there is no state in which an image outlives the draft that references it. The retention period is
@@ -1389,9 +1393,9 @@ The section above decides **who authors** the contract; this one is where it **r
   file import does neither (one upload, parsed locally, no third-party call). Without this carve-out a
   first-day migration would exhaust a user's daily allowance on the day they join, which is precisely backwards.
     > ⚠️ **Both halves are replaced.** Owner rulings, 2026-10-26. A file of any size is accepted, and there is no
-    > 1,000-recipe file limit. Bulk import has its own allowance of 1,000 recipes a rolling day on a paid plan and 200 on Free. It counts per
-    > recipe, and paste spends the same allowance (owner ruling 2026-11-15; see the note under `FR-022`). A file larger than the room left imports
-    > what fits, and the rest follows as room frees up.
+    > 1,000-recipe file limit. Every recipe import, a pasted recipe included, spends one allowance of 1,000 recipes a rolling
+    > day on a paid plan and 200 on Free (owner rulings 2026-10-26 and 2026-11-15; see the note under `FR-022`). It counts
+    > per recipe. A file larger than the room left imports what fits, and the rest follows as room frees up.
 - **D-012 (Bulk import, 2026-08-02)**: A single uploaded export file may contain many recipes — the realistic
   migration path from Paprika, Mealie, or Plan To Eat, and the onboarding case this feature exists to serve.
   One draft per recipe (so nothing is fabricated and every rule still applies), with **split review**: complete
@@ -1437,8 +1441,9 @@ The section above decides **who authors** the contract; this one is where it **r
   (`429`) with a `resetsAt`. It is NOT a second registered throttler: `throttle.config.ts` documents that
   `@nestjs/throttler` v6 ANDs every registered throttler across every route, so a daily throttler would apply
   service-wide. Treating the allowance as domain policy also puts it where 010's tier rules will need it.
-    > ⚠️ The daily allowance's count and channels changed by owner ruling, 2026-10-26: paste 200 a rolling day,
-    > bulk import 1,000 recipes a rolling day on a paid plan and 200 on Free, each counted on its own. See the note under `FR-022`.
+    > ⚠️ The daily allowance's count and channels changed by owner rulings, 2026-10-26 and 2026-11-15: every recipe import,
+    > a pasted recipe included, spends one allowance of 1,000 recipes a rolling day on a paid plan and 200 on Free. Only the
+    > editor's ingredient-list paste keeps a counter of its own, until it moves (owed). See the note under `FR-022`.
 - **D-005 (Draft & image retention, 2026-08-02)**: Unconfirmed drafts expire **7 days** after creation, and the
   OCR source image shares that lifetime exactly — deleted on confirm, discard, or expiry, whichever is first.
   Seven days covers a user who starts an import, is interrupted, and returns the following weekend, while

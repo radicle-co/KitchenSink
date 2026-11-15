@@ -89,8 +89,8 @@ matches request.
   view changed.
 - `advance` is safe to repeat. An item already saved is not saved again, and an item that already spent its allowance
   unit does not spend another (§8). That is what makes a restart free of duplicates (017 FR-017).
-- The parse job an import creates admits no paste allowance unit (`createPrepaid` in the blueprint). The import pays
-  for its items under its own channel (§8).
+- The parse job an import creates admits no unit of the editor's ingredient-list paste (`createPrepaid` in the
+  blueprint). The import pays for its items on the `bulk` channel (§8).
 
 ### 3. Each recipe is saved once, published, and sits in review until it is approved
 
@@ -156,8 +156,9 @@ recipe it created, so a repeated `advance` sees the item as done.
     - A recipe with no line or no step is refused at upload. One that reaches the save all the same is held for its
       refusal (`item`), and the defect is logged once. A payload this build cannot read is held as `unreadable`, and
       logged once. That is the one matched item the cook may replace: a different recipe reopens it, back to `received`
-      with its snapshot dropped and a new parse generation, and the unit it paid stays spent. Every other matched item
-      stays locked.
+      with its snapshot dropped and a new parse generation, and its unit un-spent, so the next `advance` pays it again
+      (review of #261: every reopen is a new LLM parse against the shared ceiling, so one unit must not buy unlimited
+      re-parses). Every other matched item stays locked.
     - A refusal from the create path that the check did not predict is held as `createRefused`, and an unpublishable
       one is logged once as a defect.
     - A save that fails for a cause no rule recognises is retried, and counted in `save_failures` (migration 0084). After
@@ -168,6 +169,14 @@ recipe it created, so a repeated `advance` sees the item as done.
       the cook asking, so a hold whose cause is gone, or one the cook can see the cause of, never shows it.
 - The import still binds nothing in the background and never chooses a visibility for the cook.
 - **A pasted recipe is a one-recipe import through this route** (owner ruling 2026-11-15): it spends one import allowance like any other recipe. A link or a video import is not built yet.
+    - **PR C reads `view.allowance` and shows an immediate refusal.** For a bulk file, waiting for the allowance is the
+      design: `POST /import` answers `201` and `advance` answers `200` with `waitingForAllowance`, and the file resumes
+      after `resetsAt`. For a single paste that wait is wrong. The cook is looking at the screen, so the client reads
+      `view.allowance` after the first `advance` and, when the item is unpaid, shows a refusal at once with the reset
+      time (FR-022's "distinct, machine-readable refusal carrying the time more room opens"), and deletes the import.
+    - **A paste's `matchMode` is `review` or `keepAsWritten`, never `bindBest`.** A paste match is a proposal that the cook
+      reviews and binds (ADR-0071, DD31), so a paste never auto-binds. `bindBest` is for a bulk file the cook chose to
+      trust.
 
 ### 4. Match lines are snapshotted, because parse jobs expire
 
@@ -266,19 +275,34 @@ ruling, 2026-11-15). A pasted recipe is a one-recipe import through this route, 
 - **Import: 200 recipes a rolling day on Free, 1,000 on a paid plan**, one unit per recipe (owner rulings, 2026-11-11
   and 2026-11-15). Superusers and VIPs count as paid. The plan is read once, through `isPremiumPrincipal`. The plan
   decides the limit at the first send of a line.
-- **The editor's ingredient-list paste keeps its own 200 a rolling day**, one unit per paste (004 FR-022 and plan §5).
-  It parses lines into an open recipe and imports no recipe, so it is not a recipe import.
-- Both are counted in the one ledger this branch built, `import_allowance_events` (migration 0058), under the per-user
-  advisory lock. Each channel sums only its own rows. The window is the trailing 24 hours that
+- **A test principal has no limit** (owner ruling, 2026-11-15, verbatim): "if this is for testing, then there are no
+  limits. IF this is for user-facing behavior, then one pipeline, one allowance." The bulk scope carries the principal's
+  kind (ADR-0040). A test principal is stated with `TEST_PRINCIPAL_ALLOWANCE_LIMIT` (the int4 ceiling, so the view's
+  `allowance.limit` stays a number the contract can carry) and is always admitted. The unit is still written to the
+  ledger and `allowance_spent_at` is still stamped, so `advance` stays safe to repeat and the one pipeline runs end to
+  end. The pool users the e2e, Playwright, Maestro and k6 tiers sign in as are test principals.
+- **The editor's ingredient-list paste moves to the one allowance; owed.** It still has its own `paste` channel, 200 a
+  rolling day and one unit per paste (004 FR-022, plan §5), spent by `ParseJobsService.create`. The owner's ruling of
+  2026-11-11 names the editor's paste as part of the one import pipeline, so this channel is a gap and not a decision.
+  Moving it is more than a review fix: it reaches the paste route's principal plumbing, the `paste` channel and its
+  limit, the parse-job tests, the quota e2e and the k6 script, and the ledger's `paste` rows are stored data.
+- Both channels are counted in the one ledger this branch built, `import_allowance_events` (migration 0058), under the
+  per-user advisory lock. Each channel sums only its own rows. The window is the trailing 24 hours that
   `importAllowancePolicy.ts` defines.
 - An item spends its unit at the first send of its lines for parsing, because LLM spend starts there. The item
   records that it paid, so a repeated `advance` or a re-created parse job never charges it twice.
 - **A file of any size is accepted** (owner ruling, second round). There is no per-file cap. A file larger than the
   room left today imports what fits, and the rest follows as room frees up.
 - An `advance` that reaches the allowance does the work it can still pay for and answers the import view as usual. It
-  never answers `IMPORT_QUOTA_EXCEEDED`, which is paste's refusal. The view's `allowance` carries the cook's limit (200
+  never answers `IMPORT_QUOTA_EXCEEDED`, which today is only the editor's ingredient-list paste's refusal. The view's `allowance` carries the cook's limit (200
   on Free, 1,000 on a paid plan, where superusers and VIPs count as paid), what the window used, and `resetsAt`. Each
   item still unpaid shows `waitingForAllowance`. The next call after `resetsAt` resumes the import.
+- **Unpaid storage is capped per cook, and a file's size is not.** The routes are public to any signed-in account, and an
+  unpaid item waits up to 30 days for the purge, so one account could fill the database at the write throttle. A cook may
+  hold `IMPORT_MAX_UNPAID_BYTES` (64 MiB) of recipe text in items that have not spent a unit, across all their imports. It
+  is checked in `upsertItems` under the cook's allowance lock. Past it the request is rolled back with
+  `IMPORT_STORAGE_FULL` (`409`, not `413`: a client halves its chunk on `413`, and a smaller chunk does not help here).
+  A request that shrinks or keeps what the cook holds is never refused.
 - The ledger's channel names follow the route: `bulk`, not `migration`. Migration 0058 is not pushed, so it is
   edited in place rather than followed by a rename.
 - `importAllowancePolicy.ts` counts each channel's rows against that channel's limit. On bulk, the limit is the
@@ -383,7 +407,8 @@ is reached, this path does not wait for the budget to return.
   and `bound_by` follows the food through every later save.
 - One read model, three mappings. The paste view, a saved line's badge and the import flag all read the one
   classifier, so the three surfaces cannot disagree about what a verdict means.
-- The allowance now has two channels in one table. Paste and bulk import never borrow from each other.
+- The allowance has two channels in one table until the editor's ingredient-list paste moves to the one allowance (§8,
+  owed). They never borrow from each other.
 - With the budget spent, a bulk import keeps working. Its lines are saved as written and wait under "to check" for
   the cook. Nothing waits for the next month.
 - The `/api/v1/import` prefix now holds a resource, so a later single-recipe channel under it must be a literal word

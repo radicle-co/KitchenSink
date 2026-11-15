@@ -348,3 +348,76 @@ describe('jsonLdRecipe: hostile input', () => {
         expect(read(hostile)).toMatchObject({ kind: 'candidates', candidates: [{ recipe: { title: 'Own' } }] });
     });
 });
+
+describe('jsonLdRecipe: cleaning what a page writes (round 5)', () => {
+    const titleOf = (name: string) => foundRecipe(makeRecipeNode({ name })).title;
+    const linesOf = (recipeIngredient: unknown) => foundRecipe(makeRecipeNode({ recipeIngredient })).ingredientLines;
+
+    it.each([
+        ['Best Chili Recipe', 'Best Chili'],
+        ['Best Chili recipe', 'Best Chili'],
+        ['BEST CHILI RECIPE', 'BEST CHILI'],
+    ])('R1 drops a trailing " Recipe" from %j', (name, title) => {
+        expect(titleOf(name)).toBe(title);
+    });
+
+    it.each(['Recipe', 'Chili Recipes', 'Recipe Chili', 'Chilirecipe', 'Receta de chili'])(
+        'R1 leaves the title %j alone',
+        (name) => {
+            expect(titleOf(name)).toBe(name);
+        },
+    );
+
+    it('R2 drops a heading line: it ends in a colon and states no amount', () => {
+        expect(linesOf(['FILLING:', '1 cup flour', 'SHORTBREAD CRUST：', '2 eggs', 'Dodatkowo:'])).toEqual([
+            '1 cup flour',
+            '2 eggs',
+        ]);
+    });
+
+    it('R2 keeps a line that ends in a colon but states an amount, and a vague line with no colon', () => {
+        expect(linesOf(['2 cups flour:', 'Salt', 'Toppings of choice, see notes'])).toEqual([
+            '2 cups flour:',
+            'Salt',
+            'Toppings of choice, see notes',
+        ]);
+    });
+
+    it('R5 cleans a doubled-up note and trims one trailing comma from an ingredient line', () => {
+        expect(linesOf(['1 cup butter (, softened (or salted butter))', '12 grams salt,', '3 eggs,,'])).toEqual([
+            '1 cup butter, softened (or salted butter)',
+            '12 grams salt',
+            '3 eggs,',
+        ]);
+    });
+});
+
+describe('jsonLdRecipe: what the corroboration stage reads (round 5)', () => {
+    it('keeps each step raw, with its section heading and its offered name, beside the built steps', () => {
+        const extraction = read(
+            makeRecipeNode({
+                recipeInstructions: [
+                    { '@type': 'HowToStep', name: 'Scramble the egg', text: 'Whisk the eggs.' },
+                    {
+                        '@type': 'HowToSection',
+                        name: 'Glaze',
+                        itemListElement: [{ '@type': 'HowToStep', text: 'Stir.' }],
+                    },
+                ],
+            }),
+        );
+
+        expect(extraction).toMatchObject({
+            candidates: [
+                {
+                    recipe: { steps: [{ instruction: 'Whisk the eggs.' }, { instruction: 'Glaze: Stir.' }] },
+                    schemaSteps: [
+                        { text: 'Whisk the eggs.', name: 'Scramble the egg' },
+                        { text: 'Stir.', heading: 'Glaze' },
+                    ],
+                    emptyDeclaredSteps: false,
+                },
+            ],
+        });
+    });
+});

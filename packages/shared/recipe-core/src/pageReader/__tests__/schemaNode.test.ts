@@ -45,7 +45,9 @@ describe('asList and scalar', () => {
 
 describe('textOf', () => {
     it('reads one level of list and no deeper, so a hostile nesting cannot overflow the stack', () => {
-        expect(textOf(['a', ['b'], 'c'])).toBe('a c');
+        expect(textOf(['a', ['b'], 'c'])).toBe('a b c');
+        expect(textOf([['one', 'two']])).toBe('one two');
+        expect(textOf([[['deep']]])).toBeUndefined();
         expect(textOf(JSON.parse(`${'['.repeat(100_000)}"x"${']'.repeat(100_000)}`))).toBeUndefined();
     });
 

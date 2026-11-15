@@ -39,10 +39,16 @@ export function asList(value: unknown): readonly unknown[] {
  */
 export function textOf(value: unknown): string | undefined {
     if (Array.isArray(value)) {
-        // Microdata gives every property as a list; several blocks of one value read as one line. One level only: a list
-        // inside a list has no text, so no read recurses past it.
+        // Microdata gives every property as a list, and a value of several blocks as a list inside it, so several blocks
+        // of one value read as one line. Exactly one list inside the list: a deeper one has no text, so no read recurses.
         const joined = (value as readonly unknown[])
-            .flatMap((item) => (Array.isArray(item) ? [] : (textOf(item) ?? [])))
+            .flatMap((item) =>
+                Array.isArray(item)
+                    ? (item as readonly unknown[]).flatMap((inner) =>
+                          Array.isArray(inner) ? [] : (textOf(inner) ?? []),
+                      )
+                    : (textOf(item) ?? []),
+            )
             .join(' ');
 
         return joined === '' ? undefined : joined;

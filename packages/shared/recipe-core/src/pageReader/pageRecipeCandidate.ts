@@ -16,11 +16,13 @@
 import { recipeCuisineSchema, recipeDescriptionSchema } from '../recipeRequestBounds.js';
 import { MAX_RECIPES_PER_PAGE } from './pageCaps.js';
 import { collapseBracketGroups } from './collapseBracketGroups.js';
-import { instructionSteps } from './instructionSteps.js';
+import { instructionOf, instructionSteps } from './instructionSteps.js';
+import type { SchemaStep } from './instructionSteps.js';
 import { creditOf, imageRefsOf } from './pageEvidence.js';
 import type { PageCredit } from './pageEvidence.js';
 import { durationMinutes } from './isoDuration.js';
 import { servingsOf } from './recipeYield.js';
+import { readCooksMeasure } from '../parsing/measureReader.js';
 import { asList, field, isSchemaNode, scalar, textOf } from './schemaNode.js';
 import type { SchemaNode } from './schemaNode.js';
 
@@ -57,6 +59,10 @@ export interface PageCandidate {
     readonly credit: PageCredit;
     /** The image addresses as written, to be resolved against the canonical address. Never fetched. */
     readonly imageRefs: readonly string[];
+    /** The steps as the structured data states them, raw: what the page is asked to agree with, never the built text. */
+    readonly schemaSteps: readonly SchemaStep[];
+    /** Whether a `recipeInstructions` property the page declares holds no text (a paragraph a parser closed early). */
+    readonly emptyDeclaredSteps: boolean;
 }
 
 /** What one strategy found on a page: nothing, or every candidate it read, in page order. */
@@ -81,14 +87,38 @@ function linksOf(node: SchemaNode): readonly string[] {
     return [rawString(scalar(field(node, 'url'))), pageLink].flatMap((link) => (link === undefined ? [] : [link]));
 }
 
+/** R2: whether a line is a heading for the lines under it: it ends in a colon and states no amount ("FILLING:"). */
+function isHeadingLine(line: string): boolean {
+    const last = line.charAt(line.length - 1);
+
+    return (last === ':' || last === '\uFF1A') && readCooksMeasure(line).quantity.kind === 'absent';
+}
+
+/** R5: one trailing comma off an ingredient line (some pages write every line that way). */
+function withoutTrailingComma(line: string): string {
+    return line.endsWith(',') ? line.slice(0, -1).trimEnd() : line;
+}
+
+/** R1: a title without a trailing " Recipe", when something is left ("Best Chili Recipe" is "Best Chili"). */
+function titleWithoutRecipe(name: string): string {
+    const suffix = ' recipe';
+    const stem =
+        name.length > suffix.length && name.toLowerCase().endsWith(suffix)
+            ? name.slice(0, -suffix.length).trimEnd()
+            : '';
+
+    return stem === '' ? name : stem;
+}
+
 /** The lines of a list-valued field, one level of nesting flattened (microdata gives a list of blocks). */
 function linesOf(value: unknown): readonly string[] {
     return asList(value)
         .flatMap((item) => (Array.isArray(item) ? (item as readonly unknown[]) : [item]))
         .flatMap((item) => {
             const text = textOf(item);
+            const line = text === undefined ? undefined : withoutTrailingComma(collapseBracketGroups(text));
 
-            return text === undefined ? [] : [collapseBracketGroups(text)];
+            return line === undefined || line === '' || isHeadingLine(line) ? [] : [line];
         });
 }
 
@@ -134,8 +164,9 @@ function candidateOf(node: SchemaNode): PageCandidate | undefined {
               ? `url:${links[0] ?? ''}`
               : `name:${name}`;
     const description = textOf(field(node, 'description'));
+    const title = titleWithoutRecipe(name);
     const recipe: PageRecipe = {
-        title: name,
+        title,
         ...stated(
             'description',
             description !== undefined && recipeDescriptionSchema.safeParse(description).success
@@ -148,16 +179,20 @@ function candidateOf(node: SchemaNode): PageCandidate | undefined {
         ...stated('cookTimeMinutes', durationMinutes(scalar(field(node, 'cookTime')))),
         ...stated('totalTimeMinutes', durationMinutes(scalar(field(node, 'totalTime')))),
         ingredientLines: Object.freeze(ingredientLines),
-        steps: Object.freeze(steps.map((instruction) => Object.freeze({ instruction }))),
+        steps: Object.freeze(steps.map((step) => Object.freeze({ instruction: instructionOf(step, false) }))),
     };
 
     return {
-        title: name,
+        title,
         key,
         recipe: Object.freeze(recipe),
         links: Object.freeze(links),
         credit: creditOf(node),
         imageRefs: Object.freeze(imageRefsOf(node)),
+        schemaSteps: Object.freeze(steps.map((step) => Object.freeze(step))),
+        emptyDeclaredSteps: asList(field(node, 'recipeInstructions')).some(
+            (declared) => !isSchemaNode(declared) && textOf(declared) === undefined,
+        ),
     };
 }
 

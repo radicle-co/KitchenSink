@@ -1,11 +1,74 @@
 import { describe, expect, it } from 'vitest';
 
-import { instructionSteps } from '../instructionSteps.js';
+import { instructionOf, instructionSteps as readSteps } from '../instructionSteps.js';
 import { MAX_WALK_DEPTH, MAX_WALK_NODES } from '../pageCaps.js';
 
 const step = (text: string) => ({ '@type': 'HowToStep', text });
 
+/** The steps as the recipe states them with no step name shown: section labels only (today's behaviour). */
+const instructionSteps = (value: unknown) => readSteps(value).map((read) => instructionOf(read, false));
+
 describe('instructionSteps', () => {
+    describe('R3: a HowToStep name, as a heading only where the page shows it', () => {
+        const named = (name: string, text: string) => ({ '@type': 'HowToStep', name, text });
+        const namesOf = (value: unknown) => readSteps(value).map((read) => read.name);
+
+        it('keeps the raw text and the name of a step apart, and writes the name only when told it is shown', () => {
+            const [read] = readSteps([named('Scramble the egg', 'Lightly whisk the eggs.')]);
+
+            expect(read).toEqual({ text: 'Lightly whisk the eggs.', name: 'Scramble the egg' });
+            expect(instructionOf(read ?? { text: '' }, false)).toBe('Lightly whisk the eggs.');
+            expect(instructionOf(read ?? { text: '' }, true)).toBe('Scramble the egg: Lightly whisk the eggs.');
+        });
+
+        it.each(['Step 1', 'Krok 1', 'ETAP 3:', 'Step 12.', '1', '2.', '***', '\u2014', '  '])(
+            'offers no name for %j (an ordinal, or no letters)',
+            (name) => {
+                expect(namesOf([named(name, 'Mix the flour in.')])).toEqual([undefined]);
+            },
+        );
+
+        it('offers no name that is the step text, or a subsequence of its words ("Prep salmon" in "Prep the salmon")', () => {
+            expect(
+                namesOf([
+                    named('Mix the flour in.', 'Mix the flour in.'),
+                    named('Prep salmon', 'Prep the salmon, then pat it dry.'),
+                    named('Toast', 'Toast the bread until golden.'),
+                ]),
+            ).toEqual([undefined, undefined, undefined]);
+        });
+
+        it('offers a name that says something the text does not, even one that has a digit ("Step 1 cakes")', () => {
+            expect(namesOf([named('Top', 'Remove the enchiladas.'), named('Step 1 cakes', 'Mix.')])).toEqual([
+                'Top',
+                'Step 1 cakes',
+            ]);
+        });
+
+        it('reads a step with a name and no text as that name, with no heading', () => {
+            expect(readSteps([{ '@type': 'HowToStep', name: 'Bake.' }])).toEqual([{ text: 'Bake.' }]);
+        });
+
+        it('lets a section label go first: a step that spent one has no name heading', () => {
+            const reads = readSteps({
+                '@type': 'HowToSection',
+                name: 'For the glaze',
+                itemListElement: [named('Whisk', 'Combine sugar and milk.'), named('Drizzle', 'Pour it over.')],
+            });
+
+            expect(reads.map((read) => instructionOf(read, true))).toEqual([
+                'For the glaze: Combine sugar and milk.',
+                'Drizzle: Pour it over.',
+            ]);
+        });
+
+        it('adds no second colon after a name that ends in one', () => {
+            const [read] = readSteps([named('Top:', 'Remove the enchiladas.')]);
+
+            expect(instructionOf(read ?? { text: '' }, true)).toBe('Top: Remove the enchiladas.');
+        });
+    });
+
     it('splits a string on line breaks and block elements', () => {
         expect(instructionSteps('Mix.\nBake.<br>Cool.<p>Serve.</p>')).toEqual(['Mix.', 'Bake.', 'Cool.', 'Serve.']);
     });

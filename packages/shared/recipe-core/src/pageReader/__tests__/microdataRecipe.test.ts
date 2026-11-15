@@ -173,4 +173,71 @@ describe('microdataRecipe', () => {
             ),
         ).toMatchObject({ candidates: [{ recipe: { ingredientLines: ['1 onion (diced)'] } }] });
     });
+
+    it('R4 reads a step whose itemprop=text holds several paragraphs as ONE step with all of them', () => {
+        const step = (text: string) =>
+            `<li itemprop="recipeInstructions" itemscope itemtype="https://schema.org/HowToStep"><span itemprop="name">Soak</span><div itemprop="text">${text}</div></li>`;
+        const extraction = read(
+            recipeScope(
+                [
+                    '<span itemprop="name">Pie</span>',
+                    '<span itemprop="recipeIngredient">1 apple</span>',
+                    `<ol>${step('<p>Soak the apple.</p><p>Tip: dry it.</p>')}${step('<p>Bake.</p>')}</ol>`,
+                ].join(''),
+            ),
+        );
+
+        expect(extraction).toMatchObject({
+            candidates: [
+                { recipe: { steps: [{ instruction: 'Soak the apple. Tip: dry it.' }, { instruction: 'Bake.' }] } },
+            ],
+        });
+    });
+
+    describe('G-EMPTY: the fact that a declared recipeInstructions property holds no text', () => {
+        const emptyDeclared = (inner: string) => {
+            const extraction = read(
+                recipeScope(`<span itemprop="name">Pie</span><span itemprop="recipeIngredient">1 apple</span>${inner}`),
+            );
+
+            return extraction.kind === 'candidates' ? extraction.candidates[0]?.emptyDeclaredSteps : undefined;
+        };
+
+        it('is true when an element that declares recipeInstructions is empty (a paragraph closed by the next one)', () => {
+            expect(emptyDeclared('<p itemprop="recipeInstructions"><p>Bake.</p>')).toBe(true);
+            expect(
+                emptyDeclared(
+                    '<div itemprop="recipeInstructions">  </div><div itemprop="recipeInstructions">Bake.</div>',
+                ),
+            ).toBe(true);
+        });
+
+        it('is false when every declared instruction holds text', () => {
+            expect(
+                emptyDeclared(
+                    '<div itemprop="recipeInstructions">Bake.</div><p itemprop="recipeInstructions">Cool.</p>',
+                ),
+            ).toBe(false);
+        });
+
+        it('is false for a HowToStep item whose text is a property nested inside it', () => {
+            expect(
+                emptyDeclared(
+                    '<div itemprop="recipeInstructions" itemscope itemtype="https://schema.org/HowToStep"><div itemprop="text">Bake.</div></div>',
+                ),
+            ).toBe(false);
+        });
+
+        it('looks at instructions only: an empty ingredient is not it', () => {
+            expect(
+                emptyDeclared('<li itemprop="recipeIngredient"></li><div itemprop="recipeInstructions">Bake.</div>'),
+            ).toBe(false);
+        });
+    });
+
+    it('keeps the raw steps beside the built ones, for the corroboration stage', () => {
+        const extraction = read(makeMicrodataBody());
+
+        expect(extraction).toMatchObject({ candidates: [{ schemaSteps: [{ text: 'Simmer.' }, { text: 'Serve.' }] }] });
+    });
 });

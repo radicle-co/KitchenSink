@@ -1,9 +1,14 @@
 /**
- * Collapse a bracket group whose whole content is one balanced bracket group: `((softened))` becomes `(softened)`.
+ * Clean the bracket groups a page's own markup writes badly: `((softened))` becomes `(softened)`.
  *
- * A page's own markup sometimes wraps a note twice. The reader cleans the text here; the gate never rewrites. Round and
- * square brackets are read apart, by a depth-counting character scan (no regular expression runs over page text). Every
- * occurrence is collapsed, an unbalanced bracket is left alone, and the result is a fixed point.
+ * Two more cleanups, for ROUND groups only, each of a shape a template writes when it fills a note in twice:
+ * - a group whose content opens with a comma is the rest of the line: `butter (, softened)` becomes `butter, softened`;
+ * - a group whose content opens with a whole group and then a comma loses its outer brackets: `((or a pinch), plus a few
+ *   sprigs)` becomes `(or a pinch), plus a few sprigs`.
+ *
+ * The reader cleans the text here; the gate never rewrites. Round and square brackets are read apart, by a depth-counting
+ * character scan (no regular expression runs over page text). Every occurrence is collapsed, an unbalanced bracket is
+ * left alone, and the result is a fixed point.
  */
 
 /** Where the group opened at `start` closes, or -1 when it never does. */
@@ -27,6 +32,17 @@ function groupEnd(text: string, start: number, open: string, close: string): num
     return -1;
 }
 
+/** Whether `inner` opens with a whole round group that a comma follows: `(a), b`. */
+function opensWithGroupAndComma(inner: string): boolean {
+    if (inner.charAt(0) !== '(') {
+        return false;
+    }
+
+    const end = groupEnd(inner, 0, '(', ')');
+
+    return end > 0 && inner.charAt(end + 1) === ',';
+}
+
 function collapseKind(text: string, open: string, close: string): string {
     let out = '';
     let index = 0;
@@ -46,7 +62,14 @@ function collapseKind(text: string, open: string, close: string): string {
             inner = inner.slice(1, -1);
         }
 
-        out += `${open}${collapseKind(inner, open, close)}${close}`;
+        if (open === '(' && inner.startsWith(', ')) {
+            out = `${out.trimEnd()}${collapseKind(inner, open, close)}`;
+        } else if (open === '(' && opensWithGroupAndComma(inner)) {
+            out += collapseKind(inner, open, close);
+        } else {
+            out += `${open}${collapseKind(inner, open, close)}${close}`;
+        }
+
         index = end + 1;
     }
 

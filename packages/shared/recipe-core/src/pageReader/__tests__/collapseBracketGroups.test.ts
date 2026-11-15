@@ -20,11 +20,26 @@ describe('collapseBracketGroups', () => {
         },
     );
 
-    it('is idempotent, over every string of up to 8 characters from ( ) [ ] a', () => {
-        const alphabet = ['(', ')', '[', ']', 'a'];
+    it.each([
+        ['butter (, softened (or salted butter))', 'butter, softened (or salted butter)'],
+        ['1 cup cream (, full fat)', '1 cup cream, full fat'],
+        ['2 tbsp butter ((, softened))', '2 tbsp butter, softened'],
+        ['thyme ((or a combination), plus a few sprigs)', 'thyme (or a combination), plus a few sprigs'],
+        ['x (((a), b))', 'x (a), b'],
+        ['x (((a), b), c)', 'x (a), b, c'],
+    ])('cleans a comma opening a group, and a group opened by a group and a comma: %s', (input, expected) => {
+        expect(collapseBracketGroups(input)).toBe(expected);
+    });
+
+    it.each(['1 cup (, x', 'a (,b)', 'a ((b)c)', 'a [, b]', 'a ([x], y)'])('leaves %j unchanged', (input) => {
+        expect(collapseBracketGroups(input)).toBe(input);
+    });
+
+    it('is idempotent, over every string of up to 6 characters from ( ) [ ] a , and a space', () => {
+        const alphabet = ['(', ')', '[', ']', 'a', ',', ' '];
         let strings = [''];
 
-        for (let length = 0; length < 8; length += 1) {
+        for (let length = 0; length < 6; length += 1) {
             strings = strings.flatMap((text) => alphabet.map((char) => text + char));
             strings.forEach((text) => {
                 const once = collapseBracketGroups(text);

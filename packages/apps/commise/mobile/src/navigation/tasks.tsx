@@ -16,10 +16,12 @@ import { foodPageMessages } from '@commise/features-recipes/food-page';
 import { FoodDetailScreen } from '@commise/features-recipes/food-page/mobile';
 import { useMessages } from '@commise/i18n/react';
 import { useIsOffline } from '@commise/query';
+import { useBackIntercept } from '@commise/ui/back-intercept';
 import { useSnackbar } from '@commise/ui/snackbar';
 import type { NativeStackScreenProps, createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useCallback, useEffect, type JSX } from 'react';
 
+import { CookingModeScreen } from '../screens/CookingModeScreen.js';
 import { RecipeEditorScreen } from '../screens/RecipeEditorScreen.js';
 import { PreventLeave } from './PreventLeave.js';
 import type { RootStackParamList } from './routes.js';
@@ -169,6 +171,33 @@ function FoodDetailRoute({ navigation, route }: TaskProps<'FoodDetail'>): JSX.El
     );
 }
 
+/**
+ * Cooking mode. It sits on the root stack above the tabs, so leaving POPS it onto the recipe page it was started from;
+ * Edit REPLACES it with the editor and Home pops to the Home tab, so Back from where the cook lands never re-enters it,
+ * and a step pushes nothing. The edge-swipe is off on the screen's options; Android Back leaves like the Back control.
+ */
+function CookingModeRoute({ navigation, route }: TaskProps<'CookingMode'>): JSX.Element {
+    const { recipeId } = route.params;
+    const leave = useCallback((): void => {
+        navigation.goBack();
+    }, [navigation]);
+
+    useBackIntercept(() => {
+        leave();
+
+        return true;
+    });
+
+    return (
+        <CookingModeScreen
+            recipeId={recipeId}
+            onLeave={leave}
+            onEdit={() => navigation.replace('RecipeEdit', { recipeId })}
+            onHome={() => navigation.popTo('Tabs', { screen: 'home', params: { screen: 'HomeRoot', pop: true } })}
+        />
+    );
+}
+
 /** The root stack navigator the tasks register on. */
 type RootStack = ReturnType<typeof createNativeStackNavigator<RootStackParamList>>;
 
@@ -184,6 +213,7 @@ export function taskScreens(Stack: RootStack): JSX.Element {
             <Stack.Screen name="RecipeCreate" component={RecipeCreateRoute} />
             <Stack.Screen name="RecipeEdit" component={RecipeEditRoute} />
             <Stack.Screen name="FoodDetail" component={FoodDetailRoute} />
+            <Stack.Screen name="CookingMode" component={CookingModeRoute} options={{ gestureEnabled: false }} />
         </>
     );
 }

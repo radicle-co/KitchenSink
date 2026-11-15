@@ -134,6 +134,7 @@ vi.mock('../../src/screens/RecipeDetailScreen.js', () => ({
         onBack?: () => void;
         onDeleted?: () => void;
         onCloned?: (copyId: string) => void;
+        onStartCooking?: (recipeId: string) => void;
         refusalArrived?: boolean;
         finishRefused?: boolean;
         onFinishRefusalSeen?: () => void;
@@ -165,12 +166,17 @@ vi.mock('../../src/screens/RecipeDetailScreen.js', () => ({
                     Delete: props.onDeleted,
                     'Save a copy': () => props.onCloned?.(`${props.recipeId}-copy`),
                     'Open sheet': () => setSheetOpen(true),
+                    'Start cooking': () => props.onStartCooking?.(props.recipeId),
                 })}
                 {sheetOpen ? <Text>Sheet open</Text> : null}
                 {props.finishRefused === true ? <Text>{`Refusal kept for ${props.recipeId}`}</Text> : null}
             </View>
         );
     },
+}));
+vi.mock('../../src/screens/CookingModeScreen.js', () => ({
+    CookingModeScreen: (props: { recipeId: string; onLeave: () => void; onEdit: () => void; onHome: () => void }) =>
+        stub(`Cooking ${props.recipeId}`, { Leave: props.onLeave, Edit: props.onEdit, Home: props.onHome }),
 }));
 vi.mock('../../src/screens/CollectionDetailScreen.js', () => ({
     CollectionDetailScreen: (props: { collectionId: string; onDeleted: () => void; onCloned: (id: string) => void }) =>
@@ -638,6 +644,52 @@ describe('a saved copy', () => {
         expect(showing('Detail pasta-copy')).toBe(true);
         press('Back');
         expect(showing('Detail pasta')).toBe(true);
+    });
+});
+
+describe('cooking mode', () => {
+    function startCooking(): void {
+        renderRoot();
+        press('Open Lamb');
+        press('Start cooking');
+    }
+
+    it('sits above the tabs, so the tab bar hides, and Leave returns to the recipe it was started from', () => {
+        startCooking();
+        expect(showing('Cooking lamb')).toBe(true);
+        expect(tabBar()).toBeNull();
+
+        press('Leave');
+        expect(showing('Detail lamb')).toBe(true);
+        expect(tabBar()).not.toBeNull();
+    });
+
+    it('leaves on hardware Back to the recipe, and holds no sheet answer of its own', () => {
+        startCooking();
+        let handled = false;
+        act(() => {
+            handled = back.press();
+        });
+
+        expect(handled).toBe(true);
+        expect(showing('Detail lamb')).toBe(true);
+    });
+
+    it('replaces itself with the editor on Edit, so Back from the editor never re-enters cooking', () => {
+        startCooking();
+        press('Edit');
+        expect(showing('Edit lamb')).toBe(true);
+
+        press('Cancel edit');
+        expect(showing('Cooking lamb')).toBe(false);
+        expect(showing('Detail lamb')).toBe(true);
+    });
+
+    it('goes Home to the Home tab', () => {
+        startCooking();
+        press('Home');
+        expect(showing('Home screen')).toBe(true);
+        expect(tab('Home').getAttribute('aria-selected')).toBe('true');
     });
 });
 

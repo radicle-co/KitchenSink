@@ -216,6 +216,7 @@ describe('CheckBoxGlyph (native)', () => {
             expect(vi.mocked(checkMarkMotion)).toHaveBeenLastCalledWith(true, 1);
             expect(markOf(container)).toBeNull();
             expect(container.querySelector('[data-icon-name]')).not.toBeNull();
+
             for (const complaint of complaints) {
                 expect(complaint.mock.calls.map((c) => String(c[0]).slice(0, 300))).toEqual([]);
             }

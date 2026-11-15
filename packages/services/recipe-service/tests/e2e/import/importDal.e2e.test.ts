@@ -15,7 +15,7 @@
  *  - **The lines**: a pick applies only against the digest the cook saw; the “to check” list and count are exactly the lines
  *    saved as written that no one has picked, owned by the caller, whose recipe still exists.
  */
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
 
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
@@ -643,6 +643,33 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
             expect(await store(header.id, 2, 'c', 5_000)).toEqual({ kind: 'ok' });
             // A change that adds no bytes (a decision on an item, a replay of the same recipe) is never refused.
             expect(await store(header.id, 0, 'a')).toEqual({ kind: 'ok' });
+        });
+
+        it('⛔ measures the cap from payload_bytes: no statement of the request serialises a payload to text', async () => {
+            const header = await newImport(3);
+            const issued: string[] = [];
+            const original = pg.Client.prototype.query;
+            const spy = vi.spyOn(pg.Client.prototype, 'query').mockImplementation(function (
+                this: pg.Client,
+                ...args: unknown[]
+            ) {
+                const first = args[0];
+                issued.push(typeof first === 'string' ? first : ((first as { text?: string }).text ?? ''));
+
+                return (original as (...a: unknown[]) => unknown).apply(this, args);
+            } as never);
+
+            try {
+                expect(await store(header.id, 0, 'a')).toEqual({ kind: 'ok' });
+            } finally {
+                spy.mockRestore();
+            }
+
+            const measures = issued.filter((text) => /sum\(/iu.test(text));
+
+            expect(measures.length).toBeGreaterThan(0);
+            expect(measures.every((text) => /sum\(\s*i\.payload_bytes\s*\)/iu.test(text))).toBe(true);
+            expect(issued.filter((text) => /payload::text|octet_length/iu.test(text))).toEqual([]);
         });
 
         it('⛔ two concurrent chunks in two imports of one cook cannot both fit: the per-user lock serialises them', async () => {

@@ -7,7 +7,9 @@
  *
  * ## The four rules that live here
  *
- *  1. **The lock is the first statement.** `pg_advisory_xact_lock(class, hashtext(user_id))` serialises every admission
+ *  1. **The lock is the first statement, and it is written once.** {@link ImportAllowanceDal.lockUser} is the ONE place the
+ *     key `pg_advisory_xact_lock(class, hashtext(user_id))` is spelled, for this DAL and for every caller that must hold the
+ *     same lock (the items DAL's unpaid-byte cap). It serialises every admission
  *     for one user and none across users. Without it two concurrent pastes both read 199 units, both decide "fits", and
  *     both spend: the allowance is a read-then-write, so it needs the lock, not a retry. It is a transaction lock, so it is
  *     released by the commit or rollback of the CALLER's transaction — which is why this takes a `tx` rather than opening
@@ -92,9 +94,7 @@ export class ImportAllowanceDal {
      * @sideEffect Takes a transaction-scoped advisory lock; deletes the user's expired events; inserts one event.
      */
     public async admit(tx: Writer, userId: string, request: AdmitRequest): Promise<AdmitOutcome> {
-        await tx.execute(
-            sql`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_CLASSES.recipeImportAllowance}, hashtext(${userId}))`,
-        );
+        await this.lockUser(tx, userId);
 
         const now = await this.readClock(tx);
         // Each channel's rows are cut at THAT channel's edge.
@@ -146,6 +146,19 @@ export class ImportAllowanceDal {
         return decision.kind === 'admit'
             ? { kind: 'admitted', units: decision.units }
             : { kind: 'partial', units: decision.units, resetsAt: decision.resetsAt };
+    }
+
+    /**
+     * Take the cook's allowance lock: the ONE per-user lock the import's money-like limits share (rule 1).
+     *
+     * @param tx - The open transaction (the lock lives and dies with it).
+     * @param userId - The verified app-user ULID.
+     * @sideEffect Takes a transaction-scoped advisory lock, waiting for any holder.
+     */
+    public async lockUser(tx: Pick<Writer, 'execute'>, userId: string): Promise<void> {
+        await tx.execute(
+            sql`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_CLASSES.recipeImportAllowance}, hashtext(${userId}))`,
+        );
     }
 
     /**

@@ -18,21 +18,7 @@
  *  5. **`saved_at` and `allowance_spent_at` are facts of their own**; nothing here infers either from `recipe_id` or
  *     `parse_job_id`.
  */
-import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
-import {
-    and,
-    asc,
-    eq,
-    gt,
-    inArray,
-    isNotNull,
-    isNull,
-    notInArray,
-    sql,
-    TransactionRollbackError,
-    type SQL,
-    type SQLWrapper,
-} from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, notInArray, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { isDeepStrictEqual } from 'node:util';
 
 import { ImportAllowanceDal } from '../../common/dal/importAllowance.dal.js';
@@ -44,13 +30,14 @@ import {
     IMPORT_VISIBILITIES,
     recipeImportItems,
     recipeImportLines,
+    recipeImports,
     type ImportStage,
     type RecipeImportItemRow,
 } from '../../database/schema/recipeImports.js';
 import type { RecipeTx } from '../../database/unitOfWork.js';
 import type { ImportRecipe, ImportStatement } from '../../recipes/import.schema.js';
 import { ITEM_REVIEWS, type ItemReview } from '../domain/importBindingPolicy.js';
-import { decideItemUpsert } from '../domain/importItemUpsert.js';
+import { decideItemUpsert, type ItemUpsertDecision } from '../domain/importItemUpsert.js';
 import { IMPORT_MAX_UNPAID_BYTES } from '../domain/importLimits.js';
 import {
     COOK_DEPENDENT_HOLD_REASONS,
@@ -69,7 +56,10 @@ import { touchImport, type ImportVisibility } from './recipeImports.dal.js';
 import type { NewImportLine } from './recipeImportLines.dal.js';
 
 /** One item as the DAL returns it, with its stage, review mark and visibility narrowed to the CHECK vocabularies. */
-export type ImportItem = Omit<RecipeImportItemRow, 'stage' | 'review' | 'visibility' | 'refusal' | 'heldReason'> & {
+export type ImportItem = Omit<
+    RecipeImportItemRow,
+    'payloadBytes' | 'stage' | 'review' | 'visibility' | 'refusal' | 'heldReason'
+> & {
     readonly stage: ImportStage;
     readonly review: ItemReview;
     readonly visibility: ImportVisibility | null;
@@ -130,7 +120,7 @@ export type PayOutcome =
     | { readonly kind: 'refused'; readonly resetsAt: Date };
 
 /** The item row, narrowed. A value the CHECK should have kept out is a defect and is thrown. */
-function toItem(row: RecipeImportItemRow): ImportItem {
+function toItem(row: Omit<RecipeImportItemRow, 'payloadBytes'>): ImportItem {
     const stage = IMPORT_STAGES.find((value) => value === row.stage);
     const review = ITEM_REVIEWS.find((value) => value === row.review);
     const visibility = row.visibility === null ? null : IMPORT_VISIBILITIES.find((value) => value === row.visibility);
@@ -195,6 +185,32 @@ const lineCountOf = (payload: SQLWrapper): SQL<number> =>
 /** An integer a payload states, read in SQL: `NULL` when it states none (the contract admitted it as an int4). */
 const payloadInt = (key: string) => sql<number | null>`(${recipeImportItems.payload} ->> ${key})::int`;
 
+/** The request would take the cook over the unpaid-byte cap: thrown inside the transaction to roll it back, caught by `upsertItems`. */
+class StorageFullError extends Error {
+    public constructor() {
+        super('the unpaid-byte cap is full');
+        Object.setPrototypeOf(this, StorageFullError.prototype);
+    }
+}
+
+/**
+ * Whether a decision writes a payload, so it can add stored bytes. Exhaustive: a new decision kind is a compile error here.
+ *
+ * @param decision - The decision for one item. @returns Pure.
+ */
+function addsPayloadBytes(decision: ItemUpsertDecision): boolean {
+    switch (decision.kind) {
+        case 'insert':
+        case 'replace':
+        case 'reopen':
+            return true;
+        case 'keep':
+        case 'locked':
+        case 'saved':
+            return false;
+    }
+}
+
 export class RecipeImportItemsDal {
     public constructor(
         private readonly db: RecipeDrizzle,
@@ -215,7 +231,7 @@ export class RecipeImportItemsDal {
         try {
             return await this.upsertWithin(importId, inputs);
         } catch (error) {
-            if (error instanceof TransactionRollbackError) {
+            if (error instanceof StorageFullError) {
                 return { kind: 'storageFull' };
             }
 
@@ -275,8 +291,9 @@ export class RecipeImportItemsDal {
             // ⛔ Bound what a cook may leave UNPAID (the routes are public). Under the cook's allowance lock, so two chunks in two
             // imports cannot both pass the cap; taken after the header and the item rows, the order `payUnpaid` takes them in.
             // The size is read in SQL AFTER the writes below, so one measure (the stored text) is used for both sides.
-            const addsBytes = decisions.some(({ decision }) => ['insert', 'replace', 'reopen'].includes(decision.kind));
-            const unpaidBefore = addsBytes ? await this.lockAndMeasureUnpaid(tx, importId) : 0;
+            const addsBytes = decisions.some(({ decision }) => addsPayloadBytes(decision));
+            const cook = addsBytes ? await this.lockCook(tx, importId) : undefined;
+            const unpaidBefore = cook === undefined ? 0 : await this.measureUnpaid(tx, cook);
 
             for (const { input, decision } of decisions) {
                 const patch = choicesColumnsOf(input);
@@ -339,11 +356,12 @@ export class RecipeImportItemsDal {
             }
 
             // A request that SHRINKS or keeps what the cook holds is never refused, so a cook over the cap can still fix an item.
-            if (addsBytes) {
-                const unpaidAfter = await this.measureUnpaid(tx, importId);
+            if (cook !== undefined) {
+                const unpaidAfter = await this.measureUnpaid(tx, cook);
 
                 if (unpaidAfter > this.unpaidByteCap && unpaidAfter > unpaidBefore) {
-                    tx.rollback();
+                    // Our own error, not `tx.rollback()`: only THIS refusal is `storageFull`, and any other failure rethrows.
+                    throw new StorageFullError();
                 }
             }
 
@@ -354,33 +372,39 @@ export class RecipeImportItemsDal {
     }
 
     /**
-     * Take the cook's allowance lock (the ONE per-user lock the import's money-like limits share), then measure their unpaid bytes.
+     * Take the cook's allowance lock (the ONE per-user lock the import's money-like limits share).
      *
-     * @returns The unpaid bytes before this request writes. @sideEffect Takes a transaction-scoped advisory lock.
+     * @returns The cook (the import's owner). @sideEffect Takes a transaction-scoped advisory lock.
      */
-    private async lockAndMeasureUnpaid(tx: RecipeTx, importId: string): Promise<number> {
-        await tx.execute(sql`
-            SELECT pg_advisory_xact_lock(
-                ${ADVISORY_LOCK_CLASSES.recipeImportAllowance},
-                hashtext((SELECT user_id FROM recipe_imports WHERE id = ${importId}))
-            )
-        `);
+    private async lockCook(tx: RecipeTx, importId: string): Promise<string> {
+        const [header] = await tx
+            .select({ userId: recipeImports.userId })
+            .from(recipeImports)
+            .where(eq(recipeImports.id, importId));
 
-        return this.measureUnpaid(tx, importId);
+        if (header === undefined) {
+            // The header is locked by this transaction, so a missing one is a caller defect, not a state to answer.
+            throw new Error(`import ${importId} vanished under its own header lock`);
+        }
+
+        await this.allowance.lockUser(tx, header.userId);
+
+        return header.userId;
     }
 
     /**
-     * The stored text of every recipe the import's cook holds that has not spent an allowance unit, across ALL their imports.
-     * Refused recipes count (they are stored). One measure, `octet_length` of the stored JSON text, so before and after agree.
+     * The stored size of every recipe the cook holds that has not spent an allowance unit, across ALL their imports.
+     * Refused recipes count (they are stored). One measure, the generated `payload_bytes` (0088: `octet_length` of the stored
+     * JSON text), so before and after agree and no payload is serialised per measure.
      *
      * @sideEffect Reads.
      */
-    private async measureUnpaid(tx: RecipeTx, importId: string): Promise<number> {
+    private async measureUnpaid(tx: RecipeTx, userId: string): Promise<number> {
         const result = await tx.execute<{ bytes: string }>(sql`
-            SELECT COALESCE(sum(octet_length(i.payload::text)), 0)::text AS bytes
+            SELECT COALESCE(sum(i.payload_bytes), 0)::text AS bytes
               FROM recipe_import_items i
               JOIN recipe_imports h ON h.id = i.import_id
-             WHERE h.user_id = (SELECT user_id FROM recipe_imports WHERE id = ${importId})
+             WHERE h.user_id = ${userId}
                AND i.allowance_spent_at IS NULL
         `);
 

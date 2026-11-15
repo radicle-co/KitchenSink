@@ -106,6 +106,8 @@ export const recipeImportItems = pgTable(
         title: text('title').notNull(),
         /** The recipe as the client sent it; dropped once saved. Its size is the contract's bound. */
         payload: jsonb('payload'),
+        /** `octet_length(payload::text)`, kept by the database (0088): the unpaid-byte cap sums it instead of serialising payloads. */
+        payloadBytes: integer('payload_bytes').generatedAlwaysAs(sql`octet_length(payload::text)`),
         stage: text('stage').notNull().default('received'),
         review: text('review').notNull().default('pending'),
         /** SET NULL: the TTL purge deletes jobs daily; the snapshot has what is needed. */

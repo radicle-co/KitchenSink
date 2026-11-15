@@ -285,6 +285,8 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             // item still names itself after the payload is shed and its draft deleted.
             title: { type: 'text', notNull: true },
             payload: { type: 'jsonb', notNull: false },
+            // Generated (0088): `octet_length(payload::text)`, so the unpaid-byte cap sums it instead of serialising payloads.
+            payload_bytes: { type: 'integer', notNull: false },
             stage: { type: 'text', notNull: true },
             review: { type: 'text', notNull: true },
             parse_job_id: { type: 'uuid', notNull: false },

@@ -548,7 +548,9 @@ describe('CookingScreen: swipe (web touch)', () => {
         vi.stubGlobal('innerWidth', 390);
     });
 
-    afterEach(() => {});
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
 
     it('lets the browser keep vertical scrolling on the step body', () => {
         setup();

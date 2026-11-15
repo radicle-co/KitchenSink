@@ -6,9 +6,8 @@ import { isDeepStrictEqual } from 'node:util';
 
 import { z } from 'zod';
 
+import { CANVASES_DIR } from './gitCanvasHistory.js';
 import type { RepoCanvas } from './repoCanvases.js';
-
-const CANVASES_PATH = 'docs/design/canvases/';
 
 const EntriesSchema = z.object({ canvases: z.array(z.looseObject({ id: z.string() })) });
 
@@ -66,6 +65,6 @@ export function selectCanvases(
     return canvases.filter(
         (canvas) =>
             registryChanged.has(canvas.id) ||
-            changedPaths.some((path) => path.startsWith(`${CANVASES_PATH}${canvas.folder}/`)),
+            changedPaths.some((path) => path.startsWith(`${CANVASES_DIR}/${canvas.folder}/`)),
     );
 }

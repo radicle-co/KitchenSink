@@ -3,7 +3,7 @@
  *
  * @pattern Adapter — over a directory of downloads. It never decodes a file: oids come from `git hash-object`.
  */
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { z } from 'zod';
@@ -72,7 +72,7 @@ export async function hashLive(
 
     for (const path of paths) {
         try {
-            await readFile(join(liveDir, folder, path), { flag: 'r' });
+            await stat(join(liveDir, folder, path));
             present.push(path);
         } catch (error) {
             if ((error as { code?: unknown }).code !== 'ENOENT') {

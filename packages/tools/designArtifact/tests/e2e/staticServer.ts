@@ -29,13 +29,6 @@ export const TYPES: Readonly<Record<string, string>> = {
     '.txt': 'text/plain; charset=utf-8',
 };
 
-export const RUNTIME_HELP = [
-    'DESIGN_CANVAS_RUNTIME must name a local copy of the Design canvas runtime (the `support.js` the claude.ai platform',
-    'supplies to a canvas; this repository does not vendor it). To get one: read any Design canvas artifact with the',
-    "Artifact tool's `read` action and its `path` set to `artifact-type/dc-runtime.js`, then export",
-    'DESIGN_CANVAS_RUNTIME=<the saved file>.',
-].join(' ');
-
 /**
  * Starts a server on an ephemeral loopback port.
  *

@@ -37,10 +37,8 @@ import { MARKER_PATH, chooseBaseline, driftVerdict, planCanvas, publishInput } f
 import type { Baseline, CanvasPlan, DriftVerdict } from '../src/publish/publishPlan.js';
 import { parseRepoCanvases } from '../src/publish/repoCanvases.js';
 import type { RepoCanvas } from '../src/publish/repoCanvases.js';
-import { execGit } from '../src/sources/gitHead.js';
+import { SHA_PATTERN, execGit } from '../src/sources/gitHead.js';
 import type { RunGit } from '../src/sources/gitHead.js';
-
-const SHA = /^[0-9a-f]{40}$/u;
 
 function usage(message: string): never {
     throw new DesignArtifactError(
@@ -98,45 +96,36 @@ async function checkOne(
     return { plan, baseline, verdict };
 }
 
-async function main(): Promise<number> {
-    const { positionals, values } = parseArgs({
-        allowPositionals: true,
-        options: {
-            live: { type: 'string' },
-            main: { type: 'string' },
-            list: { type: 'string' },
-            out: { type: 'string' },
-        },
-    });
-    const [command, id] = positionals;
-    const need = (name: 'live' | 'main' | 'list' | 'out'): string => values[name] ?? usage(`Missing --${name}.`);
+interface Context {
+    readonly top: string;
+    readonly run: RunGit;
+    readonly tip: string;
+    readonly liveDir: string;
+    readonly canvases: readonly RepoCanvas[];
+    readonly need: (name: 'live' | 'main' | 'list' | 'out') => string;
+}
 
-    if (command !== 'plan' && command !== 'check' && command !== 'stage') {
-        return usage('Unknown or missing command.');
+async function planCommand({ run, tip, liveDir, canvases }: Context): Promise<number> {
+    const entries = [];
+
+    for (const canvas of canvases) {
+        const { plan, baseline } = await planOne(run, tip, canvas, liveDir);
+        entries.push({ ...canvas, baseline, ...plan });
     }
 
-    const top = (await execGit(process.cwd())(['rev-parse', '--show-toplevel'])).trim();
-    const run = execGit(top);
-    const tip = await resolveMain(run);
-    const liveDir = resolve(need('live'));
-    const canvases = parseRepoCanvases(await showText(run, tip, `${CANVASES_DIR}/registry.json`));
+    process.stdout.write(`${JSON.stringify({ main: { sha: tip }, canvases: entries })}\n`);
 
-    if (command === 'plan') {
-        const entries = [];
+    return 0;
+}
 
-        for (const canvas of canvases) {
-            const { plan, baseline } = await planOne(run, tip, canvas, liveDir);
-            entries.push({ ...canvas, baseline, ...plan });
-        }
-
-        process.stdout.write(`${JSON.stringify({ main: { sha: tip }, canvases: entries })}\n`);
-
-        return 0;
-    }
-
+/** Validates `--main` and the canvas id, shared by `check` and `stage`. */
+async function resolveTarget(
+    { run, tip, canvases, need }: Context,
+    id: string | undefined,
+): Promise<{ mainSha: string; canvas: RepoCanvas }> {
     const mainSha = need('main');
 
-    if (!SHA.test(mainSha) || !(await isAncestor(run, mainSha, tip))) {
+    if (!SHA_PATTERN.test(mainSha) || !(await isAncestor(run, mainSha, tip))) {
         throw new DesignArtifactError('marker-not-on-main', `--main ${mainSha} is not a commit on ${MAIN_REF}.`);
     }
 
@@ -153,13 +142,27 @@ async function main(): Promise<number> {
         );
     }
 
-    const { plan, baseline, verdict } = await checkOne(run, mainSha, canvas, liveDir, resolve(need('list')));
+    return { mainSha, canvas };
+}
 
-    if (command === 'check') {
-        process.stdout.write(`${JSON.stringify({ id: canvas.id, ...verdict })}\n`);
+async function checkCommand(context: Context, id: string | undefined): Promise<number> {
+    const { canvas, mainSha } = await resolveTarget(context, id);
+    const { verdict } = await checkOne(context.run, mainSha, canvas, context.liveDir, resolve(context.need('list')));
 
-        return verdict.verdict === 'clean' ? 0 : 1;
-    }
+    process.stdout.write(`${JSON.stringify({ id: canvas.id, ...verdict })}\n`);
+
+    return verdict.verdict === 'clean' ? 0 : 1;
+}
+
+async function stageCommand(context: Context, id: string | undefined): Promise<number> {
+    const { canvas, mainSha } = await resolveTarget(context, id);
+    const { plan, baseline, verdict } = await checkOne(
+        context.run,
+        mainSha,
+        canvas,
+        context.liveDir,
+        resolve(context.need('list')),
+    );
 
     // The marker already names main: nothing to publish, and no Artifact call is needed.
     if (plan.status === 'unchanged' && baseline.from === 'marker') {
@@ -174,12 +177,18 @@ async function main(): Promise<number> {
         return 1;
     }
 
-    const input = publishInput({ url: canvas.url, folder: canvas.folder, outDir: resolve(need('out')), plan, mainSha });
+    const input = publishInput({
+        url: canvas.url,
+        folder: canvas.folder,
+        outDir: resolve(context.need('out')),
+        plan,
+        mainSha,
+    });
 
     for (const path of plan.changed) {
         const target = join(input.root, path);
         await mkdir(dirname(target), { recursive: true });
-        await writeFile(target, await blobBytes(top, mainSha, canvas.folder, path));
+        await writeFile(target, await blobBytes(context.top, mainSha, canvas.folder, path));
     }
 
     await mkdir(dirname(input.marker.path), { recursive: true });
@@ -194,6 +203,37 @@ async function main(): Promise<number> {
     );
 
     return 0;
+}
+
+async function main(): Promise<number> {
+    const { positionals, values } = parseArgs({
+        allowPositionals: true,
+        options: {
+            live: { type: 'string' },
+            main: { type: 'string' },
+            list: { type: 'string' },
+            out: { type: 'string' },
+        },
+    });
+    const [command, id] = positionals;
+
+    if (command !== 'plan' && command !== 'check' && command !== 'stage') {
+        return usage('Unknown or missing command.');
+    }
+
+    const top = (await execGit(process.cwd())(['rev-parse', '--show-toplevel'])).trim();
+    const run = execGit(top);
+    const tip = await resolveMain(run);
+    const need = (name: 'live' | 'main' | 'list' | 'out'): string => values[name] ?? usage(`Missing --${name}.`);
+    const liveDir = resolve(need('live'));
+    const canvases = parseRepoCanvases(await showText(run, tip, `${CANVASES_DIR}/registry.json`));
+    const context: Context = { top, run, tip, liveDir, canvases, need };
+
+    if (command === 'plan') {
+        return planCommand(context);
+    }
+
+    return command === 'check' ? checkCommand(context, id) : stageCommand(context, id);
 }
 
 try {

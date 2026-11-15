@@ -30,7 +30,7 @@ const CANVAS_DIR = join(REPO_ROOT, 'docs', 'design', 'canvases');
 const TREE_RULES = ['close-order', 'element-permitted-content', 'no-dup-id'] as const;
 
 /**
- * The tree findings the published snapshot already carries, per rule, measured over all 3,217 html files. The files
+ * The tree findings the published snapshot already carries, per rule, measured 2026-11-15. The files
  * must stay byte-identical to the live canvases, so they are counted rather than edited. The count is exact: a new
  * finding fails, and a fixed one forces this number down.
  */
@@ -38,7 +38,7 @@ const ALLOWED_TREE_FINDINGS: Readonly<Record<(typeof TREE_RULES)[number], { coun
     'close-order': { count: 0, reason: 'measured: no finding' },
     'element-permitted-content': {
         count: 59,
-        reason: 'the live boards put <p> (48) and <div> (2) inside <span>, and <div> (9) inside <button>',
+        reason: 'measured 2026-11-15: the live boards put <p> (48) and <div> (2) inside <span>, and <div> (9) inside <button>',
     },
     'no-dup-id': { count: 25, reason: 'the live boards repeat an id inside one file' },
 };
@@ -48,7 +48,7 @@ const ALLOWED_TREE_FINDINGS: Readonly<Record<(typeof TREE_RULES)[number], { coun
  * never fails, so a clean tokenization is a statement about the markup: a code that is not named here is a new kind of
  * breakage. Each entry says why it is tolerated.
  */
-const ALLOWED_PARSE_ERRORS: Readonly<Record<string, string>> = {}; // measured: 0 errors over all 3,217 files
+const ALLOWED_PARSE_ERRORS: Readonly<Record<string, string>> = {}; // measured 2026-11-15: 0 errors
 
 const registrySchema = z.object({
     canvases: z.array(z.object({ id: z.string(), folder: z.string().optional() })),

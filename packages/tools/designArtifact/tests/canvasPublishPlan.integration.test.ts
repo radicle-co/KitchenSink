@@ -10,11 +10,43 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 const PACKAGE_ROOT = join(import.meta.dirname, '..');
 const BIN = join(PACKAGE_ROOT, 'bin/canvasPublishPlan.ts');
 const TSX = join(PACKAGE_ROOT, '../../../node_modules/.bin/tsx');
 const URL_HOME = 'https://claude.ai/artifact/HomeWeb';
+// The CLI's JSON output, parsed so a changed shape fails here by name instead of reading as `any`.
+const PlanOutput = z.looseObject({
+    main: z.looseObject({ sha: z.string() }),
+    canvases: z.array(
+        z.looseObject({
+            id: z.string(),
+            baseline: z.looseObject({ sha: z.string(), from: z.string() }),
+            download: z.array(z.string()),
+            expected: z.record(
+                z.string(),
+                z.looseObject({ baseline: z.string().nullable(), main: z.string().nullable() }),
+            ),
+        }),
+    ),
+});
+const CheckOutput = z.looseObject({
+    verdict: z.string(),
+    files: z.array(z.looseObject({ path: z.string(), state: z.string() })),
+    extraLive: z.array(z.string()).optional(),
+});
+const StageOutput = z.looseObject({
+    url: z.string(),
+    root: z.string(),
+    files: z.record(z.string(), z.string().nullable()),
+    label: z.string(),
+});
+
+const parsePlan = (stdout: string) => PlanOutput.parse(JSON.parse(stdout));
+const parseCheck = (stdout: string) => CheckOutput.parse(JSON.parse(stdout));
+const parseStage = (stdout: string) => StageOutput.parse(JSON.parse(stdout));
+
 const FONT_V1 = Buffer.from([0x00, 0xff, 0xfe, 0x80, 0x0a, 0x0d, 0x00, 0xc3, 0x28]);
 const FONT_V2 = Buffer.from([0xff, 0x00, 0x81, 0x0d, 0x0a, 0xc3]);
 
@@ -117,7 +149,7 @@ describe('plan', () => {
         const result = run(['plan', '--live', live]);
 
         expect(result.code).toBe(0);
-        const plan = JSON.parse(result.stdout);
+        const plan = parsePlan(result.stdout);
         expect(plan.main.sha).toBe(mainSha);
         expect(plan.canvases).toHaveLength(1);
         const [canvas] = plan.canvases;
@@ -146,7 +178,7 @@ describe('plan', () => {
 
     it('baselines on the marker and downloads only the touched paths', async () => {
         await writeLive({ 'project/published.json': `{"sha":"${snapshotSha}"}` });
-        const [canvas] = JSON.parse(run(['plan', '--live', live]).stdout).canvases;
+        const [canvas] = parsePlan(run(['plan', '--live', live]).stdout).canvases;
 
         expect(canvas.baseline).toEqual({ sha: snapshotSha, from: 'marker' });
         expect(canvas.download).toEqual(['project/a.html', 'project/b.html', 'project/c.html', 'project/font.woff2']);
@@ -154,7 +186,7 @@ describe('plan', () => {
 
     it('reports unchanged when the marker already names main', async () => {
         await writeLive({ 'project/published.json': `{"sha":"${mainSha}"}` });
-        const [canvas] = JSON.parse(run(['plan', '--live', live]).stdout).canvases;
+        const [canvas] = parsePlan(run(['plan', '--live', live]).stdout).canvases;
 
         expect(canvas).toMatchObject({ status: 'unchanged', changed: [], deleted: [], download: [] });
     });
@@ -192,7 +224,7 @@ describe('plan', () => {
         const result = run(['plan', '--live', live]);
 
         expect(result.code).toBe(0);
-        expect(JSON.parse(result.stdout).canvases).toEqual([]);
+        expect(parsePlan(result.stdout).canvases).toEqual([]);
     });
 
     it('rejects a folder that could escape the canvases directory', async () => {
@@ -218,9 +250,9 @@ describe('check', () => {
         const result = run(['check', 'homeWeb', '--main', mainSha, '--live', live, '--list', list]);
 
         expect(result.code).toBe(0);
-        const verdict = JSON.parse(result.stdout);
+        const verdict = parseCheck(result.stdout);
         expect(verdict.verdict).toBe('clean');
-        expect(verdict.files.find((f: { path: string }) => f.path === 'project/font.woff2').state).toBe('atBaseline');
+        expect(verdict.files.find((f) => f.path === 'project/font.woff2')?.state).toBe('atBaseline');
     });
 
     it('is drift (exit 1) when a live board was edited on claude.ai', async () => {
@@ -229,9 +261,9 @@ describe('check', () => {
         const result = run(['check', 'homeWeb', '--main', mainSha, '--live', live, '--list', list]);
 
         expect(result.code).toBe(1);
-        const verdict = JSON.parse(result.stdout);
+        const verdict = parseCheck(result.stdout);
         expect(verdict.verdict).toBe('drift');
-        expect(verdict.files.find((f: { path: string }) => f.path === 'project/a.html').state).toBe('drift');
+        expect(verdict.files.find((f) => f.path === 'project/a.html')?.state).toBe('drift');
     });
 
     it('is drift when a live binary differs by one byte', async () => {
@@ -247,9 +279,7 @@ describe('check', () => {
         const result = run(['check', 'homeWeb', '--main', mainSha, '--live', live, '--list', list]);
 
         expect(result.code).toBe(0);
-        expect(JSON.parse(result.stdout).files.find((f: { path: string }) => f.path === 'project/a.html').state).toBe(
-            'atMain',
-        );
+        expect(parseCheck(result.stdout).files.find((f) => f.path === 'project/a.html')?.state).toBe('atMain');
     });
 
     it('is drift when a file that is live was never downloaded', async () => {
@@ -265,7 +295,7 @@ describe('check', () => {
         const result = run(['check', 'homeWeb', '--main', mainSha, '--live', live, '--list', list]);
 
         expect(result.code).toBe(1);
-        expect(JSON.parse(result.stdout).extraLive).toEqual(['project/stray.html']);
+        expect(parseCheck(result.stdout).extraLive).toEqual(['project/stray.html']);
     });
 
     it('exits 2 for an unknown canvas id', async () => {
@@ -318,7 +348,7 @@ describe('stage', () => {
         const result = run(['stage', 'homeWeb', '--main', mainSha, '--live', live, '--list', list, '--out', out]);
 
         expect(result.code).toBe(0);
-        const staged = JSON.parse(result.stdout);
+        const staged = parseStage(result.stdout);
         expect(staged.url).toBe(URL_HOME);
         expect(staged.root).toBe(join(out, 'Home'));
         expect(staged.files).toEqual({
@@ -338,7 +368,7 @@ describe('stage', () => {
     it('prints the label baseline..main with full shas, for the Artifact label', async () => {
         await writeLive({ ...BASELINE_FILES });
         const list = await writeList(Object.keys(BASELINE_FILES));
-        const staged = JSON.parse(
+        const staged = parseStage(
             run(['stage', 'homeWeb', '--main', mainSha, '--live', live, '--list', list, '--out', out]).stdout,
         );
 
@@ -357,7 +387,7 @@ describe('stage', () => {
             ...Object.keys(BASELINE_FILES),
             ...(from === null ? [] : ['project/published.json']),
         ]);
-        const staged = JSON.parse(
+        const staged = parseStage(
             run(['stage', 'homeWeb', '--main', mainSha, '--live', live, '--list', list, '--out', out]).stdout,
         );
         const diff = git('diff', '--no-renames', '--name-status', snapshotSha, mainSha, '--', `${CANVAS}/project`)

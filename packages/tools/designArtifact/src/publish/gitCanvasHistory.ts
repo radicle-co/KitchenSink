@@ -8,6 +8,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import { DesignArtifactError } from '../errors.js';
+import { SHA_PATTERN } from '../sources/gitHead.js';
 import type { RunGit } from '../sources/gitHead.js';
 
 /** Repo-relative folder that holds the canvases. */
@@ -16,12 +17,10 @@ export const CANVASES_DIR = 'docs/design/canvases';
 /** The ref a publish is made from. */
 export const MAIN_REF = 'origin/main';
 
-const SHA = /^[0-9a-f]{40}$/u;
-
 function oneSha(output: string, what: string): string {
     const sha = output.trim();
 
-    if (!SHA.test(sha)) {
+    if (!SHA_PATTERN.test(sha)) {
         throw new DesignArtifactError(
             'missing-source',
             `Git did not answer a commit for ${what}: ${JSON.stringify(sha)}`,

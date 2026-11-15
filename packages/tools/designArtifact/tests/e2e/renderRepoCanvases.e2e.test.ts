@@ -23,6 +23,8 @@ import { z } from 'zod';
 import { parseRepoCanvases } from '../../src/publish/repoCanvases.js';
 import { changedRegistryIds, selectCanvases } from '../../src/publish/selectCanvases.js';
 
+import { openRecordedPage } from './pageProblems.js';
+
 const THEMES = ['light', 'dark'] as const;
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
@@ -82,22 +84,7 @@ describe('repo canvases', () => {
 
         describe.each(Object.entries(boards))('%s', (file, { w, h }) => {
             it.each(THEMES)('renders in %s', async (theme) => {
-                const context = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: theme });
-                const page = await context.newPage();
-                const problems: string[] = [];
-
-                page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
-                page.on('console', (message) => {
-                    if (message.type() === 'error') {
-                        problems.push(`console.error: ${message.text()}`);
-                    }
-                });
-                page.on('requestfailed', (request) => problems.push(`request failed: ${request.url()}`));
-                page.on('response', (response) => {
-                    if (response.status() >= 400) {
-                        problems.push(`HTTP ${String(response.status())}: ${response.url()}`);
-                    }
-                });
+                const { page, problems } = await openRecordedPage(browser, theme, w, h);
 
                 try {
                     await page.goto(`${origin}/canvases/${canvas.folder}/${file}?theme=${theme}`);
@@ -137,7 +124,7 @@ describe('repo canvases', () => {
                         `content is taller than the ${String(h)}px canvas.json places it at`,
                     ).toBeLessThanOrEqual(h);
                 } finally {
-                    await context.close();
+                    await page.context().close();
                 }
             });
         });

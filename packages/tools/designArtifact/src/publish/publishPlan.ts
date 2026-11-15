@@ -11,6 +11,7 @@ import { posix } from 'node:path';
 import { z } from 'zod';
 
 import { DesignArtifactError } from '../errors.js';
+import { SHA_PATTERN } from '../sources/gitHead.js';
 
 /** The marker file the publish writes into the live canvas. */
 export const MARKER_PATH = 'project/published.json';
@@ -66,7 +67,7 @@ export interface PublishInput {
     readonly marker: { readonly path: string; readonly content: string };
 }
 
-const MarkerSchema = z.strictObject({ sha: z.string().regex(/^[0-9a-f]{40}$/u) });
+const MarkerSchema = z.strictObject({ sha: z.string().regex(SHA_PATTERN) });
 
 /**
  * Reads the text of a live `project/published.json`.

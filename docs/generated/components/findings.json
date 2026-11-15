@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "counts": {
-        "ambiguous-layer-signal": 9,
+        "ambiguous-layer-signal": 11,
         "boolean-prop-selects-subtree": 8,
         "cross-platform-props-diverge": 23,
         "missing-component-doc": 165,
         "missing-module-doc": 23,
-        "platform-singleton": 101,
+        "platform-singleton": 113,
         "ref-api": 19,
-        "unclassified-layer": 93,
-        "undocumented-prop": 221
+        "unclassified-layer": 95,
+        "undocumented-prop": 229
     },
     "findings": [
         {
@@ -5232,6 +5232,241 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "onPress"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingDone",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingDone.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingDoneActions",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingDoneActions.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingFrame",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingFrame",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "body",
+                "topBar"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingLineRow",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingLineRow.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingLineRow",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingLineRow.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "line"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingLoading",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingLoading.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingLoading",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingLoading.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "phase"
+            ]
+        },
+        {
+            "rule": "ambiguous-layer-signal",
+            "severity": "review",
+            "component": "featuresCooking/CookingNav",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingNav.tsx",
+            "message": "the docblock names BOTH layers; the catalogue resolved it to orchestration",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingNav",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingNav.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingNav",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingNav.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "back",
+                "forward"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingNextPreview",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingNextPreview.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingNextPreview",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingNextPreview.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "preview"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingScreen",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingScreen.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "featuresCooking/CookingScreen",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingScreen.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingScreen",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingScreen.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "read"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingSessionScreen",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingSessionScreen.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "featuresCooking/CookingSessionScreen",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingSessionScreen.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingSessionScreen",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingSessionScreen.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "onLeave",
+                "recipe"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingStateNotice",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingStateNotice.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "ambiguous-layer-signal",
+            "severity": "review",
+            "component": "featuresCooking/CookingStep",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingStep.tsx",
+            "message": "the docblock names BOTH layers; the catalogue resolved it to orchestration",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingStep",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingStep.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingStep",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingStep.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "track"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingTopBar",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingTopBar.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
             ]
         },
         {

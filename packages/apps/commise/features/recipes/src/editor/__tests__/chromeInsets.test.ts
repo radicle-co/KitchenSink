@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     chromeInsetsOf,
+    focusHiddenByChrome,
+    focusHiddenByGrownChrome,
     FOCUS_CLEARANCE_PX,
     readChromeInsets,
     scrollPaddingOf,
@@ -128,5 +130,50 @@ describe('topChromeClearanceOf', () => {
         { name: 'a negative height is no clearance', heights: [56, -10], clearance: 56 },
     ])('$name', ({ heights, clearance }) => {
         expect(topChromeClearanceOf(heights)).toBe(clearance);
+    });
+});
+
+/**
+ * A sticky header can GROW after a focus scroll has cleared it (the save status wraps at 200% text), and the document's new
+ * scroll padding applies only to the NEXT scroll. The control focused under the old chrome is then under the new, and must be
+ * brought back: only when the clearance grew and the control's top is now above the new chrome's bottom.
+ */
+describe('focusHiddenByGrownChrome', () => {
+    it.each([
+        { name: 'grew, and the control now sits under it', previous: 208, next: 257, focusTop: 208, hidden: true },
+        { name: 'grew, and the control is still clear of it', previous: 208, next: 257, focusTop: 346, hidden: false },
+        {
+            name: 'grew, and the control sits exactly at the new edge',
+            previous: 208,
+            next: 257,
+            focusTop: 257,
+            hidden: false,
+        },
+        { name: 'shrank: nothing is newly covered', previous: 257, next: 208, focusTop: 100, hidden: false },
+        { name: 'unchanged: the browser already honoured it', previous: 208, next: 208, focusTop: 100, hidden: false },
+        {
+            name: 'the first reading (nothing applied yet) never re-reveals',
+            previous: 0,
+            next: 208,
+            focusTop: 100,
+            hidden: false,
+        },
+    ])('$name', ({ previous, next, focusTop, hidden }) => {
+        expect(focusHiddenByGrownChrome({ previous, next, focusTop })).toBe(hidden);
+    });
+});
+
+/**
+ * A control that takes focus under the sticky chrome (the header grew while a sheet was open, so the focus the sheet gives
+ * back lands at the old edge): the browser does not scroll a partly covered element on focus, so it must be brought back.
+ */
+describe('focusHiddenByChrome', () => {
+    it.each([
+        { name: 'the control sits under the chrome', clearance: 257, focusTop: 208, hidden: true },
+        { name: 'the control is clear of the chrome', clearance: 257, focusTop: 346, hidden: false },
+        { name: 'the control sits exactly at the edge', clearance: 257, focusTop: 257, hidden: false },
+        { name: 'no chrome is measured yet', clearance: 0, focusTop: -20, hidden: false },
+    ])('$name', ({ clearance, focusTop, hidden }) => {
+        expect(focusHiddenByChrome({ clearance, focusTop })).toBe(hidden);
     });
 });

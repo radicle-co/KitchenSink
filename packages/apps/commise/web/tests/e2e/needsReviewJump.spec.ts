@@ -3,7 +3,7 @@ import type { Locator, Page } from '@playwright/test';
 
 import { route } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
-import { INLINE_EDITOR_VIEWPORT, ingredientOpen, topChromeBottom } from './utils/recipeEditor';
+import { INLINE_EDITOR_VIEWPORT, editorTopChrome, ingredientOpen, topChromeBottom } from './utils/recipeEditor';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 
 /**
@@ -521,6 +521,66 @@ test.describe('the jump on a phone', () => {
         await expect(page.getByRole('dialog')).toHaveCount(0);
         await expect(page.getByRole('button', { name: /^Edit .*paprika/u })).toBeFocused();
     });
+});
+
+/**
+ * The designer's must-fix: on a phone at 200% text, closing the sheet with Done or Cancel returns focus to the row's open
+ * control, and the row's first line must end below ALL the sticky chrome. Done keeps the edit and the header's save status
+ * then reads "Changes kept in this tab", which wraps to several lines at this width and size: the sticky chrome GROWS after
+ * the focus scroll has placed the row at the old chrome bottom, so the row must be kept clear of the new one.
+ */
+test.describe('closing the sheet at 390 px, text at 200%', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    for (const button of ['Done', 'Cancel'] as const) {
+        test(`${button} leaves the row below the sticky chrome, with its open control focused`, async ({ page }) => {
+            await applyTextScale(page, 2);
+            await openDetail(page);
+            await page.getByRole('link', { name: LINK_NAME }).click();
+            const sheet = await openEditor(page, 1);
+
+            await expectRootFontSize(page, 2);
+
+            const row = page.getByRole('button', { name: /^Edit .*paprika/u });
+            const headerBefore = await editorTopChrome(page);
+            const amount = sheet.getByLabel('Amount', { exact: true });
+
+            await amount.focus();
+            await amount.fill('7');
+
+            // The jump lands a row with its top at the chrome's bottom, as designed. Put it exactly there: the row is behind the
+            // open sheet, so it is found by role with hidden elements included.
+            const behind = page.getByRole('button', { name: /^Edit .*paprika/u, includeHidden: true });
+            const target = headerBefore.y + headerBefore.height;
+
+            // Scroll until it is there: a scroll can land short while the page still lays out.
+            await expect
+                .poll(async () => {
+                    const y = (await behind.boundingBox())?.y ?? Number.NaN;
+
+                    await page.evaluate((by) => window.scrollBy(0, by), y - target);
+
+                    return y;
+                })
+                .toBeCloseTo(target, 0);
+            await sheet.getByRole('button', { name: button, exact: true }).click();
+
+            await expect(page.getByRole('dialog')).toHaveCount(0);
+            await expect(row).toBeFocused();
+
+            const headerAfter = await editorTopChrome(page);
+            const after = await topChromeBottom(row);
+
+            // Done is the case the header grows in; a run where it did not grow proved nothing about the fix.
+            if (button === 'Done') {
+                expect(headerAfter.y + headerAfter.height).toBeGreaterThan(headerBefore.y + headerBefore.height);
+            }
+
+            await expect
+                .poll(async () => (await row.boundingBox())?.y ?? Number.NaN)
+                .toBeGreaterThanOrEqual(after.bottom - 0.5);
+        });
+    }
 });
 
 /**

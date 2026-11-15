@@ -95,3 +95,35 @@ export function scrollPaddingOf(measure: {
         bottom: measure.barPinned && measure.barHeight > 0 ? measure.barHeight + FOCUS_CLEARANCE_PX : 0,
     };
 }
+
+/**
+ * Whether a control is under the top chrome: its top is above the chrome's bottom edge (the clearance the document's scroll
+ * padding asks). A chrome not measured yet (0) covers nothing. Pure.
+ *
+ * @param place - The clearance and the control's top in the viewport.
+ * @returns `true` when the control's top is above the clearance.
+ */
+export function focusHiddenByChrome(place: { readonly clearance: number; readonly focusTop: number }): boolean {
+    return place.clearance > 0 && place.focusTop < place.clearance;
+}
+
+/**
+ * Whether the control that has focus is now hidden by a top chrome that GREW since the padding was last applied. The
+ * browser scrolls a focused control clear of the chrome as it was; a header that grows after (the save status wrapping at
+ * 200% text) covers a control that scroll had placed at the old edge, and the new padding applies to the next scroll only.
+ * A first reading has no earlier edge to have placed anything at, and a clearance that shrank or held covers nothing new. Pure.
+ *
+ * @param change - The padding last applied and the one now, and the focused control's top in the viewport.
+ * @returns `true` when the clearance grew and the control's top is now above the new chrome's bottom.
+ */
+export function focusHiddenByGrownChrome(change: {
+    readonly previous: number;
+    readonly next: number;
+    readonly focusTop: number;
+}): boolean {
+    return (
+        change.previous > 0 &&
+        change.next > change.previous &&
+        focusHiddenByChrome({ clearance: change.next, focusTop: change.focusTop })
+    );
+}

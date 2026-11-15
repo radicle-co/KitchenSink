@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import type { ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RecipeStatus } from '@kitchensink/recipe-core';
@@ -16,6 +17,22 @@ import type { CookingScreenProps, CookingScreenRead } from '../cookingViewProps.
  * coming, the last step, Done, the live region, the keys, the swipe, and the read-over-session precedence at the join.
  */
 const keepAwake = vi.hoisted((): { available: boolean; calls: boolean[] } => ({ available: false, calls: [] }));
+
+// The live region is wrapped over the real one only to record the props the screen gives it.
+const liveRegions = vi.hoisted((): { announceOnMount: (boolean | undefined)[] } => ({ announceOnMount: [] }));
+
+vi.mock('@commise/ui/live-region', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@commise/ui/live-region')>();
+
+    return {
+        ...actual,
+        LiveRegion: (props: ComponentProps<typeof actual.LiveRegion>) => {
+            liveRegions.announceOnMount.push(props.announceOnMount);
+
+            return <actual.LiveRegion {...props} />;
+        },
+    };
+});
 
 vi.mock('@commise/ui/keep-awake', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@commise/ui/keep-awake')>();
@@ -745,6 +762,18 @@ describe('CookingScreen: Done', () => {
         expect(backToRecipe.closest('[data-cooking-scroll]')).toBeNull();
         expect(backToRecipe.closest('[data-cooking-foot]')).not.toBeNull();
         expect(title.compareDocumentPosition(backToRecipe) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    // Android does not reliably speak text a live region mounts with, and Cook it again mounts the step's region again.
+    it('mounts the step announcement empty and fills it, so Cook it again is spoken on Android', () => {
+        setup();
+        finish();
+        liveRegions.announceOnMount = [];
+
+        press('Cook it again');
+
+        expect(liveRegions.announceOnMount.length).toBeGreaterThan(0);
+        expect(liveRegions.announceOnMount.every((asked) => asked === true)).toBe(true);
     });
 
     it('cooks it again from step 1, line 1, with every tick cleared', () => {

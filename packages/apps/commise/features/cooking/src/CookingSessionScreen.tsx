@@ -98,7 +98,7 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
                     <div data-cooking-swipe className="touch-pan-y" {...swipe}>
                         <CookingStep {...model.step} />
                     </div>
-                    <LiveRegion politeness="polite" visuallyHidden occurrence={model.moves}>
+                    <LiveRegion politeness="polite" visuallyHidden announceOnMount occurrence={model.moves}>
                         {model.announcement}
                     </LiveRegion>
                 </>

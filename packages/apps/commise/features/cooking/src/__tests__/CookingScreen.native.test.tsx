@@ -14,6 +14,7 @@ import { nativeTokens } from '@commise/ui/native';
 import { render } from '@commise/ui/testing/tamagui';
 import { RecipeStatus } from '@kitchensink/recipe-core';
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
+import type { ComponentProps } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -23,6 +24,22 @@ import { pillOf } from './utils/buttonPill.js';
 
 const keepAwake = vi.hoisted((): { available: boolean; calls: boolean[] } => ({ available: false, calls: [] }));
 const viewport = vi.hoisted(() => ({ width: 390, height: 844, fontScale: 1 }));
+
+// The live region is wrapped over the real one only to record the props the screen gives it.
+const liveRegions = vi.hoisted((): { announceOnMount: (boolean | undefined)[] } => ({ announceOnMount: [] }));
+
+vi.mock('@commise/ui/live-region', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@commise/ui/live-region')>();
+
+    return {
+        ...actual,
+        LiveRegion: (props: ComponentProps<typeof actual.LiveRegion>) => {
+            liveRegions.announceOnMount.push(props.announceOnMount);
+
+            return <actual.LiveRegion {...props} />;
+        },
+    };
+});
 
 vi.mock('@commise/ui/keep-awake', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@commise/ui/keep-awake')>();
@@ -917,6 +934,18 @@ describe('CookingScreen (native): Done', () => {
         press('Back to the recipe');
 
         expect(onLeave).toHaveBeenCalledTimes(1);
+    });
+
+    // Android does not reliably speak text a live region mounts with, and Cook it again mounts the step's region again.
+    it('mounts the step announcement empty and fills it, so Cook it again is spoken on Android', () => {
+        setup();
+        finish();
+        liveRegions.announceOnMount = [];
+
+        press('Cook it again');
+
+        expect(liveRegions.announceOnMount.length).toBeGreaterThan(0);
+        expect(liveRegions.announceOnMount.every((asked) => asked === true)).toBe(true);
     });
 
     it('cooks it again from step 1, line 1, with every tick cleared', () => {

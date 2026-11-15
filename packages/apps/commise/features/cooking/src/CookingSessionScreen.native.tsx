@@ -85,7 +85,7 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
             body={
                 <>
                     <CookingStep {...model.step} />
-                    <LiveRegion politeness="polite" visuallyHidden occurrence={model.moves}>
+                    <LiveRegion politeness="polite" visuallyHidden announceOnMount occurrence={model.moves}>
                         {model.announcement}
                     </LiveRegion>
                 </>

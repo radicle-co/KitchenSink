@@ -42,6 +42,14 @@ export interface SheetProps {
      * is not attached to a window yet and the focus is lost.
      */
     readonly onShown?: () => void;
+    /**
+     * Where the screen-reader cursor (web: keyboard focus) lands when the sheet opens. `title` (the default): on the
+     * sheet's title. `content`: nowhere by the sheet's doing; the content's own focus request (a notice that must be read
+     * first) is the only move, and a sheet with no such request leaves focus where it was. Read when the sheet opens.
+     * Means the same on both platforms: web skips the title focus in `onOpenAutoFocus`, native skips the title's
+     * accessibility focus event.
+     */
+    readonly screenReaderLanding?: 'title' | 'content';
     /** The heading: the dialog's title (`h2` on web, header role on native). */
     readonly title: string;
     /** More elements that name the dialog, by id. Web `aria-labelledby` is the title's own id, then these; no native form. */

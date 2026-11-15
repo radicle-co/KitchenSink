@@ -30,6 +30,13 @@ interface LiveRegionBaseProps {
      * region, which speaks when its text changes.
      */
     readonly occurrence?: number;
+    /**
+     * The region mounts WITH a message it must say (a screen that opens on a notice). A live region speaks a change of
+     * its text, and many screen readers say nothing for text present when it mounts, so the region mounts empty and
+     * holds the message from the next commit (`useDeferredValue`'s initial value). Later changes are unaffected. Absent:
+     * the message is in the region at mount, as for a region mounted early and empty.
+     */
+    readonly announceOnMount?: boolean;
     /** Web: the shown text's classes. Native styles it with `style` instead. */
     readonly className?: string;
 }

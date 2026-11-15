@@ -13,7 +13,7 @@
  * @pattern Registry — the screens, keyed by route name, with their params
  */
 import type { HomeNavItemId } from '@commise/features-core';
-import type { EditorSectionId, PrivateRefusal } from '@commise/features-recipes';
+import type { EditorSectionId, LineAddress, PrivateRefusal } from '@commise/features-recipes';
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
 /** The screens every tab stack can push. */
@@ -64,8 +64,12 @@ export type RootStackParamList = {
      * once: Home's first-run Paste ingredients (build spec §7.5.4), which replaced the retired paste screens (slice 8).
      */
     RecipeCreate: { readonly section?: EditorSectionId; readonly paste?: boolean } | undefined;
-    /** The one-page editor for a stored recipe. */
-    RecipeEdit: { readonly recipeId: string; readonly section?: EditorSectionId };
+    /**
+     * The one-page editor for a stored recipe. `line` names one ingredient (the version it was read at, and its stored
+     * position): the editor opens on it with its row editor open. Restored navigation state can carry it unparsed, so the
+     * screen parses it again.
+     */
+    RecipeEdit: { readonly recipeId: string; readonly section?: EditorSectionId; readonly line?: LineAddress };
     /**
      * The author's food page (ADR-0056 item 2). It opens ABOVE the editor from a refused publish or a row's menu, so Back
      * returns to the editor exactly as it was; from Your foods Back returns there. `from` names where Back goes.

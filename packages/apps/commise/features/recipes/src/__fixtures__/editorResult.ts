@@ -46,6 +46,7 @@ export function makeEditorResult(over: Partial<UseRecipeEditorResult> = {}): Use
         discard: noop,
         cancelDiscard: noop,
         lineCommand: { persistedKeys: [], holdsRebinds: false, run: async () => ({ kind: 'failed' }), hold: noop },
+        lineKeyAt: () => undefined,
         discardAndClose: noop,
         resolutions: { overwrite: noop, keepServer: noop, merge: noop, setMergeSelections: noop },
         ...over,

@@ -143,9 +143,9 @@ test.describe('remote foods flow into every food list (ADR-0055)', () => {
         // The pick moved the binding, not the cook's words: the row's control is named by its amount, its new food and its
         // preparation. Read through the accessible name, not the text: the row's text now holds both the dot, hidden from
         // a screen reader, and a comma only a screen reader gets (the silent dot, UI Designer), and the name holds the
-        // visible label (WCAG 2.5.3, option C).
+        // visible label (WCAG 2.5.3, option C). The unit reads like the recipe page: "clove" takes the plural of 2.
         await expect(ingredientOpen(ingredients, USDA_BLACK_GARLIC.name)).toHaveAccessibleName(
-            `Edit 2 clove ${USDA_BLACK_GARLIC.name}, minced`,
+            `Edit 2 cloves ${USDA_BLACK_GARLIC.name}, minced`,
         );
         await expect(page.getByText(`${USDA_BLACK_GARLIC.name} is matched. Its nutrition now counts.`)).toBeVisible();
         expect(searches.filter((each) => each.route === 'adopt')).toEqual([

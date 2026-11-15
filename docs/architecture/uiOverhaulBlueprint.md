@@ -278,7 +278,7 @@ outbox already has unit tests.
   editor offers no paste control.
 - **A paste still joining holds the server create** (`serverWriteFor`'s paste hold), so no pasted line joins a draft
   whose create already went out, except on the editor's exit. The hold is one cell made before both the editor and
-  the paste (`editor/pasteHold.ts`): the paste writes it as its state commits, a checkpoint reads it when it runs.
+  the paste (a hold cell, `editor/hold.ts`): the paste writes it as its state commits, a checkpoint reads it when it runs.
 - **Paste a list** creates a parse job through the existing client (`useParseJob`-family hooks). This is a
   **non-deferrable write** (offline memory): offline it fails fast with the ordinary error, on both platforms.
   That is the one honest exception to "never changes behaviour offline", because queueing it would lie.

@@ -888,6 +888,23 @@ describe('the document scrolls a focused control clear of the sticky chrome (E4)
         expect(root().scrollPaddingBottom).toBe('');
     });
 
+    // #236: the section bar sticks at `--top-chrome`, which was a constant 3.5rem, so a header that wraps (a narrow phone, text
+    // at 200%) was drawn OVER the bar. The frame now carries the header's measured height.
+    it('gives the frame the header’s measured height as --top-chrome, and the 3.5rem fallback before it is measured', () => {
+        vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+        layOut({ header: 112, index: 44, bar: 72 });
+        render(view(makeEditorResult()));
+
+        const frame = screen.getByRole('heading', { level: 1, name: 'New recipe' }).closest('header')?.parentElement;
+
+        expect(frame?.style.getPropertyValue('--top-chrome')).toBe('');
+        expect(frame?.className).toContain('[--top-chrome:3.5rem]');
+
+        reportSizes();
+
+        expect(frame?.style.getPropertyValue('--top-chrome')).toBe('112px');
+    });
+
     it('⛔ puts the document back as it found it when the editor goes', () => {
         vi.stubGlobal('ResizeObserver', ResizeObserverStub);
         layOut({ header: 56, index: 44, bar: 72 });

@@ -47,6 +47,26 @@ export const SEED_CLIS = Object.freeze([
 const PACKAGE_ROOT = dirname(fileURLToPath(import.meta.url));
 
 /**
+ * `pg-native` is the optional native addon `pg` reaches only through its `Client.native` getter, which nothing here calls.
+ * It cannot be left external (the bundles run where there is no `node_modules`, and the metafile test refuses any import
+ * that is not a Node built-in), so it resolves to an empty module. Only `reset --mode needsReview`, a LOCAL-only mode, uses
+ * `pg` at all.
+ */
+const pgNativeNeverLoaded = {
+    name: 'pg-native-never-loaded',
+    setup(builder) {
+        builder.onResolve({ filter: /^pg-native$/ }, () => ({
+            path: 'pg-native',
+            namespace: 'pg-native-never-loaded',
+        }));
+        builder.onLoad({ filter: /.*/, namespace: 'pg-native-never-loaded' }, () => ({
+            contents: 'module.exports = undefined;',
+            loader: 'js',
+        }));
+    },
+};
+
+/**
  * Build every CLI in {@link SEED_CLIS} into `outdir`, with a manifest `runCli.sh` reads.
  *
  * The layout, under `outdir`:
@@ -100,6 +120,7 @@ export async function buildSeedClis({ outdir, commit }) {
         banner: {
             js: "import { createRequire as __seedCliCreateRequire } from 'node:module';\nconst require = __seedCliCreateRequire(import.meta.url);",
         },
+        plugins: [pgNativeNeverLoaded],
         metafile: true,
         logLevel: 'warning',
     });

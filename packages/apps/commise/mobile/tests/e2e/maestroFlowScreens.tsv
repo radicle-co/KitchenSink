@@ -99,6 +99,7 @@ recipes/ingredientCandidates	HomeScreen, RecipeDetailScreen, RecipeEditorScreen,
 recipes/ingredientRemoteFoods	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/pinnedActionBar	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/ambiguityReview	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/needsReviewJump	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/photos	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/photosOnCreate	HomeScreen, RecipeEditorScreen, RecipeListScreen
 recipes/accessibility	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen

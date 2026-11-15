@@ -355,6 +355,35 @@ describe('planWorldReset — ambiguity mode', () => {
 });
 
 /**
+ * `recipes/needsReviewJump` opens the owner's needs-review probe, made by `ensureNeedsReviewProbe` AFTER the reconcile. As
+ * with the ambiguity probe, the reconcile must treat it as residue in EVERY mode (including its own), or a probe whose line
+ * a flow edited would be kept by title and the next run would open a recipe that no longer reads NEEDS_REVIEW.
+ */
+describe('planWorldReset — needsReview mode', () => {
+    it('plans exactly what seeded mode plans, against a settled world', () => {
+        expect(planWorldReset(settled(), manifest, 'needsReview')).toEqual(
+            planWorldReset(settled(), manifest, 'seeded'),
+        );
+    });
+
+    it('⛔ deletes a probe left by an earlier run, and never plans to create one', () => {
+        const stale = row('probe', manifest.needsReviewProbeTitle);
+        const plan = planWorldReset(snapshot({ recipes: [...settled().recipes, stale] }), manifest, 'needsReview');
+
+        expect(plan.deleteRecipeIds).toEqual(['probe']);
+        expect(plan.create).toEqual([]);
+    });
+
+    it('every other mode deletes the probe too, so no later flow sees "4 recipes"', () => {
+        const stale = row('probe', manifest.needsReviewProbeTitle);
+
+        for (const mode of ['seeded', 'ambiguity', 'library', 'empty'] as const) {
+            expect(planWorldReset(snapshot({ recipes: [stale] }), manifest, mode).deleteRecipeIds).toEqual(['probe']);
+        }
+    });
+});
+
+/**
  * `recipes/headerScrollsAway` scrolls the Recipes list until the header leaves the screen, so its library must be longer
  * than a screen. The extra recipes belong to that flow's mode ALONE: every other flow asserts "3 recipes" on the signer's
  * library, so the fillers are residue in every other mode, by title, exactly as the ambiguity probe is.

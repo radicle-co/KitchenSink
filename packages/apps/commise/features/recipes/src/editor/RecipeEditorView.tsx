@@ -22,7 +22,7 @@ import { PopupInsetsContext } from '@commise/ui/popup-insets';
 import { usePinnedFooter } from '@commise/ui/pinned-footer';
 import { ScrollHost } from '@commise/ui/scroll-host';
 import { SectionIndex } from '@commise/ui/section-index';
-import { useCallback, type FC } from 'react';
+import { useCallback, type CSSProperties, type FC } from 'react';
 
 import { MainColumn } from '../layout/MainColumn.js';
 import { RecipeConflictView } from '../versions/RecipeConflictView.js';
@@ -47,6 +47,9 @@ import { closingTabLosesWork } from './saveStatus.js';
 import { editorPageStays, useEditorPage } from './useEditorPage.js';
 import { useEditorScrollPadding } from './useEditorScrollPadding.js';
 import { useUnloadGuard } from './useUnloadGuard.js';
+
+/** The frame's inline style: the one custom property the section index's sticky offsets read (`SectionIndex`). */
+type TopChromeStyle = CSSProperties & Record<'--top-chrome', string>;
 
 /** How far below the viewport's top the scroll spy's activation line sits: under the header and the index bar. */
 const ACTIVATION_OFFSET_PX = 120;
@@ -118,14 +121,18 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
         }),
     );
 
-    useEditorScrollPadding({ pinned: !pinning.unpinned, height: pinning.footerHeight });
+    useEditorScrollPadding({ pinned: !pinning.unpinned, height: pinning.footerHeight, topHeight: pinning.topHeight });
 
     const readInsets = useCallback(() => readChromeInsets(EDITOR_TOP_CHROME_IDS, EDITOR_ACTION_BAR_ID), []);
     const [firstAction, secondAction] = chrome.failure?.actions ?? [];
+    // The section bar sticks at the header's height. The class is the fallback until the header is measured, so the server
+    // render and the first client render agree; a header that wraps (a status line, 200% text) then moves the bar down.
+    const frameStyle: TopChromeStyle | undefined =
+        pinning.topHeight > 0 ? { '--top-chrome': `${String(pinning.topHeight)}px` } : undefined;
 
     return (
         <PopupInsetsContext value={readInsets}>
-            <div className="flex min-h-dvh flex-col bg-canvas [--top-chrome:3.5rem]">
+            <div className="flex min-h-dvh flex-col bg-canvas [--top-chrome:3.5rem]" style={frameStyle}>
                 <EditorHeader
                     placeRef={pinning.topRef}
                     title={chrome.title}

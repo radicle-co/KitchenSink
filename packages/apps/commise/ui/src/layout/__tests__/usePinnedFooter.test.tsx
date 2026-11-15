@@ -59,7 +59,7 @@ const Page: FC<{
     readonly inBand?: boolean;
     readonly stray?: boolean;
 }> = ({ top, footer, inBand = false, stray = false }) => {
-    const { unpinned, refocus, refocusHandled, topRef, footerRef } = usePinnedFooter({
+    const { unpinned, refocus, refocusHandled, topRef, footerRef, topHeight } = usePinnedFooter({
         frame: 'viewport',
         focusCarry: CARRY,
     });
@@ -87,6 +87,7 @@ const Page: FC<{
             </div>
             <p>{unpinned ? 'unpinned' : 'pinned'}</p>
             <p>{`refocus: ${refocus ?? 'none'}`}</p>
+            <p>{`top height: ${String(topHeight)}`}</p>
             {inBand && !unpinned ? null : bar}
         </>
     );
@@ -144,6 +145,26 @@ describe('usePinnedFooter — a viewport frame', () => {
         expect(screen.getByText('pinned')).toBeTruthy();
         reportSizes();
         expect(screen.getByText('pinned')).toBeTruthy();
+    });
+});
+
+describe('usePinnedFooter — the top row’s measured height', () => {
+    it('is 0 until measured, then the top row’s height', () => {
+        viewport(844);
+        render(<Page top={56} footer={72} />);
+
+        expect(screen.getByText('top height: 0')).toBeTruthy();
+
+        reportSizes();
+        expect(screen.getByText('top height: 56')).toBeTruthy();
+    });
+
+    it('is the row’s height WITHOUT a footer that sits in the row’s own flow', () => {
+        viewport(844);
+        render(<Page top={56} footer={72} inBand />);
+        reportSizes();
+
+        expect(screen.getByText('top height: 56')).toBeTruthy();
     });
 });
 

@@ -53,6 +53,8 @@ function fakeHost(scrollToSection: (id: string) => void): ScrollHostApi {
         scrollToSection,
         scrollToField: () => false,
         revealSpan: () => false,
+        scrollToStart: () => false,
+        showIfHidden: () => false,
         headingLayout: () => undefined,
         sectionLayout: () => () => undefined,
         handle: createRef<ScrollTarget | null>(),

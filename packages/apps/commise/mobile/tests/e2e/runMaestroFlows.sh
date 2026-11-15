@@ -1355,7 +1355,8 @@ maestro_disable_apple_intelligence_banner_ios() {
     disabled=$(xcrun simctl spawn "$MAESTRO_IOS_UDID" launchctl print-disabled system 2>/dev/null | tr -d '\r')
     echo "${daemon}: $(printf '%s\n' "$disabled" | grep -F "\"${daemon}\"" || echo 'not listed')"
 
-    if ! printf '%s\n' "$disabled" | grep -Eq "^[[:space:]]*\"${daemon//./\\.}\" => disabled[[:space:]]*$"; then
+    # A here-string, not a pipe: under pipefail `grep -q` leaving at an early match SIGPIPEs the writer (141) on a long listing.
+    if ! grep -Eq "^[[:space:]]*\"${daemon//./\\.}\" => disabled[[:space:]]*$" <<<"$disabled"; then
         echo "::error::the Simulator does not hold ${daemon} disabled, so the Apple Intelligence banner may cover a flow"
 
         return 1

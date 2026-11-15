@@ -108,7 +108,7 @@ describe('maestro_disable_apple_intelligence_banner_ios', () => {
     it('⛔ fails when the daemon is missing from a read-back that lists other daemons', () => {
         const { status, calls } = run(
             CALL,
-            '\t\t"com.apple.foo" => disabled\n\t\t"com.apple.generativeexperiencesd.other" => enabled',
+            '\t\t"com.apple.foo" => disabled\n\t\t"com.apple.generativeexperiencesd.other" => disabled',
         );
 
         expect(calls).toContain('xcrun simctl spawn SIM-1 launchctl print-disabled system');

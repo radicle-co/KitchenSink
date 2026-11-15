@@ -41,16 +41,20 @@
         "./parsing/parse-retry-prompt": "./src/parsing/parseRetryPrompt.ts",
         "./parsing/parse-answer": "./src/parsing/parseAnswer.ts",
         "./scaling": "./src/scaling.ts",
-        "./external-url": "./src/externalUrl.ts"
+        "./external-url": "./src/externalUrl.ts",
+        "./page-reader": "./src/pageReader.ts"
     },
     "dependencies": {
+        "htmlparser2": "^12.0.0",
         "numeric-quantity": "^3.3.1",
+        "tinyduration": "^3.4.1",
         "tldts": "^7.4.11",
         "zod": "^4.6.7"
     },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",

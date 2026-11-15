@@ -1978,6 +1978,12 @@ jobs:
             - name: Run recipe-import-core integration tests
               if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/recipe-import-core') }}
               run: npm run test:integration --workspace=@kitchensink/recipe-import-core
+            # The page reader through its package export (`@kitchensink/recipe-core/page-reader`): the real htmlparser2 and
+            # tinyduration over a synthetic 2 MB page with 32,000-character lines, under a time budget, plus the byte cap
+            # and a hostile `__proto__` key. A mocked parser cannot show a hostile page is read in time. No Docker, no network.
+            - name: Run recipe-core integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/recipe-core') }}
+              run: npm run test:integration --workspace=@kitchensink/recipe-core
             # The seed manifest over a real temporary filesystem (curated plan U2): symlinks, special files and
             # file modes, which no in-memory stand-in reproduces. No Docker, no network, no database.
             - name: Run db-schema-guard integration tests

@@ -22,7 +22,8 @@ import { CookingSessionScreen } from './CookingSessionScreen.js';
 import { CookingStateNotice } from './CookingStateNotice.js';
 import { CookingTopBar } from './CookingTopBar.js';
 import type { CookingScreenProps } from './cookingViewProps.js';
-import { cookingMessages } from './messages.js';
+import type { LoadingPhase } from './loadingPhase.js';
+import { cookingMessages, type CookingMessages } from './messages.js';
 import { useCookingEntry } from './cookingEntry.js';
 
 /** The disabled pair's handler while loading: a disabled control is never pressed. */
@@ -31,6 +32,31 @@ const noop = (): void => undefined;
 /** A full-screen notice: no top bar, no foot. */
 const noticeFrame = (notice: StateNoticeProps) => (
     <CookingFrame topBar={null} busy={false} body={<CookingStateNotice {...notice} />} />
+);
+
+/** What {@link loadingFrame} draws from. */
+interface LoadingFrameInput {
+    readonly copy: CookingMessages;
+    readonly phase: LoadingPhase;
+    readonly onLeave: () => void;
+}
+
+/** The loading frame: Exit live, the place muted, Back and Next drawn and disabled, the skeleton in the body. Pure. */
+const loadingFrame = ({ copy, phase, onLeave }: LoadingFrameInput) => (
+    <CookingFrame
+        busy
+        topBar={<CookingTopBar exit={exitOf(copy.top, onLeave)} place={{ text: copy.loading.place, tone: 'muted' }} />}
+        body={<CookingLoading phase={phase === 'slow' ? 'label' : phase} label={copy.loading.label} />}
+        foot={{
+            actions: (
+                <CookingNav
+                    disabled
+                    back={{ label: copy.nav.back, onPress: noop }}
+                    forward={{ label: copy.nav.next, onPress: noop, tone: 'quiet' }}
+                />
+            ),
+        }}
+    />
 );
 
 /** The web cooking screen. */
@@ -49,27 +75,7 @@ export const CookingScreen: FC<CookingScreenProps> = ({ read, onLeave, onEdit, o
                 });
             }
 
-            return (
-                <CookingFrame
-                    busy
-                    topBar={
-                        <CookingTopBar
-                            exit={exitOf(copy.top, onLeave)}
-                            place={{ text: copy.loading.place, tone: 'muted' }}
-                        />
-                    }
-                    body={<CookingLoading phase={phase === 'slow' ? 'label' : phase} label={copy.loading.label} />}
-                    foot={{
-                        actions: (
-                            <CookingNav
-                                disabled
-                                back={{ label: copy.nav.back, onPress: noop }}
-                                forward={{ label: copy.nav.next, onPress: noop, tone: 'quiet' }}
-                            />
-                        ),
-                    }}
-                />
-            );
+            return loadingFrame({ copy, phase, onLeave });
         case 'error':
             return noticeFrame({
                 title: copy.error.title,

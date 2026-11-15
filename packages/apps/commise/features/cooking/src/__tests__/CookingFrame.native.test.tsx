@@ -10,7 +10,7 @@ import { Text } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CookingFrame } from '../CookingFrame.native.js';
-import { COOKING_COLUMN } from '../layoutBand.js';
+import { COOKING_COLUMN } from '../cookingLayout.js';
 
 afterEach(cleanup);
 

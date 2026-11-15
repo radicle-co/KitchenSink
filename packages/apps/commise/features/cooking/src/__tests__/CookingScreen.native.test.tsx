@@ -1,9 +1,9 @@
 /**
  * The native cooking screen: the orchestration over the real cooking-core reducers
  * (through `useCookingSession`), the real copy (`cookingMessages` through `cookingCopy`) and the real loading clock.
- * Only three seams are wrapped, each over its real implementation (spy the seam, never replace the module): the
- * keep-awake hooks, the window width (the under-360 rule), and the screen-reader focus event, which react-native-web
- * does not implement.
+ * Three seams are doubled: the keep-awake hooks (the real hold is spied on, and whether the device can hold the screen is
+ * set by the test), the window (its size and text scale feed the under-360 and short-screen rules), and the
+ * screen-reader focus event, which react-native-web does not implement.
  *
  * It mirrors the web screen's suite case for case, minus the web's arrow keys, plus native's own rules: the under-360
  * layout read once from the window, the body that scrolls between a pinned top bar and nav
@@ -19,10 +19,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CookingScreen } from '../CookingScreen.native.js';
 import type { CookingScreenProps, CookingScreenRead } from '../cookingViewProps.js';
-import { FOCUS_LINE_TYPE } from '../focusLineType.js';
 import { pillOf } from './utils/buttonPill.js';
 
-const keepAwake = vi.hoisted(() => ({ available: false, calls: [] as boolean[] }));
+const keepAwake = vi.hoisted((): { available: boolean; calls: boolean[] } => ({ available: false, calls: [] }));
 const viewport = vi.hoisted(() => ({ width: 390, height: 844, fontScale: 1 }));
 
 vi.mock('@commise/ui/keep-awake', async (importOriginal) => {
@@ -82,8 +81,9 @@ function setup(read: CookingScreenRead = ready()) {
 }
 
 const nav = () => within(screen.getByRole('navigation'));
-const forward = () => nav().getAllByRole('button')[1] as HTMLElement;
-const back = () => nav().getAllByRole('button')[0] as HTMLElement;
+// Controls are found by name, never by position: the names are what a cook hears.
+const forward = () => nav().getByRole('button', { name: /^(Next step, step|Start step|Finish)/u });
+const back = () => nav().getByRole('button', { name: /^Back to /u });
 const fill = (button: HTMLElement) => getComputedStyle(pillOf(button)).backgroundColor;
 // The filled tier paints a different surface from the quiet pair; Back is always quiet, so it is the reference.
 const isFilled = (button: HTMLElement) => fill(button) !== fill(back());
@@ -109,9 +109,14 @@ interface Face {
 const faceOf = (style: Face | { readonly regular: Face }): Face => ('regular' in style ? style.regular : style);
 
 const LARGE_TITLE = faceOf(nativeTokens.type.largeTitle);
-const FOCUS_LINE = faceOf(nativeTokens.type[FOCUS_LINE_TYPE.nativeTypeRole]);
+// Read from the token, not from the focus-line seam: moving the seam and this test together must still fail.
+const FOCUS_LINE = faceOf(nativeTokens.type.readingLarge);
+
+// A Tamagui dev warning shows as a toast on a debug Android build and hides controls, so any `[tamagui]` warning fails.
+const warn = vi.spyOn(console, 'warn');
 
 beforeEach(() => {
+    warn.mockClear();
     keepAwake.available = false;
     keepAwake.calls = [];
     viewport.width = 390;
@@ -121,6 +126,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    expect(warn.mock.calls.filter(([message]) => String(message).includes('[tamagui]'))).toEqual([]);
     cleanup();
     vi.useRealTimers();
 });
@@ -152,8 +158,8 @@ describe('CookingScreen (native): loading', () => {
 
         expect(screen.getByRole('main').getAttribute('aria-busy')).toBe('true');
         expect(screen.getByText('Step –')).toBeTruthy();
-        expect(isDisabled(back())).toBe(true);
-        expect(isDisabled(forward())).toBe(true);
+        expect(isDisabled(nav().getByRole('button', { name: 'Back' }))).toBe(true);
+        expect(isDisabled(nav().getByRole('button', { name: 'Next step' }))).toBe(true);
 
         press('Exit cooking mode');
         expect(onLeave).toHaveBeenCalledTimes(1);
@@ -264,7 +270,7 @@ describe('CookingScreen (native): a step', () => {
         setup();
 
         expect(screen.getByText('Step 1 of 6')).toBeTruthy();
-        expect(screen.getByRole('region', { name: 'Step 1 of 6' })).toBeTruthy();
+        expect(screen.getByRole('region', { name: 'Step\u00a01 of 6' })).toBeTruthy();
     });
 
     it('shows the focus line with its line count, and the rest as Then lines', () => {
@@ -401,7 +407,7 @@ describe('CookingScreen (native): a step', () => {
         expect(body.contains(screen.getByText('Stir well.'))).toBe(true);
         expect(screen.queryByText('Next · step 2')).toBeNull();
         expect(screen.queryByText(/^Line \d/u)).toBeNull();
-        expect(forward().textContent).toContain('Start step 2');
+        expect(forward().textContent).toContain('Start step\u00a02');
         expect(isFilled(forward())).toBe(true);
 
         fireEvent.click(forward());
@@ -548,6 +554,21 @@ describe('CookingScreen (native): the under-360 layout', () => {
         expect(forward().textContent).toContain('Next step');
     });
 
+    // The filled tier needs a glyph (the design system's primary button requires one), so on native the filled control keeps
+    // its chevron when narrow and only the quiet controls lose theirs. Web hides it with CSS, so the platforms differ here.
+    it('at 359 keeps the chevron on a filled forward control, and both labels whole', () => {
+        viewport.width = 359;
+        setup();
+        tick('Heat 1.5 tbsp. oil.');
+        tick('Add the onion and cook 5 min.');
+
+        expect(isFilled(forward())).toBe(true);
+        expect(glyphs(forward())).toBe(1);
+        expect(glyphs(back())).toBe(0);
+        expect(forward().textContent).toContain('Start step\u00a02');
+        expect(back().textContent).toContain('Back');
+    });
+
     it('at 360 keeps the place beside Exit and draws a chevron on each', () => {
         viewport.width = 360;
         setup();
@@ -582,7 +603,7 @@ describe('CookingScreen (native): the body scrolls between a pinned top bar and 
 
         const body = screen.getByTestId('cooking-scroll');
 
-        expect(body.contains(screen.getByRole('region', { name: 'Step 1 of 6' }))).toBe(true);
+        expect(body.contains(screen.getByRole('region', { name: 'Step\u00a01 of 6' }))).toBe(true);
         expect(body.contains(screen.getByTestId('cooking-top-bar'))).toBe(false);
         expect(body.contains(screen.getByRole('navigation'))).toBe(false);
     });
@@ -596,7 +617,7 @@ describe('CookingScreen (native): the body scrolls between a pinned top bar and 
 function drag(
     from: { readonly x: number; readonly y: number },
     to: { readonly x: number; readonly y: number },
-    on: HTMLElement = screen.getAllByRole('region')[0] as HTMLElement,
+    on: HTMLElement = screen.getByRole('region', { name: /^Step\s/u }),
 ): void {
     const step = on;
     const at = (point: { readonly x: number; readonly y: number }) => ({
@@ -698,6 +719,135 @@ describe('CookingScreen (native): the focus-line role and the title role never s
 
         expect(screen.getByRole('heading', { name: 'All 6 steps done' })).toBeTruthy();
         expect(inFace(container, FOCUS_LINE)).toHaveLength(0);
+    });
+});
+
+describe('CookingScreen (native): the names a cook hears on the way to Done', () => {
+    it('names the forward control Start step 6 once the step 5 line is ticked, and Finish on step 6', () => {
+        setup();
+
+        for (let step = 1; step < 5; step++) {
+            fireEvent.click(forward());
+        }
+
+        tick('Carve.');
+        expect(screen.getByRole('button', { name: 'Start step 6' })).toBeTruthy();
+
+        fireEvent.click(forward());
+        expect(screen.getByRole('button', { name: 'Finish' })).toBeTruthy();
+        expect(screen.getByRole('region', { name: 'Step 6 of 6' })).toBeTruthy();
+    });
+
+    it('names Next by the step it opens, with the visible words just Next step', () => {
+        setup();
+
+        expect(screen.getByRole('button', { name: 'Next step, step 2' }).textContent).toBe('Next step');
+    });
+
+    it('names Back for the step it returns to, with the visible word just Back', () => {
+        setup();
+        expect(screen.getByRole('button', { name: 'Back to the recipe' }).textContent).toBe('Back');
+
+        fireEvent.click(forward());
+
+        expect(screen.getByRole('button', { name: 'Back to step 1' }).textContent).toBe('Back');
+        expect(screen.getByRole('region', { name: 'Step 2 of 6' })).toBeTruthy();
+    });
+
+    it('titles Done "All 6 steps done" for six steps and "All done" for one', () => {
+        const { unmount } = setup();
+
+        for (let step = 1; step <= 6; step++) {
+            fireEvent.click(forward());
+        }
+
+        expect(screen.getByRole('heading', { level: 1, name: 'All 6 steps done' })).toBeTruthy();
+        unmount();
+
+        setup(
+            ready({
+                recipe: {
+                    id: 'r1',
+                    title: TITLE,
+                    status: RecipeStatus.PUBLISHED,
+                    steps: [{ stepNumber: 1, instruction: 'Simmer the soup.' }],
+                },
+            }),
+        );
+        fireEvent.click(forward());
+
+        expect(screen.getByRole('heading', { level: 1, name: 'All done' })).toBeTruthy();
+    });
+});
+
+describe('CookingScreen (native): the read wins over the session at the join', () => {
+    const rerenderWith = (view: ReturnType<typeof setup>, read: CookingScreenRead) =>
+        view.rerender(<CookingScreen read={read} onLeave={view.onLeave} onEdit={view.onEdit} onHome={view.onHome} />);
+
+    const finish = () => {
+        for (let step = 1; step <= 6; step++) {
+            fireEvent.click(forward());
+        }
+    };
+
+    it('shows only the busy loading frame, never Done, when the read goes back to pending after Done', () => {
+        const view = setup();
+        finish();
+        expect(screen.getByRole('heading', { level: 1, name: 'All 6 steps done' })).toBeTruthy();
+
+        rerenderWith(view, { kind: 'pending', retry: vi.fn() });
+
+        expect(screen.getByRole('main').getAttribute('aria-busy')).toBe('true');
+        expect(screen.queryByRole('heading', { level: 1, name: 'All 6 steps done' })).toBeNull();
+    });
+
+    it('shows no steps, never Done, when the same recipe arrives with every step blank after Done', () => {
+        const view = setup();
+        finish();
+
+        rerenderWith(
+            view,
+            ready({
+                recipe: {
+                    id: 'r1',
+                    title: TITLE,
+                    status: RecipeStatus.PUBLISHED,
+                    steps: [{ stepNumber: 1, instruction: '  ' }],
+                },
+            }),
+        );
+
+        expect(screen.getByText(/Add some to cook from it here\./u)).toBeTruthy();
+        expect(screen.getByRole('alert').textContent).toBe('This recipe has no steps yet');
+        expect(screen.queryByRole('heading', { level: 1, name: 'All 6 steps done' })).toBeNull();
+    });
+});
+
+describe('CookingScreen (native): what the live region says after a tick', () => {
+    const said = () =>
+        Array.from(document.querySelectorAll('[aria-live="polite"]')).map((region) => region.textContent);
+
+    it('keeps the words of the move when a line is ticked afterwards', () => {
+        setup();
+        fireEvent.click(forward());
+        expect(said()).toContain('Step 2 of 6. Add 2 tbsp. butter.');
+
+        tick('Add 2 tbsp. butter.');
+
+        expect(said()).toContain('Step 2 of 6. Add 2 tbsp. butter.');
+        expect(said()).not.toContain('Step 2 of 6. Stir well.');
+    });
+
+    it('says only the place on arriving at a step whose lines are all ticked', () => {
+        setup();
+        fireEvent.click(forward());
+        tick('Add 2 tbsp. butter.');
+        tick('Stir well.');
+        tick('Season.');
+        fireEvent.click(forward());
+        fireEvent.click(back());
+
+        expect(said()).toContain('Step 2 of 6.');
     });
 });
 

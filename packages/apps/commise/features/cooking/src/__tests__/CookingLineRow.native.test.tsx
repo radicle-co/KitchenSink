@@ -24,7 +24,6 @@ vi.mock('react-native', async (importOriginal) => {
 
 import { CookingLineRow } from '../CookingLineRow.native.js';
 import type { CookingLineView } from '../cookingViewProps.js';
-import { FOCUS_LINE_TYPE } from '../focusLineType.js';
 import { tallestMinHeight } from './utils/buttonPill.js';
 
 interface Face {
@@ -88,10 +87,11 @@ describe('CookingLineRow (native)', () => {
         expect(onToggle).toHaveBeenCalledTimes(2);
     });
 
-    // The focus line takes its face from the one seam both platforms read, so a change of the focus role moves this leaf
-    // with it. A role with one style per container class is read at its regular class.
-    it('sets the focus line in the face of the FOCUS_LINE_TYPE role', () => {
-        const face = faceOf(nativeTokens.type[FOCUS_LINE_TYPE.nativeTypeRole]);
+    // The expected face is read from the `readingLarge` token itself, not from `FOCUS_LINE_TYPE`: moving the seam and this
+    // test together must still fail. `getByText` returns the innermost element that holds the line's text, which is the
+    // one whose own face counts (a nested Text inherits from a parent Text, so a parent in the display face is the risk).
+    it('sets the focus line in the face of the readingLarge role', () => {
+        const face = faceOf(nativeTokens.type.readingLarge);
         render(<CookingLineRow line={lineOf(false, vi.fn())} emphasis="focus" />);
 
         expect(getComputedStyle(screen.getByText(LINE)).fontFamily).toBe(face);

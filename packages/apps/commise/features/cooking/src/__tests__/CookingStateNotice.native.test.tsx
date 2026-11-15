@@ -7,7 +7,7 @@ import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CookingStateNotice } from '../CookingStateNotice.native.js';
-import { NOTICE_COLUMN } from '../layoutBand.js';
+import { NOTICE_COLUMN } from '../cookingLayout.js';
 
 afterEach(cleanup);
 

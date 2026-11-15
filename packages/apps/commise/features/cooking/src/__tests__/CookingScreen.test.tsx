@@ -9,8 +9,8 @@ import type { CookingScreenProps, CookingScreenRead } from '../cookingViewProps.
 
 /**
  * The web cooking screen: the orchestration over the real cooking-core reducers (through `useCookingSession`), the real
- * copy (`cookingMessages` through `navOf`) and the real loading clock. Only the keep-awake hooks are wrapped in spies
- * over their real implementations, so the hold can be observed: the seam is spied on, never replaced.
+ * copy (`cookingMessages` through `navOf`) and the real loading clock. Only the keep-awake hooks are doubled: `useKeepAwake`
+ * spies on the real hold so it can be observed, and `useKeepAwakeAvailable` is replaced, so a test sets whether the device can hold the screen.
  *
  * Every state is asserted here with its copy: loading, error, no steps, gone, the redirect, a step, ticked, next
  * coming, the last step, Done, the live region, the keys, the swipe, and the read-over-session precedence at the join.

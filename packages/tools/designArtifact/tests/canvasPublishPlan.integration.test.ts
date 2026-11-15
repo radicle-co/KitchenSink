@@ -39,6 +39,7 @@ const CheckOutput = z.looseObject({
 const StageOutput = z.looseObject({
     url: z.string(),
     root: z.string(),
+    file_path: z.string(),
     files: z.record(z.string(), z.string().nullable()),
     label: z.string(),
 });
@@ -339,7 +340,7 @@ describe('check', () => {
 });
 
 describe('stage', () => {
-    it('writes main blobs byte for byte, the marker outside the canvas folder, and a dict with null for a deletion', async () => {
+    it('writes main blobs byte for byte, the marker as file_path under root, and a dict with null for a deletion', async () => {
         await writeLive({ ...BASELINE_FILES });
         const list = await writeList(Object.keys(BASELINE_FILES));
         // A dirty work tree must not reach the publish.
@@ -356,23 +357,25 @@ describe('stage', () => {
             'project/c.html': join(out, 'Home/project/c.html'),
             'project/font.woff2': join(out, 'Home/project/font.woff2'),
             'project/b.html': null,
-            'project/published.json': join(out, 'Home.published.json'),
         });
+        expect(staged.file_path).toBe(join(out, 'Home/project/published.json'));
         expect(await readFile(join(out, 'Home/project/a.html'), 'utf8')).toBe('<p>a2</p>\n');
         expect(Buffer.compare(await readFile(join(out, 'Home/project/font.woff2')), FONT_V2)).toBe(0);
-        expect(JSON.parse(await readFile(join(out, 'Home.published.json'), 'utf8'))).toEqual({ sha: mainSha });
-        expect(await readdir(join(out, 'Home/project'))).not.toContain('published.json');
+        expect(JSON.parse(await readFile(staged.file_path, 'utf8'))).toEqual({ sha: mainSha });
+        // The marker is staged, never written into the repository's canvas folder.
+        expect(await readdir(join(repo, CANVAS, 'project'))).not.toContain('published.json');
         expect(await readdir(join(out, 'Home/project'))).not.toContain('b.html');
     });
 
-    it('prints the label baseline..main with full shas, for the Artifact label', async () => {
+    it('prints a label that names baseline..main and fits the Artifact 60-character limit', async () => {
         await writeLive({ ...BASELINE_FILES });
         const list = await writeList(Object.keys(BASELINE_FILES));
         const staged = parseStage(
             run(['stage', 'homeWeb', '--main', mainSha, '--live', live, '--list', list, '--out', out]).stdout,
         );
 
-        expect(staged.label).toBe(`canvas homeWeb: ${snapshotSha}..${mainSha}`);
+        expect(staged.label).toBe(`canvas ${snapshotSha.slice(0, 12)}..${mainSha.slice(0, 12)}`);
+        expect(staged.label.length).toBeLessThanOrEqual(60);
     });
 
     it.each([
@@ -402,9 +405,24 @@ describe('stage', () => {
             expect(staged.files, key).toHaveProperty([key], status === 'D' ? null : expect.stringContaining(key));
         }
 
-        expect(Object.keys(staged.files).sort()).toEqual(
-            [...diff.map(([, p]) => p.slice(`${CANVAS}/`.length)), 'project/published.json'].sort(),
-        );
+        expect(Object.keys(staged.files).sort()).toEqual(diff.map(([, p]) => p.slice(`${CANVAS}/`.length)).sort());
+    });
+
+    // The first publish from main of a canvas unchanged since its snapshot: the case that failed live on 2026-11-15,
+    // because stage printed no file_path and a 110-character label.
+    it('stages only the marker, as file_path, for a first publish with nothing changed since the snapshot', async () => {
+        git('update-ref', 'refs/remotes/origin/main', snapshotSha);
+        await writeLive({ ...BASELINE_FILES });
+        const list = await writeList(Object.keys(BASELINE_FILES));
+
+        const result = run(['stage', 'homeWeb', '--main', snapshotSha, '--live', live, '--list', list, '--out', out]);
+
+        expect(result.code).toBe(0);
+        const staged = parseStage(result.stdout);
+        expect(staged.files).toEqual({});
+        expect(staged.file_path).toBe(join(staged.root, 'project/published.json'));
+        expect(JSON.parse(await readFile(staged.file_path, 'utf8'))).toEqual({ sha: snapshotSha });
+        expect(staged.label).toBe(`canvas ${snapshotSha.slice(0, 12)}..${snapshotSha.slice(0, 12)}`);
     });
 
     it('exits 0 and prints nothing when the marker already names main', async () => {

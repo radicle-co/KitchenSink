@@ -1,7 +1,9 @@
 """Assemble the redesign screens canvas from the legacy canvas build.
 
-WARNING: do not publish this output over an existing canvas. The screen canvases are edited live, and a rebuild
-deletes every edit made since (docs/design/canvases/README.md). Use it only to create a new canvas.
+WARNING: do not publish this output over an existing canvas. Each screen canvas has its own source, the registry
+`folder` under docs/design/canvases/, published from main (docs/design/canvases/README.md). Publishing this output over a
+registered canvas would overwrite the published copy with content that is not on main, and canvasPublishGuard refuses
+that. Use it only to create a new canvas.
 
 Run from the repo root after `npm run artifact:build --workspace=@kitchensink/design-artifact`:
 

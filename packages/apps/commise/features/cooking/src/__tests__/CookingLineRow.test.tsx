@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CookingLineRow } from '../CookingLineRow.js';
 import type { CookingLineView } from '../cookingViewProps.js';
-import { FOCUS_LINE_TYPE } from '../focusLineType.js';
+import { LINE_TYPE } from '../focusLineType.js';
 
 /**
  * One line of a step, as the checkbox the cook ticks. The row is the whole control and is named by the line's text. The
@@ -44,16 +44,16 @@ describe('CookingLineRow', () => {
         expect(screen.getByRole('checkbox').getAttribute('aria-checked')).toBe('true');
     });
 
-    it('sets the focus line in the focus-line type seam and an other line in the reading body size', () => {
+    it("sets each line in the web class of its entry in the one line-type map, and in no other entry's", () => {
         const { rerender } = render(<CookingLineRow line={lineOf()} emphasis="focus" />);
 
-        expect(screen.getByText('Heat 1.5 tbsp. oil.').className).toContain(FOCUS_LINE_TYPE.webClassName);
-        expect(screen.getByText('Heat 1.5 tbsp. oil.').className).not.toContain('text-reading-body');
+        expect(screen.getByText('Heat 1.5 tbsp. oil.').className).toContain(LINE_TYPE.focus.webClassName);
+        expect(screen.getByText('Heat 1.5 tbsp. oil.').className).not.toContain(LINE_TYPE.other.webClassName);
 
         rerender(<CookingLineRow line={lineOf()} emphasis="other" />);
 
-        expect(screen.getByText('Heat 1.5 tbsp. oil.').className).toContain('text-reading-body');
-        expect(screen.getByText('Heat 1.5 tbsp. oil.').className).not.toContain(FOCUS_LINE_TYPE.webClassName);
+        expect(screen.getByText('Heat 1.5 tbsp. oil.').className).toContain(LINE_TYPE.other.webClassName);
+        expect(screen.getByText('Heat 1.5 tbsp. oil.').className).not.toContain(LINE_TYPE.focus.webClassName);
     });
 
     it('sets its own reading face on the line, so no face set above it can reach it', () => {

@@ -1,8 +1,11 @@
-import { cookingMessages, navOf, useCookingSession } from '@commise/features-cooking';
 import { resolveMessages } from '@commise/i18n';
 import { InvalidTotalStepsError } from '@kitchensink/cooking-core';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { navOf } from '../../src/cookingCopy.js';
+import { cookingMessages } from '../../src/messages.js';
+import { useCookingSession } from '../../src/useCookingSession.js';
 
 afterEach(cleanup);
 

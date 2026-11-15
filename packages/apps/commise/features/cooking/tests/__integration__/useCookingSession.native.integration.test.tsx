@@ -1,7 +1,7 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { useCookingSession } from '@commise/features-cooking';
+import { useCookingSession } from '../../src/useCookingSession.js';
 
 afterEach(cleanup);
 

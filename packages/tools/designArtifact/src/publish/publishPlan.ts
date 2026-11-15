@@ -208,7 +208,8 @@ export function publishInput(input: {
 }): PublishInput {
     const root = posix.join(input.outDir, input.folder);
     const markerPath = posix.join(input.outDir, `${input.folder}.published.json`);
-    const files: Record<string, string | null> = {};
+    // The pollution guard requires a null prototype for a map keyed by data, though planCanvas only emits `project/…` keys.
+    const files = Object.create(null) as Record<string, string | null>;
 
     for (const path of input.plan.changed) {
         files[path] = posix.join(root, path);

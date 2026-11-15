@@ -101,8 +101,10 @@ from git, so the work tree needs no cleaning.
    the marker, `project/published.json`: the tool needs one of the canvas's own data files there. `files` is the dict
    form, and a deletion is `null`. It is empty when only the marker changes. The label is
    `canvas <baseline>..<main>`, with 12-character commit prefixes so it fits the tool's 60-character limit. It lets a
-   reviewer confirm the publish covers every path that changed between the two commits. Never pass `force`. If the
-   publish is refused, restart at step 0 for that canvas.
+   reviewer confirm the publish covers every path that changed between the two commits. The tool refuses a publish
+   until this session has read the canvas itself (`action: "read"` with only the `url`), because reads of single
+   paths do not count. If it refuses for that reason, do that read and publish again unchanged. For any other
+   refusal, restart at step 0 for that canvas. Never pass `force`.
 
 ### Drift
 

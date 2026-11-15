@@ -71,18 +71,15 @@ export interface PublishInput {
     readonly marker: { readonly path: string; readonly content: string };
 }
 
-/** The Artifact tool's `label` limit. */
-export const ARTIFACT_LABEL_MAX = 60;
-
 const LABEL_SHA_LENGTH = 12;
 
 /**
- * The publish label, `canvas <baseline>..<main>` with 12-character prefixes: 33 characters, under the Artifact
- * tool's limit for any canvas. The url already names the canvas, so the id is not repeated here.
+ * The publish label, `canvas <baseline>..<main>` with 12-character prefixes, short enough for the Artifact tool's
+ * 60-character label limit for any canvas. The url already names the canvas, so the id is not repeated here.
  *
  * @param baselineSha - The commit the live canvas equalled.
  * @param mainSha - The commit being published.
- * @returns The label `canvasPublishGuard` reads to check the publish covers every changed path.
+ * @returns The label. The user-level `canvasPublishGuard` hook parses this form, so a change here changes it too.
  */
 export function publishLabel(baselineSha: string, mainSha: string): string {
     return `canvas ${baselineSha.slice(0, LABEL_SHA_LENGTH)}..${mainSha.slice(0, LABEL_SHA_LENGTH)}`;

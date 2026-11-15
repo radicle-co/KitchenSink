@@ -1,15 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { isDesignArtifactError } from '../../errors.js';
-import {
-    ARTIFACT_LABEL_MAX,
-    chooseBaseline,
-    driftVerdict,
-    parseMarker,
-    planCanvas,
-    publishInput,
-    publishLabel,
-} from '../publishPlan.js';
+import { chooseBaseline, driftVerdict, parseMarker, planCanvas, publishInput, publishLabel } from '../publishPlan.js';
 
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
@@ -296,7 +288,6 @@ describe('publishLabel', () => {
 
     // The Artifact tool caps `label` at 60 characters; the old form with the id and two full shas was 110.
     it('fits the Artifact label limit of 60 characters', () => {
-        expect(publishLabel(SHA_B, SHA_A).length).toBeLessThanOrEqual(ARTIFACT_LABEL_MAX);
-        expect(ARTIFACT_LABEL_MAX).toBe(60);
+        expect(publishLabel(SHA_B, SHA_A).length).toBeLessThanOrEqual(60);
     });
 });

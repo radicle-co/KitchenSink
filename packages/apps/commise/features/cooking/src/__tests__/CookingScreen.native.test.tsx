@@ -20,6 +20,7 @@ import { AccessibilityInfo } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CookingScreen } from '../CookingScreen.native.js';
+import { DONE_SETTLE_MS } from '../doneSettle.js';
 import type { CookingScreenProps, CookingScreenRead } from '../cookingViewProps.js';
 import { pillOf } from '@commise/ui/testing/button-pill';
 
@@ -780,6 +781,70 @@ describe('CookingScreen (native): the focus-line role and the title role never s
     });
 });
 
+/** S24 and D15: Done ignores a press for 400 ms, so the tap on Finish cannot also choose a Done action. */
+describe('CookingScreen (native): the Done settle window', () => {
+    const toDone = () => {
+        for (let step = 1; step <= 6; step++) {
+            fireEvent.click(forward());
+        }
+    };
+    const after = (ms: number) => act(() => vi.advanceTimersByTime(ms));
+
+    it.each(['Cook it again', 'Back to the recipe'])(
+        'ignores %s at 100 ms and at 399 ms, and takes it at 400 ms',
+        (name) => {
+            vi.useFakeTimers();
+            const { onLeave } = setup();
+            toDone();
+            const acted = () =>
+                name === 'Back to the recipe'
+                    ? onLeave.mock.calls.length > 0
+                    : screen.queryByRole('heading', { name: 'All 6 steps done' }) === null;
+
+            after(100);
+            fireEvent.click(screen.getByRole('button', { name }));
+            expect(acted()).toBe(false);
+
+            after(299);
+            fireEvent.click(screen.getByRole('button', { name }));
+            expect(acted()).toBe(false);
+
+            after(1);
+            fireEvent.click(screen.getByRole('button', { name }));
+            expect(acted()).toBe(true);
+        },
+    );
+
+    it.each(['Cook it again', 'Back to the recipe'])('takes %s at 500 ms', (name) => {
+        vi.useFakeTimers();
+        const { onLeave } = setup();
+        toDone();
+
+        after(500);
+        fireEvent.click(screen.getByRole('button', { name }));
+
+        expect(
+            name === 'Back to the recipe'
+                ? onLeave.mock.calls.length
+                : screen.queryByRole('heading', { name: 'All 6 steps done' }),
+        ).toBe(name === 'Back to the recipe' ? 1 : null);
+    });
+
+    it('waits again when Done comes back after Cook it again', () => {
+        vi.useFakeTimers();
+        const { onLeave } = setup();
+        toDone();
+        after(DONE_SETTLE_MS);
+        fireEvent.click(screen.getByRole('button', { name: 'Cook it again' }));
+        toDone();
+
+        after(100);
+        fireEvent.click(screen.getByRole('button', { name: 'Back to the recipe' }));
+
+        expect(onLeave).not.toHaveBeenCalled();
+    });
+});
+
 describe('CookingScreen (native): the names a cook hears on the way to Done', () => {
     it('names the forward control Start step 6 once the step 5 line is ticked, and Finish on step 6', async () => {
         setup();
@@ -965,12 +1030,14 @@ describe('CookingScreen (native): screen-reader focus when the focused control g
     });
 
     it('moves focus to step 1’s forward control after Cook it again', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
         setup();
 
         for (let step = 1; step <= 6; step++) {
             await user.click(forward());
         }
 
+        act(() => vi.advanceTimersByTime(DONE_SETTLE_MS));
         await press('Cook it again');
 
         expect(focused().at(-1)).toBe(forward());
@@ -1038,9 +1105,11 @@ describe('CookingScreen (native): Done', () => {
     });
 
     it('goes back to the recipe', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
         const { onLeave } = setup();
         await finish();
 
+        act(() => vi.advanceTimersByTime(DONE_SETTLE_MS));
         await press('Back to the recipe');
 
         expect(onLeave).toHaveBeenCalledTimes(1);
@@ -1048,10 +1117,12 @@ describe('CookingScreen (native): Done', () => {
 
     // Android does not reliably speak text a live region mounts with, and Cook it again mounts the step's region again.
     it('mounts the step announcement empty and fills it, so Cook it again is spoken on Android', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
         setup();
         await finish();
         liveRegions.announceOnMount = [];
 
+        act(() => vi.advanceTimersByTime(DONE_SETTLE_MS));
         await press('Cook it again');
 
         expect(liveRegions.announceOnMount.length).toBeGreaterThan(0);
@@ -1059,10 +1130,12 @@ describe('CookingScreen (native): Done', () => {
     });
 
     it('cooks it again from step 1, line 1, with every tick cleared', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
         setup();
         await tick('Heat 1.5 tbsp. oil.');
         await finish();
 
+        act(() => vi.advanceTimersByTime(DONE_SETTLE_MS));
         await press('Cook it again');
 
         expect(screen.getByText('Step 1 of 6')).toBeTruthy();

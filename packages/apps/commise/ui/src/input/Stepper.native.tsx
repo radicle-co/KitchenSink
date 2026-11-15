@@ -82,7 +82,7 @@ export const Stepper: FC<StepperProps> = ({
             <Text
                 typeRole="label"
                 nativeID={labelId}
-                color={labelVisibility === 'hidden' ? undefined : '$inkMuted'}
+                color="$inkMuted"
                 style={labelVisibility === 'hidden' ? visuallyHidden : undefined}
             >
                 {label}
@@ -95,14 +95,8 @@ export const Stepper: FC<StepperProps> = ({
                 style={styles.row}
             >
                 {stepButton(-1, decreaseLabel, 'minus')}
-                <Text
-                    typeRole="body"
-                    fontFamily={nativeTokens.fontFace.body.semibold}
-                    figures
-                    minWidth={VALUE_MIN_WIDTH}
-                    textAlign="center"
-                >
-                    {value}
+                <Text typeRole="body" minWidth={VALUE_MIN_WIDTH} textAlign="center">
+                    <Text typeRole="figureInline">{value}</Text>
                 </Text>
                 {stepButton(1, increaseLabel, 'plus')}
             </View>

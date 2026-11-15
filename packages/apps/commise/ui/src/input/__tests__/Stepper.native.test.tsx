@@ -38,7 +38,7 @@ function Servings(props: Partial<StepperProps> & { readonly initial?: number }) 
 }
 
 describe('Stepper (native)', () => {
-    // The count is the house `Text`, whose `figures` variant sets the digits. jsdom drops the `font-variant` rule but
+    // The count is the house `figureInline` text (body face, semibold, with figures) inside a body line. jsdom drops the `font-variant` rule but
     // keeps the atomic `_fv-` class Tamagui writes for it, so the class is the evidence the count asked for them.
     it('is a group named by its label, with the value in tabular digits', () => {
         render(<Servings />);
@@ -49,9 +49,8 @@ describe('Stepper (native)', () => {
             element.className.split(' ').find((name) => name.startsWith('_fv-'));
         const count = within(group).getByText('2');
 
-        // The class is hashed per value, so equality with the house `figures` text (pinned to tabular, lining digits in
-        // Text.native.test.tsx) proves the count's digits, not just that it set some font variant.
-        renderWithTamagui(<Text figures>ref</Text>, 'light');
+        // The class is hashed per value, so equality with a house `figureInline` text (pinned in Text.native.test.tsx) proves the count's digits, not just that it set some font variant.
+        renderWithTamagui(<Text typeRole="figureInline">ref</Text>, 'light');
 
         expect(fontVariantClass(count)).toBeDefined();
         expect(fontVariantClass(count)).toBe(fontVariantClass(screen.getByText('ref')));

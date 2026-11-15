@@ -1,9 +1,9 @@
 /**
  * @module useCookingFocusRecovery — keeps the screen-reader cursor on the cooking screen when the control that held it goes
- * away. Ticking a line moves its row out of the list, and Cook it again unmounts the Done action. After a tick, or after
- * Cook it again, the cursor goes to the next place the cook acts (designer D13): the new focus line while some line is
- * still unticked, otherwise the forward control (Next step, Start step or Finish). Opening a step and pressing Back or Next
- * leave it where it is.
+ * away. Ticking a line moves its row out of the list, and Cook it again unmounts the Done action. After a tick, the cursor
+ * goes to the next place the cook acts (designer D13): the new focus line while some line is still unticked, otherwise the
+ * forward control (Next step, Start step or Finish). After Cook it again it goes to step 1's forward control. Opening a
+ * step and pressing Back or Next leave it where it is.
  *
  * It answers with a request the screen hands to the two controls (`focusRequested`), and the control acknowledges it, so
  * the hook holds no ref and moves nothing itself.
@@ -12,8 +12,7 @@
  */
 import { useState } from 'react';
 
-/** The control a request is for. */
-export type CookingFocusTarget = 'focusLine' | 'forward';
+import { cookingFocusTargetOf, type CookingFocusTarget } from './cookingFocusTarget.js';
 
 /** What decides where the cursor goes. */
 export interface CookingFocusRecoveryInput {
@@ -39,7 +38,7 @@ export interface CookingFocusRecovery {
  * @param seen - The inputs the last request was decided on.
  * @param now - The inputs now.
  */
-export function focusTargetOf(
+function focusTargetOf(
     seen: CookingFocusRecoveryInput,
     now: CookingFocusRecoveryInput,
 ): CookingFocusTarget | null {
@@ -56,7 +55,7 @@ export function focusTargetOf(
         return null;
     }
 
-    return now.tickedCount > 0 && !now.everyLineTicked ? 'focusLine' : 'forward';
+    return cookingFocusTargetOf(now);
 }
 
 /**

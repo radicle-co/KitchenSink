@@ -12,6 +12,7 @@ import { useEffect } from 'react';
 
 import { COOKING_FOCUS_LINE_ID } from './CookingLineRow.js';
 import { COOKING_NAV_ID } from './CookingNav.js';
+import { cookingFocusTargetOf } from './cookingFocusTarget.js';
 
 /** What decides where focus goes. */
 export interface CookingFocusRecoveryInput {
@@ -47,7 +48,7 @@ export function useCookingFocusRecovery({
         }
 
         const target =
-            tickedCount > 0 && !everyLineTicked
+            cookingFocusTargetOf({ tickedCount, everyLineTicked }) === 'focusLine'
                 ? document.getElementById(COOKING_FOCUS_LINE_ID)
                 : [...(document.getElementById(COOKING_NAV_ID)?.querySelectorAll('button') ?? [])].at(-1);
 

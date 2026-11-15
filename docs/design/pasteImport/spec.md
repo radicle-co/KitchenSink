@@ -834,11 +834,12 @@ except ImportWizardStep and ImportStatements, which are redrawn in place at Ipad
 | ImportAlreadyImported | Drop "Another cook brought it in". Another cook's copy is invisible. Redraw as S30 with Duplicate, Replace and Cancel.                                                                                    |
 | ImportPasteText       | Drop the source choice on the paste screen and "Make a draft". It becomes P2 (S1) with "Import recipe". The source moves to review.                                                                       |
 | ImportWizardStep      | Drop the Public option for a web page and Private "needs Pro". Private only, as ADR-0089 §5 says.                                                                                                         |
-| ImportStatements      | Drop "needs Pro". The web-page rows are private only, except the one row noted below.                                                                                                                     |
+| ImportStatements      | Drop "needs Pro". The web-page rows are private only.                                                                                                                                                     |
 
-**Further drift, flagged and not in this round's count.** `ImportWizardStates` still offers Public for a public web
-page, and `ImportStatementsWeb1280.dc.html` keeps one Public option ("Public · Anyone can find it in Discover"). Both
-are bulk boards and go to the bulk round (§15, U3).
+**Further drift, flagged and not in this round's count.** All five `ImportWizardStates` boards and all five
+`ImportStatements` boards (Web1280, Web390, Iphone390, Android384, Ipad820) keep an `aria-disabled` Public radio on the
+book-sourced row, the pattern the ImportLinkPrivateOnly row above removes. They are bulk boards and go to the bulk round (§15,
+U3).
 
 ---
 
@@ -933,7 +934,7 @@ fallback, and accepted an exception to the rule that every user-facing feature s
 - **U2. Tablet boards.** The mobile canvas draws iPad 820, not 834 or 1194. This round draws 834 and 1194 (D14). The
   existing 820 boards stay until their own redraw.
 - **U4. "Your imports" is not a label anywhere.** D17 says pasted imports appear in "Your imports". The only existing place is "To review" in My recipes. Naming the import list is a terminology one-way door. This spec uses "To review" until it is named.
-- **U3.** The further drift in §12.3 (`ImportWizardStates`, and the one Public option left in `ImportStatementsWeb1280`).
+- **U3.** The further drift in §12.3: the `aria-disabled` Public radio on the book-sourced row of the five `ImportWizardStates` and the five `ImportStatements` boards.
 
 ### UI Designer rulings on this section (2026-11-15)
 

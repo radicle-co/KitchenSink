@@ -11,7 +11,7 @@
  *  - **A stranger's import is a `404`** on every route that names one, exactly as an absent one is.
  *  - **`advance` answers `200`** (not `201`, the `POST` default).
  *  - **A body or an id the contract refuses is a `400` and reaches no store.**
- *  - **The body limit is the global one**: a 150 kB body on `POST /import` is a `413`. The import's chunks are sized to it
+ *  - **The body parser's refusals wear the envelope**: a 150 kB body on `POST /import` is a `413` `PAYLOAD_TOO_LARGE`, and an unsupported content-encoding is a `415`, not a `500`. The import's chunks are sized to it
  *    (`MAX_IMPORT_ITEMS_PER_REQUEST`), so a route that raised it would be a silent change of contract.
  *
  * What the SQL does (ownership scoping, the claims) is the LOCAL e2e tier's: `tests/e2e/import/importRoutes.e2e.test.ts`.
@@ -21,6 +21,7 @@ import 'reflect-metadata';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+    apiErrorSchema,
     importFlaggedResponseSchema,
     importListResponseSchema,
     importPickResponseSchema,
@@ -410,9 +411,9 @@ describe('a request the contract refuses is a 400 and reaches no store', () => {
     });
 });
 
-describe('the body limit is the global one', () => {
-    it('⛔ answers a 150 kB body on POST /import with 413', async () => {
-        const { status } = await call(
+describe('the body parser refuses with the published envelope', () => {
+    it('⛔ answers a 150 kB body on POST /import with 413 PAYLOAD_TOO_LARGE', async () => {
+        const { status, json } = await call(
             COOK,
             'POST',
             '',
@@ -420,13 +421,66 @@ describe('the body limit is the global one', () => {
         );
 
         expect(status).toBe(413);
+        expect(apiErrorSchema.parse(json).code).toBe('PAYLOAD_TOO_LARGE');
+        expect(imports.insertHeader).not.toHaveBeenCalled();
+    });
+
+    // Nest maps the parser's `SyntaxError` to its own 400, so malformed JSON never reaches the parser link: it is the
+    // envelope's `BAD_REQUEST`. What reaches the link is the parser's http-errors that are not a SyntaxError.
+    it('answers malformed JSON with 400 in the published envelope', async () => {
+        const { status, json } = await call(COOK, 'POST', '', 'not json {');
+
+        expect(status).toBe(400);
+        expect(apiErrorSchema.parse(json).code).toBe('BAD_REQUEST');
+        expect(imports.insertHeader).not.toHaveBeenCalled();
+    });
+
+    it('⛔ answers an unsupported content-encoding with 415 UNSUPPORTED_MEDIA_TYPE, not a 500', async () => {
+        const response = await asPrincipal(COOK, () =>
+            fetch(`${booted.baseUrl}${BASE}`, {
+                method: 'POST',
+                headers: {
+                    authorization: bearerFor(COOK),
+                    'content-type': 'application/json',
+                    'content-encoding': 'x-unknown',
+                },
+                body: '{"title":"MARKER-encoded-body"}',
+            }),
+        );
+        const text = await response.text();
+
+        expect(response.status).toBe(415);
+        expect(apiErrorSchema.parse(JSON.parse(text)).code).toBe('UNSUPPORTED_MEDIA_TYPE');
+        expect(text).not.toContain('MARKER-encoded-body');
         expect(imports.insertHeader).not.toHaveBeenCalled();
     });
 });
 
 describe('every route needs a verified caller', () => {
-    it('answers 401 with no token', async () => {
-        const response = await fetch(`${booted.baseUrl}${BASE}`, { headers: { 'content-type': 'application/json' } });
+    const ROUTES: ReadonlyArray<readonly [method: string, path: string]> = [
+        ['POST', ''],
+        ['GET', ''],
+        ['GET', '/to-check-count'],
+        ['PUT', `/${IMPORT_ID}/items`],
+        ['GET', `/${IMPORT_ID}`],
+        ['DELETE', `/${IMPORT_ID}`],
+        ['POST', `/${IMPORT_ID}/advance`],
+        ['GET', `/${IMPORT_ID}/steps/0`],
+        ['POST', `/${IMPORT_ID}/cursor`],
+        ['PUT', `/${IMPORT_ID}/items/0/pick`],
+        ['POST', `/${IMPORT_ID}/items/0`],
+        ['POST', `/${IMPORT_ID}/choices`],
+        ['POST', `/${IMPORT_ID}/leave`],
+        ['GET', `/${IMPORT_ID}/flagged`],
+        ['GET', `/${IMPORT_ID}/to-check`],
+    ];
+
+    it.each(ROUTES)('%s %s answers 401 with no token', async (method, path) => {
+        const response = await fetch(`${booted.baseUrl}${BASE}${path}`, {
+            method,
+            headers: { 'content-type': 'application/json' },
+            ...(method === 'GET' || method === 'DELETE' ? {} : { body: '{}' }),
+        });
 
         expect(response.status).toBe(401);
     });

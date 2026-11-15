@@ -18,14 +18,17 @@ appId: ${APP_ID}
 
 # audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
 - assertVisible: 'My recipes'
-# At the largest text the lamb tile is taller than the screen and the search field stays pinned above the list, so a tap
-# at the tile's centre landed on the field (Mac runs, accessibility-extra-extra-extra-large, 2 of 3). Narrow the list to the
-# lamb first: one tile then sits right under the field, and Enter closes the keyboard before the tap.
+# At the largest text the lamb tile is taller than the screen. Its centre is under the pinned "New recipe" button, and with
+# the whole list shown the search field covered the tap instead (Mac runs, accessibility-extra-extra-extra-large). So narrow
+# the list to the lamb, close the keyboard, and tap near the tile's top, as `common/pickFromOpenList.yaml` does.
 - tapOn: 'Search your recipes'
 - inputText: 'Lamb'
 - assertVisible: '${E2E_RECIPE_LAMB}'
 - pressKey: Enter
-- tapOn: '${E2E_RECIPE_LAMB}'
+- tapOn:
+      text: '${E2E_RECIPE_LAMB}'
+      index: 0
+      point: '50%,5%'
 # The detail's Back disc is named for where it goes, so only the opened page has it. A tap that landed elsewhere (the
 # search field, with the keyboard up) fails here, at the step that missed.
 - assertVisible: 'Back to My recipes'

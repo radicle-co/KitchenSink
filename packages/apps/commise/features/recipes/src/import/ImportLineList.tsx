@@ -13,7 +13,7 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 
-import { pluralOf } from '../format/plural.js';
+import { pluralOf } from '@commise/i18n';
 import { isNothingToFix } from '../ingredientMatching/matchLine.js';
 import { MatchLineList } from '../ingredientMatching/MatchLineList.js';
 import { importMessages } from './messages.js';

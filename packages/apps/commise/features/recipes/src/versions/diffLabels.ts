@@ -13,7 +13,7 @@
  */
 import { spokenVariantParts } from '@commise/ui/variant-parts-line';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import {
     conflictSideParts,
     type ConflictFieldKind,

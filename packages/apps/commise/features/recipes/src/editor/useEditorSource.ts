@@ -17,7 +17,7 @@ import { useMessages } from '@commise/i18n/react';
 import type { PrivateRule, RecipeDetail, SourceLinkExtraction } from '@kitchensink/recipe-core';
 import { useState } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { DraftAction } from '../form/draftAction.js';
 import {
     draftPrivateRule,

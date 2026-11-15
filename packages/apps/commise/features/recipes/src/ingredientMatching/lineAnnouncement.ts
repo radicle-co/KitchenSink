@@ -14,7 +14,7 @@
  *
  * @pattern Presentation Model — a list's change, worded once for every host of both flows
  */
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { isOpenLine, lineTextOf, type MatchLine } from './matchLine.js';
 import type { MatchCopy } from './matchLineView.js';
 

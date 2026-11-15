@@ -11,7 +11,7 @@ import { Text } from '@commise/ui/text';
 import type { FC } from 'react';
 import { YStack } from 'tamagui';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 
 /** Props for {@link NutritionFigure}. */

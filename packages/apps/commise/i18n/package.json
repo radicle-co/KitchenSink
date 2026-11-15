@@ -12,6 +12,7 @@
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",

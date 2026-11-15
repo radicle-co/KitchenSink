@@ -4,8 +4,9 @@
  * cuisine eyebrow, a title that never truncates, the status row,
  * the source line, three fact tiles, the text actions and the Screen on row. react-native-web under jsdom.
  *
- * Left out on purpose, and asserted absent so a later slice must change this file: the "8 comments" row and "Start
- * cooking" (D1, D2: neither feature exists yet) and "Add to plan" (meal plans have not shipped).
+ * Left out on purpose, and asserted absent so a later slice must change this file: the "8 comments" row (D1) and "Add to
+ * plan" (meal plans have not shipped). "Start cooking" is drawn only when the recipe can be cooked and the app binds the
+ * cooking route, so a view with neither still shows none.
  */
 import type { FC, ReactElement, ReactNode } from 'react';
 import { cleanup, fireEvent, screen, within } from '@testing-library/react';
@@ -23,8 +24,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { idleUnreachableRetry, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { CookMarksTestProvider } from '../../__fixtures__/cookMarks.js';
+import { recipeActionMessages } from '../../actions/messages.js';
 import { recipeMessages } from '../../messages.js';
 import { resetServingScale } from '../servingScale.js';
+import { START_COOKING_GLYPH } from '../startCookingGlyph.js';
 import { RecipeDetailView } from '../RecipeDetailView.native.js';
 
 const { detail } = recipeMessages.en;
@@ -410,5 +413,78 @@ describe('RecipeDetailView (native) — Screen on is a row in the page, with no 
         fireEvent.click(screen.getByRole('switch', { name: detail.screenOn }));
 
         expect(screen.getByRole('switch', { name: detail.screenOn }).getAttribute('aria-checked')).toBe('true');
+    });
+});
+
+/**
+ * The shared view draws the Start cooking row itself, on its own full-width row under the
+ * fact tiles and above the action row (designer, canvas CookingModeEntry*). It is drawn only when the recipe can be cooked
+ * (the controller's `canStartCooking`) AND the app bound `onStartCooking`; the apps own only where it goes.
+ */
+describe('RecipeDetailView (native) — the Start cooking row', () => {
+    const cookable = (onStartCooking = vi.fn()): ReactElement => (
+        <RecipeDetailView
+            unreachableRetry={idleUnreachableRetry}
+            recipe={makeRecipeDetail()}
+            headerActions={<button type="button">Edit recipe</button>}
+            canStartCooking
+            onStartCooking={onStartCooking}
+        />
+    );
+
+    it('draws Start cooking under the fact tiles and above the action row, on a row of its own', () => {
+        render(cookable());
+
+        const start = screen.getByRole('button', { name: recipeActionMessages.en.detailActions.startCooking });
+        const edit = screen.getByRole('button', { name: 'Edit recipe' });
+
+        expect(follows(tileOf(detail.totalLabel), start)).toBe(true);
+        expect(follows(start, edit)).toBe(true);
+        expect(edit.parentElement?.contains(start)).toBe(false);
+    });
+
+    it('is named by its label, and a press opens cooking mode', () => {
+        const onStartCooking = vi.fn();
+        render(cookable(onStartCooking));
+
+        const start = screen.getByRole('button', { name: 'Start cooking' });
+        fireEvent.click(start);
+
+        expect(start.textContent).toContain('Start cooking');
+        expect(onStartCooking).toHaveBeenCalledTimes(1);
+    });
+
+    it('draws the row’s one glyph, named once in START_COOKING_GLYPH', () => {
+        render(cookable());
+
+        const start = screen.getByRole('button', { name: 'Start cooking' });
+        const glyphs = start.querySelectorAll('[data-commise-stub="icon"]');
+
+        expect(glyphs).toHaveLength(1);
+        // The native stub names a glyph by its Lucide kebab-case name: cookingPot is cooking-pot.
+        expect(glyphs[0]?.getAttribute('data-icon-name')).toBe(
+            START_COOKING_GLYPH.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`),
+        );
+    });
+
+    it('draws no row for a recipe that cannot be cooked, even with the route bound', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail()}
+                canStartCooking={false}
+                onStartCooking={vi.fn()}
+            />,
+        );
+
+        expect(screen.queryByRole('button', { name: 'Start cooking' })).toBeNull();
+    });
+
+    it('draws no row when the app binds no cooking route', () => {
+        render(
+            <RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail()} canStartCooking />,
+        );
+
+        expect(screen.queryByRole('button', { name: 'Start cooking' })).toBeNull();
     });
 });

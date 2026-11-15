@@ -24,6 +24,10 @@ export interface CookMarksBinding {
     readonly toggleLine: (line: string) => void;
     readonly toggleStep: (step: number) => void;
     readonly clear: () => void;
+    /** Cooking mode's Clear ticks: removes every ingredient tick and keeps the current step. */
+    readonly clearIngredientTicks: () => void;
+    /** Cooking mode's Undo: adds these ticks back and removes none. */
+    readonly restoreIngredientTicks: (lines: readonly string[]) => void;
 }
 
 /**
@@ -60,5 +64,13 @@ export function useCookMarks(recipeId: string): CookMarksBinding {
             [store, subject, recipeId],
         ),
         clear: useCallback(() => store.dispatch(subject, recipeId, { kind: 'clear' }), [store, subject, recipeId]),
+        clearIngredientTicks: useCallback(
+            () => store.dispatch(subject, recipeId, { kind: 'clearIngredientTicks' }),
+            [store, subject, recipeId],
+        ),
+        restoreIngredientTicks: useCallback(
+            (lines: readonly string[]) => store.dispatch(subject, recipeId, { kind: 'restoreIngredientTicks', lines }),
+            [store, subject, recipeId],
+        ),
     };
 }

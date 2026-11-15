@@ -33,8 +33,7 @@
  */
 import type { IconName } from '@commise/ui/icon';
 
-import { fillTemplate } from '../format/fillTemplate.js';
-import { pluralOf } from '../format/plural.js';
+import { fillTemplate, pluralOf } from '@commise/i18n';
 import type { IngredientDetailsMessages } from '../messages.js';
 import { foodChoiceNameOf } from './foodChoiceName.js';
 import {

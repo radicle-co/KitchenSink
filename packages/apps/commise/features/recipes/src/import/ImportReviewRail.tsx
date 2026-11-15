@@ -13,8 +13,7 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 
-import { pluralOf } from '../format/plural.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { pluralOf, fillTemplate } from '@commise/i18n';
 import { importMessages } from './messages.js';
 import type { ImportReviewRailProps } from './props.js';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';

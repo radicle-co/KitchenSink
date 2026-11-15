@@ -13,6 +13,7 @@
  * Presentational over that hook: every edit goes up through `onChange`. The one listener on the frame reports a field
  * leaving focus (`onFieldBlur`) and catches the add-step shortcut; both events bubble from the design-system fields.
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { ActionMenu, type ActionMenuItem } from '@commise/ui/action-menu';
 import { Button } from '@commise/ui/button';
@@ -21,7 +22,6 @@ import { FieldLabel, TextArea } from '@commise/ui/input';
 import type { FC, FocusEvent, KeyboardEvent } from 'react';
 
 import { editorMessages } from '../editor/messages.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { stepsErrorId } from './fieldErrorIds.js';
 import { stepFieldId } from './fieldIds.js';
 import { recipeFormMessages } from './messages.js';

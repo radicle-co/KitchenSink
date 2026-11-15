@@ -28,7 +28,7 @@ import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useState, type FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from './model.js';
 import { RailContext } from './railContext.js';

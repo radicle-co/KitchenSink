@@ -1,11 +1,9 @@
+import { type LocalizedMessages, type PluralText } from '@commise/i18n';
 /**
  * @module @commise/features-recipes/foodPage/messages — the author's food page copy (private foods spec section 5 and 6),
  * consumed by the web and native leaves through `useMessages`, so the two platforms cannot drift. Every string a cook
  * reads here is a key; dates are formatted by the caller with `Intl.DateTimeFormat` and passed as `{date}`.
  */
-import type { LocalizedMessages } from '@commise/i18n';
-
-import type { PluralText } from '../format/plural.js';
 
 /** The copy of one publication state's status panel. */
 export interface FoodStatePanelCopy {

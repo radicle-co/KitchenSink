@@ -51,7 +51,33 @@ export interface SourceLinkExtraction {
 const INVALID: SourceLinkResult = { ok: false, reason: 'invalid' };
 
 /** Sentence punctuation that sticks to the end of a pasted address. */
-const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', ')', ']', '}', '>', "'", '"']);
+const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '>', "'", '"']);
+
+/**
+ * Closing brackets, each with the bracket that opens it. One at the end is sentence punctuation only when it is UNBALANCED:
+ * `https://en.wikipedia.org/wiki/Pie_(food)` closes a bracket the address opened, and keeps it.
+ */
+const CLOSING_BRACKETS = new Map([
+    [')', '('],
+    [']', '['],
+    ['}', '{'],
+]);
+
+/** Every character {@link bracketCounts} counts: each closing bracket and its opener. */
+const BRACKETS = new Set([...CLOSING_BRACKETS].flat());
+
+/** How many times each bracket character occurs in `text`, in one pass. */
+function bracketCounts(text: string): Map<string, number> {
+    const counts = new Map<string, number>();
+
+    for (const char of text) {
+        if (BRACKETS.has(char)) {
+            counts.set(char, (counts.get(char) ?? 0) + 1);
+        }
+    }
+
+    return counts;
+}
 
 /**
  * How many characters of trailing punctuation an address may carry past {@link SOURCE_LINK_MAX_LENGTH} before it is refused
@@ -69,11 +95,30 @@ export const SOURCE_LINK_INPUT_MAX_LENGTH = SOURCE_LINK_MAX_LENGTH + PUNCTUATION
 /** The most characters of a pasted line worth testing as "only a link". */
 const MAX_LINK_LINE = SOURCE_LINK_MAX_LENGTH + PUNCTUATION_ALLOWANCE + 32;
 
-/** `text` without the sentence punctuation at its end, in one linear pass (a regex over a long run is not linear). */
+/**
+ * `text` without the sentence punctuation at its end, in linear time (a regex over a long run is not linear): the counts
+ * are taken once, and each closing bracket stripped lowers its own count.
+ */
 function withoutTrailingPunctuation(text: string): string {
+    const counts = bracketCounts(text);
     let end = text.length;
 
-    while (end > 0 && TRAILING_PUNCTUATION.has(text.charAt(end - 1))) {
+    while (end > 0) {
+        const char = text.charAt(end - 1);
+        const opener = CLOSING_BRACKETS.get(char);
+
+        if (opener !== undefined) {
+            const closes = counts.get(char) ?? 0;
+
+            if (closes <= (counts.get(opener) ?? 0)) {
+                break;
+            }
+
+            counts.set(char, closes - 1);
+        } else if (!TRAILING_PUNCTUATION.has(char)) {
+            break;
+        }
+
         end -= 1;
     }
 

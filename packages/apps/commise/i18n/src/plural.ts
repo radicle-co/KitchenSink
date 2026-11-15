@@ -1,7 +1,6 @@
 /**
- * @module @commise/features-recipes/format — how this package says a count: a `{ one, other }` pair chosen by the
- * locale's plural rule. Its own module beside `fillTemplate`, so copy outside the editor (import, ingredient matching)
- * says a count without reaching into the editor's messages.
+ * @module @commise/i18n — how the apps say a count: a `{ one, other }` pair chosen by the locale's plural rule. Its own
+ * module beside `fillTemplate`, so copy anywhere says a count without reaching into another feature's messages.
  *
  * Pure and platform-agnostic.
  */

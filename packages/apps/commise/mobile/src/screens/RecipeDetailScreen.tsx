@@ -72,6 +72,8 @@ export interface RecipeDetailScreenProps {
     readonly onBack?: () => void;
     /** Invoked with the recipe id when the owner opens the editor. */
     readonly onEdit?: (recipeId: string) => void;
+    /** Invoked with the recipe id when the cook starts cooking it; Start cooking is offered only when this is bound. */
+    readonly onStartCooking?: (recipeId: string) => void;
     /** Invoked with the recipe id when the owner opens the version history. */
     readonly onViewVersions?: (recipeId: string) => void;
     /** Open a food's page (the make-public refusal's Open food). */
@@ -188,6 +190,7 @@ function SettledRecipeDetail({
     recipeId,
     onBack,
     onEdit,
+    onStartCooking,
     onViewVersions,
     onOpenFood,
     onDeleted,
@@ -250,9 +253,8 @@ function SettledRecipeDetail({
         return <RecipeDetailSkeleton label={loadCopy.loadingLabel} />;
     }
 
-    // The page's text action, Edit recipe or Save a copy (`designAnswers.md` section
-    // "2026-11-02: card, Home header and Recipe detail build questions", bullet "Start cooking", and `buildLists.md`
-    // "Recipe detail" item 8: no filled button, no Start cooking). Back
+    // The page's text action, Edit recipe or Save a copy. The one filled action, Start cooking, is the body's own row under
+    // the fact tiles, drawn only when the recipe can be cooked and the route is bound. Back
     // and ⋯ are discs over the photo, always (§6.1, §3.5). An empty View keeps ⋯ at the end when
     // there is no Back to its start.
     const primary =
@@ -282,6 +284,8 @@ function SettledRecipeDetail({
             headerActions={primary}
             heroControls={heroControls}
             onEditSection={() => onEdit?.(recipeId)}
+            canStartCooking={page.canStartCooking}
+            {...(onStartCooking === undefined ? {} : { onStartCooking: () => onStartCooking(recipeId) })}
             {...(page.viewerIsOwner ? { onViewVersions: () => onViewVersions?.(recipeId) } : {})}
             rating={<RecipeDetailRating {...page.rating} />}
             scrollFooter={<RecipeDetailDialogs {...page.dialogs} />}

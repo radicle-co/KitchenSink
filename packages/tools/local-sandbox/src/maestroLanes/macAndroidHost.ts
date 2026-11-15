@@ -112,15 +112,23 @@ export function createMacAndroidHost(options: MacAndroidHostOptions): AndroidHos
         stop: async (lane: LaneSpec) => {
             await session.androidLaneHost('stop', consolePort(lane.device));
         },
-        laneEnv: (lane: LaneSpec) => ({
-            ...session.shimEnv(lane.index),
-            ANDROID_SERIAL: lane.device,
-            MAESTRO_ANDROID_APK: localApk,
-            MAESTRO_SKIP_INSTALL: '1',
-            MAESTRO_LOCAL_RECIPE_HOST_PORT: String(macRecipePort),
-            KS_MAC_ANDROID_HOME: session.paths.androidSdk,
-            KS_MAC_ANDROID_ENV: session.paths.androidEnv,
-        }),
+        laneEnv: (lane: LaneSpec) => {
+            // `open()` reads the Mac's HOME, and every Mac path is built from it, so an empty `macHome` means the session is
+            // not open yet and there is nothing to name.
+            if (session.macHome === '') {
+                return {};
+            }
+
+            return {
+                ...session.shimEnv(lane.index),
+                ANDROID_SERIAL: lane.device,
+                MAESTRO_ANDROID_APK: localApk,
+                MAESTRO_SKIP_INSTALL: '1',
+                MAESTRO_LOCAL_RECIPE_HOST_PORT: String(macRecipePort),
+                KS_MAC_ANDROID_HOME: session.paths.androidSdk,
+                KS_MAC_ANDROID_ENV: session.paths.androidEnv,
+            };
+        },
         teardown: () => session.close(),
     };
 }

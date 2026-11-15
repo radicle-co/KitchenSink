@@ -1,0 +1,772 @@
+{
+    "canvases": [
+        {
+            "id": "designSystem",
+            "title": "KitchenSink Design System",
+            "url": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+            "kind": "designSystem",
+            "status": "current",
+            "source": "repo"
+        },
+        {
+            "id": "accountAndSignInWeb",
+            "title": "Commise Screens, web: Account and sign in",
+            "url": "https://claude.ai/artifact/G11fcg95z1iCS7fhbtAK7P",
+            "kind": "page",
+            "platform": "web",
+            "subject": "Account and sign in",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "accountAndSignInMobile",
+            "title": "Commise Screens, mobile: Account and sign in",
+            "url": "https://claude.ai/artifact/MR3zZq2EXybUSUVW3ndJWh",
+            "kind": "page",
+            "platform": "mobile",
+            "subject": "Account and sign in",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "accountAndSignInCombined",
+            "title": "Commise Screens: Account and sign in",
+            "url": "https://claude.ai/artifact/Vv2RJ8ggKSnnsDKMapFMu3",
+            "kind": "page",
+            "platform": "combined",
+            "subject": "Account and sign in",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "appWideStatesWeb",
+            "title": "Commise Screens, web: App-wide states",
+            "url": "https://claude.ai/artifact/HnW8rVxzk6isbWYEU3gSUP",
+            "kind": "page",
+            "platform": "web",
+            "subject": "App-wide states",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "appWideStatesMobile",
+            "title": "Commise Screens, mobile: App-wide states",
+            "url": "https://claude.ai/artifact/Qs1oq1yDA9kXgjmq19BoW7",
+            "kind": "page",
+            "platform": "mobile",
+            "subject": "App-wide states",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "appWideStatesCombined",
+            "title": "Commise Screens: App-wide states",
+            "url": "https://claude.ai/artifact/DJp5DgchNkLACtGxVPjuLj",
+            "kind": "page",
+            "platform": "combined",
+            "subject": "App-wide states",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "cookingModeWeb",
+            "title": "Commise Screens, web: Cooking mode",
+            "url": "https://claude.ai/artifact/ACooWjTQRQiGT8Cs2W5jSz",
+            "kind": "page",
+            "platform": "web",
+            "subject": "Cooking mode",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "cookingModeMobile",
+            "title": "Commise Screens, mobile: Cooking mode",
+            "url": "https://claude.ai/artifact/3CkR77y6Lp94kjQUyrEYvt",
+            "kind": "page",
+            "platform": "mobile",
+            "subject": "Cooking mode",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "cookingModeCombined",
+            "title": "Commise Screens: Cooking mode",
+            "url": "https://claude.ai/artifact/MuTYcx3ifp58BD853xJiv8",
+            "kind": "page",
+            "platform": "combined",
+            "subject": "Cooking mode",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "discoverWeb",
+            "title": "Commise Screens, web: Discover",
+            "url": "https://claude.ai/artifact/PaPVEn24zZRA8U4zNiiidj",
+            "kind": "page",
+            "platform": "web",
+            "subject": "Discover",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "discoverMobile",
+            "title": "Commise Screens, mobile: Discover",
+            "url": "https://claude.ai/artifact/6hXReBN1VWxAkSy44gJGjE",
+            "kind": "page",
+            "platform": "mobile",
+            "subject": "Discover",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "discoverCombined",
+            "title": "Commise Screens: Discover",
+            "url": "https://claude.ai/artifact/R9nzGME9RbeUuhaUtPqyB5",
+            "kind": "page",
+            "platform": "combined",
+            "subject": "Discover",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "homeWeb",
+            "title": "Commise Screens, web: Home",
+            "url": "https://claude.ai/artifact/CEyW2KKB5e5k4RWAWkmRBR",
+            "kind": "page",
+            "platform": "web",
+            "subject": "Home",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "homeMobile",
+            "title": "Commise Screens, mobile: Home",
+            "url": "https://claude.ai/artifact/RrYBCYnYTZe6p6i5uwvZQK",
+            "kind": "page",
+            "platform": "mobile",
+            "subject": "Home",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "homeCombined",
+            "title": "Commise Screens: Home",
+            "url": "https://claude.ai/artifact/NgDDxhpxbSgQ48NZbsAWdv",
+            "kind": "page",
+            "platform": "combined",
+            "subject": "Home",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "recipeDetailWeb",
+            "title": "Commise Screens, web: Recipe detail",
+            "url": "https://claude.ai/artifact/949r8TAdPPTnVenXDY5yYu",
+            "kind": "page",
+            "platform": "web",
+            "subject": "Recipe detail",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "recipeDetailMobile",
+            "title": "Commise Screens, mobile: Recipe detail",
+            "url": "https://claude.ai/artifact/AQzF9pVFhWSEpQsXW3GwqK",
+            "kind": "page",
+            "platform": "mobile",
+            "subject": "Recipe detail",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "recipeDetailCombined",
+            "title": "Commise Screens: Recipe detail",
+            "url": "https://claude.ai/artifact/BNwWkoDwcveJ9dewYTQcXL",
+            "kind": "page",
+            "platform": "combined",
+            "subject": "Recipe detail",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "recipeEditorWeb",
+            "title": "Commise Screens, web: Recipe editor",
+            "url": "https://claude.ai/artifact/D1U7D9kXhCn37CevXe7K7G",
+            "kind": "page",
+            "platform": "web",
+            "subject": "Recipe editor",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "recipeEditorMobile",
+            "title": "Commise Screens, mobile: Recipe editor",
+            "url": "https://claude.ai/artifact/3DtBLFkK6Ve5SsMyVL6Qhp",
+            "kind": "page",
+            "platform": "mobile",
+            "subject": "Recipe editor",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "recipeEditorCombined",
+            "title": "Commise Screens: Recipe editor",
+            "url": "https://claude.ai/artifact/CYjvswLZdB7CbZ4Av84Fig",
+            "kind": "page",
+            "platform": "combined",
+            "subject": "Recipe editor",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "recipesAndCollectionsWeb",
+            "title": "Commise Screens, web: Recipes and collections",
+            "url": "https://claude.ai/artifact/KAgJRrdka7wxefuzgjqLTc",
+            "kind": "page",
+            "platform": "web",
+            "subject": "Recipes and collections",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "recipesAndCollectionsMobile",
+            "title": "Commise Screens, mobile: Recipes and collections",
+            "url": "https://claude.ai/artifact/LLVdUn57K6tTLpbTxT29nF",
+            "kind": "page",
+            "platform": "mobile",
+            "subject": "Recipes and collections",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "recipesAndCollectionsCombined",
+            "title": "Commise Screens: Recipes and collections",
+            "url": "https://claude.ai/artifact/9zLKrnZTkc3WPLfoJsgzpm",
+            "kind": "page",
+            "platform": "combined",
+            "subject": "Recipes and collections",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "aiAssistantWeb",
+            "title": "Commise Screens, web: AI assistant",
+            "url": "https://claude.ai/artifact/JtAx4WwF7sjS7hpW3c3fyW",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "AI assistant",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "aiAssistantMobile",
+            "title": "Commise Screens, mobile: AI assistant",
+            "url": "https://claude.ai/artifact/FJcFiqeMeJLYNexQVBo2MQ",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "AI assistant",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "aiAssistantCombined",
+            "title": "Commise Screens: AI assistant",
+            "url": "https://claude.ai/artifact/GxSxvAzarEYQkUGekNwAsC",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "AI assistant",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "chefProgramWeb",
+            "title": "Commise Screens, web: Chef program",
+            "url": "https://claude.ai/artifact/F5rjCpUzLL2rKUiQy5Z4Ac",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Chef program",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "chefProgramMobile",
+            "title": "Commise Screens, mobile: Chef program",
+            "url": "https://claude.ai/artifact/AQrbvV8EfgzDsR7GPPG1VU",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Chef program",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "chefProgramCombined",
+            "title": "Commise Screens: Chef program",
+            "url": "https://claude.ai/artifact/Fmfszk5fzpyByMqkmSWbbV",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Chef program",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "contentSourceCheckWeb",
+            "title": "Commise Screens, web: Content source check",
+            "url": "https://claude.ai/artifact/PDkDgVf3KjzkocLhRJbbYM",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Content source check",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "contentSourceCheckMobile",
+            "title": "Commise Screens, mobile: Content source check",
+            "url": "https://claude.ai/artifact/RhuT3PRWgiLjkr5zdjM9Mr",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Content source check",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "contentSourceCheckCombined",
+            "title": "Commise Screens: Content source check",
+            "url": "https://claude.ai/artifact/RjjoZgbybMz3Wvd7kPyxHK",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Content source check",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "cookWithMeWeb",
+            "title": "Commise Screens, web: Cook with me",
+            "url": "https://claude.ai/artifact/S5MjhSBF1fW8anCjCu5Vdv",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Cook with me",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "cookWithMeMobile",
+            "title": "Commise Screens, mobile: Cook with me",
+            "url": "https://claude.ai/artifact/YHwBUgUu7Yt3M2MzhZKKtA",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Cook with me",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "cookWithMeCombined",
+            "title": "Commise Screens: Cook with me",
+            "url": "https://claude.ai/artifact/PbR9dudJoHe1oqfpzSHSUL",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Cook with me",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "cookingSchoolWeb",
+            "title": "Commise Screens, web: Cooking school",
+            "url": "https://claude.ai/artifact/Gx7EY19HnVUzjC9fffP12B",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Cooking school",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "cookingSchoolMobile",
+            "title": "Commise Screens, mobile: Cooking school",
+            "url": "https://claude.ai/artifact/7ubfsRC5CTbsJuc73xPv6x",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Cooking school",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "cookingSchoolCombined",
+            "title": "Commise Screens: Cooking school",
+            "url": "https://claude.ai/artifact/5a8Nyskp61iVTpVDaLDXT9",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Cooking school",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "creatorProfilesWeb",
+            "title": "Commise Screens, web: Creator profiles",
+            "url": "https://claude.ai/artifact/3jipRNEeGGDsKND8LPAwsq",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Creator profiles",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "creatorProfilesMobile",
+            "title": "Commise Screens, mobile: Creator profiles",
+            "url": "https://claude.ai/artifact/3N7aSivVnXLQKY5XM7NWwK",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Creator profiles",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "creatorProfilesCombined",
+            "title": "Commise Screens: Creator profiles",
+            "url": "https://claude.ai/artifact/GswRjiQurn19jeBxowiasz",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Creator profiles",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "draftsWeb",
+            "title": "Commise Screens, web: Drafts",
+            "url": "https://claude.ai/artifact/SVxdoj16j66BZXvdkuCh6M",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Drafts",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "draftsMobile",
+            "title": "Commise Screens, mobile: Drafts",
+            "url": "https://claude.ai/artifact/8PNoTFosUERE5EwViLuAPQ",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Drafts",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "draftsCombined",
+            "title": "Commise Screens: Drafts",
+            "url": "https://claude.ai/artifact/SPTjhox9PB9pB9AEFhYgh1",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Drafts",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "groceryListsWeb",
+            "title": "Commise Screens, web: Grocery lists",
+            "url": "https://claude.ai/artifact/7dJUSSs95QP2LM47jhMAV8",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Grocery lists",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "groceryListsMobile",
+            "title": "Commise Screens, mobile: Grocery lists",
+            "url": "https://claude.ai/artifact/9DDDLCBqtk5zRH6wWJSDZu",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Grocery lists",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "groceryListsCombined",
+            "title": "Commise Screens: Grocery lists",
+            "url": "https://claude.ai/artifact/6BdVLxM3nbMNkuaR2Latco",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Grocery lists",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "inAppNoticesWeb",
+            "title": "Commise Screens, web: In-app notices",
+            "url": "https://claude.ai/artifact/BKPbke94NrrpzUdPCXcH5y",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "In-app notices",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "inAppNoticesMobile",
+            "title": "Commise Screens, mobile: In-app notices",
+            "url": "https://claude.ai/artifact/BzrpPZ5nbaUFY6fVouTeDg",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "In-app notices",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "inAppNoticesCombined",
+            "title": "Commise Screens: In-app notices",
+            "url": "https://claude.ai/artifact/4mrZq5bG4rxbdeUzmhdNSk",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "In-app notices",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "mealPlanningWeb",
+            "title": "Commise Screens, web: Meal planning",
+            "url": "https://claude.ai/artifact/JdopTiVk7aCFDizHcF8m3u",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Meal planning",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "mealPlanningMobile",
+            "title": "Commise Screens, mobile: Meal planning",
+            "url": "https://claude.ai/artifact/FMGWQNVgbZgUVuf4zT6YoZ",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Meal planning",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "mealPlanningCombined",
+            "title": "Commise Screens: Meal planning",
+            "url": "https://claude.ai/artifact/Tm6rXH49xorebhGn9LwNTf",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Meal planning",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "nutritionPlanningWeb",
+            "title": "Commise Screens, web: Nutrition planning",
+            "url": "https://claude.ai/artifact/GJQ9rXZ3SD51dopnDpyWvW",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Nutrition planning",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "nutritionPlanningMobile",
+            "title": "Commise Screens, mobile: Nutrition planning",
+            "url": "https://claude.ai/artifact/8yjp2jrGWhduXFgcH1dZu9",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Nutrition planning",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "nutritionPlanningCombined",
+            "title": "Commise Screens: Nutrition planning",
+            "url": "https://claude.ai/artifact/7QRYENMs5BcBSP2W8cpX8s",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Nutrition planning",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "offlineWeb",
+            "title": "Commise Screens, web: Offline",
+            "url": "https://claude.ai/artifact/KiiLuJU4PtJSccUx66zWjE",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Offline",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "offlineMobile",
+            "title": "Commise Screens, mobile: Offline",
+            "url": "https://claude.ai/artifact/TQ85F9viukR4ZrjmsMfR2h",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Offline",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "offlineCombined",
+            "title": "Commise Screens: Offline",
+            "url": "https://claude.ai/artifact/4YWknoLfmfp5nUEbCet5iV",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Offline",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "publishingRewardsWeb",
+            "title": "Commise Screens, web: Publishing rewards",
+            "url": "https://claude.ai/artifact/WgRwEB3hhqzKcxcG7q1E8w",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Publishing rewards",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "publishingRewardsMobile",
+            "title": "Commise Screens, mobile: Publishing rewards",
+            "url": "https://claude.ai/artifact/G35knf4Mo1Wv6KdX3FsHYP",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Publishing rewards",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "publishingRewardsCombined",
+            "title": "Commise Screens: Publishing rewards",
+            "url": "https://claude.ai/artifact/KdmKatADB5FDnokQfHZqyu",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Publishing rewards",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "recipeDigitizationAndFamilyCirclesWeb",
+            "title": "Commise Screens, web: Recipe digitization and family circles",
+            "url": "https://claude.ai/artifact/9AFhiA789MUTWS1ckCBvjM",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Recipe digitization and family circles",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "recipeDigitizationAndFamilyCirclesMobile",
+            "title": "Commise Screens, mobile: Recipe digitization and family circles",
+            "url": "https://claude.ai/artifact/W7eYYH2MhTJxX87o85G9Yk",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Recipe digitization and family circles",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "recipeDigitizationAndFamilyCirclesCombined",
+            "title": "Commise Screens: Recipe digitization and family circles",
+            "url": "https://claude.ai/artifact/W838Nx6Wrt8eT2H2gfWZM9",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Recipe digitization and family circles",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "recipeImportingWeb",
+            "title": "Commise Screens, web: Recipe importing",
+            "url": "https://claude.ai/artifact/KKT6bNyejfVrvjpuPojoXd",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Recipe importing",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "recipeImportingMobile",
+            "title": "Commise Screens, mobile: Recipe importing",
+            "url": "https://claude.ai/artifact/UC79ZsmrYP73S1uaQh6e5V",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Recipe importing",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "recipeImportingCombined",
+            "title": "Commise Screens: Recipe importing",
+            "url": "https://claude.ai/artifact/MvocHS135Sd6pbEASJDrTj",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Recipe importing",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "reportsRulesAndYourRightsWeb",
+            "title": "Commise Screens, web: Reports, rules and your rights",
+            "url": "https://claude.ai/artifact/JbnCrxKdbCF2zpS4esaRYg",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Reports, rules and your rights",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "reportsRulesAndYourRightsMobile",
+            "title": "Commise Screens, mobile: Reports, rules and your rights",
+            "url": "https://claude.ai/artifact/PvjdJ1XgNKSreUaVZoaKR9",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Reports, rules and your rights",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "reportsRulesAndYourRightsCombined",
+            "title": "Commise Screens: Reports, rules and your rights",
+            "url": "https://claude.ai/artifact/5oQmDAkspEk2Sj6akasvGe",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Reports, rules and your rights",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "subscriptionsWeb",
+            "title": "Commise Screens, web: Subscriptions",
+            "url": "https://claude.ai/artifact/WmZsPyhUhJXmGVMzNgW1wZ",
+            "kind": "feature",
+            "platform": "web",
+            "subject": "Subscriptions",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "subscriptionsMobile",
+            "title": "Commise Screens, mobile: Subscriptions",
+            "url": "https://claude.ai/artifact/YatPJr4H1HeeiAu2dXzQBk",
+            "kind": "feature",
+            "platform": "mobile",
+            "subject": "Subscriptions",
+            "status": "current",
+            "source": "live"
+        },
+        {
+            "id": "subscriptionsCombined",
+            "title": "Commise Screens: Subscriptions",
+            "url": "https://claude.ai/artifact/Vym8oubvtFeu59vqghvnWd",
+            "kind": "feature",
+            "platform": "combined",
+            "subject": "Subscriptions",
+            "status": "archive",
+            "source": "live"
+        },
+        {
+            "id": "recipeEditorEmptyMistake",
+            "title": "Commise Screens: Recipe editor",
+            "url": "https://claude.ai/artifact/MmuduBeus2Csb22CxKo3Ms",
+            "kind": "unused",
+            "subject": "Recipe editor",
+            "status": "unused",
+            "source": "none",
+            "note": "Created by mistake on 2026-10-27 and holds nothing. Do not use it."
+        }
+    ]
+}

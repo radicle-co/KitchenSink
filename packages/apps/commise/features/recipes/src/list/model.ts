@@ -5,9 +5,9 @@
  * views, so the two renders can never drift on shape or formatting. No React, no platform APIs — just the
  * view-model projection and the copy-formatting primitives.
  */
-import type { Locale } from '@commise/i18n';
 import type { ReactElement, ReactNode } from 'react';
 
+import { type Locale, fillTemplate } from '@commise/i18n';
 import type { ChipRowOverflow } from '@commise/ui/chip';
 import type { LoadMoreControlProps } from '@commise/ui/load-more';
 import type { ScrollBind } from '@commise/ui/scroll-host';
@@ -15,7 +15,6 @@ import type { RecipeListSortBy } from '@kitchensink/recipe-service-client';
 
 import type { CardVariant, ListViewMode } from '../card/cardVariant.js';
 import { toRecipeCardModel, type RecipeCardModel } from '../card/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { sentenceCase } from '../format/sentenceCase.js';
 import type { RecipeListMessages } from '../messages.js';
 import type { RenderRecipeNutrition } from '../nutrition/model.js';

@@ -18,7 +18,7 @@ import { useMessages } from '@commise/i18n/react';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeActionMessages } from './messages.js';
 import type { RecipeDeleteDialogProps } from './model.js';
 

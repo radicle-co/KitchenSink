@@ -21,7 +21,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { z } from 'zod';
 
 import { parseRepoCanvases } from '../../src/publish/repoCanvases.js';
-import { selectCanvases } from '../../src/publish/selectCanvases.js';
+import { changedRegistryIds, selectCanvases } from '../../src/publish/selectCanvases.js';
 
 const THEMES = ['light', 'dark'] as const;
 
@@ -32,15 +32,28 @@ const canvasJsonSchema = z.object({ boards: z.record(z.string(), z.object({ w: z
 
 const git = (...args: string[]): string => execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8' }).trim();
 
+const mergeBase = (): string => git('merge-base', 'HEAD', 'origin/main');
+
 const changedPaths = (): readonly string[] =>
-    git('diff', '--name-only', git('merge-base', 'HEAD', 'origin/main'))
+    git('diff', '--name-only', mergeBase())
         .split('\n')
         .filter((line) => line !== '');
 
+/** The registry as the merge base had it, or `null` when the merge base has none. */
+const registryAtMergeBase = (): string | null => {
+    try {
+        return git('show', `${mergeBase()}:docs/design/canvases/registry.json`);
+    } catch {
+        return null;
+    }
+};
+
+const registryText = readFileSync(join(CANVASES_DIR, 'registry.json'), 'utf8');
 const selected = selectCanvases(
-    parseRepoCanvases(readFileSync(join(CANVASES_DIR, 'registry.json'), 'utf8')),
+    parseRepoCanvases(registryText),
     changedPaths(),
     process.env['CANVASES'],
+    new Set(changedRegistryIds(registryAtMergeBase(), registryText)),
 );
 
 const origin = inject('repoCanvasOrigin');
@@ -56,10 +69,11 @@ afterAll(async () => {
 });
 
 describe('repo canvases', () => {
-    // With nothing selected the suite would otherwise hold no test at all, which reads as a failure of the runner.
-    it('selects the canvases to render', () => {
-        expect(Array.isArray(selected)).toBe(true);
-    });
+    // With nothing selected the suite would hold no test at all, which reads as a failure of the runner. A skip says
+    // so by name. Selection itself is covered by selectCanvases.test.ts.
+    if (selected.length === 0) {
+        it.skip('selected no canvas: no folder or registry entry changed against origin/main', () => undefined);
+    }
 
     describe.each(selected)('$id', (canvas) => {
         const { boards } = canvasJsonSchema.parse(

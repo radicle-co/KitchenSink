@@ -54,7 +54,9 @@ case "${1:-}" in
         name="${NAME_PREFIX}$2"
         # A Simulator kept from a run with another device type is replaced, never reused under the new name's promise.
         # A listing that states no type (nothing to compare) keeps the Simulator.
-        IFS=$'\t' read -r udid have_type <<<"$(record_by_name "$name")"
+        # Its own assignment, so a failed listing stops the script (set -e); inside the here-string it would be swallowed.
+        record="$(record_by_name "$name")"
+        IFS=$'\t' read -r udid have_type <<<"$record"
         if [ -n "$udid" ] && [ -n "$have_type" ] && [ "$have_type" != "$DEVICE_TYPE" ]; then
             xcrun simctl shutdown "$udid" || true
             xcrun simctl delete "$udid"

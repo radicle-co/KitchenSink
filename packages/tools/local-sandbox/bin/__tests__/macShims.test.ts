@@ -263,6 +263,20 @@ describe('laneHost.sh', () => {
         expect(callsOf(sandbox)).toEqual([]);
     });
 
+    it('stops, and creates nothing, when the Simulator listing itself fails', () => {
+        const sandbox = makeSandbox();
+        withSimulators(sandbox, []);
+        // A failed `simctl list` must not read as "no Simulator of this name": that would create a second one.
+        writeFileSync(
+            path.join(sandbox.bin, 'xcrun'),
+            `#!/usr/bin/env bash\nif [ "$2" = list ]; then exit 1; fi\nprintf 'XCRUN %s\\n' "$*" >> "${sandbox.log}"\n`,
+        );
+        chmodSync(path.join(sandbox.bin, 'xcrun'), 0o755);
+        const result = run('laneHost.sh', ['ensure', '2', 'ipad'], sandbox);
+        expect(result.status).not.toBe(0);
+        expect(callsOf(sandbox)).toEqual([]);
+    });
+
     it('judges the first Simulator of a name by its own device type, never by a later one of the same name', () => {
         const sandbox = makeSandbox();
         // The first match states no type (nothing to compare, so it is kept); the second states an old one. The udid

@@ -9,6 +9,7 @@
  * | the same refusal from an allowed origin             | `access-control-allow-origin` is present (CORS before the parser) |
  * | a form body                                         | is not parsed: Nest's default parser is off on purpose           |
  * | `configure`                                         | logs which CORS mode is live, through Nest's `Logger`            |
+ * | `nestOptions` handed `bodyParser: true` past the type | still turns Nest's parser off: the setup's value is applied last |
  */
 import type { AddressInfo } from 'node:net';
 
@@ -54,7 +55,7 @@ describe('jsonBodyHttpSetup', () => {
     beforeAll(async () => {
         const setup = jsonBodyHttpSetup(() => ({ options: { origin: [ALLOWED] }, mode: 'test-mode' }));
 
-        app = await NestFactory.create(ProbeModule, { ...setup.nestOptions, logger: false });
+        app = await NestFactory.create(ProbeModule, setup.nestOptions({ logger: false }));
         app.useGlobalFilters(recordingFilter);
         setup.configure(app);
         app.getHttpAdapter().post('/probe', (request: Request, response: ExpressResponse) => {
@@ -124,6 +125,14 @@ describe('jsonBodyHttpSetup', () => {
         });
 
         expect((await response.json()) as unknown).toEqual({});
+    });
+
+    it('⛔ keeps Nest’s parser off even when a caller passes bodyParser past the type', () => {
+        const setup = jsonBodyHttpSetup(() => ({ options: {}, mode: 'test-mode' }));
+        // `Reflect.apply` stands in for an untyped caller: the type forbids `bodyParser`, so only this can pass it.
+        const created: unknown = Reflect.apply(setup.nestOptions, undefined, [{ bodyParser: true, logger: false }]);
+
+        expect(created).toEqual({ bodyParser: false, logger: false });
     });
 
     it('logs which CORS mode is live', () => {

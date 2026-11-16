@@ -84,10 +84,8 @@ describe('src/main.ts applies the HTTP setup', () => {
     // ⛔ `nestOptions` is what turns Nest's own body parser off (`bodyParser: false`). Without it Nest parses the body
     // first, rewrites a malformed one into a `BadRequestException` quoting the request, and the service's parser never
     // sees it. The guard in `repoGuards` holds this for every service; this names the service's own setup.
-    it('creates the app with the setup’s nestOptions spread into NestFactory.create', () => {
-        expect(main.getText()).toMatch(
-            /NestFactory\.create\(AppModule,\s*\{\s*\.\.\.IDENTITY_HTTP_SETUP\.nestOptions\b/,
-        );
+    it('creates the app with the options the setup’s nestOptions returns, and nothing beside them', () => {
+        expect(main.getText()).toMatch(/NestFactory\.create\(AppModule,\s*IDENTITY_HTTP_SETUP\.nestOptions\(/);
         expect(positionsOf('create', main)).toHaveLength(1);
     });
 

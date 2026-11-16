@@ -49,7 +49,7 @@ async function bootstrap(): Promise<void> {
     // in the shared `kitchensink-log-drain` (ADR-0042), and `info`/`warn` keep reaching CloudWatch — which
     // is the half its predecessor in identity got wrong, writing nothing to stdout and therefore DELETING
     // every line on any run with no DSN.
-    const app = await NestFactory.create(AppModule, { ...FOOD_HTTP_SETUP.nestOptions, logger: new NestRoutedLogger() });
+    const app = await NestFactory.create(AppModule, FOOD_HTTP_SETUP.nestOptions({ logger: new NestRoutedLogger() }));
 
     // CORS, then the JSON parser, then the refusal link, in that order (`config/httpSetup.ts`). The CORS allowlist
     // is the Clerk `azp` boundary (plan 002 S4, ADR-0047). Installed before `listen`, so no request is served without it.

@@ -76,7 +76,8 @@ export interface BootServiceAppOptions {
  * tier serves requests through the same stack production does.
  */
 export interface ServiceHttpSetup {
-    readonly nestOptions: NestApplicationOptions;
+    /** The create options, given the harness's own (`logger: false`). */
+    readonly nestOptions: (options: { readonly logger: false }) => NestApplicationOptions;
     readonly configure: (app: INestApplication) => void;
 }
 
@@ -104,7 +105,7 @@ export interface BootedServiceApp {
  *
  * @param appModule - The service's `AppModule`.
  * @param doubles - The providers to replace; empty for the real app.
- * @param nestOptions - The service's own create options (`ServiceHttpSetup.nestOptions`); `logger` is always off.
+ * @param nestOptions - The create options, `logger` already off (`ServiceHttpSetup.nestOptions`, or the harness's).
  * @returns The created (not yet listening) application.
  * @sideEffect Compiles the module graph, which runs every provider factory.
  */
@@ -116,7 +117,7 @@ async function createApp(
     if (doubles.length === 0) {
         const { NestFactory } = await import('@nestjs/core');
 
-        return NestFactory.create(appModule as never, { ...nestOptions, logger: false });
+        return NestFactory.create(appModule as never, nestOptions);
     }
 
     const { Test } = await import('@nestjs/testing');
@@ -126,7 +127,7 @@ async function createApp(
         builder = builder.overrideProvider(double.provide).useValue(double.useValue);
     }
 
-    return (await builder.compile()).createNestApplication({ ...nestOptions, logger: false });
+    return (await builder.compile()).createNestApplication(nestOptions);
 }
 
 /** Set `key` only when it is not already present, so CI/env overrides always win. */
@@ -154,7 +155,11 @@ export async function bootServiceApp(options: BootServiceAppOptions): Promise<Bo
 
     // Dynamic import AFTER env is set — config validates and the DB pool builds at module init.
     const { AppModule } = await options.loadAppModule();
-    const app = await createApp(AppModule, options.doubles ?? [], options.httpSetup?.nestOptions ?? {});
+    const app = await createApp(
+        AppModule,
+        options.doubles ?? [],
+        options.httpSetup?.nestOptions({ logger: false }) ?? { logger: false },
+    );
 
     options.httpSetup?.configure(app);
     // Ephemeral port — no fixed-port collisions across parallel test jobs.

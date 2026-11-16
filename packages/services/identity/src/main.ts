@@ -38,7 +38,7 @@ async function bootstrap(): Promise<void> {
 
     const { AppModule } = await import('./app.module.js');
     const logger = new NestRoutedLogger();
-    const app = await NestFactory.create(AppModule, { ...IDENTITY_HTTP_SETUP.nestOptions, logger });
+    const app = await NestFactory.create(AppModule, IDENTITY_HTTP_SETUP.nestOptions({ logger }));
 
     // U11/F3: the service is fronted by a public ALB and called cross-origin by the web app, so with no CORS those
     // calls are blocked. CORS, then the JSON parser, then the refusal link, in that order (`config/httpSetup.ts`).

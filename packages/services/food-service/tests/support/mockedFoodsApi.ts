@@ -276,11 +276,13 @@ export async function bootMockedFoodsApi(doubles: MockedFoodsApiDoubles): Promis
     }
 
     // `abortOnError: false`: a module that cannot boot must fail the suite, not `process.abort()` the worker.
-    const app: INestApplication = await NestFactory.create(MockedFoodsApiModule, {
-        ...FOOD_HTTP_SETUP.nestOptions,
-        logger: false,
-        abortOnError: false,
-    });
+    const app: INestApplication = await NestFactory.create(
+        MockedFoodsApiModule,
+        FOOD_HTTP_SETUP.nestOptions({
+            logger: false,
+            abortOnError: false,
+        }),
+    );
     // Before `listen`, through the same setup `main.ts` applies: CORS, the JSON parser, the refusal link.
     FOOD_HTTP_SETUP.configure(app);
     await app.listen(0);

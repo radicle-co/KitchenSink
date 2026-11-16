@@ -37,9 +37,16 @@ export interface JsonBodyCorsPolicy {
     readonly mode: string;
 }
 
+/** The create options a service chooses. `bodyParser` is the setup's alone, so the type refuses it. */
+export type ServiceNestOptions = Omit<NestApplicationOptions, 'bodyParser'> & { readonly bodyParser?: never };
+
 /** How the app is created and prepared, besides `listen`. */
 export interface JsonBodyHttpSetup {
-    readonly nestOptions: { readonly bodyParser: false } & NestApplicationOptions;
+    /**
+     * The options to create the app with: the service's own, with Nest's parser off. Pass the result to
+     * `NestFactory.create` as it is. A spread beside it could set `bodyParser` again, and the repo guard refuses that.
+     */
+    readonly nestOptions: (options: ServiceNestOptions) => NestApplicationOptions;
     /** Register CORS, the JSON parser and its refusal link, in that order. Call before `listen`. */
     readonly configure: (app: INestApplication) => void;
 }
@@ -53,7 +60,8 @@ export interface JsonBodyHttpSetup {
  */
 export function jsonBodyHttpSetup(corsPolicy: () => JsonBodyCorsPolicy): JsonBodyHttpSetup {
     return {
-        nestOptions: { bodyParser: false },
+        // `bodyParser: false` is applied last, so a caller that gets past the type still cannot turn the parser on.
+        nestOptions: (options) => ({ ...options, bodyParser: false }),
         /**
          * @param app - The created app.
          * @sideEffect Reads the environment (through `corsPolicy`), registers Express middleware on `app` and logs

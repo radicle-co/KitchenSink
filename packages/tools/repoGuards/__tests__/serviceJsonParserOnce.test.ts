@@ -8,8 +8,9 @@
  * TypeScript parser (never a regex over text), so a comment or a string that names a call is not a call:
  *
  * 1. no service calls `express.json(…)` itself;
- * 2. every `NestFactory.create(…)` under a service `src` spreads a `jsonBodyHttpSetup(…)` result's `nestOptions`, which
- *    is what guarantees `bodyParser: false` — without it Nest parses the body first and the refusal is rewritten;
+ * 2. every `NestFactory.create(…)` under a service `src` passes exactly what a `jsonBodyHttpSetup(…)` result's
+ *    `nestOptions(…)` returns, which is what guarantees `bodyParser: false` — without it Nest parses the body first and
+ *    the refusal is rewritten. A literal around that result is refused, because a key beside it could turn it back on;
  * 3. no service imports `body-parser` or calls `useBodyParser(…)`, the other doors to a second parser.
  *
  * Calls are matched through the import binding, so `response.json(…)` on a Nest response is not mistaken for the parser
@@ -172,7 +173,7 @@ function declaresSharedSetup(file: string, contents: string | undefined, exporte
 }
 
 /**
- * The `NestFactory.create(…)` calls in a source that do NOT pass options spread from a shared setup's `nestOptions`.
+ * The `NestFactory.create(…)` calls in a source that do NOT pass exactly a shared setup's `nestOptions(…)` result.
  * Pure over the files handed in.
  *
  * @param source - The file to read.
@@ -201,20 +202,18 @@ function createCallsWithoutSharedOptions(
 
         seen += 1;
 
+        // The options must be the shared call's result, untouched: any literal around it could set `bodyParser` again,
+        // by a plain or a computed key, so no literal is accepted at all.
         const options = node.arguments[1];
-        const spreadsSharedOptions =
+        const isSharedOptions =
             options !== undefined &&
-            ts.isObjectLiteralExpression(options) &&
-            options.properties.some(
-                (property) =>
-                    ts.isSpreadAssignment(property) &&
-                    ts.isPropertyAccessExpression(property.expression) &&
-                    property.expression.name.text === 'nestOptions' &&
-                    ts.isIdentifier(property.expression.expression) &&
-                    isSharedSetup(source, property.expression.expression.text, files),
-            );
+            ts.isCallExpression(options) &&
+            ts.isPropertyAccessExpression(options.expression) &&
+            options.expression.name.text === 'nestOptions' &&
+            ts.isIdentifier(options.expression.expression) &&
+            isSharedSetup(source, options.expression.expression.text, files);
 
-        if (!spreadsSharedOptions) {
+        if (!isSharedOptions) {
             offenders.push(node.getText(parsed));
         }
     });
@@ -274,9 +273,9 @@ describe('createCallsWithoutSharedOptions — Nest must be created with the shar
             'packages/services/x/src/main.ts',
         );
 
-    it('accepts options spread from the shared setup', () => {
+    it('accepts the options the shared setup returns', () => {
         const result = createCallsWithoutSharedOptions(
-            main('NestFactory.create(AppModule, { ...X_SETUP.nestOptions, logger })'),
+            main('NestFactory.create(AppModule, X_SETUP.nestOptions({ logger }))'),
             files(shared),
         );
 
@@ -288,6 +287,24 @@ describe('createCallsWithoutSharedOptions — Nest must be created with the shar
         ['options without the spread', 'NestFactory.create(AppModule, { logger })'],
         ['a hand-written bodyParser: false', 'NestFactory.create(AppModule, { bodyParser: false, logger })'],
         ['a spread of another member', 'NestFactory.create(AppModule, { ...X_SETUP.configure, logger })'],
+        // The verification review's probes: a property beside the shared options overrides them.
+        [
+            'bodyParser: true beside the spread',
+            'NestFactory.create(AppModule, { ...X_SETUP.nestOptions, bodyParser: true })',
+        ],
+        [
+            'a computed bodyParser key beside the spread',
+            "NestFactory.create(AppModule, { ...X_SETUP.nestOptions, ['bodyParser']: true })",
+        ],
+        [
+            'bodyParser: true beside the returned options',
+            'NestFactory.create(AppModule, { ...X_SETUP.nestOptions({ logger }), bodyParser: true })',
+        ],
+        [
+            'a computed bodyParser key beside the returned options',
+            "NestFactory.create(AppModule, { ...X_SETUP.nestOptions({}), ['bodyParser']: true })",
+        ],
+        ['another member called', 'NestFactory.create(AppModule, X_SETUP.configure({ logger }))'],
     ])('flags %s', (_label, create) => {
         const result = createCallsWithoutSharedOptions(main(create), files(shared));
 
@@ -298,7 +315,7 @@ describe('createCallsWithoutSharedOptions — Nest must be created with the shar
     it('flags a setup that is not the shared factory’s result', () => {
         const hand = 'export const X_SETUP = { nestOptions: { bodyParser: false }, configure: () => undefined };\n';
         const result = createCallsWithoutSharedOptions(
-            main('NestFactory.create(AppModule, { ...X_SETUP.nestOptions })'),
+            main('NestFactory.create(AppModule, X_SETUP.nestOptions({}))'),
             files(hand),
         );
 
@@ -307,7 +324,7 @@ describe('createCallsWithoutSharedOptions — Nest must be created with the shar
 
     it('flags a setup whose file cannot be found', () => {
         const result = createCallsWithoutSharedOptions(
-            main('NestFactory.create(AppModule, { ...X_SETUP.nestOptions })'),
+            main('NestFactory.create(AppModule, X_SETUP.nestOptions({}))'),
             new Map(),
         );
 
@@ -344,13 +361,13 @@ describe('every service uses the shared JSON body setup', () => {
         expect(offenders).toEqual([]);
     });
 
-    it('⛔ creates every Nest app with options spread from the shared setup’s nestOptions', () => {
+    it('⛔ creates every Nest app with exactly the options the shared setup’s nestOptions returns', () => {
         const results = sources.map((candidate) => ({
             file: candidate.file,
             ...createCallsWithoutSharedOptions(candidate, files),
         }));
 
-        // The three browser-facing services each create one app; a fourth that does not spread is a failure below.
+        // The three browser-facing services each create one app; a fourth that does not use the setup is a failure below.
         expect(results.reduce((total, { seen }) => total + seen, 0)).toBeGreaterThanOrEqual(3);
         expect(results.flatMap(({ file, offenders }) => offenders.map((call) => `${file}: ${call}`))).toEqual([]);
     });

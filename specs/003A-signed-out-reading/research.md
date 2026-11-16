@@ -249,7 +249,7 @@ yet (008, 006), so they are not offered.
 
 **Decision** (from `staff-ux-engineer` DESIGN): direction A, the reader view without owner controls, with the account
 actions where they already are. Direction C applied to the facts card's method area, which is withdrawn with facts cards
-(2026-11-15, ADR-0092). Direction B, a sticky action dock, was
+(2026-11-15, ADR-0093). Direction B, a sticky action dock, was
 rejected because it reads as a third prompt and covers the recipe (021 FR-050).
 
 `staff-ux-engineer` SPECIFY runs next, before any UI is built. It turns the state table and the §3.6 dispositions into

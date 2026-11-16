@@ -12,7 +12,7 @@ to the web (FR-002, FR-006). Cooks get a CC BY choice (FR-040a, FR-040b). The co
 Session 2026-11-03. Amended 2026-11-09 for the owner's answers to feature 003A's questions: recipes left public at
 erasure (FR-002 rule 7), the page language and the cache key (FR-062), comments (FR-070), and the `noindex` 003A ships
 with (FR-020a). See Session 2026-11-09. Amended 2026-11-15 for the public versions of imported recipes (owner ruling,
-2026-11-15, [ADR-0092](../../docs/architecture/decisions/0092-imported-recipes-go-public-only-as-a-commise-written-version.md)). Facts cards, linked cards, book cards and source cards are withdrawn. An imported
+2026-11-15, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)). Facts cards, linked cards, book cards and source cards are withdrawn. An imported
 recipe goes public only as a Commise-written version (FR-003, FR-014). See Session 2026-11-15
 **Input**: Owner, 2026-10-27: "Let's add a feature and spec for indexing and sharing as you note." And: "Include the
 other recommendations in either new features or expanding existing features." Mindset, same day: "assume that we can do
@@ -29,7 +29,7 @@ recipe are free for anyone to read signed out, as a facts card (withdrawn on 202
 to the web in full. What stays private is the full copy of words the cook did not write: a copied web page, book or
 paid site. The paragraph above is the 2026-10-27 ruling as given.
 
-_(Amended 2026-11-15. Owner ruling, 2026-11-15, [ADR-0092](../../docs/architecture/decisions/0092-imported-recipes-go-public-only-as-a-commise-written-version.md).)_ There are no facts cards. An imported recipe from a
+_(Amended 2026-11-15. Owner ruling, 2026-11-15, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md).)_ There are no facts cards. An imported recipe from a
 source the cook did not write goes public only as a Commise-written version: Commise rewrites the steps from the facts,
 and the cook confirms it before it publishes (FR-003, FR-014). The cook's private copy keeps the source's wording and
 is never public. The Overview and Session 2026-11-15 state the rule now in force.
@@ -44,7 +44,7 @@ is never public. The Overview and Session 2026-11-15 state the rule now in force
 | [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md)                                                                   | **Required, amendments listed.** Owns the content licence (`016-FR-010` to `FR-015a`) and terms acceptance (`016-FR-001` to `FR-003`). Owns notice and action (`016-FR-016` to `FR-026`) and anti-extraction (`016-FR-030`)                                       |
 | [004-recipe-importing](../004-recipe-importing/spec.md) and [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md) | **Required, amended by ADR-0082.** Own provenance. Since 2026-11-03 the rights label (`016-FR-015c`), not the source type, decides eligibility here. This feature never changes a source type. ADR-0023's curator grant carries the public domain record (FR-006) |
 | ADR-0082                                                                                                                                      | **Governs (2026-11-03).** Recipes are an open library: cooks' words and gated public domain open to the web. It amends ADR-0077, ADR-0072, ADR-0023, ADR-0073 and ADR-0052                                                                                        |
-| [ADR-0092](../../docs/architecture/decisions/0092-imported-recipes-go-public-only-as-a-commise-written-version.md)                            | **Governs (2026-11-15).** An imported recipe goes public only as a Commise-written version. Facts cards are withdrawn. The rewrite itself is spec 003B (public versions of imported recipes, planned)                                                             |
+| [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)                            | **Governs (2026-11-15).** An imported recipe goes public only as a Commise-written version. Facts cards are withdrawn. The rewrite itself is spec 003B (public versions of imported recipes, planned)                                                             |
 | [ADR-0047](../../docs/architecture/decisions/0047-shared-cors-policy.md)                                                                      | **Governs.** Every browser-facing service is bearer-only. A signed-out read must not add a cookie, a session read or a WebSocket to any adopter                                                                                                                   |
 | [ADR-0020](../../docs/architecture/decisions/0020-cloudfront-edge-and-internal-alb-hostnames.md)                                              | **Governs, amendment listed.** The production edge answers a tokenless call with `401` except on its passthrough paths. A cached response must not depend on who asked                                                                                            |
 | [ADR-0064](../../docs/architecture/decisions/0064-media-delivery-base-stage-cloudfront-oac-plain-urls.md)                                     | **Governs, amendment listed.** Photos and avatars are plain, long-cached CDN URLs. Avatar keys carry the user id today                                                                                                                                            |
@@ -131,7 +131,7 @@ web:
     - a family or friend recipe, shared with the giver's permission
     - public domain text that passes the gate
     - _(added 2026-11-15)_ a Commise-written public version of an imported recipe (FR-003, FR-014)
-- _(Amended 2026-11-15. Owner ruling, 2026-11-15, [ADR-0092](../../docs/architecture/decisions/0092-imported-recipes-go-public-only-as-a-commise-written-version.md).)_ There are no facts cards. An imported recipe that
+- _(Amended 2026-11-15. Owner ruling, 2026-11-15, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md).)_ There are no facts cards. An imported recipe that
   is not on the copy-outright allowlist is public only as a Commise-written version.
 - **Creator pages** (`/@handle`, spec 012), showing the cook's open recipes.
 
@@ -163,7 +163,7 @@ their own routes, and a person reaches them only through a link or a search resu
 - **It adds no third visibility.** A recipe is still private or public (GR-014). "Open to the web" comes from facts
   that already exist, plus the licence and the rights label (`016-FR-015c`). Public means public on the web.
 - **It opens no full copy of words the cook did not write.** _(Amended 2026-11-15. Owner ruling, 2026-11-15,
-  [ADR-0092](../../docs/architecture/decisions/0092-imported-recipes-go-public-only-as-a-commise-written-version.md).)_ A cook's private copy of a web page, a book or a paid site keeps the source's wording, for the cook
+  [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md).)_ A cook's private copy of a web page, a book or a paid site keeps the source's wording, for the cook
   (and their household under `017`'s household rule). Its only public form is a Commise-written version (FR-003). A page
   on the copy-outright allowlist is shown as it is (FR-014f, FR-006).
 - **It does not write the public version.** The rewrite is spec 003B (public versions of imported recipes, planned).
@@ -183,7 +183,7 @@ their own routes, and a person reaches them only through a link or a search resu
 | **Indexable**               | An open recipe or a creator page that search engines are allowed to index (FR-020). Every other public page says `noindex`                                                                                                                                                        |
 | **Public page**             | The signed-out web page for one open recipe or one creator page                                                                                                                                                                                                                   |
 | **Public view**             | The app's read-only screen for an open recipe or a creator page, reached by a link while signed out                                                                                                                                                                               |
-| **Commise-written version** | _(Added 2026-11-15, ADR-0092.)_ The public version of an imported recipe. Commise writes its steps from the facts only, and the cook confirms it before it publishes. It is an open recipe (FR-003, FR-014). Facts cards, linked cards, book cards and source cards are withdrawn |
+| **Commise-written version** | _(Added 2026-11-15, ADR-0093.)_ The public version of an imported recipe. Commise writes its steps from the facts only, and the cook confirms it before it publishes. It is an open recipe (FR-003, FR-014). Facts cards, linked cards, book cards and source cards are withdrawn |
 | **Public domain record**    | _(Added 2026-11-03.)_ The curator's record that lets public domain text open (FR-006, `016-FR-015k`)                                                                                                                                                                              |
 | **Not available**           | The one answer for any address that is not an open recipe or an active creator page. It never says why                                                                                                                                                                            |
 | **Share link**              | The canonical address of a public page, plus an opaque share mark (FR-031)                                                                                                                                                                                                        |
@@ -218,7 +218,7 @@ is visible. The response sets no cookie. The same address requested with a valid
 4. **Given** the Commise-written public version of a recipe imported from a free web page, **When** a signed-out
    visitor opens its share link, **Then** they see the whole version: Commise's steps, the AI disclosure line, the
    source domain with its link and "Not affiliated.", and the licence line. They see none of the source's wording or
-   photos (FR-003, FR-014). _(Amended 2026-11-15, owner ruling, ADR-0092.)_ A version from a paid site names no site.
+   photos (FR-003, FR-014). _(Amended 2026-11-15, owner ruling, ADR-0093.)_ A version from a paid site names no site.
 5. **Given** a phone with the Commise app installed and nobody signed in, **When** the visitor taps the share link,
    **Then** the app opens the public view of that recipe. Closing it lands on sign-in (FR-016).
 6. **Given** a phone with the app installed and the visitor signed in, **When** they tap the link, **Then** the app
@@ -258,7 +258,7 @@ app and check the preview card. Share a private recipe and check that no link is
    offered. The control says, in neutral words, that only they can see it, with no pre-selected action (FR-032).
 5. **Given** the Commise-written public version of an imported recipe, **When** a signed-in reader taps Share,
    **Then** the link opens that version for everyone, signed in or out (FR-014). The cook's private copy stays with its
-   owner, and with their household under `017`'s household rule. _(Amended 2026-11-15, owner ruling, ADR-0092.)_
+   owner, and with their household under `017`'s household rule. _(Amended 2026-11-15, owner ruling, ADR-0093.)_
 6. **Given** a cook with no network on mobile, **When** they tap Share on an open recipe, **Then** the share sheet
    still opens, because the address does not need the server.
 
@@ -508,7 +508,7 @@ creator page.
   then on and leaves the sitemap. The engine drops it on its next crawl.
 - **Sandbox Clerk and preview hosts.** No preview host is associated with the app, and every preview answers
   `noindex` (FR-029).
-- **A publisher opts out after its versions are public** _(amended 2026-11-15, ADR-0092)_. Each Commise-written
+- **A publisher opts out after its versions are public** _(amended 2026-11-15, ADR-0093)_. Each Commise-written
   version from it is withdrawn within the purge bound (FR-007). Cooks' private imports are unaffected.
 - **A public domain record is corrected.** A corrected record that no longer passes `016-FR-015k` closes the text
   within the purge bound (FR-007). The cook who saved it keeps their copy.
@@ -683,7 +683,7 @@ Session 2026-11-15.)_
 
 ### Session 2026-11-15
 
-- **The rulings.** Owner ruling, 2026-11-15, recorded in [ADR-0092](../../docs/architecture/decisions/0092-imported-recipes-go-public-only-as-a-commise-written-version.md). In this spec's terms:
+- **The rulings.** Owner ruling, 2026-11-15, recorded in [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md). In this spec's terms:
     - **No facts cards anywhere.** The linked card, the book card and the source card go with them. FR-004, FR-014a to
       FR-014e, FR-014g and FR-014h are withdrawn, and their ids stay so references still resolve.
     - **An imported recipe goes public only as a Commise-written version.** At import the cook chooses Private, Public
@@ -737,7 +737,7 @@ Session 2026-11-15.)_
         - "From a family member or friend", where the cook's statement says the giver agreed to sharing "publicly, on
           Commise and on the web". Naming the giver is optional and needs the giver's permission.
         - "Public domain", where its record passes `016-FR-015k` (FR-006)
-        - _(added 2026-11-15, owner ruling, ADR-0092)_ a Commise-written version of an imported recipe (FR-003), once
+        - _(added 2026-11-15, owner ruling, ADR-0093)_ a Commise-written version of an imported recipe (FR-003), once
           the cook confirmed it
 
         _(Amended 2026-11-03, owner rulings, ADR-0082.)_ This rule reads the label, not the source type. It used to
@@ -759,7 +759,7 @@ Session 2026-11-15.)_
        their account. Rule 7 does not apply to it. It stays open, and every public surface shows it with no author
        name and no pseudonym. Suspended, terminated and closed accounts still close their recipes.
     8. No decision under 016 removed or restricted it.
-- **FR-003** _(amended 2026-11-15. Owner ruling, 2026-11-15, ADR-0092)_: A public recipe imported from a source the
+- **FR-003** _(amended 2026-11-15. Owner ruling, 2026-11-15, ADR-0093)_: A public recipe imported from a source the
   cook did not write (a web page, a cookbook, a magazine or a paid site) MUST NOT be open to the web in the source's
   wording. Its only public form is a **Commise-written version**: Commise rewrites the steps from the facts, and the
   cook confirms the version before it publishes. FR-014 says what a reader sees. The version is an open recipe under
@@ -781,7 +781,7 @@ Session 2026-11-15.)_
 - **FR-005**: A clone (`cloned_from_id` set) MUST be judged by FR-002 like any recipe. A clone that is open MUST be
   `noindex` and MUST be left out of sitemaps. While the recipe it came from is open, the clone MUST show an "adapted
   from" link to it. A clone of an open recipe (FR-002 rule 5) can be open. A clone of public domain text is
-  `imported_public` too, and it opens under rule 5. _(Amended 2026-11-15, ADR-0092.)_ A clone never copies a cook's
+  `imported_public` too, and it opens under rule 5. _(Amended 2026-11-15, ADR-0093.)_ A clone never copies a cook's
   private copy of an imported recipe, only a public form a reader can see.
 - **FR-006** _(amended 2026-11-03, owner rulings, ADR-0082)_: Text imported under the curator grant (ADR-0023 §1, as
   amended by ADR-0082) MUST be open to the web in full only while its **public domain record** passes `016-FR-015k`.
@@ -826,7 +826,7 @@ Session 2026-11-15.)_
     - the owner's licence acceptance no longer covering web display (FR-041)
     - for a creator page, the profile deactivated, suspended or its handle changed
     - _(added 2026-11-03, ADR-0082)_ a public domain record that no longer passes `016-FR-015k`
-    - _(amended 2026-11-15, owner ruling, ADR-0092)_ a publisher that opts out (`016`). Its public versions are
+    - _(amended 2026-11-15, owner ruling, ADR-0093)_ a publisher that opts out (`016`). Its public versions are
       withdrawn. Private imports are unaffected
     - _(added 2026-11-15)_ "Report a problem" on a Commise-written version, which hides it until staff look (`020`)
     - _(added 2026-11-03, ADR-0082)_ a change of the recipe's licence choice (FR-040a). This one changes the page.
@@ -892,7 +892,7 @@ Session 2026-11-15.)_
   private one is private, and its public form is a Commise-written version (FR-003, amended 2026-11-15). Sometimes a signed-in viewer's own session can read the recipe.
   Then, after the page loads, their browser MUST offer a link to it in the app (FR-012). The server never redirects
   on identity.
-- **FR-014** _(amended 2026-11-15. Owner ruling, 2026-11-15, ADR-0092)_: The Commise-written version (FR-003) MUST
+- **FR-014** _(amended 2026-11-15. Owner ruling, 2026-11-15, ADR-0093)_: The Commise-written version (FR-003) MUST
   show its recipe in full, as an open recipe page, with these rules:
     - a descriptive title, not the source's title as a brand
     - no photo from the source
@@ -913,7 +913,7 @@ Session 2026-11-15.)_
 - **FR-014d**: Withdrawn. Owner ruling, 2026-11-15: no facts cards. Slot use and the canonical version per source page are open owner questions (Session
   2026-11-15).
 - **FR-014e**: Withdrawn. Owner ruling, 2026-11-15: no facts cards. A site that opts out has its public versions withdrawn (`016`). Private imports are unaffected.
-- **FR-014f** _(amended 2026-11-15. Owner ruling, 2026-11-15, ADR-0092)_: A source page that states an open licence in
+- **FR-014f** _(amended 2026-11-15. Owner ruling, 2026-11-15, ADR-0093)_: A source page that states an open licence in
   its structured data (`016-FR-012b`) is on the copy-outright allowlist. Such a recipe can be shown in full, open to
   the web, on that licence's terms and with its attribution, while both of these hold:
     - the licence allows commercial use
@@ -927,7 +927,7 @@ Session 2026-11-15.)_
   version is never labelled as the cook's own. Every state of the version is a deliverable (FR-019).
 - **FR-015**: An active creator page (`012-FR-006`) MUST be readable signed out. It shows the profile fields the cook
   set (avatar, display name, bio), the follower count, and the cook's open recipes, newest first, at most 24 per page. Public collections are readable signed out too, each on its own address (FR-008, Q2). It MUST NOT list any recipe that is not open, and MUST NOT show who follows the cook (`012-FR-009`).
-  _(Amended 2026-11-03, owner ruling O7, ADR-0082, and 2026-11-15, ADR-0092.)_ A creator page lists the cook's
+  _(Amended 2026-11-03, owner ruling O7, ADR-0082, and 2026-11-15, ADR-0093.)_ A creator page lists the cook's
   recipes they wrote or adapted (labels "Written by you" and "Adapted by you" in `016-FR-015c`), and their clones where
   the label carries. Family and public domain recipes are listed because they are open recipes. It never lists a
   Commise-written version of an import, because the cook did not write it.
@@ -1011,7 +1011,7 @@ Session 2026-11-15.)_
     (FR-011). It holds one of three addresses:
     - the CC BY 4.0 address, for a recipe whose cook chose it (FR-040a)
     - the CC Public Domain Mark address, for public domain text (FR-006)
-    - _(added 2026-11-15, ADR-0092)_ the CC BY-SA 4.0 address, for a Commise-written version (FR-014)
+    - _(added 2026-11-15, ADR-0093)_ the CC BY-SA 4.0 address, for a Commise-written version (FR-014)
     - the Commise terms address, otherwise
 
     An open page with no structured data states its licence with a `rel="license"` link instead.
@@ -1090,7 +1090,7 @@ Session 2026-11-15.)_
 #### D. Sharing, link previews and app links
 
 - **FR-030**: The recipe screen MUST offer Share on web and mobile, for an open recipe and a creator page
-  (amended 2026-11-15, ADR-0092). On mobile it opens the system share sheet with the share link and the title. On the web it opens the
+  (amended 2026-11-15, ADR-0093). On mobile it opens the system share sheet with the share link and the title. On the web it opens the
   browser's share panel where there is one. Otherwise it copies the link and says so. After a failed copy, the link is
   shown so it can be copied by hand.
 - **FR-031**: A share link MUST be the canonical address plus an opaque **share mark**. The mark MUST carry no user
@@ -1102,7 +1102,7 @@ Session 2026-11-15.)_
 - **FR-033**: Every public page MUST carry Open Graph and Twitter card tags in the first HTML response, with no
   script needed. The tags carry the title, a short description, the canonical address and the `summary_large_image`
   card type. They also carry a 1200 by 630 image built from the cover photo and the title. With no photo, the image is
-  a Commise card. _(Amended 2026-11-15, ADR-0092.)_ A Commise-written
+  a Commise card. _(Amended 2026-11-15, ADR-0093.)_ A Commise-written
   version never uses the source's photo, and its description is never the source's words. A not-available address uses a generic Commise card
   with no recipe detail.
 - **FR-034**: Each version of a preview image MUST have its own address, so new content gets a new address. After
@@ -1138,7 +1138,7 @@ Session 2026-11-15.)_
       ADR-0077.)_ "You keep ownership of what you wrote" appears only for a recipe the cook wrote or adapted
       (`016-FR-015h`). A clone says "Adapted from [cook]. Their words stay theirs." It never says the cook keeps
       ownership of another cook's words.
-    - _(Amended 2026-11-15, owner ruling, ADR-0092.)_ For a Commise-written version of an import, the panel is the
+    - _(Amended 2026-11-15, owner ruling, ADR-0093.)_ For a Commise-written version of an import, the panel is the
       confirmation step of FR-003: the cook checks the version before it publishes. A family or friend recipe and
       public domain text get all the points, like any open recipe.
 
@@ -1184,7 +1184,7 @@ Session 2026-11-15.)_
     - The cook can ask a re-user to remove their name.
     - The photos have their own choice.
 
-    Every open page says "Free to read". _(Amended 2026-11-15. Owner ruling, 2026-11-15, ADR-0092.)_ Commise's own
+    Every open page says "Free to read". _(Amended 2026-11-15. Owner ruling, 2026-11-15, ADR-0093.)_ Commise's own
     text on any page, a Commise-written version included, is CC BY-SA 4.0, credited "Commise and contributors"
     (`016`). This replaces CC0 1.0 for Commise-written text. Public domain text carries the CC Public Domain Mark
     (FR-006).
@@ -1208,7 +1208,7 @@ Session 2026-11-15.)_
   surface within the purge bound. For an urgent case, the operator runbook MUST cover the search engines' own removal
   tools.
 - **FR-047**: Public pages MUST render cook-written text as plain text. Web addresses in it MUST NOT become links. The
-  only outbound links are Commise's own and source links. _(Amended 2026-11-15, ADR-0092.)_ A source link is the domain
+  only outbound links are Commise's own and source links. _(Amended 2026-11-15, ADR-0093.)_ A source link is the domain
   link on a free-site Commise-written version, or the credit on an adapted recipe, and it carries `rel="nofollow ugc"`.
   The licence links of FR-023 are Commise's own kind. Credit, source and any copyright notice stored with a text MUST be
   kept with it and never stripped.
@@ -1303,7 +1303,7 @@ Session 2026-11-15.)_
 
 - **FR-080**: Measurement on public pages MUST store nothing on the visitor's device and MUST make no identifier that
   works across sites. It counts page views by page kind (recipe, Commise-written version, creator, not available),
-  platform, and whether a share mark was present. The card kinds were removed on 2026-11-15 (ADR-0092). The count MUST NOT be kept per source site.
+  platform, and whether a share mark was present. The card kinds were removed on 2026-11-15 (ADR-0093). The count MUST NOT be kept per source site.
 - **FR-080a** _(added 2026-10-28, owner ruling)_: A page view MUST also record its **referrer class**: one value from a
   closed list kept in one place and shared with the marketing site and with attribution (`022-FR-128`,
   `023-FR-002a`). The classes are search, each named answer engine (ChatGPT, Perplexity, Copilot, Gemini, Claude),

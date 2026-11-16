@@ -6,7 +6,7 @@
 **Source of truth**: the shipped codebase. Where this plan and `main` disagree, `main` wins and this plan is wrong.
 
 > ⚠️ **Owner rulings, 2026-11-15 ([spec](./spec.md) `FR-064` to `FR-067`,
-> [ADR-0092](../../docs/architecture/decisions/0092-imported-recipes-go-public-only-as-a-commise-written-version.md)).**
+> [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)).**
 > They change this plan in five places, and the spec wins where they differ:
 >
 > 1. **The import never fetches a page.** The URL fetch edge (`SourceFetcher`, the outbound fetch budget, robots and
@@ -397,7 +397,7 @@ call site `'text-extraction'` (ADR-0024 §4c), VPC-attached so it is an ADR-0004
 only (`FR-057`), the input is capped at 48,000 UTF-8 bytes and refused over it (`FR-058`), and the ceiling ends the paste as
 `budgetSpent` (`FR-059`). A guessed source is a question, never the statement (`FR-060`, ADR-0089 §7). It uses the one import
 pipeline and the one import allowance (`FR-061`). A page opt-out skips it (`FR-063`). The mobile paste row is gated on it (`FR-062`). Design detail:
-a new ADR (planned), plus a new result table in its own migration.
+ADR-0092 (planned), plus a new result table in its own migration.
 
 First non-null result wins. Strict `@type === 'Recipe'` validation before accepting (HAZ-028 — a
 non-Recipe JSON-LD object must not be accepted as a recipe). Every extractor returns `null`, never throws, so

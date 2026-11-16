@@ -719,7 +719,7 @@ _Rationale, the owner's ruling in full, and the three blockers it surfaced are i
 
 #### B3. Imported recipes, sources, age and the Commise licence _(added 2026-11-15, Owner ruling, 2026-11-15)_
 
-[ADR-0092](../../docs/architecture/decisions/0092-imported-recipes-go-public-only-as-a-commise-written-version.md) records the decision. This section is the one authority for the rules below. Other
+[ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md) records the decision. This section is the one authority for the rules below. Other
 specs cite these ids and do not restate them. Import itself is `004`. The rewrite is spec 003B (public versions of
 imported recipes, planned). The reviewer check that flags a source and "Report a problem" are `020`.
 
@@ -739,7 +739,7 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
   the version of the wording shown. The record is kept while the recipe is public, plus 6 years. At account erasure,
   the owner id on recipes the cook leaves public under `FR-012a` and on their attestations is replaced with a random
   token that links to no other record.
-- **FR-077**: **Public versions of imported recipes.** The decision is ADR-0092. In brief:
+- **FR-077**: **Public versions of imported recipes.** The decision is ADR-0093. In brief:
     - The private copy keeps the source's wording, with food matching, and shows the source author's name. A recipe
       made in the manual single-recipe editor is never rewritten automatically.
     - At import the cook chooses Private, Public (a Commise-written version) or Both. If the rewrite cannot run, only
@@ -1025,14 +1025,8 @@ They fill gaps in FR-016 to FR-026 and do not repeat them. Counsel review is owe
       parsing for commercial use has no s.29A basis. This basis is weak.
     - [Law, Australia] No matching exception.
 
-    The UK and Australian bases are counsel items (`FR-050`). [Law, EU and UK] A URL import keeps facts and a link
-    only, never a private verbatim copy, because our server makes the copy and hosting defences do not apply. The UK
-    has no private-copy exception (s.28B was quashed, _R (BASCA) v Secretary of State_ [2015] EWHC 2041 (Admin)). The
-    CJEU in _VCAST_ (C-265/16) puts a commercial service's private copies outside the private-copy exception. [Law, US]
-    A URL import can keep a private full copy. This is defensible but untested (_Cartoon Network v. CSC Holdings_, 536
-    F.3d 121 (2d Cir. 2008) for it, _UMG v. MP3.com_, 92 F. Supp. 2d 349 (S.D.N.Y. 2000) against it). One per-market
-    switch, keyed on the cook's market and closed for any market counsel has not cleared, decides this (`004-FR-008`).
-    A cook who wants the full text pastes it. Paste and image storage is user-provided (UK reg. 19, DSA Art. 6).
+    The UK and Australian bases are counsel items (`FR-050`). _(Owner ruling, 2026-11-15: the import never fetches a page, so the per-market URL-import
+    switch of `004-FR-008` is withdrawn. A cook's private copy keeps the source's wording, `FR-077`.)_
     - [House rule] Commise MUST NOT train or fine-tune any model on imported third-party content. The law is not
       settled (_Bartz v. Anthropic_, N.D. Cal. 2025, _Thomson Reuters v. Ross_, _GEMA v. OpenAI_, LG München I,
       11 November 2025, not final). [Law] The terms MUST say what Commise does with content before it does it (FTC
@@ -1103,10 +1097,11 @@ They fill gaps in FR-016 to FR-026 and do not repeat them. Counsel review is owe
       ([data-model.md §12](./data-model.md)). The numbers are configuration.
     - A per-publisher cap counts only distinctive recipes (`FR-080`). How a recipe is judged distinctive is spec 003B
       work (public versions of imported recipes, planned).
-    - Past the cap, the import offers only Private for a recipe from that source (`FR-077`), and a restriction
-      statement is written (`FR-018`).
-    - User-recipe aggregator sites get no public versions. A cook's import from one stays private, or the cook
-      publishes it in their own words as "Adapted by you" (`FR-015b`).
+    - What the import offers for a source past its cap is an open owner question. If a Public choice is refused, a
+      restriction statement is written (`FR-018`).
+    - Whether a user-recipe aggregator site can get a public version is an open owner question (ADR-0093 §8). Until
+      it is answered, a cook's import from one stays private, or the cook publishes it in their own words as "Adapted
+      by you" (`FR-015b`).
     - A surface MUST NOT list, browse, filter, rank or search public versions by source. A source name links only to
       the source site, never to a Commise list.
     - A book's recipes are never shown in the book's order or as the book's collection.
@@ -2117,7 +2112,7 @@ Counsel review is owed before launch (`FR-050`).
 
 ### Session 2026-11-15: imported recipes, sources and age (Owner ruling, 2026-11-15)
 
-ADR-0092 records the decision. Section B3 (`FR-072` to `FR-082`) holds the rules. These earlier entries are
+ADR-0093 records the decision. Section B3 (`FR-072` to `FR-082`) holds the rules. These earlier entries are
 replaced, and their text above is history only:
 
 - C-016-006, C-016-009 and C-016-013: facts cards and the linked card are retired. A web or paid-site recipe goes public
@@ -2154,7 +2149,7 @@ All three clarifications are resolved (C-016-001 … C-016-003). These remain op
    three years (37 C.F.R. §201.38), as a recurring task in the operations doc. The first registration is also still
    owed by the founder (`FR-025`).
 5. **The Commise version pilot.** _(Withdrawn, Owner ruling, 2026-11-15.)_ The Commise-written version is now the
-   public form of an imported recipe (`FR-077`, ADR-0092), not a gated pilot.
+   public form of an imported recipe (`FR-077`, ADR-0093), not a gated pilot.
 6. **Slots and public versions.** Does a recipe whose public form is a Commise-written version use one of a free cook's
    private slots? The 2026-11-03 "a public card uses no slot" rule fell with the facts card. OPEN.
 7. **Export of a paid site's wording.** `FR-080` says a paid site's wording is not exported. `FR-034` gives the cook an

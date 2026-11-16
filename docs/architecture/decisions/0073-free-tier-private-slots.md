@@ -2,10 +2,10 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-26
-- **Amended by:** [ADR-0092](0092-imported-recipes-go-public-only-as-a-commise-written-version.md) (owner ruling,
+- **Amended by:** [ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md) (owner ruling,
   2026-11-15). Where this ADR says a book, paid-site or web recipe can never go public, it means the cook's private
   copy. Its public form is a Commise-written version. There are no facts cards. Whether the private copy uses a slot
-  when its public version is Commise-written is an open owner question (ADR-0092 §8). Until the owner rules, every
+  when its public version is Commise-written is an open owner question (ADR-0093 §8). Until the owner rules, every
   private recipe uses a slot and bulk import pauses as §8 says. Every other part stands.
 - **Amended by:** [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md) §6: an `imported_public`
   recipe no longer needs Pro and a substantive edit to go private. Any cook can keep one private, using a slot. So

@@ -5,14 +5,14 @@
 - **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): §2:
   family recipes and gated public domain are open to the web. §4 "never blocking" means "never rejected
   automatically". Every other part stands.
-- **Amended by:** [ADR-0092](0092-imported-recipes-go-public-only-as-a-commise-written-version.md): §3. The linked card
+- **Amended by:** [ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md): §3. The linked card
   is retired, with the facts card (owner ruling, 2026-11-15). The public form of a recipe from someone else's page is a
   Commise-written version. Every other part stands.
 - **Amended by:** [ADR-0078](0078-a-live-site-claim-clears-the-own-site-hit.md): §4's rule for a blogger who imports
   their own posts. A live site claim (026) now clears the hit on the recipe's own origin page. Any other hit, model
   item or photo signal still goes to a person. Every other decision here stands.
 - **Amended by:** [ADR-0089](0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md): §3. A recipe
-  copied from a web page (a pasted link) is private only until the Commise-written version (ADR-0092) ships. Every
+  copied from a web page (a pasted link) is private only until the Commise-written version (ADR-0093) ships. Every
   other part stands.
 - **Amends:** [ADR-0072](0072-bulk-recipe-import.md) §9, its list of source statements. Two statements are added, and
   a family or friend recipe is no longer labelled like a paid source. §6 below also removes §9's rule that a web
@@ -25,7 +25,7 @@
   recipe, and every reviewer is an employee. This ADR also writes down that staff review is a rights check only.
 - **Relates to:** spec [016](../../../specs/016-legal-compliance-framework/spec.md) section B2, which holds the rights
   label table and its cook-facing rules. Spec [021](../../../specs/021-public-discovery-and-sharing/spec.md)
-  `021-FR-014a` to `FR-014h`, the linked card that ADR-0092 retires. Spec [020](../../../specs/020-content-source-check/spec.md)
+  `021-FR-014a` to `FR-014h`, the linked card that ADR-0093 retires. Spec [020](../../../specs/020-content-source-check/spec.md)
   `020-FR-012` to `FR-012h`, the outside-copy checks. Spec [004](../../../specs/004-recipe-importing/spec.md)
   `004-FR-014a` and C-001. Spec [001](../../../specs/001-commise-recipe-app/spec.md) C-004 and `001-FR-005`.
   [ADR-0023](0023-curator-declared-provenance.md): who can declare `imported_public`, and its downgrade-only rule,
@@ -119,12 +119,12 @@ ADR-0072 §9's statement list becomes six statements. The table replaces §9's t
   downgrade of provenance after a save, and that stays. A cook who rewrites a saved web recipe makes a new recipe with
   the "Adapted" statement.
 
-### 3. A recipe from someone else's web page is private in full, and its public form is ADR-0092's
+### 3. A recipe from someone else's web page is private in full, and its public form is ADR-0093's
 
-ADR-0092 replaces the linked card that stood here (owner ruling, 2026-11-15).
+ADR-0093 replaces the linked card that stood here (owner ruling, 2026-11-15).
 
 - **Private:** the full recipe, for the cook and their household (spec 017 sets what a household sees).
-- **Public:** only as a Commise-written version, or in full when the source is on ADR-0092's allowlist. A page that
+- **Public:** only as a Commise-written version, or in full when the source is on ADR-0093's allowlist. A page that
   states an open licence is shown on that licence's terms. Public-domain text under the curator grant is shown in full.
 - **Never the source's words or photo** on any public form, outside the allowlist. A line with no food match (ADR-0045)
   is never shown word for word to anyone but the cook.
@@ -143,7 +143,7 @@ This is the change to ADR-0074 and to `020-FR-012`. It applies only to a recipe 
 
 - The search runs only where other cooks will read the method: a written, adapted or family recipe, or a clone of one,
   headed public. It does not run for public domain text. A Commise-written version has its own similarity check
-  (ADR-0092 §4).
+  (ADR-0093 §4).
 - What either check finds is **for a person**, never blocking. Only the rule-based detectors block (ADR-0074 §2).
 - **The search has its own monthly budget, outside ADR-0024's pool**, with its own counter and its own off switch. It
   is not an LLM call. When the budget is spent or the switch is off, the search part is not read. So the recipe is not
@@ -182,7 +182,7 @@ Owner ruling, 2026-10-29, on the question "Who can keep a web import private?": 
   (`usesPremiumCapability`) and its wire field stay and answer false for every recipe, because installed clients read
   the field. Removing the field, or giving the badge a new meaning, is a separate decision. Spec 010's plan register
   lists the capability under every plan.
-- **What does not change.** The public form of a web import is ADR-0092's (§3). The substantive edit still gates publication of a clone
+- **What does not change.** The public form of a web import is ADR-0093's (§3). The substantive edit still gates publication of a clone
   (`001-FR-005b`). ADR-0023's downgrade-only rule is untouched.
 - **The code follows this.** `privateRuleOf(imported_public)` answers `slots`, and `PrivateRule` has no Premium member, so
   every exhaustive switch over it is checked by the compiler. `evaluateVisibility` and `slotRuleApplies` treat
@@ -223,7 +223,7 @@ Owner ruling, 2026-10-29, on the question "Who can keep a web import private?": 
 - **A fifth `sourceType` for private sources.** Rejected: a one-way door on the wire, for a recipe the existing
   classes already describe.
 - **Keep imports private only.** It ends public sharing of web recipes, which the owner wants to keep.
-- **Publish a web import only after the cook rewrites the method.** It adds friction to every share. ADR-0092 has
+- **Publish a web import only after the cook rewrites the method.** It adds friction to every share. ADR-0093 has
   Commise write the public version instead.
 - **Search the web for every recipe, private ones too.** It sends private content to a vendor for no gain, since a
   private copy shows nothing to anyone else.

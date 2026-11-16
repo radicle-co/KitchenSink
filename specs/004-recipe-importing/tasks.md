@@ -1148,7 +1148,7 @@ tier come before the code. Counsel review is owed before launch (`016-FR-050`).
 - [ ] **Unit and worker tests**: the cases in the `FR-056` to `FR-062` acceptance criteria in `spec.md`. **Integration
       tests** (database mocked, DD12). **LOCAL e2e** on the result table and erasure. **Playwright** (web) and **Maestro**
       (mobile) for the read, `budgetSpent`, over-cap and source-question states. **k6** by hand.
-- [ ] ADRs amended in place: ADR-0024 §3 and §4c, ADR-0072 §3 and §8, ADR-0004 table, ADR-0026 Relates note, ADR-0089 §1 and §7, ADR-0072 §1 and §9. Write a new ADR for the fallback (number not yet taken; ADR-0092 is the 2026-11-15 public-version decision).
+- [ ] ADRs amended in place: ADR-0024 §3 and §4c, ADR-0072 §3 and §8, ADR-0004 table, ADR-0026 Relates note, ADR-0089 §1 and §7, ADR-0072 §1 and §9. Write ADR-0092.
 - [ ] **Depends on, not yet tasked**: the import controller, the device page reader and the paste channel (blueprint PRs A to C). T-032 is rewritten to the amended `FR-052`.
 
 **Files** `packages/services/recipe-workers/**`, `packages/services/recipe-service/src/import/**`, tests alongside

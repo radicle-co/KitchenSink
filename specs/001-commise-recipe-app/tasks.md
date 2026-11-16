@@ -768,7 +768,7 @@ tests in every tier come before the code. Counsel review is owed before launch (
       A restored digest a person did not approve answers `403 SOURCE_CHECK_NOT_APPROVED` on a change to public.
     - **Tests**: unit, integration, LOCAL e2e (the trigger nulls the digest on restore), deployed e2e (a signed-out
       read of a restored, held recipe answers not-available).
-- [ ] T193 Withdrawn. Owner ruling, 2026-11-15: no facts cards (ADR-0092), so there is no card for an aggregator site to be denied. An imported recipe goes public only as a Commise-written version (`021-FR-003`, spec 003B, planned).
+- [ ] T193 Withdrawn. Owner ruling, 2026-11-15: no facts cards (ADR-0093), so there is no card for an aggregator site to be denied. An imported recipe goes public only as a Commise-written version (`021-FR-003`, spec 003B, planned).
 - [ ] T194 While an edit to a public recipe is checked, public reads serve the last approved version. Files: `packages/services/recipe-service/src/recipes/`, `versions/` _(added 2026-11-03, owner ruling O10, ADR-0082)_
     - **Implements**: FR-007b as amended, `020-FR-064`, `021-FR-007`
     - **Depends on**: T191, T192, 020 plan K082-11

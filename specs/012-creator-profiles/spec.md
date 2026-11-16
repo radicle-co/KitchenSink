@@ -45,7 +45,7 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 > as an exception. To a signed-out visitor the page lists only recipes that are **open to the web** (`021-FR-002`):
 > recipes that carry an open rights label: Written by you, Adapted by you, From a family member or friend, Public
 > domain, and clones of those. _(Amended 2026-11-03, owner ruling, ADR-0082. Was: "recipes the cook wrote, never
-> imported ones". *(Amended 2026-11-15, ADR-0092.)* A Commise-written version of an import is never listed on a
+> imported ones". *(Amended 2026-11-15, ADR-0093.)* A Commise-written version of an import is never listed on a
 > creator page.)_ _(amended 2026-11-03, owner ruling O7, ADR-0082)_ Decided: the page lists recipes the cook wrote or adapted (and their clones where the label
 > carries), and still lists family and public domain recipes by the existing open-recipe rule. It lists no facts
 > card, to anyone. This was an open question. A signed-in visitor sees every public recipe the creator owns. Public

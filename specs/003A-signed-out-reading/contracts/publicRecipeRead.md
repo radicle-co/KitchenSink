@@ -45,7 +45,7 @@ public shape, because the public schema lists its own keys.
 
 ```ts
 // Reading aid. The zod schema in the service is the authority.
-// Amended 2026-11-15 (owner ruling, ADR-0092): the factsCard and sourceCard forms are withdrawn with facts cards.
+// Amended 2026-11-15 (owner ruling, ADR-0093): the factsCard and sourceCard forms are withdrawn with facts cards.
 type PublicRecipeView = { form: 'full'; recipe: PublicFull };
 
 interface PublicFacts {

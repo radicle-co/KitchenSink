@@ -2,13 +2,13 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-26
-- **Amended by:** [ADR-0092](0092-imported-recipes-go-public-only-as-a-commise-written-version.md): §8, §9 and the
+- **Amended by:** [ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md): §8, §9 and the
   Related work (owner ruling, 2026-11-15). Every user-facing import draws on one import allowance, and test principals
   have no limit. The cook chooses Private, Public (a Commise-written version) or Both at import. The import never
   fetches a page. Every other part stands.
 - **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): §9 and
   its Related work. A recipe whose source is not a public web page can be public as the cook's own "Adapted" version.
-  The server looks for a stated licence, never for "no copyright". Two statement kinds are added. Every other part
+  The server looks for a stated licence, never for a missing notice. Two statement kinds are added. Every other part
   stands.
 - **Amended by:** [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md): §9's statement list gains
   "Adapted in my own words" and "From a family member or friend, with their permission". A family or friend recipe is
@@ -321,13 +321,13 @@ day on Free and 1,000 on a paid plan, where superusers and VIPs count as paid.
   cook's own statement sets it, and the stored statement and citation are what back the label. A cook's pasted web link
   (`statement` on `POST /api/v1/recipes`, ADR-0089) sets the same label in the same way. ADR-0023 names the exception. `imported_paid` and `imported_physical` are set the same way, from the statement, and stay
   undeclarable on `POST /api/v1/recipes`.
-- **The cook chooses Private, Public or Both** (ADR-0092 §2). Public means a Commise-written version, and Both keeps
+- **The cook chooses Private, Public or Both** (ADR-0093 §2). Public means a Commise-written version, and Both keeps
   the private copy beside it. If the rewrite cannot run, only Private is offered. Until the Commise-written version
   ships, the table above stands for the cook's own copy. The import flow asks once for the whole import, and the review wizard
   can change it per recipe, the way the editor's visibility field does. The visibility policy (`visibilityPolicy.ts`)
   decides whether each choice is allowed for that recipe's label, as the table shows. The cook's copy of a recipe whose
   source is not a public web page cannot be public. That is FR-014a's own rule. Its public form is the Commise-written
-  version (ADR-0092).
+  version (ADR-0093).
 - **A free cook has 50 private slots** (ADR-0073). Every recipe a free cook holds as private uses one, book and
   paid-site recipes included. A Premium cook has no limit. A free cook keeps a book, paid-site or web recipe private
   only while a slot is free (ADR-0077 §6, ADR-0089 §5).
@@ -427,7 +427,7 @@ is reached, this path does not wait for the budget to return.
   needs a rule that spares an import with open lines.
 - **A free cook out of slots is paused on a book or paid-site item.** The import pauses every private item when no slot
   is free (ADR-0073 §8). Whether a Commise-written public version frees the private copy from its slot is an open
-  owner question (ADR-0092 §8).
+  owner question (ADR-0093 §8).
 - **One very large import can outlast a purge statement.** The purge deletes 3 imports per statement, and each one
   takes its items and lines with it by cascade. A file of any size is accepted. So one import that holds tens of
   thousands of recipes can make a single statement run past the tick's time. The tick then fails, and the next tick
@@ -438,7 +438,7 @@ is reached, this path does not wait for the budget to return.
 - Rename the module folder `src/migrations/` to `src/import/`, so it follows the route. It also sits beside
   `src/database/migrations/`, where "migrations" means schema migrations.
 - Edit migration 0058 in place: channel `bulk` for bulk import, and change the comments that say a migration file is
-  one unit. Count every channel against the one allowance, and exempt test principals (ADR-0092).
+  one unit. Count every channel against the one allowance, and exempt test principals (ADR-0093).
 - Add the `budgetSpent` review value and its worker outcome, the `reviewBudgetSpent` reason, and the CRF-only landing
   on a ceiling denial. Each needs a test that fails on a return of the old transient behaviour.
 - Set the provenance label from the per-recipe statement (§9), and store the statement and citation with the
@@ -449,9 +449,9 @@ is reached, this path does not wait for the budget to return.
 
 ## Related work
 
-- **URL import.** The import never fetches a page (spec 004, ADR-0092, owner ruling 2026-11-15). The cook supplies
+- **URL import.** The import never fetches a page (spec 004, ADR-0093, owner ruling 2026-11-15). The cook supplies
   the page's content, and every import goes through one pipeline with source detection first. What replaces a
-  link-only import is an open owner question (ADR-0092 §8).
+  link-only import is an open owner question (ADR-0093 §8).
 
 ## Alternatives
 

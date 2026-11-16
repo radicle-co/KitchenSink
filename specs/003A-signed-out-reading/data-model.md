@@ -61,7 +61,7 @@ Validation:
 
 - `id` is a UUID. Anything else is not available, never a `400`.
 - `slug` is derived from the title by one pure function, and is not stored.
-- _(Amended 2026-11-15, ADR-0092.)_ The facts card and source card forms are withdrawn. A Commise-written version is a
+- _(Amended 2026-11-15, ADR-0093.)_ The facts card and source card forms are withdrawn. A Commise-written version is a
   `full` form (`021-FR-003`).
 - A full recipe line whose food did not answer has `foodName: null` and keeps its `displayText`. The count of such
   lines is `missingNutritionCount` (FR-008).

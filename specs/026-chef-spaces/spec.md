@@ -499,7 +499,7 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
 | 016                | Processor terms for the email list (FR-023). Creator terms that cover the site claim and the sponsor line. FTC disclosure rules for affiliate links and sponsor lines | Applied 2026-10-29: `016-FR-054` to `FR-057`                                               |
 | 004, 016, 020, 021 | "This is my recipe" (owner ruling O16, 2026-11-03, ADR-0082): the owner statement on single imports, read by the same claim                                           | Applied 2026-11-03: `004-FR-014a` statement 1a, `016-FR-069`, `020-FR-012g`, `021-FR-010a` |
 
-_(Amended 2026-11-15, owner ruling, ADR-0092.)_ A recipe from someone else's page goes public only as a Commise-written
+_(Amended 2026-11-15, owner ruling, ADR-0093.)_ A recipe from someone else's page goes public only as a Commise-written
 version (`021-FR-003`). That does not apply to a chef's own page under a live claim, which is on the copy-outright
 allowlist. This spec does not edit 016 or 010. A chef's public pages list every open label (written, adapted, family,
 public domain, clone) and show each label, and the licence where the chef chose CC BY 4.0. They never list a

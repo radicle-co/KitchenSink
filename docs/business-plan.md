@@ -86,7 +86,7 @@ is hired after review volume reaches a set trigger. Recorded in
 - A cook's private copy of an imported recipe keeps the source's wording, with the source author's name.
 - An imported recipe goes public only as a version Commise writes, unless its source is on the copy-outright
   allowlist. There are no facts cards. Owner ruling, 2026-11-15. Recorded in
-  [ADR-0092](./architecture/decisions/0092-imported-recipes-go-public-only-as-a-commise-written-version.md).
+  [ADR-0093](./architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md).
 - The research is [recipeOwnershipResearch.md](./research/business/recipeOwnershipResearch.md) and
   [linkedCardResearch.md](./research/business/linkedCardResearch.md). Both are research.
 

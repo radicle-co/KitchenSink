@@ -7,7 +7,7 @@
   [ADR-0072](0072-bulk-recipe-import.md) §9: the statement list and the table of labels. A web statement is private
   only. [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md) §3: a recipe copied from a web
   page has one state, private, until the Commise-written version
-  ([ADR-0092](0092-imported-recipes-go-public-only-as-a-commise-written-version.md)) ships.
+  ([ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md)) ships.
 - **Relates to:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md) §3: a
   recipe aggregator site never gets a public version. [ADR-0058](0058-never-published-drafts-record-no-version.md): the
   first-publish fact that closes the correction window. [ADR-0073](0073-free-tier-private-slots.md): a web copy uses a
@@ -80,7 +80,7 @@ or a paid site. The kind is a required argument, so every caller is a compile er
 judges. The server refuses public (`400 INVALID_VISIBILITY`) on create and on set-visibility. The slot rule is unchanged.
 A web copy needs a cuisine to publish. Only the curator's reading is exempt. A clone of a web copy lands private.
 
-This fails closed on purpose: the Commise-written version is not built (ADR-0092), and ADR-0082 §3 never gives an
+This fails closed on purpose: the Commise-written version is not built (ADR-0093), and ADR-0082 §3 never gives an
 aggregator a public version.
 
 ### 6. The source can be corrected until the first publish
@@ -118,7 +118,7 @@ not that.
 ## Where this departs from the request
 
 The owner wanted to publish allrecipes recipes. ADR-0082 §3 keeps recipe aggregator sites private, and the public form
-of a web copy is the Commise-written version (ADR-0092), which does not exist yet. So a recipe with a pasted web link is
+of a web copy is the Commise-written version (ADR-0093), which does not exist yet. So a recipe with a pasted web link is
 private, and the cook is told why in the editor. When the Commise-written version ships it replaces §5, and the kind is
 already there.
 

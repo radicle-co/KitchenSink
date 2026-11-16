@@ -1,4 +1,4 @@
-# 0092: An imported recipe goes public only as a Commise-written version, and there are no facts cards
+# 0093: An imported recipe goes public only as a Commise-written version, and there are no facts cards
 
 - **Status:** Accepted
 - **Date:** 2026-11-15

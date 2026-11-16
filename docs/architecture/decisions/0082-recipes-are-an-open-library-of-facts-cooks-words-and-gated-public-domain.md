@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-03
-- **Amended by:** [ADR-0092](0092-imported-recipes-go-public-only-as-a-commise-written-version.md): §2, §3, §5's
+- **Amended by:** [ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md): §2, §3, §5's
   licence for Commise's own text, §6 and §7 (owner ruling, 2026-11-15). There are no facts cards and no linked cards.
   The public form of an import is a Commise-written version, and the import never fetches a page. Every other part
   stands.
@@ -10,7 +10,7 @@
   gated public-domain text are open to the web. Its §4 "never blocking" wording means "never rejected automatically".
   Every other part of ADR-0077 stands.
   [ADR-0072](0072-bulk-recipe-import.md) §9 and its Related work: a recipe whose source is not a public web page can be
-  public as the cook's own "Adapted" version, and the server looks for a STATED licence, never for "no copyright".
+  public as the cook's own "Adapted" version, and the server looks for a STATED licence, never for a missing notice.
   [ADR-0073](0073-free-tier-private-slots.md): a private bulk-imported recipe no longer waits in review, so it uses its
   slot like any private recipe (§9 below).
   [ADR-0074](0074-content-source-check.md): the hold covers every door to public, and fails closed (§8 below). Its §3a
@@ -52,16 +52,16 @@ translations and for books with no named author.
 
 A recipe is open to the web in full when its rights label (`016-FR-015c`) is Written by you, Adapted by you, From a
 family member or friend (with permission that covers the web), or Public domain passing `016-FR-015k`, or it is a
-clone of one of those, or it is a Commise-written public version (ADR-0092). Open to the web reads the LABEL, never the source type alone, because public-domain text is
+clone of one of those, or it is a Commise-written public version (ADR-0093). Open to the web reads the LABEL, never the source type alone, because public-domain text is
 `imported_public` under the curator grant. Every such recipe passes 020's check and carries the cook's licence
 (`016-FR-010`). The full rule is `021-FR-002`.
 
 ### 2. Every public recipe is readable signed out, and there are no facts cards
 
-ADR-0092 replaces the facts card and the linked card that stood here (owner ruling, 2026-11-15).
+ADR-0093 replaces the facts card and the linked card that stood here (owner ruling, 2026-11-15).
 
 - **No facts cards and no linked cards**, anywhere. The public form of an import is a Commise-written version, or the
-  source in full when it is on ADR-0092's allowlist.
+  source in full when it is on ADR-0093's allowlist.
 - **No line of another page goes word for word onto a public form**, outside the allowlist.
 - **Indexing follows the public rule.** Every indexable page is server-rendered signed out, has one canonical URL and a
   sitemap entry, and carries schema.org `Recipe` data built only from our own facts and the cook's or Commise's own
@@ -72,15 +72,15 @@ ADR-0092 replaces the facts card and the linked card that stood here (owner ruli
   reading a PUBLIC recipe or collection, signed in or out. Pro sells private capacity and tools, never access. A
   creator's sale of a private recipe or collection (§9) is the creator's own offer, not a Commise paywall.
 - **Slots.** Whether the cook's private copy uses a slot when its public version is Commise-written is an open owner
-  question (ADR-0092 §8). Until the owner rules, ADR-0073 applies: every private recipe a free cook holds uses a slot.
+  question (ADR-0093 §8). Until the owner rules, ADR-0073 applies: every private recipe a free cook holds uses a slot.
 
 ### 3. Caps are counted over time, per site and per publisher
 
 - A cap is counted over time, across every public version from one site, never per import.
 - User-recipe aggregator sites get no public version (owner ruling 2026-11-03). A cook's import from one stays
   private, or the cook publishes it in their own words as "Adapted by you". Whether a Commise-written version changes
-  this is an open owner question (ADR-0092 §8).
-- A paid site's per-publisher cap counts only its distinctive recipes (ADR-0092 §5). Bulk import has a per-source public
+  this is an open owner question (ADR-0093 §8).
+- A paid site's per-publisher cap counts only its distinctive recipes (ADR-0093 §5). Bulk import has a per-source public
   cap (`004-FR-026`).
 - No surface lists, browses or filters public recipes by source site or by book.
 - A site or book past its cap gets no further public versions.
@@ -111,7 +111,7 @@ creator, the edition used, the markets checked, who checked and when, and the ru
   `license`.
 - **CC BY 4.0 is opt-in, per recipe, only on a "Written by you" recipe that passed 020's check.** The cook is the
   licensor. Adults only. The words say "irrevocable as far as the law allows".
-- **CC BY-SA 4.0 on text Commise itself writes**, credited "Commise and contributors" (ADR-0092 §4, owner ruling
+- **CC BY-SA 4.0 on text Commise itself writes**, credited "Commise and contributors" (ADR-0093 §4, owner ruling
   2026-11-15). It replaces CC0. No licence is applied to collected facts as a class.
 - **The Public Domain Mark** on public-domain text.
 - The app, code, ranking, ingredient matching, the food catalog (ADR-0052), user data, the brand and 018's paid
@@ -119,16 +119,16 @@ creator, the edition used, the markets checked, who checked and when, and the ru
 
 ### 6. The Commise version
 
-ADR-0092 replaces the launch ban and the pilot gate that stood here (owner ruling, 2026-11-15). The import writes a
-Commise version of every public-facing recipe from a source outside ADR-0092's allowlist, under the rules in
-ADR-0092 §4 and §5. Spec 003B (public versions of imported recipes, planned) builds it.
+ADR-0093 replaces the launch ban and the pilot gate that stood here (owner ruling, 2026-11-15). The import writes a
+Commise version of every public-facing recipe from a source outside ADR-0093's allowlist, under the rules in
+ADR-0093 §4 and §5. Spec 003B (public versions of imported recipes, planned) builds it.
 
 ### 7. The import never fetches a page
 
-ADR-0092 replaces the fetch rules and the per-market URL-import switch that stood here (owner ruling, 2026-11-15).
+ADR-0093 replaces the fetch rules and the per-market URL-import switch that stood here (owner ruling, 2026-11-15).
 Every import goes through one pipeline, with source detection first, and never fetches a page (spec 004). The cook
 supplies the page's content. Publisher opt-outs are honoured through a form and a staff list (`016`). What replaces a
-link-only import is an open owner question (ADR-0092 §8).
+link-only import is an open owner question (ADR-0093 §8).
 
 ### 8. One gate covers every door to public, and it fails closed
 
@@ -268,4 +268,4 @@ Owner rulings of 2026-11-03, each accepting the recommendation put to the founde
 
 - **Keep the signed-out source card with no ingredients.** It hides what the founder wants open.
 - **Open public domain under the 70-year test.** Fails in at least six common cases. Rejected.
-- **Facts cards and linked cards.** Retired by ADR-0092 (owner ruling, 2026-11-15).
+- **Facts cards and linked cards.** Retired by ADR-0093 (owner ruling, 2026-11-15).

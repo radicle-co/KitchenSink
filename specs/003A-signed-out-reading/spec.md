@@ -6,7 +6,7 @@
 **Status**: Draft. Planned. Not built. The owner answered all eight open questions on 2026-11-09 (see Clarifications).
 **Input**: Owner order, 2026-11-09: write the spec and the plan for signed-out reading of public recipes. Owner legal
 ruling, 2026-11-03 (ADR-0082). _(Amended 2026-11-15. Owner ruling, 2026-11-15,
-[ADR-0092](../../docs/architecture/decisions/0092-imported-recipes-go-public-only-as-a-commise-written-version.md).)_
+[ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md).)_
 There are no facts cards. An imported recipe is public only as a Commise-written version, which is a full open recipe
 (`021-FR-003`). So this feature serves one public form, the full recipe, and the not-available answer.
 

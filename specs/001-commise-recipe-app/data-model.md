@@ -773,7 +773,7 @@ Enforced in service layer (`RecipeService.setVisibility()`), NOT at DB constrain
 >
 > This covers `imported_physical` and `imported_paid`. They are intake channels, and the rights label decides
 > (`016-FR-015d`). A verbatim copy from a cookbook, magazine or paid site (label 4) now has the same two states as a
-> web import. Private is the cook's full copy. _(Amended 2026-11-15, ADR-0092.)_ Public is a Commise-written version
+> web import. Private is the cook's full copy. _(Amended 2026-11-15, ADR-0093.)_ Public is a Commise-written version
 > only (`021-FR-003`). A photographed family card is `imported_physical` too, and it follows its own label
 > (`021-FR-002`). Visibility stays binary (GR-014). The code deltas, each with its own failing tests
 > first:
@@ -789,7 +789,7 @@ Enforced in service layer (`RecipeService.setVisibility()`), NOT at DB constrain
 
 ---
 
-## Rights and licence (added 2026-11-03, owner rulings, ADR-0082; facts cards withdrawn 2026-11-15, ADR-0092)
+## Rights and licence (added 2026-11-03, owner rulings, ADR-0082; facts cards withdrawn 2026-11-15, ADR-0093)
 
 These facts are specified to full depth. None is built, and nothing is live, so no backfill is owed. Each item is a
 code follow-up, and where it is stored is `staff-architect` PLANNING work. Column names below are proposals.
@@ -857,7 +857,7 @@ the record lives is plan work, because ADR-0023's grant is a token scope and not
 
 ### Facts card and per-source cap ledger
 
-Withdrawn. Owner ruling, 2026-11-15: no facts cards (ADR-0092). The Commise-written version's storage is spec 003B's
+Withdrawn. Owner ruling, 2026-11-15: no facts cards (ADR-0093). The Commise-written version's storage is spec 003B's
 plan work.
 
 ---

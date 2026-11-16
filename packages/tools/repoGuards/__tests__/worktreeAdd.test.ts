@@ -45,7 +45,7 @@ describe('installsToPrune', () => {
         expect(installsToPrune(five.slice(0, 3), 3, new Set())).toEqual([]);
     });
 
-    it('keeps a protected install without letting it use up a kept slot', () => {
+    it('deletes nothing when every install is protected', () => {
         expect(installsToPrune(five, 3, new Set(['a', 'b', 'c', 'd', 'e']))).toEqual([]);
     });
 });

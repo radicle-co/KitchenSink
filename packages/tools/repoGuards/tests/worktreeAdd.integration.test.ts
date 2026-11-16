@@ -152,11 +152,21 @@ describe('worktree:add', () => {
 
         utimesSync(path.join(installRoot, live), new Date(500), new Date(500));
 
+        // The oldest install of all belongs to a live worktree with its own lockfile: age alone would delete it.
+        const protectedLock = '{"lockfileVersion":3,"packages":{"p":{}}}\n';
+        const protectedWt = path.join(scratch, 'wtProtected');
+        git(repo, 'worktree', 'add', '-q', '-b', 'feature/protected', protectedWt, 'main');
+        writeFileSync(path.join(protectedWt, 'package-lock.json'), protectedLock);
+        const kept = lockfileHash(Buffer.from(protectedLock));
+        mkdirSync(path.join(installRoot, kept, 'node_modules'), { recursive: true });
+        utimesSync(path.join(installRoot, kept), new Date(1), new Date(1));
+
         run([path.join(scratch, 'wt4'), 'feature/four', 'main']);
 
         const left = readdirSync(installRoot).sort();
 
         expect(left).toContain(live);
+        expect(left).toContain(kept);
         expect(left).toContain('s4');
         expect(left).toContain('s3');
         expect(left).not.toContain('s2');

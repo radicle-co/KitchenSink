@@ -175,7 +175,7 @@ An attestation is kept while its recipe is public, plus 6 years. Then it is dele
 
 - Migration `0090` adds `recipe_ref`. It always equals the id of the recipe that the row was written for. The foreign key
   on `recipe_id` is now `ON DELETE SET NULL`, so a deleted recipe leaves the row in place with `recipe_id` empty.
-- The trigger allows one more UPDATE: `recipe_id` to empty, when the recipe is gone. It always refuses DELETE.
+- The trigger allows one more UPDATE: `recipe_id` to empty, when the recipe is gone. It refuses DELETE, except that a reset of a test account deletes that account's rows.
 - A hard delete by the cook keeps the rows. A soft delete keeps everything.
 - Evidence rows keep their cascade. They go with the recipe.
 

@@ -7,12 +7,16 @@
 -- `recipe_ref` is written by the service on insert and is NOT NULL; the CHECK keeps it equal to `recipe_id` for as long as the
 -- recipe exists, so the two can never name different recipes.
 --
--- The append-only guard now admits exactly two UPDATEs, and no DELETE at all:
+-- The append-only guard now admits exactly two UPDATEs and one DELETE:
 --   1. `recipe_id` going to NULL with every other column unchanged, when the recipe row no longer exists. That is the foreign
 --      key's own action, and it is the only way a row loses its recipe.
 --   2. The erasure swap of 0088: `account_id` from a real id to an `erased_` token, every other column unchanged, and now ONLY
 --      while an erasure job is queued or running for that account. Before this, any role with UPDATE could move any live
 --      account's rows to a token at any time, which destroys the record of who acted.
+--   3. A DELETE of a row of a TEST PRINCIPAL's account, and only while a test reset is running for that account
+--      (`test_reset_jobs`, 0045, status `running`). A test principal keeps nothing (ADR-0040), and its rows would otherwise stay
+--      for good: the recipe delete of the reset empties `recipe_id`, so the cascade no longer takes them. A queued reset has not
+--      begun, and a reset of one account never frees another account's rows.
 -- A purge of rows past their retention gets its own exception when the purge job is built.
 --
 -- TWO: SEARCH PATH. A trigger or SQL function that names `recipes` with no schema is resolved through the session's search
@@ -46,7 +50,7 @@ ALTER TABLE recipe_statement_attestations
 CREATE INDEX recipe_statement_attestations_ref_idx ON recipe_statement_attestations (recipe_ref, recorded_at);
 
 COMMENT ON TABLE recipe_statement_attestations IS
-    'Append-only record of every statement a cook made about a recipe and every Public confirmation, one row per act. DELETE always raises. UPDATE raises, except the foreign key emptying recipe_id of a recipe that is gone, and the erasure swap of account_id to an erased_ token while an erasure job is queued or running for that account. recipe_ref keeps the recipe id after the recipe is deleted.';
+    'Append-only record of every statement a cook made about a recipe and every Public confirmation, one row per act. UPDATE raises, except the foreign key emptying recipe_id of a recipe that is gone, and the erasure swap of account_id to an erased_ token while an erasure job is queued or running for that account. DELETE raises, except while a test reset is running for the row''s account. recipe_ref keeps the recipe id after the recipe is deleted.';
 
 -- ── 0088: the attestation guard ─────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -87,6 +91,15 @@ BEGIN
             WHERE j.owner_id = OLD.account_id AND j.status IN ('queued', 'running')
        ) THEN
         RETURN NEW;
+    END IF;
+
+    -- A test principal's reset: its own rows, while its reset is running.
+    IF TG_OP = 'DELETE'
+       AND EXISTS (
+           SELECT 1 FROM test_reset_jobs j
+            WHERE j.user_id = OLD.account_id AND j.status = 'running'
+       ) THEN
+        RETURN OLD;
     END IF;
 
     RAISE EXCEPTION 'recipe_statement_attestations is append-only' USING ERRCODE = 'check_violation';

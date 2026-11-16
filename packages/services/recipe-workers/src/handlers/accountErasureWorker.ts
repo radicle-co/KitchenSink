@@ -1018,6 +1018,11 @@ export const purgeTestPrincipalRows = async (
               AND owner_id <> ${ownerId}
         `);
 
+        // 2b. The principal's statement records. A test principal keeps nothing; the append-only trigger (0090) admits this
+        //     delete only while the principal's reset job is running, which the caller's claim guarantees. Before step 3,
+        //     while the rows still name their recipes.
+        await tx.execute(sql`DELETE FROM recipe_statement_attestations WHERE account_id = ${ownerId}`);
+
         // 3. Every recipe — no visibility/status carve-out, no tombstone filter. Cascades the recipe graph.
         await tx.execute(sql`DELETE FROM recipes WHERE owner_id = ${ownerId}`);
 

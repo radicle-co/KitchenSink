@@ -15,8 +15,8 @@ import { openRecordedPage } from './pageProblems.js';
 const PAGE_URL = 'http://fonts-routing.test/';
 const STYLESHEET = 'https://fonts.googleapis.com/css2';
 
-const pageLinking = (query: string): string =>
-    `<!doctype html><link rel="stylesheet" href="${STYLESHEET}?${query}"><body>text</body>`;
+const pageLinking = (query: string, stylesheet = STYLESHEET): string =>
+    `<!doctype html><link rel="stylesheet" href="${stylesheet}?${query}"><body>text</body>`;
 
 let browser: Browser;
 
@@ -28,12 +28,14 @@ afterAll(async () => {
     await browser.close();
 });
 
-async function open(query: string) {
+async function open(query: string, stylesheet?: string) {
     const recorded = await openRecordedPage(browser, 'light', 400, 300);
 
     await recorded.page
         .context()
-        .route(PAGE_URL, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: pageLinking(query) }));
+        .route(PAGE_URL, (route) =>
+            route.fulfill({ status: 200, contentType: 'text/html', body: pageLinking(query, stylesheet) }),
+        );
     await recorded.page.goto(PAGE_URL);
 
     return recorded;
@@ -65,6 +67,26 @@ describe('Google Fonts in a recorded page', () => {
 
     it('counts a family nothing local can serve as a page problem, not a trip to the network', async () => {
         const { page, problems } = await open('family=Roboto:wght@400&display=swap');
+
+        try {
+            expect(problems.join('\n')).toContain('fonts.googleapis.com');
+        } finally {
+            await page.context().close();
+        }
+    });
+
+    it('counts an axis it does not understand as a page problem, never as Regular 400', async () => {
+        const { page, problems } = await open('family=Inter:ital,wght@1,700&display=swap');
+
+        try {
+            expect(problems.join('\n')).toContain('fonts.googleapis.com');
+        } finally {
+            await page.context().close();
+        }
+    });
+
+    it('counts a stylesheet path other than css2 as a page problem', async () => {
+        const { page, problems } = await open('family=Inter:wght@400', 'https://fonts.googleapis.com/css');
 
         try {
             expect(problems.join('\n')).toContain('fonts.googleapis.com');

@@ -42,12 +42,15 @@ export interface FontRequest {
  * The faces a Google Fonts `css2` URL asks for: `family=Inter:wght@400;500&family=Caveat:wght@400` is three faces.
  *
  * @param stylesheetUrl - The `fonts.googleapis.com/css2` URL.
- * @returns Every family and weight, in request order. A family with no `wght` axis asks for 400.
+ * @returns Every family and weight, in request order. A family with no axis spec asks for 400. A spec this cannot parse
+ * (`ital,wght@1,700`, a `400..700` range) becomes a face whose weight is the raw spec, which no installed package holds,
+ * so it is answered 404 and never silently Regular.
  */
 export function requestedFaces(stylesheetUrl: URL): readonly FontRequest[] {
     return stylesheetUrl.searchParams.getAll('family').flatMap((entry) => {
         const [family = '', axes = ''] = entry.split(':');
-        const weights = axes.startsWith('wght@') ? axes.slice('wght@'.length).split(';') : ['400'];
+        const weights =
+            axes === '' ? ['400'] : axes.startsWith('wght@') ? axes.slice('wght@'.length).split(';') : [axes];
 
         return weights.map((weight) => ({ family, weight }));
     });
@@ -81,6 +84,10 @@ const notServed = (route: Route, what: string): Promise<void> =>
     route.fulfill({ status: 404, contentType: 'text/plain', body: `no local copy of ${what}` });
 
 async function serveStylesheet(route: Route, url: URL): Promise<void> {
+    if (url.pathname !== '/css2') {
+        return notServed(route, url.pathname);
+    }
+
     const faces = requestedFaces(url);
     const missing = faces.find((face) => localFontFile(face) === undefined);
 

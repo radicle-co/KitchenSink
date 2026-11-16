@@ -64,7 +64,13 @@ appId: ${APP_ID}
       timeout: 10000
 - assertVisible: 'Where is this recipe from?'
 
-# "I wrote this" publishes it public.
+# "I wrote this" publishes it public. The keyboard is up for the title field, so a small phone has scrolled the first
+# answer out of view: drag the answer list (not the footer) to bring it back.
+- swipe:
+      from:
+          text: 'From another person'
+      direction: DOWN
+- assertVisible: 'I wrote this'
 - tapOn: 'I wrote this'
 - tapOn:
       text: 'Publish'

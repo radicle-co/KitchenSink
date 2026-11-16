@@ -1,0 +1,40 @@
+{
+    "name": "@kitchensink/page-reader",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "sideEffects": false,
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "dependencies": {
+        "@kitchensink/recipe-core": "*",
+        "@noble/hashes": "^2.4.0",
+        "htmlparser2": "^12.0.0",
+        "tinyduration": "^3.4.1"
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "eslint": "^10.0.3",
+        "prettier": "^3.10.1",
+        "typescript": "^6.0.3",
+        "vitest": "^4.1.12"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

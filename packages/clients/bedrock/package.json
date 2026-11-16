@@ -29,6 +29,7 @@
     "devDependencies": {
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
+        "@kitchensink/recipe-core": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "eslint": "^10.0.3",

@@ -308,6 +308,11 @@ describe('the bulk import codes (ADR-0072)', () => {
         expect(recipeApiErrorSchema.safeParse(body('IMPORT_ID_IN_USE')).success).toBe(true);
     });
 
+    it('IMPORT_STORAGE_FULL is a 409, a bare code: the cook holds as many unpaid bytes as one cook may', () => {
+        expect(RECIPE_ERROR_STATUS.IMPORT_STORAGE_FULL).toBe(409);
+        expect(recipeApiErrorSchema.safeParse(body('IMPORT_STORAGE_FULL')).success).toBe(true);
+    });
+
     it("IMPORT_NOT_FOUND is a 404, a bare code: a stranger's import and a missing one are ONE answer", () => {
         expect(RECIPE_ERROR_STATUS.IMPORT_NOT_FOUND).toBe(404);
         expect(recipeApiErrorSchema.safeParse(body('IMPORT_NOT_FOUND')).success).toBe(true);

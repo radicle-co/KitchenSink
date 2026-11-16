@@ -164,6 +164,8 @@ export const recipeErrorCodeSchema = z.enum([
     'IMPORT_ITEM_LOCKED',
     /** ADR-0072 §1 — the client-minted import id is already the caller's import, with different choices. */
     'IMPORT_ID_IN_USE',
+    /** The cook holds as many unpaid import bytes as one cook may (ADR-0072 §2). A 409, and not a 413: a smaller chunk does not help. */
+    'IMPORT_STORAGE_FULL',
 
     // ── Auth and account-lifecycle codes, which are NOT recipe-domain errors ──
     /** No, invalid, expired, or wrong-authorized-party bearer token. */
@@ -361,6 +363,7 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
     bare('PARSE_JOB_EXPIRED'),
     bare('IMPORT_NOT_FOUND'),
     bare('IMPORT_ID_IN_USE'),
+    bare('IMPORT_STORAGE_FULL'),
     bare('UNAUTHORIZED'),
     bare('IDENTITY_SYNC_PENDING'),
     bare('FORBIDDEN'),

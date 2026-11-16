@@ -1650,6 +1650,13 @@ export const RecipeErrorCode = {
      * details. (An id some OTHER cook holds is `IMPORT_NOT_FOUND`: a different answer would confirm the id exists.)
      */
     IMPORT_ID_IN_USE: 'IMPORT_ID_IN_USE',
+    /**
+     * ADR-0072 §2 — the cook already holds as many UNPAID import bytes as one cook may (`IMPORT_MAX_UNPAID_BYTES`): the recipes
+     * of every import that have not yet spent an allowance unit. A 409 with no details, and NOT a `413`: a client halves its
+     * chunk on `413`, and a smaller chunk does not help here. What helps is payment (an `advance`) or deleting an import. The
+     * size of a FILE is never capped; the bytes a cook may hold waiting to be paid for are.
+     */
+    IMPORT_STORAGE_FULL: 'IMPORT_STORAGE_FULL',
 } as const;
 
 /**
@@ -1699,6 +1706,7 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.PRIVATE_FOODS_ON_PUBLIC_RECIPE,
     RecipeErrorCode.IMPORT_ITEM_LOCKED,
     RecipeErrorCode.IMPORT_ID_IN_USE,
+    RecipeErrorCode.IMPORT_STORAGE_FULL,
 ]);
 
 /**

@@ -1805,6 +1805,7 @@ export class RecipeServiceClient {
             case 'MAX_PHOTOS_EXCEEDED':
             case 'ARCHIVE_PENDING':
             case 'IMPORT_ID_IN_USE': // ADR-0072 §1: no surface branches on it; it keeps its 409 and its code.
+            case 'IMPORT_STORAGE_FULL': // ADR-0072 §2: the bulk client reads the code; it keeps its 409.
             case 'COLLECTION_LIMIT_REACHED':
             case 'PHOTO_PROCESSING_FAILED':
             case 'ARCHIVE_DLQ':

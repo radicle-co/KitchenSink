@@ -33,15 +33,17 @@
  * that instant, so the room it held is available at `createdAt + 24 h` and not a tick later. The edge is defined here and
  * nowhere else ({@link importAllowanceWindowStart}); the DAL prunes and reads with it.
  *
- * ## The plan input, on bulk only
+ * ## The plan and kind inputs, on bulk only
  *
- * The bulk scope carries `isPremium`, the one plan fact every policy here reads (`isPremiumPrincipal` in
+ * A TEST principal has no limit ({@link TEST_PRINCIPAL_ALLOWANCE_LIMIT}, owner ruling 2026-11-15). A real cook's bulk scope
+ * carries `isPremium`, the one plan fact every policy here reads (`isPremiumPrincipal` in
  * `auth/principal.ts`, which counts `superuser`, `vip` and `premium` as paid). Paste is one limit for every plan, so its
  * scope carries none: an input nothing reads is a promise nothing checks.
  *
  * @pattern Specification — one pure decision over the window's events; the DAL supplies the facts, this module owns the rule
  */
 import type { ImportAllowanceChannel } from '../database/schema/importAllowanceEvents.js';
+import type { PrincipalKind } from './containmentPolicy.js';
 
 /** A rolling day, in milliseconds. */
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -59,9 +61,22 @@ export const IMPORT_ALLOWANCE_RULES = {
     { readonly limit: number | { readonly free: number; readonly paid: number }; readonly windowMs: number }
 >;
 
-/** Who is asking on which channel: the bulk channel's limit depends on the plan, paste's does not. */
+/**
+ * The limit a TEST principal is stated with (ADR-0040): the int4 ceiling the view's `allowance.limit` can carry, which no test
+ * run reaches. Owner ruling 2026-11-15, verbatim: "if this is for testing, then there are no limits. IF this is for user-facing
+ * behavior, then one pipeline, one allowance." The pool users the e2e, Playwright, Maestro and k6 tiers sign in as are test
+ * principals, so a limit on them would stall a paste flow on a sandbox where nothing is wrong. The unit is still written to the
+ * ledger, so the one pipeline is exercised end to end.
+ */
+export const TEST_PRINCIPAL_ALLOWANCE_LIMIT = 2_147_483_647;
+
+/**
+ * Who is asking on which channel: the bulk channel's limit depends on the plan, and a test principal has none. Paste's does
+ * not depend on either. `principalKind` is REQUIRED so a call site that forgot it cannot silently limit a test principal.
+ */
 export type ImportAllowanceScope =
-    { readonly channel: 'paste' } | { readonly channel: 'bulk'; readonly isPremium: boolean };
+    | { readonly channel: 'paste' }
+    | { readonly channel: 'bulk'; readonly isPremium: boolean; readonly principalKind: PrincipalKind };
 
 /**
  * The units a scope may spend in one window. Pure.
@@ -73,6 +88,10 @@ export function importAllowanceLimitOf(scope: ImportAllowanceScope): number {
         case 'paste':
             return IMPORT_ALLOWANCE_RULES.paste.limit;
         case 'bulk':
+            if (scope.principalKind === 'test') {
+                return TEST_PRINCIPAL_ALLOWANCE_LIMIT;
+            }
+
             return scope.isPremium ? IMPORT_ALLOWANCE_RULES.bulk.limit.paid : IMPORT_ALLOWANCE_RULES.bulk.limit.free;
     }
 }

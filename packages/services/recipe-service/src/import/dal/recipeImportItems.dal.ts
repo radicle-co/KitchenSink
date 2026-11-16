@@ -22,6 +22,7 @@ import { and, asc, eq, gt, inArray, isNotNull, isNull, notInArray, sql, type SQL
 import { isDeepStrictEqual } from 'node:util';
 
 import { ImportAllowanceDal } from '../../common/dal/importAllowance.dal.js';
+import type { PrincipalKind } from '../../common/containmentPolicy.js';
 import type { RecipeDrizzle } from '../../database/client.js';
 import {
     IMPORT_REFUSALS,
@@ -29,13 +30,15 @@ import {
     IMPORT_VISIBILITIES,
     recipeImportItems,
     recipeImportLines,
+    recipeImports,
     type ImportStage,
     type RecipeImportItemRow,
 } from '../../database/schema/recipeImports.js';
 import type { RecipeTx } from '../../database/unitOfWork.js';
 import type { ImportRecipe, ImportStatement } from '../../recipes/import.schema.js';
 import { ITEM_REVIEWS, type ItemReview } from '../domain/importBindingPolicy.js';
-import { decideItemUpsert } from '../domain/importItemUpsert.js';
+import { decideItemUpsert, type ItemUpsertDecision } from '../domain/importItemUpsert.js';
+import { IMPORT_MAX_UNPAID_BYTES } from '../domain/importLimits.js';
 import {
     COOK_DEPENDENT_HOLD_REASONS,
     HOLD_REASONS,
@@ -53,7 +56,10 @@ import { touchImport, type ImportVisibility } from './recipeImports.dal.js';
 import type { NewImportLine } from './recipeImportLines.dal.js';
 
 /** One item as the DAL returns it, with its stage, review mark and visibility narrowed to the CHECK vocabularies. */
-export type ImportItem = Omit<RecipeImportItemRow, 'stage' | 'review' | 'visibility' | 'refusal' | 'heldReason'> & {
+export type ImportItem = Omit<
+    RecipeImportItemRow,
+    'payloadBytes' | 'stage' | 'review' | 'visibility' | 'refusal' | 'heldReason'
+> & {
     readonly stage: ImportStage;
     readonly review: ItemReview;
     readonly visibility: ImportVisibility | null;
@@ -76,7 +82,9 @@ export interface UpsertItemInput {
 export type UpsertOutcome =
     | { readonly kind: 'ok' }
     | { readonly kind: 'locked'; readonly ordinal: number; readonly stage: 'parsing' | 'matched' }
-    | { readonly kind: 'saved'; readonly ordinal: number };
+    | { readonly kind: 'saved'; readonly ordinal: number }
+    /** The request would take the cook over {@link IMPORT_MAX_UNPAID_BYTES} of unpaid recipes; NOTHING of it was written. */
+    | { readonly kind: 'storageFull' };
 
 /** What the cook says about one item. `undefined` keeps, a value replaces; `visibility: null` clears the recipe's own choice. */
 export interface ChoicesPatch {
@@ -111,8 +119,14 @@ export type PayOutcome =
     /** The allowance is spent: nothing was paid, and more room opens at `resetsAt`. */
     | { readonly kind: 'refused'; readonly resetsAt: Date };
 
-/** The item row, narrowed. A value the CHECK should have kept out is a defect and is thrown. */
-function toItem(row: RecipeImportItemRow): ImportItem {
+/**
+ * The item row, narrowed. A value the CHECK should have kept out is a defect and is thrown. `payloadBytes` is the cap's
+ * measure, not part of an item: a full row passes it in, and it is dropped here so no caller carries it on.
+ */
+function toItem(
+    input: Omit<RecipeImportItemRow, 'payloadBytes'> & { readonly payloadBytes?: RecipeImportItemRow['payloadBytes'] },
+): ImportItem {
+    const { payloadBytes: _measure, ...row } = input;
     const stage = IMPORT_STAGES.find((value) => value === row.stage);
     const review = ITEM_REVIEWS.find((value) => value === row.review);
     const visibility = row.visibility === null ? null : IMPORT_VISIBILITIES.find((value) => value === row.visibility);
@@ -160,8 +174,12 @@ function choicesColumnsOf(entry: ChoicesPatch) {
     };
 }
 
-/** What a reopened item drops: it is `received` again, with no match and no parse job (`decideItemUpsert`'s `reopen`). */
-const REOPENED = { stage: 'received', matchedAt: null, parseJobId: null } as const;
+/**
+ * What a reopened item drops: it is `received` again, with no match, no parse job and NO PAID UNIT (`decideItemUpsert`'s `reopen`).
+ * Every reopen is a new parse against the shared LLM ceiling, so it pays a unit again at the next `advance`: one unit must not buy
+ * unlimited re-parses of a recipe the cook keeps replacing.
+ */
+const REOPENED = { stage: 'received', matchedAt: null, parseJobId: null, allowanceSpentAt: null } as const;
 
 /**
  * The ingredient-line count a payload holds, in SQL. The ONE statement of it: the item list counts with it. Takes the payload
@@ -173,10 +191,43 @@ const lineCountOf = (payload: SQLWrapper): SQL<number> =>
 /** An integer a payload states, read in SQL: `NULL` when it states none (the contract admitted it as an int4). */
 const payloadInt = (key: string) => sql<number | null>`(${recipeImportItems.payload} ->> ${key})::int`;
 
+/** The request would take the cook over the unpaid-byte cap: thrown inside the transaction to roll it back, caught by `upsertItems`. */
+class StorageFullError extends Error {
+    public constructor() {
+        super('the unpaid-byte cap is full');
+        Object.setPrototypeOf(this, StorageFullError.prototype);
+    }
+}
+
+/** Whether `error` is the cap refusal `upsertItems` turns into `storageFull`. Pure. */
+function isStorageFullError(error: unknown): error is StorageFullError {
+    return error instanceof StorageFullError;
+}
+
+/**
+ * Whether a decision writes a payload, so it can add stored bytes. Exhaustive: a new decision kind is a compile error here.
+ *
+ * @param decision - The decision for one item. @returns Pure.
+ */
+function addsPayloadBytes(decision: ItemUpsertDecision): boolean {
+    switch (decision.kind) {
+        case 'insert':
+        case 'replace':
+        case 'reopen':
+            return true;
+        case 'keep':
+        case 'locked':
+        case 'saved':
+            return false;
+    }
+}
+
 export class RecipeImportItemsDal {
     public constructor(
         private readonly db: RecipeDrizzle,
         private readonly allowance: ImportAllowanceDal,
+        /** The unpaid bytes one cook may hold; a parameter so a real-database test can use a small one. */
+        private readonly unpaidByteCap: number = IMPORT_MAX_UNPAID_BYTES,
     ) {}
 
     /**
@@ -184,10 +235,23 @@ export class RecipeImportItemsDal {
      *
      * @param importId - The import (already known to be the caller's).
      * @param inputs - The items, with distinct ordinals.
-     * @returns `ok`, or the first item that is locked or saved, with NOTHING of the request written.
-     * @sideEffect Locks the header, writes items and the activity clock.
+     * @returns `ok`, or the first item that is locked or saved, or `storageFull`, with NOTHING of the request written.
+     * @sideEffect Locks the header, then the cook's allowance lock when the request adds bytes; writes items and the activity clock.
      */
     public async upsertItems(importId: string, inputs: readonly UpsertItemInput[]): Promise<UpsertOutcome> {
+        try {
+            return await this.upsertWithin(importId, inputs);
+        } catch (error) {
+            if (isStorageFullError(error)) {
+                return { kind: 'storageFull' };
+            }
+
+            throw error;
+        }
+    }
+
+    /** {@link upsertItems}'s transaction. A request that takes the cook over the unpaid-byte cap rolls it back. */
+    private async upsertWithin(importId: string, inputs: readonly UpsertItemInput[]): Promise<UpsertOutcome> {
         return this.db.transaction(async (tx): Promise<UpsertOutcome> => {
             // Serialises two chunks that name one new ordinal; the PK would otherwise answer the second with a 23505.
             await lockImportHeader(tx, importId);
@@ -235,6 +299,13 @@ export class RecipeImportItemsDal {
                 }
             }
 
+            // ⛔ Bound what a cook may leave UNPAID (the routes are public). Under the cook's allowance lock, so two chunks in two
+            // imports cannot both pass the cap; taken after the header and the item rows, the order `payUnpaid` takes them in.
+            // The size is read in SQL AFTER the writes below, so one measure (the stored text) is used for both sides.
+            const addsBytes = decisions.some(({ decision }) => addsPayloadBytes(decision));
+            const cook = addsBytes ? await this.lockCook(tx, importId) : undefined;
+            const unpaidBefore = cook === undefined ? 0 : await this.measureUnpaid(tx, cook);
+
             for (const { input, decision } of decisions) {
                 const patch = choicesColumnsOf(input);
 
@@ -268,7 +339,7 @@ export class RecipeImportItemsDal {
                         .set({
                             title: input.recipe.title,
                             payload: input.recipe,
-                            // A fixed recipe clears the refusal; an emptied one sets it (the unit a paid item spent stays spent).
+                            // A fixed recipe clears the refusal; an emptied one sets it (a `received` item that already paid keeps its unit: no job was made from the old text).
                             refusal: importRefusalOf({
                                 ingredientLineCount: input.recipe.ingredientLines.length,
                                 stepCount: input.recipe.steps.length,
@@ -278,7 +349,7 @@ export class RecipeImportItemsDal {
                             // A new recipe needs a new parse job. The job id is derived from the generation, and a paid item
                             // can hold a job created just before a crash and never attached, made from the OLD text.
                             parseGeneration: sql`${recipeImportItems.parseGeneration} + 1`,
-                            // A reopened item starts again from `received`: no match, no job, and its paid unit stays spent.
+                            // A reopened item starts again from `received`: no match, no job, and its unit is spent again by the next advance.
                             ...(decision.kind === 'reopen' ? REOPENED : {}),
                             updatedAt: sql`now()`,
                         })
@@ -295,10 +366,60 @@ export class RecipeImportItemsDal {
                 }
             }
 
+            // A request that SHRINKS or keeps what the cook holds is never refused, so a cook over the cap can still fix an item.
+            if (cook !== undefined) {
+                const unpaidAfter = await this.measureUnpaid(tx, cook);
+
+                if (unpaidAfter > this.unpaidByteCap && unpaidAfter > unpaidBefore) {
+                    // Our own error, not `tx.rollback()`: only THIS refusal is `storageFull`, and any other failure rethrows.
+                    throw new StorageFullError();
+                }
+            }
+
             await touchImport(tx, importId);
 
             return { kind: 'ok' };
         });
+    }
+
+    /**
+     * Take the cook's allowance lock (the ONE per-user lock the import's money-like limits share).
+     *
+     * @returns The cook (the import's owner). @sideEffect Takes a transaction-scoped advisory lock.
+     */
+    private async lockCook(tx: RecipeTx, importId: string): Promise<string> {
+        const [header] = await tx
+            .select({ userId: recipeImports.userId })
+            .from(recipeImports)
+            .where(eq(recipeImports.id, importId));
+
+        if (header === undefined) {
+            // The header is locked by this transaction, so a missing one is a caller defect, not a state to answer.
+            throw new Error(`import ${importId} vanished under its own header lock`);
+        }
+
+        await this.allowance.lockUser(tx, header.userId);
+
+        return header.userId;
+    }
+
+    /**
+     * The stored size of every recipe the cook holds that has not spent an allowance unit, across ALL their imports.
+     * Refused recipes count (they are stored). One measure, the generated `payload_bytes` (0089: `octet_length` of the stored
+     * JSON text), so before and after agree and no payload is serialised per measure.
+     *
+     * @sideEffect Reads.
+     */
+    private async measureUnpaid(tx: RecipeTx, userId: string): Promise<number> {
+        const result = await tx.execute<{ bytes: string }>(sql`
+            SELECT COALESCE(sum(i.payload_bytes), 0)::text AS bytes
+              FROM recipe_import_items i
+              JOIN recipe_imports h ON h.id = i.import_id
+             WHERE h.user_id = ${userId}
+               AND i.allowance_spent_at IS NULL
+        `);
+
+        return Number(result.rows[0]?.bytes ?? 0);
     }
 
     /** One item, payload included, or `undefined`. @sideEffect Reads. */
@@ -638,14 +759,14 @@ export class RecipeImportItemsDal {
      *
      * @param userId - The verified caller; only their import is paid for.
      * @param importId - The import.
-     * @param request - The most items to pay now, and whether the cook holds a paid plan (the bulk limit is per plan).
+     * @param request - The most items to pay now, and whether the cook holds a paid plan and which kind of principal they are (the bulk limit is per plan, and a test principal has none).
      * @returns The items paid (fewer than `limit` when the day's room ran short), `nothing` when none was unpaid, or `refused`.
      * @sideEffect Locks the unpaid items, then the user's allowance; writes the ledger and `allowance_spent_at`.
      */
     public async payUnpaid(
         userId: string,
         importId: string,
-        request: { readonly limit: number; readonly isPremium: boolean },
+        request: { readonly limit: number; readonly isPremium: boolean; readonly principalKind: PrincipalKind },
     ): Promise<PayOutcome> {
         return this.db.transaction(async (tx): Promise<PayOutcome> => {
             await lockImportHeader(tx, importId);
@@ -671,6 +792,7 @@ export class RecipeImportItemsDal {
             const admission = await this.allowance.admit(tx, userId, {
                 channel: 'bulk',
                 isPremium: request.isPremium,
+                principalKind: request.principalKind,
                 units: unpaid.rows.length,
             });
 

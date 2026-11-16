@@ -5,7 +5,7 @@
  * REWRITTEN twice. First when the `enableCors` call moved out of `main.ts` into this service's setup (CORS must be
  * registered BEFORE the JSON parser, since a parser refusal skips every later non-error middleware). Then when the
  * ordered setup (`enableCors`, `express.json`, the strip link) moved into `jsonBodyHttpSetup` in
- * `@kitchensink/nest-error-envelope`, which is where its order is now proved; so this file no longer looks for
+ * `@kitchensink/nest-http-setup`, which is where its order is now proved; so this file no longer looks for
  * `enableCors` here. It guards what stayed in the service: that the policy is built from the environment by the
  * service's own builder and reaches the shared setup, and that `main.ts` applies the setup. The integration tier proves
  * the headers behaviourally on a parser refusal; these source checks guard the wiring a header test with one allowed
@@ -71,6 +71,14 @@ function callArgumentsOf(name: string, source: ts.SourceFile = setupSource): str
 }
 
 describe('the HTTP setup installs the CORS policy', () => {
+    // ⛔ `nestOptions` is what turns Nest's own body parser off (`bodyParser: false`). Without it Nest parses the body
+    // first, rewrites a malformed one into a `BadRequestException` quoting the request, and the service's parser never
+    // sees it. The guard in `repoGuards` holds this for every service; this names the service's own setup.
+    it('creates the app with the setup’s nestOptions spread into NestFactory.create', () => {
+        expect(callArgumentsOf('create', mainSource)).toHaveLength(1);
+        expect(callArgumentsOf('create', mainSource)[0]?.[1]).toMatch(/^\{\s*\.\.\.RECIPE_HTTP_SETUP\.nestOptions\b/);
+    });
+
     it('is applied by src/main.ts exactly once', () => {
         expect(callArgumentsOf('configure', mainSource)).toEqual([['app']]);
     });

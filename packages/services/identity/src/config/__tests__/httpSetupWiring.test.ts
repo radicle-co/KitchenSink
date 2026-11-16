@@ -3,7 +3,7 @@
  * environment to `jsonBodyHttpSetup`, and `src/main.ts` applies the setup before `listen`.
  *
  * The ordered setup itself (CORS, then `express.json`, then the strip link) lives once, in `jsonBodyHttpSetup` in
- * `@kitchensink/nest-error-envelope`, where its order is proved on a real Nest app. This file replaced a check of that
+ * `@kitchensink/nest-http-setup`, where its order is proved on a real Nest app. This file replaced a check of that
  * order in this service when it moved, so it asserts only what stayed here: the service's own policy and its entry point.
  *
  * `tests/bodyParser.integration.test.ts` proves the behaviour through the harness, which applies the setup itself. It
@@ -81,6 +81,16 @@ describe('the HTTP setup', () => {
 });
 
 describe('src/main.ts applies the HTTP setup', () => {
+    // ⛔ `nestOptions` is what turns Nest's own body parser off (`bodyParser: false`). Without it Nest parses the body
+    // first, rewrites a malformed one into a `BadRequestException` quoting the request, and the service's parser never
+    // sees it. The guard in `repoGuards` holds this for every service; this names the service's own setup.
+    it('creates the app with the setup’s nestOptions spread into NestFactory.create', () => {
+        expect(main.getText()).toMatch(
+            /NestFactory\.create\(AppModule,\s*\{\s*\.\.\.IDENTITY_HTTP_SETUP\.nestOptions\b/,
+        );
+        expect(positionsOf('create', main)).toHaveLength(1);
+    });
+
     it('applies it exactly once, before the app listens', () => {
         const configure = positionsOf('configure', main);
         const listen = positionsOf('listen', main);

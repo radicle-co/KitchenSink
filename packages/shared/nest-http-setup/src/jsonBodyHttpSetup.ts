@@ -1,11 +1,11 @@
 /**
- * THE ORDERED HTTP SETUP OF A SERVICE THAT SERVES A JSON BODY, written once. A service builds its own CORS policy from its
- * own environment and hands it here; `main.ts` applies the result, and so do the integration and e2e tiers (through the
- * test harness's `httpSetup` option), so every tier serves requests through the stack production does.
+ * THE ORDERED HTTP SETUP OF A SERVICE THAT SERVES A JSON BODY, written once. A service builds its own CORS policy
+ * from its own environment and hands it here; `main.ts` applies the result, and so do the integration and e2e tiers
+ * (through the test harness's `httpSetup` option), so every tier serves requests through the stack production does.
  *
  * ⛔ THE ORDER IS LOAD-BEARING: CORS, then the JSON parser, then the strip link.
- *  - CORS FIRST. When the parser refuses a body it calls `next(err)`, and Express skips every non-error middleware after
- *    that. Registered after the parser, CORS never runs on a refusal, so a browser gets a `413` or `400` with no
+ *  - CORS FIRST. When the parser refuses a body it calls `next(err)`, and Express skips every non-error middleware
+ *    after that. Registered after the parser, CORS never runs on a refusal, so a browser gets a `413` or `400` with no
  *    `access-control-allow-origin` and the web app reads "Failed to fetch" instead of the status.
  *  - THE SERVICE PARSES ITS OWN JSON (`bodyParser: false`). Nest's parser sends a parse failure through
  *    `mapExternalException`, which rewrites the `SyntaxError` into a `BadRequestException` carrying the parser's
@@ -22,9 +22,8 @@
  * @module
  */
 import { Logger, type INestApplication, type NestApplicationOptions } from '@nestjs/common';
+import { stripBodyParserRefusal } from '@kitchensink/nest-error-envelope';
 import express from 'express';
-
-import { stripBodyParserRefusal } from './bodyParserError.js';
 
 /** The options `enableCors` takes: whatever Nest accepts, so the service's own policy type needs no cast. */
 type CorsOptionsArgument = Parameters<INestApplication['enableCors']>[0];
@@ -57,7 +56,8 @@ export function jsonBodyHttpSetup(corsPolicy: () => JsonBodyCorsPolicy): JsonBod
         nestOptions: { bodyParser: false },
         /**
          * @param app - The created app.
-         * @sideEffect Reads the environment (through `corsPolicy`), registers Express middleware on `app` and logs the CORS mode.
+         * @sideEffect Reads the environment (through `corsPolicy`), registers Express middleware on `app` and logs
+         *   the CORS mode.
          */
         configure: (app) => {
             const policy = corsPolicy();

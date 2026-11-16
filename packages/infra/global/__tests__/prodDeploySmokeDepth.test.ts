@@ -1031,7 +1031,8 @@ describe('isBrowserFacing reads CORS wherever the service turns it on', () => {
     it('⛔ sees CORS a service turns on through the shared JSON-body setup, which holds the enableCors call', () => {
         const shared = service('shared', {
             'src/main.ts': "import { SETUP } from './config/httpSetup.js';\nSETUP.configure(app);\n",
-            'src/config/httpSetup.ts': 'export const SETUP = jsonBodyHttpSetup(() => buildCorsPolicy(input));\n',
+            'src/config/httpSetup.ts':
+                "import { jsonBodyHttpSetup } from '@kitchensink/nest-http-setup';\nexport const SETUP = jsonBodyHttpSetup(() => buildCorsPolicy(input));\n",
         });
 
         expect(isBrowserFacing(shared, root)).toBe(true);

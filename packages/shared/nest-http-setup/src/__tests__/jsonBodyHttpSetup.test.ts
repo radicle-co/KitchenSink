@@ -17,8 +17,7 @@ import { NestFactory } from '@nestjs/core';
 import type { Request, Response as ExpressResponse } from 'express';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { GENERIC_STATUS_CODES } from '../envelope.js';
-import { normalizeBodyParserError } from '../bodyParserError.js';
+import { GENERIC_STATUS_CODES, normalizeBodyParserError } from '@kitchensink/nest-error-envelope';
 import { jsonBodyHttpSetup } from '../jsonBodyHttpSetup.js';
 
 /** The origin the policy admits. */
@@ -82,6 +81,15 @@ describe('jsonBodyHttpSetup', () => {
 
         expect(response.status).toBe(201);
         expect(await response.json()).toEqual({ received: { a: 1 } });
+    });
+
+    // The cap is a boundary, so both sides of it are pinned: a body just under it reaches the route.
+    it('accepts a body just under 100 kB', async () => {
+        const body = { padding: 'a'.repeat(99_000) };
+        const response = await post(JSON.stringify(body));
+
+        expect(response.status).toBe(201);
+        expect(await response.json()).toEqual({ received: body });
     });
 
     it('⛔ answers a body over 100 kB with 413, still carrying the allowed origin', async () => {

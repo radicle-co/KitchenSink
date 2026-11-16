@@ -88,8 +88,10 @@ describe('the body parser refuses with the published envelope', () => {
     // rewrites it into a `BadRequestException` carrying the parser's message, and that message quotes the request.
     it('⛔ answers malformed JSON with 400 BAD_REQUEST, and neither the response nor the log carries its text', async () => {
         const sinks = [
+            vi.spyOn(Logger.prototype, 'log'),
             vi.spyOn(Logger.prototype, 'warn'),
             vi.spyOn(Logger.prototype, 'error'),
+            vi.spyOn(console, 'log').mockImplementation(() => undefined),
             vi.spyOn(console, 'warn').mockImplementation(() => undefined),
             vi.spyOn(console, 'error').mockImplementation(() => undefined),
         ];
@@ -102,9 +104,16 @@ describe('the body parser refuses with the published envelope', () => {
         });
 
         expect(response.status).toBe(400);
-        expect(apiErrorSchema.parse(JSON.parse(text)).code).toBe('BAD_REQUEST');
+        const envelope = apiErrorSchema.parse(JSON.parse(text));
+
+        expect(envelope.code).toBe('BAD_REQUEST');
+        // The same `details.fields` a rejected body carries everywhere else in the validation envelope.
+        expect(envelope.details).toEqual({ fields: ['body: not valid JSON'] });
         expect(text).not.toContain('MARKER');
-        expect(logged.filter((line) => line.includes('MARKER'))).toEqual([]);
+        // IDENTITY'S FILTER WRITES NO LOG LINE FOR A 4xx (it reports only a 5xx to Sentry), and Nest's own handler logs
+        // nothing for an `HttpException`. So the exact state is that nothing at all was logged for this request: any
+        // line at all is a new log path, and this fails so that its content is read before it ships.
+        expect(logged).toEqual([]);
         expect(query).not.toHaveBeenCalled();
     });
 

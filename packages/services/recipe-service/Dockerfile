@@ -63,6 +63,11 @@ COPY packages/schemas/recipe/dist ./packages/schemas/recipe/dist
 # ability to report anything.
 COPY packages/shared/nest-error-envelope/prod.package.json ./packages/shared/nest-error-envelope/package.json
 COPY packages/shared/nest-error-envelope/dist ./packages/shared/nest-error-envelope/dist
+# Shared @kitchensink/nest-http-setup — the ONE ordered JSON-body setup (CORS, parser, refusal strip link) every
+# service's `config/httpSetup.ts` builds on. Same pattern as the leaves above: without its built dist and
+# dist-pointing prod manifest the bare-specifier import crash-loops at boot with ERR_MODULE_NOT_FOUND.
+COPY packages/shared/nest-http-setup/prod.package.json ./packages/shared/nest-http-setup/package.json
+COPY packages/shared/nest-http-setup/dist ./packages/shared/nest-http-setup/dist
 
 # Shared @kitchensink/rds-iam-auth — the ONE RDS-IAM pool config (signer, per-connection token function, TLS)
 # every service's pool is built from. Same pattern as the shared leaves above: the root node_modules symlink

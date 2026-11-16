@@ -513,7 +513,7 @@ describe('the cache key per route class (ADR-0020 trap 1 — the P0 data leak)',
         //
         // REWRITTEN twice. The `enableCors` call first moved out of `main.ts` into `src/config/httpSetup.ts` (CORS must
         // sit before the service's own JSON parser), and then into `jsonBodyHttpSetup` in
-        // `@kitchensink/nest-error-envelope`, which owns the ordered setup for every JSON-body service. Food's setup
+        // `@kitchensink/nest-http-setup`, which owns the ordered setup for every JSON-body service. Food's setup
         // therefore holds `jsonBodyHttpSetup(`, and the shared function holds the `enableCors` it always makes; both
         // are read so neither can change without this premise.
         const main = readFileSync(
@@ -524,7 +524,7 @@ describe('the cache key per route class (ADR-0020 trap 1 — the P0 data leak)',
         const food = distributionsByService(template)['food']!;
 
         const shared = readFileSync(
-            fileURLToPath(new URL('../../../shared/nest-error-envelope/src/jsonBodyHttpSetup.ts', import.meta.url)),
+            fileURLToPath(new URL('../../../shared/nest-http-setup/src/jsonBodyHttpSetup.ts', import.meta.url)),
             'utf8',
         );
 

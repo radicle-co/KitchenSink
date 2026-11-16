@@ -26,6 +26,7 @@ vi.mock('@kitchensink/clerk-verify', async (importOriginal) => {
 import { verifyClerkToken } from '@kitchensink/clerk-verify';
 
 import { apiErrorSchema } from '../src/common/apiError.schema.js';
+import { foodErrorSchema } from '../src/foods/foods.schema.js';
 import { bootMockedFoodsApi, principalFor, type MockedFoodsApi } from './support/mockedFoodsApi.js';
 
 const mockVerify = vi.mocked(verifyClerkToken);
@@ -87,6 +88,8 @@ describe('the body parser refuses with the published envelope', () => {
         });
 
         expect(response.status).toBe(400);
+        // The service's OWN published schema, whose `VALIDATION_FAILED` arm requires `details.fields`.
+        expect(foodErrorSchema.parse(JSON.parse(text))).toMatchObject({ code: 'VALIDATION_FAILED' });
         expect(apiErrorSchema.parse(JSON.parse(text)).code).toBe('VALIDATION_FAILED');
         expect(text).not.toContain('MARKER');
         expect(logged.length).toBeGreaterThan(0);

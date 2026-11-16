@@ -16,20 +16,39 @@
  * Pruning keeps the newest installs (an install is touched whenever it is used) and never deletes one whose hash is
  * a current worktree's lockfile (`git worktree list --porcelain`).
  *
+ * Files under a linked `node_modules` are SHARED INODES (the store's and every sibling worktree's): never edit one in
+ * place. The two kinds `npm install` rewrites, `.package-lock.json` at each `node_modules` root, are copied out of the
+ * link as they are linked. A new worktree also gets its git hooks: `core.hooksPath` is `.husky/_`, which is gitignored
+ * and made only by the `prepare` script (`husky`), so a cache hit that runs no npm runs `node_modules/.bin/husky`.
+ *
+ * A failure after `git worktree add` removes the worktree and the branch this run made, so a re-run can start clean.
+ *
  * shortcut: hard links need the install root and the worktree on one filesystem; on another `cp -al` fails loudly,
  * upgrade to a plain copy fallback only if that setup ever appears.
  *
  * @sideEffect Runs git and npm, and writes under the install root and the new worktree.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync } from 'node:fs';
+import {
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    readdirSync,
+    readFileSync,
+    renameSync,
+    rmSync,
+    statSync,
+    utimesSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
-import { join, relative } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const KEEP = 3;
 const STALE_TMP_MS = 24 * 60 * 60 * 1000;
 const TMP_PREFIX = '.tmp-';
+const TRASH_PREFIX = `${TMP_PREFIX}trash-`;
 
 /**
  * The key of an install: the sha256 of the lockfile bytes.
@@ -87,11 +106,26 @@ function nodeModulesDirs(root, dir = root) {
     });
 }
 
+/** Replace a hard-linked file with a private copy: copy aside, then rename over the link (atomic, same directory). */
+function breakLink(file) {
+    const copy = `${file}.tmp-${process.pid}`;
+
+    copyFileSync(file, copy);
+    renameSync(copy, file);
+}
+
 /** Hard-link every `node_modules` tree of `from` into the same relative place under `to`. */
 function linkTrees(from, to) {
     for (const rel of nodeModulesDirs(from)) {
         mkdirSync(join(to, rel, '..'), { recursive: true });
         execFileSync('cp', ['-al', join(from, rel), join(to, rel)]);
+
+        // `npm install` rewrites this file in place, which would rewrite it for the store and every sibling.
+        const hidden = join(to, rel, '.package-lock.json');
+
+        if (existsSync(hidden)) {
+            breakLink(hidden);
+        }
     }
 }
 
@@ -123,30 +157,26 @@ function prune(installRoot, repoRoot) {
         .map((e) => ({ hash: e.name, mtimeMs: e.mtimeMs }));
 
     for (const hash of installsToPrune(installs, KEEP, live)) {
-        rmSync(join(installRoot, hash), { recursive: true, force: true });
+        // Rename first: a run linking from this install sees all of it or ENOENT at its start, never a half-deleted
+        // tree. The trash name starts with TMP_PREFIX, so a killed run's leftover is swept by the stale-tmp rule above.
+        const trash = join(installRoot, `${TRASH_PREFIX}${hash}-${process.pid}`);
+
+        renameSync(join(installRoot, hash), trash);
+        rmSync(trash, { recursive: true, force: true });
     }
 }
 
-/**
- * Adds the worktree and gives it an install.
- *
- * @param {{ path: string, branch: string, startPoint?: string, installRoot: string, cwd: string }} input - The request.
- * @returns {void}
- * @sideEffect See the file header.
- */
-export function worktreeAdd({ path, branch, startPoint, installRoot, cwd }) {
-    execFileSync('git', ['worktree', 'add', '-b', branch, path, ...(startPoint === undefined ? [] : [startPoint])], {
-        cwd,
-        stdio: 'inherit',
-    });
+/** Runs the root `prepare` script's `husky` (not `npm run prepare`, whose `|| true` hides a failure). */
+function installHooks(path) {
+    execFileSync(join(path, 'node_modules/.bin/husky'), { cwd: path, stdio: 'inherit' });
+}
 
+function giveInstall(path, installRoot) {
     const hash = hashOf(path);
 
     if (hash === undefined) {
         throw new Error(`${path} has no package-lock.json, so there is no install to key`);
     }
-
-    mkdirSync(installRoot, { recursive: true });
 
     const shared = join(installRoot, hash);
 
@@ -174,10 +204,53 @@ export function worktreeAdd({ path, branch, startPoint, installRoot, cwd }) {
         }
     }
 
+    installHooks(path);
+}
+
+/**
+ * Adds the worktree and gives it an install.
+ *
+ * @param {{ path: string, branch: string, startPoint?: string, installRoot: string, cwd: string }} input - The request.
+ * @returns {void}
+ * @sideEffect See the file header.
+ */
+export function worktreeAdd({ path, branch, startPoint, installRoot, cwd }) {
+    // Hard links cannot cross filesystems: find out before anything is created, not from a failed `cp` half way.
+    mkdirSync(installRoot, { recursive: true });
+    mkdirSync(dirname(path), { recursive: true });
+
+    if (statSync(installRoot).dev !== statSync(dirname(path)).dev) {
+        throw new Error(
+            `${installRoot} and ${dirname(path)} are on different filesystems, so nothing can be hard-linked`,
+        );
+    }
+
+    const branchExists =
+        spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd }).status === 0;
+    const start = startPoint === undefined ? [] : [startPoint];
+
+    execFileSync('git', ['worktree', 'add', ...(branchExists ? [path, branch] : ['-b', branch, path, ...start])], {
+        cwd,
+        stdio: 'inherit',
+    });
+
+    try {
+        giveInstall(path, installRoot);
+    } catch (error) {
+        // Best effort: the original error is the one worth reading.
+        spawnSync('git', ['worktree', 'remove', '--force', path], { cwd });
+
+        if (!branchExists) {
+            spawnSync('git', ['branch', '-D', branch], { cwd });
+        }
+
+        throw error;
+    }
+
     prune(installRoot, cwd);
 }
 
-if (process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
     const [path, branch, startPoint] = process.argv.slice(2);
 
     if (path === undefined || branch === undefined) {
@@ -186,7 +259,8 @@ if (process.argv[1] !== undefined && import.meta.url === `file://${process.argv[
     }
 
     worktreeAdd({
-        path,
+        // `npm run` starts in the package root, but the caller typed the path from where they were: INIT_CWD.
+        path: resolve(process.env['INIT_CWD'] ?? process.cwd(), path),
         branch,
         startPoint,
         installRoot: process.env['KS_INSTALL_ROOT'] ?? join(homedir(), '.local/state/kitchensink/installs'),

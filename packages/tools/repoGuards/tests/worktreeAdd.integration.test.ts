@@ -9,6 +9,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import {
+    copyFileSync,
     existsSync,
     mkdirSync,
     mkdtempSync,
@@ -75,6 +76,11 @@ describe('worktree:add', () => {
                 'echo root > node_modules/dep/index.js',
                 '[ -n "$KS_FAKE_NPM_FAIL" ] && exit 1',
                 'echo inner > packages/a/node_modules/inner/index.js',
+                'echo root > node_modules/.package-lock.json',
+                'echo inner > packages/a/node_modules/.package-lock.json',
+                'mkdir -p node_modules/.bin',
+                "printf '#!/bin/sh\\nmkdir -p .husky/_ && echo hook > .husky/_/pre-commit\\n' > node_modules/.bin/husky",
+                'chmod +x node_modules/.bin/husky',
                 '',
             ].join('\n'),
             { mode: 0o755 },
@@ -101,6 +107,7 @@ describe('worktree:add', () => {
         );
         expect(readdirSync(installRoot)).toEqual([hash]);
         expect(npmCalls()).toBe(1);
+        expect(existsSync(path.join(wt, '.husky/_/pre-commit'))).toBe(true);
     });
 
     it('a second worktree on the same lockfile reuses the install and runs no npm', () => {
@@ -110,6 +117,59 @@ describe('worktree:add', () => {
         expect(existsSync(path.join(wt, 'node_modules/dep/index.js'))).toBe(true);
         expect(existsSync(path.join(wt, 'packages/a/node_modules/inner/index.js'))).toBe(true);
         expect(npmCalls()).toBe(1);
+        // A cache hit runs no npm, so no `prepare`: the hooks folder git's core.hooksPath names must still be made.
+        expect(existsSync(path.join(wt, '.husky/_/pre-commit'))).toBe(true);
+    });
+
+    it('writing a worktree`s .package-lock.json in place leaves the shared install and its siblings unchanged', () => {
+        const hash = lockfileHash(Buffer.from(lock));
+        const shared = path.join(installRoot, hash);
+        const wt = path.join(scratch, 'wt2');
+
+        for (const rel of ['node_modules/.package-lock.json', 'packages/a/node_modules/.package-lock.json']) {
+            expect(statSync(path.join(wt, rel)).ino).not.toBe(statSync(path.join(shared, rel)).ino);
+            writeFileSync(path.join(wt, rel), 'rewritten by npm install\n');
+            expect(readFileSync(path.join(shared, rel), 'utf8')).not.toContain('rewritten');
+            expect(readFileSync(path.join(scratch, 'wt1', rel), 'utf8')).not.toContain('rewritten');
+        }
+
+        // The rest of the tree stays shared: only the files npm rewrites are broken out.
+        expect(statSync(path.join(wt, 'node_modules/dep/index.js')).ino).toBe(
+            statSync(path.join(shared, 'node_modules/dep/index.js')).ino,
+        );
+    });
+
+    it('checks out an existing branch instead of failing on -b', () => {
+        git(repo, 'branch', 'feature/existing', 'main');
+
+        const wt = path.join(scratch, 'wtExisting');
+        run([wt, 'feature/existing']);
+
+        expect(git(wt, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('feature/existing');
+    });
+
+    it('resolves a relative path against INIT_CWD, the directory npm was started in', () => {
+        const start = path.join(scratch, 'start');
+        mkdirSync(start);
+        run(['wtRelative', 'feature/relative'], { INIT_CWD: start });
+
+        expect(git(path.join(start, 'wtRelative'), 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe(
+            'feature/relative',
+        );
+    });
+
+    it('runs when its own path has a space, which import.meta.url percent-encodes', () => {
+        const dir = path.join(scratch, 'with space');
+        mkdirSync(dir);
+        copyFileSync(script, path.join(dir, 'worktreeAdd.mjs'));
+
+        const wt = path.join(scratch, 'wtSpace');
+        execFileSync('node', [path.join(dir, 'worktreeAdd.mjs'), wt, 'feature/space'], {
+            cwd: repo,
+            env: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}`, KS_INSTALL_ROOT: installRoot },
+        });
+
+        expect(existsSync(path.join(wt, 'node_modules/dep/index.js'))).toBe(true);
     });
 
     it('a failed install leaves no install behind, so nothing half-built is reused', () => {
@@ -134,10 +194,34 @@ describe('worktree:add', () => {
             }),
         ).toThrow();
 
+        // The half-made worktree and its new branch are gone, so a re-run of the same command can start clean.
+        expect(existsSync(other)).toBe(false);
+        expect(git(failing, 'branch', '--list', 'feature/three').trim()).toBe('');
+        expect(git(failing, 'worktree', 'list', '--porcelain')).not.toContain(other);
+
         const failedHash = lockfileHash(Buffer.from('{"lockfileVersion":3,"packages":{"x":{}}}\n'));
 
         expect(existsSync(path.join(installRoot, failedHash))).toBe(false);
         expect(readdirSync(installRoot).filter((name) => name.startsWith('.tmp'))).toEqual([]);
+    });
+
+    it('refuses an install root on another filesystem before it adds anything', () => {
+        const foreign = path.join('/dev/shm', `worktreeAdd-${process.pid}`);
+        mkdirSync('/dev/shm', { recursive: true });
+        const sameDevice = statSync('/dev/shm').dev === statSync(scratch).dev;
+        const wt = path.join(scratch, 'wtForeign');
+
+        try {
+            if (sameDevice) {
+                return;
+            }
+
+            expect(() => run([wt, 'feature/foreign'], { KS_INSTALL_ROOT: foreign })).toThrow();
+            expect(existsSync(wt)).toBe(false);
+            expect(git(repo, 'branch', '--list', 'feature/foreign').trim()).toBe('');
+        } finally {
+            rmSync(foreign, { recursive: true, force: true });
+        }
     });
 
     it('prunes installs beyond the newest three but keeps the one a live worktree needs', () => {
@@ -161,6 +245,12 @@ describe('worktree:add', () => {
         mkdirSync(path.join(installRoot, kept, 'node_modules'), { recursive: true });
         utimesSync(path.join(installRoot, kept), new Date(1), new Date(1));
 
+        // Pruning renames a victim to `.tmp-trash-*` before it deletes it, so those folders are tmp: an old one is a
+        // killed run's leftover and goes, a fresh one may be another run's work in progress and stays.
+        mkdirSync(path.join(installRoot, '.tmp-trash-old-1'));
+        utimesSync(path.join(installRoot, '.tmp-trash-old-1'), new Date(500), new Date(500));
+        mkdirSync(path.join(installRoot, '.tmp-trash-fresh-1'));
+
         run([path.join(scratch, 'wt4'), 'feature/four', 'main']);
 
         const left = readdirSync(installRoot).sort();
@@ -171,5 +261,8 @@ describe('worktree:add', () => {
         expect(left).toContain('s3');
         expect(left).not.toContain('s2');
         expect(left).not.toContain('s1');
+        expect(left).not.toContain('.tmp-trash-old-1');
+        expect(left).toContain('.tmp-trash-fresh-1');
+        expect(left.filter((name) => name.startsWith('.tmp-trash-') && name !== '.tmp-trash-fresh-1')).toEqual([]);
     });
 });

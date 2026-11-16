@@ -5,6 +5,7 @@
  * five-minute auto-save retired; the lifecycle is pinned by `useRecipeEditor.test.tsx`, the frame by
  * `RecipeEditorView.test.tsx`, and the browser behaviour by `recipeEditor.spec.ts`.
  */
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -81,13 +82,15 @@ afterEach(() => {
 function renderEditor(client: RecipeServiceClient, recipeId?: string, store?: OutboxStore): void {
     renderWithRecipeClient(
         withFoodClient(
-            <SyncProvider
-                subject="user_cook"
-                send={recipeSender(() => client)}
-                {...(store === undefined ? {} : { store })}
-            >
-                <RecipeEditorContainer locale="en" {...(recipeId === undefined ? {} : { recipeId })} />
-            </SyncProvider>,
+            <SnackbarHost>
+                <SyncProvider
+                    subject="user_cook"
+                    send={recipeSender(() => client)}
+                    {...(store === undefined ? {} : { store })}
+                >
+                    <RecipeEditorContainer locale="en" {...(recipeId === undefined ? {} : { recipeId })} />
+                </SyncProvider>
+            </SnackbarHost>,
         ),
         client,
     );
@@ -815,9 +818,11 @@ describe('RecipeEditorContainer (web) — the signed-in cook changes', () => {
         const client = createFakeRecipeServiceClient();
         const tree = () =>
             withFoodClient(
-                <SyncProvider subject={auth.userId} send={recipeSender(() => client)} store={webDeviceStore}>
-                    <RecipeEditorContainer locale="en" />
-                </SyncProvider>,
+                <SnackbarHost>
+                    <SyncProvider subject={auth.userId} send={recipeSender(() => client)} store={webDeviceStore}>
+                        <RecipeEditorContainer locale="en" />
+                    </SyncProvider>
+                </SnackbarHost>,
             );
         const view = renderWithRecipeClient(tree(), client);
         await userEvent.type(await screen.findByRole('textbox', { name: /title/iu }), 'Soup of A');
@@ -855,9 +860,11 @@ describe('RecipeEditorContainer (web) — the signed-in cook changes', () => {
         vi.spyOn(client, 'updateRecipe').mockReturnValue(new Promise(() => undefined));
         const tree = () =>
             withFoodClient(
-                <SyncProvider subject={auth.userId} send={recipeSender(() => client)} store={webDeviceStore}>
-                    <RecipeEditorContainer locale="en" recipeId="rec_1" />
-                </SyncProvider>,
+                <SnackbarHost>
+                    <SyncProvider subject={auth.userId} send={recipeSender(() => client)} store={webDeviceStore}>
+                        <RecipeEditorContainer locale="en" recipeId="rec_1" />
+                    </SyncProvider>
+                </SnackbarHost>,
             );
         const view = renderWithRecipeClient(tree(), client);
         const title = await screen.findByRole('textbox', { name: /title/iu });
@@ -893,9 +900,11 @@ describe('RecipeEditorContainer (web) — a New recipe press on the new-recipe p
     function renderNewEditor(client: RecipeServiceClient) {
         const tree = () =>
             withFoodClient(
-                <SyncProvider subject="user_cook" send={recipeSender(() => client)}>
-                    <RecipeEditorContainer locale="en" />
-                </SyncProvider>,
+                <SnackbarHost>
+                    <SyncProvider subject="user_cook" send={recipeSender(() => client)}>
+                        <RecipeEditorContainer locale="en" />
+                    </SyncProvider>
+                </SnackbarHost>,
             );
 
         return { view: renderWithRecipeClient(tree(), client), tree };
@@ -1004,9 +1013,11 @@ describe('RecipeEditorContainer (web) — the URL after the first save', () => {
         window.history.replaceState(null, '', '/en/recipes/new');
         const view = renderWithRecipeClient(
             withFoodClient(
-                <SyncProvider subject="user_cook" send={recipeSender(() => createFakeRecipeServiceClient())}>
-                    <RecipeEditorContainer locale="en" />
-                </SyncProvider>,
+                <SnackbarHost>
+                    <SyncProvider subject="user_cook" send={recipeSender(() => createFakeRecipeServiceClient())}>
+                        <RecipeEditorContainer locale="en" />
+                    </SyncProvider>
+                </SnackbarHost>,
             ),
             createFakeRecipeServiceClient(),
         );

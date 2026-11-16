@@ -10,6 +10,7 @@
  * features alone (E1, plan 2026-10-14-009 D14); the app's close and "My recipes" hand-offs are the ones the view calls.
  * Real hooks over the type-checked fake client, as `useRecipeEditorSession.test.tsx` has them.
  */
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { LocaleProvider } from '@commise/i18n/react';
 import { makeQuietFoodClient } from '@commise/test-utils';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
@@ -147,7 +148,9 @@ function mount(over: Partial<HarnessProps> = {}, client = createFakeRecipeServic
             <QueryClientProvider client={queryClient}>
                 <RecipeServiceProvider client={client}>
                     <FoodServiceProvider client={makeQuietFoodClient()} subject="user_cook">
-                        <Harness {...props} />
+                        <SnackbarHost>
+                            <Harness {...props} />
+                        </SnackbarHost>
                     </FoodServiceProvider>
                 </RecipeServiceProvider>
             </QueryClientProvider>
@@ -953,5 +956,57 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         await user.tab();
 
         expect(within(section()).getByText(/That isn’t a web link/u)).toBeTruthy();
+    });
+});
+
+/**
+ * ADR-0092: the editor's source question. The sheet is a render of what the editor stands (`statementAsk`), its answers go
+ * back through the editor, and the passive line is drawn exactly when the editor says it is (`confirmLineShown`).
+ */
+describe('RecipeEditorSurface — the source question (ADR-0092)', () => {
+    const LINE = 'Anyone can see a public recipe and save a copy.';
+
+    it('shows no sheet while no ask stands', () => {
+        mount();
+
+        expect(screen.queryByRole('dialog', { name: 'Where is this recipe from?' })).toBeNull();
+    });
+
+    it('opens the sheet with the five editor answers while the editor asks', async () => {
+        mount({ editorOver: { statementAsk: true } });
+
+        const sheet = await screen.findByRole('dialog', { name: 'Where is this recipe from?' });
+
+        expect(within(sheet).getAllByRole('radio')).toHaveLength(5);
+    });
+
+    it('Confirm hands the editor the answer, and Close dismisses without answering', async () => {
+        const user = userEvent.setup();
+        const answerStatement = vi.fn();
+        const dismissStatement = vi.fn();
+        mount({ editorOver: { statementAsk: true, answerStatement, dismissStatement } });
+
+        const sheet = await screen.findByRole('dialog', { name: 'Where is this recipe from?' });
+        await user.click(within(sheet).getByRole('radio', { name: /I wrote this|my own/iu }));
+        await user.click(within(sheet).getByRole('button', { name: 'Publish' }));
+
+        expect(answerStatement).toHaveBeenCalledWith(
+            expect.objectContaining({ statement: expect.objectContaining({ kind: 'authored' }) }),
+        );
+
+        await user.click(within(sheet).getByRole('button', { name: 'Close this question' }));
+
+        expect(dismissStatement).toHaveBeenCalledTimes(1);
+    });
+
+    it('draws the passive line only when the editor says it is shown', () => {
+        const { unmount } = mount({ editorOver: { confirmLineShown: true } });
+
+        expect(screen.getByText(LINE)).toBeTruthy();
+
+        unmount();
+        mount({ editorOver: { confirmLineShown: false } });
+
+        expect(screen.queryByText(LINE)).toBeNull();
     });
 });

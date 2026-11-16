@@ -467,3 +467,43 @@ describe('RecipeVisibilityField (native) - over the limit after a downgrade', ()
         expect(screen.queryByText(/They stay private/u)).toBeNull();
     });
 });
+
+/**
+ * ADR-0092: the passive line under the Public card, and the held note. The line is drawn only when the host gives it (the
+ * host gives it exactly when no sheet will ask), and a held recipe refuses Public with its own note and no line.
+ */
+describe('RecipeVisibilityField (native) - the passive line and the held note (ADR-0092)', () => {
+    const LINE = 'Anyone can see a public recipe and save a copy.';
+    const facts: RecipePrivateFacts = { rule: 'slots', standing: { kind: 'unknown' }, state: 'granted' };
+    const fieldWith = (extra: { readonly confirmLine?: string; readonly publicHeld?: boolean }) => (
+        <RecipeVisibilityField
+            values={{ ...defaultRecipeFormValues(), visibility: 'public' }}
+            facts={facts}
+            heldVisibility="public"
+            privateRefusal={recipePrivateRefusalOf(facts)}
+            onFreeASlot={() => undefined}
+            onConfirmPublic={() => undefined}
+            onChange={() => undefined}
+            {...extra}
+        />
+    );
+
+    it('draws the line when the host gives it', () => {
+        render(fieldWith({ confirmLine: LINE }));
+
+        expect(screen.getByText(LINE)).toBeTruthy();
+    });
+
+    it('draws no line when the host gives none', () => {
+        render(fieldWith({}));
+
+        expect(screen.queryByText(LINE)).toBeNull();
+    });
+
+    it('a held recipe refuses Public with the held note and draws no line', () => {
+        render(fieldWith({ confirmLine: LINE, publicHeld: true }));
+
+        expect(screen.queryByText(LINE)).toBeNull();
+        expect(screen.getByText(v.publicHeldBySource)).toBeTruthy();
+    });
+});

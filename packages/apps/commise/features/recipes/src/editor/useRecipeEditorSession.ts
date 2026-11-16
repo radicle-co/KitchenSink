@@ -38,6 +38,7 @@ import {
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
 import { useQueryClient } from '@tanstack/react-query';
+import type { DraftAction } from '../form/draftAction.js';
 import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 
 import { effectiveVisibility, heldVisibility, type PrivateRefusal } from '../actions/privateGate.js';
@@ -303,10 +304,20 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         recipe: seed.recipe,
         refused: editor.refusedFields.has('source'),
     });
+    // ADR-0092: a paste joined the draft, so Publish must ask where the recipe is from. The mark is the client's word that
+    // content was pasted, and it is set where the paste lands, not where it was offered.
+    const { setField } = editor;
+    const pasteDispatch = useCallback(
+        (action: DraftAction): void => {
+            dispatch(action);
+            setField('pasted', true);
+        },
+        [dispatch, setField],
+    );
     const paste = useIngredientsPaste({
         offered: editor.pasteAvailable,
         keepsSource: editor.pasteKeepsSource,
-        dispatch,
+        dispatch: pasteDispatch,
         lineKeys: editor.values.ingredients.map((line) => line.key),
         initiallyOpen: openPaste,
         hold: pasteHold,
@@ -328,7 +339,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         source,
         applyLineStatus,
         blur: () => editor.checkpoint('fieldBlur'),
-        appendSteps: (instructions) => dispatch({ kind: 'appendSteps', instructions }),
+        appendSteps: (instructions) => pasteDispatch({ kind: 'appendSteps', instructions }),
         photos,
         preview: {
             open: previewing,

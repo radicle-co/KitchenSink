@@ -15,6 +15,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import type { PrivateRule, RecipeDetail, SourceLinkExtraction } from '@kitchensink/recipe-core';
+import { useSnackbar } from '@commise/ui/snackbar';
 import { useState } from 'react';
 
 import { fillTemplate } from '@commise/i18n';
@@ -120,6 +121,17 @@ export function useEditorSource(options: UseEditorSourceOptions): EditorSource {
     const [focusRequested, setFocusRequested] = useState(false);
     const [pasteFocus, setPasteFocus] = useState<PasteOrigin | undefined>(undefined);
     const [touched, setTouched] = useState(false);
+    const [announcedRemoval, setAnnouncedRemoval] = useState(false);
+    const snackbar = useSnackbar();
+    // A web link the server records is on record, so emptying the field or pressing Remove is a change worth saying once.
+    const recordsSource =
+        (recipe?.sourceKind === 'public_web' || recipe?.sourceKind === 'book') && (recipe.sourceUrl ?? '') !== '';
+    const sayRemoved = (): void => {
+        if (recordsSource && !announcedRemoval) {
+            setAnnouncedRemoval(true);
+            snackbar.show({ message: messages.removed });
+        }
+    };
 
     const say = (note: PastedSourceNote, origin: PasteOrigin): void =>
         setNotice((previous) => ({
@@ -135,12 +147,20 @@ export function useEditorSource(options: UseEditorSourceOptions): EditorSource {
         privateRule: draftPrivateRule(values, recipe),
         webSource: draftSourceOf(values).kind === 'link',
         onChange: (text) => {
+            setAnnouncedRemoval(false);
             setFromPaste(false);
             setTouched(false);
             setNotice(undefined);
             dispatch({ kind: 'setSourceLink', link: text });
         },
-        onTouched: () => setTouched(true),
+        onTouched: () => {
+            setTouched(true);
+
+            // The cook emptied a saved source and left the field.
+            if (draftSourceOf(values).kind === 'none' && (values.sourceLink ?? '') === '') {
+                sayRemoved();
+            }
+        },
         remove: (removal) => {
             const link = draftSourceOf(values);
 
@@ -157,6 +177,7 @@ export function useEditorSource(options: UseEditorSourceOptions): EditorSource {
 
             setNotice(undefined);
             dispatch({ kind: 'setSourceLink', link: '' });
+            sayRemoved();
         },
         focusRequested,
         onFocusHandled: () => setFocusRequested(false),

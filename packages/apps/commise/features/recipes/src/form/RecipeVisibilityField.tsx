@@ -17,7 +17,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
-import type { RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeVisibility as RecipeVisibilityValue, type RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
 import { heldVisibility } from '../actions/privateGate.js';
@@ -30,6 +30,7 @@ const card = `flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border 
 const cardResting = 'border-line-control bg-paper';
 const cardChosen = 'border-selected-edge bg-selected-fill';
 const cardRefused = 'cursor-not-allowed';
+const confirmLineId = 'recipe-visibility-confirm-line';
 
 /** "Who can see it": Public or Private. */
 export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
@@ -42,17 +43,21 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     onConfirmPublic,
     onFreeASlot,
     webSource,
+    publicHeld,
+    confirmLine: confirmText,
 }) => {
     const { visibility: v } = useMessages(editorMessages);
     // Idempotent over a host that already passes the held value: the field enforces the rule rather than trusting it.
     const savedVisibility = heldVisibility(held, values.visibility);
-    const { shown, options, slotsFull } = visibilityFieldOf({
+    const { shown, options, slotsFull, confirmLine } = visibilityFieldOf({
         draft: values.visibility,
         saved: savedVisibility,
         facts,
         refusal: privateRefusal,
         messages: v,
         ...(webSource === undefined ? {} : { webSource }),
+        ...(publicHeld === undefined ? {} : { publicHeld }),
+        ...(confirmText === undefined ? {} : { confirmLine: confirmText }),
     });
 
     const choose = (chosen: RecipeVisibility): void => {
@@ -77,7 +82,13 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     // A refused card is described by its reason alone: the hint ("Anyone can find it in Discover") is not true of it.
                     const describedBy = option.refused
                         ? noteId
-                        : [hintId, ...(option.note === undefined ? [] : [noteId])].join(' ');
+                        : [
+                              hintId,
+                              ...(option.note === undefined ? [] : [noteId]),
+                              ...(option.value === RecipeVisibilityValue.PUBLIC && confirmLine !== undefined
+                                  ? [confirmLineId]
+                                  : []),
+                          ].join(' ');
 
                     return (
                         <label
@@ -113,6 +124,12 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     );
                 })}
             </div>
+            {confirmLine === undefined ? null : (
+                // ADR-0092: said before the cook chooses Public (WCAG 3.2.2); it describes the Public radio.
+                <p id={confirmLineId} className="text-meta text-ink-muted">
+                    {confirmLine}
+                </p>
+            )}
             {slotsFull === undefined ? null : (
                 // ADR-0073: the refusal's ways forward. Premium is among them only where paid features are shown.
                 <div role="group" aria-labelledby="recipe-visibility-ways" className="mt-1 flex flex-col gap-2">

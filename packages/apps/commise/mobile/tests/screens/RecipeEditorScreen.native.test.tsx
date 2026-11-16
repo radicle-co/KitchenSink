@@ -6,6 +6,7 @@
  * the wizard; the editor's lifecycle is pinned by `useRecipeEditor.test.tsx`, and the frame by
  * `RecipeEditorView.native.test.tsx`.
  */
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { recipeLoadMessages } from '@commise/features-recipes/detail';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
@@ -100,9 +101,11 @@ function renderScreen(client: RecipeServiceClient, props: Partial<Parameters<typ
 
     renderWithRecipeClient(
         withFoodClient(
-            <SyncProvider subject="user_cook" send={recipeSender(() => client)}>
-                <RecipeEditorScreen {...handlers} {...props} />
-            </SyncProvider>,
+            <SnackbarHost>
+                <SyncProvider subject="user_cook" send={recipeSender(() => client)}>
+                    <RecipeEditorScreen {...handlers} {...props} />
+                </SyncProvider>
+            </SnackbarHost>,
         ),
         client,
     );
@@ -270,9 +273,11 @@ describe('RecipeEditorScreen (native)', () => {
 
         renderWithRecipeClient(
             withFoodClient(
-                <SyncProvider subject="user_cook" send={recipeSender(() => client)}>
-                    <Cleared />
-                </SyncProvider>,
+                <SnackbarHost>
+                    <SyncProvider subject="user_cook" send={recipeSender(() => client)}>
+                        <Cleared />
+                    </SyncProvider>
+                </SnackbarHost>,
             ),
             client,
         );
@@ -847,9 +852,11 @@ describe('RecipeEditorScreen (native) — the signed-in cook changes', () => {
         const handlers = { onFinished: vi.fn(), onClose: vi.fn(), onDiscarded: vi.fn() };
         const tree = () =>
             withFoodClient(
-                <SyncProvider subject={auth.userId} send={recipeSender(() => client)} store={store}>
-                    <RecipeEditorScreen {...handlers} />
-                </SyncProvider>,
+                <SnackbarHost>
+                    <SyncProvider subject={auth.userId} send={recipeSender(() => client)} store={store}>
+                        <RecipeEditorScreen {...handlers} />
+                    </SyncProvider>
+                </SnackbarHost>,
             );
         const view = renderWithRecipeClient(tree(), client);
         fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Soup of A' } });
@@ -1158,9 +1165,11 @@ describe('RecipeEditorScreen (native) — Discard with a parked save', () => {
 
         renderWithRecipeClient(
             withFoodClient(
-                <SyncProvider subject="user_cook" send={recipeSender(() => client)} store={store}>
-                    <RecipeEditorScreen {...handlers} recipeId="rec_1" />
-                </SyncProvider>,
+                <SnackbarHost>
+                    <SyncProvider subject="user_cook" send={recipeSender(() => client)} store={store}>
+                        <RecipeEditorScreen {...handlers} recipeId="rec_1" />
+                    </SyncProvider>
+                </SnackbarHost>,
             ),
             client,
         );

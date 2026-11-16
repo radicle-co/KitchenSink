@@ -121,6 +121,10 @@ export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps,
      * so, instead of the book and paid-site reason.
      */
     readonly webSource?: boolean;
+    /** Whether a recorded source holds the recipe out of Public (ADR-0092): Public is refused with the held note. */
+    readonly publicHeld?: boolean;
+    /** The passive line under the Public card, when this screen draws it: what was sent is what was shown. */
+    readonly confirmLine?: string;
 }
 
 /** One card of the "Who can see it" field. */

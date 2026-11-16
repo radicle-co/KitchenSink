@@ -6,6 +6,7 @@
  *
  * Real hooks over the type-checked fake client; the write port is the fake outbox the lifecycle suite uses.
  */
+import { SnackbarHost } from '@commise/ui/snackbar';
 import type { PrivateRefusal } from '../../actions/privateGate.js';
 import { makeQuietFoodClient } from '@commise/test-utils';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
@@ -20,7 +21,7 @@ import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks'
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { recipeQueries, recipeServiceKeys, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -80,7 +81,7 @@ function mount(
         <QueryClientProvider client={queryClient}>
             <RecipeServiceProvider client={client}>
                 <FoodServiceProvider client={makeQuietFoodClient()} subject="user_cook">
-                    {children}
+                    <SnackbarHost>{children}</SnackbarHost>
                 </FoodServiceProvider>
             </RecipeServiceProvider>
         </QueryClientProvider>
@@ -801,5 +802,84 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
 
         expect(createParseJob.mock.calls[0]?.[0]).toEqual({ text: '2 eggs\n1 cup flour' });
         expect(view.result.current.editor.values.sourceLink).toBe(ALLRECIPES);
+    });
+});
+
+/**
+ * ADR-0092: a paste that joins the draft marks it, so Publish asks where the recipe is from. Typing marks nothing.
+ */
+describe('useRecipeEditorSession — what marks a draft as pasted (ADR-0092)', () => {
+    it('pasted steps mark the draft', () => {
+        const view = mount();
+
+        act(() => {
+            view.result.current.appendSteps(['Boil the water.']);
+        });
+
+        expect(view.result.current.editor.values.pasted).toBe(true);
+    });
+
+    it('typing a title marks nothing', () => {
+        const view = mount();
+
+        act(() => {
+            view.result.current.editor.setField('title', 'Soup');
+        });
+
+        expect(view.result.current.editor.values.pasted).toBeUndefined();
+    });
+});
+
+/**
+ * ADR-0092: taking off a source the server records is said once, in the snackbar's polite live region. A source the draft
+ * only holds, or one the server records without a link to empty, is not.
+ */
+describe('useRecipeEditorSession — "Source removed." (ADR-0092)', () => {
+    const recorded = () =>
+        makeRecipeDetail({
+            id: 'rec_9',
+            status: RecipeStatus.DRAFT,
+            sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+            sourceKind: 'public_web',
+            sourceUrl: 'https://www.example.com/pie',
+        });
+
+    it('Remove says it once', () => {
+        const view = mount({ recipe: recorded() });
+
+        act(() => {
+            view.result.current.source.remove();
+        });
+
+        expect(screen.getAllByText('Source removed.')).toHaveLength(1);
+    });
+
+    it('emptying the field and leaving it says it once, and leaving it again says nothing more', () => {
+        const view = mount({ recipe: recorded() });
+
+        act(() => {
+            view.result.current.source.onChange('');
+        });
+        act(() => {
+            view.result.current.source.onTouched();
+        });
+        act(() => {
+            view.result.current.source.onTouched();
+        });
+
+        expect(screen.getAllByText('Source removed.')).toHaveLength(1);
+    });
+
+    it('says nothing for a recipe with no recorded source', () => {
+        const view = mount({ recipe: complete() });
+
+        act(() => {
+            view.result.current.source.onChange('');
+        });
+        act(() => {
+            view.result.current.source.onTouched();
+        });
+
+        expect(screen.queryByText('Source removed.')).toBeNull();
     });
 });

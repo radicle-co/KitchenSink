@@ -8,6 +8,7 @@
  * Real draft store and real outbox mutator over one memory store, as an app composes them; the write port queues
  * through the mutator and never drains (the cook is offline), so the create stays in the journal until the clear.
  */
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { makeQuietFoodClient } from '@commise/test-utils';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
@@ -121,13 +122,15 @@ describe('the session ends while the editor holds a titled, unsent new recipe', 
             <QueryClientProvider client={queryClient}>
                 <RecipeServiceProvider client={createFakeRecipeServiceClient()}>
                     <FoodServiceProvider client={makeQuietFoodClient()} subject="user_cook">
-                        <App
-                            store={store}
-                            subject={subject}
-                            onSession={(next) => {
-                                session = next;
-                            }}
-                        />
+                        <SnackbarHost>
+                            <App
+                                store={store}
+                                subject={subject}
+                                onSession={(next) => {
+                                    session = next;
+                                }}
+                            />
+                        </SnackbarHost>
                     </FoodServiceProvider>
                 </RecipeServiceProvider>
             </QueryClientProvider>

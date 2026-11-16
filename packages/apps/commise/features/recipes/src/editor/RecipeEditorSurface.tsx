@@ -41,6 +41,9 @@ import { RecipeIngredientsFields } from '../form/RecipeIngredientsFields.js';
 import { RecipeInstructionsFields } from '../form/RecipeInstructionsFields.js';
 import { PastedSourceNotice } from '../form/PastedSourceNotice.js';
 import { RecipeSourceField } from '../form/RecipeSourceField.js';
+import { recipeActionMessages } from '../actions/messages.js';
+import { SourceStatementSheet } from '../actions/SourceStatementSheet.js';
+import { useStatementSheet } from '../actions/useStatementSheet.js';
 import { RecipeVisibilityField } from '../form/RecipeVisibilityField.js';
 import { entryFieldIdOf } from '../form/fieldIds.js';
 import { originalLinesOf } from '../form/wire.js';
@@ -158,6 +161,8 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     const errors = errorsStillHolding(editor.refusedFields, editor.values, session.rowEditor.entry.pendingEntryText);
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
     const locale = useLocale();
+    const { publicConfirm } = useMessages(recipeActionMessages);
+    const statementSheet = useStatementSheet({ locale, onAnswer: editor.answerStatement });
     // Kept while the sheet closes, so its words do not change under its own animation.
     const blocked = useLastDefined(editor.publishBlocked);
     // E1 + plan 2026-10-14-009 D14, amended by ADR-0073: Private within the cook's slots (the count is the server's, shown
@@ -322,6 +327,8 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                             values={editor.values}
                             onChange={editor.setValues}
                             webSource={source.webSource}
+                            publicHeld={editor.publicHeld}
+                            {...(editor.confirmLineShown ? { confirmLine: publicConfirm.line } : {})}
                             {...privateChoice.field}
                             onPremiumRequired={privateChoice.onPremiumRequired}
                             onConfirmPublic={privateChoice.onConfirmPublic}
@@ -437,6 +444,17 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                     onClose={dismissRefusal}
                 />
             )}
+            <SourceStatementSheet
+                open={editor.statementAsk}
+                surface="editor"
+                state={statementSheet.state}
+                dispatch={statementSheet.dispatch}
+                onConfirm={statementSheet.confirm}
+                onDismiss={() => {
+                    editor.dismissStatement();
+                    statementSheet.reset();
+                }}
+            />
             {blocked === undefined ? null : (
                 <PublishBlockedSheet
                     open={editor.publishBlocked !== undefined}

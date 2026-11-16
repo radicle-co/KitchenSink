@@ -12,6 +12,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
+import { Text as UiText } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { touchFloor } from '@commise/ui/layout';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
@@ -33,18 +34,22 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     onConfirmPublic,
     onFreeASlot,
     webSource,
+    publicHeld,
+    confirmLine: confirmText,
 }) => {
     const { visibility: v } = useMessages(editorMessages);
     const { colors } = useTheme();
     // Idempotent over a host that already passes the held value: the field enforces the rule rather than trusting it.
     const savedVisibility = heldVisibility(held, values.visibility);
-    const { shown, options, slotsFull } = visibilityFieldOf({
+    const { shown, options, slotsFull, confirmLine } = visibilityFieldOf({
         draft: values.visibility,
         saved: savedVisibility,
         facts,
         refusal: privateRefusal,
         messages: v,
         ...(webSource === undefined ? {} : { webSource }),
+        ...(publicHeld === undefined ? {} : { publicHeld }),
+        ...(confirmText === undefined ? {} : { confirmLine: confirmText }),
     });
 
     const choose = (chosen: RecipeVisibility): void => {
@@ -100,6 +105,12 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     );
                 })}
             </View>
+            {confirmLine === undefined ? null : (
+                // ADR-0092: said before the cook chooses Public.
+                <UiText typeRole="meta" color="$inkMuted">
+                    {confirmLine}
+                </UiText>
+            )}
             {slotsFull === undefined ? null : (
                 // ADR-0073: the refusal's ways forward. Premium is among them only where paid features are shown.
                 <View style={styles.ways}>

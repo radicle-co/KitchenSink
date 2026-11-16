@@ -31,6 +31,26 @@ export interface VisibleBlock {
     readonly group: number;
     /** Whether the block is a heading or a caption, which labels a list and is no line of it. */
     readonly isHeading: boolean;
+    /** The block element the block is read from, as its number in {@link VisibleRead.elements} (0: none). */
+    readonly element: number;
+    /** The nearest `<li>` the block sits in, as its element number (0: none). */
+    readonly item: number;
+}
+
+/** Where a block element sits among the others: numbered in document order, so its descendants are a range. */
+export interface ElementExtent {
+    /** The number of the block element it sits in (0 for the root, and -1 for the root itself). */
+    readonly parent: number;
+    /** The number of its last descendant: the block elements inside it are numbered from its own up to this. */
+    readonly last: number;
+}
+
+/** A body's visible text: its blocks, the block elements they sit in, and whether the read was cut short. */
+export interface VisibleRead {
+    readonly blocks: readonly VisibleBlock[];
+    /** Every block element read, by number; 0 is the root of the read. */
+    readonly elements: readonly ElementExtent[];
+    readonly truncated: boolean;
 }
 
 /** One element of a pasted page. */
@@ -50,7 +70,7 @@ export interface PageElement {
      * The same blocks, read to the page's own budget ({@link MAX_VISIBLE_NODES}), each with what the extras check needs
      * to know of where it sits, and whether that budget cut them short.
      */
-    visibleText(): { readonly blocks: readonly VisibleBlock[]; readonly truncated: boolean };
+    visibleText(): VisibleRead;
     /** The text children exactly as written, with no entity decoding. For a `<script>`, its source. */
     rawText(): string;
 }
@@ -116,12 +136,54 @@ const HEADING_TAGS: ReadonlySet<string> = new Set([
     'summary',
 ]);
 
-/** Elements whose content is code, style, an inert template, a fallback or a form field's value: never text a cook reads. */
-const NON_TEXT_TAGS: ReadonlySet<string> = new Set(['script', 'style', 'template', 'noscript', 'textarea']);
+/**
+ * Elements whose content is code, style, an inert template, a fallback, a form field's value or a tooltip: never text a
+ * cook reads. `title` in a body is an SVG's tooltip (the page's own title is in the head, which is never read).
+ */
+const NON_TEXT_TAGS: ReadonlySet<string> = new Set([
+    'script',
+    'style',
+    'template',
+    'noscript',
+    'textarea',
+    'iframe',
+    'noembed',
+    'title',
+]);
 
-/** Whether an element is one a cook cannot see: a non-text tag, or any element carrying the `hidden` attribute. */
+/** The inline style declarations that stop a browser drawing an element. */
+const HIDING_STYLES: ReadonlySet<string> = new Set(['display:none', 'visibility:hidden', 'visibility:collapse']);
+
+/** Whether an inline `style` hides its element: a split on `;` and `:`, so the cost is linear in the attribute. */
+function styleHides(style: string): boolean {
+    return style
+        .toLowerCase()
+        .split(';')
+        .some((declaration) => {
+            const [property = '', value = ''] = declaration.split(':');
+
+            return HIDING_STYLES.has(`${property.trim()}:${value.replace('!important', '').trim()}`);
+        });
+}
+
+/**
+ * Whether an element is one a cook cannot see: a non-text tag, the `hidden` attribute, a `<dialog>` that is not open, or an
+ * inline style that hides it.
+ *
+ * ⛔ Text hidden by a CSS CLASS is still read as visible: which classes hide is in the page's stylesheet, and a paste is
+ * read without one. A schema that agrees only with such text is therefore not refused by this check.
+ */
 const isHiddenElement = (element: DomElement): boolean =>
-    NON_TEXT_TAGS.has(element.name) || Object.hasOwn(element.attribs, 'hidden');
+    NON_TEXT_TAGS.has(element.name) ||
+    Object.hasOwn(element.attribs, 'hidden') ||
+    (element.name === 'dialog' && !Object.hasOwn(element.attribs, 'open')) ||
+    styleHides(element.attribs['style'] ?? '');
+
+/** The children a cook sees: of a `<details>` that is not open, only its `<summary>`. */
+const shownChildren = (element: DomElement): readonly DomNode[] =>
+    element.name === 'details' && !Object.hasOwn(element.attribs, 'open')
+        ? element.children.filter((child) => isTag(child) && child.name === 'summary')
+        : element.children;
 
 /** The most times {@link plainText} reads a value again to undo an earlier encoding. */
 const MAX_DECODE_PASSES = 2;
@@ -135,7 +197,7 @@ const MAX_DECODE_PASSES = 2;
 export const MAX_ELEMENT_DEPTH = 256;
 
 /** Characters fed to the parser at a time, so the depth is checked often enough that overshooting the cap costs little. */
-const PARSE_CHUNK_CHARS = 16_384;
+export const PARSE_CHUNK_CHARS = 16_384;
 
 /** htmlparser2's own tree builder, which notes when the element depth passes {@link MAX_ELEMENT_DEPTH}. */
 class DepthWatchingHandler extends DomHandler {
@@ -189,14 +251,19 @@ const collapseSpace = (text: string): string =>
 interface Owner {
     readonly group: number;
     readonly isHeading: boolean;
+    readonly element: number;
+    readonly item: number;
 }
 
 /** The end of a block element: its text is flushed, and the element that held it before is the owner again. */
 class BlockEnd {
-    public constructor(public readonly previous: Owner) {}
+    public constructor(
+        public readonly previous: Owner,
+        public readonly element: number,
+    ) {}
 }
 
-const LOOSE_TEXT: Owner = { group: 0, isHeading: false };
+const LOOSE_TEXT: Owner = { group: 0, isHeading: false, element: 0, item: 0 };
 
 /**
  * The text blocks of a list of nodes, in order. One explicit stack, so depth costs memory and never the call stack.
@@ -207,12 +274,9 @@ const LOOSE_TEXT: Owner = { group: 0, isHeading: false };
  * @param newlineBreaks - Whether a newline inside text starts a new block (true for a plain string, false for markup,
  *   where a newline is only whitespace).
  */
-function blocksOf(
-    roots: readonly DomNode[],
-    newlineBreaks: boolean,
-    maxNodes = MAX_WALK_NODES,
-): { readonly blocks: readonly VisibleBlock[]; readonly truncated: boolean } {
+function blocksOf(roots: readonly DomNode[], newlineBreaks: boolean, maxNodes = MAX_WALK_NODES): VisibleRead {
     const blocks: VisibleBlock[] = [];
+    const elements: { parent: number; last: number }[] = [{ parent: -1, last: 0 }];
     const groups = new Map<unknown, number>();
     let owner = LOOSE_TEXT;
     let current = '';
@@ -221,7 +285,13 @@ function blocksOf(
         const text = collapseSpace(current);
 
         if (text !== '') {
-            blocks.push({ text, group: owner.group, isHeading: owner.isHeading });
+            blocks.push({
+                text,
+                group: owner.group,
+                isHeading: owner.isHeading,
+                element: owner.element,
+                item: owner.item,
+            });
         }
 
         current = '';
@@ -254,24 +324,34 @@ function blocksOf(
 
         if (next instanceof BlockEnd) {
             flush();
+            elements[next.element] = { parent: next.previous.element, last: elements.length - 1 };
             owner = next.previous;
         } else if (isText(next)) {
             addText(next.data);
         } else if (isTag(next) && !isHiddenElement(next)) {
             if (BLOCK_TAGS.has(next.name)) {
+                const element = elements.length;
+
                 flush();
-                stack.push(new BlockEnd(owner));
+                elements.push({ parent: owner.element, last: element });
+                stack.push(new BlockEnd(owner, element));
                 groups.set(next.parent, groups.get(next.parent) ?? groups.size + 1);
-                owner = { group: groups.get(next.parent) ?? 0, isHeading: HEADING_TAGS.has(next.name) };
+                owner = {
+                    group: groups.get(next.parent) ?? 0,
+                    isHeading: HEADING_TAGS.has(next.name),
+                    element,
+                    item: next.name === 'li' ? element : owner.item,
+                };
             }
 
-            pushReversed(stack, next.children);
+            pushReversed(stack, shownChildren(next));
         }
     }
 
     flush();
+    elements[0] = { parent: -1, last: elements.length - 1 };
 
-    return { blocks, truncated: next !== undefined };
+    return { blocks, elements, truncated: next !== undefined };
 }
 
 /**

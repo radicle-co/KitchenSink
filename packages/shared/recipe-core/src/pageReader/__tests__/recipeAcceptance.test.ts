@@ -198,7 +198,7 @@ describe('acceptRecipe: the black-and-white gate, one case per predicate and bot
         });
     });
 
-    describe('G8: no title, ingredient line or step holds U+FFFD or a C1 control character', () => {
+    describe('G8: no title, ingredient line or step holds U+FFFD or a C1 control character, or lacks a letter or digit', () => {
         it.each([
             ['the title', { title: 'Pancakes \uFFFD' }],
             ['an ingredient line', { ingredientLines: ['1 cup flour', '2 eg\uFFFDgs'] }],
@@ -212,6 +212,11 @@ describe('acceptRecipe: the black-and-white gate, one case per predicate and bot
         it.each([
             ['an ingredient line of punctuation only', { ingredientLines: ['1 cup flour', '***'] }],
             ['a step of punctuation only', { steps: stepsOf('Mix well.', '***') }],
+            // The verification review's probes: each has a token, and none has a letter or a digit.
+            ['a title of punctuation only', { title: '***' }],
+            ['an ingredient line of a zero-width space', { ingredientLines: ['1 cup flour', '\u200B'] }],
+            ['an ingredient line of emoji only', { ingredientLines: ['1 cup flour', '\u{1F600}\u{1F600}'] }],
+            ['a step of emoji only', { steps: stepsOf('Mix well.', '\u{1F525}\u{1F525}') }],
         ])('refuses %s: nothing a cook can read', (_label, overrides) => {
             expect(acceptRecipe(recipeOf(overrides), 'jsonLd')).toEqual({ ok: false, reason: 'garbledText' });
         });

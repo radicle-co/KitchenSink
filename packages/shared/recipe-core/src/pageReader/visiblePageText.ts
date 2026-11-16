@@ -12,7 +12,7 @@
  * Only linear whitespace and newline splits run over page text, and no pattern can backtrack.
  */
 import { MAX_TOKEN_COMPARISONS, MAX_VISIBLE_TOKENS } from './pageCaps.js';
-import type { PageDocument, VisibleBlock } from './pageDocument.js';
+import type { ElementExtent, PageDocument, VisibleBlock } from './pageDocument.js';
 import { tokensOf } from './pageTokens.js';
 
 /** Whether a run was found, was not, or could not be looked for within the page's comparison budget. */
@@ -32,16 +32,33 @@ export interface VisibleText {
     find(run: readonly string[], endsBlock: boolean): RunLookup;
 
     /**
-     * Whether the page shows these runs as ONE list, in order, and nothing else in the lists they sit in: the check that a
-     * schema is neither more nor less than the card the cook reads. Each run is found after the one before it. Every block
-     * of every list a run sits in (the blocks that share its container) must be read by a run, except a heading, and no
-     * block is read by a run in part. A schema that leaves a line out, or reads only the end of one, therefore differs.
+     * Whether the page shows these lists as ONE card, each in order, and nothing else in the lists of that card: the check
+     * that a schema is neither more nor less than the card the cook reads.
      *
-     * @param runs - The tokens of each line, in order. A run with no tokens never matches.
-     * @param wholeBlocks - Whether each run must START where a block starts and END where one ends (an ingredient line),
-     *   or may sit anywhere in a block (a sentence of a step, with its neighbours the rest of the block).
+     * - Each run of a list is found after the one before it.
+     * - Every block of every list a run sits in (the blocks that share its container) must be read by a run, except a
+     *   heading, and no block is read by a run in part. A schema that leaves a line out, or reads only the end of one,
+     *   therefore differs.
+     * - THE CARD is the smallest block element that holds every block a run was read from. Every list item (`<li>`) inside
+     *   it must be read too, so a whole list the schema leaves out (an ingredient group, a second method) differs. A
+     *   paragraph in the card that no run reads (a note) does not, and nor does a list outside it (the page's menus).
+     *
+     * @param lists - The lists of the recipe, each with the tokens of its lines in order. A run with no tokens never matches.
      */
-    shows(runs: readonly (readonly string[])[], wholeBlocks: boolean): ListLookup;
+    shows(lists: readonly ShownList[]): ListLookup;
+
+    /** The token comparisons the lookups have spent so far: the work a test holds bounded in place of a time budget. */
+    comparisonsSpent(): number;
+}
+
+/** One list a page must show. */
+export interface ShownList {
+    readonly runs: readonly (readonly string[])[];
+    /**
+     * Whether each run must START where a block starts and END where one ends (an ingredient line), or may sit anywhere in a
+     * block (a sentence of a step, with its neighbours the rest of the block).
+     */
+    readonly wholeBlocks: boolean;
 }
 
 /** The page's visible text, or why there is none: no `<body>`, or a page too big or too deep to read whole. */
@@ -109,6 +126,8 @@ interface Tokenized {
     readonly blockEnds: Uint8Array;
     /** For each block, its first and last token and its container. */
     readonly blocks: readonly BlockSpan[];
+    /** The block elements of the body, by number (`VisibleBlock.element`). */
+    readonly elements: readonly ElementExtent[];
 }
 
 interface BlockSpan {
@@ -116,6 +135,8 @@ interface BlockSpan {
     readonly last: number;
     readonly group: number;
     readonly isHeading: boolean;
+    readonly element: number;
+    readonly item: number;
 }
 
 /** `locate` found no place for the run. */
@@ -123,9 +144,32 @@ const ABSENT = -1;
 /** `locate` ran past the comparison budget. */
 const OVER_BUDGET = -2;
 
-/** Whether the blocks that a run was read from leave a line of their list unread: see {@link VisibleText.shows}. */
-function leavesLinesUnread({ blocks }: Tokenized, covered: Uint8Array): boolean {
+/**
+ * The card: the smallest block element that holds every block in `read`, by number. The elements are numbered in document
+ * order, so it is the nearest ancestor of the first-numbered block whose range reaches the last-numbered one.
+ */
+function cardOf(elements: readonly ElementExtent[], read: readonly BlockSpan[]): number {
+    let lowest = Number.POSITIVE_INFINITY;
+    let highest = 0;
+
+    for (const block of read) {
+        lowest = Math.min(lowest, block.element);
+        highest = Math.max(highest, block.element);
+    }
+
+    let card = Number.isFinite(lowest) ? lowest : 0;
+
+    while (card > 0 && (elements[card]?.last ?? 0) < highest) {
+        card = elements[card]?.parent ?? 0;
+    }
+
+    return card;
+}
+
+/** Whether the blocks that runs were read from leave a line of their list, or a list item of their card, unread. */
+function leavesLinesUnread({ blocks, elements }: Tokenized, covered: Uint8Array): boolean {
     const touched = new Set<number>();
+    const read: BlockSpan[] = [];
     const unread: BlockSpan[] = [];
 
     for (const block of blocks) {
@@ -137,6 +181,7 @@ function leavesLinesUnread({ blocks }: Tokenized, covered: Uint8Array): boolean 
 
         if (reads > 0) {
             touched.add(block.group);
+            read.push(block);
         }
 
         if (reads > 0 && reads < block.last - block.first + 1) {
@@ -149,8 +194,14 @@ function leavesLinesUnread({ blocks }: Tokenized, covered: Uint8Array): boolean 
         }
     }
 
-    // Loose text (group 0) is not a list: any other block is a line of the list its siblings are.
-    return unread.some((block) => block.group !== 0 && touched.has(block.group));
+    const card = cardOf(elements, read);
+    const cardLast = elements[card]?.last ?? 0;
+
+    // Loose text (group 0) is not a list: any other block is a line of the list its siblings are. A list item inside the
+    // card (its `<li>` numbered after the card's own, and within its range) is a line of the card.
+    return unread.some(
+        (block) => (block.group !== 0 && touched.has(block.group)) || (block.item > card && block.item <= cardLast),
+    );
 }
 
 /** The first-token index, the block marks and the comparison budget of one page's tokens. */
@@ -220,32 +271,36 @@ function textOfTokens(page: Tokenized): VisibleText {
 
             return start === ABSENT ? 'absent' : 'found';
         },
-        shows: (runs, wholeBlocks) => {
+        shows: (lists) => {
             const covered = new Uint8Array(tokens.length);
-            let cursor = 0;
 
-            for (const run of runs) {
-                const start = run.length === 0 ? ABSENT : locate(run, cursor, wholeBlocks, wholeBlocks);
+            for (const { runs, wholeBlocks } of lists) {
+                let cursor = 0;
 
-                if (start === OVER_BUDGET) {
-                    return 'overBudget';
+                for (const run of runs) {
+                    const start = run.length === 0 ? ABSENT : locate(run, cursor, wholeBlocks, wholeBlocks);
+
+                    if (start === OVER_BUDGET) {
+                        return 'overBudget';
+                    }
+
+                    if (start === ABSENT) {
+                        return 'differs';
+                    }
+
+                    covered.fill(1, start, start + run.length);
+                    cursor = start + run.length;
                 }
-
-                if (start === ABSENT) {
-                    return 'differs';
-                }
-
-                covered.fill(1, start, start + run.length);
-                cursor = start + run.length;
             }
 
             return leavesLinesUnread(page, covered) ? 'differs' : 'matches';
         },
+        comparisonsSpent: () => comparisons,
     };
 }
 
 /** The tokens of `blocks`, or `undefined` when they pass {@link MAX_VISIBLE_TOKENS}: a page that long is never half read. */
-function tokenizedBlocks(blocks: readonly VisibleBlock[]): Tokenized | undefined {
+function tokenizedBlocks(blocks: readonly VisibleBlock[], elements: readonly ElementExtent[]): Tokenized | undefined {
     const tokens: string[] = [];
     const spans: BlockSpan[] = [];
 
@@ -261,7 +316,14 @@ function tokenizedBlocks(blocks: readonly VisibleBlock[]): Tokenized | undefined
         }
 
         if (tokens.length > first) {
-            spans.push({ first, last: tokens.length - 1, group: block.group, isHeading: block.isHeading });
+            spans.push({
+                first,
+                last: tokens.length - 1,
+                group: block.group,
+                isHeading: block.isHeading,
+                element: block.element,
+                item: block.item,
+            });
         }
     }
 
@@ -273,7 +335,7 @@ function tokenizedBlocks(blocks: readonly VisibleBlock[]): Tokenized | undefined
         blockEnds[span.last] = 1;
     });
 
-    return { tokens, blockStarts, blockEnds, blocks: spans };
+    return { tokens, blockStarts, blockEnds, blocks: spans, elements };
 }
 
 /**
@@ -294,13 +356,13 @@ export function visibleTextOf(page: PageDocument): VisibleTextResult {
         return { kind: 'noBody' };
     }
 
-    const { blocks, truncated } = body.visibleText();
+    const { blocks, elements, truncated } = body.visibleText();
 
     if (truncated) {
         return { kind: 'tooComplex' };
     }
 
-    const tokenized = tokenizedBlocks(blocks);
+    const tokenized = tokenizedBlocks(blocks, elements);
 
     return tokenized === undefined ? { kind: 'tooComplex' } : { kind: 'ok', text: textOfTokens(tokenized) };
 }

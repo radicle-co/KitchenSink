@@ -157,10 +157,9 @@ describe('microdataRecipe', () => {
     it('stops at the node budget and says tooComplex', () => {
         const props = '<i itemprop="note">n</i>'.repeat(MAX_WALK_NODES + 5_000);
         const body = recipeScope(`${props}<h1 itemprop="name">Late</h1><i itemprop="recipeIngredient">1 egg</i>`);
-        const started = performance.now();
 
+        // The walk's own cap is counted in `boundedWalk.test.ts`; here, the page past it is refused, not read in part.
         expect(read(body).kind).toBe('tooComplex');
-        expect(performance.now() - started).toBeLessThan(2_000);
     });
 
     /** Rewritten: items nested past the depth cap were skipped and the recipe still read; the walk was cut short, so it is `tooComplex`. */

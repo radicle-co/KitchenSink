@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MAX_JSON_LD_BLOCK_BYTES, MAX_JSON_LD_BLOCKS, MAX_PASTE_BYTES, MAX_WALK_NODES } from '../pageCaps.js';
+import { parsePage } from '../pageDocument.js';
+import type * as PageDocumentModule from '../pageDocument.js';
 import { readPastedContent } from '../readPastedContent.js';
 import {
     makeLinkHead,
@@ -11,6 +13,13 @@ import {
     makeRecipeCard,
     makeRecipeNode,
 } from '../__fixtures__/pageFixtures.js';
+
+// The real parser, watched, so a test can say it was never asked to read a paste.
+vi.mock('../pageDocument.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof PageDocumentModule>();
+
+    return { ...actual, parsePage: vi.fn(actual.parsePage) };
+});
 
 const SOURCE = { kind: 'found', citation: { url: 'https://www.example.com/recipe/1/pancakes/', site: 'example.com' } };
 
@@ -349,13 +358,14 @@ describe('readPastedContent', () => {
             expect(readPastedContent('€'.repeat(666_666)).kind).toBe('notExtractable');
         });
 
+        // ⛔ Counted, never timed: the parser is never asked to read a paste past the cap.
         it('checks the size before parsing anything', () => {
-            const started = performance.now();
+            vi.mocked(parsePage).mockClear();
 
             const result = readPastedContent(`<div>${'<p>'.repeat(MAX_PASTE_BYTES)}`);
 
             expect(result.kind).toBe('tooLarge');
-            expect(performance.now() - started).toBeLessThan(250);
+            expect(parsePage).not.toHaveBeenCalled();
         });
     });
 

@@ -13,9 +13,12 @@
  * G-CORR exists because a site's structured data is written for a search engine, and some sites let it drift from the card
  * a cook reads: a note cut off a line, a step or an ingredient missing, a base form where the page says "raisins". It is
  * two-way (`VisibleText.shows`): each ingredient line is a whole visible line (it starts and ends where a visible block
- * does, so "flour" is not "2 cups flour"), the steps are read in order, and a list the lines sit in has no line the
- * schema leaves out, so a schema that is missing one is caught as surely as a page that is missing one. Text a cook cannot
- * see (a template, a `noscript`, a `textarea`, anything `hidden`, a `<meta>`) is no part of the page. A line or step with no
+ * does, so "flour" is not "2 cups flour"), the steps are read in order, a list the lines sit in has no line the schema
+ * leaves out, and the recipe CARD (the smallest element holding every line and step read) has no list item the schema
+ * leaves out, so a schema missing a line, an ingredient group or a second method is caught as surely as a page missing
+ * one. A list built of paragraphs rather than list items is checked per list only. Text a cook cannot
+ * see (a template, a `noscript`, a `textarea`, anything `hidden`, an inline `display:none`, a closed `<details>`, a `<meta>`)
+ * is no part of the page; text hidden by a CSS class is, because a paste has no stylesheet to say so. A line or step with no
  * letter or digit never agrees. A recipe whose data the page does not show is a no, never a wrong yes (precision first). It
  * reads each step's RAW text (`schemaSteps`), never the built instruction, so a heading the reader adds can never make a
  * correct page disagree with itself.
@@ -47,18 +50,18 @@ function pageShows(candidate: PageCandidate, text: VisibleText): Corroboration {
     const ingredients = candidate.recipe.ingredientLines.map(tokensOf);
     const steps = candidate.schemaSteps.map((step) => tokensOf(step.text));
 
-    // Whole lines, one visible block each (or several, joined): "flour" is not "2 cups flour".
-    for (const lookup of [text.shows(ingredients, true), text.shows(steps, false)]) {
-        if (lookup === 'overBudget') {
-            return refusal('pageTooComplex');
-        }
+    // Ingredients are whole lines, one visible block each (or several, joined): "flour" is not "2 cups flour". Both lists
+    // are one card, so a list in it that neither reads (a group the schema leaves out) differs.
+    const lookup = text.shows([
+        { runs: ingredients, wholeBlocks: true },
+        { runs: steps, wholeBlocks: false },
+    ]);
 
-        if (lookup === 'differs') {
-            return refusal('pageDisagreesWithSchema');
-        }
+    if (lookup === 'overBudget') {
+        return refusal('pageTooComplex');
     }
 
-    return AGREES;
+    return lookup === 'differs' ? refusal('pageDisagreesWithSchema') : AGREES;
 }
 
 /**

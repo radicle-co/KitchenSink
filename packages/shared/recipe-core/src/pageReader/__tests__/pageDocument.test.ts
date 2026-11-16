@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { MAX_VISIBLE_NODES, MAX_WALK_NODES } from '../pageCaps.js';
-import { MAX_ELEMENT_DEPTH, isTextCut, parsePage, plainText, textBlocks } from '../pageDocument.js';
+import { MAX_ELEMENT_DEPTH, PARSE_CHUNK_CHARS, isTextCut, parsePage, plainText, textBlocks } from '../pageDocument.js';
 
 describe('textBlocks', () => {
     it('splits on block elements, line breaks and newlines', () => {
@@ -140,15 +140,15 @@ describe('parsePage', () => {
         expect(paragraph?.blocks()).toEqual({ blocks: ['one two'], truncated: false });
     });
 
-    it('stops at 400,000 nested elements: it is quick, and it says the page was cut short', () => {
+    // ⛔ Work is COUNTED, never timed: the parser's cost grows with the square of the depth, so what bounds it is how many
+    // elements it was fed before it stopped. One chunk past the cap holds at most a chunk's worth of `<div>`.
+    it('stops at 400,000 nested elements one chunk past the depth cap, and says the page was cut short', () => {
         const depth = 400_000;
-        const started = performance.now();
         const deep = parsePage(`<i>kept</i>${'<div>'.repeat(depth)}core${'</div>'.repeat(depth)}`);
 
         expect(deep.truncated).toBe(true);
         expect(deep.byTag('i')[0]?.blocks()).toEqual({ blocks: ['kept'], truncated: false });
-        expect(deep.byTag('div').length).toBeLessThan(depth / 10);
-        expect(performance.now() - started).toBeLessThan(2_000);
+        expect(deep.byTag('div').length).toBeLessThanOrEqual(MAX_ELEMENT_DEPTH + PARSE_CHUNK_CHARS / '<div>'.length);
     });
 
     it('reads a page nested to the cap in full', () => {
@@ -183,12 +183,10 @@ describe('parsePage', () => {
         expect(wide?.blocks().blocks.join('').length).toBeLessThanOrEqual(MAX_WALK_NODES);
     });
 
-    it('reads 200,000 sibling elements without slowing down', () => {
-        const started = performance.now();
+    it('reads 200,000 sibling elements: width is not depth, so nothing is cut', () => {
         const wide = parsePage(`<div>${'<i>a</i>'.repeat(200_000)}</div>`);
 
         expect(wide.truncated).toBe(false);
         expect(wide.byTag('i')).toHaveLength(200_000);
-        expect(performance.now() - started).toBeLessThan(2_000);
     });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { collapseBracketGroups } from '../collapseBracketGroups.js';
+import { collapseBracketGroups, collapseBracketGroupsCounted } from '../collapseBracketGroups.js';
 
 describe('collapseBracketGroups', () => {
     it.each([
@@ -57,20 +57,35 @@ describe('collapseBracketGroups', () => {
         expect(notIdempotent).toEqual([]);
     });
 
-    describe('hostile input: linear time and no recursion, whatever the nesting', () => {
+    describe('hostile input: linear work and no recursion, whatever the nesting', () => {
         /** The longest line the reader hands it, and far past it: the function must be safe on its own. */
         const DEPTH = 100_000;
+        /**
+         * The steps per character a linear pass may take: each bracket pass reads every character once to pair the
+         * brackets and once to walk the groups, and peels each doubled bracket once. A quadratic walk takes thousands.
+         */
+        const STEPS_PER_CHAR = 6;
+        // ⛔ Work is COUNTED, never timed: a time budget fails on a busy CI runner and passes a quadratic walk on a fast one.
+        const isLinear = (text: string): boolean =>
+            collapseBracketGroupsCounted(text).steps <= STEPS_PER_CHAR * text.length;
 
         it.each([
             ['nested brackets with a word in each level', `${'(a'.repeat(DEPTH)}${')'.repeat(DEPTH)}`],
             ['one word under a doubled group 100,000 deep', `${'('.repeat(DEPTH)}x${')'.repeat(DEPTH)}`],
             ['square brackets nested', `${'[a'.repeat(DEPTH)}${']'.repeat(DEPTH)}`],
         ])('does not overflow the stack or stall on %s', (_name, text) => {
-            const started = performance.now();
-            const out = collapseBracketGroups(text);
+            expect(collapseBracketGroups(text).length).toBeGreaterThan(0);
+            expect(isLinear(text)).toBe(true);
+        });
 
-            expect(out.length).toBeGreaterThan(0);
-            expect(performance.now() - started).toBeLessThan(1_000);
+        it('counts the steps it takes, the same text as the plain call', () => {
+            const text = '((softened)) butter [[x]]';
+
+            expect(collapseBracketGroupsCounted(text)).toEqual({
+                text: collapseBracketGroups(text),
+                steps: expect.any(Number),
+            });
+            expect(collapseBracketGroupsCounted(text).steps).toBeGreaterThanOrEqual(2 * text.length);
         });
 
         it('collapses a doubled group however deep it is', () => {
@@ -82,18 +97,16 @@ describe('collapseBracketGroups', () => {
             ['square', '['],
         ])('does not stall on 100,000 unclosed %s brackets', (_name, open) => {
             const text = `${open.repeat(DEPTH)}x`;
-            const started = performance.now();
 
             expect(collapseBracketGroups(text)).toBe(text);
-            expect(performance.now() - started).toBeLessThan(1_000);
+            expect(isLinear(text)).toBe(true);
         });
 
         it('does not stall on 50,000 unclosed brackets in front of closed ones', () => {
             const text = `${'('.repeat(50_000)}${'(a)'.repeat(10_000)}`;
-            const started = performance.now();
 
             expect(collapseBracketGroups(text).length).toBe(text.length);
-            expect(performance.now() - started).toBeLessThan(1_000);
+            expect(isLinear(text)).toBe(true);
         });
     });
 });

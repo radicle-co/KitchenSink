@@ -326,10 +326,9 @@ describe('jsonLdRecipe: hostile input', () => {
      */
     it('reads a 100,000-deep array without overflowing the stack, and says the page is too complex', () => {
         const deep = `${'['.repeat(100_000)}${']'.repeat(100_000)}`;
-        const started = performance.now();
 
+        // The walk's own cap is counted in `boundedWalk.test.ts`; here, the page past it is refused, not read in part.
         expect(read(deep).kind).toBe('tooComplex');
-        expect(performance.now() - started).toBeLessThan(2_000);
     });
 
     it('says tooComplex, not none, for a recipe nested deeper than the depth cap', () => {

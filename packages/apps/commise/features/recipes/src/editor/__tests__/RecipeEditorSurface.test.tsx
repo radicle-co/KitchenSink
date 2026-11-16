@@ -868,7 +868,8 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         expect(within(dialog).getByRole('button', { name: 'Publish as public' })).toBeTruthy();
     });
 
-    it('a published web copy: the Source is read only, with the site as a link', () => {
+    // Rewritten by the 2026-11-15 owner ruling: a published web copy used to be read only. The first publish locks nothing.
+    it('a published web copy: the Source is still a field the cook can change', () => {
         mount({
             seed: {
                 recipe: makeRecipeDetail({
@@ -884,11 +885,32 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
             },
         });
 
+        expect(within(section()).getByRole('textbox', { name: 'Source' })).toBeTruthy();
+        expect(within(section()).queryByText('The source of this recipe can’t be changed.')).toBeNull();
+    });
+
+    it('a published clone that inherited a web copy: the Source is read only, with the site as a link', () => {
+        mount({
+            seed: {
+                recipe: makeRecipeDetail({
+                    id: 'rec_1',
+                    status: RecipeStatus.PUBLISHED,
+                    firstPublishedAt: '2026-11-01T00:00:00.000Z',
+                    clonedFromId: '00000000-0000-4000-8000-0000000000c1',
+                    visibility: RecipeVisibility.PRIVATE,
+                    sourceType: 'imported_public',
+                    sourceKind: 'public_web',
+                    sourceUrl: LINK,
+                    cuisine: 'Italian',
+                }),
+            },
+        });
+
         expect(within(section()).queryByRole('textbox', { name: 'Source' })).toBeNull();
         expect(
             within(section()).getByRole('link', { name: 'allrecipes.com (opens in a new tab)' }).getAttribute('href'),
         ).toBe(LINK);
-        expect(within(section()).getByText('The source can’t be changed after publishing.')).toBeTruthy();
+        expect(within(section()).getByText('The source of this recipe can’t be changed.')).toBeTruthy();
     });
     const stepsSection = () =>
         screen.getByRole('heading', { level: 2, name: 'Steps' }).closest('section') as HTMLElement;
@@ -925,6 +947,7 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
                     id: 'rec_1',
                     status: RecipeStatus.PUBLISHED,
                     firstPublishedAt: '2026-11-01T00:00:00.000Z',
+                    clonedFromId: '00000000-0000-4000-8000-0000000000c1',
                     visibility: RecipeVisibility.PRIVATE,
                     sourceType: 'imported_public',
                     sourceKind: 'public_web',
@@ -938,7 +961,7 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
 
         expect(
             within(stepsSection()).getByText(
-                'Left out the link. A published recipe’s source can’t be added or changed.',
+                'Left out the link. This recipe’s source can’t be added or changed.',
             ),
         ).toBeTruthy();
         expect(within(stepsSection()).queryByRole('button', { name: 'Remove' })).toBeNull();

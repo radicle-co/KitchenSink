@@ -627,8 +627,8 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             keptExisting: 'Kept {site} as the source. The other link was left out.',
             remove: 'Remove source',
             removed: 'Source removed.',
-            locked: 'The source can’t be changed after publishing.',
-            lockedLeftOut: 'Left out the link. A published recipe’s source can’t be added or changed.',
+            locked: 'The source of this recipe can’t be changed.',
+            lockedLeftOut: 'Left out the link. This recipe’s source can’t be added or changed.',
             linkOnly:
                 'That’s only a link. Paste the recipe’s text too. You can put the link in Source, under Photos & publish.',
             openLinkWeb: '{site} (opens in a new tab)',

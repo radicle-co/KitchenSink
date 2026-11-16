@@ -19,7 +19,7 @@ import {
 
 const ALLRECIPES = 'https://www.allrecipes.com/recipe/1/soup/';
 const withLink = (sourceLink: string, over = {}) => makeRecipeFormValues({ sourceLink, ...over });
-/** The first-publish instant a published recipe always carries (the server's CHECK): the ONE fact the lock reads. */
+/** The first-publish instant a published recipe always carries. The lock reads none of it (ADR-0093 section 8). */
 const FIRST = '2026-11-01T00:00:00.000Z';
 const CLONE_OF = '00000000-0000-4000-8000-0000000000c1';
 const neverPublished = (over = {}) => makeRecipeDetail({ status: RecipeStatus.DRAFT, ...over });
@@ -184,17 +184,32 @@ describe('sourceStatementOf: what the wire carries', () => {
         expect(sourceStatementOf(withLink('https://www.commise.app/x'), webCopy())).toBeUndefined();
     });
 
-    it('update: nothing is sent once the recipe has been published (the source is locked)', () => {
+    // Rewritten by the 2026-11-15 owner ruling: it said nothing is sent once the recipe has been published. The cook's
+    // statement stays editable after the first publish, so a published recipe sends its change like any other.
+    it('update: a published recipe sends its change, because the first publish does not lock the statement', () => {
         const published = webCopy({ status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST });
 
-        expect(sourceStatementOf(makeRecipeFormValues(), published)).toBeUndefined();
-        expect(sourceStatementOf(withLink('https://other.example/a'), published)).toBeUndefined();
+        expect(sourceStatementOf(makeRecipeFormValues(), published)).toBeNull();
+        expect(sourceStatementOf(withLink('https://other.example/a'), published)).toEqual({
+            kind: 'public_web',
+            citation: 'https://other.example/a',
+        });
         expect(
             sourceStatementOf(
                 withLink('https://other.example/a'),
-                makeRecipeDetail({ status: RecipeStatus.DRAFT, firstPublishedAt: '2026-11-01T00:00:00.000Z' }),
+                makeRecipeDetail({ status: RecipeStatus.DRAFT, firstPublishedAt: FIRST }),
             ),
-        ).toBeUndefined();
+        ).toMatchObject({ kind: 'public_web' });
+    });
+
+    it('update: a published recipe whose source is locked for another reason sends nothing', () => {
+        const inherited = webCopy({
+            status: RecipeStatus.PUBLISHED,
+            firstPublishedAt: FIRST,
+            clonedFromId: CLONE_OF,
+        });
+
+        expect(sourceStatementOf(withLink('https://other.example/a'), inherited)).toBeUndefined();
     });
 });
 
@@ -236,9 +251,18 @@ describe('pastedSourcePlanOf: a link line in pasted text', () => {
     it('sets nothing on a recipe whose source is locked, and says it can’t change', () => {
         expect(
             plan(`2 eggs\n${ALLRECIPES}`, {
-                recipe: webCopy({ status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST }),
+                recipe: webCopy({ status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST, clonedFromId: CLONE_OF }),
             }),
         ).toEqual({ note: { kind: 'locked' } });
+    });
+
+    // Rewritten by the 2026-11-15 owner ruling: a published recipe used to answer `locked` here.
+    it('fills an empty Source on a published recipe: the first publish does not lock it', () => {
+        expect(
+            plan(`2 eggs\n${ALLRECIPES}`, {
+                recipe: makeRecipeDetail({ status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST }),
+            }),
+        ).toEqual({ set: ALLRECIPES, note: { kind: 'set', site: 'allrecipes.com' } });
     });
 
     it('sets nothing on a clone that inherited a web source (cloning is not a way to relabel)', () => {
@@ -284,10 +308,20 @@ describe('sourceRowOf: every state of the Source row', () => {
         expect(row(withLink('https://commise.app/en'))).toEqual({ kind: 'ownSite', text: 'https://commise.app/en' });
     });
 
-    it('locked: the site link and the URL, read only', () => {
-        expect(row(withLink(ALLRECIPES), webCopy({ status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST }))).toEqual(
-            { kind: 'locked', site: 'allrecipes.com', url: ALLRECIPES },
-        );
+    // Rewritten by the 2026-11-15 owner ruling: a published web copy used to be locked, read only. It is a filled field now.
+    it('a published web copy is a filled field the cook can still change', () => {
+        expect(
+            row(withLink(ALLRECIPES), webCopy({ status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST })),
+        ).toMatchObject({ kind: 'filled', site: 'allrecipes.com' });
+    });
+
+    it('locked: a published clone keeps the web source it inherited, read only', () => {
+        expect(
+            row(
+                withLink(ALLRECIPES),
+                webCopy({ status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST, clonedFromId: CLONE_OF }),
+            ),
+        ).toEqual({ kind: 'locked', site: 'allrecipes.com', url: ALLRECIPES });
     });
 
     it('locked: a clone keeps the web source it inherited, read only', () => {
@@ -298,9 +332,24 @@ describe('sourceRowOf: every state of the Source row', () => {
         });
     });
 
-    it('hidden: published with no source', () => {
+    // Rewritten by the 2026-11-15 owner ruling: a published recipe with no source was hidden. The cook can state one after
+    // the first publish, so the row is the empty field.
+    it('empty: a published recipe with no source still offers the field', () => {
         expect(
             row(makeRecipeFormValues(), makeRecipeDetail({ status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST })),
+        ).toEqual({ kind: 'empty', text: '' });
+    });
+
+    it('hidden: a published recipe with the curator’s text', () => {
+        expect(
+            row(
+                makeRecipeFormValues(),
+                makeRecipeDetail({
+                    status: RecipeStatus.PUBLISHED,
+                    firstPublishedAt: FIRST,
+                    sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+                }),
+            ),
         ).toEqual({ kind: 'hidden' });
     });
 
@@ -320,7 +369,7 @@ describe('sourceRowOf: every state of the Source row', () => {
         expect(row(makeRecipeFormValues(), book)).toEqual({ kind: 'empty', text: '' });
     });
 
-    it('a never-published stored recipe still edits its source', () => {
+    it('a stored recipe still edits its source', () => {
         expect(row(withLink(ALLRECIPES), webCopy())).toMatchObject({ kind: 'filled' });
     });
 });

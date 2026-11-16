@@ -4,8 +4,9 @@
  *
  * The rows a mutant must not survive:
  *
- *  1. **The window closes at the first publish and stays closed.** The fact is `firstPublishedAt`, never `status`: a
- *     published recipe set back to draft is still locked (ADR-0058).
+ *  1. **The first publish does not lock the statement.** Every row of the table gives the same answer for a recipe
+ *     published once and one never published (owner ruling 2026-11-15, ADR-0093 section 8). The tests that said "locked
+ *     after the first publish" are rewritten to prove it.
  *  2. **A source the cook did not state is never overwritten**: the curator's public-domain text, a book and a paid-site
  *     recipe are not the cook's to restate through a pasted link.
  *  3. **A statement on a public draft makes it private in the same write; a clear never touches visibility.**
@@ -34,9 +35,15 @@ const NONE: StoredSource = {
     sourceType: 'user_created',
     sourceKind: null,
     statementKind: null,
-    firstPublishedAt: null,
     clonedFromId: null,
 };
+
+/** The stored source as a recipe published once holds it. The policy reads no first-publish fact, so this must change nothing. */
+function publishedOnce(source: StoredSource): StoredSource {
+    const withTheFact = { ...source, firstPublishedAt: AT };
+
+    return withTheFact;
+}
 
 function stored(over: Partial<StoredSource>): StoredSource {
     return { ...NONE, ...over };
@@ -45,7 +52,7 @@ function stored(over: Partial<StoredSource>): StoredSource {
 const WEB_COPY = { sourceType: 'imported_public', sourceKind: 'public_web', statementKind: 'source' } as const;
 
 describe('evaluateSourceCorrection — a body with no statement', () => {
-    it.each([NONE, stored({ firstPublishedAt: AT }), stored(WEB_COPY)])('changes nothing: %j', (source) => {
+    it.each([NONE, publishedOnce(NONE), stored(WEB_COPY)])('changes nothing: %j', (source) => {
         expect(evaluateSourceCorrection({ statement: undefined, stored: source })).toEqual({ kind: 'unchanged' });
     });
 });
@@ -111,9 +118,9 @@ describe('evaluateSourceCorrection — a clear (statement null) before the first
 });
 
 describe('evaluateSourceCorrection — the source is locked', () => {
-    it('after the first publish, a clear is locked', () => {
-        expect(evaluateSourceCorrection({ statement: null, stored: stored({ firstPublishedAt: AT }) })).toEqual({
-            kind: 'locked',
+    it('after the first publish, a clear of a recipe that states nothing is `unchanged`, not locked', () => {
+        expect(evaluateSourceCorrection({ statement: null, stored: publishedOnce(NONE) })).toEqual({
+            kind: 'unchanged',
         });
     });
 
@@ -122,25 +129,29 @@ describe('evaluateSourceCorrection — the source is locked', () => {
         ['a cookbook', BOOK, true],
         ['another person', FROM_PERSON, true],
     ] as const)(
-        'after the first publish, from no statement, %s is the cook’s first statement: it applies, and it forces Private',
+        'after the first publish, from no statement, %s applies, and it forces Private',
         (_name, statement, makePrivate) => {
-            expect(evaluateSourceCorrection({ statement, stored: stored({ firstPublishedAt: AT }) })).toMatchObject({
+            expect(evaluateSourceCorrection({ statement, stored: publishedOnce(NONE) })).toMatchObject({
                 kind: 'apply',
                 makePrivate,
             });
         },
     );
 
-    it('after the first publish, a statement over a stated source stays locked: authored cannot relabel a web copy', () => {
+    it('after the first publish, authored replaces a web copy and forces no Private', () => {
         expect(
-            evaluateSourceCorrection({ statement: AUTHORED, stored: stored({ ...WEB_COPY, firstPublishedAt: AT }) }),
-        ).toEqual({ kind: 'locked' });
+            evaluateSourceCorrection({ statement: AUTHORED, stored: publishedOnce(stored(WEB_COPY)) }),
+        ).toMatchObject({
+            kind: 'apply',
+            provenance: { statementKind: 'authored', sourceKind: null },
+            makePrivate: false,
+        });
     });
 
-    it('keeps a re-drafted recipe locked: the fact is firstPublishedAt, not the status', () => {
+    it('keeps a re-drafted recipe editable too: the policy reads no first-publish fact and no status', () => {
         expect(
-            evaluateSourceCorrection({ statement: STATEMENT, stored: stored({ ...WEB_COPY, firstPublishedAt: AT }) }),
-        ).toEqual({ kind: 'locked' });
+            evaluateSourceCorrection({ statement: STATEMENT, stored: publishedOnce(stored(WEB_COPY)) }),
+        ).toMatchObject({ kind: 'apply' });
     });
 
     it('for a web source INHERITED by a clone: cloning is not a way to relabel a recipe (ADR-0089)', () => {
@@ -201,8 +212,8 @@ describe('evaluateSourceCorrection — "I wrote this" (Option B)', () => {
         });
     });
 
-    it('AFTER the first publish, from no statement, is still allowed: the one newly allowed move', () => {
-        expect(evaluateSourceCorrection({ statement: AUTHORED, stored: stored({ firstPublishedAt: AT }) })).toEqual({
+    it('AFTER the first publish, from no statement, is allowed', () => {
+        expect(evaluateSourceCorrection({ statement: AUTHORED, stored: publishedOnce(NONE) })).toEqual({
             kind: 'apply',
             provenance: AUTHORED_PROVENANCE,
             makePrivate: false,
@@ -213,7 +224,7 @@ describe('evaluateSourceCorrection — "I wrote this" (Option B)', () => {
         expect(
             evaluateSourceCorrection({
                 statement: AUTHORED,
-                stored: stored({ firstPublishedAt: AT, clonedFromId: 'r-1' }),
+                stored: publishedOnce(stored({ clonedFromId: 'r-1' })),
             }),
         ).toMatchObject({ kind: 'apply' });
     });
@@ -239,18 +250,20 @@ describe('evaluateSourceCorrection — "I wrote this" (Option B)', () => {
         expect(
             evaluateSourceCorrection({
                 statement: AUTHORED,
-                stored: stored({ statementKind: 'authored', firstPublishedAt: AT }),
+                stored: publishedOnce(stored({ statementKind: 'authored' })),
             }),
         ).toEqual({ kind: 'unchanged' });
     });
 
-    it('after the first publish, clearing an authored statement stays locked: an attestation is not withdrawn', () => {
+    // Rewritten by the 2026-11-15 ruling: it used to say `locked`. A cook may change their statement after the first publish;
+    // the attestation record keeps the history, and `sourceConflict` and `statementRequired` still judge Public.
+    it('after the first publish, clearing an authored statement applies: the statement is the cook\u2019s to change', () => {
         expect(
             evaluateSourceCorrection({
                 statement: null,
-                stored: stored({ statementKind: 'authored', firstPublishedAt: AT }),
+                stored: publishedOnce(stored({ statementKind: 'authored' })),
             }),
-        ).toEqual({ kind: 'locked' });
+        ).toMatchObject({ kind: 'apply', provenance: { statementKind: null }, makePrivate: false });
     });
 
     it('clearing before the first publish returns the statement to none', () => {
@@ -288,50 +301,50 @@ describe('evaluateSourceCorrection — the whole table', () => {
         fromPerson: FROM_PERSON,
     } as const;
 
-    // [source, move, outcome before the first publish, outcome after it]. A book the cook stated in the editor is correctable
-    // before the first publish (an import saves published, so an imported book is already locked); a paid site is never.
+    // [source, move, outcome]. The outcome is the same for a recipe never published and one published once (2026-11-15
+    // ruling). A stated book is correctable; a paid site and the curator's text never are.
     // "From another person" and a book are locked exactly where a web link is: setBook and fromPerson behave as setWeb here.
-    const TABLE: ReadonlyArray<readonly [string, Move, string, string]> = [
-        ['no statement', 'setWeb', 'apply', 'apply'],
-        ['no statement', 'clear', 'unchanged', 'locked'],
-        ['no statement', 'authored', 'apply', 'apply'],
-        ['no statement', 'setBook', 'apply', 'apply'],
-        ['no statement', 'fromPerson', 'apply', 'apply'],
-        ['authored', 'setWeb', 'apply', 'locked'],
-        ['authored', 'clear', 'apply', 'locked'],
-        ['authored', 'authored', 'unchanged', 'unchanged'],
-        ['authored', 'setBook', 'apply', 'locked'],
-        ['authored', 'fromPerson', 'apply', 'locked'],
-        ['from another person', 'setWeb', 'apply', 'locked'],
-        ['from another person', 'clear', 'apply', 'locked'],
-        ['from another person', 'authored', 'apply', 'locked'],
-        ['from another person', 'setBook', 'apply', 'locked'],
-        ['from another person', 'fromPerson', 'unchanged', 'locked'],
-        ['a stated web copy', 'setWeb', 'apply', 'locked'],
-        ['a stated web copy', 'clear', 'apply', 'locked'],
-        ['a stated web copy', 'authored', 'apply', 'locked'],
-        ['a stated web copy', 'setBook', 'apply', 'locked'],
-        ['a stated web copy', 'fromPerson', 'apply', 'locked'],
-        ['the curator’s text', 'setWeb', 'locked', 'locked'],
-        ['the curator’s text', 'clear', 'locked', 'locked'],
-        ['the curator’s text', 'authored', 'locked', 'locked'],
-        ['the curator’s text', 'setBook', 'locked', 'locked'],
-        ['the curator’s text', 'fromPerson', 'locked', 'locked'],
-        ['a stated book', 'setWeb', 'apply', 'locked'],
-        ['a stated book', 'clear', 'apply', 'locked'],
-        ['a stated book', 'authored', 'apply', 'locked'],
-        ['a stated book', 'setBook', 'apply', 'locked'],
-        ['a stated book', 'fromPerson', 'apply', 'locked'],
-        ['a stated paid site', 'setWeb', 'locked', 'locked'],
-        ['a stated paid site', 'clear', 'locked', 'locked'],
-        ['a stated paid site', 'authored', 'locked', 'locked'],
-        ['a stated paid site', 'setBook', 'locked', 'locked'],
-        ['a stated paid site', 'fromPerson', 'locked', 'locked'],
-        ['a web copy inherited by a clone', 'setWeb', 'locked', 'locked'],
-        ['a web copy inherited by a clone', 'clear', 'locked', 'locked'],
-        ['a web copy inherited by a clone', 'authored', 'locked', 'locked'],
-        ['a web copy inherited by a clone', 'setBook', 'locked', 'locked'],
-        ['a web copy inherited by a clone', 'fromPerson', 'locked', 'locked'],
+    const TABLE: ReadonlyArray<readonly [string, Move, string]> = [
+        ['no statement', 'setWeb', 'apply'],
+        ['no statement', 'clear', 'unchanged'],
+        ['no statement', 'authored', 'apply'],
+        ['no statement', 'setBook', 'apply'],
+        ['no statement', 'fromPerson', 'apply'],
+        ['authored', 'setWeb', 'apply'],
+        ['authored', 'clear', 'apply'],
+        ['authored', 'authored', 'unchanged'],
+        ['authored', 'setBook', 'apply'],
+        ['authored', 'fromPerson', 'apply'],
+        ['from another person', 'setWeb', 'apply'],
+        ['from another person', 'clear', 'apply'],
+        ['from another person', 'authored', 'apply'],
+        ['from another person', 'setBook', 'apply'],
+        ['from another person', 'fromPerson', 'unchanged'],
+        ['a stated web copy', 'setWeb', 'apply'],
+        ['a stated web copy', 'clear', 'apply'],
+        ['a stated web copy', 'authored', 'apply'],
+        ['a stated web copy', 'setBook', 'apply'],
+        ['a stated web copy', 'fromPerson', 'apply'],
+        ['the curator’s text', 'setWeb', 'locked'],
+        ['the curator’s text', 'clear', 'locked'],
+        ['the curator’s text', 'authored', 'locked'],
+        ['the curator’s text', 'setBook', 'locked'],
+        ['the curator’s text', 'fromPerson', 'locked'],
+        ['a stated book', 'setWeb', 'apply'],
+        ['a stated book', 'clear', 'apply'],
+        ['a stated book', 'authored', 'apply'],
+        ['a stated book', 'setBook', 'apply'],
+        ['a stated book', 'fromPerson', 'apply'],
+        ['a stated paid site', 'setWeb', 'locked'],
+        ['a stated paid site', 'clear', 'locked'],
+        ['a stated paid site', 'authored', 'locked'],
+        ['a stated paid site', 'setBook', 'locked'],
+        ['a stated paid site', 'fromPerson', 'locked'],
+        ['a web copy inherited by a clone', 'setWeb', 'locked'],
+        ['a web copy inherited by a clone', 'clear', 'locked'],
+        ['a web copy inherited by a clone', 'authored', 'locked'],
+        ['a web copy inherited by a clone', 'setBook', 'locked'],
+        ['a web copy inherited by a clone', 'fromPerson', 'locked'],
     ];
 
     it('covers every source × move exactly once', () => {
@@ -340,7 +353,7 @@ describe('evaluateSourceCorrection — the whole table', () => {
         );
     });
 
-    it.each(TABLE)('%s, %s: %s before the first publish, %s after', (name, move, before, after) => {
+    it.each(TABLE)('%s, %s: %s, published once or not', (name, move, outcome) => {
         const source = SOURCES.find(([label]) => label === name)?.[1];
 
         if (source === undefined) {
@@ -349,8 +362,8 @@ describe('evaluateSourceCorrection — the whole table', () => {
 
         const statement = STATEMENT_OF[move];
 
-        expect(evaluateSourceCorrection({ statement, stored: source }).kind).toBe(before);
-        expect(evaluateSourceCorrection({ statement, stored: { ...source, firstPublishedAt: AT } }).kind).toBe(after);
+        expect(evaluateSourceCorrection({ statement, stored: source }).kind).toBe(outcome);
+        expect(evaluateSourceCorrection({ statement, stored: publishedOnce(source) }).kind).toBe(outcome);
     });
 });
 
@@ -421,15 +434,15 @@ describe('evaluateSourceCorrection — a cookbook, or another person, before the
         ).toMatchObject({ kind: 'apply', makePrivate: false });
     });
 
-    // Rewritten by ADR-0095: after the first publish a recipe with NO statement takes any first statement; one that holds a
-    // statement keeps it locked.
-    it.each([BOOK, FROM_PERSON])('after the first publish, changes a held statement: locked (%j)', (statement) => {
+    // Rewritten by the 2026-11-15 ruling: it used to say `locked`. A held statement can be changed after the first publish,
+    // and a third-party one forces Private in the same write.
+    it.each([BOOK, FROM_PERSON])('after the first publish, changes a held statement and forces Private (%j)', (statement) => {
         expect(
             evaluateSourceCorrection({
                 statement,
-                stored: stored({ statementKind: 'authored', firstPublishedAt: AT }),
+                stored: publishedOnce(stored({ statementKind: 'authored' })),
             }),
-        ).toEqual({ kind: 'locked' });
+        ).toMatchObject({ kind: 'apply', makePrivate: true });
     });
 
     it('keeps a book INHERITED by a clone locked: cloning is not a way to relabel a recipe', () => {

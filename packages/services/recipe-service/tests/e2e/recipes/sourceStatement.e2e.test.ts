@@ -39,6 +39,7 @@ const STATEMENT = {
     citation: LINK,
     wording: { version: 'statementPublicWeb.v1', locale: 'en' },
 } as const;
+const AUTHORED = { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } } as const;
 
 /** A minimal-but-publishable create body; `over` layers the field under test on top. */
 function body(over: Record<string, unknown> = {}): Record<string, unknown> {
@@ -216,18 +217,47 @@ describe('a pasted web link as the recipe source (e2e)', () => {
         });
     });
 
-    it('after the first publish a statement is refused 403 SOURCE_LOCKED, and the source is untouched', async () => {
+    // Rewritten by the 2026-11-15 owner ruling (ADR-0093 section 8): this case asserted 403 SOURCE_LOCKED for clearing a
+    // statement after the first publish. The statement stays editable; the evidence row stays and is never cleared.
+    it('after the first publish the cook may clear the statement: 200, the source goes, and the evidence stays', async () => {
         const { id, version } = await create({ visibility: 'private', statement: STATEMENT });
 
-        const { status, json } = await send('PATCH', `/api/v1/recipes/${id}`, {
+        const { status } = await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, statement: null });
+
+        expect(status).toBe(200);
+        expect(await readRow(id)).toMatchObject({ sourceType: 'user_created', sourceKind: null, sourceUrl: null });
+
+        const { rows } = await pool.query<{ n: string }>(
+            'SELECT count(*) AS n FROM recipe_source_evidence WHERE recipe_id = $1',
+            [id],
+        );
+
+        expect(Number(rows[0]?.n)).toBe(1);
+    });
+
+    it('after the first publish, "I wrote this" changed to a web link forces Private in the same write and appends evidence', async () => {
+        const { id, version } = await create({ visibility: 'public', statement: AUTHORED });
+
+        expect(await readRow(id)).toMatchObject({ visibility: 'public', statementKind: 'authored' });
+
+        const { status } = await send('PATCH', `/api/v1/recipes/${id}`, {
             expectedVersion: version,
-            statement: null,
+            statement: STATEMENT,
         });
 
-        expect(status).toBe(403);
-        expect(json['code']).toBe('FORBIDDEN');
-        expect((json['details'] as { reason?: string } | undefined)?.reason).toBe('SOURCE_LOCKED');
-        expect(await readRow(id)).toMatchObject({ sourceKind: 'public_web', sourceUrl: LINK });
+        expect(status).toBe(200);
+        expect(await readRow(id)).toMatchObject({
+            visibility: 'private',
+            sourceKind: 'public_web',
+            statementKind: 'source',
+        });
+
+        const { rows } = await pool.query<{ n: string }>(
+            'SELECT count(*) AS n FROM recipe_source_evidence WHERE recipe_id = $1',
+            [id],
+        );
+
+        expect(Number(rows[0]?.n)).toBe(1);
     });
 
     it('set-visibility public on a web copy is refused, and it stays private', async () => {
@@ -259,8 +289,8 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             // 0087: the statement facts the rule judges under the same lock. A stated web copy is `source`; nothing was pasted.
             statementKind: 'source',
             contentPastedAt: null,
-            // Never published, never a clone: the two facts the lock now reads for the source-correction rule.
-            firstPublishedAt: null,
+            // Never a clone: the one fact besides the source the lock reads for the source-correction rule. The first publish is
+            // not read (owner ruling 2026-11-15).
             clonedFromId: null,
         });
     });

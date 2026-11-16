@@ -49,7 +49,6 @@ export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal 
                       sourceKind: null,
                       statementKind: null,
                       contentPastedAt: null,
-                      firstPublishedAt: null,
                       clonedFromId: null,
                   }
                 : {
@@ -59,7 +58,6 @@ export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal 
                       sourceKind: found.recipe.sourceKind,
                       statementKind: found.recipe.statementKind,
                       contentPastedAt: found.recipe.contentPastedAt,
-                      firstPublishedAt: found.recipe.firstPublishedAt,
                       clonedFromId: found.recipe.clonedFromId,
                   };
         }),

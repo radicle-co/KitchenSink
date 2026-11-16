@@ -82,9 +82,11 @@ CHECKs pair `authored` with `user_created` and no source kind. They pair a sourc
 - The order of refusals is: containment, private-only, `sourceConflict`, `fromPerson`, `statementRequired`.
 - After the ADR-0074 hold ships, `statementRequired` stays. A pasted recipe with "I wrote this" and evidence still meets
   `sourceConflict`. The two rules stay separate.
-- After the first publish, a recipe with no statement can take any statement, through PATCH or set-visibility. A
-  third-party statement still forces Private in the same write, writes its evidence and takes a private slot under the
-  lock. Changing a statement that is already stored stays closed after the first publish.
+- The cook's statement stays editable after the first publish (ADR-0093 §8). The cook can state, change or clear it,
+  through PATCH or set-visibility. A third-party statement still forces Private in the same write, writes its evidence
+  and takes a private slot under the lock. Evidence is never cleared, so a recipe that holds evidence is still refused
+  Public after the cook changes the statement to "I wrote this" (`SOURCE_CONFLICT`). Three locks stay: a source the
+  curator declared, a source a clone inherited, and a source kind the service does not know.
 
 **"Typed" means we saw no paste.** This is the owner's ruling of 2026-11-15, quoted:
 "we only ask if we aren't absolutely sure". The client sends `contentPasted: true` in two cases:
@@ -130,7 +132,7 @@ copies no attestations.
     `PUBLIC_CONFIRMATION_FOR_API_WRITERS`.
 
 - **"From a cookbook or magazine"** is a `book` statement with a required citation. It forces Private. It writes
-  evidence with `capture = 'editorCitation'`. A book source that was never published can be corrected
+  evidence with `capture = 'editorCitation'`. A book source can be corrected
   (`sourceIsCorrectable`).
 - **"From another person"** is stored as `statement_kind = 'fromPerson'`, with no source kind. A stored `fromPerson`
   refuses Public at every route (`FROM_PERSON_PRIVATE_ONLY`), and erasure never donates it (`recipe_is_from_person`). Spec 016 §15 adds

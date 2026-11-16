@@ -4,8 +4,12 @@ import { RECIPE_SOURCE_KINDS, RecipeSourceType, privateRuleOf } from '../recipe.
 import { PRIVATE_ONLY_SOURCE_KEYS, privateOnlySourceKey, sourceIsCorrectable } from '../sourceRules.js';
 
 /**
- * ADR-0089: ONE rule says whether a recipe's source can still be changed by the cook, read by the service policy and by
- * the editor's Source row. A literal table, so a mutant that drops a clause fails one row.
+ * ADR-0089, ADR-0093 section 8: ONE rule says whether a recipe's source can still be changed by the cook, read by the
+ * service policy and by the editor's Source row. A literal table, so a mutant that drops a clause fails one row.
+ *
+ * Rewritten for the owner ruling of 2026-11-15: the cook's statement stays editable after the first publish, so the rows
+ * that said "first published is locked" now prove the recipe is correctable. The locks that are not about the first
+ * publish (the curator's text, a paid site, a clone's inherited kind, an unknown kind) keep their rows.
  */
 describe('sourceIsCorrectable', () => {
     const AT = new Date('2026-11-01T00:00:00.000Z');
@@ -19,8 +23,8 @@ describe('sourceIsCorrectable', () => {
             true,
         ],
         ['a clone with no inherited kind (the cook may state one)', { ...OPEN, clonedFromId: 'r-1' }, true],
-        ['a recipe first published (a Date)', { ...OPEN, firstPublishedAt: AT }, false],
-        ['a recipe first published (an ISO string)', { ...OPEN, firstPublishedAt: AT.toISOString() }, false],
+        ['a recipe first published (a Date) stays correctable', { ...OPEN, firstPublishedAt: AT }, true],
+        ['a recipe first published (an ISO string) stays correctable', { ...OPEN, firstPublishedAt: AT.toISOString() }, true],
         [
             'the curator’s public-domain text (imported_public, no kind)',
             { ...OPEN, sourceType: 'imported_public' },
@@ -32,9 +36,9 @@ describe('sourceIsCorrectable', () => {
             true,
         ],
         [
-            'a published book (an import saves published, so it stays locked)',
+            'a published book stays correctable: the statement is the cook\u2019s, the evidence stays',
             { ...OPEN, sourceType: 'imported_physical', sourceKind: 'book', firstPublishedAt: AT },
-            false,
+            true,
         ],
         [
             'a book INHERITED by a clone',
@@ -59,16 +63,28 @@ describe('sourceIsCorrectable', () => {
             false,
         ],
         [
-            'a published web copy',
+            'a published web copy stays correctable',
             { ...OPEN, sourceType: 'imported_public', sourceKind: 'public_web', firstPublishedAt: AT },
+            true,
+        ],
+        [
+            'a published paid-site recipe stays locked: not a statement the cook made',
+            { ...OPEN, sourceType: 'imported_paid', sourceKind: 'paid_site', firstPublishedAt: AT },
+            false,
+        ],
+        [
+            'a published web copy INHERITED by a clone stays locked',
+            { ...OPEN, sourceType: 'imported_public', sourceKind: 'public_web', firstPublishedAt: AT, clonedFromId: 'r-1' },
             false,
         ],
     ] as const)('%s', (_name, recipe, expected) => {
         expect(sourceIsCorrectable(recipe)).toBe(expected);
     });
 
-    it('treats an absent first-publish instant (a client wire omits it) as never published', () => {
-        expect(sourceIsCorrectable({ ...OPEN, firstPublishedAt: undefined })).toBe(true);
+    it('does not read the first-publish instant at all: a wire that carries one and one that omits it answer alike', () => {
+        const onTheWire = { ...OPEN, firstPublishedAt: AT };
+
+        expect(sourceIsCorrectable(onTheWire)).toBe(sourceIsCorrectable(OPEN));
     });
 });
 

@@ -635,8 +635,24 @@ describe('PATCH /api/v1/recipes/{id}', () => {
         expect(recorded()).toEqual([STATEMENT_ROW('fromPerson', 'statementFromPerson.v1', 'update')]);
     });
 
-    it('records nothing when the statement is refused as locked (403 SOURCE_LOCKED)', async () => {
+    // Rewritten by the 2026-11-15 owner ruling: this case refused a changed statement after the first publish. The statement
+    // is editable now, so the lock is proved on a source a clone inherited, and the change itself is recorded.
+    it('records the change of a held statement after the first publish', async () => {
         stored = rowOf({ statementKind: 'authored' });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: PERSON });
+
+        expect(response.status).toBe(200);
+        expect(recorded()).toEqual([STATEMENT_ROW('fromPerson', 'statementFromPerson.v1', 'update')]);
+    });
+
+    it('records nothing when the statement is refused as locked (403 SOURCE_LOCKED)', async () => {
+        stored = rowOf({
+            clonedFromId: '00000000-0000-4000-8000-0000000000c1',
+            sourceType: 'imported_public',
+            sourceKind: 'public_web',
+            statementKind: 'source',
+        });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: PERSON });
 
@@ -874,7 +890,12 @@ describe('PATCH /api/v1/recipes/{id}/visibility', () => {
     });
 
     it('refuses a statement the source lock refuses (403 SOURCE_LOCKED), and writes nothing', async () => {
-        stored = rowOf({ statementKind: 'authored' });
+        stored = rowOf({
+            clonedFromId: '00000000-0000-4000-8000-0000000000c1',
+            sourceType: 'imported_public',
+            sourceKind: 'public_web',
+            statementKind: 'source',
+        });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'private',

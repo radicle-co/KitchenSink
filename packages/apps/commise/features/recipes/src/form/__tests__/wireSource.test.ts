@@ -95,10 +95,22 @@ describe('toUpdateRecipeInput carries only a change of Source', () => {
         expect(update()).not.toHaveProperty('statement');
     });
 
-    it('sends nothing once the recipe has been published', () => {
+    // Rewritten by the 2026-11-15 owner ruling: it said a published recipe sends nothing. The first publish does not lock the
+    // statement, so a published recipe sends the cook's change; a locked source (a clone's) still sends nothing.
+    it('sends the change once the recipe has been published', () => {
         const published = webCopy({ status: RecipeStatus.PUBLISHED, firstPublishedAt: '2026-11-01T00:00:00.000Z' });
 
-        expect(update(makeFilledRecipeFormValues(), published)).not.toHaveProperty('statement');
+        expect(update(makeFilledRecipeFormValues(), published)).toHaveProperty('statement', null);
+    });
+
+    it('sends nothing for a published recipe whose source a clone inherited', () => {
+        const inherited = webCopy({
+            status: RecipeStatus.PUBLISHED,
+            firstPublishedAt: '2026-11-01T00:00:00.000Z',
+            clonedFromId: '00000000-0000-4000-8000-0000000000c1',
+        });
+
+        expect(update(makeFilledRecipeFormValues(), inherited)).not.toHaveProperty('statement');
     });
 
     it('sends nothing for half-typed text', () => {

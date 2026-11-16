@@ -195,9 +195,7 @@ export interface LockedRecipeFacts extends SlotFacts {
     readonly statementKind: RecipeRow['statementKind'];
     /** When content was first reported pasted (0087), under the same lock. */
     readonly contentPastedAt: RecipeRow['contentPastedAt'];
-    /** When the recipe was first published, under the same lock: with the next field, what decides if its source can still change. */
-    readonly firstPublishedAt: RecipeRow['firstPublishedAt'];
-    /** The recipe this one was cloned from, under the same lock. */
+    /** The recipe this one was cloned from, under the same lock: what decides if its source can still change. */
     readonly clonedFromId: RecipeRow['clonedFromId'];
 }
 
@@ -316,7 +314,6 @@ export class RecipesDal {
                 sourceKind: recipes.sourceKind,
                 statementKind: recipes.statementKind,
                 contentPastedAt: recipes.contentPastedAt,
-                firstPublishedAt: recipes.firstPublishedAt,
                 clonedFromId: recipes.clonedFromId,
             })
             .from(recipes)

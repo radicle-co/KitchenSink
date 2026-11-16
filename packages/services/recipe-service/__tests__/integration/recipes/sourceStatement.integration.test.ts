@@ -339,7 +339,7 @@ describe('POST /api/v1/recipes — a statement makes a private web copy', () => 
     });
 });
 
-describe('PATCH /api/v1/recipes/{id} — the source can be settled until the first publish (ADR-0058, ADR-0089)', () => {
+describe('PATCH /api/v1/recipes/{id} — the source can be settled, also after the first publish (ADR-0089, ADR-0093 section 8)', () => {
     it('sets a statement on a never-published draft, and the public draft becomes private in the same write', async () => {
         stored = makeRecipeRow({ id: RECIPE_ID, ownerId: COOK, status: 'draft', visibility: 'public' });
 
@@ -432,13 +432,15 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled until the fir
         expect(update.mock.calls[0]?.[1]).not.toHaveProperty('provenance');
     });
 
-    // Rewritten by ADR-0095: a recipe with no statement may now take a first statement after the first publish, so the lock is
-    // proved on a recipe that already holds one.
-    it('refuses CHANGING a stated source after the first publish with 403 FORBIDDEN, details.reason SOURCE_LOCKED, writing nothing', async () => {
+    // Rewritten by the 2026-11-15 owner ruling (ADR-0093 section 8): this case asserted 403 SOURCE_LOCKED for CHANGING a
+    // stated source after the first publish. The cook's statement stays editable, so it now proves the change is written and
+    // the recipe is made Private in the same write.
+    it('CHANGES a held statement after the first publish: 200, the web source is written and the recipe goes Private', async () => {
         stored = makeRecipeRow({
             id: RECIPE_ID,
             ownerId: COOK,
             status: 'published',
+            visibility: 'public',
             cuisine: 'Italian',
             statementKind: 'authored',
         });
@@ -448,15 +450,20 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled until the fir
             statement: STATEMENT,
         });
 
-        expect(await refusalOf(response)).toMatchObject({
-            status: 403,
-            code: 'FORBIDDEN',
-            details: { reason: 'SOURCE_LOCKED' },
-        });
-        expect(update).not.toHaveBeenCalled();
+        expect(response.status).toBe(200);
+        expect(update).toHaveBeenCalledWith(
+            RECIPE_ID,
+            expect.objectContaining({
+                visibility: 'private',
+                provenance: expect.objectContaining({ sourceKind: 'public_web', statementKind: 'source' }),
+            }),
+            expect.anything(),
+        );
     });
 
-    it('also refuses clearing a statement after the first publish, and a re-drafted recipe stays locked', async () => {
+    // Rewritten by the 2026-11-15 owner ruling: it asserted 403 for clearing a statement after the first publish, and for a
+    // re-drafted recipe. Neither is locked now: the first publish is not part of the lock.
+    it('clears a statement after the first publish, also on a re-drafted recipe, leaving visibility alone', async () => {
         stored = makeRecipeRow({
             id: RECIPE_ID,
             ownerId: COOK,
@@ -467,6 +474,32 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled until the fir
             sourceUrl: LINK,
             sourceAttribution: 'allrecipes.com',
             visibility: 'private',
+        });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: null });
+
+        expect(response.status).toBe(200);
+        expect(update).toHaveBeenCalledWith(
+            RECIPE_ID,
+            expect.objectContaining({ provenance: expect.objectContaining({ sourceKind: null, statementKind: null }) }),
+            expect.anything(),
+        );
+        expect(update.mock.calls[0]?.[1]).not.toHaveProperty('visibility');
+    });
+
+    it('still refuses a published clone that inherited a web source with 403 SOURCE_LOCKED, writing nothing', async () => {
+        stored = makeRecipeRow({
+            id: RECIPE_ID,
+            ownerId: COOK,
+            status: 'published',
+            firstPublishedAt: AT,
+            clonedFromId: '00000000-0000-4000-8000-0000000000c1',
+            sourceType: 'imported_public',
+            sourceKind: 'public_web',
+            sourceUrl: LINK,
+            sourceAttribution: 'allrecipes.com',
+            visibility: 'private',
+            cuisine: 'Italian',
         });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: null });

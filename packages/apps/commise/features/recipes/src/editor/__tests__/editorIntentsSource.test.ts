@@ -1,6 +1,6 @@
 /**
  * The recipe write for a draft with a Source (ADR-0089): the create is sent Private (the server refuses a web copy that is
- * public), and an update carries only a change of source, before the first publish.
+ * public), and an update carries only a change of source, also after the first publish.
  */
 import { RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
@@ -102,11 +102,34 @@ describe('an update with a Source', () => {
         expect(payload).toHaveProperty('input.statement', null);
     });
 
-    it('sends no statement once the recipe has been published', () => {
+    // Rewritten by the 2026-11-15 owner ruling: it said no statement is sent once the recipe has been published. The first
+    // publish does not lock the statement, so a published recipe sends the cook's link; an inherited source still sends none.
+    it('sends the statement once the recipe has been published', () => {
         const payload = payloadOf(
             recipeWriteIntent({
                 server: storedOf({ status: RecipeStatus.PUBLISHED, firstPublishedAt: '2026-11-01T00:00:00.000Z' }),
                 draft: draft({ sourceLink: ALLRECIPES }),
+                ref: 'rec_1',
+                publish: false,
+                privateRefusal: undefined,
+            }),
+        );
+
+        expect(payload).toHaveProperty('input.statement.citation', ALLRECIPES);
+    });
+
+    it('sends no statement for a published recipe whose source a clone inherited', () => {
+        const payload = payloadOf(
+            recipeWriteIntent({
+                server: storedOf({
+                    status: RecipeStatus.PUBLISHED,
+                    firstPublishedAt: '2026-11-01T00:00:00.000Z',
+                    clonedFromId: '00000000-0000-4000-8000-0000000000c1',
+                    sourceType: 'imported_public',
+                    sourceKind: 'public_web',
+                    sourceUrl: ALLRECIPES,
+                }),
+                draft: draft({ sourceLink: 'https://www.bbcgoodfood.com/recipes/soup' }),
                 ref: 'rec_1',
                 publish: false,
                 privateRefusal: undefined,

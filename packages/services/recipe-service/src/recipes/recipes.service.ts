@@ -512,7 +512,7 @@ interface UnderLockDecision {
 }
 
 /**
- * A source correction that may go ahead: the two refusals (the source is locked after the first publish, or the link is not a
+ * A source correction that may go ahead: the two refusals (the source is not the cook's to change, or the link is not a
  * public web page address) throw, so every route to a correction refuses them the same way.
  *
  * @param correction - The policy's verdict on the statement.
@@ -543,7 +543,6 @@ function storedSourceOf(row: LockedRecipeFacts): StoredSource {
         sourceType: row.sourceType,
         sourceKind: row.sourceKind,
         statementKind: row.statementKind,
-        firstPublishedAt: row.firstPublishedAt,
         clonedFromId: row.clonedFromId,
     };
 }
@@ -1401,14 +1400,12 @@ export class RecipesService {
         // refusal costs no call to food.
         //
         // ADR-0089: the source is judged first, because it changes what the write leaves (a web copy is asked for a
-        // cuisine, and is private). The window is `first_published_at IS NULL`; it is read from the aggregate this write's
-        // compare-and-swap on `expectedVersion` then pins: every route to a first publish is a PATCH that advances the
-        // version, so a publish that lands in between makes this write a 409 rather than a stale pass.
+        // cuisine, and is private). The stored source is read from the aggregate this write's compare-and-swap on
+        // `expectedVersion` then pins: a write that lands in between makes this one a 409 rather than a stale pass.
         const storedSource: StoredSource = {
             sourceType: recipeSourceTypeSchema.parse(existing.recipe.sourceType),
             sourceKind: existing.recipe.sourceKind,
             statementKind: existing.recipe.statementKind,
-            firstPublishedAt: existing.recipe.firstPublishedAt,
             clonedFromId: existing.recipe.clonedFromId,
         };
         const correction = refuseUnusable(evaluateSourceCorrection({ statement: dto.statement, stored: storedSource }));
@@ -2034,7 +2031,7 @@ export class RecipesService {
             }
 
             // A statement made in the SAME request (the recipe page's "I wrote this" with Make public): judged by the same policy
-            // a PATCH uses, over the facts under THIS lock, so the lock on the source and on the first publish is one rule.
+            // a PATCH uses, over the facts under THIS lock, so the lock on the source is one rule.
             const correction = evaluateSourceCorrection({
                 statement: extras.statement,
                 stored: storedSourceOf(current),

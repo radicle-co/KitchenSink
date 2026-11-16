@@ -412,18 +412,18 @@ export function provenanceNotPermitted(reason: string, details?: Record<string, 
 const SOURCE_LOCKED_REASON = 'SOURCE_LOCKED';
 
 /**
- * `FORBIDDEN` with `details.reason: 'SOURCE_LOCKED'` (→ 403) — a `PATCH` tried to change the source of a recipe that was
- * first published (or whose source the cook did not state), so it can no longer change (ADR-0089, ADR-0058).
+ * `FORBIDDEN` with `details.reason: 'SOURCE_LOCKED'` (→ 403) — a `PATCH` tried to change the source of a recipe whose
+ * source the cook did not state, or a clone inherited, so it can no longer change (ADR-0089). The first publish does not lock it.
  *
  * ⚠️ A 403 and NOT a 409, and not a new published code. An installed client reads an unknown 409 as a version conflict (the
  * same reason `PRIVATE_SLOTS_FULL` is a 403), and a new member of `recipeErrorCodeSchema` would widen a contract both apps
- * consume for a refusal the editor already prevents (it shows no field once `firstPublishedAt` is present). `FORBIDDEN` is
+ * consume for a refusal the editor already prevents (it shows no field for a locked source). `FORBIDDEN` is
  * "authenticated, but not permitted", which is this case; `details.reason` is the stable key.
  *
  * @returns The exception to throw.
  */
 export function sourceLocked(): HttpException {
-    return provenanceNotPermitted('The source of a recipe cannot be changed after it was first published.', {
+    return provenanceNotPermitted('The source of this recipe cannot be changed.', {
         reason: SOURCE_LOCKED_REASON,
     });
 }

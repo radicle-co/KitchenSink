@@ -32,7 +32,7 @@ import type { RecipeFormValues } from './values.js';
 /** What the recipe the editor holds says of its source: the server's own answer, `undefined` before the first save. */
 type StoredRecipe = Pick<
     RecipeDetail,
-    'status' | 'firstPublishedAt' | 'sourceType' | 'sourceKind' | 'sourceUrl' | 'clonedFromId' | 'publicNeedsCheck'
+    'status' | 'sourceType' | 'sourceKind' | 'sourceUrl' | 'clonedFromId' | 'publicNeedsCheck'
 >;
 
 type PublicWebStatement = Extract<RecipeStatementInput, { kind: 'public_web' }>;
@@ -69,8 +69,9 @@ export function draftSourceOf(values: Pick<RecipeFormValues, 'sourceLink'>): Dra
 
 /**
  * Whether the source can no longer change, by `recipe-core`'s ONE lock rule `sourceIsCorrectable`, the rule the server's
- * `PATCH` policy reads: published once, not stated through a link (the curator's text, a book, a paid site), or inherited by
- * a clone. So the field, the wire and the server's `SOURCE_LOCKED` agree. A recipe never saved has nothing to lock.
+ * `PATCH` policy reads: not stated by the cook (the curator's text, a paid site), inherited by a clone, or an unknown kind. The
+ * first publish does not lock it (ADR-0093 section 8). So the field, the wire and the server's `SOURCE_LOCKED` agree. A recipe
+ * never saved has nothing to lock.
  *
  * @param recipe - The server's recipe, or `undefined` before the first save.
  */
@@ -79,7 +80,6 @@ const sourceIsLocked = (recipe: StoredRecipe | undefined): boolean =>
     !sourceIsCorrectable({
         sourceType: recipe.sourceType,
         sourceKind: recipe.sourceKind ?? null,
-        firstPublishedAt: recipe.firstPublishedAt,
         clonedFromId: recipe.clonedFromId,
     });
 
@@ -159,7 +159,7 @@ export function derivedVisibility(
  * The `statement` a write carries.
  *
  * - Create (`recipe` is `undefined`): the link, when it parses.
- * - Update: only a CHANGE of source, and only before the first publish. A source the server holds already is not sent
+ * - Update: only a CHANGE of source, also after the first publish. A source the server holds already is not sent
  *   again, an emptied field removes a stored web source (`null`), and text that is not (yet) a link sends NOTHING: a
  *   checkpoint in the middle of typing must not erase the stored source or send a citation the server refuses.
  *
@@ -255,9 +255,9 @@ export const isLinkOnly = (extraction: SourceLinkExtraction): boolean =>
 
 /** Every state of the Source row (the editor spec's table). */
 export type SourceRowModel =
-    /** Published with no source: nothing to show. */
+    /** A locked source with no web link: nothing to show. */
     | { readonly kind: 'hidden' }
-    /** Published with a web source: its site as a link and the address, read only. */
+    /** A locked web source: its site as a link and the address, read only. */
     | { readonly kind: 'locked'; readonly site: string; readonly url: string }
     | { readonly kind: 'empty'; readonly text: string }
     | { readonly kind: 'filled'; readonly text: string; readonly site: string; readonly fromPaste: boolean }

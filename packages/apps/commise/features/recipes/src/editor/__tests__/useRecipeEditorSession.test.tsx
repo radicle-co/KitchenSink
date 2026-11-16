@@ -680,11 +680,14 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
         expect(view.result.current.source.row).toMatchObject({ kind: 'filled', fromPaste: false });
     });
 
-    it('a published recipe locks the Source: the row is read only and a pasted link changes nothing', () => {
+    // Rewritten by the 2026-11-15 owner ruling: it said a published recipe locks the Source. The first publish locks nothing;
+    // a source a clone inherited does, so this proves the lock on that, published or not.
+    it('a published clone keeps the source it inherited: the row is read only and a pasted link changes nothing', () => {
         const view = mount({
             recipe: complete({
                 status: RecipeStatus.PUBLISHED,
                 firstPublishedAt: '2026-11-01T00:00:00.000Z',
+                clonedFromId: '00000000-0000-4000-8000-0000000000c1',
                 sourceType: RecipeSourceType.IMPORTED_PUBLIC,
                 sourceKind: 'public_web',
                 sourceUrl: ALLRECIPES,
@@ -698,8 +701,23 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
 
         expect(view.result.current.editor.values.sourceLink).toBe(ALLRECIPES);
         expect(view.result.current.source.notice?.text).toBe(
-            'Left out the link. A published recipe’s source can’t be added or changed.',
+            'Left out the link. This recipe’s source can’t be added or changed.',
         );
+    });
+
+    it('a published recipe keeps its Source editable: a pasted link fills it', () => {
+        const view = mount({
+            recipe: complete({
+                status: RecipeStatus.PUBLISHED,
+                firstPublishedAt: '2026-11-01T00:00:00.000Z',
+                visibility: RecipeVisibility.PRIVATE,
+            }),
+        });
+
+        paste(view, BBC);
+
+        expect(view.result.current.editor.values.sourceLink).toBe(BBC);
+        expect(view.result.current.source.row).toMatchObject({ kind: 'filled' });
     });
 
     it('the inline Remove takes the source off WITHOUT moving focus to the field: the paste control gets it back', () => {

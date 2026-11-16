@@ -523,21 +523,20 @@ describe('PATCH /api/v1/recipes/{id} — the statement rule on update and publis
         expect(update.mock.calls[0]?.[1]).not.toHaveProperty('provenance');
     });
 
-    it('still refuses clearing the statement after the first publish: 403 SOURCE_LOCKED', async () => {
+    // Rewritten by the 2026-11-15 owner ruling (ADR-0093 section 8): it asserted 403 SOURCE_LOCKED for clearing the statement
+    // after the first publish. The statement stays editable, so the clear is written and visibility is left alone.
+    it('clears the statement after the first publish: 200, and visibility is left as it is', async () => {
         stored = pasted({ statementKind: 'authored' });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: null });
 
-        expect(await refusalOf(response)).toMatchObject({
-            status: 403,
-            code: 'FORBIDDEN',
-            details: { reason: 'SOURCE_LOCKED' },
-        });
-        expect(update).not.toHaveBeenCalled();
+        expect(response.status).toBe(200);
+        expect(stored).toMatchObject({ statementKind: null, visibility: 'private' });
+        expect(update.mock.calls[0]?.[1]).not.toHaveProperty('visibility');
     });
 
     // Rewritten by ADR-0095: this case used to assert that a web statement was refused after the first publish, even over a recipe
-    // with no statement. A first statement is now allowed; changing a held one stays locked (the next case).
+    // with no statement. A first statement is allowed, and so is changing a held one (the next case).
     it('takes ANY first statement after the first publish, and a third-party one forces Private and writes its evidence', async () => {
         stored = pasted({ visibility: 'public' });
 
@@ -551,12 +550,35 @@ describe('PATCH /api/v1/recipes/{id} — the statement rule on update and publis
         );
     });
 
-    it('still refuses CHANGING a statement the recipe already holds after the first publish: 403 SOURCE_LOCKED', async () => {
-        stored = pasted({ statementKind: 'authored' });
+    // Rewritten by the 2026-11-15 owner ruling: it asserted 403 SOURCE_LOCKED for changing a held statement after the first
+    // publish. authored to web is now written, forces Private in the same write and appends its evidence.
+    it('CHANGES a held "I wrote this" to a web source after the first publish: 200, forced Private, evidence written', async () => {
+        stored = pasted({ statementKind: 'authored', visibility: 'public' });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: WEB });
 
+        expect(response.status).toBe(200);
+        expect(stored).toMatchObject({ statementKind: 'source', sourceKind: 'public_web', visibility: 'private' });
+        expect(insertEvidence).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ capture: 'editorLink', sourceKind: 'public_web' }),
+        );
+    });
+
+    it('a locked source (a clone’s inherited web source) is still refused after the first publish: 403 SOURCE_LOCKED', async () => {
+        stored = pasted({
+            clonedFromId: '00000000-0000-4000-8000-0000000000c1',
+            sourceType: 'imported_public',
+            sourceKind: 'public_web',
+            statementKind: 'source',
+            sourceUrl: LINK,
+            sourceAttribution: 'allrecipes.com',
+        });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: AUTHORED });
+
         expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+        expect(update).not.toHaveBeenCalled();
     });
 
     it('publishes a public draft with "I wrote this" and NO separate confirmation: the statement is the confirmation', async () => {
@@ -751,6 +773,31 @@ describe('the whole paths a cook walks', () => {
             (await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 2, statement: AUTHORED })).status,
         ).toBe(200);
         expect(stored).toMatchObject({ statementKind: 'authored' });
+
+        const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
+
+        expect(await refusalOf(asked)).toMatchObject(SOURCE_CONFLICT);
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    it('AFTER THE FIRST PUBLISH, web then "I wrote this" still cannot reach Public: the evidence stays, 400 SOURCE_CONFLICT', async () => {
+        stored = pasted({
+            sourceType: 'imported_public',
+            sourceKind: 'public_web',
+            statementKind: 'source',
+            sourceUrl: LINK,
+            sourceAttribution: 'allrecipes.com',
+        });
+        evidence.push(evidenceRow());
+
+        expect(
+            (await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: AUTHORED })).status,
+        ).toBe(200);
+        expect(stored).toMatchObject({ statementKind: 'authored', sourceKind: null });
+        expect(evidence).toHaveLength(1);
 
         const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
@@ -1025,7 +1072,10 @@ describe('a recipe stored as "from another person" is never public', () => {
         expect(setVisibility).toHaveBeenCalledOnce();
     });
 
-    it('after the first publish the statement is locked, so the recipe stays Private for good', async () => {
+    // Rewritten by the 2026-11-15 owner ruling: it asserted that a published recipe stored as "from another person" stays Private
+    // for good, because the statement was locked. The cook's statement is editable after the first publish, so "I wrote this"
+    // replaces it and the one write makes the recipe Public. No evidence is held, so nothing else refuses it.
+    it('after the first publish the cook may change the statement to "I wrote this", and the recipe may go Public', async () => {
         stored = person({ status: 'published', firstPublishedAt: AT });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
@@ -1034,7 +1084,19 @@ describe('a recipe stored as "from another person" is never public', () => {
             publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
         });
 
-        expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+        expect(response.status).toBe(200);
+        expect(stored).toMatchObject({ statementKind: 'authored', visibility: 'public' });
+    });
+
+    it('a stored "from another person" stays Private while the statement is unchanged, published or not', async () => {
+        stored = person({ status: 'published', firstPublishedAt: AT });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
+
+        expect(await refusalOf(response)).toMatchObject({ status: 400, details: { reason: 'FROM_PERSON_PRIVATE_ONLY' } });
     });
 
     it('the cook’s own clone of it lands Private and still says it is another person’s', async () => {

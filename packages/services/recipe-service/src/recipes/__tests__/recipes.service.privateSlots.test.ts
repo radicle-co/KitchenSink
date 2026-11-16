@@ -295,7 +295,6 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
             sourceKind: null,
             statementKind: null,
             contentPastedAt: null,
-            firstPublishedAt: null,
             clonedFromId: null,
         }));
         const dal = fakeRecipesDal({
@@ -422,7 +421,6 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
             sourceKind: 'public_web',
             statementKind: 'source',
             contentPastedAt: null,
-            firstPublishedAt: null,
             clonedFromId: null,
         });
 
@@ -557,7 +555,6 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
             sourceKind: null,
             statementKind: null,
             contentPastedAt: null,
-            firstPublishedAt: null,
             clonedFromId: null,
         }));
         const dal = fakeRecipesDal({
@@ -639,7 +636,6 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
                 sourceKind: null,
                 statementKind: null,
                 contentPastedAt: null,
-                firstPublishedAt: null,
                 clonedFromId: null,
             })),
         });

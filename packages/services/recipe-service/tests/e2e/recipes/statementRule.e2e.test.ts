@@ -210,13 +210,42 @@ describe('the statement rule (e2e)', () => {
         expect(reasonOf(opened.json)).toBe('SOURCE_CONFLICT');
     });
 
-    it('PATCH statement null after the first publish is 403 SOURCE_LOCKED', async () => {
+    // Rewritten by the 2026-11-15 owner ruling (ADR-0093 section 8): this case asserted 403 SOURCE_LOCKED for clearing a
+    // statement after the first publish. The cook may change it, and the evidence still keeps the recipe out of Public.
+    it('after the first publish, web then "I wrote this" is written, and Public is still refused as SOURCE_CONFLICT', async () => {
         const { id, version } = await create({ visibility: 'private', statement: WEB });
 
-        const attempt = await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, statement: null });
+        const changed = await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, statement: AUTHORED });
 
-        expect(attempt.status).toBe(403);
-        expect(reasonOf(attempt.json)).toBe('SOURCE_LOCKED');
+        expect(changed.status).toBe(200);
+        expect(await readRow(id)).toMatchObject({ statementKind: 'authored', sourceKind: null });
+
+        const opened = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
+
+        expect(opened.status).toBe(400);
+        expect(reasonOf(opened.json)).toBe('SOURCE_CONFLICT');
+        expect(await readRow(id)).toMatchObject({ visibility: 'private' });
+    });
+
+    it('after the first publish, "I wrote this" changed to a web statement forces Private and writes evidence', async () => {
+        const { id, version } = await create({ statement: AUTHORED });
+
+        expect(await readRow(id)).toMatchObject({ visibility: 'public', statementKind: 'authored' });
+
+        const changed = await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, statement: WEB });
+
+        expect(changed.status).toBe(200);
+        expect(await readRow(id)).toMatchObject({ visibility: 'private', sourceKind: 'public_web' });
+
+        const { rows } = await pool.query<{ n: string }>(
+            'SELECT count(*) AS n FROM recipe_source_evidence WHERE recipe_id = $1',
+            [id],
+        );
+
+        expect(Number(rows[0]?.n)).toBe(1);
     });
 
     it('after the first publish, a recipe with NO statement takes a web statement with Private in one write, and keeps its evidence', async () => {

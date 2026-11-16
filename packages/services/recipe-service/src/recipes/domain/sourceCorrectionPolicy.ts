@@ -9,15 +9,15 @@
  *
  * The editor's draft checkpoints may create the server row BEFORE the cook pastes the link, so the link must be settable on
  * the draft that already exists. Provenance by DECLARATION (the curator's `source`) stays create-only (ADR-0023); this is the
- * cook's STATEMENT, which a cook may correct until the recipe is first published.
+ * cook's STATEMENT, which a cook may change at any time, also after the first publish (ADR-0093 section 8, owner ruling 2026-11-15).
  *
- * ## ⛔ The window and what it protects
+ * ## ⛔ What stays locked
  *
- * It closes at `first_published_at` (ADR-0058, set by a trigger and never cleared) and stays closed: a recipe set back to
- * draft is still locked, because a source label that could be removed after publishing would be the relabel route ADR-0077
- * section 2 refuses. It is also closed for any source the cook did not state in the editor (the curator's public-domain
- * text, a paid site; an imported book is published, so locked already): a pasted link restates nothing about those. And it is closed for a source a clone inherited,
- * so cloning is not a way to relabel a recipe. The rule is `sourceIsCorrectable`, which the editor reads too.
+ * The first publish locks nothing. The source stays locked where the cook did not state it in the editor (the curator's
+ * public-domain text, a paid site): a pasted link restates nothing about those. It is also locked for a source a clone
+ * inherited, so cloning is not a way to relabel a recipe, and for a kind this service does not know. The rule is
+ * `sourceIsCorrectable`, which the editor reads too. Detected source evidence is append-only and a statement never touches it, so a
+ * recipe that holds evidence is still refused Public by `sourceConflict`, whatever the cook says.
  *
  * ## Visibility
  *
@@ -53,7 +53,7 @@ export type StoredSource = CorrectableSourceFacts & {
  *
  * - `unchanged`: the body carried no statement, or its statement would leave the recipe as it is.
  * - `apply`: write `provenance`; `makePrivate` says the same write also sets visibility to private.
- * - `locked`: refused, the source cannot change (published once, or not a statement the cook made).
+ * - `locked`: refused, the source cannot change (not a statement the cook made, or inherited by a clone).
  * - `unusable`: refused, the statement is not a usable web source (the wire schema refuses it first).
  */
 export type SourceCorrection =
@@ -61,14 +61,6 @@ export type SourceCorrection =
     | { readonly kind: 'apply'; readonly provenance: ResolvedProvenance; readonly makePrivate: boolean }
     | { readonly kind: 'locked' }
     | { readonly kind: 'unusable' };
-
-/**
- * Whether the stored recipe has no statement and no source of its own: a recipe the cook wrote, with nothing stated.
- * The only state a first statement may be made from after the first publish.
- */
-function statesNothing(stored: StoredSource): boolean {
-    return stored.sourceType === 'user_created' && stored.sourceKind === null && stored.statementKind === null;
-}
 
 /**
  * Whether a statement would leave the recipe exactly as stored: the provenance it resolves to states no source and names the
@@ -87,19 +79,16 @@ function holdsAlready(provenance: ResolvedProvenance, stored: StoredSource): boo
 /**
  * Decide what a PATCH's `statement` does. Pure.
  *
- * ## The one move the lock lets through (Option B, widened by ADR-0095)
+ * ## A statement after the first publish
  *
- * After the first publish the source stays frozen, with one exception: the cook's FIRST statement, from NO statement, whatever
- * it says (I wrote this, a web page, a cookbook, another person). Without it a recipe published private (or one whose paste
- * was reported after it went public) could never be made public, because the cook could never attest, and a cook who owes an
- * answer could never give the honest one. It relabels nothing the cook had stated. A third-party statement forces Private in
- * the same write and appends its evidence. Saying "I wrote this" AGAIN is `unchanged` (nothing to write), so a retry of
- * "attest, then make public" does not meet a lock the first half already passed. CHANGING a statement stays locked.
+ * The cook may state, change or clear a statement after the first publish, whichever it is (I wrote this, a web page, a
+ * cookbook, another person). A third-party statement forces Private in the same write and appends its evidence. Saying the
+ * same statement again is `unchanged`, so a retry of "attest, then make public" does not meet a lock.
  *
  * ## What took effect
  *
- * A statement the recipe already holds, and a clear of a statement that was never made, are `unchanged` before the first
- * publish too: the attestation record is built from what a write DID, so it never says the cook cleared nothing.
+ * A statement the recipe already holds, and a clear of a statement that was never made, are `unchanged`:
+ * the attestation record is built from what a write DID, so it never says the cook cleared nothing.
  *
  * ⛔ Authored over a recipe that has source evidence is still refused Public, by `sourceConflict` and not here: the attestation
  * is recorded, and the evidence rule (the seam the feature-020 hold replaces) is a separate question.
@@ -118,24 +107,9 @@ export function evaluateSourceCorrection(input: {
         return { kind: 'unchanged' };
     }
 
-    // ONE lock rule, shared with the editor (`sourceIsCorrectable`, recipe-core): published once, not stated by link, or
-    // inherited by a clone. The editor's rule is unchanged; the one exception is made HERE, so the editor's reading of "can the
-    // link still change" stays true.
+    // ONE lock rule, shared with the editor (`sourceIsCorrectable`, recipe-core): not stated by the cook, inherited by a clone,
+    // or an unknown kind. The first publish is not part of it.
     if (!sourceIsCorrectable(stored)) {
-        // A statement the recipe already holds, said again, changes nothing.
-        if (statement?.kind === 'authored') {
-            const decision = evaluateProvenance({ statement, grantedScopes: [] });
-
-            if (decision.allowed && holdsAlready(decision.provenance, stored)) {
-                return { kind: 'unchanged' };
-            }
-        }
-
-        // The one move the lock lets through: the cook's FIRST statement, whichever it is.
-        if (statement !== null && statesNothing(stored)) {
-            return applyOf(evaluateProvenance({ statement, grantedScopes: [] }));
-        }
-
         return { kind: 'locked' };
     }
 

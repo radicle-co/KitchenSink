@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { parseKeptDocument, serializeKeptDocument, type KeptDocument } from '../keptRecord.js';
+import { keptTimerSchema, parseKeptDocument, serializeKeptDocument, type KeptDocument } from '../keptRecord.js';
 
 import { makeEnded, makePaused, makeTimer, timerId } from '../__fixtures__/keptFixtures.js';
 
@@ -126,6 +126,17 @@ describe('every v1 timer field has a classified source', () => {
         const sources = FIELD_SOURCES[state as keyof typeof FIELD_SOURCES];
 
         expect(Object.keys(timer).sort()).toEqual([...sources.reducer, ...sources.recordOnly].sort());
+    });
+
+    it('the schema holds exactly the classified fields for each state, so an unclassified field fails here', () => {
+        const fromSchema = Object.fromEntries(
+            keptTimerSchema.options.map((option) => [option.shape.state.value, Object.keys(option.shape).sort()]),
+        );
+        const classified = Object.fromEntries(
+            Object.entries(FIELD_SOURCES).map(([state, s]) => [state, [...s.reducer, ...s.recordOnly].sort()]),
+        );
+
+        expect(fromSchema).toEqual(classified);
     });
 
     it('a field the reducer holds and the record does not is listed as not stored', () => {

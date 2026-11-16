@@ -124,6 +124,7 @@ describe('parseKeptDocument', () => {
     it.each([
         ['a running timer with no endsAt', { ...makeTimer(), endsAt: undefined }],
         ['a paused timer with no remainingMs', { ...makePaused(), remainingMs: undefined }],
+        ['a paused timer with a negative remainingMs', { ...makePaused(), remainingMs: -1 }],
         ['a paused timer with no pausedAt', { ...makePaused(), pausedAt: undefined }],
         ['a paused timer that still has endsAt', { ...makePaused(), endsAt: iso(T0) }],
         ['a running timer that carries pausedAt', { ...makeTimer(), pausedAt: iso(T0) }],

@@ -68,7 +68,7 @@ const endedShape = { ...timerBase, endedAt: isoInstant };
  * A timer is a union on `state`, each state with exactly the instants it needs, so a running timer with no end cannot
  * be written. No label field: a strict object refuses one (R8a).
  */
-const keptTimerSchema = z.discriminatedUnion('state', [
+export const keptTimerSchema = z.discriminatedUnion('state', [
     z.strictObject({ ...timerBase, state: z.literal('running'), endsAt: isoInstant }),
     z.strictObject({
         ...timerBase,

@@ -151,6 +151,35 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         expect(report).toHaveBeenCalledTimes(1);
     });
 
+    it('a change made while reads fail is kept and joins the record once reads recover (KTD5)', async () => {
+        const { store, data, state } = setup({ [KEY_A]: stored });
+
+        state.failReads = true;
+        await store.scope('A');
+        await store.dispatch(tick);
+        state.failReads = false;
+        await store.dispatch({ ...tick, ingredientId: 'salt' });
+
+        const written = JSON.parse(data.get(KEY_A) ?? '{}');
+
+        expect(Object.keys(written.entries)).toEqual(['r1']);
+        expect(written.entries.r1.ticks).toEqual(expect.arrayContaining(['butter', 'salt']));
+    });
+
+    it('a change made while reads fail is dropped when the cook signs out, and never joins the next cook', async () => {
+        const { store, data, state } = setup({ [KEY_A]: stored });
+
+        state.failReads = true;
+        await store.scope('A');
+        await store.dispatch(tick);
+        state.failReads = false;
+        await store.scope(null);
+        await store.scope('A');
+        await store.dispatch({ ...tick, ingredientId: 'salt' });
+
+        expect(JSON.parse(data.get(KEY_A) ?? '{}').entries.r1.ticks).toEqual(['salt']);
+    });
+
     it('a re-read that throws leaves the session as it was', async () => {
         const { store, state } = setup({ [KEY_A]: stored });
 

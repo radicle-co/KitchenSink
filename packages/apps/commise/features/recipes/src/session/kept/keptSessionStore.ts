@@ -76,6 +76,12 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
     let subscribedExternal = false;
     /** After a failed write only: the document memory holds, valid while storage still holds `fromRev` (KTD2). */
     let pending: { readonly fromRev: number; readonly doc: KeptDocument } | undefined;
+    /**
+     * Commands applied in memory while storage could not be read (so nothing was written). The next successful locked
+     * dispatch replays them on top of what storage then holds, so a change made during a transient failure is not lost
+     * (KTD5). Dropped on sign-out and on a change of cook, so it never reaches another record.
+     */
+    let unsaved: readonly KeptCommand[] = [];
     /** The last raw string this store read or wrote, so a re-read can tell a different record from the same one. */
     let lastRaw: string | null | undefined;
 
@@ -214,11 +220,20 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
         }
     };
 
+    /** The document after each earlier unsaved command that still applies to it, in the order they were made. */
+    const replay = (doc: KeptDocument, commands: readonly KeptCommand[]): KeptDocument =>
+        commands.reduce((acc, command) => {
+            const next = applyKeptCommand(acc, command, deps.now());
+
+            return next.kind === 'applied' ? next.doc : acc;
+        }, doc);
+
     const clear = async (subject: string | undefined): Promise<void> => {
         // Clearing another cook (a switch of cook ends the old one's session) must not reset the cook now scoped.
         if (subject === undefined || subject === state.subject || state.subject === undefined) {
             hydrating = undefined;
             pending = undefined;
+            unsaved = [];
             lastRaw = undefined;
             set({
                 subject: undefined,
@@ -261,6 +276,7 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
         const generation = state.generation + 1;
 
         pending = undefined;
+        unsaved = [];
         lastRaw = undefined;
         set({ subject, generation, snapshot: { status: 'loading' } });
         // Assigned before the first await, so a dispatch made while the cook loads waits for it.
@@ -291,7 +307,8 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
             const held = pending;
             const useHeld = held !== undefined && storedDoc.rev === held.fromRev;
             const memory = state.snapshot.status === 'ready' ? state.snapshot.doc : EMPTY_KEPT_DOCUMENT;
-            const base = stored === undefined ? memory : useHeld ? held.doc : storedDoc;
+            const stable = stored === undefined ? memory : useHeld ? held.doc : storedDoc;
+            const base = writable ? replay(stable, unsaved) : stable;
 
             if (stored !== undefined && !useHeld) {
                 pending = undefined;
@@ -304,7 +321,10 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
             }
 
             if (writable) {
+                unsaved = [];
                 await persist(key, outcome.doc, storedDoc.rev);
+            } else if (locked) {
+                unsaved = [...unsaved, command];
             }
 
             if (state.generation === generation) {

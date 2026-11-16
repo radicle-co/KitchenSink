@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { initialSheet, type StatementSheetState, type StatementSurface } from '../sourceStatement.js';
 import { SourceStatementSheet } from '../SourceStatementSheet.native.js';
+import { FieldRevealContext, type RevealRequest } from '@commise/ui/field-reveal';
 import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
@@ -223,5 +224,38 @@ describe('SourceStatementSheet (native) — dismiss', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
         expect(onDismiss).toHaveBeenCalledTimes(1);
+    });
+});
+
+// A focused field is held above the pinned footer, but its message sits under it: the request names the field and its message
+// as one span, so the message is never left under the footer (on a phone the footer takes a third of the sheet).
+describe('SourceStatementSheet (native) — the field and its message are revealed together', () => {
+    it('asks the scroller to show the field with its message: the focus request carries an end', () => {
+        const requests: RevealRequest[] = [];
+
+        const reveal = (request: RevealRequest) => {
+            requests.push(request);
+
+            return () => undefined;
+        };
+
+        render(
+            <FieldRevealContext.Provider value={reveal}>
+                <SourceStatementSheet
+                    open
+                    surface="editor"
+                    state={{ ...initialSheet(), answer: 'book', attempted: true }}
+                    dispatch={vi.fn()}
+                    onConfirm={vi.fn()}
+                    onDismiss={vi.fn()}
+                />
+            </FieldRevealContext.Provider>,
+        );
+        fireEvent.focus(screen.getByLabelText('Book or magazine title'));
+
+        const focus = requests.find((request) => request.kind === 'focus');
+
+        expect(focus).toBeDefined();
+        expect(focus?.kind === 'focus' && focus.end !== undefined).toBe(true);
     });
 });

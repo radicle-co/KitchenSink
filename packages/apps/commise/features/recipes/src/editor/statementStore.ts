@@ -33,6 +33,7 @@ export interface StatementStore {
 export function createStatementStore(): StatementStore {
     let state: StatementState = { asking: false, answer: undefined };
     const listeners = new Set<() => void>();
+
     const set = (next: StatementState): void => {
         if (next.asking === state.asking && next.answer === state.answer) {
             return;

@@ -117,6 +117,12 @@ appId: ${APP_ID}
 - tapOn: 'More actions for .*'
 # C-004 for a PREMIUM owner nothing is gated; a private recipe offers the way to public.
 - tapOn: 'Make public'
+# ADR-0092: Make public always asks first, and the dialog carries the passive line.
+- extendedWaitUntil:
+      visible: 'Make this recipe public?'
+      timeout: 20000
+- assertVisible: 'Anyone can see a public recipe and save a copy.'
+- tapOn: 'Make public'
 - extendedWaitUntil:
       visible:
           text: '^Public$'

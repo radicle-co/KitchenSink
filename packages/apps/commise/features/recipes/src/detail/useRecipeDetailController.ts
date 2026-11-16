@@ -224,6 +224,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
     // A failure with its own answer (the sheet opens, the recipe is held) is not the generic failure.
     const genericFailure =
         setVisibility.error !== null && refusedFoods === undefined && !askedStatement && !heldByRefusal;
+
     const afterRefusal = (error: unknown): void => {
         const reason = invalidVisibilityReasonOf(error);
 
@@ -234,6 +235,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             reportError(error, { operation: 'recipeVisibility', reason });
         }
     };
+
     // The cook is asked what the recipe is, and the answer is ONE write: "I wrote this" with Public, a third-party answer with
     // Private. It carries no separate confirmation: the statement is the confirmation.
     const [statementOpen, setStatementOpen] = useState(false);
@@ -250,10 +252,12 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             ),
     });
     const statementShown = (statementOpen && !heldByRefusal) || askedStatement;
+
     const openStatement = (): void => {
         sheet.reset();
         setStatementOpen(true);
     };
+
     // Making a recipe public ALWAYS asks (ADR-0092): the passive line the confirmation records is on screen when the cook
     // confirms. With nothing to free, the dialog's body is that line.
     const freesASlot =

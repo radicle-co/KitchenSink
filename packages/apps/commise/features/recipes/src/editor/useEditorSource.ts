@@ -126,6 +126,7 @@ export function useEditorSource(options: UseEditorSourceOptions): EditorSource {
     // A web link the server records is on record, so emptying the field or pressing Remove is a change worth saying once.
     const recordsSource =
         (recipe?.sourceKind === 'public_web' || recipe?.sourceKind === 'book') && (recipe.sourceUrl ?? '') !== '';
+
     const sayRemoved = (): void => {
         if (recordsSource && !announcedRemoval) {
             setAnnouncedRemoval(true);

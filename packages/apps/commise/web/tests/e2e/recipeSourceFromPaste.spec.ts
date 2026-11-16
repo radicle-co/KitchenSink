@@ -3,7 +3,7 @@ import { expect, test, type Page, type Request } from '@playwright/test';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { chooseCuisine, editorSection, openNewRecipe } from './utils/recipeEditor';
+import { addStep, chooseCuisine, editorSection, openNewRecipe } from './utils/recipeEditor';
 
 const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
 
@@ -120,5 +120,135 @@ test.describe('a pasted web link sets the recipe’s Source (ADR-0089)', () => {
         // moves it to Private first (the visibility write comes BEFORE the first publish).
         expect(writes.some((write) => write.body?.['status'] === 'published')).toBe(true);
         expect(writes.some((write) => write.body?.['visibility'] === 'private')).toBe(true);
+    });
+});
+
+/**
+ * ADR-0092: a recipe whose steps were pasted asks where it is from before it goes public, and the answer decides what is
+ * sent. The recipe-service HTTP contract is intercepted; the service's own rule is covered by its e2e suite.
+ */
+test.describe('a pasted recipe asks where it is from before it goes public (ADR-0092)', () => {
+    /** A new recipe with one pasted step, ready to publish public. */
+    async function pastedRecipeReady(page: Page): Promise<RecipeWrite[]> {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
+        await mockFoodApi(page);
+        const writes = recordRecipeWrites(page);
+
+        await openNewRecipe(page);
+        await page.getByLabel('Title').fill('E2E Pasted Soup');
+        await chooseCuisine(page);
+        await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('salt');
+        await page
+            .getByRole('group', { name: 'Food catalog' })
+            .getByRole('option', { name: 'Salt', exact: true })
+            .click();
+        await page.getByRole('button', { name: 'Paste steps' }).click();
+        await page.getByRole('textbox', { name: 'Steps', exact: true }).fill('Simmer the stock.');
+        await page.getByRole('button', { name: 'Add 1 step' }).click();
+
+        return writes;
+    }
+
+    const sheetOf = (page: Page) => page.getByRole('dialog', { name: 'Where is this recipe from?' });
+    const published = (writes: readonly RecipeWrite[]) => writes.filter((write) => write.body?.['status'] === 'published');
+
+    test('⛔ Publish opens the sheet and publishes nothing; "I wrote this" then publishes it public with that statement', async ({
+        page,
+    }) => {
+        const writes = await pastedRecipeReady(page);
+
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(sheetOf(page)).toBeVisible();
+        expect(published(writes)).toEqual([]);
+
+        await sheetOf(page).getByRole('radio', { name: 'I wrote this' }).click();
+        await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(page.getByText('Recipe published.')).toBeVisible();
+        const [write] = published(writes);
+
+        expect(write?.body).toMatchObject({
+            contentPasted: true,
+            statement: { kind: 'authored', wording: { version: 'statementAuthored.v1' } },
+        });
+        expect(write?.body).not.toHaveProperty('publicConfirmation');
+        // Public stays public: no write moved it to Private.
+        expect(writes.some((w) => w.body?.['visibility'] === 'private')).toBe(false);
+    });
+
+    test('a book answer with no title shows the field error and sends nothing; with the title it publishes private', async ({
+        page,
+    }) => {
+        const writes = await pastedRecipeReady(page);
+
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+        await sheetOf(page).getByRole('radio', { name: 'From a cookbook or magazine' }).click();
+        await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(sheetOf(page).getByText('Enter the title.')).toBeVisible();
+        await expect(sheetOf(page).getByLabel('Title')).toBeFocused();
+        expect(published(writes)).toEqual([]);
+
+        await sheetOf(page).getByLabel('Title').fill('Joy of Cooking');
+        await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(page.getByText('Recipe published.')).toBeVisible();
+        expect(published(writes)[0]?.body).toMatchObject({
+            statement: { kind: 'book', citation: 'Joy of Cooking' },
+        });
+        // A third-party answer moves the recipe to Private before it publishes.
+        expect(writes.some((w) => w.body?.['visibility'] === 'private')).toBe(true);
+    });
+
+    test('Publish privately sends no statement; Keep as draft sends nothing and leaves the draft as it was', async ({
+        page,
+    }) => {
+        const writes = await pastedRecipeReady(page);
+
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+        await sheetOf(page).getByRole('button', { name: 'Keep as draft' }).click();
+
+        await expect(sheetOf(page)).toHaveCount(0);
+        expect(published(writes)).toEqual([]);
+
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+        await sheetOf(page).getByRole('radio', { name: 'Publish privately' }).click();
+        await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(page.getByText('Recipe published.')).toBeVisible();
+        const [write] = published(writes);
+
+        expect(writes.some((w) => w.body?.['visibility'] === 'private')).toBe(true);
+        expect(write?.body).not.toHaveProperty('statement');
+    });
+
+    test('a typed recipe is never asked: the passive line shows under Public and rides the publish', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
+        await mockFoodApi(page);
+        const writes = recordRecipeWrites(page);
+
+        await openNewRecipe(page);
+        await page.getByLabel('Title').fill('E2E Typed Soup');
+        await chooseCuisine(page);
+        await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('salt');
+        await page
+            .getByRole('group', { name: 'Food catalog' })
+            .getByRole('option', { name: 'Salt', exact: true })
+            .click();
+        await addStep(page, 'Simmer the stock.');
+
+        await expect(page.getByText('Anyone can see a public recipe and save a copy.')).toBeVisible();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(page.getByText('Recipe published.')).toBeVisible();
+        await expect(sheetOf(page)).toHaveCount(0);
+        expect(published(writes)[0]?.body).toMatchObject({
+            publicConfirmation: { version: 'publicConfirm.v1', locale: 'en' },
+        });
     });
 });

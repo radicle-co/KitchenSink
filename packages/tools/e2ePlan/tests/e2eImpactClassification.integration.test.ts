@@ -101,6 +101,35 @@ describe('the impact of a change, over the real tree', () => {
         expect(picked(sub.mobile).length).toBeGreaterThan(1);
     });
 
+    describe('timing tables: a changed duration row has no behavioural effect', () => {
+        const MOBILE = 'packages/apps/commise/mobile';
+        const timing = [
+            { tier: 'web', file: `${WEB}/tests/e2e/testDurations.json`, other: `${WEB}/tests/e2e/home.spec.ts` },
+            {
+                tier: 'mobile',
+                file: `${MOBILE}/tests/e2e/maestroFlowSeconds.tsv`,
+                other: `${MOBILE}/.maestro/home.yaml`,
+            },
+        ] as const;
+
+        it.each(timing)('$file alone selects no web spec and no mobile flow', async ({ file }) => {
+            const result = await plan([file]);
+
+            expect(result.web).toEqual({ kind: 'some', picks: [] });
+            expect(result.mobile).toEqual({ kind: 'some', picks: [] });
+        });
+
+        it.each(timing)('$file beside a changed test selects only that test`s tier', async ({ file, other, tier }) => {
+            const result = await plan([file, other]);
+            const selected = tier === 'web' ? result.web : result.mobile;
+            const untouched = tier === 'web' ? result.mobile : result.web;
+
+            expect(selected.kind).toBe('some');
+            expect(picked(selected).length).toBeGreaterThan(0);
+            expect(untouched).toEqual({ kind: 'some', picks: [] });
+        });
+    });
+
     describe('probes: each way the selector once skipped a test a change needs', () => {
         it('B1: a package a service or a test tool uses runs the whole suite on BOTH tiers', async () => {
             for (const file of [

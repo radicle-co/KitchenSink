@@ -19,7 +19,7 @@ const OWN = RecipeSourceType.USER_CREATED;
 
 describe('RECIPE_STATEMENT_KINDS', () => {
     it('is the closed vocabulary the database CHECK mirrors', () => {
-        expect([...RECIPE_STATEMENT_KINDS]).toEqual(['authored', 'source']);
+        expect([...RECIPE_STATEMENT_KINDS]).toEqual(['authored', 'source', 'fromPerson']);
     });
 });
 
@@ -32,6 +32,14 @@ describe('statementRequiredOf', () => {
         ['pasted, the cook said "I wrote this"', OWN, 'authored', true, [], false],
         ['evidence, the cook said "I wrote this"', OWN, 'authored', false, [ANY_EVIDENCE], false],
         ['pasted, a source statement is stored', OWN, 'source', true, [], false],
+        [
+            'pasted, "from another person" is stored (it is a statement; its own rule keeps the recipe private)',
+            OWN,
+            'fromPerson',
+            true,
+            [],
+            false,
+        ],
         ['pasted, a statement kind this reader does not know', OWN, UNRECOGNISED_STATEMENT_KIND, false, [], true],
         ['pasted, a web copy (it has a statement)', RecipeSourceType.IMPORTED_PUBLIC, null, true, [], false],
         ['pasted, the curator’s text', RecipeSourceType.IMPORTED_PUBLIC, null, true, [ANY_EVIDENCE], false],
@@ -46,6 +54,7 @@ describe('recipeStatementKindViewSchema', () => {
     it('reads a known kind as itself and any other string as unrecognised, never failing the read', () => {
         expect(recipeStatementKindViewSchema.parse('authored')).toBe('authored');
         expect(recipeStatementKindViewSchema.parse('source')).toBe('source');
+        expect(recipeStatementKindViewSchema.parse('fromPerson')).toBe('fromPerson');
         expect(recipeStatementKindViewSchema.parse('family')).toBe(UNRECOGNISED_STATEMENT_KIND);
     });
 

@@ -221,6 +221,7 @@ export type { Viewer } from './viewer.js';
 export { canClone, canRate, isOwner } from './recipeAccessPolicy.js';
 export { sourceConflictOf } from './sourceConflict.js';
 export type { SourceConflictInput, SourceEvidenceFacts } from './sourceConflict.js';
+export { fromPersonOf } from './fromPerson.js';
 export { statementRequiredOf } from './statementRequired.js';
 export type { StatementRequiredInput } from './statementRequired.js';
 export {

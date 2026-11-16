@@ -28,7 +28,6 @@ This directory contains the Product Forge v1.3.0 product specification artifacts
 - [metrics.md](./metrics.md) — story-level product metrics
 - [../spec.md](../spec.md) — canonical FR/NFR/SC IDs
 - [../plan.md](../plan.md) — technical architecture and service boundaries
-- [../v-model/requirements.md](../v-model/requirements.md) — REQ-NNN decomposition
 
 ---
 

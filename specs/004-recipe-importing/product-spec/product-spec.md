@@ -177,6 +177,6 @@ handling are identical on both.
 
 ## Traceability guardrail
 
-Every story maps to a requirement in [spec.md](../spec.md) and `v-model/requirements.md`. Stories US-411..US-414
+Every story maps to a requirement in [spec.md](../spec.md). Stories US-411..US-414
 are **new in this revision** and correspond to requirements that were always implied but never written down
 (file import, draft expiry, source-deleted handling, blocklist administration).

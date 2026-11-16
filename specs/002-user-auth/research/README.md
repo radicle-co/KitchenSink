@@ -34,7 +34,7 @@ Success metrics and ROI hypothesis for authentication platform capability. Cover
 ## Provenance Notes
 
 - These artifacts are **retroactively bootstrapped** from existing feature docs.
-- They do not replace canonical implementation contracts in [spec.md](../spec.md), [plan.md](../plan.md), [tasks.md](../tasks.md), or `v-model/`.
+- They do not replace canonical implementation contracts in [spec.md](../spec.md), [plan.md](../plan.md), or [tasks.md](../tasks.md).
 - Any ambiguity discovered during synthesis is surfaced as a WARNING in [../verify-report.md](../verify-report.md).
 
 ---

@@ -28,7 +28,6 @@ This directory contains Product Forge product specification artifacts for featur
 - [../research.md](../research.md) — consolidated research source
 - [../spec.md](../spec.md) — canonical feature specification
 - [../plan.md](../plan.md) — M7 technical plan
-- [../v-model/requirements.md](../v-model/requirements.md) — normalized V-Model requirements
 
 ---
 

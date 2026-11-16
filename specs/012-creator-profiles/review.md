@@ -36,7 +36,6 @@ Planning baseline used:
 - Feature spec: [`spec.md`](./spec.md)
 - Product spec: [`product-spec/product-spec.md`](./product-spec/product-spec.md)
 - Research: [`research.md`](./research.md)
-- V-Model corpus: [`v-model/`](./v-model/)
 
 ---
 

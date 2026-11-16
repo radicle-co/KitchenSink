@@ -77,8 +77,8 @@ Each item was checked by reading `main`.
 
 Resolved by owner ruling on 2026-08-02. `PRF-006-11` — residual accepted; plan span carries no separate latency target.
 `PRF-006-12` — premise invalid; the same owner owns 006 **and** the recipe service, so no cross-party gate exists.
-`PRF-006-13` — resolved; see W-005. `PRF-006-16` (endpoint path) closed alongside them. See
-[`v-model/peer-review.md`](./v-model/peer-review.md).
+`PRF-006-13` — resolved; see W-005. `PRF-006-16` (endpoint path) closed alongside them. The V-Model peer review was removed on
+2026-11-13.
 
 ### W-004 — ✅ CLOSED: scenario counts enumerated
 

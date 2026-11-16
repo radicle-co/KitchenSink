@@ -693,8 +693,7 @@ in the name of this section removes a validation boundary rather than tidying on
   k6 load profile defined in [plan.md](./plan.md), with a bounded downstream request count.
 - **SC-006-004**: **100%** of planner UI states — loading, empty, populated, partial-nutrition, orphaned-entry, error,
   saving, and next-page-loading — have a passing component test on both platforms, and every user story has a passing
-  Playwright (web) and Maestro (mobile) flow. The authoritative enumeration is the `STP-010-A` matrix in
-  [`v-model/system-test.md`](./v-model/system-test.md); the list here is a summary of it, not a second definition.
+  Playwright (web) and Maestro (mobile) flow. This list is the authoritative enumeration.
 - **SC-006-005**: The Home `meal-plan` roadmap placeholder is fully retired: no `meal-plan` entry remains in
   `ROADMAP_WIDGET_SPECS` and no per-app skeleton for it remains, verified by the existing exhaustiveness typecheck.
 

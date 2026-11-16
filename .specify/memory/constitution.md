@@ -1,6 +1,11 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 2.0.0 → 2.1.0 (MINOR)
+  - The "Release Readiness Gate" section is REMOVED. It governed the V-Model release audit
+    report, and the owner removed the V-Model extension and its artifacts on 2026-11-13.
+    No principle changes. specs/governance-rules.md retires GR-001 in step (v4.0.0).
+
 Version change: 1.3.0 → 2.0.0 (MAJOR)
 
 Why MAJOR (Governance: "removal or incompatible redefinition of an existing principle"):
@@ -501,26 +506,6 @@ whose sandbox is down is green having run no DEPLOYED e2e tests, and a skip MUST
 be reported as a pass. k6 never runs automatically; it is a manually dispatched job
 (owner rulings 2026-09-13, 2026-09-20, 2026-10-03; ADR-0032).
 
-### Release Readiness Gate (Non-Negotiable)
-
-A V-Model release audit report (`v-model/release-audit-report.md`) MUST NOT claim
-`RELEASE READY` unless all three conditions are simultaneously true:
-
-1. Every requirement row in every traceability matrix carries a mapped Test Case ID
-   (ATP). No row may show `❌ MISSING` in the Test Case ID column.
-2. Every mapped test scenario has a non-zero executed result: `passed`, `failed`, or
-   `waived`. A result of `⬜ Untested` is not acceptable for any row.
-3. Every waived scenario carries a written justification approved by the product
-   owner, recorded in `v-model/waivers.md`. Waivers without justification are
-   treated as failures.
-
-A report that claims `RELEASE READY` while any scenario is untested, any Test Case
-ID is missing, or `waivers.md` is absent is **invalid** and must be corrected to
-`❌ BLOCKED` before it can be used in any handoff, review, or gate decision.
-
-This rule is enforced by `specs/governance-rules.md` GR-001 and supersedes any
-auto-generated audit report status.
-
 ## Governance
 
 This constitution supersedes all prior informal conventions and any workspace-local
@@ -548,4 +533,4 @@ All agents and reviewers MUST check this constitution before beginning any
 implementation. The plan template's **Constitution Check** gate MUST be completed
 before Phase 0 research and re-checked after Phase 1 design.
 
-**Version**: 2.0.0 | **Ratified**: 2026-04-06 | **Last Amended**: 2026-10-31
+**Version**: 2.1.0 | **Ratified**: 2026-04-06 | **Last Amended**: 2026-11-15

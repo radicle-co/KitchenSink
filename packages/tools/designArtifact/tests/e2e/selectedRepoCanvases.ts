@@ -10,12 +10,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { CANVASES_DIR } from '../../src/publish/gitCanvasHistory.js';
 import { parseRepoCanvases } from '../../src/publish/repoCanvases.js';
 import type { RepoCanvas } from '../../src/publish/repoCanvases.js';
 import { changedRegistryIds, selectCanvases } from '../../src/publish/selectCanvases.js';
 
 export const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
-export const CANVASES_DIR = join(REPO_ROOT, 'docs', 'design', 'canvases');
+export const CANVASES_ABS_DIR = join(REPO_ROOT, CANVASES_DIR);
 
 const git = (...args: string[]): string => execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8' }).trim();
 
@@ -43,7 +44,7 @@ const registryAtMergeBase = (): string | null => {
  * @returns The selected repo canvases, in registry order.
  */
 export function selectedRepoCanvases(named: string | undefined): readonly RepoCanvas[] {
-    const registryText = readFileSync(join(CANVASES_DIR, 'registry.json'), 'utf8');
+    const registryText = readFileSync(join(CANVASES_ABS_DIR, 'registry.json'), 'utf8');
 
     return selectCanvases(
         parseRepoCanvases(registryText),

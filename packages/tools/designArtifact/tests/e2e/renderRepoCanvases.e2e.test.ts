@@ -19,7 +19,7 @@ import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { z } from 'zod';
 
 import { openRecordedPage } from './pageProblems.js';
-import { CANVASES_DIR, selectedRepoCanvases } from './selectedRepoCanvases.js';
+import { CANVASES_ABS_DIR, selectedRepoCanvases } from './selectedRepoCanvases.js';
 
 const THEMES = ['light', 'dark'] as const;
 
@@ -48,7 +48,7 @@ describe('repo canvases', () => {
 
     describe.each(selected)('$id', (canvas) => {
         const { boards } = canvasJsonSchema.parse(
-            JSON.parse(readFileSync(join(CANVASES_DIR, canvas.folder, 'project', 'canvas.json'), 'utf8')),
+            JSON.parse(readFileSync(join(CANVASES_ABS_DIR, canvas.folder, 'project', 'canvas.json'), 'utf8')),
         );
 
         describe.each(Object.entries(boards))('%s', (file, { w, h }) => {

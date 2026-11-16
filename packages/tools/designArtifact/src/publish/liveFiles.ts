@@ -58,7 +58,8 @@ const HASH_CHUNK = 16;
 /**
  * Hashes downloaded files the way git stores blobs: an LFS image as its pointer, any other file byte for byte.
  *
- * @sideEffect Spawns `git`.
+ * @sideEffect Spawns `git`. `--path` runs the LFS clean filter, which writes the image's object into
+ * `.git/lfs/objects`.
  * @param run - Runs git (its cwd is irrelevant to absolute paths).
  * @param liveDir - The download directory.
  * @param folder - The canvas folder name.

@@ -13,7 +13,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 
 import { HtmlValidate } from 'html-validate';
 import { parse } from 'parse5';
@@ -248,9 +248,21 @@ export function assetReferenceProblems(
  * @param blobs - The index blob's text of each asset, by repo path.
  */
 export function lfsPointerProblems(blobs: ReadonlyMap<string, string>): readonly string[] {
-    return [...blobs]
-        .filter(([, text]) => !text.startsWith('version https://git-lfs.github.com/spec/v1\n'))
-        .map(([file]) => `${file}: the index holds the image, not an LFS pointer; run git add --renormalize ${file}`);
+    return [...blobs].flatMap(([file, text]) => {
+        if (!text.startsWith('version https://git-lfs.github.com/spec/v1\n')) {
+            return [`${file}: the index holds the image, not an LFS pointer; run git add --renormalize ${file}`];
+        }
+
+        const oid = /^oid sha256:([0-9a-f]{64})$/mu.exec(text)?.[1];
+        const name = file.slice(file.lastIndexOf('/') + 1);
+        const expected = oid === undefined ? undefined : `${oid.slice(0, 16)}${extname(name)}`;
+
+        return expected === undefined || name === expected
+            ? []
+            : [
+                  `${file}: an asset is named by the first 16 hex of its content hash (ADR-0092); rename it to ${expected}`,
+              ];
+    });
 }
 
 /**
@@ -590,9 +602,7 @@ describe('htmlProblems', () => {
 
 describe('trackedFileProblems and images', () => {
     it('accepts an image under project/assets/ and still refuses the marker', () => {
-        expect(
-            trackedFileProblems(['a/project/assets/0123456789abcdef.webp', 'a/project/assets/authFood.jpg']),
-        ).toEqual([]);
+        expect(trackedFileProblems(['a/project/assets/0123456789abcdef.webp'])).toEqual([]);
     });
 });
 
@@ -669,10 +679,17 @@ describe('assetReferenceProblems', () => {
 });
 
 describe('lfsPointerProblems', () => {
-    const POINTER = 'version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 3\n';
+    const OID = '0123456789abcdef'.repeat(4);
+    const POINTER = `version https://git-lfs.github.com/spec/v1\noid sha256:${OID}\nsize 3\n`;
 
-    it('accepts an index blob that is a pointer', () => {
-        expect(lfsPointerProblems(new Map([['a/project/assets/x.webp', POINTER]]))).toEqual([]);
+    it('accepts an index blob that is a pointer named by its oid', () => {
+        expect(lfsPointerProblems(new Map([['a/project/assets/0123456789abcdef.webp', POINTER]]))).toEqual([]);
+    });
+
+    it('names an asset whose file name is not the first 16 hex of its oid', () => {
+        expect(lfsPointerProblems(new Map([['a/project/assets/authFood.jpg', POINTER]]))).toEqual([
+            'a/project/assets/authFood.jpg: an asset is named by the first 16 hex of its content hash (ADR-0092); rename it to 0123456789abcdef.jpg',
+        ]);
     });
 
     it('names an index blob that holds the image itself', () => {

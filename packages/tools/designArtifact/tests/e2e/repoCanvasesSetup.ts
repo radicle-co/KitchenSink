@@ -11,11 +11,11 @@ import { join } from 'node:path';
 
 import type { TestProject } from 'vitest/node';
 
-import { isLfsPointer, lfsPullArgs, lfsPullCommand } from '../../src/publish/gitCanvasHistory.js';
+import { CANVAS_ASSETS_DIR, isLfsPointer, lfsPullArgs, lfsPullCommand } from '../../src/publish/gitCanvasHistory.js';
 
 import { assertCanvasRuntimePrerequisites } from './canvasRuntimePrerequisites.js';
 import { startRepoCanvasServer } from './repoCanvasServer.js';
-import { CANVASES_DIR, REPO_ROOT, selectedRepoCanvases } from './selectedRepoCanvases.js';
+import { CANVASES_ABS_DIR, REPO_ROOT, selectedRepoCanvases } from './selectedRepoCanvases.js';
 
 declare module 'vitest' {
     export interface ProvidedContext {
@@ -39,8 +39,14 @@ async function ensureImages(folders: readonly string[]): Promise<void> {
     execFileSync('git', lfsPullArgs(folders), { cwd: REPO_ROOT, stdio: 'inherit' });
 
     for (const folder of folders) {
-        const dir = join(CANVASES_DIR, folder, 'project', 'assets');
-        const names = await readdir(dir).catch(() => []);
+        const dir = join(CANVASES_ABS_DIR, folder, 'project', CANVAS_ASSETS_DIR);
+        const names = await readdir(dir).catch((error: unknown) => {
+            if ((error as { code?: unknown }).code === 'ENOENT') {
+                return [];
+            }
+
+            throw error;
+        });
 
         for (const name of names) {
             if (isLfsPointer(await readFile(join(dir, name)))) {
@@ -60,7 +66,7 @@ async function ensureImages(folders: readonly string[]): Promise<void> {
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
     const runtimeFile = await assertCanvasRuntimePrerequisites(process.env);
     await ensureImages(selectedRepoCanvases(process.env['CANVASES']).map((canvas) => canvas.folder));
-    const server = await startRepoCanvasServer({ canvasesDir: CANVASES_DIR, canvasRuntimeFile: runtimeFile });
+    const server = await startRepoCanvasServer({ canvasesDir: CANVASES_ABS_DIR, canvasRuntimeFile: runtimeFile });
 
     project.provide('repoCanvasOrigin', server.origin);
 

@@ -14,6 +14,9 @@ import type { RunGit } from '../sources/gitHead.js';
 /** Repo-relative folder that holds the canvases. */
 export const CANVASES_DIR = 'docs/design/canvases';
 
+/** The folder, inside a canvas's `project/`, that holds its LFS images. */
+export const CANVAS_ASSETS_DIR = 'assets';
+
 /** The ref a publish is made from. */
 export const MAIN_REF = 'origin/main';
 
@@ -155,7 +158,7 @@ export function isLfsPointer(bytes: Buffer): boolean {
  * @returns The arguments, with one `--include` list for all the folders.
  */
 export function lfsPullArgs(folders: readonly string[]): string[] {
-    const include = folders.map((folder) => `${CANVASES_DIR}/${folder}/project/assets/**`).join(',');
+    const include = folders.map((folder) => `${CANVASES_DIR}/${folder}/project/${CANVAS_ASSETS_DIR}/**`).join(',');
 
     return ['-c', 'lfs.fetchexclude=', 'lfs', 'pull', `--include=${include}`];
 }
@@ -172,22 +175,31 @@ export function lfsPullCommand(...folders: readonly string[]): string {
         .replace(/--include=(\S+)$/u, "--include='$1'")}`;
 }
 
+function lfsMissing(folder: string, path: string, detail = ''): DesignArtifactError {
+    return new DesignArtifactError(
+        'lfs-object-missing',
+        `${CANVASES_DIR}/${folder}/${path} is a Git LFS file whose content is not on this machine. Run: ${lfsPullCommand(folder)}${detail}`,
+    );
+}
+
+function stderrText(error: unknown): string {
+    return typeof error === 'object' && error !== null && 'stderr' in error ? String(error.stderr).trim() : '';
+}
+
 /**
  * Reads one blob's exact bytes, through the repository's filters so an LFS path yields the real file.
  *
- * @sideEffect Spawns `git`; an LFS path may download its object.
+ * @sideEffect Spawns `git`. With `.lfsconfig` `fetchexclude` the smudge filter answers the pointer instead of
+ * downloading, which the pointer check then reports.
  * @param cwd - The repository.
  * @param main - The commit.
  * @param folder - The canvas folder name.
  * @param path - Canvas-relative path.
  * @returns The bytes, never decoded as a string.
- * @throws DesignArtifactError `lfs-object-missing` when the path is an LFS pointer whose object could not be fetched.
+ * @throws DesignArtifactError `lfs-object-missing` when an image path is an LFS pointer, or its LFS filter fails; the
+ * message carries git's stderr in the second case.
  */
 export async function blobBytes(cwd: string, main: string, folder: string, path: string): Promise<Buffer> {
-    const missing = new DesignArtifactError(
-        'lfs-object-missing',
-        `${CANVASES_DIR}/${folder}/${path} is a Git LFS file whose content is not on this machine. Run: ${lfsPullCommand(folder)}`,
-    );
     let stdout: Buffer;
 
     try {
@@ -198,15 +210,17 @@ export async function blobBytes(cwd: string, main: string, folder: string, path:
         ));
     } catch (error) {
         // A required LFS filter that cannot fetch its object fails the whole command.
-        if (path.startsWith('project/assets/')) {
-            throw missing;
+        if (path.startsWith(`project/${CANVAS_ASSETS_DIR}/`)) {
+            const detail = stderrText(error);
+
+            throw lfsMissing(folder, path, detail === '' ? '' : `\ngit said: ${detail}`);
         }
 
         throw error;
     }
 
     if (isLfsPointer(stdout)) {
-        throw missing;
+        throw lfsMissing(folder, path);
     }
 
     return stdout;

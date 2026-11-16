@@ -499,7 +499,12 @@ describe('LFS images', () => {
             'project/crlf.html': '<p>x</p>\r\n',
         });
         const list = await writeList([...Object.keys(BASELINE_FILES), ASSET, 'project/crlf.html']);
-        const result = run(['check', 'homeWeb', '--main', crlfSha, '--live', live, '--list', list]);
+        // The fixture repo sets autocrlf false, which would hide a CRLF conversion; a user's machine may set it true.
+        const result = run(['check', 'homeWeb', '--main', crlfSha, '--live', live, '--list', list], {
+            GIT_CONFIG_COUNT: '1',
+            GIT_CONFIG_KEY_0: 'core.autocrlf',
+            GIT_CONFIG_VALUE_0: 'true',
+        });
 
         expect(result.code).toBe(0);
         expect(parseCheck(result.stdout).files.find((f) => f.path === 'project/crlf.html')?.state).toBe('atMain');

@@ -13,12 +13,12 @@
  * `unresolvedReason: 'author_declared'` (plan 002 R1/R6: an unresolved line carries its machine-readable reason),
  * so the exact-shape expectations include it.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { SEED_INGREDIENTS } from '../../support/localHarness.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates recipes as. */
 const OWNER = '01JCOMPOSE0OWNER0000000AAA';
@@ -41,7 +41,7 @@ interface RecipeBody {
 }
 
 const BASE_PAYLOAD = {
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Composition Recipe',
     servings: 2,
     prepTimeMinutes: 5,

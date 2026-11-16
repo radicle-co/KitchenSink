@@ -14,7 +14,6 @@
  * real {@link VersionsService} from the Nest container and calls `createSnapshot` directly (12 times) on
  * a recipe it creates over HTTP.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 
@@ -27,6 +26,7 @@ import { recipeVersionPendingArchives } from '../../../src/database/schema/index
 import { VersionsService, VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import type { VersionsDal } from '../../../src/versions/dal/versions.dal.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates and versions a recipe as. */
 const OWNER = '01JVERSIONS0OWNER0000000CC';
@@ -36,7 +36,7 @@ interface RecipeBody {
 }
 
 const CREATE_PAYLOAD = {
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Retention Recipe',
     servings: 2,
     prepTimeMinutes: 5,

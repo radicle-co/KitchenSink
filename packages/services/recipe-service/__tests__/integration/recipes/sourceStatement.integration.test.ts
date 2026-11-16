@@ -13,7 +13,6 @@
  * 0087: the provenance expectations here were rewritten to prove the NEW behaviour, a fifth resolved column `statementKind`
  * (`source` for a stated web copy, `null` for no statement); the statement rule's own routes are `statementRule.integration.test.ts`.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import 'reflect-metadata';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -22,7 +21,12 @@ import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import type { RecipeRow } from '../../../src/database/schema/index.js';
@@ -592,7 +596,7 @@ describe('RecipesService.create with the bulk import’s provenance (ADR-0089)',
 
     it('REFUSES a public save of a public_web item, and writes nothing', async () => {
         await expect(
-            createWith({ visibility: 'public', publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS }),
+            createWith({ visibility: 'public', publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN }),
         ).rejects.toMatchObject({ code: 'INVALID_VISIBILITY' });
         expect(create).not.toHaveBeenCalled();
     });
@@ -624,7 +628,7 @@ describe('PATCH /api/v1/recipes/{id}/visibility — judged on the source under t
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect((await refusalOf(response)).code).toBe('INVALID_VISIBILITY');
@@ -636,7 +640,7 @@ describe('PATCH /api/v1/recipes/{id}/visibility — judged on the source under t
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(response.status).toBe(200);
@@ -719,7 +723,7 @@ describe('the evidence rule: a cleared source does not make a copied recipe the 
 
         const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(await refusalOf(asked)).toMatchObject({
@@ -772,7 +776,7 @@ describe('the evidence rule: a cleared source does not make a copied recipe the 
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(response.status).toBe(200);

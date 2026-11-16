@@ -316,7 +316,7 @@ describe('evaluateSourceCorrection — the whole table', () => {
         ['authored', 'setBook', 'apply'],
         ['authored', 'fromPerson', 'apply'],
         ['from another person', 'setWeb', 'apply'],
-        ['from another person', 'clear', 'apply'],
+        ['from another person', 'clear', 'locked'],
         ['from another person', 'authored', 'apply'],
         ['from another person', 'setBook', 'apply'],
         ['from another person', 'fromPerson', 'unchanged'],
@@ -402,14 +402,19 @@ describe('evaluateSourceCorrection — a cookbook, or another person, before the
         ).toMatchObject({ kind: 'apply', provenance: { statementKind: 'authored' }, makePrivate: false });
     });
 
-    it('lets "from another person" be cleared before the first publish, and says nothing of visibility', () => {
-        expect(
-            evaluateSourceCorrection({ statement: null, stored: stored({ statementKind: 'fromPerson' }) }),
-        ).toMatchObject({
-            kind: 'apply',
-            provenance: { statementKind: null },
-            makePrivate: false,
+    // Rewritten for the provenance review (finding 1): this case asserted that "from another person" could be cleared with a null
+    // statement. That is the way round the rule: nothing then remembered the statement, and the recipe could be published as the
+    // cook's own. Only an explicit statement replaces it.
+    it('refuses to clear "from another person" with a null statement: it is locked, before and after the first publish', () => {
+        expect(evaluateSourceCorrection({ statement: null, stored: stored({ statementKind: 'fromPerson' }) })).toEqual({
+            kind: 'locked',
         });
+    });
+
+    it('still lets "from another person" be said again, as an unchanged statement', () => {
+        expect(
+            evaluateSourceCorrection({ statement: FROM_PERSON, stored: stored({ statementKind: 'fromPerson' }) }),
+        ).toEqual({ kind: 'unchanged' });
     });
 
     it('replaces a stated book with a web link, and a web link with a book', () => {
@@ -436,14 +441,17 @@ describe('evaluateSourceCorrection — a cookbook, or another person, before the
 
     // Rewritten by the 2026-11-15 ruling: it used to say `locked`. A held statement can be changed after the first publish,
     // and a third-party one forces Private in the same write.
-    it.each([BOOK, FROM_PERSON])('after the first publish, changes a held statement and forces Private (%j)', (statement) => {
-        expect(
-            evaluateSourceCorrection({
-                statement,
-                stored: publishedOnce(stored({ statementKind: 'authored' })),
-            }),
-        ).toMatchObject({ kind: 'apply', makePrivate: true });
-    });
+    it.each([BOOK, FROM_PERSON])(
+        'after the first publish, changes a held statement and forces Private (%j)',
+        (statement) => {
+            expect(
+                evaluateSourceCorrection({
+                    statement,
+                    stored: publishedOnce(stored({ statementKind: 'authored' })),
+                }),
+            ).toMatchObject({ kind: 'apply', makePrivate: true });
+        },
+    );
 
     it('keeps a book INHERITED by a clone locked: cloning is not a way to relabel a recipe', () => {
         expect(

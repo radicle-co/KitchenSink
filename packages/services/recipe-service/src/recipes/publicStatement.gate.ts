@@ -33,10 +33,15 @@ import {
     statementRequiredOfEvidence,
     type EvidenceToWrite,
 } from './domain/sourceEvidence.js';
-import { attestationRowsOf, publicConfirmationDutyOf, type PublishedFacts } from './domain/statementAttestation.js';
+import {
+    attestationRowsOf,
+    isApiWriterConfirmation,
+    publicConfirmationDutyOf,
+    type PublishedFacts,
+} from './domain/statementAttestation.js';
 import { evaluatePublishedState } from './domain/visibilityPolicy.js';
 import { testPrincipalContained } from '../common/containment.error.js';
-import { policyRefusal, publicConfirmationRequired } from './recipe.error.js';
+import { apiWriterConfirmationForbidden, policyRefusal, publicConfirmationRequired } from './recipe.error.js';
 import type { PublicConfirmationInput, RecipeStatementInput } from './recipes.schema.js';
 import type { AttestationAction } from '../database/schema/index.js';
 
@@ -65,8 +70,6 @@ export interface PublicWrite {
     readonly confirmation: PublicConfirmationInput | undefined;
     /** The write carries an explicit "I wrote this" that took effect: its own attestation row answers for the confirmation. */
     readonly authoredInWrite: boolean;
-    /** The bulk import states no wording yet: it is neither asked for a confirmation nor recorded as having given one. */
-    readonly confirmationExempt?: boolean;
     /** A check the caller makes AFTER the state rules and BEFORE the confirmation (the publish floor), so its order is kept. */
     readonly afterState?: () => void;
 }
@@ -104,7 +107,7 @@ export class PublicStatementGate {
         @Inject(RecipeSourceEvidenceDal)
         private readonly evidence: Pick<RecipeSourceEvidenceDal, 'insert' | 'list'>,
         @Inject(RecipeStatementAttestationsDal)
-        private readonly attestations: Pick<RecipeStatementAttestationsDal, 'insertMany'>,
+        private readonly attestations: Pick<RecipeStatementAttestationsDal, 'insertMany' | 'hasFromPerson'>,
     ) {}
 
     /**
@@ -114,9 +117,18 @@ export class PublicStatementGate {
      * @returns What was learned, for the caller's C-004 ask and for {@link record}.
      * @throws {HttpException} `TEST_PRINCIPAL_CONTAINED` for a contained principal.
      * @throws {RecipeDomainError} `INVALID_VISIBILITY` with the refusing rule's `details.reason`.
-     * @sideEffect One read of `recipe_source_evidence` for a stored recipe.
+     * @sideEffect One read of `recipe_source_evidence` and one of `recipe_statement_attestations` for a stored recipe.
      */
     public async judge(write: PublicWrite): Promise<PublicVerdict> {
+        const details = { visibility: write.after.visibility, sourceType: write.source.sourceType };
+        const marker = isApiWriterConfirmation(write.confirmation);
+
+        // ⛔ FIRST, before any state rule: the marker says no one was shown the line, so only a test principal may send it, whether
+        // or not this write needed a confirmation.
+        if (marker && write.principal.principalKind !== 'test') {
+            throw apiWriterConfirmationForbidden(details);
+        }
+
         const stored =
             write.stored === undefined ? [] : await this.evidence.list(write.stored.recipeId, write.stored.tx);
         const evidence = [...stored, ...write.pending];
@@ -126,9 +138,10 @@ export class PublicStatementGate {
             statementKind: write.statementKind,
             contentPastedAt: write.contentPastedAt,
         });
-        const fromPerson = fromPersonOf(write.statementKind);
-        const details = { visibility: write.after.visibility, sourceType: write.source.sourceType };
-
+        const fromPerson =
+            write.stored === undefined
+                ? fromPersonOf({ statementKind: write.statementKind, attestedFromPerson: false })
+                : await this.fromPersonHeld(write.stored.tx, write.stored.recipeId, write.statementKind);
         const decision = evaluatePublishedState({
             ...write.after,
             ...write.source,
@@ -147,14 +160,13 @@ export class PublicStatementGate {
 
         write.afterState?.();
 
-        const exempt = write.confirmationExempt === true;
         const duty = publicConfirmationDutyOf({
             before: write.before,
             after: write.after,
             authoredInWrite: write.authoredInWrite,
         });
 
-        if (!exempt && duty.required && write.confirmation === undefined) {
+        if (duty.required && write.confirmation === undefined) {
             throw publicConfirmationRequired(details);
         }
 
@@ -162,7 +174,7 @@ export class PublicStatementGate {
             sourceConflict,
             fromPerson,
             statementRequired,
-            recordsConfirmation: !exempt && duty.recordedWhenSupplied,
+            recordsConfirmation: !marker && duty.recordedWhenSupplied,
         };
     }
 
@@ -196,6 +208,26 @@ export class PublicStatementGate {
                 rows.map((row) => ({ ...row, recipeId: records.recipeId, accountId: records.accountId })),
             );
         }
+    }
+
+    /**
+     * Whether a stored recipe is another person's (`fromPersonOf`): its statement says so, or it has none and the cook once
+     * attested it. Read in the caller's transaction.
+     *
+     * @param tx - The open transaction.
+     * @param recipeId - The stored recipe.
+     * @param statementKind - The statement the recipe will hold after the write.
+     * @returns `true` when Public must be refused.
+     * @sideEffect Reads `recipe_statement_attestations`, and only when no statement is stored (the answer needs it then).
+     */
+    public async fromPersonHeld(
+        tx: RecipeTx,
+        recipeId: string,
+        statementKind: RecipeStatementKind | null,
+    ): Promise<boolean> {
+        const attestedFromPerson = statementKind === null && (await this.attestations.hasFromPerson(tx, recipeId));
+
+        return fromPersonOf({ statementKind, attestedFromPerson });
     }
 
     /**

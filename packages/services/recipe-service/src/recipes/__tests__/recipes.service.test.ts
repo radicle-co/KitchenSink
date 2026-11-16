@@ -9,12 +9,7 @@
 import { HttpException } from '@nestjs/common';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
-import {
-    PUBLIC_CONFIRMATION_FOR_API_WRITERS,
-    RecipeErrorCode,
-    recipeIngredientViewSchema,
-    RecipeVisibility,
-} from '@kitchensink/recipe-core';
+import { RecipeErrorCode, recipeIngredientViewSchema, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { RecipesService } from '../recipes.service.js';
 import { CURATOR_IMPORT_SCOPE } from '../recipes.schema.js';
@@ -33,6 +28,7 @@ import {
     makeRecipePhotoRow,
     makeRecipeRow,
     makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
 } from '../../__fixtures__/index.js';
 import type { PhotosDal } from '../../photos/dal/photos.dal.js';
 import { makeFakeVersionsService } from '../__fixtures__/versions.fixture.js';
@@ -144,7 +140,7 @@ async function catchError(promise: Promise<unknown>): Promise<unknown> {
 }
 
 const CREATE_DTO: CreateRecipeDto = {
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Soup',
     // A published create needs a cuisine (the publish policy); the body defaults to published.
     cuisine: 'Thai',
@@ -1040,7 +1036,7 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
         await newService(dal).update(
             principal(),
             'r-1',
-            { expectedVersion: 1, status: 'published', publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS },
+            { expectedVersion: 1, status: 'published', publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN },
             undefined,
         );
 
@@ -1080,7 +1076,7 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
             {
                 expectedVersion: 1,
                 status: 'published',
-                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 ingredients: [
                     {
                         ingredientId: '00000000-0000-4000-8000-0000000000ff',
@@ -1215,7 +1211,7 @@ describe('RecipesService — the publish policy (owner rulings 2026-10-13: a cui
                 expectedVersion: 1,
                 status: 'published',
                 cuisine: 'Thai',
-                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             },
             undefined,
         );
@@ -1607,7 +1603,7 @@ describe('RecipesService — a never-published draft records no version (ADR-005
         await service.update(
             principal(),
             'r-1',
-            { expectedVersion: 6, status: 'published', publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS },
+            { expectedVersion: 6, status: 'published', publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN },
             undefined,
         );
 
@@ -2327,7 +2323,7 @@ describe('RecipesService — a write reads its bindings in one batch (S-R6)', ()
 
     /** A 3-line create DTO: A, B, then A again (a repeated binding across two lines). */
     const MULTI_LINE_DTO: CreateRecipeDto = {
-        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         title: 'Stew',
         cuisine: 'Irish',
         servings: 2,

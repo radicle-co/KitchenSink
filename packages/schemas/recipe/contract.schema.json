@@ -2562,25 +2562,42 @@
                     "type": "integer"
                 },
                 "publicConfirmation": {
-                    "additionalProperties": false,
-                    "properties": {
-                        "locale": {
-                            "maxLength": 35,
-                            "minLength": 2,
-                            "type": "string"
-                        },
-                        "version": {
-                            "enum": [
-                                "publicConfirm.v1"
+                    "anyOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "publicConfirm.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
                             ],
-                            "type": "string"
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "apiWriter": {
+                                    "const": true,
+                                    "type": "boolean"
+                                }
+                            },
+                            "required": [
+                                "apiWriter"
+                            ],
+                            "type": "object"
                         }
-                    },
-                    "required": [
-                        "version",
-                        "locale"
-                    ],
-                    "type": "object"
+                    ]
                 },
                 "servings": {
                     "exclusiveMinimum": 0,
@@ -7861,7 +7878,8 @@
                 "SOURCE_CONFLICT",
                 "STATEMENT_REQUIRED",
                 "PUBLIC_CONFIRMATION_REQUIRED",
-                "FROM_PERSON_PRIVATE_ONLY"
+                "FROM_PERSON_PRIVATE_ONLY",
+                "API_WRITER_CONFIRMATION_FORBIDDEN"
             ],
             "type": "string"
         },
@@ -9319,25 +9337,42 @@
         },
         "publicConfirmationSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "additionalProperties": false,
-            "properties": {
-                "locale": {
-                    "maxLength": 35,
-                    "minLength": 2,
-                    "type": "string"
-                },
-                "version": {
-                    "enum": [
-                        "publicConfirm.v1"
+            "anyOf": [
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "locale": {
+                            "maxLength": 35,
+                            "minLength": 2,
+                            "type": "string"
+                        },
+                        "version": {
+                            "enum": [
+                                "publicConfirm.v1"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "version",
+                        "locale"
                     ],
-                    "type": "string"
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "apiWriter": {
+                            "const": true,
+                            "type": "boolean"
+                        }
+                    },
+                    "required": [
+                        "apiWriter"
+                    ],
+                    "type": "object"
                 }
-            },
-            "required": [
-                "version",
-                "locale"
-            ],
-            "type": "object"
+            ]
         },
         "publicWebStatementSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -10853,7 +10888,8 @@
                                         "SOURCE_CONFLICT",
                                         "STATEMENT_REQUIRED",
                                         "PUBLIC_CONFIRMATION_REQUIRED",
-                                        "FROM_PERSON_PRIVATE_ONLY"
+                                        "FROM_PERSON_PRIVATE_ONLY",
+                                        "API_WRITER_CONFIRMATION_FORBIDDEN"
                                     ],
                                     "type": "string"
                                 }
@@ -14824,25 +14860,42 @@
             "additionalProperties": false,
             "properties": {
                 "publicConfirmation": {
-                    "additionalProperties": false,
-                    "properties": {
-                        "locale": {
-                            "maxLength": 35,
-                            "minLength": 2,
-                            "type": "string"
-                        },
-                        "version": {
-                            "enum": [
-                                "publicConfirm.v1"
+                    "anyOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "publicConfirm.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
                             ],
-                            "type": "string"
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "apiWriter": {
+                                    "const": true,
+                                    "type": "boolean"
+                                }
+                            },
+                            "required": [
+                                "apiWriter"
+                            ],
+                            "type": "object"
                         }
-                    },
-                    "required": [
-                        "version",
-                        "locale"
-                    ],
-                    "type": "object"
+                    ]
                 },
                 "statement": {
                     "oneOf": [
@@ -15305,25 +15358,42 @@
                     "type": "integer"
                 },
                 "publicConfirmation": {
-                    "additionalProperties": false,
-                    "properties": {
-                        "locale": {
-                            "maxLength": 35,
-                            "minLength": 2,
-                            "type": "string"
-                        },
-                        "version": {
-                            "enum": [
-                                "publicConfirm.v1"
+                    "anyOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "publicConfirm.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
                             ],
-                            "type": "string"
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "apiWriter": {
+                                    "const": true,
+                                    "type": "boolean"
+                                }
+                            },
+                            "required": [
+                                "apiWriter"
+                            ],
+                            "type": "object"
                         }
-                    },
-                    "required": [
-                        "version",
-                        "locale"
-                    ],
-                    "type": "object"
+                    ]
                 },
                 "servings": {
                     "exclusiveMinimum": 0,

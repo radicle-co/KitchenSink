@@ -13,12 +13,12 @@
  * asserted field-level, not full-schema, because the recipe-detail serialization diverges separately (#6).
  * Runs only when the harness DB is configured.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates recipes as. */
 const OWNER = '01JSEARCHCONTRACT00000000A';
@@ -34,7 +34,7 @@ async function seedRecipe(client: RecipeServiceClient, title: string): Promise<v
     // Seeded through the typed client end to end (create now fully conforms — #5 + #8).
     await client.createRecipe({
         title,
-        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         servings: 2,
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,

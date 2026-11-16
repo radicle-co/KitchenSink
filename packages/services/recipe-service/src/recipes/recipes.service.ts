@@ -30,7 +30,6 @@ import {
     RecipeSourceType,
     RecipeStatus,
     RecipeVisibility,
-    fromPersonOf,
     recipeSourceTypeSchema,
     recipeStatusSchema,
 } from '@kitchensink/recipe-core';
@@ -875,8 +874,6 @@ export class RecipesService {
         // food): containment, private-only, the evidence rule, the statement rule, then what Publish needs (owner rulings
         // 2026-10-13), then the passive Public confirmation (the attestation record), so a recipe that cannot be published is
         // not asked to confirm it. Every fact is the request's own: a new recipe has no stored paste fact and no other evidence.
-        // The bulk import is exempt from the confirmation for now: it carries no wording yet (an open question for the paste
-        // team), so requiring one would refuse every import save; it also writes no attestation row until it can state it.
         const verdict = await this.gate.judge({
             principal,
             before: undefined,
@@ -887,7 +884,6 @@ export class RecipesService {
             pending: evidence,
             confirmation: dto.publicConfirmation,
             authoredInWrite: dto.statement?.kind === 'authored',
-            confirmationExempt: imported !== undefined,
             afterState: () =>
                 assertPublishable({
                     status,
@@ -1911,7 +1907,7 @@ export class RecipesService {
                         sourceType,
                         sourceKind: source.recipe.sourceKind,
                     }),
-                    fromPerson: fromPersonOf(source.recipe.statementKind),
+                    fromPerson: await this.gate.fromPersonHeld(tx, source.recipe.id, source.recipe.statementKind),
                 },
             );
             const cloned = await this.dal.create(

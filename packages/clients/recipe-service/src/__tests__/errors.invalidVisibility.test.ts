@@ -31,6 +31,7 @@ describe('InvalidVisibilityError', () => {
         'STATEMENT_REQUIRED',
         'PUBLIC_CONFIRMATION_REQUIRED',
         'FROM_PERSON_PRIVATE_ONLY',
+        'API_WRITER_CONFIRMATION_FORBIDDEN',
     ] as const)('is mapped from the wire with the reason %s', async (reason) => {
         const error = await failureOf({ code: 'INVALID_VISIBILITY', message: 'no', details: { reason } });
 

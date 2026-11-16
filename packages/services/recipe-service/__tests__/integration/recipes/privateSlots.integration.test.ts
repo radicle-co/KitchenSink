@@ -15,7 +15,6 @@
  * Whether the lock really excludes a second connection, and whether the count is the right rows, are the LOCAL e2e tier's
  * (`tests/e2e/recipes/privateSlots.e2e.test.ts`).
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import 'reflect-metadata';
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -23,7 +22,12 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
@@ -297,7 +301,7 @@ describe('POST /api/v1/recipes with visibility private', () => {
         const response = await call(FREE_COOK, ['default'], 'POST', '/api/v1/recipes', {
             ...CREATE_BODY,
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(response.status).toBe(201);

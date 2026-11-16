@@ -16,10 +16,11 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS, recipeVersionSchema } from '@kitchensink/recipe-core';
+import { recipeVersionSchema } from '@kitchensink/recipe-core';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates recipes + versions as. */
 const OWNER = '01JVERSIONCONTRACT0000000A';
@@ -40,7 +41,7 @@ describe('versions vertical — client ↔ server contract conformance', () => {
 
         // Seed + edit through the typed client end to end (create now fully conforms — #5 + #8).
         const recipe = await client.createRecipe({
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             title: 'Original Title',
             servings: 2,
             prepTimeMinutes: 5,
@@ -90,7 +91,7 @@ describe('versions vertical — client ↔ server contract conformance', () => {
         // the unitless line — the overwhelmingly common "2 eggs" shape — went uncovered until Maestro's
         // `recipes/versions` flow hit the version-history error state on-device.
         const unitless = await client.createRecipe({
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             title: 'Unitless Line',
             servings: 2,
             prepTimeMinutes: 5,

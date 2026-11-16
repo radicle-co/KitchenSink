@@ -17,7 +17,12 @@ import { PUBLIC_CONFIRMATION_FOR_API_WRITERS, type RecipeVisibility } from '@kit
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
@@ -55,7 +60,7 @@ const BASIL: FoodLookupArm = {
 const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
 const TX = { __tx: true };
 
-const CONFIRM = PUBLIC_CONFIRMATION_FOR_API_WRITERS;
+const CONFIRM = PUBLIC_CONFIRMATION_AS_SHOWN;
 const AUTHORED = { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } } as const;
 const WEB = {
     kind: 'public_web',
@@ -246,7 +251,7 @@ beforeAll(async () => {
                     readConflict: async () => ({ current: aggregateOf(stored) }),
                 },
             },
-            { provide: RecipeStatementAttestationsDal, useValue: { insertMany } },
+            { provide: RecipeStatementAttestationsDal, useValue: { insertMany, hasFromPerson: async () => false } },
             {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {
@@ -326,6 +331,36 @@ describe('the wire: a statement names the wording the cook saw', () => {
         }
 
         expect(insertMany).not.toHaveBeenCalled();
+    });
+});
+
+describe('the API-writer marker is refused to a real cook (finding 2)', () => {
+    const FORBIDDEN = {
+        status: 400,
+        code: 'INVALID_VISIBILITY',
+        details: { reason: 'API_WRITER_CONFIRMATION_FORBIDDEN' },
+    };
+
+    it('create: 400 API_WRITER_CONFIRMATION_FORBIDDEN, nothing written and no row', async () => {
+        const response = await call('POST', '/api/v1/recipes', {
+            ...PUBLIC_PUBLISHED,
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
+
+        expect(await refusalOf(response)).toMatchObject(FORBIDDEN);
+        expect(create).not.toHaveBeenCalled();
+        expect(insertMany).not.toHaveBeenCalled();
+    });
+
+    it('create: refused even when the write needs no confirmation (a private recipe)', async () => {
+        const response = await call('POST', '/api/v1/recipes', {
+            ...PUBLIC_PUBLISHED,
+            visibility: 'private',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
+
+        expect(await refusalOf(response)).toMatchObject(FORBIDDEN);
+        expect(create).not.toHaveBeenCalled();
     });
 });
 
@@ -451,7 +486,11 @@ describe('POST /api/v1/recipes', () => {
 
     it('a web statement with NO wording (the Source row) writes the source and its evidence, and no attestation row', async () => {
         const { wording: _none, ...wordless } = WEB;
-        const response = await call('POST', '/api/v1/recipes', { ...CREATE_BODY, visibility: 'private', statement: wordless });
+        const response = await call('POST', '/api/v1/recipes', {
+            ...CREATE_BODY,
+            visibility: 'private',
+            statement: wordless,
+        });
 
         expect(response.status).toBe(201);
         expect(insertEvidence).toHaveBeenCalledWith(

@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
-
 import type { RecipeStatementInput } from '../../recipes.schema.js';
 import { attestationRowsOf, publicConfirmationDutyOf } from '../statementAttestation.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../__fixtures__/index.js';
 
 const AUTHORED = {
     kind: 'authored',
@@ -23,7 +22,7 @@ const PERSON = {
     kind: 'fromPerson',
     wording: { version: 'statementFromPerson.v1', locale: 'en' },
 } as const satisfies RecipeStatementInput;
-const CONFIRM = PUBLIC_CONFIRMATION_FOR_API_WRITERS;
+const CONFIRM = PUBLIC_CONFIRMATION_AS_SHOWN;
 
 describe('publicConfirmationDutyOf — when a write must carry the passive Public confirmation', () => {
     const DRAFT_PRIVATE = { status: 'draft', visibility: 'private' } as const;
@@ -134,7 +133,12 @@ describe('attestationRowsOf — exactly which rows a write leaves', () => {
                 }),
             ).toEqual([]);
             expect(
-                attestationRowsOf({ action, statement: wordless, publicConfirmation: CONFIRM, recordsConfirmation: true }),
+                attestationRowsOf({
+                    action,
+                    statement: wordless,
+                    publicConfirmation: CONFIRM,
+                    recordsConfirmation: true,
+                }),
             ).toEqual([CONFIRM_ROW(action)]);
         }
     });
@@ -217,5 +221,29 @@ describe('attestationRowsOf — exactly which rows a write leaves', () => {
             { mode: 'explicit', choice: 'cleared', wordingVersion: null, locale: null, action: 'update' },
             CONFIRM_ROW('update'),
         ]);
+    });
+});
+
+describe('attestationRowsOf — the API-writer marker leaves no row', () => {
+    it('writes nothing for a marker, even when told to record the confirmation', () => {
+        expect(
+            attestationRowsOf({
+                action: 'create',
+                statement: undefined,
+                publicConfirmation: { apiWriter: true },
+                recordsConfirmation: true,
+            }),
+        ).toEqual([]);
+    });
+
+    it('still writes the statement row beside a marker', () => {
+        expect(
+            attestationRowsOf({
+                action: 'update',
+                statement: null,
+                publicConfirmation: { apiWriter: true },
+                recordsConfirmation: true,
+            }),
+        ).toEqual([{ mode: 'explicit', choice: 'cleared', wordingVersion: null, locale: null, action: 'update' }]);
     });
 });

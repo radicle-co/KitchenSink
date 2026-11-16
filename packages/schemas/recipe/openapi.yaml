@@ -5142,6 +5142,7 @@ components:
                     - STATEMENT_REQUIRED
                     - PUBLIC_CONFIRMATION_REQUIRED
                     - FROM_PERSON_PRIVATE_ONLY
+                    - API_WRITER_CONFIRMATION_FORBIDDEN
               additionalProperties: {}
           required:
             - code
@@ -6471,20 +6472,30 @@ components:
           enum:
             - true
         publicConfirmation:
-          type: object
-          properties:
-            version:
-              type: string
-              enum:
-                - publicConfirm.v1
-            locale:
-              type: string
-              minLength: 2
-              maxLength: 35
-          required:
-            - version
-            - locale
-          additionalProperties: false
+          anyOf:
+            - type: object
+              properties:
+                version:
+                  type: string
+                  enum:
+                    - publicConfirm.v1
+                locale:
+                  type: string
+                  minLength: 2
+                  maxLength: 35
+              required:
+                - version
+                - locale
+              additionalProperties: false
+            - type: object
+              properties:
+                apiWriter:
+                  type: boolean
+                  enum:
+                    - true
+              required:
+                - apiWriter
+              additionalProperties: false
       required:
         - title
         - ingredients
@@ -6791,20 +6802,30 @@ components:
           enum:
             - true
         publicConfirmation:
-          type: object
-          properties:
-            version:
-              type: string
-              enum:
-                - publicConfirm.v1
-            locale:
-              type: string
-              minLength: 2
-              maxLength: 35
-          required:
-            - version
-            - locale
-          additionalProperties: false
+          anyOf:
+            - type: object
+              properties:
+                version:
+                  type: string
+                  enum:
+                    - publicConfirm.v1
+                locale:
+                  type: string
+                  minLength: 2
+                  maxLength: 35
+              required:
+                - version
+                - locale
+              additionalProperties: false
+            - type: object
+              properties:
+                apiWriter:
+                  type: boolean
+                  enum:
+                    - true
+              required:
+                - apiWriter
+              additionalProperties: false
       required:
         - expectedVersion
       additionalProperties: false
@@ -7305,20 +7326,30 @@ components:
                 - wording
               additionalProperties: false
         publicConfirmation:
-          type: object
-          properties:
-            version:
-              type: string
-              enum:
-                - publicConfirm.v1
-            locale:
-              type: string
-              minLength: 2
-              maxLength: 35
-          required:
-            - version
-            - locale
-          additionalProperties: false
+          anyOf:
+            - type: object
+              properties:
+                version:
+                  type: string
+                  enum:
+                    - publicConfirm.v1
+                locale:
+                  type: string
+                  minLength: 2
+                  maxLength: 35
+              required:
+                - version
+                - locale
+              additionalProperties: false
+            - type: object
+              properties:
+                apiWriter:
+                  type: boolean
+                  enum:
+                    - true
+              required:
+                - apiWriter
+              additionalProperties: false
       required:
         - visibility
       additionalProperties: false

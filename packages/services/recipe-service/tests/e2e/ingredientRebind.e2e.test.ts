@@ -10,7 +10,6 @@
  * update follows: a line whose binding changed is a different judgement, and a cook's pick is not our parse to be
  * verified against the source. The case below pins that on purpose; every other line keeps its transcription.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -19,6 +18,7 @@ import { asPrincipal } from '../support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../support/foodFake.js';
 import { deleteBindingsMatching } from '../support/bindingCleanup.js';
 import { recipeDb } from '../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -82,7 +82,7 @@ async function recipeWith(
     visibility: 'public' | 'private' = 'public',
 ): Promise<RecipeBody> {
     return json<RecipeBody>('POST', '/api/v1/recipes', 201, {
-        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         title: `${SCOPE} ${phrase}`,
         visibility,
         servings: 2,

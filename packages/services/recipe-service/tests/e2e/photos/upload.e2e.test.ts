@@ -14,10 +14,11 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS, recipePhotoThumbnailKey } from '@kitchensink/recipe-core';
+import { recipePhotoThumbnailKey } from '@kitchensink/recipe-core';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates recipes + photos as. */
 const OWNER = '01JPHOTO0OWNER0000000000AA';
@@ -42,7 +43,7 @@ const REAL_PNG_BYTES = new Uint8Array(
 const GARBAGE_BYTES = new Uint8Array([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b]);
 
 const RECIPE_PAYLOAD = {
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Photo Integration Recipe',
     servings: 2,
     prepTimeMinutes: 5,

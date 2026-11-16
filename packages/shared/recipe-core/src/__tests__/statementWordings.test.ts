@@ -46,14 +46,17 @@ describe('the closed wording lists (the copy a cook saw)', () => {
 });
 
 describe('PUBLIC_CONFIRMATION_FOR_API_WRITERS', () => {
-    it('is the first public-confirm wording in English, the one every API writer sends', () => {
-        expect(PUBLIC_CONFIRMATION_FOR_API_WRITERS).toEqual({ version: 'publicConfirm.v1', locale: 'en' });
-        expect(PUBLIC_CONFIRM_WORDINGS).toContain(PUBLIC_CONFIRMATION_FOR_API_WRITERS.version);
+    // Rewritten for the provenance review (finding 2): it used to be a wording, so a seed or a load script recorded "the cook
+    // saw this line" for a line nobody saw. It is now a marker that satisfies the duty and records nothing, and it names no
+    // wording at all.
+    it('is the API-writer marker, and carries no wording and no locale to record', () => {
+        expect(PUBLIC_CONFIRMATION_FOR_API_WRITERS).toEqual({ apiWriter: true });
+        expect(PUBLIC_CONFIRMATION_FOR_API_WRITERS).not.toHaveProperty('version');
+        expect(PUBLIC_CONFIRMATION_FOR_API_WRITERS).not.toHaveProperty('locale');
     });
 
-    it('has a locale inside the bounds the database CHECK enforces', () => {
-        expect(PUBLIC_CONFIRMATION_FOR_API_WRITERS.locale.length).toBeGreaterThanOrEqual(WORDING_LOCALE_MIN_LENGTH);
-        expect(PUBLIC_CONFIRMATION_FOR_API_WRITERS.locale.length).toBeLessThanOrEqual(WORDING_LOCALE_MAX_LENGTH);
+    it('keeps the locale bounds the database CHECK enforces, for the wording a screen sends', () => {
+        expect(PUBLIC_CONFIRM_WORDINGS).toEqual(['publicConfirm.v1']);
         expect([WORDING_LOCALE_MIN_LENGTH, WORDING_LOCALE_MAX_LENGTH]).toEqual([2, 35]);
     });
 });

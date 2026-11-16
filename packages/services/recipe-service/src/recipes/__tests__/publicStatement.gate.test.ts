@@ -35,17 +35,23 @@ const REAL: Principal = {
     containment: 'enforce',
 };
 const TEST_COOK: Principal = { ...REAL, principalKind: 'test' };
+/** A test principal on a stage that does not contain them (sandbox and every preview): the only place it may publish. */
+const TEST_COOK_UNCONTAINED: Principal = { ...TEST_COOK, containment: 'off' };
 
-function gateOf(stored: readonly EvidenceToWrite[] = []) {
+function gateOf(stored: readonly EvidenceToWrite[] = [], attestedFromPerson = false) {
     const insert = vi.fn(async () => undefined);
     const list = vi.fn(async () => stored.map((row, index) => ({ ...row, id: `e${String(index)}` })));
     const insertMany = vi.fn(async () => undefined);
+    const hasFromPerson = vi.fn(async () => attestedFromPerson);
     const gate = new PublicStatementGate(
         { insert, list } as unknown as Pick<RecipeSourceEvidenceDal, 'insert' | 'list'>,
-        { insertMany } as unknown as Pick<RecipeStatementAttestationsDal, 'insertMany'>,
+        { insertMany, hasFromPerson } as unknown as Pick<
+            RecipeStatementAttestationsDal,
+            'insertMany' | 'hasFromPerson'
+        >,
     );
 
-    return { gate, insert, list, insertMany };
+    return { gate, insert, list, insertMany, hasFromPerson };
 }
 
 /** A write that leaves a published, public recipe the cook wrote and stated nothing about: the base every row bends. */
@@ -59,7 +65,6 @@ function writeOf(over: Partial<PublicWrite> = {}): PublicWrite {
         contentPastedAt: undefined,
         pending: [],
         confirmation: CONFIRM,
-        confirmationExempt: false,
         authoredInWrite: false,
         ...over,
     };
@@ -81,6 +86,51 @@ async function reasonOf(write: Promise<unknown>): Promise<string> {
 }
 
 describe('PublicStatementGate.judge — the order of refusals', () => {
+    // Finding 2: an API writer's marker satisfies the duty for a TEST principal only, and never leaves a row.
+    describe('the API-writer confirmation marker', () => {
+        const MARKER = { apiWriter: true } as const;
+
+        it('satisfies the duty for a test principal and is NOT recorded', async () => {
+            const { gate } = gateOf();
+
+            await expect(
+                gate.judge(writeOf({ principal: TEST_COOK_UNCONTAINED, confirmation: MARKER })),
+            ).resolves.toMatchObject({
+                recordsConfirmation: false,
+            });
+        });
+
+        it('is refused for a real cook, with a typed reason, whether or not the write needed a confirmation', async () => {
+            const { gate } = gateOf();
+            const privateDraft = { status: 'draft' as RecipeStatus, visibility: 'private' as RecipeVisibility };
+
+            await expect(reasonOf(gate.judge(writeOf({ confirmation: MARKER })))).resolves.toBe(
+                'API_WRITER_CONFIRMATION_FORBIDDEN',
+            );
+            await expect(reasonOf(gate.judge(writeOf({ confirmation: MARKER, after: privateDraft })))).resolves.toBe(
+                'API_WRITER_CONFIRMATION_FORBIDDEN',
+            );
+        });
+
+        it('is judged before every state rule, so a real cook learns it before any other refusal', async () => {
+            const { gate } = gateOf([WEB_ROW]);
+
+            await expect(
+                reasonOf(gate.judge(writeOf({ confirmation: MARKER, stored: { tx: FAKE_TX, recipeId: 'r1' } }))),
+            ).resolves.toBe('API_WRITER_CONFIRMATION_FORBIDDEN');
+        });
+
+        it('still records a real wording sent by a test principal (a test principal that used a screen)', async () => {
+            const { gate } = gateOf();
+
+            await expect(
+                gate.judge(writeOf({ principal: TEST_COOK_UNCONTAINED, confirmation: CONFIRM })),
+            ).resolves.toMatchObject({
+                recordsConfirmation: true,
+            });
+        });
+    });
+
     it('allows a typed recipe with nothing stated and nothing pasted', async () => {
         const { gate } = gateOf();
 
@@ -125,6 +175,35 @@ describe('PublicStatementGate.judge — the order of refusals', () => {
             reasonOf(evidenced.gate.judge(writeOf({ ...person, stored: { tx: FAKE_TX, recipeId: 'r1' } }))),
         ).resolves.toBe('SOURCE_CONFLICT');
         await expect(reasonOf(bare.gate.judge(writeOf(person)))).resolves.toBe('FROM_PERSON_PRIVATE_ONLY');
+    });
+
+    it('holds a stored recipe with NO statement and a past "from another person" attestation, with the same reason', async () => {
+        const { gate, hasFromPerson } = gateOf([], true);
+
+        await expect(reasonOf(gate.judge(writeOf({ stored: { tx: FAKE_TX, recipeId: 'r1' } })))).resolves.toBe(
+            'FROM_PERSON_PRIVATE_ONLY',
+        );
+        expect(hasFromPerson).toHaveBeenCalledWith(FAKE_TX, 'r1');
+    });
+
+    it('does not hold a stored recipe whose statement is now "I wrote this", past attestation or not, and does not ask', async () => {
+        const { gate, hasFromPerson } = gateOf([], true);
+
+        await expect(
+            gate.judge(writeOf({ statementKind: 'authored', stored: { tx: FAKE_TX, recipeId: 'r1' } })),
+        ).resolves.toMatchObject({ fromPerson: false });
+        expect(hasFromPerson).not.toHaveBeenCalled();
+    });
+
+    it('does not hold a stored recipe with no statement and no such attestation, and reads none for a create', async () => {
+        const stored = gateOf([], false);
+        const created = gateOf([], true);
+
+        await expect(stored.gate.judge(writeOf({ stored: { tx: FAKE_TX, recipeId: 'r1' } }))).resolves.toMatchObject({
+            fromPerson: false,
+        });
+        await expect(created.gate.judge(writeOf())).resolves.toMatchObject({ fromPerson: false });
+        expect(created.hasFromPerson).not.toHaveBeenCalled();
     });
 
     it('lets a recipe the cook said is another person’s stay Private, and be a draft', async () => {
@@ -222,14 +301,6 @@ describe('PublicStatementGate.judge — the confirmation', () => {
         await expect(
             reasonOf(gate.judge(writeOf({ confirmation: undefined, statementKind: 'authored' }))),
         ).resolves.toBe('PUBLIC_CONFIRMATION_REQUIRED');
-    });
-
-    it('the import is exempt: nothing is required and nothing is recorded', async () => {
-        const { gate } = gateOf();
-
-        await expect(gate.judge(writeOf({ confirmation: undefined, confirmationExempt: true }))).resolves.toMatchObject(
-            { recordsConfirmation: false },
-        );
     });
 
     it('a refusal with a cause of its own is never masked by a missing confirmation', async () => {

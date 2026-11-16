@@ -15,20 +15,20 @@
  *
  * One booted app, two principals via `asPrincipal` (sequential requests only — it is process-global).
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { asPrincipal } from '../../support/asPrincipal.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 const OWNER = '01JACCESSOWNER000000000000A';
 const STRANGER = '01JACCESSSTRANGER000000000B';
 
 const CREATE_BODY = {
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Access Recipe',
     servings: 2,
     prepTimeMinutes: 5,

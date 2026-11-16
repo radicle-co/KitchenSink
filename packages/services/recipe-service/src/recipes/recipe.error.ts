@@ -370,6 +370,25 @@ export function publicConfirmationRequired(details: Record<string, unknown> = {}
     });
 }
 
+/** `details.reason` of the `INVALID_VISIBILITY` a real cook's API-writer marker answers with. */
+const API_WRITER_CONFIRMATION_FORBIDDEN_REASON = invalidVisibilityReasonSchema.enum.API_WRITER_CONFIRMATION_FORBIDDEN;
+
+/**
+ * `INVALID_VISIBILITY` with `details.reason: 'API_WRITER_CONFIRMATION_FORBIDDEN'` (→ 400): a principal that is not a test
+ * principal sent the API-writer marker. The marker says no one was shown the confirmation line, which a real cook's request
+ * must never claim, and it records nothing; accepting it would let a cook publish with no confirmation on record. The same
+ * shape as {@link publicConfirmationRequired}, for the same reason: no new published code.
+ *
+ * @param details - The attempted visibility and source type, as {@link invalidVisibility} carries.
+ * @returns The error to throw.
+ */
+export function apiWriterConfirmationForbidden(details: Record<string, unknown> = {}): RecipeDomainError {
+    return invalidVisibility('Only a test principal may send the API-writer confirmation.', {
+        ...details,
+        reason: API_WRITER_CONFIRMATION_FORBIDDEN_REASON,
+    });
+}
+
 /** `details.reason` of the `INVALID_VISIBILITY` "from another person" answers with when asked to be public. */
 const FROM_PERSON_PRIVATE_ONLY_REASON = invalidVisibilityReasonSchema.enum.FROM_PERSON_PRIVATE_ONLY;
 

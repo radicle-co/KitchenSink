@@ -28,7 +28,6 @@
  * so the 400-not-403 case passed on that key whatever the provenance did. It now asserts that every refused
  * field is under `source`, and that nothing else was refused.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import pg from 'pg';
@@ -40,6 +39,7 @@ import { RecipesService } from '../../../src/recipes/recipes.service.js';
 import { CURATOR_IMPORT_SCOPE, createRecipeRequestSchema } from '../../../src/recipes/recipes.schema.js';
 import type { Principal } from '../../../src/auth/principal.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -56,7 +56,7 @@ const SOURCE_ATTRIBUTION = 'The International Jewish Cook Book by Florence Kreis
 /** A minimal-but-publishable create body; `over` layers the field under test on top. */
 function body(over: Record<string, unknown> = {}): Record<string, unknown> {
     return {
-        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         title: 'Beet Soup, Russian Style',
         servings: 1,
         prepTimeMinutes: 0,

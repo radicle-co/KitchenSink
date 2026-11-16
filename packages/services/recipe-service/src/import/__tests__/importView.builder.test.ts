@@ -64,7 +64,9 @@ function build(options: {
 
 const view = (
     options: Parameters<typeof build>[0] = {},
-    header = makeHeader(),
+    // Private: an import saves Private only until the paste import carries wordings (ADR-0095 section 4), so the view of an
+    // item that is not about visibility reads a private import.
+    header = makeHeader({ visibility: 'private' }),
     page = { limit: 100 },
     principal = makePrincipal(),
 ) => build(options).builder.build(principal, header, page);
@@ -281,8 +283,14 @@ describe('ImportViewBuilder', () => {
             const free = cookKeyOf(visibilityFactsOf(makePrincipal()));
             const held = { decisionRev: 4, heldAtRev: 4 };
             const asPro = async (item: ListedImportItem) =>
-                (await view({ items: [item] }, makeHeader(), { limit: 100 }, makePrincipal({ roles: ['premium'] })))
-                    .items[0]?.issue;
+                (
+                    await view(
+                        { items: [item] },
+                        makeHeader({ visibility: 'private' }),
+                        { limit: 100 },
+                        makePrincipal({ roles: ['premium'] }),
+                    )
+                ).items[0]?.issue;
 
             expect(
                 await asPro(matchedItem({}, { ...held, heldReason: 'createRefused', heldCookKey: free })),

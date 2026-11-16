@@ -47,7 +47,7 @@ vi.mock('@sentry/nestjs', () => ({
 import { RecipesService } from '../recipes.service.js';
 import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
 import type { RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
-import { FoodResolutionStatus, PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
+import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 import { sha256Hex } from '../../common/sha256.js';
 import type { FoodLookupArm, FoodRef } from '../../database/schema/foodLookupArm.js';
@@ -55,7 +55,12 @@ import { fakeFoodLookupsDal, makeRootArm } from '../../ingredients/__fixtures__/
 import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
 import { canonicalIngredientName } from '../../ingredients/domain/ingredientName.js';
 import type { FoodRefsGateway } from '../../ingredients/foodRefs.gateway.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../__fixtures__/index.js';
 import { fakeLineVerificationsDal } from '../__fixtures__/lineVerificationsDal.fixture.js';
 import type { LineVerificationsDal } from '../dal/lineVerifications.dal.js';
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
@@ -186,7 +191,7 @@ function makeService(
 
 /** A create body. `sourceLine: null` means the cook AUTHORED the line — the field is simply not sent. */
 const createDto = (sourceLine: string | null = SOURCE_LINE): CreateRecipeDto => ({
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Bread',
     cuisine: 'French',
     servings: 2,

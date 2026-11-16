@@ -26,7 +26,6 @@
  * this suite's subject is the figure, which does not depend on the name, and the name path is asserted by the
  * suites whose food answers `refs/resolve` (`lineVerification`, `cloneVisibility`, `verificationEnqueue`).
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -36,6 +35,7 @@ import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { asPrincipal } from '../../support/asPrincipal.js';
 import { ensureFoodLookup } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 const OWNER = '01JNUTRITIONOWNER00000000A';
@@ -281,7 +281,7 @@ describe('per-serving nutrition from the food service (integration, post-U10)', 
             // that so the two outcomes can never be confused for each other.
             headers: { 'content-type': 'application/json', authorization: FORWARDED_BEARER },
             body: JSON.stringify({
-                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 title: 'Nutrition Cup Recipe',
                 servings: 2,
                 prepTimeMinutes: 5,
@@ -353,7 +353,7 @@ describe('per-serving nutrition from the food service (integration, post-U10)', 
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
-                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 title: 'No Credential Recipe',
                 servings: 2,
                 prepTimeMinutes: 5,
@@ -398,7 +398,7 @@ describe('per-serving nutrition from the food service (integration, post-U10)', 
             method: 'POST',
             headers: { 'content-type': 'application/json', authorization: FORWARDED_BEARER },
             body: JSON.stringify({
-                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 title: 'Outage Recipe',
                 servings: 2,
                 prepTimeMinutes: 5,
@@ -464,7 +464,7 @@ describe('per-serving nutrition from the food service (integration, post-U10)', 
                     ? { 'content-type': 'application/json', authorization: FORWARDED_BEARER }
                     : { 'content-type': 'application/json' },
                 body: JSON.stringify({
-                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                     title: `Budget Recipe ${catalogId.slice(-3)}`,
                     servings: 2,
                     prepTimeMinutes: 5,
@@ -585,7 +585,7 @@ describe('per-serving nutrition from the food service (integration, post-U10)', 
                 method: 'POST',
                 headers: { 'content-type': 'application/json', authorization: FORWARDED_BEARER },
                 body: JSON.stringify({
-                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                     title: 'Read Deadline Recipe',
                     servings: 2,
                     prepTimeMinutes: 5,
@@ -717,7 +717,7 @@ describe('per-serving nutrition from the food service (integration, post-U10)', 
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({
-                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                     title: `Write Route Recipe ${catalogId.slice(-3)}`,
                     servings: 2,
                     prepTimeMinutes: 5,

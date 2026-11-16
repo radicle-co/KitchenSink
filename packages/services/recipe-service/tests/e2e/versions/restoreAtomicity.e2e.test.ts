@@ -17,7 +17,6 @@
  * the restore will target. No mock, no stubbed DAL — a real constraint on the real path, which is the only
  * way to observe whether two writes share a transaction.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 
@@ -26,6 +25,7 @@ import { DrizzleProvider } from '../../../src/database/database.module.js';
 import type { RecipeDrizzle } from '../../../src/database/client.js';
 import { recipeVersions } from '../../../src/database/schema/index.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** A seeded catalog ingredient (Flour) from the baseline global setup. */
 const FLOUR_ID = '00000000-0000-4000-8000-0000000000aa';
@@ -37,7 +37,7 @@ interface RecipeBody {
 }
 
 const CREATE_BODY = {
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Original Title',
     servings: 2,
     prepTimeMinutes: 5,

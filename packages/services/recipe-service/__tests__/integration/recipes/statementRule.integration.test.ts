@@ -8,7 +8,6 @@
  * Whether the real database stores and constrains the columns, and whether `recipe_needs_statement` answers what
  * `statementRequiredOf` answers, is the LOCAL e2e tier's (`recipeStatementKind.e2e.test.ts`, `statementRule.e2e.test.ts`).
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import 'reflect-metadata';
 
 import { HttpException } from '@nestjs/common';
@@ -18,7 +17,12 @@ import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import type { RecipeRow } from '../../../src/database/schema/index.js';
@@ -33,6 +37,7 @@ import {
 } from '../../../src/recipes/recipes.tokens.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import type { NewRecipeSourceEvidenceRow, RecipeSourceEvidenceRow } from '../../../src/database/schema/index.js';
+import { RecipeStatementAttestationsDal } from '../../../src/recipes/dal/recipeStatementAttestations.dal.js';
 import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.dal.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import type { Principal } from '../../../src/auth/principal.js';
@@ -131,6 +136,9 @@ const listEvidence = vi.fn(async (recipeId: string, _tx?: unknown) =>
 /** The row as a concurrent write left it, when a test stages a race: what the row lock reads instead of `stored`. */
 let underLock: RecipeRow | undefined;
 
+/** Whether the cook ever attested "from another person" for the stored recipe (`hasFromPerson`). */
+let attestedFromPerson = false;
+
 let food: FoodFake;
 let booted: BootedServiceApp;
 
@@ -156,7 +164,7 @@ const PUBLISHED_PUBLIC_BODY = {
     steps: [{ instruction: 'Simmer.' }],
     status: 'published',
     visibility: 'public',
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
 };
 
 async function refusalOf(response: Response): Promise<{ status: number; code: string; details: unknown }> {
@@ -245,6 +253,10 @@ beforeAll(async () => {
                 },
             },
             {
+                provide: RecipeStatementAttestationsDal,
+                useValue: { insertMany: async () => undefined, hasFromPerson: async () => attestedFromPerson },
+            },
+            {
                 provide: VERSIONS_DAL,
                 useValue: {
                     createSnapshot: vi.fn(async () => ({ id: 'v', snapshot: {}, createdAt: AT })),
@@ -273,6 +285,7 @@ beforeAll(async () => {
 
 afterEach(() => {
     underLock = undefined;
+    attestedFromPerson = false;
     evidence = [];
     vi.clearAllMocks();
 });
@@ -399,7 +412,7 @@ describe('PATCH /api/v1/recipes/{id} — the statement rule on update and publis
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 1,
             status: 'published',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(await refusalOf(response)).toMatchObject(STATEMENT_REQUIRED);
@@ -412,7 +425,7 @@ describe('PATCH /api/v1/recipes/{id} — the statement rule on update and publis
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 1,
             status: 'published',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             statement: AUTHORED,
         });
 
@@ -575,7 +588,10 @@ describe('PATCH /api/v1/recipes/{id} — the statement rule on update and publis
             sourceAttribution: 'allrecipes.com',
         });
 
-        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: AUTHORED });
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            statement: AUTHORED,
+        });
 
         expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
         expect(update).not.toHaveBeenCalled();
@@ -601,7 +617,7 @@ describe('PATCH /api/v1/recipes/{id} — the statement rule on update and publis
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 1,
             status: 'published',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(await refusalOf(response)).toMatchObject(SOURCE_CONFLICT);
@@ -614,7 +630,7 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(await refusalOf(response)).toMatchObject(STATEMENT_REQUIRED);
@@ -627,7 +643,7 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(await refusalOf(response)).toMatchObject(STATEMENT_REQUIRED);
@@ -638,7 +654,7 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(response.status).toBe(200);
@@ -650,7 +666,7 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(response.status).toBe(200);
@@ -693,7 +709,7 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
             statement: WEB,
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(response.status).toBe(400);
@@ -712,7 +728,7 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(response.status).toBe(200);
@@ -724,7 +740,7 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(await refusalOf(response)).toMatchObject(STATEMENT_REQUIRED);
@@ -776,7 +792,7 @@ describe('the whole paths a cook walks', () => {
 
         const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(await refusalOf(asked)).toMatchObject(SOURCE_CONFLICT);
@@ -801,7 +817,7 @@ describe('the whole paths a cook walks', () => {
 
         const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(await refusalOf(asked)).toMatchObject(SOURCE_CONFLICT);
@@ -817,7 +833,7 @@ describe('the whole paths a cook walks', () => {
 
         const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(asked.status).toBe(200);
@@ -831,7 +847,7 @@ describe('the whole paths a cook walks', () => {
             await refusalOf(
                 await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
                     visibility: 'public',
-                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 }),
             ),
         ).toMatchObject(STATEMENT_REQUIRED);
@@ -847,7 +863,7 @@ describe('the whole paths a cook walks', () => {
             (
                 await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
                     visibility: 'public',
-                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 })
             ).status,
         ).toBe(200);
@@ -978,7 +994,7 @@ describe('the owner-only response — what a stranger must never learn', () => {
         const made = (await (
             await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
                 visibility: 'public',
-                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             })
         ).json()) as Record<string, unknown>;
         expect(made).toMatchObject({ statementKind: 'authored', publicNeedsStatement: false });
@@ -1020,7 +1036,7 @@ describe('a recipe stored as "from another person" is never public', () => {
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 1,
             status: 'published',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(await refusalOf(response)).toMatchObject(FROM_PERSON_ONLY);
@@ -1042,7 +1058,7 @@ describe('a recipe stored as "from another person" is never public', () => {
 
             const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
                 visibility: 'public',
-                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             });
 
             expect(await refusalOf(response)).toMatchObject(FROM_PERSON_ONLY);
@@ -1065,7 +1081,7 @@ describe('a recipe stored as "from another person" is never public', () => {
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
             statement: AUTHORED,
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(response.status).toBe(200);
@@ -1081,7 +1097,7 @@ describe('a recipe stored as "from another person" is never public', () => {
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
             statement: AUTHORED,
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(response.status).toBe(200);
@@ -1093,10 +1109,13 @@ describe('a recipe stored as "from another person" is never public', () => {
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
-        expect(await refusalOf(response)).toMatchObject({ status: 400, details: { reason: 'FROM_PERSON_PRIVATE_ONLY' } });
+        expect(await refusalOf(response)).toMatchObject({
+            status: 400,
+            details: { reason: 'FROM_PERSON_PRIVATE_ONLY' },
+        });
     });
 
     it('the cook’s own clone of it lands Private and still says it is another person’s', async () => {
@@ -1109,5 +1128,99 @@ describe('a recipe stored as "from another person" is never public', () => {
             expect.objectContaining({ visibility: 'private', statementKind: 'fromPerson' }),
             expect.anything(),
         );
+    });
+});
+
+// A cook who said "from another person" and then cleared the statement must not be able to publish the recipe as their own. The
+// clear is refused over a stored statement, and a recipe with no stored statement but a past attestation is held all the same.
+describe('"from another person" cannot be cleared into a public recipe', () => {
+    const person = (over: Partial<RecipeRow> = {}): RecipeRow =>
+        makeRecipeRow({
+            id: RECIPE_ID,
+            ownerId: COOK,
+            status: 'draft',
+            visibility: 'private',
+            statementKind: 'fromPerson',
+            firstPublishedAt: null,
+            ...over,
+        });
+
+    it('PATCH statement null over a stored "from another person" is refused 403 SOURCE_LOCKED, and writes nothing', async () => {
+        stored = person();
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: null });
+
+        expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('set-visibility cannot clear it either: a statement of null is not accepted there', async () => {
+        stored = person();
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            statement: null,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
+
+        expect(response.status).toBe(400);
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    it('a recipe with no stored statement and a past "from another person" attestation is refused Public on set-visibility', async () => {
+        stored = person({ statementKind: null, status: 'published', firstPublishedAt: AT });
+        attestedFromPerson = true;
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
+
+        expect(await refusalOf(response)).toMatchObject({
+            status: 400,
+            details: { reason: 'FROM_PERSON_PRIVATE_ONLY' },
+        });
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    it('…and on a PATCH that publishes a public draft', async () => {
+        stored = person({ statementKind: null, visibility: 'public' });
+        attestedFromPerson = true;
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            status: 'published',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
+
+        expect(await refusalOf(response)).toMatchObject({
+            status: 400,
+            details: { reason: 'FROM_PERSON_PRIVATE_ONLY' },
+        });
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('does not hold a recipe with no stored statement and no such attestation', async () => {
+        stored = person({ statementKind: null, status: 'published', firstPublishedAt: AT });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
+
+        expect(response.status).toBe(200);
+    });
+
+    it('lets the cook replace it with "I wrote this", past attestation or not', async () => {
+        stored = person({ statementKind: null, status: 'published', firstPublishedAt: AT });
+        attestedFromPerson = true;
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            statement: AUTHORED,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
+
+        expect(response.status).toBe(200);
     });
 });

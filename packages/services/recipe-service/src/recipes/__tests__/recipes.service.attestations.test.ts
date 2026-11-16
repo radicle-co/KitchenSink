@@ -4,7 +4,7 @@
  * which rows reach the DAL, with which owner, and when none do.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { makeRecipeRow } from '../../__fixtures__/index.js';
 import type { Principal } from '../../auth/principal.js';
@@ -50,7 +50,11 @@ function setup(stored: RecipeAggregate | undefined = undefined) {
         findById: vi.fn().mockResolvedValue(aggregate),
         update: vi.fn().mockResolvedValue(aggregate),
     });
-    const service = makeRecipesService({ dal, lookups: LOOKUPS, attestations: { insertMany } });
+    const service = makeRecipesService({
+        dal,
+        lookups: LOOKUPS,
+        attestations: { insertMany, hasFromPerson: async () => false },
+    });
 
     return { insertMany, service };
 }
@@ -82,7 +86,10 @@ describe('RecipesService.create — the attestation record', () => {
         expect(insertMany).not.toHaveBeenCalled();
     });
 
-    it('⛔ the bulk import is exempt: it writes no row, even when the request body carries a confirmation', async () => {
+    // Rewritten for the provenance review (finding 7). This case proved the import was EXEMPT from the confirmation, which let it
+    // save Public with no record. The import now saves Private only, so no confirmation is owed and none is sent: it writes no
+    // row because it states and confirms nothing, and a Public save would no longer be exempt.
+    it('⛔ the bulk import saves Private and writes no row: it states and confirms nothing', async () => {
         const { insertMany, service } = setup();
         const provenance = resolveStatementProvenance({
             kind: 'public_web',
@@ -94,12 +101,10 @@ describe('RecipesService.create — the attestation record', () => {
             throw new Error('test setup: the statement must resolve');
         }
 
-        await service.create(
-            PRINCIPAL,
-            { ...DTO, publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS },
-            undefined,
-            { provenance, lineOrigins: [{ kind: 'set', boundBy: 'exact', importLineId: null }] },
-        );
+        await service.create(PRINCIPAL, DTO, undefined, {
+            provenance,
+            lineOrigins: [{ kind: 'set', boundBy: 'exact', importLineId: null }],
+        });
 
         expect(insertMany).not.toHaveBeenCalled();
     });

@@ -24,6 +24,18 @@ import type { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { AttestationAction, NewRecipeStatementAttestationRow } from '../../database/schema/index.js';
 import type { PublicConfirmationInput, RecipeStatementInput } from '../recipes.schema.js';
 
+/**
+ * Whether a request's confirmation is the API-writer marker (`{ apiWriter: true }`) and not a wording a screen showed.
+ *
+ * @param confirmation - The request's `publicConfirmation`, if it sent one.
+ * @returns `true` for the marker. Pure.
+ */
+export function isApiWriterConfirmation(
+    confirmation: PublicConfirmationInput | undefined,
+): confirmation is Extract<PublicConfirmationInput, { apiWriter: true }> {
+    return confirmation !== undefined && 'apiWriter' in confirmation;
+}
+
 /** The status and visibility of a recipe, before or after a write. */
 export interface PublishedFacts {
     readonly status: RecipeStatus;
@@ -115,7 +127,8 @@ export function attestationRowsOf(input: {
         });
     }
 
-    if (publicConfirmation !== undefined && recordsConfirmation) {
+    // ⛔ Only a wording a screen showed is a row. The API-writer marker never is, whatever the caller asked: nothing was shown.
+    if (publicConfirmation !== undefined && !isApiWriterConfirmation(publicConfirmation) && recordsConfirmation) {
         rows.push({
             mode: 'implicit',
             choice: 'publicConfirm',

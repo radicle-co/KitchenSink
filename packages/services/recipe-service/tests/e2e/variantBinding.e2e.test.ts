@@ -18,7 +18,6 @@
  *
  * Every food id carries {@link SCOPE}, and every row this file writes is removed in `afterAll`.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
@@ -30,6 +29,7 @@ import { asPrincipal } from '../support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FakeFood, type FoodFake } from '../support/foodFake.js';
 import { deleteBindingsMatching } from '../support/bindingCleanup.js';
 import { recipeDb } from '../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -124,7 +124,7 @@ async function insertedBinding(column: 'food_id' | 'food_variant_id', id: string
 /** A one-serving recipe with 100 g of each binding, so its calories are the sum of each food's per-100 g figure. */
 async function recipeOf(label: string, bindings: readonly string[], phrase?: string): Promise<RecipeBody> {
     return json<RecipeBody>('POST', '/api/v1/recipes', 201, {
-        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         title: `${SCOPE} ${label}`,
         servings: 1,
         prepTimeMinutes: 5,

@@ -15,15 +15,15 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-    PUBLIC_CONFIRMATION_FOR_API_WRITERS,
-    RecipeErrorCode,
-    type RecipeSourceType,
-    RecipeVisibility,
-} from '@kitchensink/recipe-core';
+import { RecipeErrorCode, type RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import type { Principal } from '../../auth/principal.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../__fixtures__/index.js';
 import { CURATOR_IMPORT_SCOPE } from '../recipes.schema.js';
 import type { LockedRecipeFacts, RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
@@ -54,7 +54,7 @@ function principal(overrides: Partial<Principal> = {}): Principal {
 const premium = (): Principal => principal({ roles: ['premium'] });
 
 const CREATE_DTO: CreateRecipeDto = {
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Soup',
     cuisine: 'Thai',
     servings: 2,
@@ -438,7 +438,7 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
         setVisibility.mockResolvedValue(aggregate({ visibility: 'public' }));
 
         await serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PUBLIC, undefined, {
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
@@ -531,7 +531,7 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
     const PATCH = {
         expectedVersion: 1,
         status: 'published',
-        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     } as const;
 
     function draftHolding(

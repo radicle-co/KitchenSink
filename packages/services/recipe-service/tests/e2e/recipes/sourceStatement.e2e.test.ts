@@ -24,9 +24,10 @@ import { RecipesService } from '../../../src/recipes/recipes.service.js';
 import { RECIPES_DAL } from '../../../src/recipes/recipes.tokens.js';
 import { CURATOR_IMPORT_SCOPE, createRecipeRequestSchema } from '../../../src/recipes/recipes.schema.js';
 import { resolveStatementProvenance } from '../../../src/recipes/domain/provenancePolicy.js';
-import { privateRuleOf, PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
+import { privateRuleOf } from '@kitchensink/recipe-core';
 import type { Principal } from '../../../src/auth/principal.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -44,7 +45,7 @@ const AUTHORED = { kind: 'authored', wording: { version: 'statementAuthored.v1',
 /** A minimal-but-publishable create body; `over` layers the field under test on top. */
 function body(over: Record<string, unknown> = {}): Record<string, unknown> {
     return {
-        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         title: 'Tomato Soup',
         servings: 2,
         prepTimeMinutes: 5,
@@ -265,7 +266,7 @@ describe('a pasted web link as the recipe source (e2e)', () => {
 
         const { status, json } = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(status).toBe(400);
@@ -428,7 +429,9 @@ describe('a pasted web link as the recipe source (e2e)', () => {
 
         it('a web statement with NO wording (the Source row) appends the evidence row and writes no attestation; with a wording it writes one', async () => {
             const { wording: _none, ...wordless } = STATEMENT;
-            const attestationsOf = async (id: string): Promise<Array<{ choice: string; wording_version: string | null }>> =>
+            const attestationsOf = async (
+                id: string,
+            ): Promise<Array<{ choice: string; wording_version: string | null }>> =>
                 (
                     await pool.query<{ choice: string; wording_version: string | null }>(
                         `SELECT choice, wording_version FROM recipe_statement_attestations WHERE recipe_id = $1 ORDER BY recorded_at`,
@@ -442,7 +445,9 @@ describe('a pasted web link as the recipe source (e2e)', () => {
                 { capture: 'editorLink', source_kind: 'public_web', source_domain: 'allrecipes.com' },
             ]);
             expect(await attestationsOf(bare.id)).toEqual([]);
-            expect(await attestationsOf(worded.id)).toEqual([{ choice: 'publicWeb', wording_version: 'statementPublicWeb.v1' }]);
+            expect(await attestationsOf(worded.id)).toEqual([
+                { choice: 'publicWeb', wording_version: 'statementPublicWeb.v1' },
+            ]);
         });
 
         it('PATCH that applies a statement appends an editorLink evidence row', async () => {
@@ -469,7 +474,7 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             expectSourceConflict(
                 await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
                     visibility: 'public',
-                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 }),
             );
             expect(await readRow(id)).toMatchObject({ visibility: 'private', status: 'published' });
@@ -481,7 +486,7 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             expectSourceConflict(
                 await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
                     visibility: 'public',
-                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 }),
             );
         });
@@ -497,7 +502,7 @@ describe('a pasted web link as the recipe source (e2e)', () => {
                 await send('PATCH', `/api/v1/recipes/${id}`, {
                     expectedVersion: version,
                     status: 'published',
-                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 }),
             );
             expect(await readRow(id)).toMatchObject({ status: 'draft' });
@@ -520,7 +525,7 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             await send('PATCH', `/api/v1/recipes/${id}`, {
                 expectedVersion: version,
                 status: 'published',
-                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             });
 
             const cloned = await send('POST', `/api/v1/recipes/${id}/clone`, {});
@@ -534,7 +539,7 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             expectSourceConflict(
                 await send('PATCH', `/api/v1/recipes/${cloneId}/visibility`, {
                     visibility: 'public',
-                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 }),
             );
         });
@@ -544,7 +549,7 @@ describe('a pasted web link as the recipe source (e2e)', () => {
 
             const asked = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
                 visibility: 'public',
-                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             });
             const cloned = await send('POST', `/api/v1/recipes/${id}/clone`, {});
 

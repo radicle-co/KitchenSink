@@ -20,7 +20,6 @@
  * the writes cannot observe that. This is a real insert, failing for a real database reason, on the real
  * path — and the trigger is dropped again in `afterAll` whatever happens.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 
@@ -29,6 +28,7 @@ import { DrizzleProvider } from '../../../src/database/database.module.js';
 import type { RecipeDrizzle } from '../../../src/database/client.js';
 import { recipes, recipeVersions } from '../../../src/database/schema/index.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite saves as. */
 const OWNER = '01JVERSIONS0ATOMIC000000CC';
@@ -37,7 +37,7 @@ const OWNER = '01JVERSIONS0ATOMIC000000CC';
 const TITLE = 'Atomicity Probe Recipe';
 
 const CREATE_PAYLOAD = {
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: TITLE,
     servings: 2,
     prepTimeMinutes: 5,
@@ -187,7 +187,7 @@ describe('a recipe save and its version row are atomic (integration)', () => {
             body: JSON.stringify({
                 expectedVersion: clone.currentVersion,
                 status: 'published',
-                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             }),
         });
 

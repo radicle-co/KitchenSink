@@ -15,14 +15,19 @@
  *     set-visibility or publish that moved the row in between must not slip past a check made on the stale state.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS, RecipeErrorCode, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeErrorCode, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import type { Principal } from '../../auth/principal.js';
 import type { FoodLookupArm } from '../../database/schema/foodLookupArm.js';
 import type { FoodLookupsDal } from '../../ingredients/dal/foodLookups.dal.js';
 import type { FoodRefsGateway } from '../../ingredients/foodRefs.gateway.js';
 import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../__fixtures__/index.js';
 import type { RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
@@ -105,7 +110,7 @@ function refsDouble(says: Partial<Record<string, FoodSays>> = {}): FoodRefsGatew
 }
 
 const CREATE: CreateRecipeDto = {
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Soup',
     cuisine: 'Thai',
     servings: 2,

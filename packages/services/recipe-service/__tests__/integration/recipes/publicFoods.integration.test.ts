@@ -9,7 +9,6 @@
  * line's `sortOrder` or `foodId` fails here; on create, update and set-visibility; and that nothing is written. Whether
  * the database's own last check finds the right rows is the LOCAL e2e tier's.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import 'reflect-metadata';
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -18,7 +17,12 @@ import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
@@ -133,7 +137,7 @@ const LINES = [
 ];
 
 const CREATE_BODY = {
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Spiced bread',
     cuisine: 'Italian',
     servings: 2,
@@ -283,7 +287,7 @@ describe('PATCH /api/v1/recipes/{id}', () => {
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 1,
             status: 'published',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             statement: {
                 kind: 'public_web',
                 citation: 'https://example.com/spiced-bread',

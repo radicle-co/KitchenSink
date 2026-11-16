@@ -1336,6 +1336,30 @@ describe('publicConfirmation — the passive line beside the Public choice', () 
         ).toBe(true);
     });
 
+    // The API-writer marker: the wire accepts exactly `{ apiWriter: true }`. WHO may send it is the service's decision, not the
+    // schema's (a real cook gets 400 INVALID_VISIBILITY), so the wire accepts it on all three routes.
+    it('accepts the API-writer marker on create, update and set-visibility', () => {
+        const marker = { apiWriter: true };
+
+        expect(createAccepts({ publicConfirmation: marker })).toBe(true);
+        expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, publicConfirmation: marker }).success).toBe(
+            true,
+        );
+        expect(
+            setRecipeVisibilityRequestSchema.safeParse({ visibility: 'public', publicConfirmation: marker }).success,
+        ).toBe(true);
+    });
+
+    it.each([
+        ['the marker as false', { apiWriter: false }],
+        ['the marker as a string', { apiWriter: 'true' }],
+        ['the marker beside a wording', { apiWriter: true, version: 'publicConfirm.v1', locale: 'en' }],
+        ['the marker with a stray key', { apiWriter: true, text: 'x' }],
+        ['an empty object', {}],
+    ])('REFUSES %s', (_name, publicConfirmation) => {
+        expect(createAccepts({ publicConfirmation })).toBe(false);
+    });
+
     it.each([
         ['an unknown version', { version: 'publicConfirm.v2', locale: 'en' }],
         ['a statement wording', { version: 'statementAuthored.v1', locale: 'en' }],

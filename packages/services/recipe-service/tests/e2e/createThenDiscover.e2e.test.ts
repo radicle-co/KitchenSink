@@ -30,7 +30,6 @@
  *
  * The app is booted as AUTHOR; the seeker's reads run under {@link asPrincipal}. Skips without a database.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -38,6 +37,7 @@ import { bootRecipeApp, type BootedRecipeApp } from './harness.js';
 import { asPrincipal } from '../support/asPrincipal.js';
 import { deleteBindingsMatching } from '../support/bindingCleanup.js';
 import { recipeDb } from '../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -102,7 +102,7 @@ describe('create → public discovery (e2e, assembled app)', () => {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 title,
-                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 description: 'Created through the API by the discovery round-trip spec.',
                 visibility,
                 status,

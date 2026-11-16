@@ -91,7 +91,7 @@ export interface RecipesServiceCollaborators {
     /** The evidence table: by default one that holds no evidence, so a recipe is never held out of Public. */
     readonly sourceEvidence: Pick<RecipeSourceEvidenceDal, 'insert' | 'list'>;
     /** The attestation record: by default one that accepts every append, so a write is never refused for want of it. */
-    readonly attestations: Pick<RecipeStatementAttestationsDal, 'insertMany'>;
+    readonly attestations: Pick<RecipeStatementAttestationsDal, 'insertMany' | 'hasFromPerson'>;
 }
 
 /** An evidence table that is empty and accepts every append. */
@@ -119,7 +119,7 @@ export function makeRecipesService(overrides: Partial<RecipesServiceCollaborator
         lineVerificationsDal: fakeLineVerificationsDal(new Map()),
         authorHandles: { findByline: async () => undefined },
         sourceEvidence: noSourceEvidence(),
-        attestations: { insertMany: async () => undefined },
+        attestations: { insertMany: async () => undefined, hasFromPerson: async () => false },
         ...overrides,
     };
 

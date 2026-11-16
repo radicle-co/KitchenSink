@@ -43,11 +43,11 @@ export const WORDING_LOCALE_MIN_LENGTH = 2;
 export const WORDING_LOCALE_MAX_LENGTH = 35;
 
 /**
- * What an API writer (a seed, a test fixture, a script) sends as `publicConfirmation` when it makes a recipe public: the
- * current confirmation wording in English. One constant, so a writer never spells the wording itself and a new version is
- * one edit.
+ * What an API writer sends as `publicConfirmation` when it makes a recipe public and no one was shown anything: a seed or a
+ * script that runs as a test principal. It is a MARKER and not a wording. It satisfies the duty to confirm and records NO row,
+ * because a row says "the cook saw this line" and no one did. The service accepts it only from a test principal; a real cook who
+ * sends it is refused with `INVALID_VISIBILITY` and the reason `API_WRITER_CONFIRMATION_FORBIDDEN`.
+ *
+ * Only a seed, a test or a load script may name this constant (a repo guard holds it). A screen sends the wording it showed.
  */
-export const PUBLIC_CONFIRMATION_FOR_API_WRITERS = {
-    version: PUBLIC_CONFIRM_WORDINGS[0],
-    locale: 'en',
-} as const;
+export const PUBLIC_CONFIRMATION_FOR_API_WRITERS = { apiWriter: true } as const;

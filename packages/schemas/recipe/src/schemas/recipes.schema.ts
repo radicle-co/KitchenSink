@@ -429,8 +429,16 @@ export type RecipeStatementInput = z.infer<typeof recipeOwnStatementSchema>;
  * The passive line the cook saw beside the Public choice (the attestation record): "this is your recipe to publish". It is
  * REQUIRED on any request whose result BECOMES published and public, and is recorded, once, as an implicit attestation. A
  * request that needs it and has none is `400 INVALID_VISIBILITY` with `details.reason: 'PUBLIC_CONFIRMATION_REQUIRED'`.
+ *
+ * Either the wording a screen showed (recorded), or the API-writer MARKER `{ apiWriter: true }` (satisfies the duty, records
+ * nothing). The wire accepts both; the SERVICE accepts the marker only from a test principal, because a row that says "the
+ * cook saw this line" must never be written for a line no one saw (`400 INVALID_VISIBILITY`, reason
+ * `API_WRITER_CONFIRMATION_FORBIDDEN`, for anyone else).
  */
-export const publicConfirmationSchema = wordingOf(PUBLIC_CONFIRM_WORDINGS);
+export const publicConfirmationSchema = z.union([
+    wordingOf(PUBLIC_CONFIRM_WORDINGS),
+    z.strictObject({ apiWriter: z.literal(true) }),
+]);
 
 /** The confirmation a request carries. */
 export type PublicConfirmationInput = z.infer<typeof publicConfirmationSchema>;

@@ -8,13 +8,13 @@
  *
  * Both shipped clients resend every ingredient on every save, so each edit below sends the line unchanged.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { asPrincipal } from '../../support/asPrincipal.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 const OWNER = '01JU90DISCL0SUREOWNER0000A';
 const OTHER = '01JU90DISCL0SUREOTHER00000';
@@ -69,7 +69,7 @@ describe('the owner flag survives an edit and a restore (e2e, assembled app)', (
     async function seedPublicTranscribed(): Promise<RecipeBody> {
         const created = await ok<RecipeBody>(
             await call(OWNER, 'POST', '/api/v1/recipes', {
-                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 title: `U90 disclosure ${Date.now()}-${Math.random()}`,
                 servings: 4,
                 prepTimeMinutes: 10,

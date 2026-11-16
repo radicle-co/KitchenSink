@@ -424,8 +424,9 @@ describe('INVALID_VISIBILITY publishes the reasons a client branches on', () => 
             ...(details === undefined ? {} : { details }),
         }).success;
 
-    it('publishes exactly the four reasons the visibility rules answer with', () => {
+    it('publishes exactly the five reasons the visibility rules answer with', () => {
         expect([...INVALID_VISIBILITY_REASONS].sort()).toEqual([
+            'API_WRITER_CONFIRMATION_FORBIDDEN',
             'FROM_PERSON_PRIVATE_ONLY',
             'PUBLIC_CONFIRMATION_REQUIRED',
             'SOURCE_CONFLICT',

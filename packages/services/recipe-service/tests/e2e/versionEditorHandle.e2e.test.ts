@@ -13,7 +13,6 @@
  *
  * Skips when no test database is configured (guarded by `hasDatabaseUrl`).
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -23,6 +22,7 @@ import { VersionsService } from '../../src/versions/versions.service.js';
 import type { Principal } from '../../src/auth/principal.js';
 import type { CreateRecipeDto } from '../../src/recipes/dto/createRecipe.dto.js';
 import { recipeDb } from '../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -45,7 +45,7 @@ const EDITOR: Principal = {
 };
 
 const CREATE_DTO: CreateRecipeDto = {
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Editor-Handle E2E',
     servings: 2,
     prepTimeMinutes: 5,
@@ -124,7 +124,7 @@ describe('version editor_handle provenance (e2e, real DB)', () => {
             {
                 expectedVersion: clone.currentVersion,
                 status: 'published',
-                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             },
             undefined,
         );

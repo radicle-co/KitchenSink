@@ -53,7 +53,8 @@ export type StoredSource = CorrectableSourceFacts & {
  *
  * - `unchanged`: the body carried no statement, or its statement would leave the recipe as it is.
  * - `apply`: write `provenance`; `makePrivate` says the same write also sets visibility to private.
- * - `locked`: refused, the source cannot change (not a statement the cook made, or inherited by a clone).
+ * - `locked`: refused, the source cannot change (not a statement the cook made, or inherited by a clone), or a clear was
+ *   asked over "from another person", which only an explicit statement replaces.
  * - `unusable`: refused, the statement is not a usable web source (the wire schema refuses it first).
  */
 export type SourceCorrection =
@@ -113,6 +114,12 @@ export function evaluateSourceCorrection(input: {
         return { kind: 'locked' };
     }
 
+    // ⛔ "From another person" is not cleared by saying nothing. Only an explicit "I wrote this" or a stated source replaces it:
+    // a clear left a recipe that nothing remembered as another person's, which could then be published as the cook's own.
+    if (statement === null && stored.statementKind === 'fromPerson') {
+        return { kind: 'locked' };
+    }
+
     // No statement is the shipped default reading: user_created with no source fields. No grant is read on either branch.
     const decision =
         statement === null
@@ -139,6 +146,8 @@ function applyOf(decision: ReturnType<typeof evaluateProvenance>): SourceCorrect
     return {
         kind: 'apply',
         provenance: decision.provenance,
-        makePrivate: decision.provenance.sourceKind !== null || fromPersonOf(decision.provenance.statementKind),
+        makePrivate:
+            decision.provenance.sourceKind !== null ||
+            fromPersonOf({ statementKind: decision.provenance.statementKind, attestedFromPerson: false }),
     };
 }

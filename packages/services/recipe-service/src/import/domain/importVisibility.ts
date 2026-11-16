@@ -51,6 +51,13 @@ export function visibilityRefusedFor(
     statement: KnownImportStatement,
     requested: ImportVisibility,
 ): boolean {
+    // ⛔ An import saves Private only, until the paste import carries wordings and writes the attestation rows (ADR-0095 section 4).
+    // A Public choice is refused here, so the item waits for the cook to choose Private. Nothing is changed for them: a save that
+    // quietly turned Public into Private would be a recipe the cook did not ask for.
+    if (requested === 'public') {
+        return true;
+    }
+
     const provenance = resolveStatementProvenance(statement);
 
     // A web statement whose link is not a usable source sets no label at all: refused either way, so it is never saved.
@@ -66,9 +73,9 @@ export function visibilityRefusedFor(
         sourceKind: provenance.sourceKind,
         isPremium: facts.isPremium,
         hasAvailablePrivateSlot: true,
-        requested: requested === 'public' ? RecipeVisibility.PUBLIC : RecipeVisibility.PRIVATE,
+        requested: RecipeVisibility.PRIVATE,
         sourceConflict: sourceConflictOfEvidence(evidenceListOf(provenance, 'importFile'), provenance),
-        fromPerson: fromPersonOf(provenance.statementKind),
+        fromPerson: fromPersonOf({ statementKind: provenance.statementKind, attestedFromPerson: false }),
     });
 
     return !decision.allowed;

@@ -268,51 +268,68 @@ describe('recipes.statement_kind and content_pasted_at (migration 0087)', () => 
                     for (const kind of kinds) {
                         for (const pasted of [false, true]) {
                             for (const evidenceRows of [0, 1]) {
-                                index += 1;
-                                const id = `${PARITY_PREFIX}${String(index).padStart(5, '0')}`;
+                                for (const attested of [false, true]) {
+                                    index += 1;
+                                    const id = `${PARITY_PREFIX}${String(index).padStart(5, '0')}`;
 
-                                await insert(
-                                    {
-                                        id,
-                                        sourceType,
-                                        sourceKind: kind,
-                                        sourceUrl: kind === 'public_web' ? 'https://example.com/r' : null,
-                                        statementKind,
-                                        contentPastedAt: pasted ? '2026-11-15T00:00:00Z' : null,
-                                    },
-                                    evidenceRows,
-                                );
+                                    await insert(
+                                        {
+                                            id,
+                                            sourceType,
+                                            sourceKind: kind,
+                                            sourceUrl: kind === 'public_web' ? 'https://example.com/r' : null,
+                                            statementKind,
+                                            contentPastedAt: pasted ? '2026-11-15T00:00:00Z' : null,
+                                        },
+                                        evidenceRows,
+                                    );
 
-                                const { rows } = await pool.query<{ needs: boolean; evidence: string }>(
-                                    `SELECT recipe_needs_statement($1) AS needs,
+                                    if (attested) {
+                                        await pool.query(
+                                            `INSERT INTO recipe_statement_attestations
+                                             (recipe_id, recipe_ref, account_id, mode, choice, wording_version, locale, action)
+                                         VALUES ($1, $1, $2, 'explicit', 'fromPerson', 'statementFromPerson.v1', 'en', 'update')`,
+                                            [id, OWNER_ID],
+                                        );
+                                    }
+
+                                    const { rows } = await pool.query<{ needs: boolean; evidence: string }>(
+                                        `SELECT recipe_needs_statement($1) AS needs,
                                             (SELECT count(*) FROM recipe_source_evidence WHERE recipe_id = $1) AS evidence`,
-                                    [id],
-                                );
-                                const expected = statementRequiredOf({
-                                    sourceType,
-                                    statementKind,
-                                    contentPasted: pasted,
-                                    // Only the count matters to the rule; the stored rows are read back, never assumed.
-                                    evidence: Array.from({ length: Number(rows[0]?.evidence) }, () => ({
-                                        sourceDomain: null,
-                                        sourceKind: null,
-                                    })),
-                                });
+                                        [id],
+                                    );
+                                    const expected = statementRequiredOf({
+                                        sourceType,
+                                        statementKind,
+                                        contentPasted: pasted,
+                                        // Only the count matters to the rule; the stored rows are read back, never assumed.
+                                        evidence: Array.from({ length: Number(rows[0]?.evidence) }, () => ({
+                                            sourceDomain: null,
+                                            sourceKind: null,
+                                        })),
+                                    });
 
-                                const person = await pool.query<{ person: boolean }>(
-                                    `SELECT recipe_is_from_person($1) AS person`,
-                                    [id],
-                                );
+                                    const person = await pool.query<{ person: boolean }>(
+                                        `SELECT recipe_is_from_person($1) AS person`,
+                                        [id],
+                                    );
 
-                                expect(person.rows[0]?.person, `recipe_is_from_person ${String(statementKind)}`).toBe(
-                                    fromPersonOf(statementKind),
-                                );
-                                seenPerson.add(fromPersonOf(statementKind));
-                                expect(
-                                    rows[0]?.needs,
-                                    `${sourceType}/${String(kind)} statement=${String(statementKind)} pasted=${String(pasted)} evidence=${rows[0]?.evidence ?? '?'}`,
-                                ).toBe(expected);
-                                seen.add(expected);
+                                    const expectedPerson = fromPersonOf({
+                                        statementKind,
+                                        attestedFromPerson: attested,
+                                    });
+
+                                    expect(
+                                        person.rows[0]?.person,
+                                        `recipe_is_from_person ${String(statementKind)} attested=${String(attested)}`,
+                                    ).toBe(expectedPerson);
+                                    seenPerson.add(expectedPerson);
+                                    expect(
+                                        rows[0]?.needs,
+                                        `${sourceType}/${String(kind)} statement=${String(statementKind)} pasted=${String(pasted)} evidence=${rows[0]?.evidence ?? '?'}`,
+                                    ).toBe(expected);
+                                    seen.add(expected);
+                                }
                             }
                         }
                     }

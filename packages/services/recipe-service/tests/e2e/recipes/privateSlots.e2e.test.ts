@@ -18,7 +18,6 @@
  * (`recipes.service.privateSlots.test.ts`); here Premium is the absence of a refusal nowhere. Each test uses its OWN cook id so
  * nothing leaks between them (the bypass reads `RECIPE_DEV_AUTH_USER_ID` per request, so a test sets it for itself).
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import pg from 'pg';
@@ -31,6 +30,7 @@ import { recipes, recipeSteps } from '../../../src/database/schema/index.js';
 import { startFoodFake, type FoodFake } from '../../support/foodFake.js';
 import { insertIngredientLine } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -39,7 +39,7 @@ const FIRST_COOK = '01JSLOTSCOOKAAAAAAAAAAAAA1';
 const BYSTANDER = '01JSLOTSBYSTANDERBBBBBBBBB2';
 
 const CREATE_BODY = {
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Slot Subject',
     servings: 1,
     prepTimeMinutes: 1,
@@ -146,7 +146,7 @@ describe('Free-tier private slots (ADR-0073)', () => {
             body: JSON.stringify({
                 expectedVersion,
                 status: 'published',
-                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             }),
         });
     }
@@ -166,7 +166,7 @@ describe('Free-tier private slots (ADR-0073)', () => {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 visibility,
-                ...(visibility === 'public' ? { publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS } : {}),
+                ...(visibility === 'public' ? { publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN } : {}),
             }),
         });
     }

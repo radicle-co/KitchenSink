@@ -10,11 +10,11 @@
  * send one, which means they passed on the `name` rejection whatever their own field did. Each now asserts that
  * its OWN field is the ONLY one rejected, so it can pass for no other reason.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates and mutates recipes as. */
 const OWNER = '01JCRUD0OWNER00000000000AA';
@@ -42,7 +42,7 @@ interface PaginatedBody {
 }
 
 const CREATE_PAYLOAD = {
-    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Integration CRUD Recipe',
     description: 'Created by the CRUD lifecycle integration spec.',
     servings: 4,

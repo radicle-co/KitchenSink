@@ -11,7 +11,6 @@
  * (`first_published_at` set on the first publish, kept after). Whether the real trigger does that is the LOCAL e2e
  * tier's (`tests/e2e/draftVersions.e2e.test.ts`).
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import 'reflect-metadata';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -20,7 +19,12 @@ import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 import type { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { recipeDetailSchema } from '@kitchensink/schema-recipe';
 
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
@@ -218,7 +222,7 @@ describe('a never-published draft records no version (ADR-0058, integration)', (
         const published = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 2,
             status: 'published',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(published.status).toBe(200);
@@ -239,7 +243,7 @@ describe('a never-published draft records no version (ADR-0058, integration)', (
         const created = await call('POST', '/api/v1/recipes', {
             ...DRAFT_BODY,
             status: undefined,
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             cuisine: 'Southern',
             ingredients: [{ ingredientId: BRISKET.lookupId, quantity: { kind: 'exact', value: 1 }, unit: 'g' }],
             steps: [{ instruction: 'Cook.' }],
@@ -262,7 +266,7 @@ describe('a never-published draft records no version (ADR-0058, integration)', (
                 await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
                     expectedVersion: 1,
                     status: 'published',
-                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 })
             ).json(),
         );

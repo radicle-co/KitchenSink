@@ -9,7 +9,6 @@
  * facts are READ from the database under the row lock, that `content_pasted_at` keeps its first instant across a PATCH, or
  * that a clone carries both columns. The columns are not on the wire, so the rows are read back through Drizzle.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import pg from 'pg';
@@ -18,6 +17,7 @@ import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { recipes, type RecipeRow } from '../../../src/database/schema/index.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -34,7 +34,7 @@ const AUTHORED = { kind: 'authored', wording: { version: 'statementAuthored.v1',
 
 function body(over: Record<string, unknown> = {}): Record<string, unknown> {
     return {
-        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         title: 'Tomato Soup',
         servings: 2,
         prepTimeMinutes: 5,
@@ -148,7 +148,7 @@ describe('the statement rule (e2e)', () => {
 
         const opened = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(opened.status).toBe(200);
@@ -160,7 +160,7 @@ describe('the statement rule (e2e)', () => {
 
         const opened = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(opened.status).toBe(400);
@@ -203,7 +203,7 @@ describe('the statement rule (e2e)', () => {
 
         const opened = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(opened.status).toBe(400);
@@ -222,7 +222,7 @@ describe('the statement rule (e2e)', () => {
 
         const opened = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
             visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(opened.status).toBe(400);

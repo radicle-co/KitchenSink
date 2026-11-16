@@ -26,6 +26,11 @@ export const TYPES: Readonly<Record<string, string>> = {
     '.json': 'application/json; charset=utf-8',
     '.ttf': 'font/ttf',
     '.jpg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.avif': 'image/avif',
+    '.svg': 'image/svg+xml',
     '.txt': 'text/plain; charset=utf-8',
 };
 

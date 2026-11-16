@@ -60,10 +60,26 @@ registered canvas live. Start from the files in the repository, never from a cop
 Never put `index.html`, `SKILL.md`, `artifact-type/` or `project/published.json` in the folder:
 the artifact type owns the first three, and the publish writes the marker.
 
+### Images
+
+A board shows an image from its own canvas folder, never from an upload (ADR-0092):
+
+- The image is a file in `project/assets/`, named by the first 16 hex characters of its SHA-256 and its extension
+  (`5024d8f60c578f87.webp`). The board references it by relative path: `url(assets/5024d8f60c578f87.webp)`.
+- Git LFS stores these files, and nothing else in the repository. Run `git lfs install --local --skip-repo` once
+  per clone before you commit an image, or the guard fails the raw bytes. A new worktree also needs husky's hook
+  shims. Run `npx husky` in it, or a push does not upload the images.
+- A clone does not download the images. The render check pulls the folders it renders. To pull them yourself, run
+  `git -c lfs.fetchexclude= lfs pull --include='docs/design/canvases/<folder>/project/assets/**'`.
+- To add an image, put the file in `project/assets/` under its hash name and reference it from the board. Never
+  upload it to a live canvas: the publish carries it like any other canvas file.
+- `designCanvasFolders.test.ts` fails on a `/_blob/` reference, on a referenced image that is missing, on an image
+  no board uses, and on an image stored as raw bytes instead of an LFS pointer.
+
 ### Preview
 
 To show work in progress, publish the branch files to an artifact that is not in the registry. Delete that artifact
-after the PR merges.
+after the PR merges. Publish its `project/assets/` files too, so its images show.
 
 ### Check before merge
 

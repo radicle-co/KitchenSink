@@ -11,8 +11,8 @@
  * result is a fixed point.
  *
  * ⛔ The text is hostile, so the work is LINEAR and never recursive. One pass over a stack records where each bracket
- * closes ({@link closeIndexes}), and an explicit stack of frames (not the call stack) walks the groups, so a line of
- * 100,000 nested or unclosed brackets costs a scan and cannot overflow the stack. The reader also refuses a line past
+ * closes ({@link closeIndexes}), and an explicit stack of frames (not the call stack) walks the groups, writing to one
+ * shared output, so a line of 100,000 nested or unclosed brackets costs a scan and cannot overflow the stack. The reader also refuses a line past
  * `PARSE_JOB_LINE_MAX_CHARS` before it gets here (`pageRecipeCandidate.ts`). The steps are COUNTED
  * ({@link collapseBracketGroupsCounted}), so a test proves the work linear without timing it.
  */
@@ -60,22 +60,23 @@ type Join =
     /** In place of the group. */
     | 'bare';
 
-/** A stretch of the text being cleaned, from `index` to `hi`, and the output so far. */
+/** A stretch of the text being cleaned, from `index` to `hi`, and where its output starts in the shared output. */
 interface Frame {
     readonly hi: number;
     readonly join: Join;
+    /** The length of the output when the frame began: a trim never reaches back past it. */
+    readonly outStart: number;
     index: number;
-    out: string;
 }
 
-/** `frame`'s output, placed in its parent's. */
-function joined(parent: Frame, child: Frame, open: string, close: string): void {
-    if (child.join === 'wrapped') {
-        parent.out += `${open}${child.out}${close}`;
-    } else if (child.join === 'afterComma') {
-        parent.out = `${parent.out.trimEnd()}${child.out}`;
-    } else {
-        parent.out += child.out;
+/**
+ * Drop the whitespace at the end of `out`, back to `floor`. Each character is pushed once and so popped at most once: the
+ * trims of a whole line cost no more than its length, however many groups ask for one.
+ */
+function trimTail(out: string[], floor: number, meter: Meter): void {
+    while (out.length > floor && (out.at(-1) ?? '').trim() === '') {
+        meter.steps += 1;
+        out.pop();
     }
 }
 
@@ -87,7 +88,14 @@ function opensWithGroupAndComma(text: string, closes: Int32Array, lo: number, hi
 }
 
 /** The frame for the group opened at `start`, which closes at `end`: its doubled outer brackets peeled, and how it joins. */
-function groupFrame(text: string, closes: Int32Array, start: number, end: number, open: string, meter: Meter): Frame {
+function groupFrame(
+    text: string,
+    closes: Int32Array,
+    start: number,
+    end: number,
+    open: string,
+    { meter, outStart }: { readonly meter: Meter; readonly outStart: number },
+): Frame {
     let lo = start + 1;
     let hi = end;
 
@@ -98,21 +106,26 @@ function groupFrame(text: string, closes: Int32Array, start: number, end: number
     }
 
     if (open === '(' && hi - lo >= 2 && text.startsWith(', ', lo)) {
-        return { hi, join: 'afterComma', index: lo, out: '' };
+        return { hi, join: 'afterComma', index: lo, outStart };
     }
 
     return {
         hi,
         join: open === '(' && opensWithGroupAndComma(text, closes, lo, hi) ? 'bare' : 'wrapped',
         index: lo,
-        out: '',
+        outStart,
     };
 }
 
+/**
+ * One bracket kind's pass. The output is ONE array of characters shared by every frame, in text order: a wrapped group
+ * writes its brackets around its content as it opens and closes, and a group after a comma trims the array's tail. No
+ * frame's output is copied into its parent's, so nesting costs nothing extra.
+ */
 function collapseKind(text: string, open: string, close: string, meter: Meter): string {
     const closes = closeIndexes(text, open, close, meter);
-    const frames: Frame[] = [{ hi: text.length, join: 'root', index: 0, out: '' }];
-    let result = '';
+    const out: string[] = [];
+    const frames: Frame[] = [{ hi: text.length, join: 'root', index: 0, outStart: 0 }];
 
     for (let frame = frames.at(-1); frame !== undefined; frame = frames.at(-1)) {
         meter.steps += 1;
@@ -120,12 +133,8 @@ function collapseKind(text: string, open: string, close: string, meter: Meter): 
         if (frame.index >= frame.hi) {
             frames.pop();
 
-            const parent = frames.at(-1);
-
-            if (parent === undefined) {
-                result = frame.out;
-            } else {
-                joined(parent, frame, open, close);
+            if (frame.join === 'wrapped') {
+                out.push(close);
             }
 
             continue;
@@ -134,16 +143,24 @@ function collapseKind(text: string, open: string, close: string, meter: Meter): 
         const end = text.charAt(frame.index) === open ? (closes[frame.index] ?? -1) : -1;
 
         if (end < 0) {
-            frame.out += text.charAt(frame.index);
+            out.push(text.charAt(frame.index));
             frame.index += 1;
             continue;
         }
 
-        frames.push(groupFrame(text, closes, frame.index, end, open, meter));
+        const child = groupFrame(text, closes, frame.index, end, open, { meter, outStart: out.length });
+
+        if (child.join === 'wrapped') {
+            out.push(open);
+        } else if (child.join === 'afterComma') {
+            trimTail(out, frame.outStart, meter);
+        }
+
+        frames.push(child);
         frame.index = end + 1;
     }
 
-    return result;
+    return out.join('');
 }
 
 /**

@@ -73,6 +73,8 @@ describe('collapseBracketGroups', () => {
             ['nested brackets with a word in each level', `${'(a'.repeat(DEPTH)}${')'.repeat(DEPTH)}`],
             ['one word under a doubled group 100,000 deep', `${'('.repeat(DEPTH)}x${')'.repeat(DEPTH)}`],
             ['square brackets nested', `${'[a'.repeat(DEPTH)}${']'.repeat(DEPTH)}`],
+            // GATE's probe: each group after a comma trims the text before it, which must not re-read that text.
+            ['a run of comma groups', `a${'(, b)'.repeat(DEPTH / 5)}`],
         ])('does not overflow the stack or stall on %s', (_name, text) => {
             expect(collapseBracketGroups(text).length).toBeGreaterThan(0);
             expect(isLinear(text)).toBe(true);

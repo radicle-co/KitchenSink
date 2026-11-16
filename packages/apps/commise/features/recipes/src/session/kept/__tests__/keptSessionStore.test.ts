@@ -185,6 +185,21 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         );
     });
 
+    it('a direct switch of cook drops the old cook`s unsaved changes: they never replay into the new record', async () => {
+        const { store, data, state } = setup({ [KEY_A]: stored, [keptKeyFor('B')]: serializeKeptDocument(makeDoc()) });
+
+        state.failReads = true;
+        await store.scope('A');
+        await store.dispatch(tick);
+        await store.scope('B');
+        state.failReads = false;
+        await store.dispatch({ ...tick, ingredientId: 'salt' });
+
+        const written = JSON.parse(data.get(keptKeyFor('B')) ?? '{}');
+
+        expect(written.entries.r1.ticks).toEqual(['salt']);
+    });
+
     it('a change made while reads fail is replayed with the instant the cook made it, not the replay instant', async () => {
         const fake = makeFakePort({ [KEY_A]: stored });
         let clock = T0;

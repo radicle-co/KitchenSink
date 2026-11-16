@@ -7856,6 +7856,16 @@
             ],
             "type": "object"
         },
+        "invalidVisibilityReasonSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "SOURCE_CONFLICT",
+                "STATEMENT_REQUIRED",
+                "PUBLIC_CONFIRMATION_REQUIRED",
+                "FROM_PERSON_PRIVATE_ONLY"
+            ],
+            "type": "string"
+        },
         "leaveImportRequestSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,

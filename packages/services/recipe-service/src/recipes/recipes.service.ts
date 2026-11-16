@@ -512,6 +512,26 @@ interface UnderLockDecision {
 }
 
 /**
+ * A source correction that may go ahead: the two refusals (the source is locked after the first publish, or the link is not a
+ * public web page address) throw, so every route to a correction refuses them the same way.
+ *
+ * @param correction - The policy's verdict on the statement.
+ * @returns The correction, now known to be `unchanged` or `apply`. Pure apart from the throw.
+ * @throws {HttpException} `SOURCE_LOCKED` or the source-not-usable refusal.
+ */
+function refuseUnusable(correction: SourceCorrection): Exclude<SourceCorrection, { kind: 'locked' | 'unusable' }> {
+    if (correction.kind === 'locked') {
+        throw sourceLocked();
+    }
+
+    if (correction.kind === 'unusable') {
+        throw sourceNotUsable('The source link is not a public web page address.');
+    }
+
+    return correction;
+}
+
+/**
  * The source facts the correction policy reads, from a row read under the lock. The ONE mapping, so set-visibility and the
  * PATCH cannot read the same row two ways.
  *
@@ -1390,15 +1410,7 @@ export class RecipesService {
             firstPublishedAt: existing.recipe.firstPublishedAt,
             clonedFromId: existing.recipe.clonedFromId,
         };
-        const correction = evaluateSourceCorrection({ statement: dto.statement, stored: storedSource });
-
-        if (correction.kind === 'locked') {
-            throw sourceLocked();
-        }
-
-        if (correction.kind === 'unusable') {
-            throw sourceNotUsable('The source link is not a public web page address.');
-        }
+        const correction = refuseUnusable(evaluateSourceCorrection({ statement: dto.statement, stored: storedSource }));
 
         // The evidence row a statement this PATCH applies will leave (none for a clear). Written below, in the transaction.
         const pendingEvidence = correction.kind === 'apply' ? evidenceListOf(correction.provenance, 'editor') : [];
@@ -1684,15 +1696,9 @@ export class RecipesService {
         const correction =
             dto.statement === undefined
                 ? input.preLock
-                : evaluateSourceCorrection({ statement: dto.statement, stored: storedSourceOf(current) });
-
-        if (correction.kind === 'locked') {
-            throw sourceLocked();
-        }
-
-        if (correction.kind === 'unusable') {
-            throw sourceNotUsable('The source link is not a public web page address.');
-        }
+                : refuseUnusable(
+                      evaluateSourceCorrection({ statement: dto.statement, stored: storedSourceOf(current) }),
+                  );
 
         const applied = correction.kind === 'apply';
         const pendingEvidence = applied ? evidenceListOf(correction.provenance, 'editor') : [];
@@ -1727,29 +1733,58 @@ export class RecipesService {
         });
 
         if (input.publishesDraft && visibilityAfter === RecipeVisibility.PRIVATE) {
-            // Publishing a private draft is a move to private like any other, so it meets the SAME C-004 policy, with the slot
-            // fact counted under the lock where a slot can matter (ADR-0073: a free cook's private recipe uses a slot, and
-            // ADR-0077 section 6 means no Premium or substantive edit is needed).
-            const takesSlot = requiresPrivateSlotCheck({
-                sourceType: sourceAfter.sourceType,
-                isPremium: input.isPremium,
-                before: { visibility: current.visibility, status: existingStatus },
-                after: { visibility: visibilityAfter, status: afterStatus },
-            });
-
-            if (takesSlot && input.counted === undefined) {
-                // Unreachable: a move that takes a slot is a draft being published by a cook the slot rule applies to, which is
-                // exactly when the lock was taken. Fail CLOSED rather than let a missing count allow it.
-                throw new Error('A private draft was published without the per-user slot lock being taken.');
-            }
-
-            assertVisibilityAllowed(
-                visibilityAskOf(principal, sourceAfter, RecipeVisibility.PRIVATE, verdict),
-                takesSlot && input.counted !== undefined ? input.counted : SLOT_NOT_NEEDED,
-            );
+            this.assertPrivatePublishAllowed(input, { current, visibilityAfter, sourceAfter, verdict });
         }
 
         return { correction, forcesPrivate, pendingEvidence, recordsConfirmation: verdict.recordsConfirmation };
+    }
+
+    /**
+     * Publishing a private draft is a move to private like any other, so it meets the SAME C-004 policy, with the slot fact
+     * counted under the lock where a slot can matter (ADR-0073: a free cook's private recipe uses a slot, and ADR-0077
+     * section 6 means no Premium or substantive edit is needed).
+     *
+     * @param input - The request facts `decideUnderLockIn` was given.
+     * @param left - The row read under the lock, the visibility and source this write leaves, and the gate's verdict.
+     * @throws {HttpException} The visibility refusal, or a full private slot standing.
+     * @throws {Error} When a move that takes a slot ran without the slot lock (fails closed).
+     */
+    private assertPrivatePublishAllowed(
+        input: {
+            readonly principal: Principal;
+            readonly isPremium: boolean;
+            readonly existingStatus: RecipeStatus;
+            readonly afterStatus: RecipeStatus;
+            readonly counted: PrivateSlotStanding | undefined;
+        },
+        left: {
+            readonly current: LockedRecipeFacts;
+            readonly visibilityAfter: RecipeVisibility;
+            readonly sourceAfter: {
+                readonly sourceType: RecipeSourceType;
+                readonly sourceKind: StoredSource['sourceKind'];
+            };
+            readonly verdict: PublicVerdict;
+        },
+    ): void {
+        const { current, visibilityAfter, sourceAfter, verdict } = left;
+        const takesSlot = requiresPrivateSlotCheck({
+            sourceType: sourceAfter.sourceType,
+            isPremium: input.isPremium,
+            before: { visibility: current.visibility, status: input.existingStatus },
+            after: { visibility: visibilityAfter, status: input.afterStatus },
+        });
+
+        if (takesSlot && input.counted === undefined) {
+            // Unreachable: a move that takes a slot is a draft being published by a cook the slot rule applies to, which is
+            // exactly when the lock was taken. Fail CLOSED rather than let a missing count allow it.
+            throw new Error('A private draft was published without the per-user slot lock being taken.');
+        }
+
+        assertVisibilityAllowed(
+            visibilityAskOf(input.principal, sourceAfter, RecipeVisibility.PRIVATE, verdict),
+            takesSlot && input.counted !== undefined ? input.counted : SLOT_NOT_NEEDED,
+        );
     }
 
     /**

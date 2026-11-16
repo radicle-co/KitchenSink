@@ -106,6 +106,10 @@ describe('RecipesService.create — the attestation record', () => {
 });
 
 describe('RecipesService.update — the attestation record', () => {
+    /**
+     * Rewritten to prove the effect-based record: a clear writes a `cleared` row only when the recipe held a statement,
+     * so the stored recipe here carries one. The case with nothing stored is the next test.
+     */
     it('records `statement: null` as a cleared row with no wording when a statement was stored', async () => {
         const stored: RecipeAggregate = {
             recipe: makeRecipeRow({

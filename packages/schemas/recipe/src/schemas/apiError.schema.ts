@@ -68,6 +68,9 @@ export const INVALID_VISIBILITY_REASONS = [
     'FROM_PERSON_PRIVATE_ONLY',
 ] as const;
 
+/** The same set as a schema, so a sender names a reason as `.enum.STATEMENT_REQUIRED` and a reordered list cannot swap two. */
+export const invalidVisibilityReasonSchema = z.enum(INVALID_VISIBILITY_REASONS);
+
 /**
  * The structured error envelope — the ONLY body a non-2xx response from this service carries.
  *
@@ -357,10 +360,7 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
              * OPTIONAL: a plain refusal carries only the attempted visibility and source type. A refusal a client can act on
              * names `reason`, one of {@link INVALID_VISIBILITY_REASONS}.
              */
-            details: z
-                .object({ reason: z.enum(INVALID_VISIBILITY_REASONS).optional() })
-                .loose()
-                .optional(),
+            details: z.object({ reason: invalidVisibilityReasonSchema.optional() }).loose().optional(),
         })
         .loose(),
     z

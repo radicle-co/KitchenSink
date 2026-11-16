@@ -43,7 +43,8 @@ describe('SourceStatementSheet (web) — choosing', () => {
         expect(
             screen.getByRole('dialog', {
                 name: 'Where is this recipe from?',
-                description: /Tell us before it goes public\..*Only a recipe you wrote yourself/u,
+                description:
+                    /Part of this recipe was pasted in\. Before it goes public, tell us where it’s from\..*If your answer isn’t true/u,
             }),
         ).toBeTruthy();
     });
@@ -101,7 +102,7 @@ describe('SourceStatementSheet (web) — choosing', () => {
         renderSheet();
 
         expect(
-            screen.getByText('Only a recipe you wrote yourself can be public. Any other answer keeps it private.'),
+            screen.getByText('If your answer isn’t true, we can remove the recipe and limit your account.'),
         ).toBeTruthy();
     });
 
@@ -147,25 +148,36 @@ describe('SourceStatementSheet (web) — answered', () => {
         expect(
             screen.getByRole('radio', {
                 name: 'I wrote this',
-                description: 'These are my own words. Anyone can see it and save a copy.',
+                description:
+                    'It’s my own recipe, in my own words, and any photos are mine. It isn’t copied from a website, book or another person. Goes public.',
             }),
         ).toBeTruthy();
-        expect(screen.getByRole('radio', { name: 'From a web page', description: 'It stays private.' })).toBeTruthy();
+        expect(
+            screen.getByRole('radio', { name: 'From a web page', description: 'Stays private to you.' }),
+        ).toBeTruthy();
+        expect(
+            screen.getByRole('radio', {
+                name: 'From another person',
+                description: 'A recipe someone gave you, like family or a friend. Stays private to you.',
+            }),
+        ).toBeTruthy();
+        // The editor's own fifth answer says what it is in its label alone.
+        expect(screen.getByRole('radio', { name: 'Publish privately', description: '' })).toBeTruthy();
     });
 
     it('reveals the link field for a web page only, reporting what is typed', async () => {
         const { dispatch } = renderSheet({ state: { answer: 'publicWeb' } });
 
-        expect(screen.queryByLabelText('Title')).toBeNull();
-        await userEvent.type(screen.getByLabelText('Web page address'), 'h');
+        expect(screen.queryByLabelText('Book or magazine title')).toBeNull();
+        await userEvent.type(screen.getByLabelText('Source'), 'h');
         expect(dispatch).toHaveBeenCalledWith({ type: 'link', text: 'h' });
     });
 
     it('reveals the title field for a cookbook only', async () => {
         const { dispatch } = renderSheet({ state: { answer: 'book' } });
 
-        expect(screen.queryByLabelText('Web page address')).toBeNull();
-        await userEvent.type(screen.getByLabelText('Title'), 'J');
+        expect(screen.queryByLabelText('Source')).toBeNull();
+        await userEvent.type(screen.getByLabelText('Book or magazine title'), 'J');
         expect(dispatch).toHaveBeenCalledWith({ type: 'bookTitle', text: 'J' });
     });
 
@@ -180,29 +192,31 @@ describe('SourceStatementSheet (web) — field error', () => {
     it('shows the book title error on the field: invalid, described by the error, and taking focus', () => {
         renderSheet({ state: { answer: 'book', attempted: true } });
 
-        const field = screen.getByLabelText('Title');
+        const field = screen.getByLabelText('Book or magazine title');
 
         expect(field.getAttribute('aria-invalid')).toBe('true');
-        expect(screen.getByText('Enter the title.')).toBeTruthy();
+        expect(screen.getByText('Add the book or magazine title.')).toBeTruthy();
         expect(document.activeElement).toBe(field);
-        expect(field.getAttribute('aria-describedby')).toContain(screen.getByText('Enter the title.').id);
+        expect(field.getAttribute('aria-describedby')).toContain(
+            screen.getByText('Add the book or magazine title.').id,
+        );
     });
 
     it.each([
-        ['', 'Enter the page address.'],
+        ['', 'That isn’t a web link. Paste the page address, like https://example.com/recipe.'],
         ['soup', 'That isn’t a web link. Paste the page address, like https://example.com/recipe.'],
         ['https://commise.app/recipes/1', 'That’s a Commise link. Paste the link of the page you copied from.'],
     ])('says why the link %j cannot be used', (link, message) => {
         renderSheet({ state: { answer: 'publicWeb', attempted: true, link } });
 
         expect(screen.getByText(message)).toBeTruthy();
-        expect(screen.getByLabelText('Web page address').getAttribute('aria-invalid')).toBe('true');
+        expect(screen.getByLabelText('Source').getAttribute('aria-invalid')).toBe('true');
     });
 
     it('shows no error before Confirm was pressed', () => {
         renderSheet({ state: { answer: 'book' } });
 
-        expect(screen.queryByText('Enter the title.')).toBeNull();
+        expect(screen.queryByText('Add the book or magazine title.')).toBeNull();
     });
 });
 
@@ -223,7 +237,7 @@ describe('SourceStatementSheet (web) — busy and error', () => {
         const { onDismiss } = renderSheet({ surface: 'recipePage', state: { answer: 'authored', status: 'busy' } });
 
         fireEvent.keyDown(dialog(), { key: 'Escape' });
-        await userEvent.click(screen.getByRole('button', { name: 'Close this question' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Close' }));
         await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
         expect(onDismiss).not.toHaveBeenCalled();
@@ -238,7 +252,7 @@ describe('SourceStatementSheet (web) — busy and error', () => {
         expect(screen.getByRole('alert').textContent).toBe('We couldn’t change who can see this recipe. Try again.');
         await userEvent.click(screen.getByRole('button', { name: 'Make public' }));
         expect(onConfirm).toHaveBeenCalledTimes(1);
-        await userEvent.click(screen.getByRole('button', { name: 'Close this question' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Close' }));
         expect(onDismiss).toHaveBeenCalledTimes(1);
     });
 });
@@ -257,7 +271,7 @@ describe('SourceStatementSheet (web) — dismiss', () => {
         const { onDismiss } = renderSheet();
 
         fireEvent.keyDown(dialog(), { key: 'Escape' });
-        await userEvent.click(screen.getByRole('button', { name: 'Close this question' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Close' }));
 
         expect(onDismiss).toHaveBeenCalledTimes(2);
     });

@@ -15,10 +15,14 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { editorMessages } from '../../editor/messages.js';
 import { recipeActionMessages } from '../messages.js';
 import { visibilityNoticeOf, type VisibilityNoticeInput } from '../visibilityNotice.js';
 
-const copy = recipeActionMessages.en.visibility;
+const copy = {
+    ...recipeActionMessages.en.visibility,
+    publicHeld: editorMessages.en.visibility.publicHeldBySource,
+};
 const FINAL = copy.privateRefused.final;
 // The slots sentence is filled with the SERVER's limit; this package states no number of its own.
 const SLOTS = 'Not available. All 50 of your private slots are in use.';
@@ -126,7 +130,7 @@ describe('visibilityNoticeOf — the slots sentence', () => {
 
 /** ADR-0092: a recorded source holds the recipe out of Public, and the page says so. */
 describe('visibilityNoticeOf — a recipe held out of Public by a recorded source', () => {
-    const HELD = 'Not for this recipe. It was saved with a source, so it stays private.';
+    const HELD = 'This recipe was saved with a source, so it stays private.';
 
     it('says the held note to the owner, over any other word, and says nothing to a viewer who is not the owner', () => {
         expect(visibilityNoticeOf({ ...base, held: true, isPublic: false, writeFailed: true }, copy)).toBe(HELD);

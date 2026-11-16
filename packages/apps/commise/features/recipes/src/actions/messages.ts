@@ -68,7 +68,7 @@ export interface SourceStatementMessages {
     readonly hintAuthored: string;
     /** `statementPublicWeb.v1`. */
     readonly answerWeb: string;
-    /** The hint under every answer that leaves the recipe private. */
+    /** The hint under "from a web page" and "from a cookbook or magazine": the recipe stays private. */
     readonly hintPrivate: string;
     /** `statementBook.v1`. */
     readonly answerBook: string;
@@ -76,17 +76,10 @@ export interface SourceStatementMessages {
     readonly bookTitleError: string;
     /** `statementFromPerson.v1`. */
     readonly answerPerson: string;
+    /** What "from another person" means, said under it. */
+    readonly hintPerson: string;
     /** The editor's own fifth answer: publish, and keep it private. */
     readonly answerPublishPrivately: string;
-    /** The link field's label, error and the radio group's own name read the title. */
-    readonly webLinkLabel: string;
-    readonly webLinkRequired: string;
-    readonly webLinkInvalid: string;
-    readonly webLinkOwnSite: string;
-    /** Said inside the sheet when the change fails (the recipe page). */
-    readonly error: string;
-    /** Said politely while the change is in flight. */
-    readonly busy: string;
 }
 
 /** The passive line beside the Public choice (`publicConfirm.v1`): what the cook was shown when they chose Public. */
@@ -104,8 +97,6 @@ export interface RecipeVisibilityToggleMessages {
     readonly privateLabel: string;
     /** Error shown when a visibility change fails and the toggle snaps back, so it never does so silently (B17). */
     readonly error: string;
-    /** Said under the visibility line when a recorded source holds the recipe out of Public (ADR-0092). */
-    readonly publicHeld: string;
     /**
      * In place of `error` when a Private is refused (`visibilityNoticeOf`): the server refused it as `INVALID_VISIBILITY`
      * (`useServerRefusedPrivate`), or the editor withheld it because the server would. Trying again cannot succeed, so it
@@ -231,38 +222,33 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
         },
         sourceStatement: {
             title: 'Where is this recipe from?',
-            close: 'Close this question',
-            body: 'Tell us before it goes public.',
-            effect: 'Only a recipe you wrote yourself can be public. Any other answer keeps it private.',
+            close: 'Close',
+            body: 'Part of this recipe was pasted in. Before it goes public, tell us where it’s from.',
+            effect: 'If your answer isn’t true, we can remove the recipe and limit your account.',
             confirmEditor: 'Publish',
             confirmRecipePage: 'Make public',
             dismissEditor: 'Keep as draft',
             dismissRecipePage: 'Cancel',
             answerAuthored: 'I wrote this',
-            hintAuthored: 'These are my own words. Anyone can see it and save a copy.',
+            hintAuthored:
+                'It’s my own recipe, in my own words, and any photos are mine. It isn’t copied from a website, book or another person. Goes public.',
             answerWeb: 'From a web page',
-            hintPrivate: 'It stays private.',
+            hintPrivate: 'Stays private to you.',
             answerBook: 'From a cookbook or magazine',
-            bookTitleLabel: 'Title',
-            bookTitleError: 'Enter the title.',
+            bookTitleLabel: 'Book or magazine title',
+            bookTitleError: 'Add the book or magazine title.',
             answerPerson: 'From another person',
+            hintPerson: 'A recipe someone gave you, like family or a friend. Stays private to you.',
             answerPublishPrivately: 'Publish privately',
-            webLinkLabel: 'Web page address',
-            webLinkRequired: 'Enter the page address.',
-            webLinkInvalid: 'That isn’t a web link. Paste the page address, like https://example.com/recipe.',
-            webLinkOwnSite: 'That’s a Commise link. Paste the link of the page you copied from.',
-            error: 'We couldn’t change who can see this recipe. Try again.',
-            busy: 'Making public…',
         },
         publicConfirm: {
-            line: 'Anyone can see a public recipe and save a copy.',
+            line: 'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.',
         },
         visibility: {
             groupLabel: 'Recipe visibility',
             publicLabel: 'Public',
             privateLabel: 'Private',
             error: 'We couldn’t change who can see this recipe. Try again.',
-            publicHeld: 'Not for this recipe. It was saved with a source, so it stays private.',
             privateRefused: {
                 final: 'This recipe is still public: it couldn’t be made private.',
                 // `recipe.visibility.slotsFull`: the editor board's words, now the recipe page's too. `{total}` is the SERVER's

@@ -188,7 +188,7 @@ test.describe('a pasted recipe asks where it is from before it goes public (ADR-
         await sheetOf(page).getByRole('radio', { name: 'From a cookbook or magazine' }).click();
         await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
 
-        await expect(sheetOf(page).getByText('Enter the title.')).toBeVisible();
+        await expect(sheetOf(page).getByText('Add the book or magazine title.')).toBeVisible();
         await expect(sheetOf(page).getByLabel('Title')).toBeFocused();
         expect(published(writes)).toEqual([]);
 
@@ -242,7 +242,7 @@ test.describe('a pasted recipe asks where it is from before it goes public (ADR-
             .click();
         await addStep(page, 'Simmer the stock.');
 
-        await expect(page.getByText('Anyone can see a public recipe and save a copy.')).toBeVisible();
+        await expect(page.getByText('By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.')).toBeVisible();
         await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page.getByText('Recipe published.')).toBeVisible();

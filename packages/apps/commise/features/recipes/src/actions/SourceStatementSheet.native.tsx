@@ -21,6 +21,7 @@ import { Text } from '@commise/ui/text';
 import { useId, type FC } from 'react';
 import { styled, XStack, YStack } from 'tamagui';
 
+import { editorMessages } from '../editor/messages.js';
 import { recipeActionMessages } from './messages.js';
 import type { StatementAnswer } from './sourceStatement.js';
 import { sheetViewOf } from './sourceStatementSheetModel.js';
@@ -42,8 +43,9 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
     onConfirm,
     onDismiss,
 }) => {
-    const { sourceStatement: m } = useMessages(recipeActionMessages);
-    const view = sheetViewOf({ surface, state, messages: m });
+    const { sourceStatement: m, visibility } = useMessages(recipeActionMessages);
+    const { source } = useMessages(editorMessages);
+    const view = sheetViewOf({ surface, state, messages: m, shared: { source, failure: visibility.error } });
     const fieldId = useId();
     const { field } = view;
 

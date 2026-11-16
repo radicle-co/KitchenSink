@@ -41,6 +41,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
+import { editorMessages } from '../editor/messages.js';
 import { recipeActionMessages } from '../actions/messages.js';
 import { invalidVisibilityReasonOf } from '../actions/privateGate.js';
 import { mayBePublic, recipeMakePublicConsequence } from '../actions/recipePrivateGate.js';
@@ -165,6 +166,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
         reportError,
     } = input;
     const { detailActions, moreMenu, visibility: visibilityCopy } = useMessages(recipeActionMessages);
+    const { visibility: editorVisibility } = useMessages(editorMessages);
     const locale = useLocale();
     const deleteRecipe = useDeleteRecipe();
     const setVisibility = useSetRecipeVisibility();
@@ -301,7 +303,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             slotLimit:
                 serverRefusedPrivate?.slotLimit ?? (knownStanding.kind === 'full' ? knownStanding.limit : undefined),
         },
-        visibilityCopy,
+        { ...visibilityCopy, publicHeld: editorVisibility.publicHeldBySource },
     );
 
     // §6.1/§6.4: the ⋯ menu's entries are decided once for both platforms (`detailMenuOf`).

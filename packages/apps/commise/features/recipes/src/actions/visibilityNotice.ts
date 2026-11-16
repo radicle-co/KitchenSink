@@ -66,7 +66,10 @@ export interface VisibilityNoticeInput {
  */
 export function visibilityNoticeOf(
     input: VisibilityNoticeInput,
-    messages: Pick<RecipeVisibilityToggleMessages, 'error' | 'privateRefused' | 'publicHeld'>,
+    messages: Pick<RecipeVisibilityToggleMessages, 'error' | 'privateRefused'> & {
+        /** The ONE "saved with a source" note, which the editor's Public card says too (`visibility.publicHeldBySource`). */
+        readonly publicHeld: string;
+    },
 ): string | undefined {
     if (!input.viewerIsOwner) {
         return undefined;

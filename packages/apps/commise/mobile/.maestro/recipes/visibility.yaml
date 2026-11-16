@@ -121,7 +121,7 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Make this recipe public?'
       timeout: 20000
-- assertVisible: 'Anyone can see a public recipe and save a copy.'
+- assertVisible: 'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.'
 - tapOn: 'Make public'
 - extendedWaitUntil:
       visible:

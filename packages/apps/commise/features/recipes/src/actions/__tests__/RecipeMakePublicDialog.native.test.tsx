@@ -50,13 +50,21 @@ describe('RecipeMakePublicDialog (native)', () => {
         renderDialog({ consequence: 'frees' });
 
         expect(screen.getByText(m.bodyFrees)).toBeTruthy();
-        expect(screen.getByText('Anyone can see a public recipe and save a copy.')).toBeTruthy();
+        expect(
+            screen.getByText(
+                'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.',
+            ),
+        ).toBeTruthy();
     });
 
     it('under confirm (nothing to free), the passive line IS the body, said once', () => {
         renderDialog({ consequence: 'confirm' });
 
-        expect(screen.getAllByText('Anyone can see a public recipe and save a copy.')).toHaveLength(1);
+        expect(
+            screen.getAllByText(
+                'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.',
+            ),
+        ).toHaveLength(1);
         expect(screen.queryByText(m.bodyFrees)).toBeNull();
     });
 

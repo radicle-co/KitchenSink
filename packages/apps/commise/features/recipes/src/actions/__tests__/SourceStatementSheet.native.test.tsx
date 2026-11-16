@@ -42,9 +42,11 @@ describe('SourceStatementSheet (native) — choosing', () => {
         expect(
             screen.getByRole('heading', { name: 'Where is this recipe from?' }).closest('[role="dialog"]'),
         ).toBeTruthy();
-        expect(screen.getByText('Tell us before it goes public.')).toBeTruthy();
         expect(
-            screen.getByText('Only a recipe you wrote yourself can be public. Any other answer keeps it private.'),
+            screen.getByText('Part of this recipe was pasted in. Before it goes public, tell us where it’s from.'),
+        ).toBeTruthy();
+        expect(
+            screen.getByText('If your answer isn’t true, we can remove the recipe and limit your account.'),
         ).toBeTruthy();
     });
 
@@ -131,13 +133,13 @@ describe('SourceStatementSheet (native) — answered', () => {
 
     it('reveals the link field for a web page, and the title field for a cookbook, and none otherwise', () => {
         renderSheet({ state: { answer: 'publicWeb' } });
-        expect(screen.getByLabelText('Web page address')).toBeTruthy();
-        expect(screen.queryByLabelText('Title')).toBeNull();
+        expect(screen.getByLabelText('Source')).toBeTruthy();
+        expect(screen.queryByLabelText('Book or magazine title')).toBeNull();
 
         cleanup();
         renderSheet({ state: { answer: 'book' } });
-        expect(screen.getByLabelText('Title')).toBeTruthy();
-        expect(screen.queryByLabelText('Web page address')).toBeNull();
+        expect(screen.getByLabelText('Book or magazine title')).toBeTruthy();
+        expect(screen.queryByLabelText('Source')).toBeNull();
 
         cleanup();
         renderSheet({ state: { answer: 'authored' } });
@@ -147,7 +149,7 @@ describe('SourceStatementSheet (native) — answered', () => {
     it('reports what is typed in the revealed field', () => {
         const { dispatch } = renderSheet({ state: { answer: 'book' } });
 
-        fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'J' } });
+        fireEvent.change(screen.getByLabelText('Book or magazine title'), { target: { value: 'J' } });
 
         expect(dispatch).toHaveBeenCalledWith({ type: 'bookTitle', text: 'J' });
     });
@@ -157,14 +159,14 @@ describe('SourceStatementSheet (native) — field error', () => {
     it('shows the book title error under the field', () => {
         renderSheet({ state: { answer: 'book', attempted: true } });
 
-        expect(screen.getByText('Enter the title.')).toBeTruthy();
-        expect(screen.getByLabelText('Title')).toBeTruthy();
+        expect(screen.getByText('Add the book or magazine title.')).toBeTruthy();
+        expect(screen.getByLabelText('Book or magazine title')).toBeTruthy();
     });
 
     it('shows no error before Confirm was pressed', () => {
         renderSheet({ state: { answer: 'book' } });
 
-        expect(screen.queryByText('Enter the title.')).toBeNull();
+        expect(screen.queryByText('Add the book or magazine title.')).toBeNull();
     });
 
     it('says why a link cannot be used', () => {
@@ -210,7 +212,7 @@ describe('SourceStatementSheet (native) — dismiss', () => {
         const { onDismiss } = renderSheet();
 
         fireEvent.keyUp(document, { key: 'Escape' });
-        fireEvent.click(screen.getByRole('button', { name: 'Close this question' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
 
         expect(onDismiss).toHaveBeenCalledTimes(2);
     });

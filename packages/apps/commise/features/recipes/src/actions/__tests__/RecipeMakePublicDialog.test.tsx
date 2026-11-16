@@ -59,7 +59,7 @@ describe('RecipeMakePublicDialog (web)', () => {
         expect(
             screen.getByRole('alertdialog', {
                 name: 'Make this recipe public?',
-                description: `${m.bodyFrees} Anyone can see a public recipe and save a copy.`,
+                description: `${m.bodyFrees} By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.`,
             }),
         ).toBeTruthy();
     });
@@ -67,7 +67,11 @@ describe('RecipeMakePublicDialog (web)', () => {
     it('under confirm (nothing to free), the passive line IS the body, said once', () => {
         renderDialog({ consequence: 'confirm' });
 
-        expect(screen.getAllByText('Anyone can see a public recipe and save a copy.')).toHaveLength(1);
+        expect(
+            screen.getAllByText(
+                'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.',
+            ),
+        ).toHaveLength(1);
         expect(screen.queryByText(m.bodyFrees)).toBeNull();
         expect(screen.getByRole('alertdialog', { name: 'Make this recipe public?' })).toBeTruthy();
     });

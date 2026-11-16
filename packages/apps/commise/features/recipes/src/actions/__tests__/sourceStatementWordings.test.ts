@@ -15,18 +15,26 @@ const SHOWN = {
     'statementAuthored.v1': [m.answerAuthored, m.hintAuthored],
     'statementPublicWeb.v1': [m.answerWeb, m.hintPrivate],
     'statementBook.v1': [m.answerBook, m.hintPrivate],
-    'statementFromPerson.v1': [m.answerPerson, m.hintPrivate],
+    'statementFromPerson.v1': [m.answerPerson, m.hintPerson],
 } as const;
 
 describe('the statement wordings', () => {
     it('pins the text each version stands for', () => {
         expect(SHOWN).toEqual({
-            'statementAuthored.v1': ['I wrote this', 'These are my own words. Anyone can see it and save a copy.'],
-            'statementPublicWeb.v1': ['From a web page', 'It stays private.'],
-            'statementBook.v1': ['From a cookbook or magazine', 'It stays private.'],
-            'statementFromPerson.v1': ['From another person', 'It stays private.'],
+            'statementAuthored.v1': [
+                'I wrote this',
+                'It’s my own recipe, in my own words, and any photos are mine. It isn’t copied from a website, book or another person. Goes public.',
+            ],
+            'statementPublicWeb.v1': ['From a web page', 'Stays private to you.'],
+            'statementBook.v1': ['From a cookbook or magazine', 'Stays private to you.'],
+            'statementFromPerson.v1': [
+                'From another person',
+                'A recipe someone gave you, like family or a friend. Stays private to you.',
+            ],
         });
-        expect(publicConfirm.line).toBe('Anyone can see a public recipe and save a copy.');
+        expect(publicConfirm.line).toBe(
+            'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.',
+        );
     });
 
     it('has a pinned text for every version the registry lists, and the registry lists exactly one per choice today', () => {

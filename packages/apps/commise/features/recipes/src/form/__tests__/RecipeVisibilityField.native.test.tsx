@@ -473,7 +473,7 @@ describe('RecipeVisibilityField (native) - over the limit after a downgrade', ()
  * host gives it exactly when no sheet will ask), and a held recipe refuses Public with its own note and no line.
  */
 describe('RecipeVisibilityField (native) - the passive line and the held note (ADR-0092)', () => {
-    const LINE = 'Anyone can see a public recipe and save a copy.';
+    const LINE = 'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.';
     const facts: RecipePrivateFacts = { rule: 'slots', standing: { kind: 'unknown' }, state: 'granted' };
     const fieldWith = (extra: { readonly confirmLine?: string; readonly publicHeld?: boolean }) => (
         <RecipeVisibilityField

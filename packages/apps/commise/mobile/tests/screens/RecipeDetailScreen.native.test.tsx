@@ -719,7 +719,7 @@ describe('RecipeDetailScreen — owner actions', () => {
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
         fireEvent.click(screen.getByRole('menuitem', { name: 'Make public' }));
 
-        expect(screen.getByText('Anyone can see a public recipe and save a copy.')).toBeTruthy();
+        expect(screen.getByText('By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.')).toBeTruthy();
         expect(mutate).not.toHaveBeenCalled();
         const dialog = screen.getByRole('heading', { name: 'Make this recipe public?' }).closest('[role="alert"]');
         fireEvent.click(within(dialog as HTMLElement).getByRole('button', { name: 'Make public' }));

@@ -351,7 +351,10 @@ export interface EditorMessages {
         readonly publicRefused: string;
         /** The same under the Public card of a recipe copied from a web page, whose author owns the writing (ADR-0089). */
         readonly publicRefusedWebSource: string;
-        /** The same under the Public card of a recipe a recorded source holds out of Public, though the draft states none (ADR-0092). */
+        /**
+         * Under the Public card of a recipe a recorded source holds out of Public, though the draft states none, and on the
+         * recipe page when the server holds it so (ADR-0092): the ONE key for both screens.
+         */
         readonly publicHeldBySource: string;
         /** A downgraded cook holds more private recipes than slots (`{count}`, `{total}` are the server's numbers). */
         readonly overLimit: string;
@@ -647,7 +650,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             publicRefused: 'Not for this recipe. Its source is a book or a paid site, not a public web page.',
             publicRefusedWebSource:
                 'Not for this recipe. It’s copied from a web page, and its author owns the writing.',
-            publicHeldBySource: 'Not for this recipe. It was saved with a source, so it stays private.',
+            publicHeldBySource: 'This recipe was saved with a source, so it stays private.',
             overLimit:
                 'You have {count} private recipes and {total} private slots. They stay private. To make another recipe private, first bring your private recipes under {total}.',
             aboutPremium: 'About Pro',

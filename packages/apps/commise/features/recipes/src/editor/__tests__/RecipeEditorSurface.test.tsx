@@ -964,7 +964,7 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
  * back through the editor, and the passive line is drawn exactly when the editor says it is (`confirmLineShown`).
  */
 describe('RecipeEditorSurface — the source question (ADR-0092)', () => {
-    const LINE = 'Anyone can see a public recipe and save a copy.';
+    const LINE = 'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.';
 
     it('shows no sheet while no ask stands', () => {
         mount();
@@ -994,7 +994,7 @@ describe('RecipeEditorSurface — the source question (ADR-0092)', () => {
             expect.objectContaining({ statement: expect.objectContaining({ kind: 'authored' }) }),
         );
 
-        await user.click(within(sheet).getByRole('button', { name: 'Close this question' }));
+        await user.click(within(sheet).getByRole('button', { name: 'Close' }));
 
         expect(dismissStatement).toHaveBeenCalledTimes(1);
     });

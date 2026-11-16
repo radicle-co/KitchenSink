@@ -22,6 +22,7 @@ import { RadioList } from '@commise/ui/radio-list';
 import { Sheet } from '@commise/ui/sheet';
 import { useId, type FC } from 'react';
 
+import { editorMessages } from '../editor/messages.js';
 import { recipeActionMessages } from './messages.js';
 import type { StatementAnswer } from './sourceStatement.js';
 import { sheetViewOf } from './sourceStatementSheetModel.js';
@@ -36,8 +37,9 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
     onConfirm,
     onDismiss,
 }) => {
-    const { sourceStatement: m } = useMessages(recipeActionMessages);
-    const view = sheetViewOf({ surface, state, messages: m });
+    const { sourceStatement: m, visibility } = useMessages(recipeActionMessages);
+    const { source } = useMessages(editorMessages);
+    const view = sheetViewOf({ surface, state, messages: m, shared: { source, failure: visibility.error } });
     const ids = useId();
     const bodyId = `${ids}-body`;
     const effectId = `${ids}-effect`;

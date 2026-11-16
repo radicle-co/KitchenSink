@@ -10,6 +10,7 @@
  */
 import type { RadioListOption } from '@commise/ui/radio-list';
 
+import type { EditorMessages } from '../editor/messages.js';
 import type { SourceStatementMessages } from './messages.js';
 import {
     answersFor,
@@ -27,6 +28,16 @@ export interface StatementFieldView {
     readonly value: string;
     /** The error to say, when the cook has pressed Confirm over a field that cannot be used. */
     readonly error: string | undefined;
+}
+
+/**
+ * Words the sheet takes from where they already live, so each is said by one key: the Source field's label and errors (the
+ * link field is the editor's own) and the recipe page's "couldn't change who can see this recipe".
+ */
+export interface StatementSharedCopy {
+    readonly source: Pick<EditorMessages['source'], 'label' | 'invalid' | 'ownSite'>;
+    /** Said above the footer when the change fails (`visibility.error`). */
+    readonly failure: string;
 }
 
 /** What the sheet draws. */
@@ -53,22 +64,35 @@ const LABEL_KEY = {
     publishPrivately: 'answerPublishPrivately',
 } as const satisfies Record<StatementAnswer, keyof SourceStatementMessages>;
 
+/** The hint under each answer; "publish privately" says what it is in its label alone. */
+const HINT_KEY = {
+    authored: 'hintAuthored',
+    publicWeb: 'hintPrivate',
+    book: 'hintPrivate',
+    fromPerson: 'hintPerson',
+    publishPrivately: undefined,
+} as const satisfies Record<StatementAnswer, keyof SourceStatementMessages | undefined>;
+
 /**
  * The words of a field error.
  *
  * @param error - What is wrong with the revealed field.
  * @param m - The sheet's copy.
- * @returns The sentence. Pure.
+ * @param shared - The words the sheet reuses.
+ * @returns The sentence. An empty link is "not a web link": the Source field has no separate word for it. Pure.
  */
 function fieldErrorTextOf(
     error: NonNullable<ReturnType<typeof visibleFieldErrorOf>>,
     m: SourceStatementMessages,
+    shared: StatementSharedCopy,
 ): string {
     if (error.field === 'bookTitle') {
         return m.bookTitleError;
     }
 
-    return { required: m.webLinkRequired, invalid: m.webLinkInvalid, ownSite: m.webLinkOwnSite }[error.reason];
+    return { required: shared.source.invalid, invalid: shared.source.invalid, ownSite: shared.source.ownSite }[
+        error.reason
+    ];
 }
 
 /**
@@ -77,14 +101,16 @@ function fieldErrorTextOf(
  * @param input.surface - Where it is asked.
  * @param input.state - What the cook has done.
  * @param input.messages - The sheet's copy.
+ * @param input.shared - The words the sheet reuses.
  * @returns The view. Pure.
  */
 export function sheetViewOf(input: {
     readonly surface: StatementSurface;
     readonly state: StatementSheetState;
     readonly messages: SourceStatementMessages;
+    readonly shared: StatementSharedCopy;
 }): StatementSheetView {
-    const { surface, state, messages: m } = input;
+    const { surface, state, messages: m, shared } = input;
     const phase = phaseOf(state);
     const editor = surface === 'editor';
     const error = visibleFieldErrorOf(state);
@@ -93,29 +119,29 @@ export function sheetViewOf(input: {
         options: answersFor(surface).map((answer) => ({
             id: answer,
             label: m[LABEL_KEY[answer]],
-            hint: answer === 'authored' ? m.hintAuthored : m.hintPrivate,
+            ...(HINT_KEY[answer] === undefined ? {} : { hint: m[HINT_KEY[answer]] }),
         })),
         value: state.answer,
         field:
             state.answer === 'publicWeb'
                 ? {
                       kind: 'link',
-                      label: m.webLinkLabel,
+                      label: shared.source.label,
                       value: state.link,
-                      error: error === undefined ? undefined : fieldErrorTextOf(error, m),
+                      error: error === undefined ? undefined : fieldErrorTextOf(error, m, shared),
                   }
                 : state.answer === 'book'
                   ? {
                         kind: 'bookTitle',
                         label: m.bookTitleLabel,
                         value: state.bookTitle,
-                        error: error === undefined ? undefined : fieldErrorTextOf(error, m),
+                        error: error === undefined ? undefined : fieldErrorTextOf(error, m, shared),
                     }
                   : undefined,
         confirmLabel: editor ? m.confirmEditor : m.confirmRecipePage,
         dismissLabel: editor ? m.dismissEditor : m.dismissRecipePage,
         confirmRefused: phase === 'choosing',
         busy: phase === 'busy',
-        errorText: phase === 'error' ? m.error : undefined,
+        errorText: phase === 'error' ? shared.failure : undefined,
     };
 }

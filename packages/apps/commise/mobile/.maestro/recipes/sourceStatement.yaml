@@ -60,7 +60,7 @@ appId: ${APP_ID}
       text: 'Publish'
       below: 'Where is this recipe from?'
 - extendedWaitUntil:
-      visible: 'Enter the title.'
+      visible: 'Add the book or magazine title.'
       timeout: 10000
 - assertVisible: 'Where is this recipe from?'
 

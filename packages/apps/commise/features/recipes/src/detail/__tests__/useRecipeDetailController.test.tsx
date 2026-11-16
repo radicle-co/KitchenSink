@@ -738,7 +738,7 @@ describe('useRecipeDetailController — where the recipe is from (ADR-0092)', ()
 
         expect(makePublicItem(mounted)).toBeUndefined();
         expect(mounted.result.current.visibilityNotice).toBe(
-            'Not for this recipe. It was saved with a source, so it stays private.',
+            'This recipe was saved with a source, so it stays private.',
         );
     });
 
@@ -779,7 +779,7 @@ describe('useRecipeDetailController — where the recipe is from (ADR-0092)', ()
                 expect.objectContaining({ queryKey: expect.arrayContaining(['rec_1']) }),
             );
             expect(mounted.result.current.visibilityNotice).toBe(
-                'Not for this recipe. It was saved with a source, so it stays private.',
+                'This recipe was saved with a source, so it stays private.',
             );
         });
 

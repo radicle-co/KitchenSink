@@ -438,7 +438,7 @@ test.describe('private slots — making a private recipe public', () => {
         await expect(dialog).toBeVisible();
         await expect(dialog.getByRole('button', { name: /Pro/u })).toHaveCount(0);
         // ADR-0092: the passive line is shown in the dialog, so the write may carry the wording that says it was shown.
-        await expect(dialog.getByText('Anyone can see a public recipe and save a copy.', { exact: true })).toBeVisible();
+        await expect(dialog.getByText('By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.', { exact: true })).toBeVisible();
         const visibilityWrite = page.waitForRequest(
             (request) => request.method() === 'PATCH' && new URL(request.url()).pathname.endsWith('/visibility'),
         );

@@ -132,6 +132,17 @@ function parseDocument(html: string): { readonly root: DomDocument; readonly tru
     return { root: handler.root, truncated: handler.tooDeep };
 }
 
+/** Push `children` on `stack` last first, so they pop in order. */
+function pushReversed<T>(stack: T[], children: readonly T[]): void {
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+        const child = children[index];
+
+        if (child !== undefined) {
+            stack.push(child);
+        }
+    }
+}
+
 const collapseSpace = (text: string): string =>
     text
         .split(/\s+/u)
@@ -165,6 +176,22 @@ function blocksOf(
         current = '';
     };
 
+    const addText = (data: string): void => {
+        if (!newlineBreaks) {
+            current += data;
+
+            return;
+        }
+
+        data.split(/\r\n|\r|\n/u).forEach((line, index) => {
+            if (index > 0) {
+                flush();
+            }
+
+            current += line;
+        });
+    };
+
     // A node to read, or `null` marking the end of a block element.
     const stack: (DomNode | null)[] = [...roots].reverse();
 
@@ -177,32 +204,14 @@ function blocksOf(
         if (next === null) {
             flush();
         } else if (isText(next)) {
-            if (newlineBreaks) {
-                const lines = next.data.split(/\r\n|\r|\n/u);
-
-                lines.forEach((line, index) => {
-                    if (index > 0) {
-                        flush();
-                    }
-
-                    current += line;
-                });
-            } else {
-                current += next.data;
-            }
+            addText(next.data);
         } else if (isTag(next) && !NON_TEXT_TAGS.has(next.name)) {
             if (BLOCK_TAGS.has(next.name)) {
                 flush();
                 stack.push(null);
             }
 
-            for (let index = next.children.length - 1; index >= 0; index -= 1) {
-                const child = next.children[index];
-
-                if (child !== undefined) {
-                    stack.push(child);
-                }
-            }
+            pushReversed(stack, next.children);
         }
     }
 
@@ -294,14 +303,7 @@ export function parsePage(html: string): PageDocument {
         if (isTag(next)) {
             filed(byTagName, next.name, next);
             Object.keys(next.attribs).forEach((name) => filed(byAttribute, name, next));
-
-            for (let index = next.children.length - 1; index >= 0; index -= 1) {
-                const child = next.children[index];
-
-                if (child !== undefined) {
-                    stack.push(child);
-                }
-            }
+            pushReversed(stack, next.children);
         }
     }
 

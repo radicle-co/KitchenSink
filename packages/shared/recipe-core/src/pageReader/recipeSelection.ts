@@ -29,8 +29,8 @@ function withoutFragment(url: string): string {
     return hash === -1 ? url : url.slice(0, hash);
 }
 
-/** Case and whitespace folded. */
-function folded(text: string): string {
+/** Case and whitespace folded, so two writings of one line compare equal. Also the gate's G7. */
+export function folded(text: string): string {
     return text.trim().split(/\s+/u).join(' ').toLowerCase();
 }
 

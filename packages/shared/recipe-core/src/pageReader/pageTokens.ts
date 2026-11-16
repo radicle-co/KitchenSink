@@ -31,8 +31,15 @@ const VULGAR_FRACTIONS: Readonly<Record<string, string>> = Object.freeze({
 /** Characters that only separate words. Whitespace is separate. `/`, `-`, `.` and `,` are handled where they sit. */
 const SEPARATORS: ReadonlySet<string> = new Set([...';:!?"\'()[]{}<>|\\*_~^`+=#&@$%…•·‘’‚‛“”„′″«»¡¿° ']);
 
+/** Characters that are word material only when they sit between digits: `/`, `-`, `.` and `,`. */
+const NUMBER_JOINERS: ReadonlySet<string> = new Set(['/', '-', '.', ',']);
+
 const isDigit = (char: string): boolean => char >= '0' && char <= '9';
 const isSpace = (char: string): boolean => char.trim() === '';
+
+/** Whether `char` is part of a word or a number: a digit, or anything that is not a space, a separator or a joiner. */
+const isWordMaterial = (char: string): boolean =>
+    isDigit(char) || (!isSpace(char) && !SEPARATORS.has(char) && !NUMBER_JOINERS.has(char));
 
 /** The text with each vulgar fraction written out as ` n/d `, so `1½` reads `1 1/2`. */
 function withFractionsWritten(text: string): string {
@@ -95,10 +102,7 @@ export function tokensOf(text: string): readonly string[] {
     for (let index = 0; index < folded.length; index += 1) {
         const char = folded.charAt(index);
 
-        if (
-            isDigit(char) ||
-            (!isSpace(char) && !SEPARATORS.has(char) && char !== '/' && char !== '-' && char !== '.' && char !== ',')
-        ) {
+        if (isWordMaterial(char)) {
             if (run !== '' && runIsDigits !== isDigit(char)) {
                 flush();
             }

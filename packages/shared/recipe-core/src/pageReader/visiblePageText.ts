@@ -9,7 +9,7 @@
  * {@link MAX_VISIBLE_TOKENS} tokens, and a page past either is `tooComplex`, never half read. A lookup goes through an index
  * of the RAREST token of the run (an index of every token's positions), not a scan of every position, and all lookups of one paste share one budget of
  * {@link MAX_TOKEN_COMPARISONS} comparisons: a page that repeats one token thousands of times answers `overBudget`.
- * No regular expression runs over the page.
+ * Only linear whitespace and newline splits run over page text, and no pattern can backtrack.
  */
 import { MAX_TOKEN_COMPARISONS, MAX_VISIBLE_TOKENS } from './pageCaps.js';
 import type { PageDocument } from './pageDocument.js';
@@ -32,6 +32,40 @@ export interface VisibleText {
 /** The page's visible text, or why there is none: no `<body>`, or a page too big or too deep to read whole. */
 export type VisibleTextResult =
     { readonly kind: 'ok'; readonly text: VisibleText } | { readonly kind: 'noBody' } | { readonly kind: 'tooComplex' };
+
+/**
+ * The token of `run` that is rarest on the page, and where it sits there. Starting from it means a run of words that are
+ * common on the page ("add", "the") is not tried at every place the first one occurs.
+ */
+function rarestToken(
+    run: readonly string[],
+    positions: ReadonlyMap<string, readonly number[]>,
+): { readonly anchor: number; readonly anchored: readonly number[] } {
+    let anchor = 0;
+    let anchored = positions.get(run[0] ?? '') ?? [];
+
+    for (let at = 1; at < run.length; at += 1) {
+        const list = positions.get(run[at] ?? '') ?? [];
+
+        if (list.length < anchored.length) {
+            anchor = at;
+            anchored = list;
+        }
+    }
+
+    return { anchor, anchored };
+}
+
+/** How many of the tokens of `run` before its last one equal the page's tokens from `start`, stopping at the first that differs. */
+function matchedPrefix(tokens: readonly string[], run: readonly string[], start: number): number {
+    let at = 0;
+
+    while (at < run.length - 1 && tokens[start + at] === run[at]) {
+        at += 1;
+    }
+
+    return at;
+}
 
 /** The first-token index and the block ends of one page's tokens. */
 function textOfTokens(tokens: readonly string[], blockEnds: Uint8Array): VisibleText {
@@ -57,19 +91,7 @@ function textOfTokens(tokens: readonly string[], blockEnds: Uint8Array): Visible
                 return 'found';
             }
 
-            // Start from the RAREST token of the run, so a run of words that are common on the page ("add", "the") is
-            // not tried at every place the first one occurs.
-            let anchor = 0;
-            let anchored = positions.get(run[0] ?? '') ?? [];
-
-            for (let at = 1; at <= last; at += 1) {
-                const list = positions.get(run[at] ?? '') ?? [];
-
-                if (list.length < anchored.length) {
-                    anchor = at;
-                    anchored = list;
-                }
-            }
+            const { anchor, anchored } = rarestToken(run, positions);
 
             comparisons += run.length;
 
@@ -89,15 +111,11 @@ function textOfTokens(tokens: readonly string[], blockEnds: Uint8Array): Visible
                     tokens[end] === run[last] &&
                     (!endsBlock || blockEnds[end] === 1)
                 ) {
-                    let at = 0;
+                    const matched = matchedPrefix(tokens, run, start);
 
-                    while (at < last && tokens[start + at] === run[at]) {
-                        at += 1;
-                    }
+                    comparisons += matched;
 
-                    comparisons += at;
-
-                    if (at >= last) {
+                    if (matched >= last) {
                         return 'found';
                     }
                 }
@@ -106,6 +124,40 @@ function textOfTokens(tokens: readonly string[], blockEnds: Uint8Array): Visible
             return 'absent';
         },
     };
+}
+
+/** A page's tokens, and a flag for each that ends a block. */
+interface Tokenized {
+    readonly tokens: readonly string[];
+    readonly blockEnds: Uint8Array;
+}
+
+/** The tokens of `blocks`, or `undefined` when they pass {@link MAX_VISIBLE_TOKENS}: a page that long is never half read. */
+function tokenizedBlocks(blocks: readonly string[]): Tokenized | undefined {
+    const tokens: string[] = [];
+    const ends: number[] = [];
+
+    for (const block of blocks) {
+        for (const token of tokensOf(block)) {
+            tokens.push(token);
+        }
+
+        if (tokens.length > MAX_VISIBLE_TOKENS) {
+            return undefined;
+        }
+
+        if (tokens.length > 0) {
+            ends.push(tokens.length - 1);
+        }
+    }
+
+    const blockEnds = new Uint8Array(tokens.length);
+
+    ends.forEach((end) => {
+        blockEnds[end] = 1;
+    });
+
+    return { tokens, blockEnds };
 }
 
 /**
@@ -132,30 +184,11 @@ export function visibleTextOf(page: PageDocument): VisibleTextResult {
         return { kind: 'tooComplex' };
     }
 
-    const tokens: string[] = [];
-    const ends: number[] = [];
+    const tokenized = tokenizedBlocks(blocks);
 
-    for (const block of blocks) {
-        for (const token of tokensOf(block)) {
-            tokens.push(token);
-        }
-
-        if (tokens.length > MAX_VISIBLE_TOKENS) {
-            return { kind: 'tooComplex' };
-        }
-
-        if (tokens.length > 0) {
-            ends.push(tokens.length - 1);
-        }
-    }
-
-    const blockEnds = new Uint8Array(tokens.length);
-
-    ends.forEach((end) => {
-        blockEnds[end] = 1;
-    });
-
-    return { kind: 'ok', text: textOfTokens(tokens, blockEnds) };
+    return tokenized === undefined
+        ? { kind: 'tooComplex' }
+        : { kind: 'ok', text: textOfTokens(tokenized.tokens, tokenized.blockEnds) };
 }
 
 /**

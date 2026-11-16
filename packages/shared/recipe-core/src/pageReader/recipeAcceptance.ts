@@ -21,13 +21,15 @@
  * test, which reads English units: a page it cannot read gives no, never a wrong yes (precision first). The step LIMITS
  * (count and length) stay with the caller's `importRecipeSchema`, which owns those numbers.
  *
- * No regular expression runs over page text: a line is scanned one character at a time, in linear time.
+ * Only linear whitespace and newline splits run over page text, and no pattern can backtrack: a line is scanned one character
+ * at a time.
  */
 import { readCooksMeasure } from '../parsing/measureReader.js';
 import { MAX_PARSE_JOB_LINES, PARSE_JOB_LINE_MAX_CHARS } from '../parsing/parseJobText.js';
 import { recipeTitleSchema } from '../recipeRequestBounds.js';
 import { classifyUnit } from '../units.js';
 import type { ExtractionTier, PageRecipe } from './pageRecipeCandidate.js';
+import { folded } from './recipeSelection.js';
 
 /** Why a recipe that was read is still not sent. */
 export type AcceptanceReason =
@@ -50,7 +52,7 @@ interface AcceptanceThresholds {
 }
 
 /** The thresholds per tier. A tier that guesses more than a page's own markup does (the headed page, PR B2) asks for more. */
-export const ACCEPTANCE_BY_TIER: Readonly<Record<ExtractionTier, AcceptanceThresholds>> = Object.freeze({
+const ACCEPTANCE_BY_TIER: Readonly<Record<ExtractionTier, AcceptanceThresholds>> = Object.freeze({
     jsonLd: Object.freeze({ minIngredientLines: 1 }),
     microdata: Object.freeze({ minIngredientLines: 1 }),
 });
@@ -104,11 +106,6 @@ function isGarbled(text: string): boolean {
     return false;
 }
 
-/** Case and whitespace folded, so two writings of one line compare equal (G7). */
-function foldedLine(text: string): string {
-    return text.trim().split(/\s+/u).join(' ').toLowerCase();
-}
-
 /** A step without its section label ("For the glaze: 1 cup sugar" → "1 cup sugar"). */
 function withoutSectionLabel(step: string): string {
     const colon = step.indexOf(':');
@@ -129,22 +126,56 @@ function isIngredientStep(step: string): boolean {
     return quantity.kind !== 'absent' && classifyUnit(words.split(' ')[0] ?? '') === 'canonical';
 }
 
-/** Whether a G3 to G4 line failure applies, in table order, to `lines`. */
-function lineRefusal(lines: readonly string[]): AcceptanceReason | undefined {
-    if (lines.length > MAX_PARSE_JOB_LINES) {
-        return 'tooManyIngredientLines';
-    }
-
-    if (lines.some((line) => line.length > PARSE_JOB_LINE_MAX_CHARS)) {
-        return 'ingredientLineTooLong';
-    }
-
-    return lines.some(
-        (line) => line.length > MAX_INGREDIENT_LINE_CHARS || sentenceEnds(line) >= SENTENCE_ENDS_OF_A_BLOB,
-    )
-        ? 'ingredientsNotSeparated'
-        : undefined;
+/** What the gate's predicates look at: the recipe, its steps trimmed, and the thresholds of the tier that read it. */
+interface Judged {
+    readonly recipe: PageRecipe;
+    readonly steps: readonly string[];
+    readonly stepSet: ReadonlySet<string>;
+    readonly minIngredientLines: number;
 }
+
+/** One predicate of the gate: the reason it gives when it fails, and whether it does. */
+interface Predicate {
+    readonly reason: AcceptanceReason;
+    readonly fails: (judged: Judged) => boolean;
+}
+
+/** G1 to G8, in the table's order: the first that fails is the reason. */
+const PREDICATES: readonly Predicate[] = [
+    { reason: 'titleUnusable', fails: ({ recipe }) => !recipeTitleSchema.safeParse(recipe.title).success },
+    {
+        reason: 'noIngredients',
+        fails: ({ recipe, minIngredientLines }) => recipe.ingredientLines.length < minIngredientLines,
+    },
+    {
+        reason: 'tooManyIngredientLines',
+        fails: ({ recipe }) => recipe.ingredientLines.length > MAX_PARSE_JOB_LINES,
+    },
+    {
+        reason: 'ingredientLineTooLong',
+        fails: ({ recipe }) => recipe.ingredientLines.some((line) => line.length > PARSE_JOB_LINE_MAX_CHARS),
+    },
+    {
+        reason: 'ingredientsNotSeparated',
+        fails: ({ recipe }) =>
+            recipe.ingredientLines.some(
+                (line) => line.length > MAX_INGREDIENT_LINE_CHARS || sentenceEnds(line) >= SENTENCE_ENDS_OF_A_BLOB,
+            ),
+    },
+    {
+        reason: 'noSteps',
+        fails: ({ steps }) => steps.length === 0 || steps.some((step) => step.length < MIN_STEP_CHARS),
+    },
+    {
+        reason: 'ingredientsInSteps',
+        fails: ({ recipe, steps, stepSet }) =>
+            steps.some(isIngredientStep) || recipe.ingredientLines.some((line) => stepSet.has(folded(line))),
+    },
+    {
+        reason: 'garbledText',
+        fails: ({ recipe, steps }) => [recipe.title, ...recipe.ingredientLines, ...steps].some(isGarbled),
+    },
+];
 
 /**
  * Judge a recipe read from a page.
@@ -154,21 +185,14 @@ function lineRefusal(lines: readonly string[]): AcceptanceReason | undefined {
  * @returns `{ ok: true }`, or `{ ok: false, reason }` for the first predicate it fails. Pure.
  */
 export function acceptRecipe(recipe: PageRecipe, tier: ExtractionTier): Acceptance {
-    const { minIngredientLines } = ACCEPTANCE_BY_TIER[tier];
     const steps = recipe.steps.map((step) => step.instruction.trim());
-    const stepSet = new Set(steps.map(foldedLine));
-    const reason: AcceptanceReason | undefined = !recipeTitleSchema.safeParse(recipe.title).success
-        ? 'titleUnusable'
-        : recipe.ingredientLines.length < minIngredientLines
-          ? 'noIngredients'
-          : (lineRefusal(recipe.ingredientLines) ??
-            (steps.length === 0 || steps.some((step) => step.length < MIN_STEP_CHARS)
-                ? 'noSteps'
-                : steps.some(isIngredientStep) || recipe.ingredientLines.some((line) => stepSet.has(foldedLine(line)))
-                  ? 'ingredientsInSteps'
-                  : [recipe.title, ...recipe.ingredientLines, ...steps].some(isGarbled)
-                    ? 'garbledText'
-                    : undefined));
+    const judged: Judged = {
+        recipe,
+        steps,
+        stepSet: new Set(steps.map(folded)),
+        minIngredientLines: ACCEPTANCE_BY_TIER[tier].minIngredientLines,
+    };
+    const failed = PREDICATES.find((predicate) => predicate.fails(judged));
 
-    return reason === undefined ? { ok: true } : { ok: false, reason };
+    return failed === undefined ? { ok: true } : { ok: false, reason: failed.reason };
 }

@@ -7,7 +7,7 @@
  *
  * ⛔ A hostile paste is bounded at every stage (`pageCaps.ts`): the size is checked in BYTES before anything is parsed
  * and an over-size paste is refused whole, never cut; parsing stops at a depth cap; JSON-LD is size-, count-, depth- and
- * node-bounded. Nothing is executed, fetched or logged, and no regular expression runs over a page. (A paste that is not a page goes to `extractSourceLink`, which runs one pattern per line, bounded by the line's length.)
+ * node-bounded. Nothing is executed, fetched or logged. Only linear whitespace and newline splits run over page text, and no pattern can backtrack. (A paste that is not a page goes to `extractSourceLink`, which runs one pattern per line, bounded by the line's length.)
  *
  * ⚠️ {@link PageRecipe} is a plain shape, not the service's `ImportRecipe`: `@kitchensink/schema-recipe` depends on this
  * package. The caller parses it with `importRecipeSchema`, the check that a recipe's size and step limits hold.

@@ -40,8 +40,9 @@ is a copy of someone else's work, shown to the public by us. Today the only thin
 tells us. For each imported recipe, the cook says "I wrote this" or "From a source", with a citation (six statements
 since 2026-10-29, `004-FR-014a`). That statement
 sets the recipe's label (`004-FR-014a`, ADR-0072 §9). The full text of a book or paid-site recipe can never be
-public. Its public form is a facts card, the book card (`021-FR-004`). The check reads the cook's own notes and photos
-on that card (FR-068) _(amended 2026-11-03, owner ruling, ADR-0082)_.
+public. _(Amended, Owner ruling, 2026-11-15.)_ Facts cards are retired. An imported recipe goes public only as a
+Commise-written version (`016-FR-077`, `016-FR-080`). This check decides, at import, whether a source must be rewritten
+(FR-081), and "Report a problem" hides a public version until staff look (FR-082).
 
 This works only if the cook knows the source and tells the truth. This feature adds an automated **source check**. It
 reads the recipe, text and photos, before the recipe goes public. It looks for signs that the recipe came from a book,
@@ -72,7 +73,6 @@ The owner's rulings set what happens next:
 - **"Publicly visible" covers the open web** _(confirmed 2026-11-03, owner ruling, ADR-0082)_. A recipe open to the web
   (`021-FR-002`) is publicly visible, so every full recipe that goes there passes this check. That includes a family
   recipe and an Adapted recipe headed public. A public-domain text (`016-FR-015k`) skips the web search (FR-012d).
-  The facts card of a linked web import shows no method, so it is not a full public recipe (`021-FR-014a`).
 - It runs on every recipe that is about to become publicly visible: a new recipe published as public, a private recipe
   made public, a public recipe whose text, photos or source statement changed, every bulk-imported recipe,
   public or private, and every private recipe a cook elects to donate when they erase their account.
@@ -703,9 +703,6 @@ records the decision.
   ADR-0082: it is also open to the web and indexable, like any recipe the cook wrote (`021-FR-002`), because the
   cook's statement must cover sharing "publicly, on Commise and on the web". This check still runs on it, since a
   "family" recipe can be a copied blog post. Counsel review is owed before launch (`016-FR-050`).)_
-- **A linked card is still checked.** A public web import shows other cooks a linked card (`021-FR-014a`). Its text and
-  the cook's photos and notes are checked as today. The import-page comparison scores the cook's notes, and the web
-  search does not run, because the card shows no method.
 - **Staff review is a rights check only** (FR-027b, `016-FR-053j`).
 - **What is not decided here.** Reverse image search of the cook's own photos, which the research also suggested, is
   not part of these rulings.
@@ -755,8 +752,6 @@ username. No need to call out family recipes."
     - _(Added 2026-11-03, owner ruling, ADR-0082.)_ A public recipe's old version is restored (FR-065).
     - _(Added 2026-11-03.)_ A clone is published. It is a new recipe headed public, and it inherits no outcome.
     - _(Added 2026-11-03.)_ A photo is added to, replaced on or removed from a public recipe.
-    - _(Added 2026-11-03.)_ A facts card (a linked card or a book card, `021-FR-014a`, `021-FR-004`) is headed public,
-      or the cook's own notes or photos on a public facts card change (FR-068).
 
     These moments say when to request a check. They are not the gate. The gate is FR-002, and FR-057 makes
     it the only door: a moment that is missing from this list leaves the recipe held, never public.
@@ -919,8 +914,6 @@ username. No need to call out family recipes."
 - **FR-012c**: Where the comparison runs on FR-012b's fingerprint:
     - "Adapted in my own words" (`004-FR-014a`): the method should be rewritten, so a high score is evidence for a
       person.
-    - A linked card (`021-FR-014a`): the card shows no method, so only the cook's own notes are scored. A high score
-      means the notes carry the page's words, and is evidence for a person.
     - "I wrote this" or a family or friend recipe that came in from a page: a high score is evidence for a person.
     - A recipe with no import page, such as one typed in the editor, has no fingerprint. This part is then green, and
       FR-012d does the work.
@@ -930,8 +923,7 @@ username. No need to call out family recipes."
     - **How the internet search works is OPEN (owner ruling 2026-11-03): decided when feature 020 starts.** That covers the provider, the method and the terms of use. No provider is chosen here.
     - _(Confirmed 2026-11-03, ADR-0082.)_ It runs on a family recipe and an Adapted recipe headed public, because either
       can be a copied page. It runs only where other cooks will read the method: a recipe whose label (`016-FR-015c`) is written, adapted, or
-      from a family member or friend, or a clone of one of those, headed public. It does not run for a linked card,
-      which shows no method, or for public domain text.
+      from a family member or friend, or a clone of one of those, headed public. It does not run for public domain text.
     - It MUST send the chosen method sentences and nothing else. It MUST NOT send the title, a name, an account id, a
       photo or anything else about the cook. The privacy notice says so (`016-FR-039a`).
     - Whether `FR-033`'s region rule governs the search depends on the method chosen. It is OPEN (owner ruling 2026-11-03): decided when feature 020 starts. Until then this FR governs what is sent.
@@ -1640,7 +1632,6 @@ this section.
       photo upload, delete or reorder, a migration and an operator's hand edit.
     - **Checked content is a closed list with one rule:** every field a cook contributed that any public projection
       renders (`021-FR-102`). So the text digest gains these fields:
-        - the cook's own notes on a facts card
         - the credit text of an Adapted or family statement
         - an ingredient line's display text, where it has no source line
         - an ingredient line's group label and preparation words
@@ -1661,7 +1652,7 @@ this section.
     - a mode or an outcome value outside the closed sets (FR-019, FR-013)
     - for a public domain text, a missing or unreadable record (`016-FR-015k`): the text is not open
     - for a licence, an unreadable choice: the page shows the `commise` licence, never CC BY
-    - for a facts card, an unreadable cap counter or opt-out list: the source card form (`021-FR-014e`)
+    - for an import headed public, an unreadable cap counter or opt-out list: Private only (`016-FR-030a`, `016-FR-081`)
 
     The tests MUST set each input to NULL or to an unknown value, one at a time. Each test MUST see the recipe held.
 
@@ -1676,7 +1667,7 @@ this section.
     | An import page fingerprint is missing or unreadable | That part is not green. A person decides                                                  |
     | The model, its budget or its spend counter          | FR-020, FR-021 and FR-022, as written                                                     |
     | The web search, its index, its budget or its switch | `unchecked` (`searchNotRun`), FR-012e. A person decides                                   |
-    | The per-site or per-source cap counter or its lock  | The source card form (`021-FR-014e`), never a full facts card                             |
+    | The per-site or per-source cap counter or its lock  | Private only (`016-FR-030a`)                                                              |
     | The public domain record store                      | The text is not open (`021-FR-006`)                                                       |
     | The licence grant store                             | The `commise` licence (FR-070)                                                            |
     | The reviewer queue                                  | Referrals wait. No timer publishes anything (FR-030)                                      |
@@ -1699,7 +1690,7 @@ this section.
 - **FR-062**: **A partial deploy cannot open a door.** The order of release is fixed:
     1. the hold Specification and the read rule with its required input (FR-057), with blocking in `shadow`
     2. the checks that write outcomes
-    3. any new door: a public route, a feed, an embed, a facts card, the CC BY choice, or a pilot
+    3. any new door: a public route, a feed, an embed, a public version, or the CC BY choice
 
     Each new door ships behind a flag that defaults closed. A flag value that cannot be read reads as closed. An
     older service can meet newer data. It MUST read the newer columns as missing, and so as held (FR-059). The plan's delivery slices MUST keep this order.
@@ -1754,28 +1745,16 @@ this section.
     - a 016 restriction (`021-FR-002` rule 8)
 
     A source page that changes after import is not one of them. We never fetch it again (FR-012), so the import page
-    fingerprint stays as it was. A later opt-out reaches us by a notice or a standing request (`016-FR-024a`).
+    fingerprint stays as it was. A later opt-out reaches us by the opt-out form or the staff list (`016-FR-081`).
 
-- **FR-068**: **Facts cards are checked.** A linked card or a book card heading public MUST be checked on what it shows
-  that the cook wrote or uploaded: the cook's own notes and the cook's own photos (`021-FR-014a`).
-    - The rule detectors and the model run on the notes, and the photo signals run on the photos (FR-006).
-    - A linked card's notes are scored against its import page fingerprint (FR-012c). A book card has no import page.
-    - The web search (FR-012d) MUST run on notes that pass FR-012f's minimum length. A cook's notes can carry a
-      book's headnote, and the web can hold that headnote.
-    - A page image the cook chose to keep (`016-FR-027h`) MUST NOT be a card photo. A printed-page signal on a card
-      photo sends the card to a person (FR-006a).
-    - The facts themselves (title, times, servings, normalized ingredients) are not checked. [Law] Nobody owns them
-      (17 U.S.C. §102(b), _Feist v. Rural_, 499 U.S. 340 (1991)). The per-site and per-source cap governs them instead.
-    - Counsel review is owed before launch (`016-FR-050`).
+- **FR-068**: Withdrawn. Owner ruling, 2026-11-15: no facts cards.
 - **FR-069**: **A licensed page goes to a person.** A recipe shown in full under a licence the source page stated
   (`021-FR-014f`) will score high on its own import page by design. FR-012c's containment rule MUST NOT treat that as
-  green or as evidence. Instead, every licensed page MUST go to a person. The person checks the recorded licence
-  evidence in the fetch log (`016-FR-024a`): the licence named, that it allows commercial use, the attribution it asks
-  for, and the time it was read.
-    - [Law] A Creative Commons 4.0 licence cannot be revoked for a copy already made under it (CC BY 4.0 §2(a)(1)). So
-      a source page that later drops its licence is not an exit event. A notice from the rightsholder is still
+  green or as evidence. Instead, every licensed page MUST go to a person. The person checks the licence
+  evidence the import detected in the page's structured data (`016-FR-073`; Commise never fetches the page): the
+  licence named, that it allows commercial use, and the attribution it asks for.
+    - A source page that later drops its licence is not an exit event. A notice from the rightsholder is still
       decided under 016.
-    - Counsel review is owed before launch (`016-FR-050`).
 - **FR-070**: **The licence shown is the licence in effect.** The page's licence line and its schema.org `license`
   MUST name the licence that covers the version being served (`021-FR-011`). A CC BY grant MUST record the digest it
   covers. A new digest that is not yet `clear` is served under `commise` until it is (FR-056). [Law] Copies others made
@@ -1900,7 +1879,10 @@ Counsel review is owed before launch (`016-FR-050`).
     - When a cook edits a recipe that came from another source (an import), "Edited by {username}" MUST be appended
       to the source.
     - A family recipe needs no special label.
-    - Counsel review is owed before launch (`016-FR-050`).
+    - _(Amended, Owner ruling, 2026-11-15.)_ The import never rewords a cook's private copy: it keeps the source's
+      wording (`016-FR-077`). Commise writes steps only for a public version, and that version says so plainly, for
+      example "Steps written by Commise with AI, checked by {cook}" (wording to be confirmed). The second bullet above
+      applies only to that public version.
 
 **Founder questions (Q-1 and Q-3 settled 2026-11-03, owner rulings, ADR-0082 §9).**
 
@@ -1922,12 +1904,8 @@ Counsel review is owed before launch (`016-FR-050`).
   cook's own words (`016-FR-015i`). Both can be true only if they are two different things: the rights label (one
   derived label, `016-FR-015c`, `016-FR-015d`) and the source line (FR-080). Which one does each rewording set, and
   does a cook who accepts a suggestion get both?
-- **Q-5. Does the label make Commise the publisher? Counsel review (`016-FR-050`).** ADR-0082 section 6 says an AI
-  rewrite of another site's recipe published as Commise's own is not built at launch, because Commise is then the
-  publisher, outside the 17 U.S.C. §512(c) safe harbour and DSA Art. 6. FR-080 has Commise saying it adapted the
-  text. Does that label make Commise the publisher of the reworded step? FR-075 and FR-076 keep the cook as the one
-  who accepts, edits or disputes, which is the safeguard ADR-0082 relies on. A pipeline that rewords with no cook
-  choice is the case section 6 names.
+- **Q-5.** Answered by the owner ruling of 2026-11-15: Commise writes and publishes the public version of an
+  imported recipe (`016-FR-077`), and discloses it.
 - **Q-6. Does "right now we reword automatically" match the code?** The search (2026-11-11) of
   `packages/shared/recipe-import-core/src`, `packages/services/recipe-workers/src`,
   `packages/services/recipe-service/src` and `packages/tools/cookbook-import/src` found no step rewording. It found
@@ -1944,6 +1922,16 @@ Counsel review is owed before launch (`016-FR-050`).
   Does "Created by {username}" and "Edited by {username}" add a second line beside it, replace the source line, or
   show on a public recipe at all? A username is shown to every reader, so the owner needs to say whether the
   cook agreed to that.
+
+- **FR-081** _(added 2026-11-15, Owner ruling, 2026-11-15)_: **The check flags a source for rewriting.** When a cook
+  chooses Public or Both at import (`004`), this check MUST run on the source's own text before the public version is
+  made. If it flags the source, the public version's instructions are rewritten (`016-FR-077`), even when the source
+  is on the copy-outright allowlist. A flag never touches the cook's private copy. If the check cannot run, the
+  import offers Private only.
+- **FR-082** _(added 2026-11-15, Owner ruling, 2026-11-15)_: **"Report a problem" hides a public version.** Every
+  Commise-written public version (`016-FR-077`) carries "Report a problem". A report MUST hide the version from every
+  public surface at once, and it stays hidden until a staff member looks and decides. The decision is recorded like any
+  other reviewer decision, and a hide sends the cook a statement of reasons (`016-FR-018`).
 
 ### Non-Functional Requirements _(constitution-derived)_
 

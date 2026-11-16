@@ -297,6 +297,10 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 11. **Given** a household on the household upgrade, **When** any member makes a recipe private past 50 or uses a
     personal AI feature, **Then** it works under Pro, with that member's own Pro uses (FR-034l). _(Added
     2026-10-28.)_
+12. **Given** a member's private recipes, one of them imported from a paid site, **When** another member opens the
+    member's library, **Then** they can read, cook, plan and list from each recipe but not edit or clone it, and for
+    the paid-site recipe they see only its Commise-written version, or nothing if none exists (FR-030d). _(Added
+    2026-11-15, Owner ruling, 2026-11-15.)_
 
 ---
 
@@ -386,6 +390,10 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
     > per RFC 9309 and the data-mining opt-outs of `004-FR-023`, and MUST log what each signal said per fetch. The
     > result follows the per-market private-copy switch (`004-FR-008` ruling, D6): the EU and UK keep facts and a link
     > only. Counsel review is owed before launch (`016-FR-050`).
+    > **Amended, Owner ruling, 2026-11-15.** The import never fetches pages, and extraction runs on the device
+    > (`004`). Whether a server call to a platform's official API for a social post survives that rule is an open
+    > owner question, so this section is on hold until it is answered. A cook's private copy keeps the source's
+    > wording (`016-FR-077`).
 - **FR-001b** `→ 004 ADDED`: System MUST monitor extraction success **per source platform**, MUST surface a
   defined degradation path when one platform stops working, and MUST NOT let any single platform be
   load-bearing for the feature's success criteria. _(ReciMe took a staff-acknowledged import outage across
@@ -475,7 +483,7 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
     > **Amended 2026-11-03 (owner ruling, ADR-0082).** [Law] The extension runs in the cook's browser, with the cook's own
     > session, after the cook's action. It captures what the cook can already see, including a page behind the cook's own
     > subscription, so the server never fetches a paid site and never uses a cook's cookies. The captured page is a
-    > private copy under the per-market switch (D6, `004-FR-008` ruling), and its public form is a facts card. The
+    > private copy under the per-market switch (D6, `004-FR-008` ruling), and its public form is a Commise-written version (`016-FR-077`, Owner ruling, 2026-11-15). The
     > extension follows the same signal rules as `004-FR-023` for any fetch the server makes on its behalf. Counsel
     > review is owed before launch (`016-FR-050`).
 - **FR-015** `→ 004 ADDED`: Every capture surface — chooser, share sheet, extension, migration — MUST route
@@ -606,11 +614,14 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   members, and MUST make it the ownership boundary for meal plans and grocery lists. Every account belongs to
   exactly one household, created implicitly at signup with that user as its only member, so that a solo user is
   a household of one and no code path needs a "no household" branch.
-  _(Amended 2026-11-03, owner ruling, ADR-0082.)_ [House rule] Sharing with the household is not publication, so it
-  starts no 020 check (`020-FR-072`). A member's clone of a shared private copy stays private and keeps the source's
-  label. The household has no public link, feed or export of another member's private recipes. Whether a household of
-  up to 6 accounts is a private circle in every market is a counsel item. Counsel review is owed before launch
-  (`016-FR-050`).
+  _(Amended 2026-11-03, ADR-0082; amended, Owner ruling, 2026-11-15.)_ Sharing with the household is not publication,
+  so it starts no 020 check (`020-FR-072`). The household sees members' private recipes read-only (FR-030d). The
+  household has no public link, feed or export of another member's private recipes.
+- **FR-030d** `→ 001 ADDED` _(added 2026-11-15, Owner ruling, 2026-11-15)_: Every active member MUST get a read-only
+  view of each other member's private recipes: they can open, cook, plan and list from them, but not edit or clone
+  them. The one exception is a paid site's own wording (`016-FR-080`): for such a recipe the household sees the
+  Commise-written public version if one exists, otherwise nothing. Like FR-034j, this is a household audience in the
+  read rule, not a visibility value.
 - **FR-030a** `→ 006 ADDED, → 007 ADDED`: Every **active member** MUST be able to create, edit and check off
   the household's meal plans, grocery lists and aisle taxonomy. Content capability is equal across roles —
   that equality is the point of a household.

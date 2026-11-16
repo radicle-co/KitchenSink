@@ -153,8 +153,11 @@ Counsel review is owed before launch (`016-FR-050`).
 | **4** | U-2 is read per market: US fair use, EU DSM Art. 4 unless opted out, UK s.28A only, Australia no matching exception.                                       | 4         |
 | **6** | The extension captures in the cook's own session. The server never uses a cook's cookies or passes a paywall (`FR-014`).                                   | 6         |
 
-No Commise-authored rewrite of a creator's recipe is built here (R6). At launch the output is a facts card with a link,
-and the cook can publish their own Adapted version.
+No Commise-authored rewrite of a creator's recipe is built here (R6). _(Amended, Owner ruling, 2026-11-15.)_ Facts
+cards are retired. A captured recipe is a private copy that keeps the source's wording. Its public form is a
+Commise-written version, made by spec 003B (public versions of imported recipes, planned), and the cook can still
+publish their own Adapted version. The rows above that read a fetch (T-033, T-034) wait on the owner question about
+server retrieval, because the import never fetches pages (`004`).
 
 Increments 0–3 are unblocked today. Increment 0 is design-first and blocks nothing but must not be retrofitted.
 Increment 7 is deliberately last and additive: the completion signal ships in-app in Increment 1, and push

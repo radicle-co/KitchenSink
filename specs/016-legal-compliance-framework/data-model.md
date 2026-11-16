@@ -257,6 +257,9 @@ New columns on `recipes`:
 | `photo_licence`         | `text` NOT NULL | Same union, default `commise`. A separate choice (`FR-010`)                            |
 | `photo_licence_version` | `text` NOT NULL |                                                                                        |
 
+_(Added, Owner ruling, 2026-11-15.)_ The instructions of a Commise-written public version are not a cook's choice. They
+carry CC BY-SA 4.0, credited "Commise and contributors" (spec `FR-078`), wherever that version is served.
+
 - `cc-by-4.0` is accepted only on a label 1 recipe whose 020 check passed, from an adult account. One pure Policy
   decides it at write time, in the write's transaction. A CHECK cannot read the derived label.
 - `recipe_licence_grants` is an append-only history: `recipe_id`, `scope` (`text` or `photos`), `licence`,
@@ -276,7 +279,8 @@ New columns on `recipes`:
 | `source_key`     | `text` NOT NULL        | A site's registrable domain (from the Public Suffix List, by a library), a book's ISBN-13 or normalized title, or a paid site's domain |
 | `source_class`   | `text` NOT NULL        | Closed union: `site`, `aggregator`, `book`, `paid_site`                                                                                |
 | `recipe_id`      | `uuid` NOT NULL        |                                                                                                                                        |
-| `form`           | `text` NOT NULL        | Closed union: `facts_card`, `commise_version`                                                                                          |
+| `form`           | `text` NOT NULL        | Closed union: `commise_version` (facts cards retired, Owner ruling, 2026-11-15)                                                        |
+| `distinctive`    | `boolean` NOT NULL     | Only distinctive recipes count toward a per-publisher cap (spec `FR-080`). How it is judged is spec 003B work                          |
 | `made_public_at` | `timestamptz` NOT NULL |                                                                                                                                        |
 | `withdrawn_at`   | `timestamptz` NULL     |                                                                                                                                        |
 
@@ -285,10 +289,13 @@ New columns on `recipes`:
 - The count is taken live with `COUNT(*)` under a per-source advisory lock, in the same transaction as the write,
   the shape ADR-0073 uses for private slots. There is no counter column.
 - The cap numbers are configuration per `source_class`, set by counsel. _(Amended 2026-11-03, owner ruling O6, ADR-0082.)_ `aggregator` is fixed at zero: no card is ever made for it, so the policy denies before it counts.
-- Past the cap, the card is the title, the source's name and the link, and a restriction statement is written
-  (section 14).
+- _(Amended, Owner ruling, 2026-11-15.)_ Past the cap, the import offers only Private for a recipe from that source,
+  and a restriction statement is written (section 14).
 
 ## 13. The fetch-signal log (the fetching service, `FR-024a`) _(added 2026-11-03, ADR-0082)_
+
+_(Withdrawn, Owner ruling, 2026-11-15.)_ The import never fetches a page (`004`), so this log has nothing to record and
+is not built. The table below is kept only as the record of what was withdrawn. Publisher opt-outs are spec `FR-081`.
 
 `fetch_signal_records`, one row per server fetch of a page:
 
@@ -319,22 +326,22 @@ A statement of reasons for a restriction that did not start from a notice. It ca
 which needs a notice. It reuses the same two-channel delivery (`FR-018a`, `FR-018b`). Recipe-service calls identity
 through the existing internal path when it places the restriction.
 
-| Column                 | Type                   | Notes                                                                                                                                              |
-| ---------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                   | `text` PK              |                                                                                                                                                    |
-| `account_id`           | `text` NOT NULL        | The cook                                                                                                                                           |
-| `content_ref`          | `text` NOT NULL        | An opaque recipe reference                                                                                                                         |
-| `idempotency_key`      | `text` NOT NULL UNIQUE | Set by recipe-service, so a retried call writes one row                                                                                            |
-| `kind`                 | `text` NOT NULL        | Closed union: `refused_to_publish`, `held_for_review`, `not_approved`, `demoted`, `visibility_limited`, `card_reduced_opt_out`, `card_reduced_cap` |
-| `ground`               | `text` NOT NULL        | The legal provision or terms clause                                                                                                                |
-| `facts`                | `text` NOT NULL        | Substantive                                                                                                                                        |
-| `automated`            | `boolean` NOT NULL     | 020's automated hold is `true`. A person's decision is `false`                                                                                     |
-| `redress`              | `text` NOT NULL        | The route to challenge it (`FR-019`)                                                                                                               |
-| `created_at`           | `timestamptz` NOT NULL |                                                                                                                                                    |
-| `statement_inapp_at`   | `timestamptz` NULL     |                                                                                                                                                    |
-| `statement_email_at`   | `timestamptz` NULL     | Email accepted by the provider                                                                                                                     |
-| `challenge_outcome`    | `text` NULL            | Closed union: `upheld`, `reversed`. NULL while open or never challenged                                                                            |
-| `challenge_decided_at` | `timestamptz` NULL     |                                                                                                                                                    |
+| Column                 | Type                   | Notes                                                                                                                                                                              |
+| ---------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                   | `text` PK              |                                                                                                                                                                                    |
+| `account_id`           | `text` NOT NULL        | The cook                                                                                                                                                                           |
+| `content_ref`          | `text` NOT NULL        | An opaque recipe reference                                                                                                                                                         |
+| `idempotency_key`      | `text` NOT NULL UNIQUE | Set by recipe-service, so a retried call writes one row                                                                                                                            |
+| `kind`                 | `text` NOT NULL        | Closed union: `refused_to_publish`, `held_for_review`, `not_approved`, `demoted`, `visibility_limited`, `version_withdrawn_opt_out`, `public_refused_cap`, `version_hidden_report` |
+| `ground`               | `text` NOT NULL        | The legal provision or terms clause                                                                                                                                                |
+| `facts`                | `text` NOT NULL        | Substantive                                                                                                                                                                        |
+| `automated`            | `boolean` NOT NULL     | 020's automated hold is `true`. A person's decision is `false`                                                                                                                     |
+| `redress`              | `text` NOT NULL        | The route to challenge it (`FR-019`)                                                                                                                                               |
+| `created_at`           | `timestamptz` NOT NULL |                                                                                                                                                                                    |
+| `statement_inapp_at`   | `timestamptz` NULL     |                                                                                                                                                                                    |
+| `statement_email_at`   | `timestamptz` NULL     | Email accepted by the provider                                                                                                                                                     |
+| `challenge_outcome`    | `text` NULL            | Closed union: `upheld`, `reversed`. NULL while open or never challenged                                                                                                            |
+| `challenge_decided_at` | `timestamptz` NULL     |                                                                                                                                                                                    |
 
 It is evidence, so it follows the retention rules below like `notice_decisions`.
 
@@ -371,6 +378,14 @@ evidence of a decision. Concretely: `terms_acceptances`, `notices`, `notice_deci
 opaque key with no personal data attached. `consents`, `age_assurances` and `data_export_requests` are erased
 with the account. This split is the one place where erasure and evidence pull against each other, and it is
 resolved deliberately rather than by default — `FR-037` requires telling the user what was retained and why.
+
+**Attestations and source records** _(added, Owner ruling, 2026-11-15)_. A statement, a confirmation (each with
+its wording version) and the source evidence on a recipe are append-only (spec `FR-073`, `FR-076`, `FR-079`). An
+attestation is kept while its recipe is public, plus 6 years. At account erasure, the owner id on a recipe the cook
+leaves public, and on its attestations, is replaced with a random token that links to no other record.
+
+**Publishing age** _(added, Owner ruling, 2026-11-15)_. Section 3's `floor_met` must record `16` before an account may
+publish (spec `FR-072`). An account with only a `13` record uses the app privately.
 
 **Retention period** (`FR-052a`–`FR-052c`). Surviving records are purged **3 years after the decision they
 evidence** — the US copyright limitation period, and the outer bound of the GDPR Art. 17(3)(e) basis that let

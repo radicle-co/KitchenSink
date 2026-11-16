@@ -22,10 +22,11 @@ import { LiveRegion } from '../liveRegion/LiveRegion.js';
 import { stepFrom, type StepperProps } from './props.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 import { PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
+import { TOUCH_DISC_SIZE_CLASS } from '../touchTarget/touchTargetClass.js';
 
-/** A step button: a 44 px circle on the neutral surface. */
+/** A step button: a fixed 44 CSS px circle on the neutral surface. */
 const STEP =
-    'inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-line-control bg-paper text-ink ' +
+    `inline-flex ${TOUCH_DISC_SIZE_CLASS} shrink-0 items-center justify-center rounded-full border border-line-control bg-paper text-ink ` +
     `${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset} ` +
     'aria-disabled:cursor-not-allowed aria-disabled:opacity-40';
 
@@ -75,9 +76,9 @@ export const Stepper: FC<StepperProps> = ({
             <span id={labelId} className={labelVisibility === 'hidden' ? 'sr-only' : 'text-label text-ink-muted'}>
                 {label}
             </span>
-            <div role="group" aria-labelledby={labelId} className="flex items-center gap-3">
+            <div role="group" aria-labelledby={labelId} className="flex items-center gap-2">
                 {stepButton(-1, decreaseLabel, 'minus')}
-                <span className="min-w-8 text-center text-body font-semibold tabular-nums lining-nums text-ink">
+                <span className="min-w-6 text-center text-body font-semibold tabular-nums lining-nums text-ink">
                     {value}
                 </span>
                 {stepButton(1, increaseLabel, 'plus')}

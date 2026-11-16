@@ -15,13 +15,14 @@ import { Icon } from '../icon/Icon.js';
 import { RouteAction } from '../routeLink/RouteAction.js';
 import type { HeroButtonProps } from './props.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { TOUCH_DISC_SIZE_CLASS } from '../touchTarget/touchTargetClass.js';
 
 /**
  * The disc's classes, shared with the ⋯ menu's trigger (`ActionMenu` `appearance="disc"`) so the two cannot differ.
  * Written whole: Tailwind finds a class only when it appears whole in the source. Sized in px, not rem: the disc is
  * chrome over a photo and keeps its 1x size at every text size (designer ruling 2026-11-11).
  */
-export const HERO_DISC_CLASS = `inline-flex size-[44px] shrink-0 items-center justify-center rounded-full bg-photo-chip text-ink shadow-sm ${FOCUS_RING_CLASS.floating}`;
+export const HERO_DISC_CLASS = `inline-flex ${TOUCH_DISC_SIZE_CLASS} shrink-0 items-center justify-center rounded-full bg-photo-chip text-ink shadow-sm ${FOCUS_RING_CLASS.floating}`;
 
 /** The web control over a photo. */
 export const HeroButton: FC<HeroButtonProps> = ({ icon, label, onPress, href, expanded, disabled = false }) => {

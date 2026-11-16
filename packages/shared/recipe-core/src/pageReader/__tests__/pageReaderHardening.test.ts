@@ -223,6 +223,94 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
 
         expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
     });
+
+    // The limits `schemaCorroboration.ts` names: lines the per-card rule does not see. Each is pinned so that a change to
+    // the rule changes a test, not only a comment.
+    it.each([
+        ['a table row', '<table><tr><td>Calories</td><td>250</td></tr></table>'],
+        ['a paragraph', '<p>Serve with rice.</p>'],
+        ['a line after a <br>', '<p>Serves 4<br>Keeps a week</p>'],
+    ])('does not see %s in the card that the schema leaves out', (_name, extra) => {
+        expect(readPastedContent(cardPage(NODE, { extra }))).toMatchObject({ kind: 'extracted' });
+    });
+
+    it('does not see an ingredient group rendered after the card element', () => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><h1>Test</h1><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol></article><aside><ul><li>1 cup icing sugar</li></ul></aside>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
+    });
+});
+
+/**
+ * A recipe card shaped like a common WordPress recipe plugin's: a container, an equipment list, ingredient groups whose
+ * lines are spans of amount, unit and name, an instructions list, a nutrition list, and jump links, all inside the card.
+ * Written by hand for this test: no page's HTML is copied.
+ */
+function pluginStyleCard(lists: {
+    readonly equipment: boolean;
+    readonly nutrition: boolean;
+    readonly jumps: boolean;
+}): string {
+    const ingredient = (amount: string, unit: string, name: string): string =>
+        `<li class="recipe-ingredient"><span class="amount">${amount}</span> <span class="unit">${unit}</span> <span class="name">${name}</span></li>`;
+    const step = (text: string): string =>
+        `<li class="recipe-instruction"><div class="instruction-text">${text}</div></li>`;
+
+    return [
+        '<div class="recipe-container"><div class="recipe-card">',
+        '<h2 class="recipe-name">Test</h2>',
+        lists.jumps
+            ? '<ul class="recipe-jump-links"><li><a href="#ingredients">Jump to ingredients</a></li><li><a href="#instructions">Jump to instructions</a></li></ul>'
+            : '',
+        lists.equipment
+            ? '<div class="recipe-equipment"><h3>Equipment</h3><ul><li class="equipment-item">Mixing bowl</li><li class="equipment-item">Baking tray</li></ul></div>'
+            : '',
+        '<div class="recipe-ingredients" id="ingredients"><h3>Ingredients</h3>',
+        '<div class="ingredient-group"><h4>Dough</h4><ul>',
+        ingredient('1', 'cup', 'flour'),
+        ingredient('2', '', 'eggs'),
+        '</ul></div><div class="ingredient-group"><h4>Seasoning</h4><ul>',
+        ingredient('1', 'tsp', 'salt'),
+        '</ul></div></div>',
+        `<div class="recipe-instructions" id="instructions"><h3>Instructions</h3><ul>${STEPS.map(step).join('')}</ul></div>`,
+        lists.nutrition
+            ? '<div class="recipe-nutrition"><h3>Nutrition</h3><ul><li>Calories: 250kcal</li><li>Protein: 8g</li></ul></div>'
+            : '',
+        '</div></div>',
+    ].join('');
+}
+
+describe('G-CORR on a card shaped like a recipe plugin’s', () => {
+    const page = (lists: Parameters<typeof pluginStyleCard>[0]): string =>
+        makePage({
+            jsonLd: [NODE],
+            body: `<article><p>A story about the recipe.</p>${pluginStyleCard(lists)}</article>`,
+        });
+
+    it('reads the card when it holds only what the schema holds', () => {
+        expect(readPastedContent(page({ equipment: false, nutrition: false, jumps: false }))).toMatchObject({
+            kind: 'extracted',
+            recipe: { ingredientLines: INGREDIENTS },
+        });
+    });
+
+    // ⚠️ PINNED, NOT RULED: the card's equipment, nutrition and jump-link lists are list items the schema does not hold,
+    // so the per-card rule refuses the page. Most JSON-LD refusals on the corpus are this shape. Round 8 decides how
+    // such lists count; when it does, this test changes with the rule.
+    it.each([
+        ['an equipment list', { equipment: true, nutrition: false, jumps: false }],
+        ['a nutrition list', { equipment: false, nutrition: true, jumps: false }],
+        ['jump links', { equipment: false, nutrition: false, jumps: true }],
+        ['all three', { equipment: true, nutrition: true, jumps: true }],
+    ])('refuses the card today when it also holds %s', (_name, lists) => {
+        expect(readPastedContent(page(lists))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageDisagreesWithSchema',
+        });
+    });
 });
 
 describe('a line or step with no tokens is no yes', () => {

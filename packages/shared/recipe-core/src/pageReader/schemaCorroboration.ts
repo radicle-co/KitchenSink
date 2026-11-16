@@ -16,7 +16,9 @@
  * does, so "flour" is not "2 cups flour"), the steps are read in order, a list the lines sit in has no line the schema
  * leaves out, and the recipe CARD (the smallest element holding every line and step read) has no list item the schema
  * leaves out, so a schema missing a line, an ingredient group or a second method is caught as surely as a page missing
- * one. A list built of paragraphs rather than list items is checked per list only. Text a cook cannot
+ * one. The per-card rule counts only list items (`<li>`), so it does not see three kinds of line unless the schema reads
+ * a sibling of theirs: a table row (`<tr>`, as in an ingredient or nutrition table), a paragraph or a `<br>`-separated
+ * line, and anything outside the card, such as an ingredient group a theme renders after the card element. Text a cook cannot
  * see (a template, a `noscript`, a `textarea`, anything `hidden`, an inline `display:none`, a closed `<details>`, a `<meta>`)
  * is no part of the page; text hidden by a CSS class is, because a paste has no stylesheet to say so. A line or step with no
  * letter or digit never agrees. A recipe whose data the page does not show is a no, never a wrong yes (precision first). It

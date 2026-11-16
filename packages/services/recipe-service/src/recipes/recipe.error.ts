@@ -17,6 +17,7 @@ import {
 } from '@kitchensink/recipe-core';
 
 import { apiError } from '../common/apiError.js';
+import { INVALID_VISIBILITY_REASONS } from '../common/apiError.schema.js';
 import type { VisibilityDecision } from './domain/visibilityPolicy.js';
 
 /** A thrown recipe-domain error carrying a machine-readable {@link RecipeErrorCode}. */
@@ -297,10 +298,16 @@ type PolicyDenial = Extract<VisibilityDecision, { readonly allowed: false }>['de
  * @param details - The attempted visibility and source type.
  * @returns The error to throw.
  */
-export function policyRefusal(denial: PolicyDenial, reason: string, details: Record<string, unknown>): RecipeDomainError {
+export function policyRefusal(
+    denial: PolicyDenial,
+    reason: string,
+    details: Record<string, unknown>,
+): RecipeDomainError {
     switch (denial) {
         case 'sourceConflict':
             return sourceConflictRefused(reason, details);
+        case 'fromPerson':
+            return fromPersonPrivateOnly(reason, details);
         case 'statementRequired':
             return statementRequiredRefused(reason, details);
         case 'policy':
@@ -311,7 +318,7 @@ export function policyRefusal(denial: PolicyDenial, reason: string, details: Rec
 }
 
 /** `details.reason` of the `INVALID_VISIBILITY` the evidence rule answers with: the stable key a client branches on. */
-const SOURCE_CONFLICT_REASON = 'SOURCE_CONFLICT';
+const SOURCE_CONFLICT_REASON = INVALID_VISIBILITY_REASONS[0];
 
 /**
  * `INVALID_VISIBILITY` with `details.reason: 'SOURCE_CONFLICT'` (→ 400) — a third-party source was once stated for the recipe,
@@ -329,7 +336,7 @@ export function sourceConflictRefused(reason: string, details: Record<string, un
 }
 
 /** `details.reason` of the `INVALID_VISIBILITY` the statement rule answers with. */
-const STATEMENT_REQUIRED_REASON = 'STATEMENT_REQUIRED';
+const STATEMENT_REQUIRED_REASON = INVALID_VISIBILITY_REASONS[1];
 
 /**
  * `INVALID_VISIBILITY` with `details.reason: 'STATEMENT_REQUIRED'` (→ 400): the cook has not said "I wrote this" for a recipe
@@ -345,7 +352,7 @@ export function statementRequiredRefused(reason: string, details: Record<string,
 }
 
 /** `details.reason` of the `INVALID_VISIBILITY` a missing Public confirmation answers with. */
-const PUBLIC_CONFIRMATION_REQUIRED_REASON = 'PUBLIC_CONFIRMATION_REQUIRED';
+const PUBLIC_CONFIRMATION_REQUIRED_REASON = INVALID_VISIBILITY_REASONS[2];
 
 /**
  * `INVALID_VISIBILITY` with `details.reason: 'PUBLIC_CONFIRMATION_REQUIRED'` (→ 400): the write would make the recipe
@@ -364,21 +371,19 @@ export function publicConfirmationRequired(details: Record<string, unknown> = {}
 }
 
 /** `details.reason` of the `INVALID_VISIBILITY` "from another person" answers with when asked to be public. */
-const FROM_PERSON_PRIVATE_ONLY_REASON = 'FROM_PERSON_PRIVATE_ONLY';
+const FROM_PERSON_PRIVATE_ONLY_REASON = INVALID_VISIBILITY_REASONS[3];
 
 /**
- * `INVALID_VISIBILITY` with `details.reason: 'FROM_PERSON_PRIVATE_ONLY'` (→ 400): the cook said the recipe is another
- * person's, and the same request asked for it to be public. A recipe from another person is private; the request
- * contradicts itself, and the server never picks a side silently.
+ * `INVALID_VISIBILITY` with `details.reason: 'FROM_PERSON_PRIVATE_ONLY'` (→ 400): the cook said the recipe is another person's,
+ * so it may not be public, at any route to Public. The same shape as {@link statementRequiredRefused}, for the same reason: no
+ * new published code.
  *
+ * @param reason - The policy's deny-reason, surfaced as the error message.
  * @param details - The attempted visibility and source type, as {@link invalidVisibility} carries.
  * @returns The error to throw.
  */
-export function fromPersonPrivateOnly(details: Record<string, unknown> = {}): RecipeDomainError {
-    return invalidVisibility('A recipe from another person stays private.', {
-        ...details,
-        reason: FROM_PERSON_PRIVATE_ONLY_REASON,
-    });
+export function fromPersonPrivateOnly(reason: string, details: Record<string, unknown> = {}): RecipeDomainError {
+    return invalidVisibility(reason, { ...details, reason: FROM_PERSON_PRIVATE_ONLY_REASON });
 }
 
 /**

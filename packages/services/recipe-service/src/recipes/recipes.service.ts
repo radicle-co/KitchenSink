@@ -30,13 +30,14 @@ import {
     RecipeSourceType,
     RecipeStatus,
     RecipeVisibility,
+    fromPersonOf,
     recipeSourceTypeSchema,
     recipeStatusSchema,
 } from '@kitchensink/recipe-core';
 
 import { toPageEnvelope } from '../common/pagination.js';
 import { VersionsService } from '../versions/versions.service.js';
-import { RecipesDal, type RecipeAggregate, type StepInput } from './dal/recipes.dal.js';
+import { RecipesDal, type LockedRecipeFacts, type RecipeAggregate, type StepInput } from './dal/recipes.dal.js';
 import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import type { IngredientLineInput } from './dal/ingredientLines.dal.js';
 import { quantityFromColumns, statedMeasureFromColumns } from './dal/quantityColumns.js';
@@ -49,16 +50,15 @@ import {
     publishRequirementsUnmet,
     recipeNotFound,
     sourceAndStatementTogether,
-    fromPersonPrivateOnly,
     sourceLocked,
     sourceNotUsable,
     versionConflict,
     privateFoodsOnPublicRecipe,
 } from './recipe.error.js';
 import type { PrivateSlotUsage, PublicConfirmationInput, RecipeStatementInput } from './recipes.schema.js';
-import { evaluateProvenance, type ResolvedProvenance } from './domain/provenancePolicy.js';
-import { evidenceListOf } from './domain/sourceEvidence.js';
-import { PublicStatementGate } from './publicStatement.gate.js';
+import { clonedStatementKindOf, evaluateProvenance, type ResolvedProvenance } from './domain/provenancePolicy.js';
+import { evidenceListOf, type EvidenceToWrite } from './domain/sourceEvidence.js';
+import { PublicStatementGate, type PublicVerdict } from './publicStatement.gate.js';
 import {
     resolveLineBindings,
     type DirectedBinding,
@@ -66,7 +66,7 @@ import {
     type StoredBinding,
 } from './domain/bindingOriginCarryForward.js';
 import { evaluatePublication, type PublishPolicyInput } from './domain/publishPolicy.js';
-import { evaluateSourceCorrection, type StoredSource } from './domain/sourceCorrectionPolicy.js';
+import { evaluateSourceCorrection, type SourceCorrection, type StoredSource } from './domain/sourceCorrectionPolicy.js';
 import { evaluatePublicFoods, type PublicFoodsLine } from './domain/publicFoodsPolicy.js';
 import {
     SLOT_NOT_NEEDED,
@@ -76,11 +76,7 @@ import {
     slotRuleApplies,
     type PrivateSlotStanding,
 } from './domain/privateSlotPolicy.js';
-import {
-    defaultCloneVisibility,
-    evaluateVisibility,
-    type VisibilityPolicyInput,
-} from './domain/visibilityPolicy.js';
+import { defaultCloneVisibility, evaluateVisibility, type VisibilityPolicyInput } from './domain/visibilityPolicy.js';
 import { isContained, type ContainmentSubject } from '../common/containmentPolicy.js';
 import { assertNotContained, testPrincipalContained } from '../common/containment.error.js';
 import { isRecipeViewableBy } from './domain/recipeVisibility.js';
@@ -464,23 +460,6 @@ function assertVisibilityAllowed(
     throw policyRefusal(decision.denial, decision.reason, { visibility: ask.requested, sourceType: ask.sourceType });
 }
 
-/**
- * Refuse a request that says the recipe is another person's and asks for it to be public in the same breath: it contradicts
- * itself, and the server picks neither side. ("From another person" sets no source, so the private-only policy never sees it.)
- *
- * @param statement - The request's statement.
- * @param visibility - The visibility the request asks the recipe to hold.
- * @throws {RecipeDomainError} `INVALID_VISIBILITY`, `details.reason` `FROM_PERSON_PRIVATE_ONLY`.
- */
-function assertFromPersonStaysPrivate(
-    statement: RecipeStatementInput | null | undefined,
-    visibility: RecipeVisibility,
-): void {
-    if (statement?.kind === 'fromPerson' && visibility === RecipeVisibility.PUBLIC) {
-        throw fromPersonPrivateOnly({ visibility });
-    }
-}
-
 /** What a set-visibility request may carry beyond the visibility itself. */
 export interface SetVisibilityExtras {
     /** What the cook said in the same write as Make public. */
@@ -498,14 +477,15 @@ export interface SetVisibilityExtras {
  * @param principal - The verified caller.
  * @param recipe - The recipe's provenance label and source kind.
  * @param requested - The visibility asked for.
- * @param sourceConflict - Whether the evidence holds the recipe out of Public (`sourceConflictOfEvidence`), read in the write's
- *   own transaction. REQUIRED, so a route that forgot it does not compile.
+ * @param verdict - What the gate learned about the write (`PublicStatementGate.judge`): whether the evidence holds the recipe out
+ *   of Public and whether the cook said it is another person's, both read in the write's own transaction. REQUIRED, so a route
+ *   that forgot it does not compile.
  */
 function visibilityAskOf(
     principal: Principal,
     recipe: { readonly sourceType: RecipeSourceType; readonly sourceKind: RecipeSourceKind | null },
     requested: RecipeVisibility,
-    sourceConflict: boolean,
+    verdict: Pick<PublicVerdict, 'sourceConflict' | 'fromPerson'>,
 ): Omit<VisibilityPolicyInput, 'hasAvailablePrivateSlot'> {
     return {
         principalKind: principal.principalKind,
@@ -514,7 +494,37 @@ function visibilityAskOf(
         sourceKind: recipe.sourceKind,
         isPremium: isPremiumPrincipal(principal),
         requested,
-        sourceConflict,
+        sourceConflict: verdict.sourceConflict,
+        fromPerson: verdict.fromPerson,
+    };
+}
+
+/** What a PATCH came to once its source correction was decided from the facts under the row lock. */
+interface UnderLockDecision {
+    /** The correction to write (`apply`) or leave (`unchanged`). */
+    readonly correction: SourceCorrection;
+    /** Whether the write also sets the recipe Private. */
+    readonly forcesPrivate: boolean;
+    /** The evidence the write appends. */
+    readonly pendingEvidence: readonly EvidenceToWrite[];
+    /** Whether the write records the confirmation it was sent. */
+    readonly recordsConfirmation: boolean;
+}
+
+/**
+ * The source facts the correction policy reads, from a row read under the lock. The ONE mapping, so set-visibility and the
+ * PATCH cannot read the same row two ways.
+ *
+ * @param row - The facts `RecipesDal.lockSlotFacts` read.
+ * @returns The stored source. Pure.
+ */
+function storedSourceOf(row: LockedRecipeFacts): StoredSource {
+    return {
+        sourceType: row.sourceType,
+        sourceKind: row.sourceKind,
+        statementKind: row.statementKind,
+        firstPublishedAt: row.firstPublishedAt,
+        clonedFromId: row.clonedFromId,
     };
 }
 
@@ -832,7 +842,6 @@ export class RecipesService {
 
         const provenance = provenanceDecision.provenance;
         const requested = dto.visibility ?? RecipeVisibility.PUBLIC;
-        assertFromPersonStaysPrivate(dto.statement, requested);
         const isPremium = isPremiumPrincipal(principal);
         // The evidence this write leaves (ADR-0089 evidence rule), derived from the SAME provenance the row is written with, so
         // the policy is asked about the recipe's real evidence and never a literal. A new recipe has no other.
@@ -873,7 +882,7 @@ export class RecipesService {
             principal,
             { sourceType: provenance.sourceType, sourceKind: provenance.sourceKind },
             requested,
-            verdict.sourceConflict,
+            verdict,
         );
         // ADR-0073: only a free cook's private PUBLISHED recipe takes a slot, and THAT decision is made inside the write's transaction,
         // under the per-user lock, below. Every other request has no slot to lack, so it is judged here, before the planner,
@@ -1487,8 +1496,6 @@ export class RecipesService {
         // Any write that leaves the recipe published, however it got there: the statement rule judges the state it leaves.
         const leavesPublished = afterStatus === RecipeStatus.PUBLISHED;
         const takesSlotLock = publishesDraft && slotRuleApplies({ isPremium });
-        // Whether this write records the confirmation it was sent: known only under the row lock, where the visibility is read.
-        let recordsConfirmation = false;
 
         // ⛔ ONE TRANSACTION, and the CAS miss must LEAVE it before it is diagnosed. `raiseVersionConflict`
         // calls `dal.readConflict`, which opens its own transaction AND issues
@@ -1509,65 +1516,29 @@ export class RecipesService {
             // the row lock too, so the two never wait on each other the other way round.
             const editor = await this.bylineIn(tx, principal);
 
-            // ⛔ EVERY write that leaves the recipe PUBLISHED is judged on the facts read under the row lock, not only a publish of a
-            // draft: a PATCH that reports a paste on a recipe already published and public, and a plain edit after set-visibility
-            // moved the recipe to public (set-visibility does not bump the version, so the CAS cannot see it), both leave a state
-            // the statement rule refuses. A draft or a re-draft leaves nothing public, so it costs no lock here.
-            if (leavesPublished) {
-                // The row's facts NOW, under the lock: visibility, and the statement and paste fact the rule reads.
-                const current = await this.dal.lockSlotFacts(tx, id);
+            // ⛔ The row's facts are read under the lock, and what depends on them is decided FROM them, in two cases. A write that
+            // carries a `statement`: set-visibility applies a statement without bumping the version, so the compare-and-swap below
+            // cannot see it, and the correction decided before the lock may be stale. A write that leaves the recipe PUBLISHED,
+            // not only a publish of a draft: a PATCH that reports a paste on a recipe already published and public, and a plain
+            // edit after set-visibility moved the recipe to public, both leave a state the statement rule refuses. Any other
+            // write (a draft edit with no statement) leaves nothing public and costs no lock here.
+            const decided =
+                dto.statement !== undefined || leavesPublished
+                    ? await this.decideUnderLockIn(tx, {
+                          principal,
+                          id,
+                          dto,
+                          preLock: correction,
+                          existingStatus,
+                          afterStatus,
+                          publishesDraft,
+                          isPremium,
+                          counted,
+                      })
+                    : { correction, forcesPrivate, pendingEvidence, recordsConfirmation: false };
 
-                if (current === undefined) {
-                    return undefined;
-                }
-
-                // A statement that makes a public draft private (ADR-0089) lands in the SAME write, so a draft published in it
-                // is a private recipe from the first instant and is judged as one.
-                const visibilityAfter = forcesPrivate ? RecipeVisibility.PRIVATE : current.visibility;
-
-                // The state this write leaves, judged on the visibility read UNDER the lock (ADR-0089): a private-only recipe is
-                // never published and public, even if a race left its draft public; nor one whose statement is still owed. What
-                // the cook has stated AFTER this write is the correction's, else what is stored under the lock, and the paste
-                // flag only ever adds: stored OR this request's. The confirmation is asked on the status and visibility read
-                // under the lock: a draft another request made public still owes it when this write publishes it.
-                const verdict = await this.gate.judge({
-                    principal,
-                    stored: { tx, recipeId: id },
-                    before: { status: existingStatus, visibility: current.visibility },
-                    after: { status: afterStatus, visibility: visibilityAfter },
-                    source: sourceAfter,
-                    statementKind:
-                        correction.kind === 'apply' ? correction.provenance.statementKind : current.statementKind,
-                    contentPastedAt:
-                        dto.contentPasted === true ? (current.contentPastedAt ?? new Date()) : current.contentPastedAt,
-                    pending: pendingEvidence,
-                    confirmation: dto.publicConfirmation,
-                });
-
-                recordsConfirmation = verdict.recordsConfirmation;
-
-                if (publishesDraft && visibilityAfter === RecipeVisibility.PRIVATE) {
-                    // Publishing a private draft is a move to private like any other, so it meets the SAME C-004 policy, with
-                    // the slot fact counted under the lock where a slot can matter (ADR-0073: a free cook's private recipe
-                    // uses a slot, and ADR-0077 section 6 means no Premium or substantive edit is needed).
-                    const takesSlot = requiresPrivateSlotCheck({
-                        sourceType: sourceAfter.sourceType,
-                        isPremium,
-                        before: { visibility: current.visibility, status: existingStatus },
-                        after: { visibility: visibilityAfter, status: afterStatus },
-                    });
-
-                    if (takesSlot && counted === undefined) {
-                        // Unreachable: a move that takes a slot is a draft being published by a cook the slot rule applies to,
-                        // which is exactly when the lock was taken. Fail CLOSED rather than let a missing count allow it.
-                        throw new Error('A private draft was published without the per-user slot lock being taken.');
-                    }
-
-                    assertVisibilityAllowed(
-                        visibilityAskOf(principal, sourceAfter, RecipeVisibility.PRIVATE, verdict.sourceConflict),
-                        takesSlot && counted !== undefined ? counted : SLOT_NOT_NEEDED,
-                    );
-                }
+            if (decided === undefined) {
+                return undefined;
             }
 
             if (nowPublicFoods.length > 0) {
@@ -1598,10 +1569,10 @@ export class RecipesService {
                     // sets it (Publish / re-draft). The DAL keys off `!== undefined`.
                     status: dto.status,
                     // The source correction (ADR-0089), all four columns together, and the private flip that goes with it.
-                    ...(correction.kind === 'apply'
+                    ...(decided.correction.kind === 'apply'
                         ? {
-                              provenance: correction.provenance,
-                              ...(forcesPrivate ? { visibility: RecipeVisibility.PRIVATE } : {}),
+                              provenance: decided.correction.provenance,
+                              ...(decided.forcesPrivate ? { visibility: RecipeVisibility.PRIVATE } : {}),
                           }
                         : {}),
                     // The client's word that content was pasted (0087): stored once by the data layer, never cleared.
@@ -1629,10 +1600,11 @@ export class RecipesService {
                 recipeId: id,
                 accountId: ownerId,
                 action: 'update',
-                evidence: pendingEvidence,
-                statement: dto.statement,
+                evidence: decided.pendingEvidence,
+                // The statement that TOOK EFFECT: one the recipe already held, or a clear of nothing, leaves no row.
+                statement: decided.correction.kind === 'apply' ? dto.statement : undefined,
                 publicConfirmation: dto.publicConfirmation,
-                recordsConfirmation,
+                recordsConfirmation: decided.recordsConfirmation,
             });
 
             await this.recordSnapshotIn(
@@ -1669,6 +1641,115 @@ export class RecipesService {
             budget: 'postCommit',
             viewerId: ownerId,
         });
+    }
+
+    /**
+     * Decide, from the facts read UNDER the row lock, what a PATCH's statement does, whether the state it leaves may be public,
+     * and whether it records the confirmation it was sent.
+     *
+     * ⛔ The source correction is decided HERE and not only before the transaction. Set-visibility applies a statement without
+     * bumping the version, so the PATCH's compare-and-swap cannot see it; a correction decided from the pre-lock read could then
+     * write the same statement twice (and record it twice), or miss a statement it was sent to clear. The lock-time decision is
+     * the one written: the pre-lock one only refuses early. It is the smaller correct change: the other way, a version bump
+     * on every set-visibility that states something, would move the version number and the version history for a write that
+     * edits no content.
+     *
+     * @param tx - The write's open transaction. Its first statements (the slot lock and the byline) have already run.
+     * @param input - The request, the pre-lock correction, and the facts of the write.
+     * @returns The decision, or `undefined` when no active recipe has that id.
+     * @throws {HttpException} `SOURCE_LOCKED` or a refusal the gate or the slot policy raises.
+     * @sideEffect Row-locks the `recipes` row until the transaction ends; reads `recipe_source_evidence`.
+     */
+    private async decideUnderLockIn(
+        tx: RecipeTx,
+        input: {
+            readonly principal: Principal;
+            readonly id: string;
+            readonly dto: UpdateRecipeDto;
+            readonly preLock: SourceCorrection;
+            readonly existingStatus: RecipeStatus;
+            readonly afterStatus: RecipeStatus;
+            readonly publishesDraft: boolean;
+            readonly isPremium: boolean;
+            readonly counted: PrivateSlotStanding | undefined;
+        },
+    ): Promise<UnderLockDecision | undefined> {
+        const { principal, id, dto, existingStatus, afterStatus } = input;
+        const current = await this.dal.lockSlotFacts(tx, id);
+
+        if (current === undefined) {
+            return undefined;
+        }
+
+        const correction =
+            dto.statement === undefined
+                ? input.preLock
+                : evaluateSourceCorrection({ statement: dto.statement, stored: storedSourceOf(current) });
+
+        if (correction.kind === 'locked') {
+            throw sourceLocked();
+        }
+
+        if (correction.kind === 'unusable') {
+            throw sourceNotUsable('The source link is not a public web page address.');
+        }
+
+        const applied = correction.kind === 'apply';
+        const pendingEvidence = applied ? evidenceListOf(correction.provenance, 'editor') : [];
+        // A statement that makes a public draft private (ADR-0089) lands in the SAME write, so a draft published in it is a
+        // private recipe from the first instant and is judged as one.
+        const forcesPrivate = applied && correction.makePrivate;
+        const visibilityAfter = forcesPrivate ? RecipeVisibility.PRIVATE : current.visibility;
+        const sourceAfter = applied
+            ? { sourceType: correction.provenance.sourceType, sourceKind: correction.provenance.sourceKind }
+            : { sourceType: current.sourceType, sourceKind: current.sourceKind };
+
+        if (afterStatus !== RecipeStatus.PUBLISHED) {
+            return { correction, forcesPrivate, pendingEvidence, recordsConfirmation: false };
+        }
+
+        // The state this write leaves, judged on the visibility read UNDER the lock (ADR-0089): a private-only recipe is never
+        // published and public, even if a race left its draft public; nor one whose statement is still owed. What the cook has
+        // stated AFTER this write is the correction's, else what is stored under the lock, and the paste flag only ever adds:
+        // stored OR this request's. The confirmation is asked on the status and visibility read under the lock: a draft another
+        // request made public still owes it when this write publishes it.
+        const verdict = await this.gate.judge({
+            principal,
+            stored: { tx, recipeId: id },
+            before: { status: existingStatus, visibility: current.visibility },
+            after: { status: afterStatus, visibility: visibilityAfter },
+            source: sourceAfter,
+            statementKind: applied ? correction.provenance.statementKind : current.statementKind,
+            contentPastedAt:
+                dto.contentPasted === true ? (current.contentPastedAt ?? new Date()) : current.contentPastedAt,
+            pending: pendingEvidence,
+            confirmation: dto.publicConfirmation,
+        });
+
+        if (input.publishesDraft && visibilityAfter === RecipeVisibility.PRIVATE) {
+            // Publishing a private draft is a move to private like any other, so it meets the SAME C-004 policy, with the slot
+            // fact counted under the lock where a slot can matter (ADR-0073: a free cook's private recipe uses a slot, and
+            // ADR-0077 section 6 means no Premium or substantive edit is needed).
+            const takesSlot = requiresPrivateSlotCheck({
+                sourceType: sourceAfter.sourceType,
+                isPremium: input.isPremium,
+                before: { visibility: current.visibility, status: existingStatus },
+                after: { visibility: visibilityAfter, status: afterStatus },
+            });
+
+            if (takesSlot && input.counted === undefined) {
+                // Unreachable: a move that takes a slot is a draft being published by a cook the slot rule applies to, which is
+                // exactly when the lock was taken. Fail CLOSED rather than let a missing count allow it.
+                throw new Error('A private draft was published without the per-user slot lock being taken.');
+            }
+
+            assertVisibilityAllowed(
+                visibilityAskOf(principal, sourceAfter, RecipeVisibility.PRIVATE, verdict),
+                takesSlot && input.counted !== undefined ? input.counted : SLOT_NOT_NEEDED,
+            );
+        }
+
+        return { correction, forcesPrivate, pendingEvidence, recordsConfirmation: verdict.recordsConfirmation };
     }
 
     /**
@@ -1787,10 +1868,13 @@ export class RecipesService {
                 source.recipe.sourceKind,
                 principal,
                 source.recipe.visibility,
-                await this.gate.holdsOutOfPublic(tx, source.recipe.id, {
-                    sourceType,
-                    sourceKind: source.recipe.sourceKind,
-                }),
+                {
+                    sourceConflict: await this.gate.holdsOutOfPublic(tx, source.recipe.id, {
+                        sourceType,
+                        sourceKind: source.recipe.sourceKind,
+                    }),
+                    fromPerson: fromPersonOf(source.recipe.statementKind),
+                },
             );
             const cloned = await this.dal.create(
                 {
@@ -1812,10 +1896,13 @@ export class RecipesService {
                     sourceType,
                     // The kind travels with the label and the address (ADR-0089): a clone of a web copy is a web copy.
                     sourceKind: source.recipe.sourceKind,
-                    // What the cook stated and when content was reported pasted travel with the recipe (0087), exactly as the
-                    // evidence does (the database copies it): a clone is asked the same question its source is, and the pairing
-                    // CHECK ties the statement to the kind.
-                    statementKind: source.recipe.statementKind,
+                    // The paste fact and a stated SOURCE travel with the recipe (0087), exactly as the evidence does (the database
+                    // copies it): a clone is asked the same question its source is, and the pairing CHECK ties the statement to
+                    // the kind. "I wrote this" does not: it is the original cook's word, so another cook's clone starts with none.
+                    statementKind: clonedStatementKindOf(
+                        source.recipe.statementKind,
+                        source.recipe.ownerId === ownerId,
+                    ),
                     contentPastedAt: source.recipe.contentPastedAt,
                     sourceUrl: source.recipe.sourceUrl,
                     sourceAttribution: attribution,
@@ -1869,7 +1956,6 @@ export class RecipesService {
         }
 
         this.assertOwner(principal.userId, existing.recipe);
-        assertFromPersonStaysPrivate(extras.statement, visibility);
 
         const isPremium = isPremiumPrincipal(principal);
         // The row's facts are only known for certain UNDER the lock: set-visibility does not bump the version, another
@@ -1910,13 +1996,7 @@ export class RecipesService {
             // a PATCH uses, over the facts under THIS lock, so the lock on the source and on the first publish is one rule.
             const correction = evaluateSourceCorrection({
                 statement: extras.statement,
-                stored: {
-                    sourceType: current.sourceType,
-                    sourceKind: current.sourceKind,
-                    statementKind: current.statementKind,
-                    firstPublishedAt: current.firstPublishedAt,
-                    clonedFromId: current.clonedFromId,
-                },
+                stored: storedSourceOf(current),
             });
 
             if (correction.kind === 'locked') {
@@ -1957,13 +2037,14 @@ export class RecipesService {
                 before: { status: current.status, visibility: current.visibility },
                 after: { status: current.status, visibility },
                 source,
-                statementKind: correction.kind === 'apply' ? correction.provenance.statementKind : current.statementKind,
+                statementKind:
+                    correction.kind === 'apply' ? correction.provenance.statementKind : current.statementKind,
                 contentPastedAt: current.contentPastedAt,
                 pending: pendingEvidence,
                 confirmation: extras.publicConfirmation,
             });
 
-            assertVisibilityAllowed(visibilityAskOf(principal, source, visibility, verdict.sourceConflict), standing);
+            assertVisibilityAllowed(visibilityAskOf(principal, source, visibility, verdict), standing);
 
             if (nowPublicFoods.length > 0) {
                 await this.dal.clearPublicFoodOwners(tx, nowPublicFoods);
@@ -1983,7 +2064,8 @@ export class RecipesService {
                     accountId: principal.userId,
                     action: 'setVisibility',
                     evidence: pendingEvidence,
-                    statement: extras.statement,
+                    // The statement that TOOK EFFECT: one the recipe already held leaves no row.
+                    statement: correction.kind === 'apply' ? extras.statement : undefined,
                     publicConfirmation: extras.publicConfirmation,
                     recordsConfirmation: verdict.recordsConfirmation,
                 });

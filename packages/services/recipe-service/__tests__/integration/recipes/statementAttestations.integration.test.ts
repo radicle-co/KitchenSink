@@ -147,6 +147,9 @@ const insertEvidence = vi.fn(async (_tx: unknown, row: NewRecipeSourceEvidenceRo
 /** Set when a test makes the row vanish between the read and the write (a concurrent tombstone). */
 let writeFindsNoRow = false;
 
+/** The row as a concurrent set-visibility left it, when a test stages a race: what the row lock reads instead of `stored`. */
+let underLock: RecipeRow | undefined;
+
 let food: FoodFake;
 let booted: BootedServiceApp;
 
@@ -217,16 +220,20 @@ beforeAll(async () => {
                     findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
                     privateFoodLines: async () => [],
                     lockAndCountPrivateSlots: async () => 0,
-                    lockSlotFacts: async () => ({
-                        visibility: stored.visibility,
-                        status: stored.status,
-                        sourceType: stored.sourceType,
-                        sourceKind: stored.sourceKind,
-                        statementKind: stored.statementKind,
-                        contentPastedAt: stored.contentPastedAt,
-                        firstPublishedAt: stored.firstPublishedAt,
-                        clonedFromId: stored.clonedFromId,
-                    }),
+                    lockSlotFacts: async () => {
+                        const row = underLock ?? stored;
+
+                        return {
+                            visibility: row.visibility,
+                            status: row.status,
+                            sourceType: row.sourceType,
+                            sourceKind: row.sourceKind,
+                            statementKind: row.statementKind,
+                            contentPastedAt: row.contentPastedAt,
+                            firstPublishedAt: row.firstPublishedAt,
+                            clonedFromId: row.clonedFromId,
+                        };
+                    },
                     setVisibility: async (
                         id: string,
                         visibility: RecipeVisibility,
@@ -277,6 +284,7 @@ beforeAll(async () => {
 afterEach(() => {
     evidence = [];
     writeFindsNoRow = false;
+    underLock = undefined;
     vi.clearAllMocks();
 });
 
@@ -441,7 +449,9 @@ describe('POST /api/v1/recipes', () => {
         expect(recorded()).toEqual([STATEMENT_ROW('publicWeb', 'statementPublicWeb.v1', 'create')]);
     });
 
-    it('records "from another person" with no source, no statement kind, and the recipe private', async () => {
+    // Rewritten by ADR-0092: "from another person" used to store NO statement kind, so a stored recipe could not be told from
+    // one the cook typed. It now stores `fromPerson`, which every route to Public refuses.
+    it('records "from another person" with no source, the `fromPerson` statement kind, and the recipe private', async () => {
         const response = await call('POST', '/api/v1/recipes', {
             ...CREATE_BODY,
             visibility: 'private',
@@ -453,7 +463,7 @@ describe('POST /api/v1/recipes', () => {
             expect.objectContaining({
                 sourceType: 'user_created',
                 sourceKind: null,
-                statementKind: null,
+                statementKind: 'fromPerson',
                 visibility: 'private',
             }),
             TX,
@@ -603,7 +613,7 @@ describe('PATCH /api/v1/recipes/{id}', () => {
                 visibility: 'private',
                 provenance: expect.objectContaining({
                     sourceKind: null,
-                    statementKind: null,
+                    statementKind: 'fromPerson',
                     sourceType: 'user_created',
                 }),
             }),
@@ -878,6 +888,127 @@ describe('PATCH /api/v1/recipes/{id}/visibility', () => {
     });
 });
 
+// The attestation rows are built from what a write DID: a statement that changed nothing, and a clear of a statement that was
+// never made, leave no row, because a record that says the cook cleared nothing is a record of an act that never happened.
+describe('what took effect — the record never says more than the write did', () => {
+    it('PATCH "I wrote this" over a recipe that already says it: 200, nothing written, no second row', async () => {
+        stored = rowOf({ status: 'draft', statementKind: 'authored' });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            statement: AUTHORED,
+        });
+
+        expect(response.status).toBe(200);
+        expect(update.mock.calls[0]?.[1]).not.toHaveProperty('provenance');
+        expect(insertMany).not.toHaveBeenCalled();
+        expect(insertEvidence).not.toHaveBeenCalled();
+    });
+
+    it('PATCH `statement: null` over a recipe that states nothing: 200, no `cleared` row', async () => {
+        stored = rowOf({ status: 'draft', statementKind: null });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: null });
+
+        expect(response.status).toBe(200);
+        expect(update.mock.calls[0]?.[1]).not.toHaveProperty('provenance');
+        expect(insertMany).not.toHaveBeenCalled();
+    });
+
+    it('PATCH `statement: null` over a stored statement still records the clear', async () => {
+        stored = rowOf({ status: 'draft', statementKind: 'authored' });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: null });
+
+        expect(response.status).toBe(200);
+        expect(recorded()).toEqual([
+            { ...STATEMENT_ROW('cleared', 'x', 'update'), wordingVersion: null, locale: null },
+        ]);
+    });
+
+    it('set-visibility with "I wrote this" over a recipe that already says it records only the confirmation', async () => {
+        stored = rowOf({ status: 'published', visibility: 'private', statementKind: 'authored' });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            statement: AUTHORED,
+            publicConfirmation: CONFIRM,
+        });
+
+        expect(response.status).toBe(200);
+        expect(recorded()).toEqual([CONFIRM_ROW('setVisibility')]);
+    });
+
+    it('a confirmation sent with a move to PRIVATE is not recorded: the cook did not choose Public', async () => {
+        stored = rowOf({ status: 'published', visibility: 'public', statementKind: 'authored' });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'private',
+            publicConfirmation: CONFIRM,
+        });
+
+        expect(response.status).toBe(200);
+        expect(insertMany).not.toHaveBeenCalled();
+    });
+
+    it('a confirmation sent with a PATCH that leaves the recipe a DRAFT is not recorded', async () => {
+        stored = rowOf({ status: 'draft', visibility: 'public' });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            title: 'Soup 2',
+            publicConfirmation: CONFIRM,
+        });
+
+        expect(response.status).toBe(200);
+        expect(insertMany).not.toHaveBeenCalled();
+    });
+});
+
+// M2: set-visibility applies a statement WITHOUT bumping the version, so a PATCH's compare-and-swap cannot see it. The PATCH reads
+// the recipe before it takes the row lock; the source correction is therefore decided again from the facts read UNDER the lock.
+describe('PATCH /api/v1/recipes/{id} — a statement is judged on the facts under the row lock', () => {
+    it('does not apply or record "I wrote this" a second time when set-visibility applied it in between', async () => {
+        stored = rowOf({ status: 'draft', visibility: 'private', statementKind: null });
+        underLock = { ...stored, statementKind: 'authored' };
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            statement: AUTHORED,
+        });
+
+        expect(response.status).toBe(200);
+        expect(update.mock.calls[0]?.[1]).not.toHaveProperty('provenance');
+        expect(insertMany).not.toHaveBeenCalled();
+    });
+
+    it('clears a statement set-visibility applied in between: the pre-lock read saw nothing to clear', async () => {
+        stored = rowOf({ status: 'draft', visibility: 'private', statementKind: null });
+        underLock = { ...stored, statementKind: 'authored' };
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: null });
+
+        expect(response.status).toBe(200);
+        expect(update).toHaveBeenCalledWith(
+            RECIPE_ID,
+            expect.objectContaining({ provenance: expect.objectContaining({ statementKind: null }) }),
+            TX,
+        );
+        expect(recorded()).toEqual([expect.objectContaining({ choice: 'cleared', action: 'update' })]);
+    });
+
+    it('appends a web statement’s evidence once, from the correction decided under the lock', async () => {
+        stored = rowOf({ status: 'draft', visibility: 'public', statementKind: null });
+        underLock = { ...stored, visibility: 'private' };
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: WEB });
+
+        expect(response.status).toBe(200);
+        expect(insertEvidence).toHaveBeenCalledTimes(1);
+        expect(recorded()).toEqual([STATEMENT_ROW('publicWeb', 'statementPublicWeb.v1', 'update')]);
+    });
+});
+
 describe('POST /api/v1/recipes/{id}/clone', () => {
     it('copies NO attestation: they are the acts of the cook who made them (the cloner makes their own)', async () => {
         stored = rowOf({ visibility: 'public' });
@@ -886,5 +1017,57 @@ describe('POST /api/v1/recipes/{id}/clone', () => {
 
         expect(response.status).toBe(201);
         expect(insertMany).not.toHaveBeenCalled();
+    });
+
+    // "I wrote this" is the cook's attestation about the cook's own words. Another cook's clone is not those words, so the clone
+    // starts with NO statement and the cloner makes their own. A stated source stays: the CHECK pairs it with its source kind.
+    describe('whose attestation the clone carries', () => {
+        const OTHER = '01JATTESTATIONOTHER00001';
+
+        it('does not inherit "I wrote this" from ANOTHER cook, and keeps the paste fact', async () => {
+            stored = rowOf({
+                ownerId: OTHER,
+                visibility: 'public',
+                statementKind: 'authored',
+                contentPastedAt: AT,
+            });
+
+            const response = await call('POST', `/api/v1/recipes/${RECIPE_ID}/clone`, {});
+
+            expect(response.status).toBe(201);
+            expect(create).toHaveBeenCalledWith(
+                expect.objectContaining({ statementKind: null, contentPastedAt: AT }),
+                TX,
+            );
+        });
+
+        it('keeps the `source` statement of ANOTHER cook’s web copy: the pairing CHECK needs it beside the source kind', async () => {
+            stored = rowOf({
+                ownerId: OTHER,
+                visibility: 'public',
+                sourceType: 'imported_public',
+                sourceKind: 'public_web',
+                sourceUrl: LINK,
+                sourceAttribution: 'allrecipes.com',
+                statementKind: 'source',
+            });
+
+            const response = await call('POST', `/api/v1/recipes/${RECIPE_ID}/clone`, {});
+
+            expect(response.status).toBe(201);
+            expect(create).toHaveBeenCalledWith(
+                expect.objectContaining({ statementKind: 'source', sourceKind: 'public_web' }),
+                TX,
+            );
+        });
+
+        it('keeps "I wrote this" on the cook’s OWN clone', async () => {
+            stored = rowOf({ visibility: 'public', statementKind: 'authored' });
+
+            const response = await call('POST', `/api/v1/recipes/${RECIPE_ID}/clone`, {});
+
+            expect(response.status).toBe(201);
+            expect(create).toHaveBeenCalledWith(expect.objectContaining({ statementKind: 'authored' }), TX);
+        });
     });
 });

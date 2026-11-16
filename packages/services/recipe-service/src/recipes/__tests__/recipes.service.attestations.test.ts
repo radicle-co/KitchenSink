@@ -106,9 +106,15 @@ describe('RecipesService.create — the attestation record', () => {
 });
 
 describe('RecipesService.update — the attestation record', () => {
-    it('records `statement: null` as a cleared row with no wording', async () => {
+    it('records `statement: null` as a cleared row with no wording when a statement was stored', async () => {
         const stored: RecipeAggregate = {
-            recipe: makeRecipeRow({ ownerId: OWNER, status: 'draft', visibility: 'private', currentVersion: 1 }),
+            recipe: makeRecipeRow({
+                ownerId: OWNER,
+                status: 'draft',
+                visibility: 'private',
+                currentVersion: 1,
+                statementKind: 'authored',
+            }),
             ingredients: [],
             steps: [],
         };
@@ -125,5 +131,18 @@ describe('RecipesService.update — the attestation record', () => {
                 locale: null,
             }),
         ]);
+    });
+
+    it('records nothing for a clear when no statement was stored, because nothing changed', async () => {
+        const stored: RecipeAggregate = {
+            recipe: makeRecipeRow({ ownerId: OWNER, status: 'draft', visibility: 'private', currentVersion: 1 }),
+            ingredients: [],
+            steps: [],
+        };
+        const { insertMany, service } = setup(stored);
+
+        await service.update(PRINCIPAL, stored.recipe.id, { expectedVersion: 1, statement: null }, undefined);
+
+        expect(insertMany).not.toHaveBeenCalled();
     });
 });

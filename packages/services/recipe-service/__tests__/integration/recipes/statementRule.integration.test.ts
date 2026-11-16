@@ -219,6 +219,8 @@ beforeAll(async () => {
                             sourceKind: row.sourceKind,
                             statementKind: row.statementKind,
                             contentPastedAt: row.contentPastedAt,
+                            firstPublishedAt: row.firstPublishedAt,
+                            clonedFromId: row.clonedFromId,
                         };
                     },
                     setVisibility,
@@ -834,5 +836,117 @@ describe('the owner-only response — what a stranger must never learn', () => {
             })
         ).json()) as Record<string, unknown>;
         expect(made).toMatchObject({ statementKind: 'authored', publicNeedsStatement: false });
+    });
+});
+
+// "From another person" is a STORED statement (ADR-0092), so the refusal does not depend on the request that made it: every route
+// to Public meets it, whichever write is asked and whatever it carries.
+describe('a recipe stored as "from another person" is never public', () => {
+    const FROM_PERSON_ONLY = {
+        status: 400,
+        code: 'INVALID_VISIBILITY',
+        details: { reason: 'FROM_PERSON_PRIVATE_ONLY' },
+    };
+    const person = (over: Partial<RecipeRow> = {}): RecipeRow =>
+        makeRecipeRow({
+            id: RECIPE_ID,
+            ownerId: COOK,
+            status: 'draft',
+            visibility: 'private',
+            statementKind: 'fromPerson',
+            firstPublishedAt: null,
+            ...over,
+        });
+
+    it('create: a "from another person" statement asking for Public', async () => {
+        const response = await call('POST', '/api/v1/recipes', {
+            ...PUBLISHED_PUBLIC_BODY,
+            statement: { kind: 'fromPerson', wording: { version: 'statementFromPerson.v1', locale: 'en' } },
+        });
+
+        expect(await refusalOf(response)).toMatchObject(FROM_PERSON_ONLY);
+        expect(create).not.toHaveBeenCalled();
+    });
+
+    it('PATCH: publishing a public draft the cook said is another person’s, with no statement in the request', async () => {
+        stored = person({ visibility: 'public' });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            status: 'published',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
+
+        expect(await refusalOf(response)).toMatchObject(FROM_PERSON_ONLY);
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('PATCH: a plain edit after a race left the recipe published and public', async () => {
+        stored = person({ status: 'published', visibility: 'private' });
+        underLock = { ...stored, visibility: 'public' };
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, title: 'Soup 2' });
+
+        expect(await refusalOf(response)).toMatchObject(FROM_PERSON_ONLY);
+    });
+
+    it('set-visibility: Public, for a draft and for a published recipe', async () => {
+        for (const status of ['draft', 'published'] as const) {
+            stored = person({ status });
+
+            const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+                visibility: 'public',
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            });
+
+            expect(await refusalOf(response)).toMatchObject(FROM_PERSON_ONLY);
+        }
+
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    it('set-visibility: Private stays allowed', async () => {
+        stored = person({ status: 'published', visibility: 'public' });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'private' });
+
+        expect(response.status).toBe(200);
+    });
+
+    it('a statement can be changed before the first publish, and "I wrote this" then makes it publishable', async () => {
+        stored = person();
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            statement: AUTHORED,
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
+
+        expect(response.status).toBe(200);
+        expect(setVisibility).toHaveBeenCalledOnce();
+    });
+
+    it('after the first publish the statement is locked, so the recipe stays Private for good', async () => {
+        stored = person({ status: 'published', firstPublishedAt: AT });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            statement: AUTHORED,
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
+
+        expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+    });
+
+    it('the cook’s own clone of it lands Private and still says it is another person’s', async () => {
+        stored = person({ status: 'published', visibility: 'public', firstPublishedAt: AT });
+
+        const response = await call('POST', `/api/v1/recipes/${RECIPE_ID}/clone`, {});
+
+        expect(response.status).toBe(201);
+        expect(create).toHaveBeenCalledWith(
+            expect.objectContaining({ visibility: 'private', statementKind: 'fromPerson' }),
+            expect.anything(),
+        );
     });
 });

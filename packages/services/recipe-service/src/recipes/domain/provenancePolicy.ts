@@ -169,10 +169,10 @@ export function resolveStatementProvenance(
                 : undefined;
         }
 
-        // "From another person" states no source and no statement: it is the cook's word, kept in the attestation record, and
-        // the recipe stays the cook's own label. The caller keeps it Private (`sourceCorrectionPolicy`, the service).
+        // "From another person" states no source, so the recipe stays the cook's own label, and it IS a statement: stored as
+        // `fromPerson`, which every route to Public refuses (`evaluateVisibility`, `evaluatePublishedState`).
         case 'fromPerson':
-            return UNDECLARED;
+            return { ...UNDECLARED, statementKind: 'fromPerson' };
 
         case 'book':
             return {
@@ -191,6 +191,23 @@ export function resolveStatementProvenance(
                 statementKind: 'source',
             };
     }
+}
+
+/**
+ * The statement a CLONE starts with. "I wrote this" and "from another person" are the cook's own words about the cook's own
+ * recipe, so the cook's own clone keeps them, and another cook's clone starts with NO statement: the cloner makes their own. A
+ * stated source (`source`) is a fact about the copy and travels with the source kind the clone also inherits, which the
+ * pairing CHECK of migration 0087 requires. Pure.
+ *
+ * @param statementKind - What the source recipe's cook stated, or `null`.
+ * @param sameCook - Whether the cloner owns the source recipe.
+ * @returns The statement kind to store on the clone.
+ */
+export function clonedStatementKindOf(
+    statementKind: RecipeStatementKind | null,
+    sameCook: boolean,
+): RecipeStatementKind | null {
+    return sameCook || statementKind === 'source' ? statementKind : null;
 }
 
 /**

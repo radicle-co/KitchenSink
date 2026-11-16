@@ -28,6 +28,7 @@
  * @pattern Specification — one pure predicate over the stored source and the statement
  */
 import {
+    fromPersonOf,
     sourceIsCorrectable,
     type CorrectableSourceFacts,
     type RecipeSourceKind,
@@ -50,7 +51,7 @@ export type StoredSource = CorrectableSourceFacts & {
 /**
  * What a PATCH does to the source.
  *
- * - `unchanged`: the body carried no statement.
+ * - `unchanged`: the body carried no statement, or its statement would leave the recipe as it is.
  * - `apply`: write `provenance`; `makePrivate` says the same write also sets visibility to private.
  * - `locked`: refused, the source cannot change (published once, or not a statement the cook made).
  * - `unusable`: refused, the statement is not a usable web source (the wire schema refuses it first).
@@ -70,6 +71,20 @@ function statesNothing(stored: StoredSource): boolean {
 }
 
 /**
+ * Whether a statement would leave the recipe exactly as stored: the provenance it resolves to states no source and names the
+ * statement the recipe already holds. Such a statement took no effect, so it is neither written nor recorded. A statement that
+ * states a source is never "already held": a second link is a new fact, and its evidence is appended.
+ */
+function holdsAlready(provenance: ResolvedProvenance, stored: StoredSource): boolean {
+    return (
+        provenance.sourceKind === null &&
+        stored.sourceKind === null &&
+        provenance.sourceType === stored.sourceType &&
+        provenance.statementKind === stored.statementKind
+    );
+}
+
+/**
  * Decide what a PATCH's `statement` does. Pure.
  *
  * ## The one move the lock lets through (Option B)
@@ -77,8 +92,13 @@ function statesNothing(stored: StoredSource): boolean {
  * After the first publish the source stays frozen, with one exception: "I wrote this" from NO statement. Without it a recipe
  * published private (or one whose paste was reported after it went public) could never be made public, because the cook
  * could never attest. It writes no source and no visibility, so it relabels nothing: it is the cook's attestation, on a recipe
- * that has none. Saying it AGAIN after the first publish is `unchanged` (nothing to write), so a retry of "attest, then
- * make public" does not meet a lock the first half already passed. Every other move keeps the lock it had.
+ * that has none. Saying it AGAIN is `unchanged` (nothing to write), so a retry of "attest, then make public" does not meet a
+ * lock the first half already passed. Every other move keeps the lock it had.
+ *
+ * ## What took effect
+ *
+ * A statement the recipe already holds, and a clear of a statement that was never made, are `unchanged` before the first
+ * publish too: the attestation record is built from what a write DID, so it never says the cook cleared nothing.
  *
  * ⛔ Authored over a recipe that has source evidence is still refused Public, by `sourceConflict` and not here: the attestation
  * is recorded, and the evidence rule (the seam the feature-020 hold replaces) is a separate question.
@@ -102,16 +122,14 @@ export function evaluateSourceCorrection(input: {
     // link still change" stays true.
     if (!sourceIsCorrectable(stored)) {
         if (statement?.kind === 'authored') {
-            if (statesNothing(stored)) {
-                return applyOf(evaluateProvenance({ statement, grantedScopes: [] }), false);
+            const decision = evaluateProvenance({ statement, grantedScopes: [] });
+
+            if (decision.allowed && holdsAlready(decision.provenance, stored)) {
+                return { kind: 'unchanged' };
             }
 
-            if (
-                stored.sourceType === 'user_created' &&
-                stored.sourceKind === null &&
-                stored.statementKind === 'authored'
-            ) {
-                return { kind: 'unchanged' };
+            if (statesNothing(stored)) {
+                return applyOf(decision);
             }
         }
 
@@ -119,12 +137,12 @@ export function evaluateSourceCorrection(input: {
     }
 
     // No statement is the shipped default reading: user_created with no source fields. No grant is read on either branch.
-    return applyOf(
+    const decision =
         statement === null
             ? evaluateProvenance({ declared: undefined, grantedScopes: [] })
-            : evaluateProvenance({ statement, grantedScopes: [] }),
-        statement?.kind === 'fromPerson',
-    );
+            : evaluateProvenance({ statement, grantedScopes: [] });
+
+    return decision.allowed && holdsAlready(decision.provenance, stored) ? { kind: 'unchanged' } : applyOf(decision);
 }
 
 /**
@@ -133,10 +151,10 @@ export function evaluateSourceCorrection(input: {
  * Every write that SETS a source sets Private with it, keyed on the provenance that results (`sourceKind`) and not on the
  * statement's presence: "I wrote this" sets no source, so it never makes a recipe private, and a published recipe attested
  * after its first publish keeps the visibility it has. The one exception is "from another person" (`fromPerson`): it sets no
- * source either, but the recipe is not the cook's to publish, so it is private in the same write. It is not decided from a visibility read outside the lock: a draft that
- * raced to public between that read and this write must still end private.
+ * source either, but the recipe is not the cook's to publish, so it is private in the same write. It is not decided from a
+ * visibility read outside the lock: a draft that raced to public between that read and this write must still end private.
  */
-function applyOf(decision: ReturnType<typeof evaluateProvenance>, fromPerson: boolean): SourceCorrection {
+function applyOf(decision: ReturnType<typeof evaluateProvenance>): SourceCorrection {
     if (!decision.allowed) {
         return { kind: 'unusable' };
     }
@@ -144,6 +162,6 @@ function applyOf(decision: ReturnType<typeof evaluateProvenance>, fromPerson: bo
     return {
         kind: 'apply',
         provenance: decision.provenance,
-        makePrivate: decision.provenance.sourceKind !== null || fromPerson,
+        makePrivate: decision.provenance.sourceKind !== null || fromPersonOf(decision.provenance.statementKind),
     };
 }

@@ -19,7 +19,12 @@ import { describe, expect, it } from 'vitest';
 import { RecipeSourceType } from '@kitchensink/recipe-core';
 
 import { CURATOR_IMPORT_SCOPE } from '../../recipes.schema.js';
-import { evaluateProvenance, resolveStatementProvenance, type ProvenanceDecision } from '../provenancePolicy.js';
+import {
+    clonedStatementKindOf,
+    evaluateProvenance,
+    resolveStatementProvenance,
+    type ProvenanceDecision,
+} from '../provenancePolicy.js';
 
 /** A well-formed curated declaration — the only non-default shape the wire admits. */
 const CURATED = {
@@ -186,7 +191,7 @@ describe('resolveStatementProvenance — the one reading of a statement, for cre
         });
     });
 
-    it('"from another person" states no source, no kind and no statement: it records the cook\u2019s word and nothing else', () => {
+    it('"from another person" states no source and no kind, and is stored as the `fromPerson` statement', () => {
         expect(
             resolveStatementProvenance({
                 kind: 'fromPerson',
@@ -197,7 +202,7 @@ describe('resolveStatementProvenance — the one reading of a statement, for cre
             sourceUrl: null,
             sourceAttribution: null,
             sourceKind: null,
-            statementKind: null,
+            statementKind: 'fromPerson',
         });
     });
 
@@ -331,5 +336,17 @@ describe('evaluateProvenance — an authored statement (Option B)', () => {
         for (const decision of resolutions) {
             expect(decision.allowed && decision.provenance.statementKind).toBeNull();
         }
+    });
+});
+
+describe('clonedStatementKindOf — whose attestation a clone carries', () => {
+    it.each([
+        ['"I wrote this"', 'authored', 'authored', null],
+        ['"from another person"', 'fromPerson', 'fromPerson', null],
+        ['a stated source (the source kind is copied, and the CHECK pairs it)', 'source', 'source', 'source'],
+        ['no statement', null, null, null],
+    ] as const)('%s: the cook’s own clone keeps it, another cook’s clone gets %s', (_label, stored, own, other) => {
+        expect(clonedStatementKindOf(stored, true)).toBe(own);
+        expect(clonedStatementKindOf(stored, false)).toBe(other);
     });
 });

@@ -346,18 +346,25 @@ export const bookStatementSchema = z.object({ kind: z.literal('book'), citation:
 export const publicWebStatementSchema = z.object({ kind: z.literal('public_web'), citation: citationUrlSchema });
 
 /**
+ * The one refinement that makes a copied web address a usable source (`parseSourceLink`), as the `refine` arguments both web
+ * statements spread, so the bulk import's statement and a recipe's own statement cannot read "usable" differently.
+ */
+const USABLE_SOURCE_LINK: [
+    check: (statement: { readonly citation: string }) => boolean,
+    params: { message: string; path: string[] },
+] = [
+    (statement) => parseSourceLink(statement.citation).ok,
+    { message: 'citation is not a public web page address', path: ['citation'] },
+];
+
+/**
  * The refined "copied from a public web page" member: the address must be a usable source, not just an address.
  *
  * ⛔ Our own site, `localhost` and a bare IP are refused here, by the same reading (`parseSourceLink`) the editor uses, so the
  * client's "that is not a source" and the server's `400` are one rule. The refinement sits on this member, which the bulk
  * import composes into its own statement union (`import.schema.ts`) and a recipe's own `statement` composes into its union below.
  */
-export const recipeStatementSchema = publicWebStatementSchema
-    .strict()
-    .refine((statement) => parseSourceLink(statement.citation).ok, {
-        message: 'citation is not a public web page address',
-        path: ['citation'],
-    });
+export const recipeStatementSchema = publicWebStatementSchema.strict().refine(...USABLE_SOURCE_LINK);
 
 /**
  * Which wording of the copy a cook was shown, and in which language: a KEY into one of recipe-core's closed lists, never the
@@ -382,10 +389,7 @@ const wordingOf = <const Versions extends readonly [string, ...string[]]>(versio
 const ownWebStatementSchema = publicWebStatementSchema
     .extend({ wording: wordingOf(STATEMENT_WORDINGS_BY_CHOICE.publicWeb) })
     .strict()
-    .refine((statement) => parseSourceLink(statement.citation).ok, {
-        message: 'citation is not a public web page address',
-        path: ['citation'],
-    });
+    .refine(...USABLE_SOURCE_LINK);
 
 /**
  * What a cook says about where THIS recipe came from, on a create, an update or a set-visibility (ADR-0089): "I wrote this", the

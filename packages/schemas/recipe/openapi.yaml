@@ -5129,6 +5129,29 @@ components:
             code:
               type: string
               enum:
+                - INVALID_VISIBILITY
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  enum:
+                    - SOURCE_CONFLICT
+                    - STATEMENT_REQUIRED
+                    - PUBLIC_CONFIRMATION_REQUIRED
+                    - FROM_PERSON_PRIVATE_ONLY
+              additionalProperties: {}
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
                 - MAX_PHOTOS_EXCEEDED
             message:
               type: string
@@ -5175,18 +5198,6 @@ components:
               type: string
               enum:
                 - NOT_OWNER
-            message:
-              type: string
-          required:
-            - code
-            - message
-          additionalProperties: {}
-        - type: object
-          properties:
-            code:
-              type: string
-              enum:
-                - INVALID_VISIBILITY
             message:
               type: string
           required:
@@ -6011,6 +6022,7 @@ components:
           enum:
             - authored
             - source
+            - fromPerson
             - unrecognised
           description: "unrecognised is client-side only: what a client reads for a statement kind newer than it knows. The server
             never sends it."

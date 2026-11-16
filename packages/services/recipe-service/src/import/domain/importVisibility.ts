@@ -10,7 +10,7 @@
  * read under the per-user lock inside `create` (ADR-0073), and a free cook out of slots pauses the import through the port
  * in `privateSlots.port.ts`. Reading a slot count here, outside that transaction, is the race ADR-0073 forbids.
  */
-import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeVisibility, fromPersonOf } from '@kitchensink/recipe-core';
 
 import { isPremiumPrincipal, type Principal } from '../../auth/principal.js';
 import type { ContainmentSubject } from '../../common/containmentPolicy.js';
@@ -68,6 +68,7 @@ export function visibilityRefusedFor(
         hasAvailablePrivateSlot: true,
         requested: requested === 'public' ? RecipeVisibility.PUBLIC : RecipeVisibility.PRIVATE,
         sourceConflict: sourceConflictOfEvidence(evidenceListOf(provenance, 'importFile'), provenance),
+        fromPerson: fromPersonOf(provenance.statementKind),
     });
 
     return !decision.allowed;

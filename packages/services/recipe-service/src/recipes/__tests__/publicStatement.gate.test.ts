@@ -115,6 +115,33 @@ describe('PublicStatementGate.judge — the order of refusals', () => {
         );
     });
 
+    it('the stored "from another person" statement answers after the evidence rule and before the statement rule', async () => {
+        const evidenced = gateOf([WEB_ROW]);
+        const bare = gateOf();
+        const person = { statementKind: 'fromPerson' } as const;
+
+        await expect(
+            reasonOf(evidenced.gate.judge(writeOf({ ...person, stored: { tx: FAKE_TX, recipeId: 'r1' } }))),
+        ).resolves.toBe('SOURCE_CONFLICT');
+        await expect(reasonOf(bare.gate.judge(writeOf(person)))).resolves.toBe('FROM_PERSON_PRIVATE_ONLY');
+    });
+
+    it('lets a recipe the cook said is another person’s stay Private, and be a draft', async () => {
+        const { gate } = gateOf();
+        const person = { statementKind: 'fromPerson' } as const;
+        const privatePublished = { status: 'published' as RecipeStatus, visibility: 'private' as RecipeVisibility };
+        const publicDraft = { status: 'draft' as RecipeStatus, visibility: 'public' as RecipeVisibility };
+
+        await expect(gate.judge(writeOf({ ...person, after: privatePublished }))).resolves.toMatchObject({
+            fromPerson: true,
+        });
+        await expect(
+            gate.judge(writeOf({ ...person, after: publicDraft, confirmation: undefined })),
+        ).resolves.toMatchObject({
+            fromPerson: true,
+        });
+    });
+
     it('asks for the statement when only the statement rule holds (a paste was seen)', async () => {
         const { gate } = gateOf();
 
@@ -191,9 +218,9 @@ describe('PublicStatementGate.judge — the confirmation', () => {
     it('a refusal with a cause of its own is never masked by a missing confirmation', async () => {
         const { gate } = gateOf();
 
-        await expect(reasonOf(gate.judge(writeOf({ contentPastedAt: new Date(), confirmation: undefined })))).resolves.toBe(
-            'STATEMENT_REQUIRED',
-        );
+        await expect(
+            reasonOf(gate.judge(writeOf({ contentPastedAt: new Date(), confirmation: undefined }))),
+        ).resolves.toBe('STATEMENT_REQUIRED');
     });
 
     it('runs the caller’s check between the state rules and the confirmation', async () => {

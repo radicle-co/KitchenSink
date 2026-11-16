@@ -8,8 +8,8 @@
  * differ by one line. They now state the facts of their write, and this class asks the questions in the policies' order, so
  * the order is one fact held in one place:
  *
- * containment, private-only, the evidence rule (`sourceConflict`), the statement rule (`statementRequired`), the publish
- * floor the caller passes in, then the Public confirmation.
+ * containment, private-only, the evidence rule (`sourceConflict`), "from another person" (`fromPerson`), the statement rule
+ * (`statementRequired`), the publish floor the caller passes in, then the Public confirmation.
  *
  * The rules themselves stay pure and where they were (`evaluatePublishedState`, `publicConfirmationDutyOf`,
  * `sourceConflictOfEvidence`, `statementRequiredOfEvidence`); this class holds no rule of its own, only the order and the I/O.
@@ -17,7 +17,12 @@
  * @pattern Facade — one gate over the evidence and attestation tables
  */
 import { Inject, Injectable } from '@nestjs/common';
-import type { RecipeSourceKind, RecipeSourceType, RecipeStatementKind } from '@kitchensink/recipe-core';
+import {
+    fromPersonOf,
+    type RecipeSourceKind,
+    type RecipeSourceType,
+    type RecipeStatementKind,
+} from '@kitchensink/recipe-core';
 
 import type { Principal } from '../auth/principal.js';
 import type { RecipeTx } from '../database/unitOfWork.js';
@@ -68,6 +73,8 @@ export interface PublicWrite {
 export interface PublicVerdict {
     /** Whether the evidence holds the recipe out of Public (`sourceConflictOf`). */
     readonly sourceConflict: boolean;
+    /** Whether the cook said the recipe is another person's (`fromPersonOf`). */
+    readonly fromPerson: boolean;
     /** Whether the cook still owes a statement (`statementRequiredOf`). */
     readonly statementRequired: boolean;
     /** Whether the write records the confirmation it was sent. */
@@ -117,12 +124,14 @@ export class PublicStatementGate {
             statementKind: write.statementKind,
             contentPastedAt: write.contentPastedAt,
         });
+        const fromPerson = fromPersonOf(write.statementKind);
         const details = { visibility: write.after.visibility, sourceType: write.source.sourceType };
 
         const decision = evaluatePublishedState({
             ...write.after,
             ...write.source,
             sourceConflict,
+            fromPerson,
             statementRequired,
             principalKind: write.principal.principalKind,
             containment: write.principal.containment,
@@ -143,7 +152,12 @@ export class PublicStatementGate {
             throw publicConfirmationRequired(details);
         }
 
-        return { sourceConflict, statementRequired, recordsConfirmation: !exempt && duty.recordedWhenSupplied };
+        return {
+            sourceConflict,
+            fromPerson,
+            statementRequired,
+            recordsConfirmation: !exempt && duty.recordedWhenSupplied,
+        };
     }
 
     /**

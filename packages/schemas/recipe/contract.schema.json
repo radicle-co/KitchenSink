@@ -10833,6 +10833,38 @@
                     "additionalProperties": {},
                     "properties": {
                         "code": {
+                            "const": "INVALID_VISIBILITY",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "reason": {
+                                    "enum": [
+                                        "SOURCE_CONFLICT",
+                                        "STATEMENT_REQUIRED",
+                                        "PUBLIC_CONFIRMATION_REQUIRED",
+                                        "FROM_PERSON_PRIVATE_ONLY"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
                             "const": "MAX_PHOTOS_EXCEEDED",
                             "type": "string"
                         },
@@ -10898,23 +10930,6 @@
                     "properties": {
                         "code": {
                             "const": "NOT_OWNER",
-                            "type": "string"
-                        },
-                        "message": {
-                            "type": "string"
-                        }
-                    },
-                    "required": [
-                        "code",
-                        "message"
-                    ],
-                    "type": "object"
-                },
-                {
-                    "additionalProperties": {},
-                    "properties": {
-                        "code": {
-                            "const": "INVALID_VISIBILITY",
                             "type": "string"
                         },
                         "message": {
@@ -11826,6 +11841,7 @@
                     "enum": [
                         "authored",
                         "source",
+                        "fromPerson",
                         "unrecognised"
                     ],
                     "type": "string"
@@ -14601,6 +14617,7 @@
                             "enum": [
                                 "authored",
                                 "source",
+                                "fromPerson",
                                 "unrecognised"
                             ],
                             "type": "string"

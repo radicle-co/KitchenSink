@@ -104,8 +104,9 @@ describe('evaluateSourceCorrection — a clear (statement null) before the first
         });
     });
 
-    it('is a plain write of none for a recipe that had no source', () => {
-        expect(evaluateSourceCorrection({ statement: null, stored: NONE })).toMatchObject({ kind: 'apply' });
+    // A clear over nothing took no effect: the attestation record must not say the cook cleared a statement they never made.
+    it('is `unchanged` for a recipe that states nothing, so a clear with nothing stored leaves no trace', () => {
+        expect(evaluateSourceCorrection({ statement: null, stored: NONE })).toEqual({ kind: 'unchanged' });
     });
 });
 
@@ -211,9 +212,11 @@ describe('evaluateSourceCorrection — "I wrote this" (Option B)', () => {
         });
     });
 
-    it('before the first publish, says it again: allowed, like any correction in the window', () => {
-        expect(evaluateSourceCorrection({ statement: AUTHORED, stored: AUTHORED_STORED })).toMatchObject({
-            kind: 'apply',
+    // Rewritten by ADR-0092: it used to say `apply`, which wrote the same columns again and recorded a second attestation for
+    // an act that changed nothing. The record is built from what a write did, so saying it again is `unchanged` in the window too.
+    it('before the first publish, says it again: nothing to write, so it is `unchanged`', () => {
+        expect(evaluateSourceCorrection({ statement: AUTHORED, stored: AUTHORED_STORED })).toEqual({
+            kind: 'unchanged',
         });
     });
 
@@ -250,6 +253,7 @@ describe('evaluateSourceCorrection — the whole table', () => {
     const SOURCES: ReadonlyArray<readonly [string, StoredSource]> = [
         ['no statement', NONE],
         ['authored', AUTHORED_STORED],
+        ['from another person', stored({ statementKind: 'fromPerson' })],
         ['a stated web copy', stored(WEB_COPY)],
         ['the curator’s text', stored({ sourceType: 'imported_public', sourceKind: null })],
         ['a stated book', stored({ sourceType: 'imported_physical', sourceKind: 'book', statementKind: 'source' })],
@@ -275,15 +279,20 @@ describe('evaluateSourceCorrection — the whole table', () => {
     // "From another person" and a book are locked exactly where a web link is: setBook and fromPerson behave as setWeb here.
     const TABLE: ReadonlyArray<readonly [string, Move, string, string]> = [
         ['no statement', 'setWeb', 'apply', 'locked'],
-        ['no statement', 'clear', 'apply', 'locked'],
+        ['no statement', 'clear', 'unchanged', 'locked'],
         ['no statement', 'authored', 'apply', 'apply'],
         ['no statement', 'setBook', 'apply', 'locked'],
         ['no statement', 'fromPerson', 'apply', 'locked'],
         ['authored', 'setWeb', 'apply', 'locked'],
         ['authored', 'clear', 'apply', 'locked'],
-        ['authored', 'authored', 'apply', 'unchanged'],
+        ['authored', 'authored', 'unchanged', 'unchanged'],
         ['authored', 'setBook', 'apply', 'locked'],
         ['authored', 'fromPerson', 'apply', 'locked'],
+        ['from another person', 'setWeb', 'apply', 'locked'],
+        ['from another person', 'clear', 'apply', 'locked'],
+        ['from another person', 'authored', 'apply', 'locked'],
+        ['from another person', 'setBook', 'apply', 'locked'],
+        ['from another person', 'fromPerson', 'unchanged', 'locked'],
         ['a stated web copy', 'setWeb', 'apply', 'locked'],
         ['a stated web copy', 'clear', 'apply', 'locked'],
         ['a stated web copy', 'authored', 'apply', 'locked'],
@@ -346,7 +355,7 @@ describe('evaluateSourceCorrection — a cookbook, or another person, before the
         });
     });
 
-    it('"from another person" sets no source and no statement, but still makes the recipe Private in the same write', () => {
+    it('"from another person" sets no source, stores the statement, and makes the recipe Private in the same write', () => {
         expect(evaluateSourceCorrection({ statement: FROM_PERSON, stored: NONE })).toEqual({
             kind: 'apply',
             provenance: {
@@ -354,9 +363,25 @@ describe('evaluateSourceCorrection — a cookbook, or another person, before the
                 sourceUrl: null,
                 sourceAttribution: null,
                 sourceKind: null,
-                statementKind: null,
+                statementKind: 'fromPerson',
             },
             makePrivate: true,
+        });
+    });
+
+    it('lets "from another person" be changed to "I wrote this" before the first publish, which is what makes the recipe publishable', () => {
+        expect(
+            evaluateSourceCorrection({ statement: AUTHORED, stored: stored({ statementKind: 'fromPerson' }) }),
+        ).toMatchObject({ kind: 'apply', provenance: { statementKind: 'authored' }, makePrivate: false });
+    });
+
+    it('lets "from another person" be cleared before the first publish, and says nothing of visibility', () => {
+        expect(
+            evaluateSourceCorrection({ statement: null, stored: stored({ statementKind: 'fromPerson' }) }),
+        ).toMatchObject({
+            kind: 'apply',
+            provenance: { statementKind: null },
+            makePrivate: false,
         });
     });
 

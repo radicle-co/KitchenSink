@@ -33,13 +33,16 @@ vi.mock('@clerk/nextjs', () => ({
 vi.mock('@/lib/basePath', () => ({ withBasePath: (p: string) => p }));
 
 /** The cook-marks keys the tab held when the command left. */
-const { keysAtLeave, navigateTo } = vi.hoisted(() => {
+const { keysAtLeave, keptKeysAtLeave, navigateTo } = vi.hoisted(() => {
     const keysAtLeave: string[][] = [];
+    const keptKeysAtLeave: string[][] = [];
 
     return {
         keysAtLeave,
+        keptKeysAtLeave,
         navigateTo: vi.fn(() => {
             keysAtLeave.push(Object.keys(window.sessionStorage).filter((key) => key.startsWith('cook.v1.')));
+            keptKeysAtLeave.push(Object.keys(window.localStorage).filter((key) => key.startsWith('cook.v2.')));
         }),
     };
 });
@@ -53,6 +56,8 @@ beforeEach(() => {
         clerkState.session = null;
     });
     keysAtLeave.length = 0;
+    keptKeysAtLeave.length = 0;
+    window.localStorage.setItem('cook.v2.user_cook', '{"v":1,"rev":1,"entries":{},"timers":[]}');
     navigateTo.mockClear();
     window.sessionStorage.setItem('cook.v1.user_cook.11111111-1111-4111-8111-111111111111', '{"lines":["a"],"step":2}');
     window.sessionStorage.setItem('cook.v1..22222222-2222-4222-8222-222222222222', '{"lines":[],"step":1}');
@@ -61,6 +66,7 @@ beforeEach(() => {
 afterEach(() => {
     cleanup();
     window.sessionStorage.clear();
+    window.localStorage.clear();
 });
 
 describe('useSignOutAndLeave — the device session ends before the leave', () => {
@@ -71,6 +77,14 @@ describe('useSignOutAndLeave — the device session ends before the leave', () =
 
         expect(navigateTo).toHaveBeenCalledTimes(1);
         expect(keysAtLeave).toEqual([[]]);
+    });
+
+    it('⛔ removes the kept cooking session from localStorage before it navigates away (AE10; mutant: the wrapper does not pass the store)', async () => {
+        const { result } = renderHook(() => useSignOutAndLeave());
+
+        await result.current.signOutAndLeave();
+
+        expect(keptKeysAtLeave).toEqual([[]]);
     });
 
     it('keeps the marks when the sign-out could not be proven', async () => {

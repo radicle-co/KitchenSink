@@ -190,14 +190,17 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
     };
 
     const clear = async (subject: string | undefined): Promise<void> => {
-        hydrating = undefined;
-        pending = undefined;
-        lastRaw = undefined;
-        set({
-            subject: undefined,
-            generation: state.generation + 1,
-            snapshot: subject === undefined ? { status: 'signedOut' } : { status: 'loading' },
-        });
+        // Clearing another cook (a switch of cook ends the old one's session) must not reset the cook now scoped.
+        if (subject === undefined || subject === state.subject || state.subject === undefined) {
+            hydrating = undefined;
+            pending = undefined;
+            lastRaw = undefined;
+            set({
+                subject: undefined,
+                generation: state.generation + 1,
+                snapshot: subject === undefined ? { status: 'signedOut' } : { status: 'loading' },
+            });
+        }
 
         if (subject !== undefined) {
             const key = keptKeyFor(subject);

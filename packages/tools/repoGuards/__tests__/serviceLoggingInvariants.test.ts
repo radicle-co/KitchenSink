@@ -161,7 +161,16 @@ function unroutedNestBootstraps(service: DiscoveredService): readonly string[] {
                 return;
             }
 
-            const options = node.arguments[1];
+            // The shared HTTP setup's `nestOptions(…)` carries the service's own options as its argument
+            // (serviceJsonParserOnce requires that form), so the logger is read from there.
+            const given = node.arguments[1];
+            const options =
+                given !== undefined &&
+                ts.isCallExpression(given) &&
+                ts.isPropertyAccessExpression(given.expression) &&
+                given.expression.name.text === 'nestOptions'
+                    ? given.arguments[0]
+                    : given;
             const logger =
                 options !== undefined && ts.isObjectLiteralExpression(options)
                     ? objectProperties(options).get('logger')
@@ -626,6 +635,39 @@ describe('every service that adopted the shared logger actually routes through i
             };
 
             expect(unroutedNestBootstraps(routed)).toEqual([]);
+        });
+
+        /** VIOLATING_SERVICE with its bootstrap's options replaced by `options`. */
+        const bootingWith = (options: string): DiscoveredService => ({
+            ...VIOLATING_SERVICE,
+            sources: VIOLATING_SERVICE.sources.map((source) =>
+                source.file.endsWith('/main.ts')
+                    ? {
+                          ...source,
+                          contents: source.contents.replace(
+                              'NestFactory.create(AppModule)',
+                              `NestFactory.create(AppModule, ${options})`,
+                          ),
+                      }
+                    : source,
+            ),
+        });
+
+        // The options a service hands Nest are the shared HTTP setup's `nestOptions(…)` result, so the adapter sits in
+        // that call's argument.
+        it('L1 accepts the adapter passed through the shared setup’s nestOptions(…)', () => {
+            expect(
+                unroutedNestBootstraps(bootingWith('X_SETUP.nestOptions({ logger: new NestRoutedLogger() })')),
+            ).toEqual([]);
+        });
+
+        it.each([
+            ['no options', 'X_SETUP.nestOptions()'],
+            ['options without a logger', 'X_SETUP.nestOptions({ bufferLogs: true })'],
+            ['another logger', 'X_SETUP.nestOptions({ logger: new ConsoleLogger() })'],
+            ['another member of the setup', 'X_SETUP.configure({ logger: new NestRoutedLogger() })'],
+        ])('L1 reports nestOptions(…) with %s', (_label, options) => {
+            expect(unroutedNestBootstraps(bootingWith(options))).toHaveLength(1);
         });
 
         it('L2 reports a direct Sentry.logger call', () => {

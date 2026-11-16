@@ -185,18 +185,39 @@ function createCallsWithoutSharedOptions(
     files: ReadonlyMap<string, string>,
 ): { readonly seen: number; readonly offenders: readonly string[] } {
     const parsed = parse(source);
-    const factories = valueBindingsOf(parsed, (specifier) => specifier === '@nestjs/core').locals.get('NestFactory');
+    const factories = new Set(
+        valueBindingsOf(parsed, (specifier) => specifier === '@nestjs/core').locals.get('NestFactory'),
+    );
     const offenders: string[] = [];
     let seen = 0;
 
+    // A local alias (`const F = NestFactory`) is the factory too. Declarations are visited in source order, so an alias
+    // of an alias is found.
     visit(parsed, (node) => {
         if (
-            !ts.isCallExpression(node) ||
-            !ts.isPropertyAccessExpression(node.expression) ||
-            node.expression.name.text !== 'create' ||
-            !ts.isIdentifier(node.expression.expression) ||
-            factories?.has(node.expression.expression.text) !== true
+            ts.isVariableDeclaration(node) &&
+            ts.isIdentifier(node.name) &&
+            node.initializer !== undefined &&
+            ts.isIdentifier(node.initializer) &&
+            factories.has(node.initializer.text)
         ) {
+            factories.add(node.name.text);
+        }
+    });
+
+    visit(parsed, (node) => {
+        if (!ts.isCallExpression(node)) {
+            return;
+        }
+
+        const callee = node.expression;
+        const target = ts.isPropertyAccessExpression(callee)
+            ? { object: callee.expression, member: callee.name.text }
+            : ts.isElementAccessExpression(callee) && ts.isStringLiteralLike(callee.argumentExpression)
+              ? { object: callee.expression, member: callee.argumentExpression.text }
+              : undefined;
+
+        if (target?.member !== 'create' || !ts.isIdentifier(target.object) || !factories.has(target.object.text)) {
             return;
         }
 
@@ -329,6 +350,33 @@ describe('createCallsWithoutSharedOptions — Nest must be created with the shar
         );
 
         expect(result.offenders).toHaveLength(1);
+    });
+
+    // Other spellings of the same call are counted, so none is a way past the check.
+    it.each([
+        ['an element access', "NestFactory['create'](AppModule)"],
+        ['a local alias of NestFactory', 'F.create(AppModule)', 'const F = NestFactory;\n'],
+        ['an alias of an alias', 'G.create(AppModule)', 'const F = NestFactory;\nconst G = F;\n'],
+    ])('counts and flags %s', (_label, create, before = '') => {
+        const source = main(create);
+        const result = createCallsWithoutSharedOptions(
+            { ...source, contents: source.contents.replace('await ', `${before}await `) },
+            files(shared),
+        );
+
+        expect(result).toMatchObject({ seen: 1, offenders: [expect.any(String)] });
+    });
+
+    it.each([
+        ['an element access', "NestFactory['create'](AppModule, X_SETUP.nestOptions({}))"],
+        ['a renamed import', 'F.create(AppModule, X_SETUP.nestOptions({}))'],
+    ])('accepts %s that passes the shared options', (_label, create) => {
+        const source = main(create);
+        const renamed = create.startsWith('F.')
+            ? { ...source, contents: source.contents.replace('{ NestFactory }', '{ NestFactory as F }') }
+            : source;
+
+        expect(createCallsWithoutSharedOptions(renamed, files(shared))).toEqual({ seen: 1, offenders: [] });
     });
 
     it('ignores a create that is not NestFactory’s', () => {

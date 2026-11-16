@@ -5,7 +5,7 @@
  * DESIGN PATTERN: **Adapter** over {@link PageDocument}, narrowed to one question, "is this run of tokens on the page".
  * It is built once per paste and holds no extraction logic.
  *
- * ⛔ A page is hostile input, so the read is bounded three ways. The body is read to {@link MAX_VISIBLE_NODES} nodes and
+ * ⛔ A page is hostile input, so the read is bounded three ways. The body is read to `MAX_VISIBLE_NODES` (`pageCaps.ts`) nodes and
  * {@link MAX_VISIBLE_TOKENS} tokens, and a page past either is `tooComplex`, never half read. A lookup goes through an index
  * of the RAREST token of the run (an index of every token's positions), not a scan of every position, and all lookups of one paste share one budget of
  * {@link MAX_TOKEN_COMPARISONS} comparisons: a page that repeats one token thousands of times answers `overBudget`.

@@ -106,7 +106,7 @@ for (const viewport of [
                 const stepTwelve = page.getByRole('button', { name: 'Mark step 12 as current' });
 
                 // The toggle holds a number, so it is a circle with a 44 px floor. At the largest text its numeral disc
-                // (2rem plus padding) outgrows 44, which D64 allows for a text target.
+                // (2rem plus padding) outgrows 44, which D65 wants.
                 await expectAtLeast('the step 12 number', stepTwelve);
 
                 const box = await size(stepTwelve);
@@ -115,6 +115,13 @@ for (const viewport of [
 
                 if (textScale === 1) {
                     await expectFixed('the step 12 number at 100% text', stepTwelve);
+                } else {
+                    // The button grows with its numeral disc and no larger: a fixed rem square would be wider than it.
+                    const discWidth = await stepTwelve.evaluate(
+                        (button) => button.firstElementChild?.getBoundingClientRect().width ?? 0,
+                    );
+
+                    expect(box.width, 'the step toggle is as wide as its numeral').toBeCloseTo(discWidth, 0);
                 }
 
                 expect(

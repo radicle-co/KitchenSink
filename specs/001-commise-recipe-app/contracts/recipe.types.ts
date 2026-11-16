@@ -48,11 +48,11 @@ export const recipeVisibilitySchema = z.enum([RecipeVisibility.PUBLIC, RecipeVis
  * amended 2026-11-03, owner rulings, ADR-0082).
  *
  * - `imported_public` means "copied from a publicly reachable page". That page is fully protected, the opposite of
- *   public domain. Its public form is a linked card, facts only (`021-FR-014a`). Public domain text under the curator
+ *   public domain. Its only public form is a Commise-written version (`021-FR-003`, 2026-11-15). Public domain text under the curator
  *   grant is also this type, and opens only with a passing record (`021-FR-006`).
  * - `imported_physical` and `imported_paid` are the usual channels for a verbatim copy from a cookbook, magazine or
- *   paid site (`016-FR-015c` label 4). That copy stays private in full, and its public form is a book card, facts only
- *   (`021-FR-004`). A photographed family card is also `imported_physical`, and its own label decides what opens.
+ *   paid site (`016-FR-015c` label 4). That copy stays private in full, and its only public form is a Commise-written
+ *   version (`021-FR-003`). A photographed family card is also `imported_physical`, and its own label decides what opens.
  */
 export const RecipeSourceType = {
     USER_CREATED: 'user_created',
@@ -204,7 +204,7 @@ export interface Recipe {
  * mark a free-tier user's OCR import as premium content.
  *
  * STALE NOTE (2026-11-03, ADR-0082): `001-FR-003a` now says no recipe uses a premium-only capability, and a book or
- * paid-site recipe can be public as a book card (`021-FR-004`). This design artifact's body is not updated here. The
+ * paid-site recipe can be public as a Commise-written version (`021-FR-003`, 2026-11-15). This design artifact's body is not updated here. The
  * shipped derivation lives in `@kitchensink/recipe-core` and is a code follow-up. That is latent today — 004 has not shipped,
  * so every row is `user_created` — which is exactly why it is encoded correctly now, while the rule
  * costs nothing to get right.

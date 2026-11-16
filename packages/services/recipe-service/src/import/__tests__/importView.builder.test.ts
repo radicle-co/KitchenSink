@@ -121,9 +121,17 @@ describe('ImportViewBuilder', () => {
 
             await builder.build(makePrincipal({ roles: [...roles] }), makeHeader(), { limit: 100 });
 
-            expect(stateOf.mock.calls[0]?.[2]).toStrictEqual({ channel: 'bulk', isPremium });
+            expect(stateOf.mock.calls[0]?.[2]).toStrictEqual({ channel: 'bulk', isPremium, principalKind: 'real' });
         },
     );
+
+    it('⛔ reads a test principal’s allowance as a test principal’s, which has no limit (owner ruling 2026-11-15)', async () => {
+        const { builder, stateOf } = build({});
+
+        await builder.build(makePrincipal({ principalKind: 'test' }), makeHeader(), { limit: 100 });
+
+        expect(stateOf.mock.calls[0]?.[2]).toStrictEqual({ channel: 'bulk', isPremium: false, principalKind: 'test' });
+    });
 
     it('reads a cursor at the count as done (null) and a Save-and-leave header as closed', async () => {
         const answered = await view({}, makeHeader({ expectedTotal: 3, cursorOrdinal: 3, reviewClosedAt: new Date() }));

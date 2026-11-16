@@ -30,7 +30,7 @@ body { margin: 0; }
 .rd .card { background: var(--paper); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); }
 .rd .mx { margin-left: 16px; margin-right: 16px; }
 .rd .p { background-size: cover; background-position: center; }
-.rd .imgHero { background-image: url('/_blob/1565e64baf6583fa32ee612cd22c99a1'); }
+.rd .imgHero { background-image: url('assets/5024d8f60c578f87.webp'); }
 .rd .vp { height: 844px; }
 .rd .pad { padding: 0 16px; }
 .rd .gap8 { height: 8px; }
@@ -171,6 +171,8 @@ body { margin: 0; }
 .rd .step .label { display: block; margin-bottom: 2px; color: var(--action-text); }
 .rd .timer { margin-top: 12px; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px 0 10px; border-radius: 17px; background: var(--surface-muted); color: var(--ink); font-size: 14px; font-weight: 600; }
 .rd .timer .ic { width: 16px; height: 16px; color: var(--action-text); stroke-width: 1.9; }
+.rd .timer.running { background: var(--action); color: var(--on-action); }
+.rd .timer.running .ic { color: var(--on-action); }
 .rd .amt { font-weight: 600; white-space: nowrap; }
 .rd .endSpace { height: 28px; }
 .rd .ingSpace { height: 28px; }
@@ -473,7 +475,7 @@ body { margin: 0; }
                                         Roast for 20 minutes, then lower the oven to 190°C (170°C fan) and roast for
                                         another 1 hour 10 minutes, until the juices run clear.
                                     </p>
-<a class="timer tnum" href="#"><svg aria-hidden="true" class="ic"><use href="#timer"></use></svg>1 h 30 min</a>
+<a class="timer tnum running" href="#"><svg aria-hidden="true" class="ic"><use href="#timer"></use></svg>1 h 30 min</a>
 </div>
 </li>
 <li class="step card" style="display: flex; flex-direction: row; gap: 12px">

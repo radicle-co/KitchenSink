@@ -973,12 +973,12 @@
       "x": 0,
       "y": 11745,
       "w": 2400,
-      "h": 2664,
+      "h": 3438,
       "title": "Recipe detail, S3b exit-from-cooking-mode snackbar (mobile)"
     },
     "RecipeDetailDockS4bMobile.dc.html": {
       "x": 0,
-      "y": 14829,
+      "y": 15603,
       "w": 2400,
       "h": 8232,
       "title": "Recipe detail, S4b timer dock (mobile: iPhone 390, Android 384, 320 and 568 at the largest text, iPad 820 and 1194)"
@@ -1156,7 +1156,7 @@
     },
     "nRecipeDetailDockS4bMobile": {
       "x": 0,
-      "y": 14569,
+      "y": 15343,
       "text": "Recipe detail: S4b timer dock on the recipe page (Luna plan 0004, designer D24-D29)",
       "kind": "title1",
       "maxW": 2400

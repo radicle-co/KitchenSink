@@ -29,16 +29,17 @@ excluded from the vitest suite by the `.load.js` suffix / this `tests/load/` dir
 
 They target the performance requirements of Feature 001:
 
-| Script                       | Requirement           | Assertion (via `options.thresholds`)                                                                                            |
-| ---------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `sc009ReadWrite.load.js`     | SC-009                | `http_req_duration` p95 ≤ 500ms on recipe list / get / create                                                                   |
-| `searchLatency.load.js`      | SC-009                | search `http_req_duration` p95 < 2s                                                                                             |
-| `saveUnderArchive.load.js`   | FR-007b-i             | recipe-save (create + update) p95 ≤ 500ms while the S3 archive is queued                                                        |
-| `pullFromSource.load.js`     | W8-a.8 / FR-011       | collection pull `previewPull` / `commitPull` p95 ≤ 500ms (read + write)                                                         |
-| `versionArchiveRead.load.js` | W8-a.7                | version GET served via the S3 archive fallback p95 < 1s                                                                         |
-| `serviceErasure.load.js`     | CR-002 / U4a          | internal EdDSA-guarded erasure POST p95 ≤ 500ms (202) + expired → 401 under load                                                |
-| `nutritionBatch.load.js`     | REQ-IF-008 / ADR-0021 | deferred nutrition batch p95 ≤ 1.5s at BOTH ends of the ingredient-overlap spectrum, + a food outage degrades rather than fails |
-| `parseJobMatches.load.js`    | ADR-0071              | paste-job match command: first call p95 < 6s (bounded fan-out), repeat call p95 ≤ 500ms, never a 5xx under load                 |
+| Script                       | Requirement           | Assertion (via `options.thresholds`)                                                                                                  |
+| ---------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `sc009ReadWrite.load.js`     | SC-009                | `http_req_duration` p95 ≤ 500ms on recipe list / get / create                                                                         |
+| `searchLatency.load.js`      | SC-009                | search `http_req_duration` p95 < 2s                                                                                                   |
+| `saveUnderArchive.load.js`   | FR-007b-i             | recipe-save (create + update) p95 ≤ 500ms while the S3 archive is queued                                                              |
+| `pullFromSource.load.js`     | W8-a.8 / FR-011       | collection pull `previewPull` / `commitPull` p95 ≤ 500ms (read + write)                                                               |
+| `versionArchiveRead.load.js` | W8-a.7                | version GET served via the S3 archive fallback p95 < 1s                                                                               |
+| `serviceErasure.load.js`     | CR-002 / U4a          | internal EdDSA-guarded erasure POST p95 ≤ 500ms (202) + expired → 401 under load                                                      |
+| `nutritionBatch.load.js`     | REQ-IF-008 / ADR-0021 | deferred nutrition batch p95 ≤ 1.5s at BOTH ends of the ingredient-overlap spectrum, + a food outage degrades rather than fails       |
+| `parseJobMatches.load.js`    | ADR-0071              | paste-job match command: first call p95 < 6s (bounded fan-out), repeat call p95 ≤ 500ms, never a 5xx under load                       |
+| `importAdvance.load.js`      | ADR-0072              | bulk import advance command: p95 < 9s (inside the client's 10s), always `200` (a spent allowance is state, not an error), never a 5xx |
 
 A threshold breach makes `k6 run` exit non-zero, which fails the invoking CI job.
 

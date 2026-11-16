@@ -11,7 +11,7 @@
  * ⛔ IT ENUMERATES NOTHING. Every app module that imports Tamagui is read through the TypeScript parser (comments are not
  * code), so a prop in prose does not count and a renamed import cannot hide it.
  *
- * ✅ THE FIX FOR A FAILURE: spread `{...motionPropsOf(reduceMotion).sheet}` (or `.overlay`) instead of writing the prop.
+ * ✅ THE FIX FOR A FAILURE: spread `{...motionPropsOf(reduceMotion).sheet}` (or `.overlay`, or `.check` for a check mark) instead of writing the prop.
  *
  * @pattern Fitness Function over the source of every app
  */

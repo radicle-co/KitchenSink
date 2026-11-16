@@ -69,8 +69,8 @@ is shown**, and never auto-approves.
 
 ## Resolved findings (14)
 
-Three HIGH and eleven MEDIUM, all closed during the 2026-08-02 reconciliation. Full detail in
-[`v-model/peer-review.md`](./v-model/peer-review.md).
+Three HIGH and eleven MEDIUM, all closed during the 2026-08-02 reconciliation. The V-Model peer review that held the full detail was removed
+on 2026-11-13.
 
 Highlights worth carrying into implementation:
 

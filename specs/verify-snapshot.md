@@ -2,7 +2,7 @@
 
 **Generated**: 2026-05-13
 **Source**: per-feature `specs/<feature>/verify-report.md`, V-Model release audits, and supplemental command verification (targeted remediation pass 2026-05-13)
-**Purpose**: Live current-state counts for milestone burn-down tracking. Historical baselines remain in [`v1-launch-plan.md`](./v1-launch-plan.md) under each milestone's _Artifact Remediation_ section. V-Model closure criteria are defined in [`v-model-closure-checklist.md`](./v-model-closure-checklist.md).
+**Purpose**: Live current-state counts for milestone burn-down tracking. Historical baselines remain in [`v1-launch-plan.md`](./v1-launch-plan.md) under each milestone's _Artifact Remediation_ section.
 
 ---
 

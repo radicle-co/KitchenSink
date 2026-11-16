@@ -14,7 +14,6 @@
 - [../spec.md](../spec.md) — requirements and owner decisions D-001..D-004
 - [../plan.md](../plan.md) — technical plan, pattern register, library survey
 - [../tasks.md](../tasks.md) — implementation tasks
-- [../v-model/requirements.md](../v-model/requirements.md) — formal requirement set
 
 ## What changed in this revision
 

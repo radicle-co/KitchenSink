@@ -28,7 +28,6 @@ This directory contains the Product Forge v1.3.0 product specification artifacts
 - [metrics.md](./metrics.md) — measurable story outcomes
 - [../spec.md](../spec.md) — canonical FR reference (`FR-015..FR-021`)
 - [../plan.md](../plan.md) — technical architecture and endpoint model
-- [../v-model/requirements.md](../v-model/requirements.md) — REQ-level decomposition
 
 ---
 

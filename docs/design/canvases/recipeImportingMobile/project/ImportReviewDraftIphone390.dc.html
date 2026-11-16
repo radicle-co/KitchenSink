@@ -27,9 +27,9 @@ body { font-family: Inter, system-ui, sans-serif; }
 .ic { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .ic.sm { width: 16px; height: 16px; }
 .ic.xs { width: 14px; height: 14px; }
-.t13 { font-size: 14px; line-height: 20px; }
-.t15 { font-size: 16px; line-height: 24px; }
-.t17 { font-size: 16px; line-height: 24px; }
+.tMeta { font-size: 14px; line-height: 20px; }
+.tBody { font-size: 16px; line-height: 24px; }
+.tLead { font-size: 16px; line-height: 24px; }
 .soft { color: var(--ink-muted); }
 .w500 { font-weight: 500; }
 .w600 { font-weight: 600; }
@@ -120,6 +120,8 @@ body { font-family: Inter, system-ui, sans-serif; }
 .inp.soft { color: var(--ink-muted); }
 .stepper { display: inline-flex; align-items: center; gap: 4px; }
 .stepper a { width: 44px; height: 44px; border-radius: 12px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line-control); display: flex; align-items: center; justify-content: center; color: var(--action-text); }
+.needH { font-family: var(--font-display); font-size: 18px; line-height: 24px; font-weight: 600; }
+.stepper .stepIn { width: 56px; height: 44px; border: 0; background: transparent; text-align: center; font: 600 16px/24px var(--font-body); color: var(--ink-muted); padding: 0; margin: 0; }
 .stepper span { min-width: 32px; text-align: center; font-size: 16px; font-weight: 600; }
 .radio { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-control); flex: none; display: flex; align-items: center; justify-content: center; }
 .radio.on { box-shadow: inset 0 0 0 1.5px var(--selected-edge); }
@@ -225,7 +227,7 @@ body { font-family: Inter, system-ui, sans-serif; }
 .urlInp { font-size: 16px; }
 .pane2 { display: flex; flex-direction: column; gap: 32px; flex: 1; min-height: 0; }
 .camera { background: #10161c; color: #fff; flex: 1; position: relative; display: flex; flex-direction: column; }
-.camera .t13, .camera .t15 { color: #fff; }
+.camera .tMeta, .camera .tBody { color: #fff; }
 .camGuide { position: absolute; border: 2px solid rgba(255, 255, 255, 0.85); border-radius: 18px; }
 .shutter { width: 72px; height: 72px; border-radius: 50%; box-shadow: inset 0 0 0 4px #fff; display: flex; align-items: center; justify-content: center; }
 .shutter::after { content: ''; width: 56px; height: 56px; border-radius: 50%; background: #fff; }
@@ -253,10 +255,10 @@ body { font-family: Inter, system-ui, sans-serif; }
 .side.rail { padding: 22px 12px; align-items: center; }
 .side.rail a { width: 48px; justify-content: center; padding: 0; }
 .tile .ph { aspect-ratio: 4/3; border-radius: 12px; background-size: cover; background-position: center; }
-.pc-chicken { background-image: url(/_blob/ef613a29c1f89d02401d3657a7ea11cc); background-size: cover; background-position: center; }
-.pc-padthai { background-image: url(/_blob/0fef119536a2aea225b12b26685bc0ad); background-size: cover; background-position: center; }
-.pc-pancakes { background-image: url(/_blob/172bdf675e7466f97ede8a4e3e273bc6); background-size: cover; background-position: center; }
-.pc-cookies { background-image: url(/_blob/828833676c7a99de71d1e48cfe6ee1a2); background-size: cover; background-position: center; }
+.pc-chicken { background-image: url(assets/5024d8f60c578f87.webp); background-size: cover; background-position: center; }
+.pc-padthai { background-image: url(assets/b36717407bf33ebd.webp); background-size: cover; background-position: center; }
+.pc-pancakes { background-image: url(assets/e4799f8a1c8e7413.webp); background-size: cover; background-position: center; }
+.pc-cookies { background-image: url(assets/30e4afaaf018ff63.webp); background-size: cover; background-position: center; }
 .opt { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 12px; font-size: 14px; line-height: 20px; }
 .opt + .opt { border-top: 1px solid var(--line-divider); }
 .rad { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-control); flex: none; }
@@ -496,68 +498,37 @@ b, strong { font-weight: 600; }
 <span class="flex" style="gap: 8px"><a aria-label="Back to Recipes" class="back" href="#"><svg aria-hidden="true" class="ic"><use href="#chevL"></use></svg></a></span><span class="flex" style="gap: 8px"></span>
 </div>
 <h1 class="title" style="margin-top: 4px">Check the recipe</h1>
-<p class="t13 soft" style="margin-top: 6px">
+<p class="tMeta soft" style="margin-top: 6px">
                             Nothing is saved until you save it. The draft stays for 7 days.
                         </p>
+<section aria-labelledby="needDr" class="clist" style="padding: 12px 16px; margin-top: 16px"><h2 class="needH" id="needDr">Needed before saving</h2><label class="lab" for="servDr" style="margin-top: 12px">Servings</label><div class="stepper"><a aria-label="Fewer servings" href="#" role="button"><svg aria-hidden="true" class="ic"><use href="#minus"></use></svg></a><input aria-describedby="servHDr" aria-valuemin="1" aria-valuetext="Not set" class="stepIn" id="servDr" inputmode="numeric" readonly role="spinbutton" value="–"><a aria-label="More servings" href="#" role="button"><svg aria-hidden="true" class="ic"><use href="#plus"></use></svg></a></div><p class="tMeta soft" id="servHDr" style="margin-top: 4px">How many people does it feed?</p></section>
 <div style="margin-top: 12px">
 <div class="attrib">
 <svg aria-hidden="true" class="ic"><use href="#globe"></use></svg>
 <div class="grow">
-<p class="t15 w600">From BBC Good Food</p>
-<p class="t13 soft">
-                                        By the Good Food team · bbcgoodfood.com/recipes/chicken-chorizo-traybake
-                                    </p>
-<p class="t13 soft">
-                                        We checked its terms: you can share it, with the source shown.
-                                    </p>
+<p class="tBody w600">From allrecipes.com</p>
+<p class="tMeta soft" style="overflow-wrap: anywhere">https://www.allrecipes.com/recipe/26317/chicken-pot-pie-ix/</p>
+<p class="tMeta soft">Saved from allrecipes.com. The words and photos belong to their author. Private to you.</p>
 </div>
 </div>
 </div>
 <div class="clist" style="padding: 0 14px; margin-top: 12px">
-<div class="fieldRow">
-<div class="lab">
-<span>Servings</span><span class="errNote"><svg aria-hidden="true" class="ic"><use href="#alert"></use></svg>Needed before
-                                        saving</span>
-</div>
-<div class="inp soft" style="box-shadow: inset 0 0 0 1.5px var(--danger)">
-                                    How many people does it feed?
-                                </div>
-</div>
+
 <div class="fieldRow">
 <p class="lab"><span>Ingredients · 11</span><span class="soft">Show all</span></p>
 <ul>
-<li class="t13" style="padding: 5px 0"><b>600 g</b> chicken thighs, skin on</li>
-<li class="t13" style="padding: 5px 0"><b>200 g</b> cooking chorizo, sliced</li>
-<li class="t13" style="padding: 5px 0"><b>500 g</b> baby potatoes, halved</li>
-<li class="t13" style="padding: 5px 0">
-<span class="flag">a good glug of olive oil</span>
+<li class="tMeta" style="padding: 5px 0"><b>2 cups</b> cooked chicken, diced</li>
+<li class="tMeta" style="padding: 5px 0"><b>1 cup</b> frozen peas and carrots</li>
+<li class="tMeta" style="padding: 5px 0"><b>1/2 cup</b> chopped onion</li>
+<li class="tMeta" style="padding: 5px 0">
+<span class="flag">a splash of milk</span>
 <span class="flagNote"><svg aria-hidden="true" class="ic"><use href="#alert"></use></svg>Check the
                                             amount</span>
 </li>
 </ul>
 </div>
 </div>
-<div class="clist" style="padding: 14px 16px; margin-top: 12px">
-<div class="vis">
-<span class="vl">Who can see it</span>
-<div aria-label="Who can see it" class="vis" role="radiogroup">
-<div aria-checked="true" class="vopt on" role="radio">
-<div style="display: flex; flex-direction: column; min-width: 0; flex: 1">
-<span class="vt">Public</span><span class="vh">Anyone can find it in Discover</span>
-</div>
-</div>
-<div aria-checked="false" class="vopt" role="radio">
-<div style="display: flex; flex-direction: column; min-width: 0; flex: 1">
-<span class="vt">Private</span><span class="vh">Only you can see it</span><span class="vh">12 of 50 private slots left</span>
-</div>
-</div>
-</div>
-</div>
-<div class="stmt">
-<span aria-checked="false" class="cb" role="checkbox"></span>
-<p class="t15">I may share this recipe. Its source lets anyone share it.</p>
-</div>
-</div>
+<div class="quiet" style="margin-top: 12px"><svg class="ic" aria-hidden="true"><use href="#lock" /></svg><span>A copy of a web page stays private. It uses 1 of your private slots, and 12 are left.</span></div>
 <div class="flex" style="gap: 10px; margin-top: 16px; justify-content: space-between">
 <a class="btn primary" href="#">Save recipe</a><a class="linkBtn" href="#" style="color: var(--ink-muted)">Discard</a>
 </div>
@@ -566,7 +537,7 @@ b, strong { font-weight: 600; }
 
 <p class="label">Whole page, scrolled</p>
 </div><nav class="nv-tabbar" aria-label="Tabs"><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5 12 3.8l8.5 6.7V20a.8.8 0 0 1-.8.8H15v-6h-6v6H4.3a.8.8 0 0 1-.8-.8z"/></svg>Home</a><a class="nv-tab on" href="#" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C10.2 5 7.6 4.5 4 4.6v13.9c3.6-.1 6.2.4 8 1.9 1.8-1.5 4.4-2 8-1.9V4.6c-3.6-.1-6.2.4-8 1.9zM12 6.5v13.9"/></svg>Recipes</a><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m15.2 8.8-1.9 4.5-4.5 1.9 1.9-4.5z"/></svg>Discover</a><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5"/></svg>Meal plan</a><a class="nv-tab" href="#"><span class="avatar xs" aria-hidden="true">ER</span>You</a></nav><div class="nv-inset nv-bottom" style="height: 34px; background: var(--paper-raised)"><span class="nv-indicator"></span></div><div class="nv-fold" aria-hidden="true" style="top: 746px"><span>First screen ends</span></div></div><!--data-you-tab--></x-dc>
-        <script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 390, "height": 1151}}'>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 390, "height": 1160}}'>
             class Component extends DCLogic {
 renderVals() {
 return {};

@@ -76,8 +76,8 @@ function commit(message: string): string {
 
 const CANVAS = 'docs/design/canvases/Home';
 
-function run(args: string[]): { code: number | null; stdout: string; stderr: string } {
-    const result = spawnSync(TSX, [BIN, ...args], { cwd: repo, encoding: 'utf8' });
+function run(args: string[], env?: Record<string, string>): { code: number | null; stdout: string; stderr: string } {
+    const result = spawnSync(TSX, [BIN, ...args], { cwd: repo, encoding: 'utf8', env: { ...process.env, ...env } });
 
     return { code: result.status, stdout: result.stdout, stderr: result.stderr };
 }
@@ -443,6 +443,100 @@ describe('stage', () => {
 
         expect(result.code).toBe(1);
         await expect(readdir(out)).rejects.toThrow();
+    });
+});
+
+describe('LFS images', () => {
+    const ASSET = 'project/assets/0123456789abcdef.webp';
+    const IMAGE = Buffer.from([0x52, 0x49, 0x46, 0x46, 0x00, 0xff, 0x0d, 0x0a, 0x57, 0x45, 0x42, 0x50, 0x80]);
+    const POINTER_START = 'version https://git-lfs.github.com/spec/v1';
+    let lfsMainSha: string;
+
+    beforeEach(async () => {
+        git('lfs', 'install', '--local', '--skip-repo');
+        await put(
+            '.gitattributes',
+            'docs/design/canvases/*/** -text\ndocs/design/canvases/*/project/assets/** filter=lfs diff=lfs merge=lfs -text\n',
+        );
+        await put(`${CANVAS}/${ASSET}`, IMAGE);
+        lfsMainSha = commit('image');
+    });
+
+    async function liveWithImage(): Promise<string> {
+        await writeLive({ ...BASELINE_FILES, 'project/a.html': '<p>a2</p>\n', [ASSET]: IMAGE });
+
+        return writeList([...Object.keys(BASELINE_FILES), ASSET]);
+    }
+
+    it('stores the image as a pointer in git, so the fixture really is LFS', () => {
+        expect(git('cat-file', 'blob', `${lfsMainSha}:${CANVAS}/${ASSET}`)).toContain(POINTER_START);
+    });
+
+    it('stage writes the real image bytes, never the pointer text', async () => {
+        const list = await liveWithImage();
+        const result = run(['stage', 'homeWeb', '--main', lfsMainSha, '--live', live, '--list', list, '--out', out]);
+
+        expect(result.code).toBe(0);
+        const written = await readFile(join(out, 'Home', ASSET));
+        expect(Buffer.compare(written, IMAGE)).toBe(0);
+    });
+
+    it('check accepts a live image that equals the real image (no drift)', async () => {
+        const list = await liveWithImage();
+        const result = run(['check', 'homeWeb', '--main', lfsMainSha, '--live', live, '--list', list]);
+
+        expect(result.code).toBe(0);
+        expect(parseCheck(result.stdout).files.find((f) => f.path === ASSET)?.state).toBe('atMain');
+    });
+
+    it('check keeps byte-exact hashing for a non-LFS file with CRLF line endings', async () => {
+        await put(`${CANVAS}/project/crlf.html`, '<p>x</p>\r\n');
+        const crlfSha = commit('crlf');
+        await writeLive({
+            ...BASELINE_FILES,
+            'project/a.html': '<p>a2</p>\n',
+            [ASSET]: IMAGE,
+            'project/crlf.html': '<p>x</p>\r\n',
+        });
+        const list = await writeList([...Object.keys(BASELINE_FILES), ASSET, 'project/crlf.html']);
+        // The fixture repo sets autocrlf false, which would hide a CRLF conversion; a user's machine may set it true.
+        const result = run(['check', 'homeWeb', '--main', crlfSha, '--live', live, '--list', list], {
+            GIT_CONFIG_COUNT: '1',
+            GIT_CONFIG_KEY_0: 'core.autocrlf',
+            GIT_CONFIG_VALUE_0: 'true',
+        });
+
+        expect(result.code).toBe(0);
+        expect(parseCheck(result.stdout).files.find((f) => f.path === 'project/crlf.html')?.state).toBe('atMain');
+    });
+
+    it('stage never writes pointer text when the filter hands back a pointer', async () => {
+        await writeLive({ ...BASELINE_FILES });
+        const list = await writeList(Object.keys(BASELINE_FILES));
+        await rm(join(repo, '.git/lfs/objects'), { recursive: true, force: true });
+        // GIT_LFS_SKIP_SMUDGE makes the smudge filter answer the pointer itself instead of failing on the object.
+        const result = run(['stage', 'homeWeb', '--main', lfsMainSha, '--live', live, '--list', list, '--out', out], {
+            GIT_LFS_SKIP_SMUDGE: '1',
+        });
+
+        expect(result.code).toBe(2);
+        expect(result.stderr).toContain('lfs pull');
+        expect(await readdir(join(out, 'Home/project/assets')).catch(() => [])).toEqual([]);
+    });
+
+    it('stage fails with the pull command when the LFS object is missing', async () => {
+        // The image is not live yet, so `check` hashes nothing that would re-store the object it is about to lose.
+        await writeLive({ ...BASELINE_FILES });
+        const list = await writeList(Object.keys(BASELINE_FILES));
+        await rm(join(repo, '.git/lfs/objects'), { recursive: true, force: true });
+        const result = run(['stage', 'homeWeb', '--main', lfsMainSha, '--live', live, '--list', list, '--out', out]);
+
+        expect(result.code).toBe(2);
+        expect(result.stderr).toContain(
+            "git -c lfs.fetchexclude= lfs pull --include='docs/design/canvases/Home/project/assets/**'",
+        );
+        expect(result.stderr).toContain('git said:');
+        expect(await readdir(join(out, 'Home/project/assets')).catch(() => [])).toEqual([]);
     });
 });
 

@@ -165,8 +165,7 @@ small but genuinely has no default that is obviously right. Everything else was 
 documented rather than escalated.
 
 **Still outstanding from iteration 2**: C-015-005 remains derived-not-stated and awaits owner confirmation.
-The inducement gap logged in iteration 2 is now **closed** to the level a spec can carry (`C-015-016`), with
-counsel review recorded as a launch prerequisite.
+The eligibility gap logged in iteration 2 is now **closed** (`C-015-016`).
 
 ---
 
@@ -190,10 +189,8 @@ opened four new ones, which are recorded in [`../research-brief.md`](../research
 **One derived decision needs owner confirmation.** C-015-005 (privacy mandated by provenance never consumes a
 slot) was reasoned by this spec from C-015-004, not stated by the owner. It is flagged in both documents.
 
-**One gap found in our own prior legal analysis, now logged.** Every legal question examined so far concerned
-_hosting_ third-party content. A reward programme moves the analysis toward **inducement**, and §512(c)(1)(B)'s
-"direct financial benefit … right and ability to control" prong deserves a fresh look now that uploads are
-being deliberately incentivised. This was not considered when the spec was written. Research agenda item 4.
+**One gap found, now logged.** A reward programme deliberately encourages uploads, so the own-work rule
+(`FR-001`) and non-monetary rewards (`FR-007`) need checking against it. Research agenda item 4.
 
 ---
 

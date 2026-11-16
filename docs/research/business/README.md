@@ -47,13 +47,6 @@ guesses.
 | [`acquisitionIdeas.md`](./acquisitionIdeas.md) | 2026-10-28 | 41 ideas for downloads, sign-ups and reach, with the top 12 |
 | [`conversionIdeas.md`](./conversionIdeas.md)   | 2026-10-28 | 32 ideas for conversion, retention and revenue per install  |
 
-### Recipe rights
-
-| File                                                         | Date       | What it holds                                                                          |
-| ------------------------------------------------------------ | ---------- | -------------------------------------------------------------------------------------- |
-| [`recipeOwnershipResearch.md`](./recipeOwnershipResearch.md) | 2026-10-29 | Who owns a recipe, what rivals say, and how to spot copies. Research, not legal advice |
-| [`linkedCardResearch.md`](./linkedCardResearch.md)           | 2026-10-29 | What a public card can show for a recipe from another site. Research, not legal advice |
-
 ## What was left out
 
 These files are private and are not copied here. Some of the files above mention them by description only.
@@ -67,5 +60,5 @@ These files are private and are not copied here. Some of the files above mention
 
 - Use camelCase file names. Hyphens are not allowed in new file names.
 - Put the date the research was done at the top, and keep the source tags.
-- Mark legal research "research, not legal advice".
+- Legal analysis does not go in this folder. The repository is public: write rules as product behaviour only.
 - Check a file for private material before you add it. When you are not sure, leave it out.

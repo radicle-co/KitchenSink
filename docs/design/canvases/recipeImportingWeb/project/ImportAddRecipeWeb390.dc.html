@@ -1501,22 +1501,22 @@ body{margin:0}
         
 
             .pc-chicken {
-                background-image: url(/_blob/8183ee29d15bd8b23b770f3d36cc47d7);
+                background-image: url(assets/5024d8f60c578f87.webp);
                 background-size: cover;
                 background-position: center;
             }
             .pc-padthai {
-                background-image: url(/_blob/1c876156287f04814f90f3417d632be9);
+                background-image: url(assets/b36717407bf33ebd.webp);
                 background-size: cover;
                 background-position: center;
             }
             .pc-pancakes {
-                background-image: url(/_blob/e8cd8e522b823a7df9c39d860d4cf761);
+                background-image: url(assets/e4799f8a1c8e7413.webp);
                 background-size: cover;
                 background-position: center;
             }
             .pc-cookies {
-                background-image: url(/_blob/50b1f6396ec48b9f28189316a6c178d0);
+                background-image: url(assets/30e4afaaf018ff63.webp);
                 background-size: cover;
                 background-position: center;
             }
@@ -1921,10 +1921,139 @@ b, strong { font-weight: 600; }
                     .rd .tabbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
                     .tab .avatar.xs, .nv-tab .avatar.xs { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-divider); }
                     .tab.on .avatar.xs, .nv-tab.on .avatar.xs { box-shadow: 0 0 0 2px var(--ink); }
+
+/* Paste import boards. Type roles only: 14, 16, 18, 28. Colour only through the tokens above. */
+.screen .pi-page { --px: 40px; display: flex; flex-direction: column; flex: 1 0 auto; padding: 28px var(--px) 32px; }
+.screen .pi-page.mid { --px: 24px; padding-top: 12px; padding-bottom: 0; }
+.screen .pi-page.phone { --px: 16px; padding-top: 8px; padding-bottom: 0; }
+.screen .pi-top { display: flex; align-items: center; min-height: 44px; }
+.screen .pi-back { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; min-width: 44px; font-size: 16px; font-weight: 600; color: var(--ink); margin-left: -6px; }
+.screen .pi-back.icon { justify-content: center; margin-left: -10px; }
+.screen .pi-panels { display: flex; flex-direction: column; flex: 1; }
+.screen .pi-panels.row { flex-direction: row; gap: 48px; }
+.screen .pi-panels.row > .pi-panel { flex: 1; min-width: 0; }
+.screen .pi-panel { display: flex; flex-direction: column; position: relative; }
+.screen .pi-panels:not(.row) > .pi-panel:last-child { flex: 1; }
+.screen .pi-panels:not(.row) > .pi-panel + .pi-panel { border-top: 1px dashed var(--line-control); margin-top: 40px; padding-top: 24px; }
+.screen .pi-tag { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--ink-muted); margin-bottom: 12px; }
+.screen .pi-col { width: 100%; max-width: 640px; }
+.screen .pi-h1 { font-family: var(--font-display); font-weight: 600; font-size: 28px; line-height: 32px; margin-top: 4px; overflow-wrap: anywhere; }
+.screen .pi-h2 { font-family: var(--font-display); font-weight: 600; font-size: 18px; line-height: 24px; }
+.screen .pi-hint { font-size: 14px; line-height: 20px; color: var(--ink-muted); margin-top: 8px; }
+.screen .pi-meta { font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+.screen .pi-lab { display: block; font-size: 14px; line-height: 20px; font-weight: 600; margin: 24px 0 8px; }
+.screen .pi-entry { margin-top: 24px; }
+.screen .pi-box { display: block; width: 100%; padding: 12px 14px; border-radius: 12px; border: 0; background: var(--paper-raised); box-shadow: inset 0 0 0 1px var(--line-control); font: 400 16px/24px var(--font-body); color: var(--ink); resize: none; white-space: pre-wrap; overflow: auto; }
+.screen .pi-box.focus { box-shadow: inset 0 0 0 2px var(--focus-ring); }
+.screen .pi-input { display: block; width: 100%; min-height: 44px; padding: 10px 14px; border-radius: 12px; border: 0; background: var(--paper-raised); box-shadow: inset 0 0 0 1px var(--line-control); font: 400 16px/24px var(--font-body); color: var(--ink); resize: none; overflow-wrap: anywhere; }
+.screen .pi-input.sm { font-size: 14px; line-height: 20px; }
+.screen .pi-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; min-width: 160px; padding: 10px 20px; border-radius: 999px; border: 0; font: 600 16px/24px var(--font-body); color: var(--ink); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line-control); text-align: center; cursor: pointer; }
+.screen .pi-btn.primary { background: var(--action); color: var(--on-action); box-shadow: none; }
+.screen .pi-btn.danger { color: var(--danger-text); box-shadow: inset 0 0 0 1px var(--danger); }
+.screen .pi-btn.ghost { background: transparent; box-shadow: none; min-width: 0; padding: 8px 12px; }
+.screen .pi-btn.block { width: 100%; }
+.screen .pi-btn .ic { width: 18px; height: 18px; }
+.screen .pi-spin { width: 18px; height: 18px; flex: none; border-radius: 50%; box-shadow: inset 0 0 0 2px currentColor; opacity: 0.4; border-top: 2px solid currentColor; }
+.screen .pi-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 24px; }
+.screen .pi-actions.end { justify-content: flex-end; }
+.screen .pi-pin { margin: auto calc(-1 * var(--px)) 0; padding: 12px var(--px) 16px; border-top: 1px solid var(--line-divider); background: var(--bar); display: flex; flex-direction: column; gap: 8px; }
+.screen .pi-pin .pi-btn { width: 100%; }
+.screen .pi-status { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; font-size: 16px; line-height: 24px; color: var(--ink); }
+.screen .pi-status .ic { color: var(--ink-muted); margin-top: 2px; }
+.screen .pi-alert { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; padding: 12px 14px; border-radius: 12px; background: var(--attention-tint); font-size: 16px; line-height: 24px; color: var(--ink); }
+.screen .pi-alert .ic { color: var(--attention); margin-top: 2px; }
+.screen .pi-alert .grow > .pi-actions { margin-top: 12px; }
+.screen .pi-pin .pi-alert { margin-top: 0; }
+.screen .pi-card { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 12px; border-left: 4px solid var(--action); background: var(--paper-raised); box-shadow: inset 0 0 0 1px var(--line-divider); }
+.screen .pi-card .kindrow { display: flex; align-items: center; gap: 8px; }
+.screen .pi-card .kindrow .ic { color: var(--ink-muted); }
+.screen .pi-card .kind { font-size: 14px; line-height: 20px; font-weight: 600; flex: 1; min-width: 0; }
+.screen .pi-card .name { font-size: 16px; line-height: 24px; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.screen .pi-card .url { font-size: 14px; line-height: 20px; color: var(--ink-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.screen .pi-card .site { font-size: 16px; line-height: 24px; }
+.screen .pi-how { margin-top: 24px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line-divider); background: var(--paper); }
+.screen .pi-how summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 8px 16px; font-size: 16px; font-weight: 600; cursor: pointer; list-style: none; }
+.screen .pi-how summary::-webkit-details-marker { display: none; }
+.screen .pi-how[open] summary .ic { transform: rotate(180deg); }
+.screen .pi-how .body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 20px; }
+.screen .pi-how ul { display: flex; flex-direction: column; gap: 8px; list-style: none; }
+.screen .pi-radios { display: flex; flex-direction: column; margin-top: 16px; border-radius: 12px; background: var(--paper-raised); box-shadow: inset 0 0 0 1px var(--line-divider); }
+.screen .pi-radio { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 12px 16px; font-size: 16px; line-height: 24px; overflow-wrap: anywhere; }
+.screen .pi-radio + .pi-radio { border-top: 1px solid var(--line-divider); }
+.screen .pi-radio input { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--ink); }
+.screen .pi-radio .hint { display: block; font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+.screen .pi-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.screen .pi-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 8px 16px; border-radius: 999px; font-size: 14px; line-height: 20px; font-weight: 600; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line-control); }
+.screen .pi-chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.screen .pi-chip:has(input:checked) { background: var(--surface-muted); box-shadow: inset 0 0 0 2px var(--ink); }
+.screen .pi-chip.focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.screen .pi-chip .ic { width: 16px; height: 16px; }
+.screen .pi-block { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: 12px; background: var(--paper-raised); box-shadow: inset 0 0 0 1px var(--line-divider); }
+.screen .pi-sub { font-size: 14px; line-height: 20px; font-weight: 600; margin-top: 12px; }
+.screen .pi-sub:first-child { margin-top: 0; }
+.screen .pi-need { margin-top: 24px; display: flex; flex-direction: column; gap: 16px; padding: 16px; border-radius: 12px; background: var(--paper-raised); box-shadow: inset 0 0 0 1px var(--line-control); }
+.screen .pi-item { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 12px; }
+.screen .pi-item.bad { box-shadow: inset 0 0 0 2px var(--danger); }
+.screen .pi-err { display: flex; align-items: flex-start; gap: 6px; font-size: 14px; line-height: 20px; color: var(--danger-text); }
+.screen .pi-err .ic { width: 16px; height: 16px; margin-top: 2px; }
+.screen .pi-ask { font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+.screen .pi-stepper { display: inline-flex; align-items: center; gap: 4px; }
+.screen .pi-stepper button { width: 44px; height: 44px; border-radius: 12px; border: 0; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line-control); display: grid; place-items: center; color: var(--ink); }
+.screen .pi-stepper .val { min-width: 44px; text-align: center; font-size: 16px; line-height: 24px; color: var(--ink-muted); }
+.screen .pi-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.screen .pi-lines { margin-top: 12px; display: flex; flex-direction: column; border-radius: 12px; background: var(--paper-raised); box-shadow: inset 0 0 0 1px var(--line-divider); padding: 0 16px; }
+.screen .pi-lines li { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; }
+.screen .pi-lines li + li { border-top: 1px solid var(--line-divider); }
+.screen .pi-lines .ic { margin-top: 2px; color: var(--ink-muted); }
+.screen .pi-lines .food { font-size: 16px; line-height: 24px; font-weight: 600; }
+.screen .pi-lines .orig { font-size: 14px; line-height: 20px; color: var(--ink-muted); overflow-wrap: anywhere; }
+.screen .pi-lines .pi-btn { align-self: center; }
+.screen .pi-two-col { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 40px; align-items: start; margin-top: 8px; }
+.screen .pi-sticky { position: sticky; top: 0; display: flex; flex-direction: column; }
+.screen .pi-savebox { display: flex; flex-direction: column; gap: 8px; margin-top: 24px; }
+.screen .pi-savebox .pi-alert { margin-top: 0; }
+.screen .pi-notice { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 12px; background: var(--paper-raised); box-shadow: inset 0 0 0 1px var(--line-control); }
+.screen .pi-notice h3 { font-family: var(--font-display); font-weight: 600; font-size: 18px; line-height: 24px; }
+.screen .pi-notice h3.focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.screen .pi-link { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; font-weight: 600; }
+.screen .pi-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; background: var(--attention-tint); font-size: 14px; line-height: 20px; font-weight: 600; }
+.screen .pi-badge .ic { width: 16px; height: 16px; color: var(--attention); }
+.screen .pi-cover { height: 160px; border-radius: 12px; background: var(--cover-seafoam); }
+.screen .pi-ann { margin-top: 16px; padding: 8px 12px; border-radius: 8px; border: 1px dashed var(--line-control); font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+.screen .pi-stack { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; }
+.screen .pi-stack .pi-btn { width: 100%; }
+.screen .pi-dlgwrap { position: relative; min-height: 360px; margin-top: 24px; border-radius: 12px; overflow: hidden; }
+.screen .pi-dlgwrap .pi-dim { position: absolute; inset: 0; background: var(--scrim); }
+.screen .pi-confirm { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100% - 32px)); background: var(--paper-overlay); border-radius: 24px; padding: 24px; box-shadow: var(--shadow-xl); display: flex; flex-direction: column; gap: 12px; }
+.screen .pi-confirm h2 { font-family: var(--font-display); font-weight: 600; font-size: 18px; line-height: 24px; }
+.screen .pi-confirm h2.focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.screen .pi-confirm .btns { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; margin-top: 8px; }
+.screen .pi-confirm .btns .pi-btn { min-width: 0; }
+.screen .pi-dlg { position: absolute; z-index: 6; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 448px; max-width: 100%; background: var(--paper-overlay); border-radius: 24px; padding: 24px; box-shadow: var(--shadow-xl); display: flex; flex-direction: column; gap: 8px; }
+.screen .pi-sheet { position: absolute; z-index: 6; left: 0; right: 0; bottom: 0; background: var(--paper-overlay); border-radius: 24px 24px 0 0; padding: 12px 16px 34px; box-shadow: var(--shadow-xl); display: flex; flex-direction: column; gap: 8px; }
+.screen .pi-shead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.screen .pi-iconbtn { width: 44px; height: 44px; border-radius: 12px; border: 0; background: transparent; display: grid; place-items: center; color: var(--ink); margin-right: -8px; }
+.screen .pi-grab { width: 36px; height: 5px; border-radius: 3px; background: var(--line-divider); margin: 0 auto 4px; }
+.screen .pi-crow { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 0; color: var(--ink); }
+.screen .pi-crow + .pi-crow { border-top: 1px solid var(--line-divider); }
+.screen .pi-crow .ic { color: var(--ink); }
+.screen .pi-crow .t { font-size: 16px; line-height: 24px; font-weight: 600; }
+.screen .pi-crow .h { font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+.screen .pi-crow .ic.sm { color: var(--ink-muted); }
+.screen .pi-scrim { position: absolute; inset: 0; z-index: 5; background: var(--scrim); }
+.screen .pi-gridbg { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+.screen .pi-gridbg .c { border-radius: 12px; background: var(--paper); box-shadow: var(--shadow-md); overflow: hidden; }
+.screen .pi-gridbg .c .ph { height: 120px; background: var(--cover-seafoam); }
+.screen .pi-gridbg .c p { padding: 10px 12px 12px; font-size: 16px; font-weight: 600; }
+.screen .pi-main { flex: 1 0 auto; min-width: 0; display: flex; flex-direction: column; position: relative; }
+.screen .pi-shell { display: grid; grid-template-columns: 232px 1fr; flex: 1 0 auto; }
+.screen .pi-shell .side a.me { height: 56px; font-weight: 600; color: var(--ink); }
+.screen .pi-shell .side .avatar.sm { width: 32px; height: 32px; font-size: 14px; flex: none; }
+.screen .tabbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
 </style>
 </helmet>
-<div class="screen" data-screen="phoneAddRecipe" style="width: 390px; height: 844px">
-                <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+<div class="screen" data-screen="web390ImportAddRecipe" style="width: 390px; height: 844px">
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
                     <defs>
                         <symbol id="home" viewBox="0 0 24 24">
                             <path d="M3.5 10.5 12 3.8l8.5 6.7V20a.8.8 0 0 1-.8.8H15v-6h-6v6H4.3a.8.8 0 0 1-.8-.8z" />
@@ -2074,136 +2203,14 @@ b, strong { font-weight: 600; }
                         <symbol id="leave" viewBox="0 0 24 24">
                             <path d="M10 5H5.5v14H10M14 8l4 4-4 4M18 12H9" />
                         </symbol>
-                    </defs>
+                    
+<symbol id="pi-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></symbol>
+<symbol id="pi-list" viewBox="0 0 24 24"><path d="M9 7h10M9 12h10M9 17h10M5 7h.01M5 12h.01M5 17h.01" /></symbol>
+<symbol id="pi-pencil" viewBox="0 0 24 24"><path d="M5 19l1-4 9.5-9.5a2 2 0 0 1 3 3L9 18z" /><path d="M14 7l3 3" /></symbol>
+</defs>
                 </svg>
-                <div class="main">
-                    <div
-                        class="col"
-                        style="padding: 52px 16px 8px; max-width: none; flex: 1; min-height: 0; position: relative"
-                    >
-                        <div class="top">
-                            <h1 class="title">Recipes</h1>
-                        </div>
-                        <div style="margin-top: 14px">
-                            <div class="seg"><a class="on" href="#">My recipes</a><a href="#">Collections</a></div>
-                        </div>
-                        <span class="inp soft" style="margin-top: 14px"
-                            ><svg class="ic" aria-hidden="true"><use href="#search" /></svg>Search your recipes</span
-                        >
-                        <p class="chipLab">Filter</p>
-                        <div class="hostChips hScroll" style="margin-top: 8px">
-                            <a class="fc on" href="#" aria-pressed="true"
-                                ><svg class="ic" aria-hidden="true"><use href="#check" /></svg>All</a
-                            ><a class="fc" href="#" aria-pressed="false">Under 30 min <span class="n">2</span></a
-                            ><a class="fc" href="#" aria-pressed="false">American <span class="n">3</span></a
-                            ><a class="fc" href="#" aria-pressed="false">French <span class="n">1</span></a
-                            ><a class="fc" href="#" aria-pressed="false">British <span class="n">1</span></a
-                            ><a class="fc" href="#" aria-pressed="false">Japanese <span class="n">1</span></a
-                            ><a class="fc" href="#" aria-pressed="false">Mediterranean <span class="n">1</span></a
-                            ><a class="fc" href="#" aria-pressed="false">Indian <span class="n">1</span></a
-                            ><a class="fc" href="#" aria-pressed="false">Thai <span class="n">1</span></a
-                            ><a class="fc" href="#" aria-pressed="false">Vegan <span class="n">1</span></a
-                            ><a class="fc" href="#" aria-pressed="false">Vegetarian <span class="n">1</span></a>
-                        </div>
-                        <div class="top" style="margin: 20px 0 8px">
-                            <p class="t15 w600">9 recipes</p>
-                            <a class="linkBtn" href="#" style="font-size: 14px"
-                                >Recently edited<svg class="ic sm" aria-hidden="true"><use href="#chevD" /></svg
-                            ></a>
-                        </div>
-                        <div class="clist">
-                            <a class="prow" href="#" style="align-items: flex-start; padding: 10px 0"
-                                ><span class="hostThumb pc-chicken"></span>
-                                <div class="tx">
-                                    <p class="t15 w600">Lemon and thyme roast chicken</p>
-                                    <p class="hostMeta">1 h 50 min · Medium · ★ 4.8 (12)</p>
-                                    <p class="hostMeta">Edited 2d ago</p>
-                                </div></a
-                            ><a class="prow" href="#" style="align-items: flex-start; padding: 10px 0"
-                                ><span class="hostThumb pc-cookies"></span>
-                                <div class="tx">
-                                    <p class="t15 w600">Brown butter chocolate chip cookies</p>
-                                    <p class="hostMeta">40 min · Easy · ★ 4.9 (112)</p>
-                                    <p class="hostMeta">Edited 1w ago</p>
-                                </div></a
-                            ><a class="prow" href="#" style="align-items: flex-start; padding: 10px 0"
-                                ><span class="hostThumb cover"
-                                    ><svg class="ic" aria-hidden="true"><use href="#photo" /></svg
-                                ></span>
-                                <div class="tx">
-                                    <p class="t15 w600">Miso-glazed salmon with sesame greens</p>
-                                    <p class="hostMeta">25 min · Easy · ★ 4.4 (9)</p>
-                                    <p class="hostMeta">Private · Edited 3h ago</p>
-                                </div></a
-                            ><a class="prow" href="#" style="align-items: flex-start; padding: 10px 0"
-                                ><span class="hostThumb cover"
-                                    ><svg class="ic" aria-hidden="true"><use href="#photo" /></svg
-                                ></span>
-                                <div class="tx">
-                                    <p class="t15 w600">Slow-roasted pork shoulder</p>
-                                    <p class="hostMeta">6 h 30 min · Hard · No ratings yet</p>
-                                    <p class="hostMeta">Draft · Created 5d ago</p>
-                                </div></a
-                            >
-                        </div>
-                        <a class="btn primary hostFab" href="#"
-                            ><svg class="ic" aria-hidden="true"><use href="#plus" /></svg>New recipe</a
-                        >
-                    </div>
-                </div>
-                <nav class="tabbar" aria-label="Tabs">
-                    <a class="tab" href="#"
-                        ><svg class="ic" aria-hidden="true"><use href="#home" /></svg>Home</a
-                    ><a class="tab on" href="#" aria-current="page"
-                        ><svg class="ic" aria-hidden="true"><use href="#book" /></svg>Recipes</a
-                    ><a class="tab" href="#"
-                        ><svg class="ic" aria-hidden="true"><use href="#compass" /></svg>Discover</a
-                    ><a class="tab" href="#"
-                        ><svg class="ic" aria-hidden="true"><use href="#calendar" /></svg>Meal plan</a
-                    ><a class="tab" href="#"><span class="avatar xs" aria-hidden="true">ER</span>You</a><a class="tab" href="#"><span class="avatar xs" aria-hidden="true">ER</span>You</a>
-                </nav>
-                <div class="scrimAll"></div>
-                <div class="bsheet" role="dialog">
-                    <div class="grab"></div>
-                    <h2>Add a recipe</h2>
-                    <div class="flex" style="gap: 8px">
-                        <div class="inp grow" style="box-shadow: inset 0 0 0 1.5px var(--selected-edge)">
-                            <svg class="ic" aria-hidden="true"><use href="#link" /></svg
-                            ><span class="soft grow">Paste a link</span>
-                        </div>
-                        <a class="btn primary" href="#">Add</a>
-                    </div>
-                    <p class="t13 soft" style="margin-top: -4px">A web page, TikTok, Instagram, YouTube or Facebook</p>
-                    <div>
-                        <a class="mrow" href="#"
-                            ><svg class="ic" aria-hidden="true"><use href="#paste" /></svg>
-                            <div class="grow">
-                                <p class="t15 w600">Paste the recipe text</p>
-                                <p class="t13 soft">From a note, an email or a book</p>
-                            </div>
-                            <svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg></a
-                        ><a class="mrow" href="#"
-                            ><svg class="ic" aria-hidden="true"><use href="#camera" /></svg>
-                            <div class="grow">
-                                <p class="t15 w600">Photograph a recipe card</p>
-                                <p class="t13 soft">Saved private, using one of your private slots</p>
-                            </div>
-                            <svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg></a
-                        ><a class="mrow" href="#"
-                            ><svg class="ic" aria-hidden="true"><use href="#pan" /></svg>
-                            <div class="grow">
-                                <p class="t15 w600">Write it yourself</p>
-                                <p class="t13 soft">Start from an empty recipe</p>
-                            </div>
-                            <svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg
-                        ></a>
-                    </div>
-                    <a class="linkBtn" href="#" style="color: var(--ink-muted)"
-                        >More ways: a file, or your library from another app<svg class="ic sm" aria-hidden="true">
-                            <use href="#chevR" /></svg
-                    ></a>
-                </div>
-            </div>
+<div class="pi-main"><div style="padding:24px 16px;position:relative;flex:1"><h1 class="pi-h1">Recipes</h1><div style="display:flex;align-items:center;gap:16px;margin-top:16px;justify-content:space-between"><span class="pi-input" style="max-width:480px;color:var(--ink-muted)">Search your recipes</span><button type="button" class="pi-btn primary" style="min-width:0"><svg class="ic " aria-hidden="true"><use href="#plus" /></svg>New recipe</button></div><div class="pi-gridbg" style="--cols:2"><div class="c"><div class="ph"></div><p>Lemon and thyme roast chicken</p></div><div class="c"><div class="ph"></div><p>Overnight sourdough boule</p></div><div class="c"><div class="ph"></div><p>Lemon ricotta pancakes</p></div><div class="c"><div class="ph"></div><p>Chickpea and spinach curry</p></div></div></div></div><nav class="tabbar" aria-label="Tabs"><a class="tab" href="#"><svg class="ic" aria-hidden="true"><use href="#home" /></svg>Home</a><a class="tab on" href="#" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#book" /></svg>Recipes</a><a class="tab" href="#"><svg class="ic" aria-hidden="true"><use href="#compass" /></svg>Discover</a><a class="tab" href="#"><svg class="ic" aria-hidden="true"><use href="#calendar" /></svg>Meal plan</a><a class="tab" href="#"><span class="avatar xs" aria-hidden="true">ER</span>You</a></nav><div class="pi-scrim"></div><div class="pi-sheet" role="dialog" aria-modal="true" aria-label="Add a recipe"><div class="pi-grab"></div><div class="pi-shead"><h2 class="pi-h2">Add a recipe</h2><button type="button" class="pi-iconbtn" aria-label="Close Add a recipe"><svg class="ic " aria-hidden="true"><use href="#x" /></svg></button></div><div><a class="pi-crow" href="#"><svg class="ic " aria-hidden="true"><use href="#paste" /></svg><div class="grow"><p class="t">Paste a recipe</p><p class="h">Text, or a whole web page</p></div><svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg></a><a class="pi-crow" href="#"><svg class="ic " aria-hidden="true"><use href="#pi-pencil" /></svg><div class="grow"><p class="t">Write it yourself</p><p class="h">Start from an empty recipe</p></div><svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg></a></div></div>
+</div>
 <!--data-you-tab--></x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 390, "height": 844}}'>
 class Component extends DCLogic {

@@ -40,7 +40,7 @@
   donation at erasure). Every High and Medium finding of that REVIEW is applied, and ADR-0074 records the decision.
 - A fifth round of owner answers (2026-10-26) closed the open items: in review is neither public nor private (a later ruling: a private
   bulk import in review holds its slot) and a not-approved one becomes private, the donation deadline is 14 days, there is no random sampling for now, and the
-  strict text rule stands. Only counsel items remain (FR-041).
+  strict text rule stands. Only open decisions remain (FR-041).
 - Some names of existing artefacts appear because the spec amends them: `004-FR-014a`, `016-FR-018`,
   `visibilityPolicy.ts`, `isRecipeViewableBy`, ADR-0024's grantee rule, ADR-0073's slots, `pg_trgm`,
   `normalize-url`, `lambda:SourceFunctionArn`, `first_published_at` and `cloned_from_id`. They name the contract being

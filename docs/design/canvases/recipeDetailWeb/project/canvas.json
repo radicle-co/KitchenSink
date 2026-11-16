@@ -273,7 +273,7 @@
       "x": 50320,
       "y": 260,
       "w": 1280,
-      "h": 1908,
+      "h": 1828,
       "title": "Recipe detail, cooking in progress (web, 1280)"
     },
     "RecipeDetailWeb1024.dc.html": {
@@ -294,7 +294,7 @@
       "x": 2208,
       "y": 2748,
       "w": 1024,
-      "h": 2021,
+      "h": 1941,
       "title": "Recipe detail, cooking in progress (web, 1024)"
     },
     "RecipeDetailWeb768.dc.html": {
@@ -315,7 +315,7 @@
       "x": 1696,
       "y": 5412,
       "w": 768,
-      "h": 3166,
+      "h": 3004,
       "title": "Recipe detail, cooking in progress (web, 768)"
     },
     "RecipeDetailWeb390.dc.html": {

@@ -662,6 +662,8 @@ export const FIXTURE_ENV_KEYS = {
     risotto: 'E2E_RECIPE_RISOTTO',
     privateFoodRecipe: 'E2E_RECIPE_PRIVATE_FOOD',
     privateFoodName: 'E2E_PRIVATE_FOOD_NAME',
+    // The signer's multi-sentence cooking recipe, made by `reset --mode cooking` for the cooking-mode Maestro flow alone.
+    cookingRecipe: 'E2E_RECIPE_COOKING',
     // The signer's gate-AMBIGUOUS recipe, made by `reset --mode ambiguity` for `recipes/ambiguityReview` alone.
     ambiguityProbeRecipe: 'E2E_RECIPE_AMBIGUITY_PROBE',
     // The word that recipe's food and lines are named for; chosen and verified at provision, like the words below.
@@ -850,6 +852,7 @@ export function manifestToEnvLines(
         `${FIXTURE_ENV_KEYS.risotto}=${byKey.get('risotto') ?? ''}`,
         `${FIXTURE_ENV_KEYS.privateFoodRecipe}=${manifest.privateFoodRecipe.title}`,
         `${FIXTURE_ENV_KEYS.privateFoodName}=${manifest.privateFoodName}`,
+        `${FIXTURE_ENV_KEYS.cookingRecipe}=${manifest.cookingRecipe.title}`,
         `${FIXTURE_ENV_KEYS.ambiguityProbeRecipe}=${manifest.ambiguityProbeTitle}`,
         `${FIXTURE_ENV_KEYS.ambiguityWord}=${probeWords.ambiguityWord}`,
         `${FIXTURE_ENV_KEYS.needsReviewProbeRecipe}=${manifest.needsReviewProbeTitle}`,

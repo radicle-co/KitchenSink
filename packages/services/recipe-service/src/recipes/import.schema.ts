@@ -525,6 +525,11 @@ const digitsSchema = z.string().regex(/^\d{1,10}$/u);
 /** A page size, in digits, from 1 to {@link MAX_IMPORT_PAGE_SIZE}. */
 const pageSizeSchema = digitsSchema.transform(Number).pipe(z.number().int().min(1).max(MAX_IMPORT_PAGE_SIZE));
 
+/** Path parameters of the item routes (`/steps/{ordinal}`, `/items/{ordinal}`): digits on the wire, an item position once parsed. */
+export const importOrdinalParamsSchema = z.object({
+    ordinal: digitsSchema.transform(Number).pipe(importOrdinalSchema),
+});
+
 /** Query of `GET /api/v1/import/{importId}`: a page of items by ordinal. Strings on the wire, so parsed from them. */
 export const getImportQuerySchema = z.object({
     /** Return items with an ordinal GREATER than this. Omit for the first page. */

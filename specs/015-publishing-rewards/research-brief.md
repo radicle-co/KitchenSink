@@ -15,12 +15,11 @@ for what was decided.
 
 **The idea.** Fill the public recipe corpus by _rewarding_ publication instead of _compelling_ it. Today
 `001-FR-003` makes a free-tier user's own recipes public with no private option, which is a trust problem, a
-weak monetisation lever, and exposed under GDPR Art. 25(2). Rewarding publication inverts the pressure: the
+weak monetisation lever, and not private by default. Rewarding publication inverts the pressure: the
 corpus fills with willing contributors, who are also the contributors worth having.
 
-**The hazard the whole design turns on.** A reward for publishing is an **inducement** to publish, and inducing
-people to publish content they do not own is exactly what creates contributory liability and can forfeit
-safe-harbour protection. This is why `FR-001` restricts _earning_ to recipes the user authored — imported,
+**The rule the whole design turns on.** A reward must never push people to publish content they do not own.
+This is why `FR-001` restricts _earning_ to recipes the user authored — imported,
 digitised, paid-source and cloned recipes may still publish where C-004 allows, they simply earn nothing.
 **A version of this feature that rewarded any publication would be worse than no feature at all.** Every option
 below must be tested against this.
@@ -128,8 +127,7 @@ get any privacy they must first publish. That is far better than the paywall it 
 publication, payable immediately, not money — but it is a **reciprocity gate**, not an absence of one, and two
 consequences follow:
 
-1. **GDPR Art. 25(2) is only partly addressed.** The Article is about the _default_, and the default for a new
-   user's own content is still public. What improved is that intervention no longer costs money.
+1. **Private by default is only partly addressed.** The default for a new user's own content is still public. What improved is that intervention no longer costs money.
 2. **The sensitive-first-recipe case has no path.** Someone whose first authored recipe is a family recipe they
    typed in themselves (`user_created` — so C-004's private-only classes do not cover it, and `FR-007d` does
    not protect it) must publish something else first.
@@ -162,7 +160,7 @@ the two currencies, exactly one reaches premium — status. If status turns out 
 no reason to contribute at all, and premium users are plausibly our _best_ contributors (more engaged, more
 recipes, more likely to be serious cooks).
 
-**Candidate additional incentives, to be evaluated against the inducement hazard:**
+**Candidate additional incentives, to be evaluated against the own-work rule (`FR-001`):**
 
 | Candidate                            | Reaches   | Inducement risk | Notes                                                                                                          |
 | ------------------------------------ | --------- | --------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -203,11 +201,8 @@ recipes, more likely to be serious cooks).
    by us.
 3. **Farming and gaming post-mortems** — how reward systems in UGC products were abused, and which controls
    held.
-4. **Legal re-check on inducement specifically.** Everything so far has been about _hosting_ third-party
-   content. A reward programme changes the analysis: it is closer to the inducement line (_Grokster_) than to
-   passive hosting, and §512(c)(1)(B)'s "direct financial benefit … right and ability to control" prong
-   deserves a fresh look now that we are deliberately incentivising uploads. **This was not analysed when the
-   spec was written.**
+4. **Own-work check on rewards specifically.** Confirm that every reward goes only to the cook's own work and is
+   non-monetary (`FR-001`, `FR-007`).
 5. **Whether §2's public-profile surface is 012 or 015.** Two specs must not both own a creator profile.
 
 ---
@@ -218,10 +213,10 @@ recipes, more likely to be serious cooks).
   making `imported_public` private-by-default. C-015-001 assumes D4a lands; if it does not, this feature
   inverts from a fix to an aggravation.
 - **D5** — re-pricing. Removing the privacy paywall removes the free tier's only current paywall lever.
-- **D24** — registered DMCA agent + repeat-infringer policy. `FR-016`–`FR-018` consume a takedown process that
+- **D24** — designated agent + repeat-infringer policy. `FR-016`–`FR-018` consume a takedown process that
   does not yet exist for the main recipe corpus.
 - ⚠️ **Corrected 2026-08-22**: the licence gap below is **pre-existing**, not created by 015 — `001-FR-004`
-  and `001-FR-005` already ship public read and clone. 015 amplifies it through inducement. The **takedown**
+  and `001-FR-005` already ship public read and clone. 015 rewards publication, so it depends on it. The **takedown**
   process hard-blocks **US4 only**. Original wording retained below for the record.
 - **The ToS content licence** — still missing portfolio-wide. We have no stated right to display or permit
   cloning of a user's recipe, which this feature depends on entirely.

@@ -6,11 +6,11 @@
     "coverage": {
         "components": 12,
         "implementations": 24,
-        "props": 85,
+        "props": 87,
         "documentedComponents": 12,
         "implementationsWithModuleDoc": 24,
         "implementationsWithComponentDoc": 24,
-        "documentedProps": 74,
+        "documentedProps": 76,
         "classifiedComponents": 12,
         "componentsWithPatternTag": 7,
         "crossPlatformComponents": 12
@@ -470,7 +470,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingLineRow.native.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingLineRow — one line of a cooking step on native: the whole row is ONE checkbox, named by the\nline's own text, at least the platform touch floor tall, with the box drawn by the design system's glyph in a slot as\ntall as the line, so the box sits on the first line however the text wraps.\n\nThe press is the house `PressScale` with the checkbox role and its checked state, so a held row shrinks like every other\nhouse control and a screen reader says \"checked\" or \"not checked\". The row is not given a name: its text is the name,\nso stating it again would be a second stop saying the same thing.\n\nThe focus line is set in the role named by `FOCUS_LINE_TYPE`, the one seam both platforms read, and every other line in\n`readingBody`.\n\nPresentational: props → JSX, apart from taking the screen-reader cursor when the screen asks (`focusRequested`).",
+                    "moduleDoc": "CookingLineRow — one line of a cooking step on native: the whole row is ONE checkbox, named by the\nline's own text, at least the platform touch floor tall, with the box drawn by the design system's glyph, which owns its slot and its size\nby the role of the line, so the box sits on the first line however the text wraps.\n\nThe press is the house `PressScale` with the checkbox role and its checked state, so a held row shrinks like every other\nhouse control and a screen reader says \"checked\" or \"not checked\". The row is not given a name: its text is the name,\nso stating it again would be a second stop saying the same thing.\n\nThe focus line is set in the role named by `LINE_TYPE.focus`, the one seam both platforms read, and every other line in\n`readingBody`.\n\nPresentational: props → JSX, apart from taking the screen-reader cursor when the screen asks (`focusRequested`).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -830,7 +830,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingNextPreview.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingNextPreview — the web Next preview: the next step, pinned in the foot above Back and Next while a\nline of this step is unticked. Under a cooking-frame height of 43.75 rem its line\nshows on one line, ending in an ellipsis; the clamp is visual only, so a screen reader still reads the whole line.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingNextPreview — the web Next preview: the next step, pinned in the foot above Back and Next while a\nline of this step is unticked. Under a cooking-frame height of 43.75 rem its line\nshows on one line, ending in an ellipsis; the clamp is visual only, so a screen reader still reads the whole line.\nUnder 40 rem it leaves the foot for the end of the scrolling step: the same text is drawn there, whole, and the\nframe's height shows one copy.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -842,6 +842,18 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "place",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"body\"",
+                                "\"foot\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Which of the two copies this is: the foot's, or the scrolling step's. The frame's height shows one of them.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingNextPreview.tsx"
+                        },
                         {
                             "name": "preview",
                             "type": "CookingPreviewView",
@@ -1163,6 +1175,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Exit, Back on step 1 and Back to the recipe: to the recipe page.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingSessionScreen.native.tsx"
+                        },
+                        {
+                            "name": "previewInBody",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Under 640 tall, in text: the Next preview is the last item of the scrolling step, not the foot's.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/CookingSessionScreen.native.tsx"
                         },
                         {

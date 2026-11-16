@@ -14,7 +14,7 @@ import type { FC } from 'react';
 import { useWindowDimensions } from 'react-native';
 
 import { exitOf } from './cookingCopy.js';
-import { NARROW_ROW, SHORT_SCREEN } from './cookingLayout.js';
+import { NARROW_ROW, PREVIEW_IN_BODY, SHORT_SCREEN } from './cookingLayout.js';
 import { CookingFrame } from './CookingFrame.native.js';
 import { CookingLoading } from './CookingLoading.native.js';
 import { CookingNav } from './CookingNav.native.js';
@@ -78,6 +78,7 @@ export const CookingScreen: FC<CookingScreenProps> = ({ read, onLeave, onEdit, o
     const { width, height, fontScale } = useWindowDimensions();
     const narrow = width / fontScale < NARROW_ROW.maxPx;
     const short = height / fontScale < SHORT_SCREEN.maxHeightPx;
+    const previewInBody = height / fontScale < PREVIEW_IN_BODY.maxHeightPx;
 
     const view = cookingEntryViewOf({ ...entry, read, copy, onLeave, onEdit, onHome });
 
@@ -94,6 +95,7 @@ export const CookingScreen: FC<CookingScreenProps> = ({ read, onLeave, onEdit, o
                     onLeave={onLeave}
                     narrow={narrow}
                     short={short}
+                    previewInBody={previewInBody}
                     width={width}
                 />
             );

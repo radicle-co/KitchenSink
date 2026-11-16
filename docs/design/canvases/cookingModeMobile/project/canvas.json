@@ -546,7 +546,7 @@
       "x": 0,
       "y": 27896,
       "w": 2400,
-      "h": 5020,
+      "h": 5080,
       "title": "Cooking mode, S4a leave and come back (mobile: iPhone 390, Android 384, iPad 820, 320 largest text)"
     }
   },
@@ -682,7 +682,7 @@
     "nCookingModeResumeS4aMobile": {
       "x": 0,
       "y": 27636,
-      "text": "Cooking mode: S4a leave and come back, the Resume lines, the Done row and the entry meta lines (Luna plan 0003, designer D16-D24)",
+      "text": "Cooking mode: S4a leave and come back, the Resume lines, the Done row and the entry meta lines (Luna plan 0003, designer D16-D24 and D37)",
       "kind": "title1",
       "maxW": 2400
     }

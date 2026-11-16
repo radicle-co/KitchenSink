@@ -8,6 +8,7 @@ export { RecipeDetailDialogs, type RecipeDetailDialogsProps } from './RecipeDeta
 export { RecipeLoadError, type RecipeLoadErrorProps } from './RecipeLoadError.js';
 export { recipeLoadMessages, type RecipeLoadMessages } from './messages.js';
 export { RecipeDetailRating, type RecipeDetailRatingProps } from './RecipeDetailRating.js';
+export { claimedViewerIdOf, viewerIdOf, viewerKnown } from './useRecipeDetailController.model.js';
 export {
     useRecipeDetailController,
     type RecipeDetailController,

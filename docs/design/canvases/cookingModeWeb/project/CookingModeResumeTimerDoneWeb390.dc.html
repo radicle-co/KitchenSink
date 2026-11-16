@@ -393,18 +393,6 @@
                     .offerRow .t16 {
                         flex: 1;
                     }
-                    .offer {
-                        height: 48px;
-                        padding: 0 16px;
-                        border-radius: 24px;
-                        border: 1px solid var(--line-control);
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 8px;
-                        font-size: 16px;
-                        font-weight: 600;
-                        color: var(--action-text);
-                    }
                     .jobs {
                         display: flex;
                         flex-direction: column;
@@ -1127,10 +1115,6 @@
                         height: 44px;
                         border-radius: 22px;
                     }
-                    .offer {
-                        height: 44px;
-                        border-radius: 22px;
-                    }
                     .outlineBtn {
                         height: 44px;
                         border-radius: 22px;
@@ -1499,20 +1483,6 @@
                         height: 44px;
                         gap: 6px;
                     }
-                    .textAction {
-                        color: var(--action-text);
-                        font-weight: 500;
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 6px;
-                        min-height: 44px;
-                    }
-                    .offer.textAction {
-                        border: 0;
-                        padding: 0;
-                        height: 44px;
-                        font-size: 16px;
-                    }
                     .pauseBtn {
                         background: transparent;
                         color: var(--ink-muted);
@@ -1660,13 +1630,6 @@
                         font-weight: 600;
                         font-size: 16px;
                     }
-                    .textAction {
-                        color: var(--ink);
-                        font-weight: 600;
-                    }
-                    .textAction svg {
-                        color: var(--action-text);
-                    }
                     .pillBtn.quiet {
                         font-weight: 600;
                     }
@@ -1782,7 +1745,7 @@
                         font-weight: 600;
                     }
                 .dockRow { flex-wrap: wrap; } .dockRow .lab { flex: 1 1 160px; }
-.dockActs { display: flex; gap: 12px; margin-left: auto; }
+.dockActs { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 12px; margin-left: auto; }
 </style>
             <link rel="stylesheet" href="ds/commise/redesign.css" /></helmet>
             <div class="screen phone" data-screen="phoneResumeTimerDone" style="width: 390px; height: 844px">

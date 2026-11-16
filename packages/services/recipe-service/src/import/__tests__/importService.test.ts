@@ -162,6 +162,7 @@ describe('ImportService.putItems', () => {
             RecipeErrorCode.IMPORT_ITEM_LOCKED,
         );
         expect(await codeOf(put({ kind: 'saved', ordinal: 1 }))).toBe(RecipeErrorCode.IMPORT_ITEM_ALREADY_SAVED);
+        expect(await codeOf(put({ kind: 'storageFull' }))).toBe(RecipeErrorCode.IMPORT_STORAGE_FULL);
     });
 });
 

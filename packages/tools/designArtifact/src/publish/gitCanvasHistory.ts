@@ -14,6 +14,9 @@ import type { RunGit } from '../sources/gitHead.js';
 /** Repo-relative folder that holds the canvases. */
 export const CANVASES_DIR = 'docs/design/canvases';
 
+/** The folder, inside a canvas's `project/`, that holds its LFS images. */
+export const CANVAS_ASSETS_DIR = 'assets';
+
 /** The ref a publish is made from. */
 export const MAIN_REF = 'origin/main';
 
@@ -136,26 +139,89 @@ export async function showText(run: RunGit, main: string, path: string): Promise
     return run(['show', `${main}:${path}`]);
 }
 
+const LFS_POINTER_START = 'version https://git-lfs.github.com/spec/v1\n';
+
 /**
- * Reads one blob's exact bytes.
+ * Whether bytes are a Git LFS pointer file instead of the content it stands for.
  *
- * @sideEffect Spawns `git`.
+ * @param bytes - A blob read from git.
+ * @returns `true` when it starts with the LFS pointer header.
+ */
+export function isLfsPointer(bytes: Buffer): boolean {
+    return bytes.subarray(0, LFS_POINTER_START.length).toString('latin1') === LFS_POINTER_START;
+}
+
+/**
+ * The `git` arguments that fetch the LFS images of canvas folders (`.lfsconfig` excludes them from an ordinary fetch).
+ *
+ * @param folders - The canvas folder names.
+ * @returns The arguments, with one `--include` list for all the folders.
+ */
+export function lfsPullArgs(folders: readonly string[]): string[] {
+    const include = folders.map((folder) => `${CANVASES_DIR}/${folder}/project/${CANVAS_ASSETS_DIR}/**`).join(',');
+
+    return ['-c', 'lfs.fetchexclude=', 'lfs', 'pull', `--include=${include}`];
+}
+
+/**
+ * {@link lfsPullArgs} as the shell command a person runs.
+ *
+ * @param folders - The canvas folder names.
+ * @returns The command, the include list quoted.
+ */
+export function lfsPullCommand(...folders: readonly string[]): string {
+    return `git ${lfsPullArgs(folders)
+        .join(' ')
+        .replace(/--include=(\S+)$/u, "--include='$1'")}`;
+}
+
+function lfsMissing(folder: string, path: string, detail = ''): DesignArtifactError {
+    return new DesignArtifactError(
+        'lfs-object-missing',
+        `${CANVASES_DIR}/${folder}/${path} is a Git LFS file whose content is not on this machine. Run: ${lfsPullCommand(folder)}${detail}`,
+    );
+}
+
+function stderrText(error: unknown): string {
+    return typeof error === 'object' && error !== null && 'stderr' in error ? String(error.stderr).trim() : '';
+}
+
+/**
+ * Reads one blob's exact bytes, through the repository's filters so an LFS path yields the real file.
+ *
+ * @sideEffect Spawns `git`. With `.lfsconfig` `fetchexclude` the smudge filter answers the pointer instead of
+ * downloading, which the pointer check then reports.
  * @param cwd - The repository.
  * @param main - The commit.
  * @param folder - The canvas folder name.
  * @param path - Canvas-relative path.
  * @returns The bytes, never decoded as a string.
+ * @throws DesignArtifactError `lfs-object-missing` when an image path is an LFS pointer, or its LFS filter fails; the
+ * message carries git's stderr in the second case.
  */
 export async function blobBytes(cwd: string, main: string, folder: string, path: string): Promise<Buffer> {
-    const { stdout } = await promisify(execFile)(
-        'git',
-        ['cat-file', 'blob', `${main}:${CANVASES_DIR}/${folder}/${path}`],
-        {
-            cwd,
-            encoding: 'buffer',
-            maxBuffer: 256 * 1024 * 1024,
-        },
-    );
+    let stdout: Buffer;
+
+    try {
+        ({ stdout } = await promisify(execFile)(
+            'git',
+            ['cat-file', '--filters', `${main}:${CANVASES_DIR}/${folder}/${path}`],
+            { cwd, encoding: 'buffer', maxBuffer: 256 * 1024 * 1024 },
+        ));
+    } catch (error) {
+        // A required LFS filter that cannot fetch its object fails the whole command.
+        if (path.startsWith(`project/${CANVAS_ASSETS_DIR}/`)) {
+            const detail = stderrText(error);
+
+            throw lfsMissing(folder, path, detail === '' ? '' : `\ngit said: ${detail}`);
+        }
+
+        throw error;
+    }
+
+    if (isLfsPointer(stdout)) {
+        throw lfsMissing(folder, path);
+    }
 
     return stdout;
 }

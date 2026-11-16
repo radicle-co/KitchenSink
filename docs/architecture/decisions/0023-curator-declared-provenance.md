@@ -134,7 +134,7 @@ public web page) or private (a book or a paid site). The import sets the label f
   `source` itself is still never accepted on a `PATCH`.
 - **The false-attribution hazard is still real.** §1 argued that a grant is a stronger control than a fetched URL. On
   the bulk route the control is weaker: the cook's own statement. The owner accepted that for bulk import. There the
-  cook brings the file and states each source. Counsel confirms the statement's wording before launch
+  cook brings the file and states each source. The statement's wording is confirmed before launch
   (016-`FR-050`).
 
 ### 1b. The one route that changes provenance after a save: a one-way downgrade

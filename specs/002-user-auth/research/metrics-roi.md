@@ -1,7 +1,7 @@
 # Metrics and ROI: Clerk User Authentication
 
 **Branch**: `002-user-auth` | **Date**: 2026-05-09
-**Status**: Complete | **Sources**: [spec.md](../spec.md) (NFR + SC sections), [plan.md](../plan.md), [v-model/requirements.md](../v-model/requirements.md)
+**Status**: Complete | **Sources**: [spec.md](../spec.md) (NFR + SC sections), [plan.md](../plan.md)
 
 ---
 

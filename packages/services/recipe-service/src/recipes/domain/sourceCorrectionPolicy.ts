@@ -148,6 +148,8 @@ function applyOf(decision: ReturnType<typeof evaluateProvenance>): SourceCorrect
         provenance: decision.provenance,
         makePrivate:
             decision.provenance.sourceKind !== null ||
+            // `attestedFromPerson: false`: this decides only what the write itself sets Private; a past "from another person"
+            // attestation keeps a cleared recipe off Public at the publish gate (`hasFromPerson`), not here.
             fromPersonOf({ statementKind: decision.provenance.statementKind, attestedFromPerson: false }),
     };
 }

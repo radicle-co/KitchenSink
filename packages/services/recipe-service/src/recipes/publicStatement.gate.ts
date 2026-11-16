@@ -138,6 +138,7 @@ export class PublicStatementGate {
             statementKind: write.statementKind,
             contentPastedAt: write.contentPastedAt,
         });
+        // `attestedFromPerson: false` when nothing is stored: a recipe that is only being created has no past attestation.
         const fromPerson =
             write.stored === undefined
                 ? fromPersonOf({ statementKind: write.statementKind, attestedFromPerson: false })

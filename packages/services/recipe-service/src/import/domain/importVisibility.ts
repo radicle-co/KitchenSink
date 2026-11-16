@@ -75,6 +75,7 @@ export function visibilityRefusedFor(
         hasAvailablePrivateSlot: true,
         requested: RecipeVisibility.PRIVATE,
         sourceConflict: sourceConflictOfEvidence(evidenceListOf(provenance, 'importFile'), provenance),
+        // `attestedFromPerson: false` — an import makes a new recipe, which has no past attestation to count.
         fromPerson: fromPersonOf({ statementKind: provenance.statementKind, attestedFromPerson: false }),
     });
 

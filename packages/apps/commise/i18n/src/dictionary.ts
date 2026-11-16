@@ -32,27 +32,30 @@ function pseudoOf<T>(english: T): T {
     return pseudoCopies.get(english) as T;
 }
 
-/**
- * Resolve the message set for `locale`, falling back to the required {@link DEFAULT_LOCALE} set when the
- * locale has no dedicated entry. Under the {@link PSEUDO_LOCALE} that fallback is the `en` set pseudo-localised
- * (`./pseudo.ts`), so every bundle reaches it with no entry of its own. `locale` is expected to already be a
- * negotiated/supported tag. Pure.
- */
-export function resolveMessages<T>(messages: LocalizedMessages<T>, locale: Locale): T {
-    const own = (messages as Partial<Record<Locale, T>>)[locale];
-
-    if (own !== undefined) {
-        return own;
-    }
-
-    return locale === PSEUDO_LOCALE ? pseudoOf(messages[DEFAULT_LOCALE]) : messages[DEFAULT_LOCALE];
+/** The catalog's own set for `locale`, or `undefined` when it holds none. Pure. */
+function ownSetOf<T>(messages: LocalizedMessages<T>, locale: Locale): T | undefined {
+    return (messages as Partial<Record<Locale, T>>)[locale];
 }
 
 /**
  * The locale of the set {@link resolveMessages} returns for `locale`: `locale` when the catalog holds its own set, else the
  * required {@link DEFAULT_LOCALE}. What a record of "the words the cook was shown" must name, because a fallback shows English
- * whatever was asked (the pseudo-locale is English, accented). Pure.
+ * whatever was asked (the pseudo-locale is English, accented). This is the ONE fallback rule, and `resolveMessages` follows it. Pure.
  */
 export function servedLocaleOf<T>(messages: LocalizedMessages<T>, locale: Locale): Locale {
-    return (messages as Partial<Record<Locale, T>>)[locale] === undefined ? DEFAULT_LOCALE : locale;
+    return ownSetOf(messages, locale) === undefined ? DEFAULT_LOCALE : locale;
+}
+
+/**
+ * Resolve the message set for `locale`, falling back to the required {@link DEFAULT_LOCALE} set when the
+ * locale has no dedicated entry ({@link servedLocaleOf}). Under the {@link PSEUDO_LOCALE} that fallback is the `en` set
+ * pseudo-localised (`./pseudo.ts`), so every bundle reaches it with no entry of its own. `locale` is expected to already
+ * be a negotiated/supported tag. Pure.
+ */
+export function resolveMessages<T>(messages: LocalizedMessages<T>, locale: Locale): T {
+    const served = servedLocaleOf(messages, locale);
+    const set = ownSetOf(messages, served) ?? messages[DEFAULT_LOCALE];
+
+    // Only the pseudo-locale's fallback is accented: a locale with its own set, and `en` itself, are served as written.
+    return served !== locale && locale === PSEUDO_LOCALE ? pseudoOf(set) : set;
 }

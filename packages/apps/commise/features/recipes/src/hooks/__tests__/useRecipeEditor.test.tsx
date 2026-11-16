@@ -4552,6 +4552,42 @@ describe('the source question on Publish (ADR-0092)', () => {
         });
     });
 
+    // The server knows what this device does not (a paste on another device): its `400 STATEMENT_REQUIRED` for a Publish that
+    // asked nothing opens the same sheet, and the answer sends the draft again.
+    it('⛔ a Publish the server refuses as STATEMENT_REQUIRED leaves the outbox, opens the sheet, and the answer re-sends it', async () => {
+        const { result, port } = mount();
+
+        act(() => {
+            result.current.setValues({ ...complete(), visibility: RecipeVisibility.PUBLIC });
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+        const seq = port.lastSeq();
+        act(() => {
+            port.park(seq, 400, { kind: 'recipeStatementRequired' });
+        });
+        await settle();
+        await settle();
+
+        expect(port.withdrawn).toEqual([seq]);
+        expect(result.current.statementAsk).toBe(true);
+        expect(result.current.parked).toBeUndefined();
+        expect(result.current.saveStatus.kind).not.toBe('syncFailed');
+
+        act(() => {
+            result.current.answerStatement(authored);
+        });
+        await settle();
+
+        expect(result.current.statementAsk).toBe(false);
+        expect(port.submitted).toHaveLength(2);
+        expect(port.submitted[1]).toMatchObject({
+            payload: { input: { status: 'published', statement: { kind: 'authored' } } },
+        });
+    });
+
     it('"I wrote this" publishes public with the statement and NO separate confirmation, and the draft is marked pasted', async () => {
         const { result, port } = mount();
 
@@ -4595,7 +4631,9 @@ describe('the source question on Publish (ADR-0092)', () => {
         expect(result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
         expect(result.current.statementAsk).toBe(false);
         expect(port.submitted[0]).toMatchObject({
-            payload: { input: { status: 'published', visibility: RecipeVisibility.PRIVATE, statement: { kind: 'book' } } },
+            payload: {
+                input: { status: 'published', visibility: RecipeVisibility.PRIVATE, statement: { kind: 'book' } },
+            },
         });
     });
 

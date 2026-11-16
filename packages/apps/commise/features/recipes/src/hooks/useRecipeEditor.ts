@@ -171,7 +171,9 @@ export type EditorWriteAnswer =
     /** The server refused a Private for want of a slot (`403 PRIVATE_SLOTS_FULL`): what it counted, and the cook's limit. */
     | { readonly kind: 'recipeSlotsFull'; readonly used: number; readonly limit: number }
     /** The server refused a public recipe that holds foods only its author can see (`400 PRIVATE_FOODS_ON_PUBLIC_RECIPE`): the lines. */
-    | { readonly kind: 'recipePrivateFoods'; readonly lines: readonly PrivateFoodLine[] };
+    | { readonly kind: 'recipePrivateFoods'; readonly lines: readonly PrivateFoodLine[] }
+    /** The server refused a write until the cook says where the recipe is from (`400 STATEMENT_REQUIRED`, ADR-0092). */
+    | { readonly kind: 'recipeStatementRequired' };
 
 /** The server's refusal of a private food in a public recipe, as the editor holds it for its sheet. */
 export interface PrivateFoodRefusal {
@@ -842,7 +844,11 @@ function writeVisibilityFirst(ctx: EditorContext, trigger: CheckpointTrigger): b
         return false;
     }
 
-    const followUp = visibilityFollowUp(derivedVisibility(draft, server.recipe), server.recipe, ctx.opts.privateRefusal);
+    const followUp = visibilityFollowUp(
+        derivedVisibility(draft, server.recipe),
+        server.recipe,
+        ctx.opts.privateRefusal,
+    );
 
     if (followUp.kind !== 'send') {
         return false;
@@ -1150,6 +1156,18 @@ function privateFoodsRefusedByServer(ctx: EditorContext, event: Settlement, line
     });
 }
 
+/**
+ * The server refused the write until the cook says where the recipe is from (another device pasted into it, or the server
+ * holds evidence this one does not). The draft is untouched: the sheet opens, and its answer sends the draft again.
+ *
+ * @sideEffect The refused write leaves the outbox and the source sheet opens.
+ */
+function statementRefusedByServer(ctx: EditorContext, event: Settlement): void {
+    whenRefusedWriteLeaves(ctx, event, () => {
+        ctx.statement.ask(true);
+    });
+}
+
 /** A parked or dropped answer for the outstanding write. @sideEffect */
 function onRefused(ctx: EditorContext, event: Settlement, pending: OutstandingWrite): void {
     // A dropped record is already out of the log: it never waits for the cook.
@@ -1168,6 +1186,13 @@ function onRefused(ctx: EditorContext, event: Settlement, pending: OutstandingWr
         // What waited behind the refused write is not sent past it.
         ctx.lane.dispatch({ type: 'deferredTaken' });
         privateFoodsRefusedByServer(ctx, event, event.answer.lines);
+
+        return;
+    }
+
+    if (event.answer?.kind === 'recipeStatementRequired') {
+        ctx.lane.dispatch({ type: 'deferredTaken' });
+        statementRefusedByServer(ctx, event);
 
         return;
     }

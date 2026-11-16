@@ -7,8 +7,9 @@
  * is hard-linked (same inode) to the shared install, a second worktree on the same lockfile runs NO install, a killed
  * install leaves nothing reusable, and an old install is pruned while the one a live worktree needs stays.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import {
+    chmodSync,
     copyFileSync,
     existsSync,
     mkdirSync,
@@ -152,7 +153,7 @@ describe('worktree:add', () => {
         git(repo, 'branch', 'feature/startless', 'main');
         const wt = path.join(scratch, 'wtStartless');
 
-        expect(() => run([wt, 'feature/startless', 'main'])).toThrow(/already exists/);
+        expect(() => run([wt, 'feature/startless', 'main'])).toThrow(/start point would be ignored/);
         expect(existsSync(wt)).toBe(false);
     });
 
@@ -272,5 +273,36 @@ describe('worktree:add', () => {
         expect(left).not.toContain('.tmp-trash-old-1');
         expect(left).toContain('.tmp-trash-fresh-1');
         expect(left.filter((name) => name.startsWith('.tmp-trash-') && name !== '.tmp-trash-fresh-1')).toEqual([]);
+    });
+
+    it('a prune that fails after the worktree is complete only warns, and the run succeeds', () => {
+        for (const [index, name] of ['p1', 'p2', 'p3', 'p4'].entries()) {
+            const dir = path.join(installRoot, name);
+            mkdirSync(path.join(dir, 'node_modules'), { recursive: true });
+            utimesSync(dir, new Date(2_000 + index), new Date(2_000 + index));
+        }
+
+        // A read-only install root: the cache hit still links, but pruning cannot rename a victim out of the way.
+        chmodSync(installRoot, 0o555);
+
+        try {
+            const wt = path.join(scratch, 'wtPruneFails');
+            const result = spawnSync('node', [script, wt, 'feature/pruneFails', 'main'], {
+                cwd: repo,
+                encoding: 'utf8',
+                env: {
+                    ...process.env,
+                    PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+                    KS_INSTALL_ROOT: installRoot,
+                    KS_FAKE_NPM_LOG: npmLog,
+                },
+            });
+
+            expect(result.status).toBe(0);
+            expect(result.stderr).toContain('pruning old installs failed');
+            expect(existsSync(path.join(wt, 'node_modules/dep/index.js'))).toBe(true);
+        } finally {
+            chmodSync(installRoot, 0o755);
+        }
     });
 });

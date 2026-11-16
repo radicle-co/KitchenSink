@@ -12073,7 +12073,7 @@
                         },
                         {
                             "name": "onChange",
-                            "type": "(id: string) => void",
+                            "type": "(id: Id) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -12082,7 +12082,7 @@
                         },
                         {
                             "name": "options",
-                            "type": "readonly RadioListOption[]",
+                            "type": "readonly RadioListOption<Id>[]",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -12143,7 +12143,7 @@
                         },
                         {
                             "name": "onChange",
-                            "type": "(id: string) => void",
+                            "type": "(id: Id) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -12152,7 +12152,7 @@
                         },
                         {
                             "name": "options",
-                            "type": "readonly RadioListOption[]",
+                            "type": "readonly RadioListOption<Id>[]",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,

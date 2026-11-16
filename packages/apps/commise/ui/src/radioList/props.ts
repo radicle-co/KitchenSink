@@ -14,25 +14,27 @@
  */
 
 /** One row of the list. */
-export interface RadioListOption {
+export interface RadioListOption<Id extends string = string> {
     /** The row's id, reported to `onChange`. Unique in the list. */
-    readonly id: string;
+    readonly id: Id;
     /** The visible label, which names the radio. */
     readonly label: string;
     /** A muted line under the label. It describes the radio, read after its name. */
     readonly hint?: string;
 }
 
-/** The cross-platform `RadioList` contract. */
-export interface RadioListProps {
+/**
+ * The cross-platform `RadioList` contract, over the host's own row ids: `onChange` reports one of them, never a bare string.
+ */
+export interface RadioListProps<Id extends string = string> {
     /** The group's accessible name ("How to match ingredients"). */
     readonly label: string;
     /** The rows, in the order they are drawn. */
-    readonly options: readonly RadioListOption[];
+    readonly options: readonly RadioListOption<Id>[];
     /** The checked row's id, or `undefined` when nothing is chosen yet. */
-    readonly value: string | undefined;
+    readonly value: Id | undefined;
     /** Called with a row's id when the person chooses it. The list holds no state: the host decides. */
-    readonly onChange: (id: string) => void;
+    readonly onChange: (id: Id) => void;
     /**
      * Every row is unavailable: it cannot be chosen, and a press reports nothing. The rows stay in the order and are still
      * read, named and described. For a list whose host is busy with the choice it already made (a change in flight).

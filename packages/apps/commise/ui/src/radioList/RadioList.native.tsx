@@ -11,7 +11,6 @@
  *
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.
  */
-import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '../theme/useTheme.native.js';
@@ -24,7 +23,13 @@ import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 const RADIO_SIZE = 18;
 
 /** The native design-system option list. */
-export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange, disabled = false }) => {
+export function RadioList<Id extends string>({
+    label,
+    options,
+    value,
+    onChange,
+    disabled = false,
+}: RadioListProps<Id>) {
     const { colors } = useTheme();
     const wash = usePressFill();
 
@@ -72,7 +77,7 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange,
             })}
         </View>
     );
-};
+}
 
 const styles = StyleSheet.create({
     group: { gap: nativeTokens.spacing[3] },

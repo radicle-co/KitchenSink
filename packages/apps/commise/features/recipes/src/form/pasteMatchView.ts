@@ -88,9 +88,6 @@ export const pasteMatchSummaryOf = (
     };
 };
 
-/** A day in the week ahead is named by its weekday; one further out by its date. */
-const WEEKDAY_NAMED_WITHIN_DAYS = 7;
-
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
@@ -103,17 +100,24 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  * @returns The day difference; negative when `to` is on an earlier day.
  */
 const calendarDaysBetween = (from: Date, to: Date, timeZone: string): number => {
-    // `en-CA` writes `YYYY-MM-DD`, which `Date.UTC` reads back as a plain calendar day with no zone or DST in it.
-    const dayStartOf = (instant: Date): number =>
-        Date.parse(new Intl.DateTimeFormat('en-CA', { timeZone }).format(instant));
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: 'numeric', day: 'numeric' });
+
+    // The numeric parts, read back with `Date.UTC`, are a plain calendar day with no zone or DST in it. No formatted date
+    // string is parsed, so the count does not depend on how a device's date library writes a date.
+    const dayStartOf = (instant: Date): number => {
+        const part = (type: Intl.DateTimeFormatPartTypes): number =>
+            Number(parts.formatToParts(instant).find((entry) => entry.type === type)?.value);
+
+        return Date.UTC(part('year'), part('month') - 1, part('day'));
+    };
 
     return Math.round((dayStartOf(to) - dayStartOf(from)) / MS_PER_DAY);
 };
 
 /**
  * The daily limit's notice (004 FR-022), with when matching starts again in the cook's locale: the time alone when it is later
- * today, "tomorrow at <time>" on the next day, and the weekday (within a week) or the date after that, because the reset is
- * a rolling day away and can be nearly 24 hours off. Pure.
+ * today, and "tomorrow at <time>" on a later day. The reset is at most a rolling day away, so it falls today or tomorrow; a
+ * reset further off comes only from a device clock that is behind, and it still reads as tomorrow. Pure.
  *
  * @param resetsAt - When the limit resets, ISO 8601 (the refusal's `resetsAt`).
  * @param now - The instant the notice is read at, ISO 8601: passing it keeps this function pure.
@@ -138,16 +142,7 @@ export const quotaBodyOf = (
         return fillTemplate(copy.pasteMatch.quota.body, { when: fillTemplate(when.today, { time }) });
     }
 
-    if (days === 1) {
-        return fillTemplate(copy.pasteMatch.quota.body, { when: fillTemplate(when.tomorrow, { time }) });
-    }
-
-    const day = new Intl.DateTimeFormat(
-        locale,
-        days < WEEKDAY_NAMED_WITHIN_DAYS ? { weekday: 'long', timeZone } : { month: 'long', day: 'numeric', timeZone },
-    ).format(reset);
-
-    return fillTemplate(copy.pasteMatch.quota.body, { when: fillTemplate(when.later, { day, time }) });
+    return fillTemplate(copy.pasteMatch.quota.body, { when: fillTemplate(when.tomorrow, { time }) });
 };
 
 /**

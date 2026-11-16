@@ -73,10 +73,10 @@ describe('PasteMatchNotice (native)', () => {
             expect(screen.getByText(/Matching starts again tomorrow at 9:15\sAM\./)).toBeTruthy();
         });
 
-        it('⛔ reset on a later day: says the weekday and the time', () => {
+        it('⛔ reset more than a day off (a device clock that is behind): still says tomorrow and the time', () => {
             render(<PasteMatchNotice notice={quota('2026-10-22T14:00:00.000Z')} />);
 
-            expect(screen.getByText(/Matching starts again on Monday at 9:15\sAM\./)).toBeTruthy();
+            expect(screen.getByText(/Matching starts again tomorrow at 9:15\sAM\./)).toBeTruthy();
         });
     });
 

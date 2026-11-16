@@ -121,13 +121,37 @@ describe('quotaBodyOf', () => {
         expect(quotaBodyOf(RESETS_AT, '2026-10-26T03:00:00.000Z', m, 'en', NY)).toBe(sentence(`tomorrow at ${nine15}`));
     });
 
-    it('a reset within the week reads the weekday, and one further out reads the date', () => {
-        expect(quotaBodyOf(RESETS_AT, '2026-10-22T14:00:00.000Z', m, 'en', NY)).toBe(
-            sentence(`on Monday at ${nine15}`),
-        );
-        expect(quotaBodyOf(RESETS_AT, '2026-10-10T14:00:00.000Z', m, 'en', NY)).toBe(
-            sentence(`on October 26 at ${nine15}`),
-        );
+    // The server's reset is at most a rolling day away, so a reset two or more days off comes only from a device clock that
+    // is behind. It still reads "tomorrow at <time>": there is no copy for a later day.
+    it('a reset more than a day off, from a device clock that is behind, still reads "tomorrow at <time>"', () => {
+        expect(quotaBodyOf(RESETS_AT, '2026-10-22T14:00:00.000Z', m, 'en', NY)).toBe(sentence(`tomorrow at ${nine15}`));
+    });
+
+    // ⛔ Hermes formats dates with the phone's own library, so the day count must not depend on how a locale writes a date.
+    it('counts calendar days from the date parts, not from a formatted date string', () => {
+        // Every date-only formatter now writes one fixed date, as a device's own library might write something unexpected; the
+        // time formatter stays real. Code that parses a formatted date reads both instants as the same day and says "at <time>".
+        const prototype = Intl.DateTimeFormat.prototype;
+        const descriptor = Object.getOwnPropertyDescriptor(prototype, 'format');
+
+        Object.defineProperty(prototype, 'format', {
+            configurable: true,
+            get(this: Intl.DateTimeFormat): unknown {
+                return this.resolvedOptions().timeStyle === undefined
+                    ? () => '2026-10-20'
+                    : descriptor?.get?.call(this);
+            },
+        });
+
+        try {
+            expect(quotaBodyOf(RESETS_AT, '2026-10-25T14:00:00.000Z', m, 'en', NY)).toBe(
+                sentence(`tomorrow at ${nine15}`),
+            );
+        } finally {
+            if (descriptor !== undefined) {
+                Object.defineProperty(prototype, 'format', descriptor);
+            }
+        }
     });
 
     it('a reset already past reads as the time alone', () => {

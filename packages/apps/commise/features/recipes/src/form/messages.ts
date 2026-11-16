@@ -619,8 +619,8 @@ export interface RecipeFormMessages {
             readonly bodyTab: string;
         };
         /**
-         * 004 FR-022's daily limit; `{when}` is when it resets, one of the `when` phrases (the reset is a rolling day away,
-         * so it can fall tomorrow or later).
+         * 004 FR-022's daily limit; `{when}` is when it resets, one of the `when` phrases (the reset is at most a rolling
+         * day away, so it falls today or tomorrow).
          */
         readonly quota: {
             readonly body: string;
@@ -629,8 +629,6 @@ export interface RecipeFormMessages {
                 readonly today: string;
                 /** The next day (contains `{time}`). */
                 readonly tomorrow: string;
-                /** A later day (contains `{day}`, a weekday or a date, and `{time}`). */
-                readonly later: string;
             };
         };
         /**
@@ -951,7 +949,6 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
                 when: {
                     today: 'at {time}',
                     tomorrow: 'tomorrow at {time}',
-                    later: 'on {day} at {time}',
                 },
             },
             noAiCheck: {

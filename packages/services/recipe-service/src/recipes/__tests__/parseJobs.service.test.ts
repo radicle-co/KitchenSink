@@ -27,6 +27,8 @@ import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 import type { ParseJobRecord, ParseJobsDalPort } from '../parseJobs.service.js';
 
 const OWNER = 'user_01ARZ3NDEKTSV4RRFFQ69G5FAV';
+/** The verified caller `create` takes: the owner key plus the two facts the one allowance reads (plan, principal kind). */
+const COOK = { userId: OWNER, principalKind: 'real', roles: [] } as const;
 const JOB_ID = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
 
 function makeRecord(overrides: Partial<ParseJobRecord> = {}): ParseJobRecord {
@@ -138,7 +140,7 @@ describe('create', () => {
         const queue = makeQueue();
         const service = new ParseJobsService(dal, queue);
 
-        const view = await service.create(OWNER, '2 cups flour\n\n  1 tsp salt  ');
+        const view = await service.create(COOK, '2 cups flour\n\n  1 tsp salt  ');
 
         expect(dal.createJob).toHaveBeenCalledWith(
             OWNER,
@@ -156,7 +158,7 @@ describe('create', () => {
             ],
             expect.any(Date),
             // 004 FR-022: a paste is admitted as ONE unit, however many lines it has, inside the job's transaction.
-            { kind: 'charge', channel: 'paste', units: 1 },
+            { kind: 'charge', channel: 'paste', units: 1, isPremium: false, principalKind: 'real' },
         );
         expect(queue.enqueue).toHaveBeenCalledTimes(1);
         const messages = queue.enqueue.mock.calls[0]?.[0] ?? [];
@@ -175,7 +177,7 @@ describe('create', () => {
     it('sets the TTL from PARSE_JOB_TTL_HOURS', async () => {
         const dal = makeDal();
         const before = Date.now();
-        await new ParseJobsService(dal, makeQueue()).create(OWNER, 'flour');
+        await new ParseJobsService(dal, makeQueue()).create(COOK, 'flour');
         const after = Date.now();
 
         const expiresAt = dal.createJob.mock.calls[0]?.[2] ?? new Date(0);
@@ -190,7 +192,7 @@ describe('create', () => {
         queue.enqueue.mockRejectedValueOnce(new Error('sqs is down'));
         const service = new ParseJobsService(dal, queue);
 
-        const view = await service.create(OWNER, 'flour\nsalt');
+        const view = await service.create(COOK, 'flour\nsalt');
 
         expect(dal.markLinesFailedRetryable).toHaveBeenCalledWith(JOB_ID, [0, 1]);
         // the view reflects the failure so the caller is not told 'running' about a job nobody is running
@@ -214,7 +216,7 @@ describe('create', () => {
         queue.enqueue.mockRejectedValueOnce(new BatchEnqueueError('parse-job enqueue: 1 of 3', [1]));
         const service = new ParseJobsService(dal, queue);
 
-        const view = await service.create(OWNER, 'flour\nsalt\neggs');
+        const view = await service.create(COOK, 'flour\nsalt\neggs');
 
         expect(dal.markLinesFailedRetryable).toHaveBeenCalledWith(JOB_ID, [1]);
         expect(view.lines.map((line) => line.status)).toEqual(['pending', 'failed_retryable', 'pending']);
@@ -235,7 +237,7 @@ describe('create', () => {
         const queue = makeQueue();
         queue.enqueue.mockRejectedValueOnce(new BatchEnqueueError('parse-job enqueue: 1 of 3', [1]));
 
-        const view = await new ParseJobsService(dal, queue).create(OWNER, 'flour\nsalt\neggs');
+        const view = await new ParseJobsService(dal, queue).create(COOK, 'flour\nsalt\neggs');
 
         expect(view.status).toBe('complete');
     });
@@ -245,7 +247,7 @@ describe('create', () => {
         const queue = makeQueue();
         queue.enqueue.mockRejectedValueOnce(new BatchEnqueueError('parse-job enqueue: 1 of 3', [1]));
 
-        const view = await new ParseJobsService(dal, queue).create(OWNER, 'flour\nsalt\neggs');
+        const view = await new ParseJobsService(dal, queue).create(COOK, 'flour\nsalt\neggs');
 
         expect(view.id).toBe(JOB_ID);
         expect(view.lines.map((line) => line.status)).toEqual(['pending', 'failed_retryable', 'pending']);
@@ -257,7 +259,7 @@ describe('create', () => {
         queue.enqueue.mockRejectedValueOnce(new BatchEnqueueError('parse-job enqueue: 1 of 2', [9]));
         const service = new ParseJobsService(dal, queue);
 
-        const view = await service.create(OWNER, 'flour\nsalt');
+        const view = await service.create(COOK, 'flour\nsalt');
 
         expect(dal.markLinesFailedRetryable).toHaveBeenCalledWith(JOB_ID, [0, 1]);
         expect(view.lines.map((line) => line.status)).toEqual(['failed_retryable', 'failed_retryable']);
@@ -268,7 +270,7 @@ describe('create', () => {
         const queue = makeQueue();
         queue.enqueue.mockRejectedValueOnce(new BatchEnqueueError('parse-job enqueue: 0 of 2', []));
 
-        const view = await new ParseJobsService(dal, queue).create(OWNER, 'flour\nsalt');
+        const view = await new ParseJobsService(dal, queue).create(COOK, 'flour\nsalt');
 
         expect(dal.markLinesFailedRetryable).not.toHaveBeenCalled();
         expect(view.status).toBe('running');
@@ -289,7 +291,7 @@ describe('create — the daily import allowance (004 FR-022)', () => {
         const queue = makeQueue();
 
         const failure: unknown = await new ParseJobsService(dal, queue)
-            .create(OWNER, 'flour\nsalt')
+            .create(COOK, 'flour\nsalt')
             .catch((error: unknown) => error);
 
         expect(failure).toBeInstanceOf(RecipeDomainError);
@@ -304,9 +306,20 @@ describe('create — the daily import allowance (004 FR-022)', () => {
     it('charges ONE unit for a many-line paste (the unit is the job, not the line)', async () => {
         const dal = makeDal();
 
-        await new ParseJobsService(dal, makeQueue()).create(OWNER, 'a\nb\nc\nd\ne');
+        await new ParseJobsService(dal, makeQueue()).create(COOK, 'a\nb\nc\nd\ne');
 
         expect(dal.createJob.mock.calls[0]?.[3]).toMatchObject({ kind: 'charge', units: 1 });
+    });
+
+    it("⛔ states the caller's plan and kind to the ONE allowance: paid, and test, are read from the principal", async () => {
+        const dal = makeDal();
+        const service = new ParseJobsService(dal, makeQueue());
+
+        await service.create({ ...COOK, roles: ['premium'] }, 'flour');
+        await service.create({ ...COOK, principalKind: 'test' }, 'flour');
+
+        expect(dal.createJob.mock.calls[0]?.[3]).toMatchObject({ isPremium: true, principalKind: 'real' });
+        expect(dal.createJob.mock.calls[1]?.[3]).toMatchObject({ isPremium: false, principalKind: 'test' });
     });
 });
 

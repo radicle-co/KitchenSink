@@ -832,9 +832,9 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > one unit per recipe**, whether it comes from a bulk file or a pasted recipe ("one pipeline, one allowance", owner,
     > 2026-11-15). A pasted recipe is a one-recipe import through `/api/v1/import` and has no counter of its own. A test
     > principal has no limit ("if this is for testing, then there are no limits", owner, 2026-11-15). The `paste` channel in
-    > the ledger is now only the **editor's ingredient-list paste**, which imports no recipe and still counts 200 a rolling
-    > day, one unit per paste; the owner's ruling of 2026-11-11 puts it in the one pipeline, so it moves to the one
-    > allowance (owed, ADR-0072 §8). This is the one import allowance of `FR-067`. This replaces "across all channels" and D-013's "one file is one import". Bulk import
+    > the ledger is the **editor's ingredient-list paste**, which imports no recipe and spends one unit per paste from the
+    > same one allowance (200 a rolling day on Free, 1,000 on a paid plan, no limit for test principals); the channel
+    > column is attribution only (ADR-0072 §8). This is the one import allowance of `FR-067`. This replaces "across all channels" and D-013's "one file is one import". Bulk import
     > sends every line through the LLM parse and the match review, so a file is not free of third-party calls.
     > [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §8 holds the rule. The OCR sub-quota is
     > unchanged and stays with 011.
@@ -919,7 +919,7 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
 - **FR-061** _(added 2026-11-15, owner rulings 2026-11-11 and 2026-11-15, ADR-0072 §8)_: **The fallback goes through the
   one import pipeline and the one import allowance.** A paste is a one-recipe import (`POST /api/v1/import`, with
   `expectedTotal: 1`). The fallback result becomes that import's item, and it is saved, held and approved by the same
-  advance steps as every other import (`FR-047`). There is no second admit path and no second save path. A paste spends the ONE import allowance (`FR-022`: 200 a day on Free, 1,000 a day on a paid plan; superusers and VIPs count as paid, owner ruling 2026-11-15). There is no separate paste allowance, and test principals have no limit (`FR-067`). ADR-0072 §8 and DD32 are amended to match in the paste-import PRs. A paste is charged one unit when its extraction succeeds. A failed extraction (`budgetSpent`, `failed`) costs nothing. That interim rule is AWAITING AN OWNER RULING. A paste refused before a job exists (over the cap, opt-out) costs nothing.
+  advance steps as every other import (`FR-047`). There is no second admit path and no second save path. A paste spends the ONE import allowance (`FR-022`: 200 a day on Free, 1,000 a day on a paid plan; superusers and VIPs count as paid, owner ruling 2026-11-15). There is no separate paste allowance, and test principals have no limit (`FR-067`). ADR-0072 §8 and DD32 say the same. A paste is charged one unit when its extraction succeeds. A failed extraction (`budgetSpent`, `failed`) costs nothing. That interim rule is AWAITING AN OWNER RULING. A paste refused before a job exists (over the cap, opt-out) costs nothing.
 - **FR-062** _(added 2026-11-15, owner rulings; `docs/design/pasteImport/spec.md` §14, PR #257)_: **The mobile paste row goes live only when
   this fallback ships.** Web HTML paste goes live earlier. That is the owner's web-first exception, recorded in the
   design spec (`docs/design/pasteImport/spec.md` §14, PR #257). The mobile paste row stays hidden behind a flag until `FR-056` to `FR-063` pass their
@@ -1384,8 +1384,8 @@ The section above decides **who authors** the contract; this one is where it **r
   `@nestjs/throttler` v6 ANDs every registered throttler across every route, so a daily throttler would apply
   service-wide. Treating the allowance as domain policy also puts it where 010's tier rules will need it.
     > ⚠️ The daily allowance's count and channels changed by owner rulings, 2026-10-26 and 2026-11-15: every recipe import,
-    > a pasted recipe included, spends one allowance of 1,000 recipes a rolling day on a paid plan and 200 on Free. Only the
-    > editor's ingredient-list paste keeps a counter of its own, until it moves (owed). See the note under `FR-022` and `FR-067`.
+    > a pasted recipe included, spends one allowance of 1,000 recipes a rolling day on a paid plan and 200 on Free. The
+    > editor's ingredient-list paste draws on the same allowance (no counter of its own). See the note under `FR-022` and `FR-067`.
 - **D-005 (Draft & image retention, 2026-08-02)**: Unconfirmed drafts expire **7 days** after creation, and the
   OCR source image shares that lifetime exactly — deleted on confirm, discard, or expiry, whichever is first.
   Seven days covers a user who starts an import, is interrupted, and returns the following weekend, while

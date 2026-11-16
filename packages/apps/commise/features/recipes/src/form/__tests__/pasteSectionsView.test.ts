@@ -58,7 +58,17 @@ describe('hasMatchedLines', () => {
     it.each([
         ['an owned line', { ownedKeys: new Set(['k1']) }],
         ['a summary', { summary: { added: 'Added 1 line', paragraph: '' } }],
-        ['a notice', { notice: { kind: 'quota' as const, resetsAt: '2026-10-27T08:00:00.000Z', timeZone: 'UTC' } }],
+        [
+            'a notice',
+            {
+                notice: {
+                    kind: 'quota' as const,
+                    resetsAt: '2026-10-27T08:00:00.000Z',
+                    now: '2026-10-27T01:00:00.000Z',
+                    timeZone: 'UTC',
+                },
+            },
+        ],
     ])('is true with %s', (_name, over) => {
         expect(hasMatchedLines(matching(over))).toBe(true);
     });

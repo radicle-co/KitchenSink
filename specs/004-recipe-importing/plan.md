@@ -495,13 +495,11 @@ the seam 010-subscriptions needs, without inventing tier rules 010 hasn't specif
 
 > ⚠️ **Where the count lives, and the bulk allowance.** Owner ruling, 2026-10-26. The allowance is not counted over
 > `import_jobs`. It is counted in the `import_allowance_events` ledger (recipe-service migration 0058), under a
-> per-user advisory lock. Each channel counts only its own rows: **paste, 200 a rolling day**, one unit per paste, and
-> **bulk import, 1,000 recipes a rolling day on a paid plan and 200 on Free** (owner, 2026-10-27), one unit per recipe. This replaces "across all channels" above for
-> these two channels. [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §8 holds the rule, and
+> per-user advisory lock. It first counted each channel on its own rows (paste 200 a rolling day; bulk 1,000 on a paid plan and 200 on Free, owner 2026-10-27); that is superseded by the one allowance below. [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §8 holds the rule, and
 > spec `FR-022` carries the same note.
 >
 > ⚠️ **One allowance.** Owner ruling, 2026-11-15: the per-channel counts are replaced by one import allowance for every
-> user-facing import, with no limit for test principals (spec `FR-067`).
+> user-facing import, the editor's paste included, with no limit for test principals (spec `FR-067`, built).
 
 Queue depth is bounded; over-capacity sheds with `429`.
 

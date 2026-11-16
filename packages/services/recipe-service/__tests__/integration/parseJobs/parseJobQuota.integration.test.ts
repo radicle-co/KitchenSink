@@ -133,6 +133,8 @@ describe('POST /api/v1/recipe-parse-jobs — the daily import allowance', () => 
             kind: 'charge',
             channel: 'paste',
             units: 1,
+            isPremium: false,
+            principalKind: 'real',
         });
     });
 });

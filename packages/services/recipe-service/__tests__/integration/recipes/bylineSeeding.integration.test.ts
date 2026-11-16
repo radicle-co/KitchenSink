@@ -90,8 +90,7 @@ beforeAll(async () => {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {
                     insert: async () => undefined,
-                    listForRecipe: async () => [],
-                    listCommitted: async () => [],
+                    list: async () => [],
                 },
             },
         ],

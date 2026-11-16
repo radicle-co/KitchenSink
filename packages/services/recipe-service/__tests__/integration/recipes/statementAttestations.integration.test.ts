@@ -244,9 +244,7 @@ beforeAll(async () => {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {
                     insert: insertEvidence,
-                    listForRecipe: async (_tx: unknown, recipeId: string) =>
-                        evidence.filter((row) => row.recipeId === recipeId),
-                    listCommitted: async (recipeId: string) => evidence.filter((row) => row.recipeId === recipeId),
+                    list: async (recipeId: string) => evidence.filter((row) => row.recipeId === recipeId),
                 },
             },
             {

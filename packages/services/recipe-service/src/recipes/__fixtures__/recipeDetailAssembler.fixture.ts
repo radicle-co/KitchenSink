@@ -39,7 +39,7 @@ export interface RecipeDetailAssemblerCollaborators {
     readonly foodNutrition: FoodNutritionGateway;
     readonly lineVerificationsDal: LineVerificationsDal;
     /** The committed evidence read behind the owner-only hints; empty by default. */
-    readonly sourceEvidence: Pick<RecipeSourceEvidenceDal, 'listCommitted'>;
+    readonly sourceEvidence: Pick<RecipeSourceEvidenceDal, 'list'>;
 }
 
 /**
@@ -133,7 +133,7 @@ export function makeRecipeDetailAssembler(
         photosCdnUrl: RECIPE_PHOTOS_CDN,
         foodNutrition: emptyFoodNutrition(),
         lineVerificationsDal: fakeLineVerificationsDal(new Map()),
-        sourceEvidence: { listCommitted: async () => [] },
+        sourceEvidence: { list: async () => [] },
         ...overrides,
     };
 

@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { RecipeSourceType } from '@kitchensink/recipe-core';
 
 import { resolveStatementProvenance } from '../provenancePolicy.js';
-import { evidenceRowOf, sourceConflictOfEvidence } from '../sourceEvidence.js';
+import { evidenceListOf, sourceConflictOfEvidence, type EvidenceCapturePath } from '../sourceEvidence.js';
+import type { ResolvedProvenance } from '../provenancePolicy.js';
+
+/** The one row a provenance leaves, or `undefined` for none: the list helper read as the tests below ask the question. */
+function evidenceRowOf(provenance: ResolvedProvenance, path: EvidenceCapturePath) {
+    return evidenceListOf(provenance, path)[0];
+}
 
 const WEB = resolveStatementProvenance({ kind: 'public_web', citation: 'https://www.allrecipes.com/recipe/1/soup/' });
 const BOOK = resolveStatementProvenance({ kind: 'book', citation: 'Joy of Cooking' });
@@ -113,5 +119,12 @@ describe('sourceConflictOfEvidence — the one call of the recipe-core predicate
 
     it('passes no verified site claim: a domain is never exempt today', () => {
         expect(sourceConflictOfEvidence([{ sourceDomain: 'mysite.com', sourceKind: null }], OWN_RECIPE)).toBe(true);
+    });
+});
+
+describe('evidenceListOf — none or one row', () => {
+    it('is empty for a provenance that states no source, and one row for one that does', () => {
+        expect(evidenceListOf(defined(OWN), 'editor')).toEqual([]);
+        expect(evidenceListOf(defined(BOOK), 'editor')).toHaveLength(1);
     });
 });

@@ -38,6 +38,7 @@ import type { PhotosDal } from '../../photos/dal/photos.dal.js';
 import type { RatingsDal } from '../../ratings/dal/ratings.dal.js';
 import type { RecipesDal } from '../dal/recipes.dal.js';
 import type { RecipeSourceEvidenceDal } from '../dal/recipeSourceEvidence.dal.js';
+import { PublicStatementGate } from '../publicStatement.gate.js';
 import type { RecipeStatementAttestationsDal } from '../dal/recipeStatementAttestations.dal.js';
 import type { VerificationQueuePort } from '../verification.queue.js';
 import type { VersionsService } from '../../versions/versions.service.js';
@@ -88,14 +89,14 @@ export interface RecipesServiceCollaborators {
     /** The byline read model. Defaults to one that has never seen the cook, so writes fall back to the claims. */
     readonly authorHandles: Pick<AuthorHandlesDal, 'findByline'>;
     /** The evidence table: by default one that holds no evidence, so a recipe is never held out of Public. */
-    readonly sourceEvidence: Pick<RecipeSourceEvidenceDal, 'insert' | 'listForRecipe' | 'listCommitted'>;
+    readonly sourceEvidence: Pick<RecipeSourceEvidenceDal, 'insert' | 'list'>;
     /** The attestation record: by default one that accepts every append, so a write is never refused for want of it. */
     readonly attestations: Pick<RecipeStatementAttestationsDal, 'insertMany'>;
 }
 
 /** An evidence table that is empty and accepts every append. */
-function noSourceEvidence(): Pick<RecipeSourceEvidenceDal, 'insert' | 'listForRecipe' | 'listCommitted'> {
-    return { insert: async () => undefined, listForRecipe: async () => [], listCommitted: async () => [] };
+function noSourceEvidence(): Pick<RecipeSourceEvidenceDal, 'insert' | 'list'> {
+    return { insert: async () => undefined, list: async () => [] };
 }
 
 /**
@@ -146,7 +147,6 @@ export function makeRecipesService(overrides: Partial<RecipesServiceCollaborator
         collaborators.lineVerificationsDal,
         detailAssembler,
         collaborators.authorHandles,
-        collaborators.sourceEvidence,
-        collaborators.attestations,
+        new PublicStatementGate(collaborators.sourceEvidence, collaborators.attestations),
     );
 }

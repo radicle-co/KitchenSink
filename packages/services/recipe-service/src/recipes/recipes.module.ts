@@ -10,6 +10,7 @@ import { RecipesController } from './recipes.controller.js';
 import { RecipeDetailAssembler } from './recipeDetail.assembler.js';
 import { IngredientLinePlanner } from './ingredientLine.planner.js';
 import { IngredientRebindService } from './ingredientRebind.service.js';
+import { PublicStatementGate } from './publicStatement.gate.js';
 import { RecipesService } from './recipes.service.js';
 import {
     RECIPES_DAL,
@@ -128,6 +129,8 @@ import { CURATION_DISAGREEMENT_SINK, emitCurationDisagreement, ParseJobMatchView
         // The append-only record of every statement and Public confirmation (migration 0088). INSERT only, always in the
         // write's own transaction, so it holds no client of its own.
         RecipeStatementAttestationsDal,
+        // Judges and records every write that can leave a recipe public (ADR-0092): the one owner of both tables above.
+        PublicStatementGate,
         {
             // Plan 2026-10-15-010 D8 — the byline read model a write resolves its author from. Its OWN instance over
             // the shared Drizzle client, the embedded-DAL pattern `CollectionsModule` already uses for it.

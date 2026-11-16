@@ -14,6 +14,7 @@ import {
     type RecipeSourceKindView,
     type RecipeSourceType,
     type RecipeStatementKind,
+    type SourceEvidenceFacts,
 } from '@kitchensink/recipe-core';
 
 import type { NewRecipeSourceEvidenceRow } from '../../database/schema/recipeSourceEvidence.js';
@@ -63,7 +64,7 @@ export type EvidenceCapturePath = 'editor' | 'importFile';
  * @returns The row to append, or `undefined` for a recipe with no stated kind (the cook's own, or the curator's text).
  * @throws {Error} A web provenance with no address: the caller built it wrong, and no row would record the source.
  */
-export function evidenceRowOf(provenance: ResolvedProvenance, path: EvidenceCapturePath): EvidenceToWrite | undefined {
+function evidenceRowOf(provenance: ResolvedProvenance, path: EvidenceCapturePath): EvidenceToWrite | undefined {
     switch (provenance.sourceKind) {
         case null:
             return undefined;
@@ -100,6 +101,26 @@ export function evidenceRowOf(provenance: ResolvedProvenance, path: EvidenceCapt
 }
 
 /**
+ * The evidence a provenance leaves, as a list: none for a recipe with no stated kind, else its one row. The ONE place a
+ * `ResolvedProvenance` becomes evidence (create, a PATCH and set-visibility all read it), so no caller spells "none or one".
+ *
+ * @param provenance - What the write persists as the recipe's source.
+ * @param path - How the statement reached the service ({@link evidenceRowOf}).
+ * @returns Zero or one row to append. Pure.
+ * @throws {Error} As {@link evidenceRowOf}.
+ */
+export function evidenceListOf(provenance: ResolvedProvenance, path: EvidenceCapturePath): EvidenceToWrite[] {
+    const row = evidenceRowOf(provenance, path);
+
+    return row === undefined ? [] : [row];
+}
+
+/** What `sourceConflictOf` and `statementRequiredOf` read of each evidence row: the ONE mapping, so the two cannot differ. */
+function evidenceFactsOf(evidence: readonly EvidenceFacts[]): SourceEvidenceFacts[] {
+    return evidence.map((row) => ({ sourceDomain: row.sourceDomain ?? null, sourceKind: row.sourceKind ?? null }));
+}
+
+/**
  * Whether the evidence holds the recipe out of Public. The ONE call of `sourceConflictOf` in this service.
  *
  * @param evidence - Every evidence row of the recipe (or the facts of the rows about to be written).
@@ -111,10 +132,7 @@ export function sourceConflictOfEvidence(
     recipe: { readonly sourceType: RecipeSourceType; readonly sourceKind: RecipeSourceKindView | null },
 ): boolean {
     return sourceConflictOf({
-        evidence: evidence.map((row) => ({
-            sourceDomain: row.sourceDomain ?? null,
-            sourceKind: row.sourceKind ?? null,
-        })),
+        evidence: evidenceFactsOf(evidence),
         ...recipe,
         verifiedSiteClaims: NO_VERIFIED_SITE_CLAIMS,
     });
@@ -139,10 +157,7 @@ export function statementRequiredOfEvidence(
     },
 ): boolean {
     return statementRequiredOf({
-        evidence: evidence.map((row) => ({
-            sourceDomain: row.sourceDomain ?? null,
-            sourceKind: row.sourceKind ?? null,
-        })),
+        evidence: evidenceFactsOf(evidence),
         sourceType: recipe.sourceType,
         statementKind: recipe.statementKind,
         contentPasted: recipe.contentPastedAt !== null && recipe.contentPastedAt !== undefined,

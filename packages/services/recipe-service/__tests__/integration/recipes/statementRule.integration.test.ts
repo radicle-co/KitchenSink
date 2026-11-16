@@ -116,7 +116,7 @@ const insertEvidence = vi.fn(async (_tx: unknown, row: NewRecipeSourceEvidenceRo
         ...row,
     });
 });
-const listEvidence = vi.fn(async (_tx: unknown, recipeId: string) =>
+const listEvidence = vi.fn(async (recipeId: string, _tx?: unknown) =>
     evidence.filter((row) => row.recipeId === recipeId),
 );
 
@@ -231,8 +231,7 @@ beforeAll(async () => {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {
                     insert: insertEvidence,
-                    listForRecipe: listEvidence,
-                    listCommitted: async (recipeId: string) => evidence.filter((row) => row.recipeId === recipeId),
+                    list: listEvidence,
                 },
             },
             {

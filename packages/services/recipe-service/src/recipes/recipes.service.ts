@@ -42,9 +42,7 @@ import type { IngredientLineInput } from './dal/ingredientLines.dal.js';
 import { quantityFromColumns, statedMeasureFromColumns } from './dal/quantityColumns.js';
 import { userNutritionFromColumns } from './dal/userNutritionColumns.js';
 import {
-    invalidVisibility,
-    sourceConflictRefused,
-    statementRequiredRefused,
+    policyRefusal,
     notOwner,
     privateSlotsFull,
     provenanceNotPermitted,
@@ -52,7 +50,6 @@ import {
     recipeNotFound,
     sourceAndStatementTogether,
     fromPersonPrivateOnly,
-    publicConfirmationRequired,
     sourceLocked,
     sourceNotUsable,
     versionConflict,
@@ -60,14 +57,8 @@ import {
 } from './recipe.error.js';
 import type { PrivateSlotUsage, PublicConfirmationInput, RecipeStatementInput } from './recipes.schema.js';
 import { evaluateProvenance, type ResolvedProvenance } from './domain/provenancePolicy.js';
-import { evidenceRowOf, sourceConflictOfEvidence, statementRequiredOfEvidence } from './domain/sourceEvidence.js';
-import { RecipeSourceEvidenceDal } from './dal/recipeSourceEvidence.dal.js';
-import { RecipeStatementAttestationsDal } from './dal/recipeStatementAttestations.dal.js';
-import {
-    attestationRowsOf,
-    publicConfirmationDutyOf,
-    type PublicConfirmationDuty,
-} from './domain/statementAttestation.js';
+import { evidenceListOf } from './domain/sourceEvidence.js';
+import { PublicStatementGate } from './publicStatement.gate.js';
 import {
     resolveLineBindings,
     type DirectedBinding,
@@ -87,7 +78,6 @@ import {
 } from './domain/privateSlotPolicy.js';
 import {
     defaultCloneVisibility,
-    evaluatePublishedState,
     evaluateVisibility,
     type VisibilityPolicyInput,
 } from './domain/visibilityPolicy.js';
@@ -475,95 +465,6 @@ function assertVisibilityAllowed(
 }
 
 /**
- * The error for a refusal the policies answer with `400 INVALID_VISIBILITY`: the plain C-004 refusal, or the evidence rule's,
- * which the same status tells apart by `details.reason` ('SOURCE_CONFLICT'). The ONE place both policies' denials are mapped,
- * so `evaluateVisibility` and `evaluatePublishedState` cannot answer the evidence rule differently.
- *
- * @param denial - The policy's denial discriminant.
- * @param reason - The policy's deny-reason.
- * @param details - The attempted visibility and source type.
- * @returns The error to throw.
- */
-function policyRefusal(
-    denial: 'policy' | 'contained' | 'privateSlots' | 'sourceConflict' | 'statementRequired',
-    reason: string,
-    details: Record<string, unknown>,
-): Error {
-    switch (denial) {
-        case 'sourceConflict':
-            return sourceConflictRefused(reason, details);
-        case 'statementRequired':
-            return statementRequiredRefused(reason, details);
-        case 'policy':
-        case 'contained':
-        case 'privateSlots':
-            return invalidVisibility(reason, details);
-    }
-}
-
-/**
- * Judge the state a write LEAVES and throw its refusal: a recipe is never left published and public while a containment, the
- * private-only, the evidence or the statement rule refuses it, in that order (`evaluatePublishedState`). The ONE place the
- * result of a write is judged, so create, update and set-visibility cannot ask the four in different orders.
- *
- * @param principal - The verified caller, for containment.
- * @param state - The status and visibility the write leaves, the source it leaves, and the two evidence-derived facts, each
- *   read in the write's own transaction or under its row lock.
- * @throws {HttpException} `TEST_PRINCIPAL_CONTAINED` for a contained principal.
- * @throws {RecipeDomainError} `INVALID_VISIBILITY`, with `details.reason` `SOURCE_CONFLICT` or `STATEMENT_REQUIRED` when those rules refuse.
- */
-function assertPublishedStateAllowed(
-    principal: Principal,
-    state: {
-        readonly status: RecipeStatus;
-        readonly visibility: RecipeVisibility;
-        readonly sourceType: RecipeSourceType;
-        readonly sourceKind: RecipeSourceKind | null;
-        readonly sourceConflict: boolean;
-        readonly statementRequired: boolean;
-    },
-): void {
-    const decision = evaluatePublishedState({
-        ...state,
-        principalKind: principal.principalKind,
-        containment: principal.containment,
-    });
-
-    if (decision.allowed) {
-        return;
-    }
-
-    if (decision.denial === 'contained') {
-        throw testPrincipalContained(decision.reason);
-    }
-
-    throw policyRefusal(decision.denial, decision.reason, {
-        visibility: state.visibility,
-        sourceType: state.sourceType,
-    });
-}
-
-/**
- * Refuse a write that makes a recipe published and public without the cook's Public confirmation (the attestation record).
- * Judged AFTER every rule that decides whether the recipe may be public at all, so a refusal that has a cause of its own
- * (containment, private-only, the evidence rule, the statement rule) is never masked by a missing line of copy.
- *
- * @param duty - What the write owes (`publicConfirmationDutyOf`).
- * @param supplied - The request's `publicConfirmation`.
- * @param details - The attempted visibility and source type.
- * @throws {RecipeDomainError} `INVALID_VISIBILITY`, `details.reason` `PUBLIC_CONFIRMATION_REQUIRED`.
- */
-function assertPublicConfirmation(
-    duty: PublicConfirmationDuty,
-    supplied: PublicConfirmationInput | undefined,
-    details: Record<string, unknown>,
-): void {
-    if (duty.required && supplied === undefined) {
-        throw publicConfirmationRequired(details);
-    }
-}
-
-/**
  * Refuse a request that says the recipe is another person's and asks for it to be public in the same breath: it contradicts
  * itself, and the server picks neither side. ("From another person" sets no source, so the private-only policy never sees it.)
  *
@@ -701,14 +602,9 @@ export class RecipesService {
         // Plan 2026-10-15-010 D8 — the read model a write's byline is resolved from. Required like the others.
         // ⚠️ Token-injected with a VALUE import: the `Pick` type emits `Object` into design:paramtypes.
         @Inject(AuthorHandlesDal) private readonly authorHandles: Pick<AuthorHandlesDal, 'findByline'>,
-        // The append-only evidence of every third-party source ever stated (migration 0086). Value import, like the byline
-        // read model above: the `Pick` type emits `Object` into design:paramtypes.
-        @Inject(RecipeSourceEvidenceDal)
-        private readonly sourceEvidence: Pick<RecipeSourceEvidenceDal, 'insert' | 'listForRecipe'>,
-        // The append-only record of every statement and Public confirmation (migration 0088): INSERT only, in the write's own
-        // transaction. Value import, like the evidence table above.
-        @Inject(RecipeStatementAttestationsDal)
-        private readonly attestations: Pick<RecipeStatementAttestationsDal, 'insertMany'>,
+        // The ONE gate every write that can leave a recipe public is judged and recorded through (ADR-0092): it owns the
+        // append-only evidence and attestation tables. Value import: the `Pick` type emits `Object` into design:paramtypes.
+        @Inject(PublicStatementGate) private readonly gate: PublicStatementGate,
     ) {}
 
     /** One logger for the producer — a queue that is refusing work must be visible, never silent. */
@@ -872,34 +768,6 @@ export class RecipesService {
     }
 
     /**
-     * Append the attestation rows a write leaves, in the write's OWN transaction.
-     *
-     * ⛔ Called only after the write LANDED (the version check and the compare-and-swap have passed), so a refused write, a lost
-     * race and a rolled-back transaction all leave no row. Nothing here reads the table: no rule decides from an attestation.
-     *
-     * @param tx - The write's open transaction.
-     * @param recipeId - The recipe the write is about.
-     * @param ownerId - The acting owner (`recipes.owner_id` at the time).
-     * @param input - The write's action, statement, confirmation, and whether the duty records the confirmation.
-     * @sideEffect Inserts into `recipe_statement_attestations`; nothing when the write leaves no row.
-     */
-    private async recordAttestationsIn(
-        tx: RecipeTx,
-        recipeId: string,
-        ownerId: string,
-        input: Parameters<typeof attestationRowsOf>[0],
-    ): Promise<void> {
-        const rows = attestationRowsOf(input);
-
-        if (rows.length > 0) {
-            await this.attestations.insertMany(
-                tx,
-                rows.map((row) => ({ ...row, recipeId, accountId: ownerId })),
-            );
-        }
-    }
-
-    /**
      * Create a recipe owned by `principal.userId`.
      *
      * ⚠️ A create is no longer ALWAYS `user_created` (004-FR-024 / ADR-0023). It carries the provenance the
@@ -968,21 +836,49 @@ export class RecipesService {
         const isPremium = isPremiumPrincipal(principal);
         // The evidence this write leaves (ADR-0089 evidence rule), derived from the SAME provenance the row is written with, so
         // the policy is asked about the recipe's real evidence and never a literal. A new recipe has no other.
-        const evidenceRow = evidenceRowOf(provenance, imported === undefined ? 'editor' : 'importFile');
+        const evidence = evidenceListOf(provenance, imported === undefined ? 'editor' : 'importFile');
+        // An ABSENT status means published, resolved ONCE here and written explicitly below, so the policy and the row
+        // agree on what "published" means rather than the policy assuming the column default. It is resolved BEFORE the slot
+        // question because a slot is a private PUBLISHED recipe (ADR-0073 section 12): a private draft holds none.
+        const status = dto.status ?? RecipeStatus.PUBLISHED;
+        const contentPastedAt = dto.contentPasted === true ? new Date() : null;
+
+        // ⛔ The state this create LEAVES is judged ONCE, by the gate, before the planner (a pure refusal must not cost a call to
+        // food): containment, private-only, the evidence rule, the statement rule, then what Publish needs (owner rulings
+        // 2026-10-13), then the passive Public confirmation (the attestation record), so a recipe that cannot be published is
+        // not asked to confirm it. Every fact is the request's own: a new recipe has no stored paste fact and no other evidence.
+        // The bulk import is exempt from the confirmation for now: it carries no wording yet (an open question for the paste
+        // team), so requiring one would refuse every import save; it also writes no attestation row until it can state it.
+        const verdict = await this.gate.judge({
+            principal,
+            before: undefined,
+            after: { status, visibility: requested },
+            source: { sourceType: provenance.sourceType, sourceKind: provenance.sourceKind },
+            statementKind: provenance.statementKind,
+            contentPastedAt,
+            pending: evidence,
+            confirmation: dto.publicConfirmation,
+            confirmationExempt: imported !== undefined,
+            afterState: () =>
+                assertPublishable({
+                    status,
+                    sourceType: provenance.sourceType,
+                    sourceKind: provenance.sourceKind,
+                    cuisine: dto.cuisine ?? null,
+                    ingredientCount: dto.ingredients.length,
+                    stepCount: dto.steps.length,
+                }),
+        });
         const visibilityAsk = visibilityAskOf(
             principal,
             { sourceType: provenance.sourceType, sourceKind: provenance.sourceKind },
             requested,
-            sourceConflictOfEvidence(evidenceRow === undefined ? [] : [evidenceRow], provenance),
+            verdict.sourceConflict,
         );
         // ADR-0073: only a free cook's private PUBLISHED recipe takes a slot, and THAT decision is made inside the write's transaction,
         // under the per-user lock, below. Every other request has no slot to lack, so it is judged here, before the planner,
         // exactly as it always was - a pure refusal must not cost a call to food. (A slot refusal does: it is only known
         // under the lock, after the planner has run. That is accepted: the cook out of slots pays one round trip per try.)
-        // An ABSENT status means published, resolved ONCE here and written explicitly below, so the policy and the row
-        // agree on what "published" means rather than the policy assuming the column default. It is resolved BEFORE the slot
-        // question because a slot is a private PUBLISHED recipe (ADR-0073 section 12): a private draft holds none.
-        const status = dto.status ?? RecipeStatus.PUBLISHED;
         const needsSlot = requiresPrivateSlotCheck({
             sourceType: provenance.sourceType,
             isPremium,
@@ -992,48 +888,6 @@ export class RecipesService {
 
         if (!needsSlot) {
             assertVisibilityAllowed(visibilityAsk, SLOT_NOT_NEEDED);
-        }
-
-        // The statement rule (Option B), on the state this create LEAVES. Every fact is the request's own: a new recipe has no
-        // stored paste fact and no other evidence, so the pure call is made here, before the planner, like the C-004 ask above.
-        const contentPastedAt = dto.contentPasted === true ? new Date() : null;
-        assertPublishedStateAllowed(principal, {
-            status,
-            visibility: requested,
-            sourceType: provenance.sourceType,
-            sourceKind: provenance.sourceKind,
-            sourceConflict: visibilityAsk.sourceConflict,
-            statementRequired: statementRequiredOfEvidence(evidenceRow === undefined ? [] : [evidenceRow], {
-                sourceType: provenance.sourceType,
-                statementKind: provenance.statementKind,
-                contentPastedAt,
-            }),
-        });
-
-        // ── Then what Publish needs (owner rulings 2026-10-13) ─────────────────────────────────────────
-        // Judged before the planner, because a pure refusal must not cost a call to food.
-        assertPublishable({
-            status,
-            sourceType: provenance.sourceType,
-            sourceKind: provenance.sourceKind,
-            cuisine: dto.cuisine ?? null,
-            ingredientCount: dto.ingredients.length,
-            stepCount: dto.steps.length,
-        });
-
-        // The passive Public confirmation (the attestation record), asked LAST of the rules that judge the state this create
-        // leaves, after the publish floor (a recipe that cannot be published is not asked to confirm it). ⛔ The bulk import is exempt for now: it carries no wording yet (an open question for the paste team), so
-        // requiring one would refuse every import save; it also writes no attestation row until it can state its wording.
-        const confirmationDuty = publicConfirmationDutyOf({
-            before: undefined,
-            after: { status, visibility: requested },
-        });
-
-        if (imported === undefined) {
-            assertPublicConfirmation(confirmationDuty, dto.publicConfirmation, {
-                visibility: requested,
-                sourceType: provenance.sourceType,
-            });
         }
 
         // OUTSIDE the transaction: the plan reads the bindings and asks food for their names.
@@ -1122,17 +976,16 @@ export class RecipesService {
                 tx,
             );
 
-            // The statement's evidence, in THIS transaction: a stated source with no evidence row cannot commit (migration 0086).
-            if (evidenceRow !== undefined) {
-                await this.sourceEvidence.insert(tx, { ...evidenceRow, recipeId: created.recipe.id });
-            }
-
-            // The cook's own acts, in the same transaction and after the recipe landed (migration 0088).
-            await this.recordAttestationsIn(tx, created.recipe.id, principal.userId, {
+            // The statement's evidence (a stated source with no evidence row cannot commit, migration 0086) and the cook's own
+            // acts (migration 0088), in THIS transaction and after the recipe landed.
+            await this.gate.record(tx, {
+                recipeId: created.recipe.id,
+                accountId: principal.userId,
                 action: 'create',
+                evidence,
                 statement: dto.statement,
                 publicConfirmation: dto.publicConfirmation,
-                recordsConfirmation: imported === undefined && confirmationDuty.recordedWhenSupplied,
+                recordsConfirmation: verdict.recordsConfirmation,
             });
 
             // The import's claim of its item, in THIS transaction, so the claim and the recipe commit or vanish together.
@@ -1539,8 +1392,7 @@ export class RecipesService {
         }
 
         // The evidence row a statement this PATCH applies will leave (none for a clear). Written below, in the transaction.
-        const pendingEvidence =
-            correction.kind === 'apply' ? evidenceRowOf(correction.provenance, 'editor') : undefined;
+        const pendingEvidence = correction.kind === 'apply' ? evidenceListOf(correction.provenance, 'editor') : [];
 
         // A stated source sets Private in this same write (ADR-0089): every judgement below reads the visibility it leaves.
         const forcesPrivate = correction.kind === 'apply' && correction.makePrivate;
@@ -1673,45 +1525,26 @@ export class RecipesService {
                 // is a private recipe from the first instant and is judged as one.
                 const visibilityAfter = forcesPrivate ? RecipeVisibility.PRIVATE : current.visibility;
 
-                // The evidence NOW, under the row lock this transaction holds (a PATCH that writes evidence takes the same lock),
-                // plus the row this PATCH is about to append.
-                const evidenceNow = [
-                    ...(await this.sourceEvidence.listForRecipe(tx, id)),
-                    ...(pendingEvidence === undefined ? [] : [pendingEvidence]),
-                ];
-                const sourceConflict = sourceConflictOfEvidence(evidenceNow, sourceAfter);
-                // What the cook has stated AFTER this write: the correction's, else what is stored under the lock.
-                const statementRequired = statementRequiredOfEvidence(evidenceNow, {
-                    sourceType: sourceAfter.sourceType,
-                    statementKind:
-                        correction.kind === 'apply' ? correction.provenance.statementKind : current.statementKind,
-                    // The flag only ever adds: stored OR this request's.
-                    contentPastedAt:
-                        dto.contentPasted === true ? (current.contentPastedAt ?? new Date()) : current.contentPastedAt,
-                });
-
-                // The state this write leaves, judged on the visibility read UNDER the lock (ADR-0089): a private-only recipe
-                // is never published and public, even if a race left its draft public; nor one whose statement is still owed.
-                assertPublishedStateAllowed(principal, {
-                    status: afterStatus,
-                    visibility: visibilityAfter,
-                    ...sourceAfter,
-                    sourceConflict,
-                    statementRequired,
-                });
-
-                // The passive Public confirmation, asked LAST of the rules that judge the state this write leaves, on the status and
-                // visibility read under the lock: a draft another request made public still owes it when this write publishes it.
-                const confirmationDuty = publicConfirmationDutyOf({
+                // The state this write leaves, judged on the visibility read UNDER the lock (ADR-0089): a private-only recipe is
+                // never published and public, even if a race left its draft public; nor one whose statement is still owed. What
+                // the cook has stated AFTER this write is the correction's, else what is stored under the lock, and the paste
+                // flag only ever adds: stored OR this request's. The confirmation is asked on the status and visibility read
+                // under the lock: a draft another request made public still owes it when this write publishes it.
+                const verdict = await this.gate.judge({
+                    principal,
+                    stored: { tx, recipeId: id },
                     before: { status: existingStatus, visibility: current.visibility },
                     after: { status: afterStatus, visibility: visibilityAfter },
+                    source: sourceAfter,
+                    statementKind:
+                        correction.kind === 'apply' ? correction.provenance.statementKind : current.statementKind,
+                    contentPastedAt:
+                        dto.contentPasted === true ? (current.contentPastedAt ?? new Date()) : current.contentPastedAt,
+                    pending: pendingEvidence,
+                    confirmation: dto.publicConfirmation,
                 });
 
-                assertPublicConfirmation(confirmationDuty, dto.publicConfirmation, {
-                    visibility: visibilityAfter,
-                    sourceType: sourceAfter.sourceType,
-                });
-                recordsConfirmation = confirmationDuty.recordedWhenSupplied;
+                recordsConfirmation = verdict.recordsConfirmation;
 
                 if (publishesDraft && visibilityAfter === RecipeVisibility.PRIVATE) {
                     // Publishing a private draft is a move to private like any other, so it meets the SAME C-004 policy, with
@@ -1731,7 +1564,7 @@ export class RecipesService {
                     }
 
                     assertVisibilityAllowed(
-                        visibilityAskOf(principal, sourceAfter, RecipeVisibility.PRIVATE, sourceConflict),
+                        visibilityAskOf(principal, sourceAfter, RecipeVisibility.PRIVATE, verdict.sourceConflict),
                         takesSlot && counted !== undefined ? counted : SLOT_NOT_NEEDED,
                     );
                 }
@@ -1792,13 +1625,11 @@ export class RecipesService {
 
             // Appended only once the write LANDED: a lost compare-and-swap commits an empty transaction, and must not record a
             // statement that was never applied.
-            if (pendingEvidence !== undefined) {
-                await this.sourceEvidence.insert(tx, { ...pendingEvidence, recipeId: id });
-            }
-
-            // The cook's own acts, only now that the compare-and-swap landed (migration 0088).
-            await this.recordAttestationsIn(tx, id, ownerId, {
+            await this.gate.record(tx, {
+                recipeId: id,
+                accountId: ownerId,
                 action: 'update',
+                evidence: pendingEvidence,
                 statement: dto.statement,
                 publicConfirmation: dto.publicConfirmation,
                 recordsConfirmation,
@@ -1956,7 +1787,7 @@ export class RecipesService {
                 source.recipe.sourceKind,
                 principal,
                 source.recipe.visibility,
-                sourceConflictOfEvidence(await this.sourceEvidence.listForRecipe(tx, source.recipe.id), {
+                await this.gate.holdsOutOfPublic(tx, source.recipe.id, {
                     sourceType,
                     sourceKind: source.recipe.sourceKind,
                 }),
@@ -2096,8 +1927,7 @@ export class RecipesService {
                 throw sourceNotUsable('The source link is not a public web page address.');
             }
 
-            const pendingEvidence =
-                correction.kind === 'apply' ? evidenceRowOf(correction.provenance, 'editor') : undefined;
+            const pendingEvidence = correction.kind === 'apply' ? evidenceListOf(correction.provenance, 'editor') : [];
             // The source AS THIS WRITE LEAVES IT: what the cook just stated, else what is stored.
             const source =
                 correction.kind === 'apply'
@@ -2117,42 +1947,23 @@ export class RecipesService {
                     ? counted
                     : SLOT_NOT_NEEDED;
 
-            // Evidence read under the row lock taken just above (a PATCH that states a source takes the same lock), plus the row
-            // this statement is about to append.
-            const evidenceNow = [
-                ...(await this.sourceEvidence.listForRecipe(tx, id)),
-                ...(pendingEvidence === undefined ? [] : [pendingEvidence]),
-            ];
-            const sourceConflict = sourceConflictOfEvidence(evidenceNow, source);
-
-            assertVisibilityAllowed(visibilityAskOf(principal, source, visibility, sourceConflict), standing);
-
-            // The statement rule on the state this write LEAVES, from the statement and paste fact read under the same lock.
-            // Containment, private-only and the evidence rule have just answered for a request for Public (`evaluateVisibility`),
-            // so the statement is asked last, in the policy's order.
-            assertPublishedStateAllowed(principal, {
-                status: current.status,
-                visibility,
-                ...source,
-                sourceConflict,
-                statementRequired: statementRequiredOfEvidence(evidenceNow, {
-                    sourceType: source.sourceType,
-                    statementKind:
-                        correction.kind === 'apply' ? correction.provenance.statementKind : current.statementKind,
-                    contentPastedAt: current.contentPastedAt,
-                }),
-            });
-
-            // The passive Public confirmation, asked after every rule that decides whether the recipe may be public at all.
-            const confirmationDuty = publicConfirmationDutyOf({
+            // The state this write LEAVES, judged from the evidence, the statement and the paste fact read under the row lock taken
+            // just above (a PATCH that states a source takes the same lock), plus the rows this statement is about to append.
+            // The gate asks containment, private-only, the evidence rule, the statement rule and then the passive confirmation, so
+            // the ask below meets only what remains (a draft, or a private request).
+            const verdict = await this.gate.judge({
+                principal,
+                stored: { tx, recipeId: id },
                 before: { status: current.status, visibility: current.visibility },
                 after: { status: current.status, visibility },
+                source,
+                statementKind: correction.kind === 'apply' ? correction.provenance.statementKind : current.statementKind,
+                contentPastedAt: current.contentPastedAt,
+                pending: pendingEvidence,
+                confirmation: extras.publicConfirmation,
             });
 
-            assertPublicConfirmation(confirmationDuty, extras.publicConfirmation, {
-                visibility,
-                sourceType: source.sourceType,
-            });
+            assertVisibilityAllowed(visibilityAskOf(principal, source, visibility, verdict.sourceConflict), standing);
 
             if (nowPublicFoods.length > 0) {
                 await this.dal.clearPublicFoodOwners(tx, nowPublicFoods);
@@ -2167,15 +1978,14 @@ export class RecipesService {
 
             if (written !== undefined) {
                 // Appended only once the write LANDED, in the same transaction (migration 0086, 0088).
-                if (pendingEvidence !== undefined) {
-                    await this.sourceEvidence.insert(tx, { ...pendingEvidence, recipeId: id });
-                }
-
-                await this.recordAttestationsIn(tx, id, principal.userId, {
+                await this.gate.record(tx, {
+                    recipeId: id,
+                    accountId: principal.userId,
                     action: 'setVisibility',
+                    evidence: pendingEvidence,
                     statement: extras.statement,
                     publicConfirmation: extras.publicConfirmation,
-                    recordsConfirmation: confirmationDuty.recordedWhenSupplied,
+                    recordsConfirmation: verdict.recordsConfirmation,
                 });
                 await this.assertNoPrivateFoodLinesIn(tx, written);
             }

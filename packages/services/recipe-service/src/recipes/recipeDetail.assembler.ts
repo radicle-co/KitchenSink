@@ -242,7 +242,7 @@ export class RecipeDetailAssembler {
         private readonly foodNutrition: FoodNutritionGateway,
         @Inject(RECIPE_LINE_VERIFICATIONS_DAL) private readonly lineVerificationsDal: LineVerificationsDal,
         @Inject(RecipeSourceEvidenceDal)
-        private readonly sourceEvidence: Pick<RecipeSourceEvidenceDal, 'listCommitted'>,
+        private readonly sourceEvidence: Pick<RecipeSourceEvidenceDal, 'list'>,
     ) {}
 
     /** Its own logger — a quiet-and-total read that failed open must still be visible. */
@@ -333,7 +333,7 @@ export class RecipeDetailAssembler {
      * @sideEffect One `recipe_source_evidence` read.
      */
     private async ownerStatementOf(recipe: RecipeAggregate['recipe']): Promise<OwnerStatementView> {
-        const evidence = await this.sourceEvidence.listCommitted(recipe.id);
+        const evidence = await this.sourceEvidence.list(recipe.id);
         const sourceType = recipeSourceTypeSchema.parse(recipe.sourceType);
 
         return {

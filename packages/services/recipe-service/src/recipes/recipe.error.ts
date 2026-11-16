@@ -17,6 +17,7 @@ import {
 } from '@kitchensink/recipe-core';
 
 import { apiError } from '../common/apiError.js';
+import type { VisibilityDecision } from './domain/visibilityPolicy.js';
 
 /** A thrown recipe-domain error carrying a machine-readable {@link RecipeErrorCode}. */
 export class RecipeDomainError extends Error implements RecipeError {
@@ -281,6 +282,32 @@ export function versionConflict(
  */
 export function invalidVisibility(reason: string, details?: Record<string, unknown>): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.INVALID_VISIBILITY, reason, details);
+}
+
+/** The denials of a visibility decision that a plain `400 INVALID_VISIBILITY` stands for, derived so a new denial is a compile error here. */
+type PolicyDenial = Extract<VisibilityDecision, { readonly allowed: false }>['denial'];
+
+/**
+ * The error for a refusal the visibility policies answer with `400 INVALID_VISIBILITY`: the plain C-004 refusal, or one of the
+ * rules the same status tells apart by `details.reason`. The ONE place both `evaluateVisibility` and `evaluatePublishedState`
+ * denials are mapped, so the two cannot answer a rule differently.
+ *
+ * @param denial - The policy's denial discriminant.
+ * @param reason - The policy's deny-reason, surfaced as the error message.
+ * @param details - The attempted visibility and source type.
+ * @returns The error to throw.
+ */
+export function policyRefusal(denial: PolicyDenial, reason: string, details: Record<string, unknown>): RecipeDomainError {
+    switch (denial) {
+        case 'sourceConflict':
+            return sourceConflictRefused(reason, details);
+        case 'statementRequired':
+            return statementRequiredRefused(reason, details);
+        case 'policy':
+        case 'contained':
+        case 'privateSlots':
+            return invalidVisibility(reason, details);
+    }
 }
 
 /** `details.reason` of the `INVALID_VISIBILITY` the evidence rule answers with: the stable key a client branches on. */

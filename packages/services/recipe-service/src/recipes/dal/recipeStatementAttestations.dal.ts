@@ -18,14 +18,11 @@ export class RecipeStatementAttestationsDal {
      * Append the rows one write leaves (none, one or two), in order.
      *
      * @param tx - The write's open transaction.
-     * @param rows - The rows, with their recipe and account. An empty list writes nothing and costs no statement.
+     * @param rows - The rows, with their recipe and account. At least one: the caller (`PublicStatementGate.record`) holds the one
+     *   empty-list guard, because an empty `INSERT … VALUES` is a statement the database refuses.
      * @sideEffect Inserts into `recipe_statement_attestations`.
      */
     public async insertMany(tx: RecipeTx, rows: readonly NewRecipeStatementAttestationRow[]): Promise<void> {
-        if (rows.length === 0) {
-            return;
-        }
-
         await tx.insert(recipeStatementAttestations).values([...rows]);
     }
 }

@@ -510,14 +510,26 @@ describe('the cache key per route class (ADR-0020 trap 1 — the P0 data leak)',
         // `Origin` in the key. Without it, a response cached for one origin (or for a mobile request with no
         // `Origin` at all) is served to a browser on another: one origin's allow-origin to the next, or none to
         // the web app. Both facts are read here, so neither can change without the other.
+        //
+        // REWRITTEN twice. The `enableCors` call first moved out of `main.ts` into `src/config/httpSetup.ts` (CORS must
+        // sit before the service's own JSON parser), and then into `jsonBodyHttpSetup` in
+        // `@kitchensink/nest-http-setup`, which owns the ordered setup for every JSON-body service. Food's setup
+        // therefore holds `jsonBodyHttpSetup(`, and the shared function holds the `enableCors` it always makes; both
+        // are read so neither can change without this premise.
         const main = readFileSync(
-            fileURLToPath(new URL('../../../services/food-service/src/main.ts', import.meta.url)),
+            fileURLToPath(new URL('../../../services/food-service/src/config/httpSetup.ts', import.meta.url)),
             'utf8',
         );
         const template = Template.fromStack(synthesize());
         const food = distributionsByService(template)['food']!;
 
-        expect(main).toContain('enableCors');
+        const shared = readFileSync(
+            fileURLToPath(new URL('../../../shared/nest-http-setup/src/jsonBodyHttpSetup.ts', import.meta.url)),
+            'utf8',
+        );
+
+        expect(main).toContain('jsonBodyHttpSetup(');
+        expect(shared).toContain('app.enableCors(');
 
         for (const pattern of SHARED_FOOD_PATHS) {
             expect(cacheKeyOf(template, behaviorFor(food, pattern)).headers).toContain('Origin');

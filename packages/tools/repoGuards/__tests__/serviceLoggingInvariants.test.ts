@@ -54,6 +54,7 @@ import {
     repoRoot,
     visit,
 } from './serviceSources.js';
+import { nestFactoryCreateCalls } from './nestFactoryCreateCalls.js';
 
 /** The package whose adoption makes a service a subject of these gates. */
 const PACKAGE = '@kitchensink/service-logging';
@@ -151,17 +152,17 @@ function unroutedNestBootstraps(service: DiscoveredService): readonly string[] {
     return runtimeSources(service).flatMap((source) => {
         const findings: string[] = [];
 
-        visit(parse(source), (node) => {
-            if (
-                !ts.isCallExpression(node) ||
-                !ts.isPropertyAccessExpression(node.expression) ||
-                node.expression.name.text !== 'create' ||
-                referenceText(node.expression.expression) !== 'NestFactory'
-            ) {
-                return;
-            }
-
-            const options = node.arguments[1];
+        nestFactoryCreateCalls(parse(source)).forEach((node) => {
+            // The shared HTTP setup's `nestOptions(…)` carries the service's own options as its argument
+            // (serviceJsonParserOnce requires that form), so the logger is read from there.
+            const given = node.arguments[1];
+            const options =
+                given !== undefined &&
+                ts.isCallExpression(given) &&
+                ts.isPropertyAccessExpression(given.expression) &&
+                given.expression.name.text === 'nestOptions'
+                    ? given.arguments[0]
+                    : given;
             const logger =
                 options !== undefined && ts.isObjectLiteralExpression(options)
                     ? objectProperties(options).get('logger')
@@ -443,24 +444,7 @@ function preRenderedLogArguments(service: DiscoveredService): readonly string[] 
 function unadoptedNestServices(services: readonly DiscoveredService[]): readonly string[] {
     return services
         .filter((service) => !hasAdopted(service))
-        .filter((service) =>
-            runtimeSources(service).some((source) => {
-                let boots = false;
-
-                visit(parse(source), (node) => {
-                    if (
-                        ts.isCallExpression(node) &&
-                        ts.isPropertyAccessExpression(node.expression) &&
-                        node.expression.name.text === 'create' &&
-                        referenceText(node.expression.expression) === 'NestFactory'
-                    ) {
-                        boots = true;
-                    }
-                });
-
-                return boots;
-            }),
-        )
+        .filter((service) => runtimeSources(service).some((source) => nestFactoryCreateCalls(parse(source)).length > 0))
         .map(
             (service) =>
                 `${service.name}: calls NestFactory.create but does not declare ${PACKAGE} — its bootstrap ` +
@@ -571,7 +555,7 @@ describe('every service that adopted the shared logger actually routes through i
 
         it('L1 finds real NestFactory.create calls to check', () => {
             const bootstraps = sinkUsers.flatMap((service) =>
-                runtimeSources(service).filter((source) => source.contents.includes('NestFactory.create')),
+                runtimeSources(service).flatMap((source) => nestFactoryCreateCalls(parse(source))),
             );
 
             expect(bootstraps.length).toBeGreaterThanOrEqual(3);
@@ -625,6 +609,81 @@ describe('every service that adopted the shared logger actually routes through i
                 ),
             };
 
+            expect(unroutedNestBootstraps(routed)).toEqual([]);
+        });
+
+        /** VIOLATING_SERVICE with its bootstrap's options replaced by `options`. */
+        const bootingWith = (options: string): DiscoveredService => ({
+            ...VIOLATING_SERVICE,
+            sources: VIOLATING_SERVICE.sources.map((source) =>
+                source.file.endsWith('/main.ts')
+                    ? {
+                          ...source,
+                          contents: source.contents.replace(
+                              'NestFactory.create(AppModule)',
+                              `NestFactory.create(AppModule, ${options})`,
+                          ),
+                      }
+                    : source,
+            ),
+        });
+
+        // The options a service hands Nest are the shared HTTP setup's `nestOptions(…)` result, so the adapter sits in
+        // that call's argument.
+        it('L1 accepts the adapter passed through the shared setup’s nestOptions(…)', () => {
+            expect(
+                unroutedNestBootstraps(bootingWith('X_SETUP.nestOptions({ logger: new NestRoutedLogger() })')),
+            ).toEqual([]);
+        });
+
+        it.each([
+            ['no options', 'X_SETUP.nestOptions()'],
+            ['options without a logger', 'X_SETUP.nestOptions({ bufferLogs: true })'],
+            ['another logger', 'X_SETUP.nestOptions({ logger: new ConsoleLogger() })'],
+            ['another member of the setup', 'X_SETUP.configure({ logger: new NestRoutedLogger() })'],
+        ])('L1 reports nestOptions(…) with %s', (_label, options) => {
+            expect(unroutedNestBootstraps(bootingWith(options))).toHaveLength(1);
+        });
+
+        /** VIOLATING_SERVICE with its main.ts passed through `rewrite`. */
+        const withMain = (rewrite: (contents: string) => string): DiscoveredService => ({
+            ...VIOLATING_SERVICE,
+            sources: VIOLATING_SERVICE.sources.map((source) =>
+                source.file.endsWith('/main.ts') ? { ...source, contents: rewrite(source.contents) } : source,
+            ),
+        });
+        const ROUTED = 'X_SETUP.nestOptions({ logger: new NestRoutedLogger() })';
+
+        // Every spelling of the call that serviceJsonParserOnce counts is checked here too (one shared finder).
+        const SPELLINGS: readonly (readonly [string, (contents: string) => string])[] = [
+            [
+                'a bracket access',
+                (contents: string) => contents.replace('NestFactory.create(', "NestFactory['create']("),
+            ],
+            [
+                'a renamed import',
+                (contents: string) =>
+                    contents
+                        .replace('{ NestFactory }', '{ NestFactory as Factory }')
+                        .replace('NestFactory.create(', 'Factory.create('),
+            ],
+            [
+                'a local alias',
+                (contents: string) =>
+                    contents.replace(
+                        'const app = await NestFactory.create(',
+                        'const F = NestFactory;\nconst app = await F.create(',
+                    ),
+            ],
+        ];
+
+        it.each(SPELLINGS)('L1 checks a bootstrap written with %s', (_label, rewrite) => {
+            const unrouted = withMain(rewrite);
+            const routed = withMain((contents) =>
+                rewrite(contents.replace('NestFactory.create(AppModule)', `NestFactory.create(AppModule, ${ROUTED})`)),
+            );
+
+            expect(unroutedNestBootstraps(unrouted)).toHaveLength(1);
             expect(unroutedNestBootstraps(routed)).toEqual([]);
         });
 
@@ -685,6 +744,10 @@ describe('every service that adopted the shared logger actually routes through i
         it('L6 reports a Nest service that boots without adopting', () => {
             // The fake declares no manifest, so `hasAdopted` is false and its `main.ts` calls create.
             expect(unadoptedNestServices([VIOLATING_SERVICE])).toHaveLength(1);
+        });
+
+        it.each(SPELLINGS)('L6 reports a service that boots without adopting, written with %s', (_label, rewrite) => {
+            expect(unadoptedNestServices([withMain(rewrite)])).toHaveLength(1);
         });
 
         it('L3 reports every missing hook at once', () => {

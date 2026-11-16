@@ -57,7 +57,7 @@ The Pro pool (FR-040) is in no phase yet. The owner deferred it to the royalties
 | [015-publishing-rewards](../015-publishing-rewards/spec.md)                                                                                                   | **Constraining, amended.** Its rewards stay non-monetary (`015-FR-007`, `015-FR-030`). Any future Pro pool (FR-040, deferred) must not become a paid route around it                                                                                          |
 | [004-recipe-importing](../004-recipe-importing/spec.md)                                                                                                       | **Required, amendment requested.** It owns source types (`004-FR-011`) and the per-item statement (`004-FR-014a`). It also owns bulk import (ADR-0072) and the "Save to Commise" button (`FR-053`)                                                            |
 | [020-content-source-check](../020-content-source-check/spec.md) and ADR-0074                                                                                  | **Required, amendment requested.** When the check finds the chef's own blog, a claimed site must count as evidence                                                                                                                                            |
-| [021-public-discovery-and-sharing](../021-public-discovery-and-sharing/spec.md)                                                                               | **Required, amendment requested.** What is open to the web, indexing and canonical addresses. Another session owns the linked card work there                                                                                                                 |
+| [021-public-discovery-and-sharing](../021-public-discovery-and-sharing/spec.md)                                                                               | **Required, amendment requested.** What is open to the web, indexing and canonical addresses. Facts and linked cards are withdrawn there (2026-11-15)                                                                                                         |
 | [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md)                                                                                   | **Required, amendment applied.** The content licence, notice and takedown, the processor terms for the email list                                                                                                                                             |
 | [010-subscriptions](../010-subscriptions/spec.md) and [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md) | **Governs.** Plans, store billing through RevenueCat, Stripe on the web. A future Pro pool (FR-040, deferred) is funded from 010 revenue                                                                                                                      |
 | [014-notification-service](../014-notification-service/spec.md)                                                                                               | **Referenced.** If the owner chooses it (Q3), native email sending in phase 3 is a new 014 channel                                                                                                                                                            |
@@ -396,7 +396,7 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
   paid collection, recipe, digital cookbook, course or club MUST show a signed-out reader at most its title, cover,
   price and the chef's own description. That is enough for a reader to find it and buy it. It MUST NOT show any of
   its recipes, their ingredients, steps or photos, or a course's lessons. The same limit MUST hold in the chef directory and its search
-  (`018-FR-017`), which list chefs and their public work, never linked cards.
+  (`018-FR-017`), which list chefs and their public work, never a Commise-written version of an import.
 
 #### C. The email list (phase 1)
 
@@ -446,7 +446,7 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
   product (`018-FR-087`), with verified constraint claims (`018-FR-088`). This is the primary sellable unit.
   _(Amended 2026-11-03, owner ruling O14d and O14e, ADR-0082.)_ [Law] The cookbook MUST hold only sellable recipes:
   "Written by you", "Adapted by you" in the chef's own words, and family recipes whose giver's permission covers selling
-  (`018-FR-026`). It MUST NOT hold an imported copy, a facts card, public-domain curator text or another person's text.
+  (`018-FR-026`). It MUST NOT hold an imported copy, a Commise-written version of an import, public-domain curator text or another person's text.
   A non-sellable recipe MUST be refused when it is added. Every recipe sold passes 020's hold (`020-FR-057`). A chef
   can also sell a single private recipe or a private collection (`012-FR-034a`). Counsel review is owed before launch
   (`016-FR-050`).
@@ -499,11 +499,11 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
 | 016                | Processor terms for the email list (FR-023). Creator terms that cover the site claim and the sponsor line. FTC disclosure rules for affiliate links and sponsor lines | Applied 2026-10-29: `016-FR-054` to `FR-057`                                               |
 | 004, 016, 020, 021 | "This is my recipe" (owner ruling O16, 2026-11-03, ADR-0082): the owner statement on single imports, read by the same claim                                           | Applied 2026-11-03: `004-FR-014a` statement 1a, `016-FR-069`, `020-FR-012g`, `021-FR-010a` |
 
-The linked card (`021-FR-014a` to `FR-014h`) is for a recipe from someone else's page. It does not apply to a chef's
-own page under a live claim. This spec does not edit 016 or 010. _(Note 2026-11-03, owner ruling, ADR-0082: the
-linked card is now a signed-out facts card, indexable under 021's public rule (owner ruling O2, amended 2026-11-03). A chef's public pages list every open label
-(written, adapted, family, public domain, clone) and show each label, and the licence where the chef chose CC BY 4.0.
-They never list a linked card. Owner ruling O7, 2026-11-03, ADR-0082, confirms it: no creator or chef page lists a facts card. Counsel review is owed before launch (`016-FR-050`).)_
+_(Amended 2026-11-15, owner ruling, ADR-0092.)_ A recipe from someone else's page goes public only as a Commise-written
+version (`021-FR-003`). That does not apply to a chef's own page under a live claim, which is on the copy-outright
+allowlist. This spec does not edit 016 or 010. A chef's public pages list every open label (written, adapted, family,
+public domain, clone) and show each label, and the licence where the chef chose CC BY 4.0. They never list a
+Commise-written version of an import (owner ruling O7, 2026-11-03, ADR-0082).
 
 ### Key Entities
 

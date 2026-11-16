@@ -43,6 +43,9 @@
   text open to the web. Cooks get an opt-in CC BY choice. The source card is kept only for an opted-out, capped or
   excluded site. Counsel's list grows (FR-095). GR-014 is amended in the same change (FR-096). No `plan.md` or
   `tasks.md` exists yet, so the spec lists the plan work owed under Dependencies.
+- 2026-11-15 (owner ruling, ADR-0092): facts cards, linked cards, book cards and source cards are withdrawn. An
+  imported recipe goes public only as a Commise-written version (FR-003, FR-014). Four owner questions are open in
+  Session 2026-11-15.
 - Section J names existing artefacts on purpose: ADR-0047's `bearerOnlyPrecondition` guard, ADR-0020's edge
   passthrough, `isRecipeViewableBy`, `safeReturnPath`, `analyticsRedaction.ts` and ADR-0064's avatar keys. Each is a
   contract this feature must keep or amend, not a free design choice. The read-path shape itself is left to

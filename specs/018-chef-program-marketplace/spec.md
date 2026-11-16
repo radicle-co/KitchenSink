@@ -517,7 +517,7 @@ fixed regardless of the answer**:
   pages (`021-FR-008`). A chef's paid items MUST NOT be readable signed out. A paid collection, recipe, cookbook,
   course or club shows a signed-out visitor at most its title, cover, price and the chef's own description, and never
   its recipes, their ingredients, steps or photos, or a course's lessons (`026-FR-015`). The directory lists chefs and
-  their public work, and never a linked card (`021-FR-014a`). The owner, verbatim: "both, but only for public content
+  their public work, and never a Commise-written version of an import (`021-FR-003`, amended 2026-11-15). The owner, verbatim: "both, but only for public content
   and nothing that's behind a paywall (like a chef selling a collection)". Was: "complete for an unauthenticated
   visitor", with no limit on paid content.
 
@@ -584,10 +584,10 @@ fixed regardless of the answer**:
   circumstances.
   _(Amended 2026-11-03, owner ruling O14d, ADR-0082.)_ [Law] Selling is distribution (17 U.S.C. §106(3)), so a chef can
   sell only content they own. That is "Written by you", "Adapted by you" in their own words, and a family recipe whose
-  giver's permission covers selling. It is never an `imported_public`, `imported_physical` or `imported_paid` copy, a
-  facts card, public-domain curator text, or anything holding another person's text (`016-FR-029a`). A sellable
-  collection holds only sellable recipes. Facts cards and other people's recipes can sit only in a FREE public
-  collection. Every sold recipe passes 020's hold before listing and delivery (O14e, `020-FR-057`). The same rule binds
+  giver's permission covers selling. It is never an `imported_public`, `imported_physical` or `imported_paid` copy, a Commise-written version of an import (2026-11-15),
+  public-domain curator text, or anything holding another person's text (`016-FR-029a`). A sellable
+  collection holds only sellable recipes. Commise-written versions and other people's recipes can sit only in a FREE
+  public collection. Every sold recipe passes 020's hold before listing and delivery (O14e, `020-FR-057`). The same rule binds
   any creator, not only a chef: `012-FR-034a` to `012-FR-034c` let a creator choose public or private per recipe and
   per collection, and list private ones for sale, with 010 and this spec owning the payment. Counsel review is owed
   before launch (`016-FR-050`).

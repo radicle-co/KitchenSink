@@ -588,9 +588,9 @@ no difference in recognition from a free account doing the same.
 - **SC-002**: 100% of published recipes that earned a reward have a recorded authorship attestation. A
   publication with a grant and no attestation is a defect, not a data-quality issue.
 - **SC-003**: 0% of rewards are granted for recipes whose provenance is imported or cloned, measured
-  continuously rather than sampled. _(amended 2026-11-03, owner ruling, ADR-0082: this is a [House rule], not a
-  legal requirement. It stays as cheap hygiene. A Commise version, if the later pilot ever ships, never earns a
-  reward. Counsel review is owed before launch (`016-FR-050`).)_
+  continuously rather than sampled. _(amended 2026-11-03, owner ruling, ADR-0082: this is a house rule. It
+  stays as cheap hygiene. A Commise-written version of an imported recipe (`021-FR-003`, amended 2026-11-15) never
+  earns a reward.)_
 - **SC-004**: A user can unpublish a recipe in one action, and their benefit balance after unpublishing is
   identical to before, in 100% of cases.
 - **SC-005**: The share of the public corpus contributed by users who published voluntarily rises, while the

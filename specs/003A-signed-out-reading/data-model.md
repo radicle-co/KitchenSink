@@ -17,17 +17,16 @@ One input to the open-to-web rule. A discriminated union, so a new kind is a com
 
 The rule's inputs, each a required field of `OpenToWebInput`:
 
-| Input            | 021 rule                   | Producer in 003A                                  | Value until the producer ships |
-| ---------------- | -------------------------- | ------------------------------------------------- | ------------------------------ |
-| `visibility`     | rule 1                     | the recipe row                                    | real                           |
-| `status`         | rule 2                     | the recipe row                                    | real                           |
-| `deleted`        | rule 3                     | the recipe row                                    | real                           |
-| `hold`           | rule 4 (`020-FR-057`)      | 020's hold Specification                          | `unknown`                      |
-| `rightsLabel`    | rule 5 (`016-FR-015c`)     | 016's label Policy                                | `unknown`                      |
-| `licence`        | rule 6 (`021-FR-040`)      | 016's licence acceptance                          | `unknown`                      |
-| `authorStanding` | rule 7                     | identity, through the standing read (research R4) | real, and `unknown` on failure |
-| `restriction`    | rule 8                     | 016's notice and action decisions                 | fixed `none` (see below)       |
-| `sourceCap`      | `021-FR-014e` (cards only) | 021's cap and aggregator list                     | `unknown`                      |
+| Input            | 021 rule               | Producer in 003A                                  | Value until the producer ships |
+| ---------------- | ---------------------- | ------------------------------------------------- | ------------------------------ |
+| `visibility`     | rule 1                 | the recipe row                                    | real                           |
+| `status`         | rule 2                 | the recipe row                                    | real                           |
+| `deleted`        | rule 3                 | the recipe row                                    | real                           |
+| `hold`           | rule 4 (`020-FR-057`)  | 020's hold Specification                          | `unknown`                      |
+| `rightsLabel`    | rule 5 (`016-FR-015c`) | 016's label Policy                                | `unknown`                      |
+| `licence`        | rule 6 (`021-FR-040`)  | 016's licence acceptance                          | `unknown`                      |
+| `authorStanding` | rule 7                 | identity, through the standing read (research R4) | real, and `unknown` on failure |
+| `restriction`    | rule 8                 | 016's notice and action decisions                 | fixed `none` (see below)       |
 
 The rule is a composite of two halves: `contentOpen` over the row and the content readings, then `authorActive` over
 the author standing. `contentOpen` runs first, so a closed recipe never causes a call to identity or food. While the
@@ -41,12 +40,10 @@ table, so no recipe can be restricted today. That is the only case FR-002 allows
 
 What the rule decides. A discriminated union on `form`.
 
-| Form          | When                                                                                 | Fields                                          |
-| ------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------- |
-| `full`        | every input open, and the rights label is one of `021-FR-002` rule 5's labels        | the full projection                             |
-| `factsCard`   | the rights label is a copied page or a book, every other input open, the cap open    | exactly `021-FR-014a`'s fields                  |
-| `sourceCard`  | a facts card whose source opted out, is past its cap, or is excluded (`021-FR-014e`) | title, site name, link only                     |
-| not available | anything else                                                                        | one fixed `404` body, not a member of the union |
+| Form          | When                                                                          | Fields                                          |
+| ------------- | ----------------------------------------------------------------------------- | ----------------------------------------------- |
+| `full`        | every input open, and the rights label is one of `021-FR-002` rule 5's labels | the full projection                             |
+| not available | anything else                                                                 | one fixed `404` body, not a member of the union |
 
 State changes: only a change of an input changes the form. Each such change is an exit event (`021-FR-007`) and shows within
 the 5-minute cache life (FR-013).
@@ -64,8 +61,8 @@ Validation:
 
 - `id` is a UUID. Anything else is not available, never a `400`.
 - `slug` is derived from the title by one pure function, and is not stored.
-- A facts card's lines carry `{ quantity, unit, foodName }` only, plus `unreadLineCount`. No `displayText`, `note` or
-  `preparation` (`021-FR-014b`).
+- _(Amended 2026-11-15, ADR-0092.)_ The facts card and source card forms are withdrawn. A Commise-written version is a
+  `full` form (`021-FR-003`).
 - A full recipe line whose food did not answer has `foodName: null` and keeps its `displayText`. The count of such
   lines is `missingNutritionCount` (FR-008).
 - Photos are thumbnails only (FR-026).

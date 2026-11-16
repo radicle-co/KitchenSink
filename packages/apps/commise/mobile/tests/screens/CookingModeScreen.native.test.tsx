@@ -6,11 +6,11 @@
  * session boundary, and the read outcomes (404, failure, draft, no steps).
  */
 import { RecipeStatus } from '@kitchensink/recipe-core';
-import { NotFoundError } from '@kitchensink/recipe-service-client';
+import { NotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { QueryClient } from '@tanstack/react-query';
-import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useSessionClaims } from '../../src/hooks/useSessionClaims.js';
@@ -101,6 +101,36 @@ describe('CookingModeScreen: the read outcomes', () => {
     });
 });
 
+describe('CookingModeScreen: no decision while the viewer is unknown', () => {
+    it('decides nothing and paints only the loading frame, then decides once the viewer is known', async () => {
+        vi.mocked(useSessionClaims).mockReturnValue({});
+        useUserProfileMock.mockReturnValue({ status: 'pending', isLoading: true, data: undefined });
+        const client = createFakeRecipeServiceClient();
+        const read = vi.spyOn(client, 'getRecipeById');
+        // SEEDED, so nothing suspends: the viewer is the only thing left to wait for.
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+        queryClient.setQueryData(
+            recipeQueries(client).detail('rec_1').queryKey,
+            makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, status: RecipeStatus.DRAFT, steps: FOUR }),
+        );
+        const view = renderWithRecipeClient(screenOf(), client, { queryClient });
+        await act(async () => undefined);
+
+        expect(read).not.toHaveBeenCalled();
+        expect(onEdit).not.toHaveBeenCalled();
+        expect(screen.getByRole('main').getAttribute('aria-busy')).toBe('true');
+        expect(screen.queryByText('Heat the oil.')).toBeNull();
+        expect(screen.queryByText('This recipe isn’t available any more')).toBeNull();
+
+        // Positive control: once the viewer is known the same draft IS decided, so the asserts above are not vacuous.
+        vi.mocked(useSessionClaims).mockReturnValue({ external_id: OWNER_ID });
+        useUserProfileMock.mockReturnValue(settledProfile);
+        view.rerender(screenOf());
+
+        await waitFor(() => expect(onEdit).toHaveBeenCalledTimes(1));
+    });
+});
+
 describe('CookingModeScreen: a cook on a step is not moved by a later read', () => {
     it.each([
         ['a 404', () => Promise.reject(new NotFoundError('Recipe not found'))],
@@ -141,6 +171,22 @@ describe('CookingModeScreen: a cook on a step is not moved by a later read', () 
         fireEvent.click(nextStep());
         fireEvent.click(nextStep());
         expect(screen.getByRole('heading', { name: 'All 4 steps done' })).toBeTruthy();
+    });
+
+    it('never draws the loading frame while a background fetch is in flight', async () => {
+        const { read, queryClient } = await cookingOnStepThree();
+        read.mockImplementation(() => new Promise(() => undefined));
+
+        await act(async () => {
+            void queryClient.refetchQueries();
+            // One macrotask: TanStack delivers its notifications on setTimeout(0), which a microtask flush does not reach.
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+
+        // The fetch really is in flight, so the asserts below are about a background fetch and not an idle screen.
+        expect(queryClient.isFetching()).toBe(1);
+        expect(screen.getByRole('main').getAttribute('aria-busy')).not.toBe('true');
+        expect(screen.getByText(stepOf(3, 4))).toBeTruthy();
     });
 
     it('ends the session when the cook changes', async () => {

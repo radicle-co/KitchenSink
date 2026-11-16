@@ -7,6 +7,7 @@
  *    `docs/mockups/screens/*.html`; `docs/` is therefore not on the list, and markdown or the repo guards must not
  *    become inputs of a spec or a flow without this test failing.
  */
+import { execFileSync } from 'node:child_process';
 import { globSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -77,6 +78,30 @@ describe('the zero list, over the real tree', () => {
 
         expect(sources.length).toBeGreaterThan(20);
         expect(offenders).toEqual([]);
+    });
+
+    it('only the lane packers and their validating tests name the two timing tables', () => {
+        // The tables are zero-listed because only the lane packers read them (ADR-0086 section 3). A spec, fixture,
+        // seed or flow that read one would let a changed row change a run, so each new reader must fail here.
+        const namers = execFileSync(
+            'git',
+            ['grep', '-lE', 'testDurations|maestroFlowSeconds', '--', ':!*.md', ':!*.tsv', ':!testDurations.json'],
+            { cwd: repo, encoding: 'utf8' },
+        )
+            .split('\n')
+            .filter((file) => file !== '')
+            .sort();
+
+        expect(namers).toEqual([
+            'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh',
+            'packages/apps/commise/web/scripts/__tests__/e2eDurations.test.ts',
+            'packages/apps/commise/web/scripts/e2ePaths.ts',
+            'packages/tools/e2ePlan/__tests__/impactPolicy.test.ts',
+            'packages/tools/e2ePlan/src/impactPolicy.ts',
+            'packages/tools/e2ePlan/tests/e2eImpactClassification.integration.test.ts',
+            'packages/tools/e2ePlan/tests/e2eZeroList.integration.test.ts',
+            'packages/tools/repoGuards/__tests__/maestroShardPartition.test.ts',
+        ]);
     });
 
     it('no Maestro flow or script names a markdown file or the repo guards', () => {

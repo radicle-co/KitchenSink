@@ -25,7 +25,15 @@ export const makePage = (over: Partial<Extract<KeptEntry, { kind: 'page' }>> = {
     ...over,
 });
 
-const timerBase = { id: timerId(1), recipeId: 'r1', stepIndex: 3, stepDigest: 's1:0000000d', ordinal: 1 };
+const timerBase = {
+    id: timerId(1),
+    recipeId: 'r1',
+    stepIndex: 3,
+    stepDigest: 's1:0000000d',
+    ordinal: 1,
+    run: 1,
+    durationMs: HOUR,
+};
 
 type Over<T> = Partial<Omit<T, 'state'>>;
 
@@ -46,9 +54,12 @@ export const makePaused = (over: Over<PausedTimer> = {}): PausedTimer => ({
 
 export const makeEnded = (
     state: 'ringing' | 'endedAway',
-    { announcedAt, ...over }: Over<RunningTimer> & { readonly endedAt?: string; readonly announcedAt?: string } = {},
+    {
+        announcedAt,
+        ...over
+    }: Omit<Over<RunningTimer>, 'endsAt'> & { readonly endedAt?: string; readonly announcedAt?: string } = {},
 ): KeptTimer => {
-    const base = { ...timerBase, endsAt: iso(T0), endedAt: iso(T0), ...over };
+    const base = { ...timerBase, endedAt: iso(T0), ...over };
 
     return state === 'ringing'
         ? { ...base, state }

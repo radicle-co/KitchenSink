@@ -28,14 +28,18 @@ The key is `cook.v2.{clerkUserId}`. The value is `{ v: 1, rev, entries, timers }
 (parse, don't validate). An entry is a union on `kind`: a `page` entry (ingredient ticks, the page's step mark,
 servings) is not a session and never reads as one; a `cooking` entry is a session. A timer is a union on `state`, and
 each state carries exactly the instants it needs: `running` has `endsAt`; `paused` has `remainingMs` and `pausedAt`;
-`ringing` and `endedAway` have `endsAt` and `endedAt`, and only `endedAway` may carry `announcedAt`. A timer has no
+`ringing` and `endedAway` have `endedAt` alone (the reducer ends a timer at its own end, so a second instant could only
+equal it or be wrong), and only `endedAway` may carry `announcedAt`. Every timer, in every state, also carries a
+required `ordinal` and `run` (positive integers) and `durationMs` (an integer from `MIN_TIMER_MS` to `MAX_TIMER_MS` in
+cooking-core, so a timer the reducer would refuse is never stored). `pausedAt` and `announcedAt` live in the record
+alone. The reducer's `name` and its Undo are not stored. A timer has no
 label field, so a typed label can never be stored. The record holds ids, positions, digests, servings and instants only.
 Every schema is strict and an unparseable document is removed, so any change to the shape, an added optional field
 included, is a new version (v2) and never an edit to v1: an older tab or app would delete a record it cannot read.
 
 A document that fails to parse counts as no record and is removed. One bad timer is dropped and reported once, and the
 rest of the document stays. A duplicate timer id keeps the first. The schema takes any number of timers, so several
-timers need no format change. S4a keeps its one-timer rule in the timer command, not in the format. A later format
+timers need no format change. The one-timer limit and the numbering and step rules belong to cooking-core's `reduceTimer`, not to the record (staff S63). A later format
 change bumps `v` and adds a migration.
 
 ### 3. The port and the write outcome (KTD2)

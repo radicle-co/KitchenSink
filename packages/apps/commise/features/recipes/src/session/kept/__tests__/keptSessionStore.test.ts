@@ -387,7 +387,7 @@ describe('dispatch', () => {
         expect(data.has(KEY_A)).toBe(false);
     });
 
-    it('joined, refused and unchanged write nothing and leave the snapshot as it is', async () => {
+    it('joined writes nothing and leave the snapshot as it is', async () => {
         const stored = serializeKeptDocument(makeDoc({ entries: { r1: makeCooking() } }));
         const { store, calls } = setup({ [KEY_A]: stored });
 

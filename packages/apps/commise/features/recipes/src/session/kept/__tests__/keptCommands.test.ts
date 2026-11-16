@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    applyKeptCommand,
-    lowestFreeOrdinal,
-    snapshotForEnd,
-    type KeptCommand,
-    type KeptOutcome,
-} from '../keptCommands.js';
+import { applyKeptCommand, snapshotForEnd, type KeptCommand, type KeptOutcome } from '../keptCommands.js';
 import type { KeptDocument } from '../keptRecord.js';
 
 import {
@@ -14,7 +8,6 @@ import {
     iso,
     makeCooking,
     makeDoc,
-    makeEnded,
     makePage,
     makePaused,
     makeTimer,
@@ -187,149 +180,13 @@ describe('session commands', () => {
     });
 });
 
-describe('timer commands', () => {
-    const running = makeTimer({ endsAt: iso(T0 + 2 * HOUR) });
-    const doc = makeDoc({ timers: [running] });
-
-    it('startTimer on an empty record adds the timer with ordinal 1', () => {
-        const { ordinal: _o, ...fresh } = makeTimer();
-        const next = applied(
-            run(makeDoc(), {
-                type: 'startTimer',
-                timer: {
-                    id: fresh.id,
-                    recipeId: 'r1',
-                    stepIndex: 3,
-                    stepDigest: fresh.stepDigest,
-                    endsAt: iso(T0 + HOUR),
-                },
-                stepDigests: STEPS,
-            }),
-        );
-
-        expect(next.timers).toEqual([expect.objectContaining({ id: fresh.id, state: 'running', ordinal: 1 })]);
-    });
-
-    it('refuses a second timer while one is held and leaves the record (S3 one-timer rule; mutant: replaces)', () => {
-        const outcome = run(doc, {
-            type: 'startTimer',
-            timer: {
-                id: timerId(2),
-                recipeId: 'r1',
-                stepIndex: 3,
-                stepDigest: running.stepDigest,
-                endsAt: iso(T0 + HOUR),
-            },
-            stepDigests: STEPS,
-        });
-
-        expect(outcome).toEqual({ kind: 'refused', reason: 'timerLimit' });
-    });
-
-    it('pause stores the remaining time and pausedAt, resume restarts from now and clears pausedAt', () => {
-        const paused = applied(
-            run(doc, { type: 'pauseTimer', id: running.id, expect: { state: 'running', endsAt: running.endsAt } }),
-        );
-
-        const { endsAt: _endsAt, ...kept } = running;
-
-        expect(paused.timers[0]).toEqual({ ...kept, state: 'paused', remainingMs: HOUR, pausedAt: NOW });
-
-        const later = iso(T0 + 10 * HOUR);
-        const resumed = applied(
-            run(paused, { type: 'resumeTimer', id: running.id, expect: { state: 'paused' } }, later),
-        );
-
-        expect(resumed.timers[0]).toEqual({ ...running, endsAt: iso(T0 + 11 * HOUR) });
-    });
-
-    it('drops a command whose expectation no longer holds, or that names an unknown id', () => {
-        expect(run(doc, { type: 'pauseTimer', id: running.id, expect: { state: 'paused' } })).toEqual({
-            kind: 'unchanged',
-        });
-        expect(run(doc, { type: 'pauseTimer', id: running.id, expect: { state: 'running', endsAt: iso(T0) } })).toEqual(
-            { kind: 'unchanged' },
-        );
-        expect(run(doc, { type: 'cancelTimer', id: timerId(9), expect: { state: 'running' } })).toEqual({
-            kind: 'unchanged',
-        });
-    });
-
-    it('qse-r2 2: pause and cancel act on the timer by id, never timers[0]', () => {
-        const second = makeTimer({ id: timerId(2), recipeId: 'r2', endsAt: iso(T0 + 3 * HOUR) });
-        const two = makeDoc({ timers: [running, second] });
-        const paused = applied(run(two, { type: 'pauseTimer', id: second.id, expect: { state: 'running' } }));
-
-        expect(paused.timers[0]).toEqual(running);
-        expect(paused.timers[1]).toMatchObject({ id: second.id, state: 'paused' });
-
-        const cancelled = applied(run(two, { type: 'cancelTimer', id: second.id, expect: { state: 'running' } }));
-
-        expect(cancelled.timers).toEqual([running]);
-    });
-});
-
-describe('lowestFreeOrdinal (S6 R2, B2)', () => {
-    const held = (stepIndex: number, ordinal: number | undefined, ended = false) => {
-        const over = { id: timerId(ordinal ?? 9), recipeId: 'r1', stepIndex, ordinal };
-
-        return ended ? makeEnded('endedAway', over) : makeTimer(over);
-    };
-
-    it('gives 2 when 1 and 3 are held on the step, and 1 on another step (mutant: from id order)', () => {
-        const timers = [held(3, 1), held(3, 3)];
-
-        expect(lowestFreeOrdinal(timers, 'r1', 3)).toBe(2);
-        expect(lowestFreeOrdinal(timers, 'r1', 4)).toBe(1);
-        expect(lowestFreeOrdinal(timers, 'other', 3)).toBe(1);
-    });
-
-    it('counts a timer in any state, and reads a missing ordinal as 1 (B2)', () => {
-        expect(lowestFreeOrdinal([held(3, 1, true), held(3, 2)], 'r1', 3)).toBe(3);
-        expect(lowestFreeOrdinal([held(3, undefined)], 'r1', 3)).toBe(2);
-    });
-});
-
 describe('rebind (B1, B6, KTD7)', () => {
     const stepsNow = ['a', 'c', 'd', 'e'].map(digestOf);
 
-    it('a timer follows its step when step b is deleted (B1)', () => {
-        const doc = makeDoc({ timers: [makeTimer({ recipeId: 'r1', stepIndex: 2, stepDigest: digestOf('c') })] });
-        const next = applied(run(doc, { type: 'rebind', recipeId: 'r1', stepDigests: stepsNow }));
-
-        expect(next.timers[0]?.stepIndex).toBe(1);
-    });
-
-    it('a timer whose step has no single match keeps its clamped index and still exists', () => {
-        const doc = makeDoc({ timers: [makeTimer({ recipeId: 'r1', stepIndex: 9, stepDigest: digestOf('gone') })] });
-        const next = applied(run(doc, { type: 'rebind', recipeId: 'r1', stepDigests: stepsNow }));
-
-        expect(next.timers[0]?.stepIndex).toBe(3);
-    });
-
     it('with no steps (gone or noSteps) it changes nothing (redteam r3 c)', () => {
-        const doc = makeDoc({ timers: [makeTimer({ recipeId: 'r1', stepIndex: 4, ordinal: 2 })] });
+        const doc = makeDoc({ entries: { r1: makeCooking({ step: { index: 4, digest: digestOf('c') } }) } });
 
         expect(run(doc, { type: 'rebind', recipeId: 'r1', stepDigests: [] })).toEqual({ kind: 'unchanged' });
-    });
-
-    it('a moved timer takes the lowest free ordinal when another holds its number on the new step (B6)', () => {
-        const held = makeTimer({ id: timerId(1), recipeId: 'r1', stepIndex: 1, stepDigest: digestOf('c'), ordinal: 1 });
-        const moved = makeTimer({
-            id: timerId(2),
-            recipeId: 'r1',
-            stepIndex: 2,
-            stepDigest: digestOf('c'),
-            ordinal: 1,
-        });
-        const next = applied(
-            run(makeDoc({ timers: [held, moved] }), { type: 'rebind', recipeId: 'r1', stepDigests: stepsNow }),
-        );
-
-        expect(next.timers.map((t) => [t.stepIndex, t.ordinal])).toEqual([
-            [1, 1],
-            [1, 2],
-        ]);
     });
 
     it('marks and line ticks move with their single step; one with no single match is dropped (KTD7)', () => {
@@ -375,7 +232,7 @@ describe('End then Undo (KTD13, r3-undo)', () => {
             throw new Error('no snapshot');
         }
 
-        const back = applied(run(ended, { type: 'restoreSession', snapshot, stepDigests: STEPS }));
+        const back = applied(run(ended, { type: 'restoreSession', snapshot }));
 
         expect(back.entries).toEqual(before.entries);
         expect(back.timers).toEqual(before.timers);
@@ -389,22 +246,7 @@ describe('End then Undo (KTD13, r3-undo)', () => {
             throw new Error('no snapshot');
         }
 
-        expect(run(before, { type: 'restoreSession', snapshot, stepDigests: STEPS })).toEqual({ kind: 'unchanged' });
-    });
-
-    it('is refused whole when another timer was started in the window (po P24)', () => {
-        const snapshot = snapshotForEnd(before, 'r1');
-        const ended = applied(run(before, { type: 'endSession', recipeId: 'r1' }));
-        const other = makeTimer({ id: timerId(5), recipeId: 'r2' });
-
-        if (snapshot === undefined) {
-            throw new Error('no snapshot');
-        }
-
-        expect(run({ ...ended, timers: [other] }, { type: 'restoreSession', snapshot, stepDigests: STEPS })).toEqual({
-            kind: 'refused',
-            reason: 'timerLimit',
-        });
+        expect(run(before, { type: 'restoreSession', snapshot })).toEqual({ kind: 'unchanged' });
     });
 
     it('redteam r3 a: ticks made on the page entry in the window are merged, not overwritten', () => {
@@ -416,7 +258,7 @@ describe('End then Undo (KTD13, r3-undo)', () => {
             throw new Error('no snapshot');
         }
 
-        const back = applied(run(withPage, { type: 'restoreSession', snapshot, stepDigests: STEPS }));
+        const back = applied(run(withPage, { type: 'restoreSession', snapshot }));
 
         expect(back.entries['r1']).toMatchObject({ kind: 'cooking', ticks: ['butter', 'salt'] });
     });
@@ -435,22 +277,9 @@ describe('End then Undo (KTD13, r3-undo)', () => {
         }
 
         const withPage = makeDoc({ entries: { r1: makePage({ servings: 6, lastTouch: pageTouch }) } });
-        const back = applied(run(withPage, { type: 'restoreSession', snapshot, stepDigests: STEPS }));
+        const back = applied(run(withPage, { type: 'restoreSession', snapshot }));
 
         expect(back.entries['r1']).toMatchObject({ kind: 'cooking', servings: expected });
-    });
-
-    it('redteam r3 c: with no steps (gone) the timer keeps its stepIndex and ordinal', () => {
-        const snapshot = snapshotForEnd(before, 'r1');
-        const ended = applied(run(before, { type: 'endSession', recipeId: 'r1' }));
-
-        if (snapshot === undefined) {
-            throw new Error('no snapshot');
-        }
-
-        const back = applied(run(ended, { type: 'restoreSession', snapshot, stepDigests: undefined }));
-
-        expect(back.timers[0]).toMatchObject({ stepIndex: 2, ordinal: 2 });
     });
 });
 

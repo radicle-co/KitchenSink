@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { makeFakeLocks, makeFakePort } from '../../src/session/kept/__fixtures__/fakeKeptPort.js';
-import { HOUR, iso, makeCooking, makeDoc, T0, timerId } from '../../src/session/kept/__fixtures__/keptFixtures.js';
+import { HOUR, iso, makeCooking, makeDoc, T0 } from '../../src/session/kept/__fixtures__/keptFixtures.js';
 import { keptKeyFor, parseKeptDocument, serializeKeptDocument } from '../../src/session/kept/keptRecord.js';
 import { createKeptSessionStore } from '../../src/session/kept/keptSessionStore.js';
 import type { ExclusiveRunner } from '../../src/session/kept/keptPort.js';
@@ -82,26 +82,6 @@ describe('two tabs over one record (R12, AE13, RT1)', () => {
 
         expect(outcome).toEqual({ kind: 'unchanged' });
         expect(stored().entries['r1']).toBeUndefined();
-    });
-
-    it('the start race: two tabs start a timer in the same tick, one is stored and one is refused (mutant: limit read outside the lock)', async () => {
-        const { a, b, stored } = await twoTabs({ [KEY]: withSession });
-        const start = (n: number): KeptCommand => ({
-            type: 'startTimer',
-            timer: {
-                id: timerId(n),
-                recipeId: 'r1',
-                stepIndex: 1,
-                stepDigest: 's1:00000001',
-                endsAt: iso(T0 + 2 * HOUR),
-            },
-            stepDigests: ['s1:00000000', 's1:00000001'],
-        });
-
-        const outcomes = await Promise.all([a.dispatch(start(1)), b.dispatch(start(2))]);
-
-        expect(outcomes.map((o) => o.kind).sort()).toEqual(['applied', 'refused']);
-        expect(stored().timers).toHaveLength(1);
     });
 
     it("startSession join: B starts, then A starts: the stored string is byte-identical after A, and A gets joined with B's step", async () => {

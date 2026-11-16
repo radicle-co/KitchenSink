@@ -41,7 +41,7 @@ describe('sessionClock (KTD6)', () => {
     });
 
     it.each(['ringing', 'endedAway'] as const)('qse 1: a %s timer idles from endedAt', (state) => {
-        const timer = makeEnded(state, { endsAt: at(HOUR), endedAt: at(HOUR) });
+        const timer = makeEnded(state, { endedAt: at(HOUR) });
 
         expect(sessionClock(entry, [timer], at(HOUR + 4 * HOUR - S))).toBe('resumeStraight');
         expect(sessionClock(entry, [timer], at(HOUR + 4 * HOUR))).toBe('askFirst');
@@ -89,9 +89,9 @@ describe('timerClock (P19)', () => {
         expect(timerClock(running, false, at(24 * HOUR))).toBe('removed');
     });
 
-    it('counts a session-less ringing or endedAway timer from the later of endsAt and endedAt', () => {
+    it('counts a session-less ringing or endedAway timer from endedAt', () => {
         for (const state of ['ringing', 'endedAway'] as const) {
-            const timer = makeEnded(state, { endsAt: at(0), endedAt: at(2 * HOUR) });
+            const timer = makeEnded(state, { endedAt: at(2 * HOUR) });
 
             expect(timerClock(timer, false, at(2 * HOUR + 24 * HOUR - S))).toBe('kept');
             expect(timerClock(timer, false, at(2 * HOUR + 24 * HOUR))).toBe('removed');

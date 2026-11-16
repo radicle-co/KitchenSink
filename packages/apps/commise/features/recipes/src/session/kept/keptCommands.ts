@@ -9,24 +9,6 @@ import { matchStep, matchStepStrict } from '@kitchensink/cooking-core';
 import { sessionClock, timerClock } from './sessionClock.js';
 import type { CookingEntry, KeptDocument, KeptEntry, KeptTimer, LineTickRef, StepMark } from './keptRecord.js';
 
-/** S4a keeps S3's one-timer rule in the command, not in the format (plan 0003 KTD1). */
-const TIMER_LIMIT = 1;
-
-/** The timer a start command creates. The id is a UUIDv7 minted by the caller, so the reducer stays pure. */
-export interface NewTimer {
-    readonly id: string;
-    readonly recipeId: string;
-    readonly stepIndex: number;
-    readonly stepDigest: string;
-    readonly endsAt: string;
-}
-
-/** What a timer command was issued against; a command whose expectation no longer holds is dropped (KTD9a). */
-export interface TimerExpectation {
-    readonly state: KeptTimer['state'];
-    readonly endsAt?: string | undefined;
-}
-
 /** The snapshot End keeps in memory for Undo (KTD13). */
 export interface EndedSnapshot {
     readonly recipeId: string;
@@ -45,18 +27,8 @@ export type KeptCommand =
     | { readonly type: 'finish'; readonly recipeId: string }
     /** Removes the entry and its timers. */
     | { readonly type: 'endSession'; readonly recipeId: string }
-    | {
-          readonly type: 'restoreSession';
-          readonly snapshot: EndedSnapshot;
-          readonly stepDigests: readonly string[] | undefined;
-      }
-    | { readonly type: 'startTimer'; readonly timer: NewTimer; readonly stepDigests: readonly string[] }
-    | {
-          readonly type: 'pauseTimer' | 'resumeTimer' | 'cancelTimer';
-          readonly id: string;
-          readonly expect: TimerExpectation;
-      }
-    /** Moves a recipe's step, marks, line ticks and timers onto the recipe's current steps (KTD7, B1, B6). */
+    | { readonly type: 'restoreSession'; readonly snapshot: EndedSnapshot }
+    /** Moves a recipe's step, marks and line ticks onto the recipe's current steps (KTD7). The timers move in the S4a timer unit, through the reducer's `rematch`. */
     | { readonly type: 'rebind'; readonly recipeId: string; readonly stepDigests: readonly string[] }
     | { readonly type: 'prune' };
 
@@ -65,8 +37,7 @@ export type KeptOutcome =
     /** No write: a no-op, or a stale command dropped. */
     | { readonly kind: 'unchanged' }
     /** `startSession` over an existing cooking entry (D45): nothing written, open at this step. */
-    | { readonly kind: 'joined'; readonly step: StepMark }
-    | { readonly kind: 'refused'; readonly reason: 'timerLimit' };
+    | { readonly kind: 'joined'; readonly step: StepMark };
 
 const UNCHANGED: KeptOutcome = { kind: 'unchanged' };
 
@@ -82,67 +53,6 @@ const withEntry = (doc: KeptDocument, recipeId: string, entry: KeptEntry): KeptD
 
 function withoutEntry(entries: KeptDocument['entries'], recipeId: string): KeptDocument['entries'] {
     return Object.fromEntries(Object.entries(entries).filter(([id]) => id !== recipeId));
-}
-
-/**
- * Picks the number a new timer takes. S6 (several timers) is the caller that makes a clash reachable, so this is not
- * test-only.
- *
- * @param timers - Timers held.
- * @param recipeId - The recipe.
- * @param stepIndex - The matched step.
- * @returns The lowest positive ordinal no timer of that recipe and step holds, in any state. A missing ordinal reads as
- * 1 (B2, B3).
- */
-export function lowestFreeOrdinal(timers: readonly KeptTimer[], recipeId: string, stepIndex: number): number {
-    const used = new Set(
-        timers.filter((t) => t.recipeId === recipeId && t.stepIndex === stepIndex).map((t) => t.ordinal ?? 1),
-    );
-    let ordinal = 1;
-
-    while (used.has(ordinal)) {
-        ordinal += 1;
-    }
-
-    return ordinal;
-}
-
-/** Timers of one recipe follow their step; a clash on the new step takes the lowest free ordinal there (B6). */
-function rebindTimerList(
-    timers: readonly KeptTimer[],
-    recipeId: string,
-    stepDigests: readonly string[],
-): readonly KeptTimer[] {
-    if (stepDigests.length === 0) {
-        return timers;
-    }
-
-    const result = [...timers];
-
-    result.forEach((timer, i) => {
-        if (timer.recipeId !== recipeId) {
-            return;
-        }
-
-        const matched = matchStep({ index: timer.stepIndex, digest: timer.stepDigest }, stepDigests) ?? timer.stepIndex;
-
-        if (matched === timer.stepIndex) {
-            return;
-        }
-
-        const others = result.filter((_, j) => j !== i);
-        const clash = others.some(
-            (o) => o.recipeId === recipeId && o.stepIndex === matched && (o.ordinal ?? 1) === (timer.ordinal ?? 1),
-        );
-
-        result[i] = {
-            ...timer,
-            stepIndex: matched,
-            ...(clash ? { ordinal: lowestFreeOrdinal(others, recipeId, matched) } : {}),
-        };
-    });
-
-    return result;
 }
 
 function rebindEntry(entry: KeptEntry, stepDigests: readonly string[]): KeptEntry {
@@ -224,15 +134,11 @@ function onCooking(
 }
 
 function restoreSession(doc: KeptDocument, c: Extract<KeptCommand, { type: 'restoreSession' }>): KeptOutcome {
-    const { snapshot, stepDigests } = c;
+    const { snapshot } = c;
     const existing = doc.entries[snapshot.recipeId];
 
     if (existing?.kind === 'cooking') {
         return UNCHANGED;
-    }
-
-    if (doc.timers.length + snapshot.timers.length > TIMER_LIMIT) {
-        return { kind: 'refused', reason: 'timerLimit' };
     }
 
     let entry: CookingEntry = snapshot.entry;
@@ -250,65 +156,10 @@ function restoreSession(doc: KeptDocument, c: Extract<KeptCommand, { type: 'rest
         };
     }
 
-    const timers = [...doc.timers, ...snapshot.timers];
-
     return applied(doc, {
         entries: withEntry(doc, snapshot.recipeId, entry),
-        timers: stepDigests === undefined ? timers : rebindTimerList(timers, snapshot.recipeId, stepDigests),
+        timers: [...doc.timers, ...snapshot.timers],
     });
-}
-
-function startTimer(doc: KeptDocument, c: Extract<KeptCommand, { type: 'startTimer' }>): KeptOutcome {
-    if (doc.timers.length >= TIMER_LIMIT) {
-        return { kind: 'refused', reason: 'timerLimit' };
-    }
-
-    const held = rebindTimerList(doc.timers, c.timer.recipeId, c.stepDigests);
-    const timer: KeptTimer = {
-        ...c.timer,
-        state: 'running',
-        ordinal: lowestFreeOrdinal(held, c.timer.recipeId, c.timer.stepIndex),
-    };
-
-    return applied(doc, { timers: [...held, timer] });
-}
-
-function timerCommand(doc: KeptDocument, c: Extract<KeptCommand, { id: string }>, now: string): KeptOutcome {
-    const timer = doc.timers.find((t) => t.id === c.id);
-
-    if (
-        timer === undefined ||
-        timer.state !== c.expect.state ||
-        (c.expect.endsAt !== undefined && !('endsAt' in timer && timer.endsAt === c.expect.endsAt))
-    ) {
-        return UNCHANGED;
-    }
-
-    const replace = (next: KeptTimer | undefined): KeptOutcome =>
-        applied(doc, { timers: doc.timers.flatMap((t) => (t.id !== c.id ? [t] : next === undefined ? [] : [next])) });
-
-    if (c.type === 'cancelTimer') {
-        return replace(undefined);
-    }
-
-    if (c.type === 'pauseTimer' && timer.state === 'running') {
-        const { endsAt, state: _state, ...rest } = timer;
-
-        return replace({
-            ...rest,
-            state: 'paused',
-            remainingMs: Math.max(0, Date.parse(endsAt) - Date.parse(now)),
-            pausedAt: now,
-        });
-    }
-
-    if (c.type === 'resumeTimer' && timer.state === 'paused') {
-        const { remainingMs, pausedAt: _pausedAt, state: _state, ...rest } = timer;
-
-        return replace({ ...rest, state: 'running', endsAt: new Date(Date.parse(now) + remainingMs).toISOString() });
-    }
-
-    return UNCHANGED;
 }
 
 function prune(doc: KeptDocument, now: string): KeptOutcome {
@@ -339,12 +190,9 @@ function prune(doc: KeptDocument, now: string): KeptOutcome {
 function rebind(doc: KeptDocument, c: Extract<KeptCommand, { type: 'rebind' }>): KeptOutcome {
     const entry = doc.entries[c.recipeId];
     const entries = entry === undefined ? doc.entries : withEntry(doc, c.recipeId, rebindEntry(entry, c.stepDigests));
-    const timers = rebindTimerList(doc.timers, c.recipeId, c.stepDigests);
 
     // Both sides are built in the same key order, so string equality means no change.
-    return JSON.stringify([entries, timers]) === JSON.stringify([doc.entries, doc.timers])
-        ? UNCHANGED
-        : applied(doc, { entries, timers });
+    return JSON.stringify(entries) === JSON.stringify(doc.entries) ? UNCHANGED : applied(doc, { entries });
 }
 
 /**
@@ -393,12 +241,6 @@ export function applyKeptCommand(doc: KeptDocument, command: KeptCommand, now: s
                   });
         case 'restoreSession':
             return restoreSession(doc, command);
-        case 'startTimer':
-            return startTimer(doc, command);
-        case 'pauseTimer':
-        case 'resumeTimer':
-        case 'cancelTimer':
-            return timerCommand(doc, command, now);
         case 'rebind':
             return rebind(doc, command);
         case 'prune':

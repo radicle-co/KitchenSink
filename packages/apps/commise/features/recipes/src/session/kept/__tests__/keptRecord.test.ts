@@ -1,3 +1,4 @@
+import { MAX_TIMER_MS, MIN_TIMER_MS } from '@kitchensink/cooking-core';
 import { describe, expect, it } from 'vitest';
 
 import { KEPT_RECORD_VERSION, keptKeyFor, parseKeptDocument, serializeKeptDocument } from '../keptRecord.js';
@@ -71,10 +72,44 @@ describe('parseKeptDocument', () => {
         }
     });
 
-    it('accepts a timer with no announcedAt and no ordinal', () => {
-        const { ordinal: _ordinal, ...bare } = makeTimer();
+    it('accepts a timer with no announcedAt', () => {
+        expect(ok(JSON.stringify(makeDoc({ timers: [makeEnded('endedAway')] }))).doc.timers).toHaveLength(1);
+    });
 
-        expect(ok(JSON.stringify(makeDoc({ timers: [bare as never] }))).doc.timers).toHaveLength(1);
+    // v1 is a one-way door (ADR 0094 section 2): the reducer's `durationMs`, `run` and `ordinal` are required on every
+    // state, so a timer that lacks one, or holds one the reducer could never hold, is dropped and reported (R4-B3).
+    describe.each([
+        ['a running timer', makeTimer],
+        ['a paused timer', makePaused],
+        ['a ringing timer', (over: object) => makeEnded('ringing', over)],
+        ['an endedAway timer', (over: object) => makeEnded('endedAway', over)],
+    ])('%s', (_state, make) => {
+        it.each([
+            ['no durationMs', { durationMs: undefined }],
+            ['a durationMs below the reducer minimum', { durationMs: MIN_TIMER_MS - 1 }],
+            ['a durationMs above the reducer maximum', { durationMs: MAX_TIMER_MS + 1 }],
+            ['a durationMs that is not an integer', { durationMs: MIN_TIMER_MS + 0.5 }],
+            ['no run', { run: undefined }],
+            ['a run of 0', { run: 0 }],
+            ['a run that is not an integer', { run: 1.5 }],
+            ['no ordinal', { ordinal: undefined }],
+            ['an ordinal of 0', { ordinal: 0 }],
+            ['an ordinal that is not an integer', { ordinal: 1.5 }],
+        ])('with %s is dropped and reported, beside a good timer and the entry', (_name, over) => {
+            const good = makeTimer({ id: timerId(2) });
+            const bad = JSON.parse(JSON.stringify({ ...make({}), ...over }));
+            const parsed = ok(JSON.stringify(makeDoc({ entries: { r1: makeCooking() }, timers: [bad, good] })));
+
+            expect(parsed.doc.timers).toEqual([good]);
+            expect(parsed.doc.entries['r1']).toEqual(makeCooking());
+            expect(parsed.droppedTimerIds).toEqual([timerId(1)]);
+        });
+
+        it('keeps the bounds themselves, the first run and ordinal', () => {
+            for (const durationMs of [MIN_TIMER_MS, MAX_TIMER_MS]) {
+                expect(ok(JSON.stringify(makeDoc({ timers: [make({ durationMs })] }))).doc.timers).toHaveLength(1);
+            }
+        });
     });
 
     it('drops a timer with no stepDigest, keeps the document and the others (B1)', () => {
@@ -93,7 +128,12 @@ describe('parseKeptDocument', () => {
         ['a paused timer that still has endsAt', { ...makePaused(), endsAt: iso(T0) }],
         ['a running timer that carries pausedAt', { ...makeTimer(), pausedAt: iso(T0) }],
         ['a ringing timer with no endedAt', { ...makeEnded('ringing'), endedAt: undefined }],
-        ['an endedAway timer with no endsAt', { ...makeEnded('endedAway'), endsAt: undefined }],
+        ['an endedAway timer with no endedAt', { ...makeEnded('endedAway'), endedAt: undefined }],
+        [
+            'a ringing timer that still has endsAt (staff S63: the end is endedAt alone)',
+            { ...makeEnded('ringing'), endsAt: iso(T0) },
+        ],
+        ['an endedAway timer that still has endsAt', { ...makeEnded('endedAway'), endsAt: iso(T0) }],
         [
             'a ringing timer with announcedAt (S4b writes it only on endedAway)',
             { ...makeEnded('ringing'), announcedAt: iso(T0) },

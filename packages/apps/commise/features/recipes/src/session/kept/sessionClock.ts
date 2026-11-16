@@ -13,9 +13,9 @@ export type SessionClockVerdict = 'resumeStraight' | 'askFirst' | 'ended';
 
 const ms = (instant: string): number => Date.parse(instant);
 
-/** The instant a timer that is not paused ends (or ended): `endsAt`, or the later of it and `endedAt` once it rang. */
+/** The instant a timer that is not paused ends (or ended): `endsAt` while running, `endedAt` once it rang. */
 function endOf(timer: Exclude<KeptTimer, { state: 'paused' }>): number {
-    return timer.state === 'running' ? ms(timer.endsAt) : Math.max(ms(timer.endsAt), ms(timer.endedAt));
+    return ms(timer.state === 'running' ? timer.endsAt : timer.endedAt);
 }
 
 /**

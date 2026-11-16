@@ -5,6 +5,7 @@
  *
  * @pattern Repository — the document schema and its parse/serialize pair are the persistence boundary.
  */
+import { MAX_TIMER_MS, MIN_TIMER_MS } from '@kitchensink/cooking-core';
 import { z } from 'zod';
 
 export const KEPT_RECORD_VERSION = 1;
@@ -53,11 +54,15 @@ const timerBase = {
     recipeId: z.string().min(1),
     stepIndex: z.int().nonnegative(),
     stepDigest: z.string().min(1),
-    ordinal: z.int().positive().optional(),
+    ordinal: z.int().positive(),
+    /** Which run of the timer this is, the key `ended` is told once for (cooking-core `TimerBase.run`). */
+    run: z.int().positive(),
+    /** The length of the current run, in the bounds `reduceTimer` accepts, so a timer the reducer would refuse is not stored. */
+    durationMs: z.int().min(MIN_TIMER_MS).max(MAX_TIMER_MS),
 };
 
-/** `ringing` and `endedAway` both carry when the timer was due and when it ended. */
-const endedShape = { ...timerBase, endsAt: isoInstant, endedAt: isoInstant };
+/** `ringing` and `endedAway` carry the instant the timer ended. The reducer ends a timer at its own end, so no second instant is stored. */
+const endedShape = { ...timerBase, endedAt: isoInstant };
 
 /**
  * A timer is a union on `state`, each state with exactly the instants it needs, so a running timer with no end cannot

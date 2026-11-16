@@ -33,7 +33,7 @@ import type {
     UpdateRecipeRequest,
 } from '@kitchensink/schema-recipe';
 import { type RecipeFormValues } from './values.js';
-import { sourceStatementOf, type DraftWebStatement, type PublicWebWording } from './sourceLink.js';
+import { sourceStatementOf, type PublicWebWording } from './sourceLink.js';
 import { isStoredLine, seedLineKey, type IngredientLineKey } from './lineKey.js';
 import { computeTotalTime } from './totalTime.js';
 import { draftQuantity } from './quantity.js';
@@ -55,16 +55,6 @@ export interface ShownWordings {
     readonly statement?: RecipeStatementInput;
 }
 
-/** The create body. Its `statement` carries no wording until a screen supplies one, so it is the contract's body only then. */
-export type CreateRecipeBody = Omit<CreateRecipeRequest, 'statement'> & {
-    readonly statement?: DraftWebStatement | RecipeStatementInput;
-};
-
-/** The update body, minus `expectedVersion`. Its `statement` follows {@link CreateRecipeBody}. */
-export type UpdateRecipeBody = Omit<UpdateRecipeRequest, 'expectedVersion' | 'statement'> & {
-    readonly statement?: DraftWebStatement | RecipeStatementInput | null;
-};
-
 /**
  * Map form values to the service's published `CreateRecipeRequest` body: computes total time, drops
  * unresolved ingredient lines (no `ingredientId`), omits empty optional strings, and carries a step timer
@@ -82,7 +72,7 @@ export const toCreateRecipeInput = (
     values: RecipeFormValues,
     status?: RecipeStatus,
     shown: ShownWordings = {},
-): CreateRecipeBody => ({
+): CreateRecipeRequest => ({
     title: values.title.trim(),
     ...(values.description.trim() === '' ? {} : { description: values.description.trim() }),
     // The canonical form (`cuisineField.md` §2): the field commits it already; this is the safety net, and the wire parse
@@ -169,7 +159,7 @@ const publicConfirmationOf = (
 const createStatementOf = (
     values: RecipeFormValues,
     wording: PublicWebWording | undefined,
-): { readonly statement?: DraftWebStatement } => {
+): { readonly statement?: RecipeStatementInput } => {
     const statement = sourceStatementOf(values, undefined, wording);
 
     return statement === undefined || statement === null ? {} : { statement };
@@ -180,7 +170,7 @@ const updateStatementOf = (
     values: RecipeFormValues,
     recipe: Parameters<typeof sourceStatementOf>[1],
     wording: PublicWebWording | undefined,
-): { readonly statement?: DraftWebStatement | null } => {
+): { readonly statement?: RecipeStatementInput | null } => {
     const statement = sourceStatementOf(values, recipe, wording);
 
     return statement === undefined ? {} : { statement };
@@ -219,7 +209,7 @@ export const toUpdateRecipeInput = (
     status?: RecipeStatus,
     recipe?: Parameters<typeof sourceStatementOf>[1],
     shown: ShownWordings = {},
-): UpdateRecipeBody => {
+): Omit<UpdateRecipeRequest, 'expectedVersion'> => {
     // Destructured out, not `delete`d: the key must be ABSENT from the returned object, and a spread of the
     // create projection would otherwise reintroduce it past the type system's excess-property check.
     const {

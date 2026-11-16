@@ -37,14 +37,8 @@ type StoredRecipe = Pick<
 
 type PublicWebStatement = Extract<RecipeStatementInput, { kind: 'public_web' }>;
 
-/** The wording the Source row showed for a pasted web link: what the attestation record stores beside the choice. */
-export type PublicWebWording = PublicWebStatement['wording'];
-
-/**
- * A pasted web link as the editor states it. The wording is the one the cook was shown, so it is present only when the
- * screen that showed it gave it. The server's contract requires it and refuses a statement without one.
- */
-export type DraftWebStatement = Omit<PublicWebStatement, 'wording'> & { readonly wording?: PublicWebWording };
+/** The wording a screen showed beside a pasted web link: what the attestation record stores beside the choice. */
+export type PublicWebWording = NonNullable<PublicWebStatement['wording']>;
 
 /** The Source field's text as the draft holds it, `''` when there is none. Pure. */
 const sourceTextOf = (values: Pick<RecipeFormValues, 'sourceLink'>): string => values.sourceLink ?? '';
@@ -178,7 +172,7 @@ export function sourceStatementOf(
     values: Pick<RecipeFormValues, 'sourceLink'>,
     recipe: StoredRecipe | undefined,
     wording?: PublicWebWording,
-): DraftWebStatement | null | undefined {
+): PublicWebStatement | null | undefined {
     if (recipe !== undefined && sourceIsLocked(recipe)) {
         return undefined;
     }

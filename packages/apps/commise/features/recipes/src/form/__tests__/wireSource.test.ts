@@ -41,8 +41,9 @@ describe('toCreateRecipeInput carries the Source', () => {
         const body = toCreateRecipeInput(makeFilledRecipeFormValues({ sourceLink: ALLRECIPES }));
 
         expect(body.statement).toEqual({ kind: 'public_web', citation: ALLRECIPES });
-        // The server's contract requires the wording, so this body is refused until a screen supplies it.
-        expect(createRecipeRequestSchema.safeParse(body).success).toBe(false);
+        // Rewritten for the Source row: the contract takes a web statement without a wording (no attestation is recorded),
+        // so the row's own body is valid as it stands.
+        expect(createRecipeRequestSchema.safeParse(body).success).toBe(true);
     });
 
     it('sends no statement for no link, or for text that is not a link', () => {

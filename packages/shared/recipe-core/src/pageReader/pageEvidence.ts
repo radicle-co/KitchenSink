@@ -2,7 +2,7 @@
  * What a page says about WHO made a recipe and WHERE its picture is: evidence beside the recipe, never part of it.
  *
  * A `PageRecipe` stays exactly what becomes the import. Credit and the image address ride beside it, for the
- * statement step and the legal check, so a recipe cannot assert its own provenance.
+ * source statement step, so a recipe cannot assert its own provenance.
  *
  * ⛔ Nothing is guessed. Markup that states no licence states none (016 FR-012b): every field may be absent. A text field
  * past its bound is LEFT OUT, never cut short, so a half-sentence is never shown as the credit. An image address is a

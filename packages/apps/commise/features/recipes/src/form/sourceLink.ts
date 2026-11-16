@@ -32,7 +32,7 @@ import type { RecipeFormValues } from './values.js';
 /** What the recipe the editor holds says of its source: the server's own answer, `undefined` before the first save. */
 type StoredRecipe = Pick<
     RecipeDetail,
-    'status' | 'firstPublishedAt' | 'sourceType' | 'sourceKind' | 'sourceUrl' | 'clonedFromId'
+    'status' | 'firstPublishedAt' | 'sourceType' | 'sourceKind' | 'sourceUrl' | 'clonedFromId' | 'publicNeedsCheck'
 >;
 
 type PublicWebStatement = Extract<RecipeStatementInput, { kind: 'public_web' }>;
@@ -124,14 +124,41 @@ export function draftPrivateRule(
 }
 
 /**
- * The visibility the draft is SENT with. A web copy is private only, so a draft with a link goes out Private whatever the
- * cook chose, and `values.visibility` is left alone: taking the link off brings their choice back.
+ * Whether a recorded source holds the recipe out of Public although the draft states none (ADR-0092): the server says so
+ * (`publicNeedsCheck`), or it stores a web or book source the cook has since taken off the draft. A source the server
+ * recorded stays on record, so taking it off does not give Public back; the draft's own link is `draftPrivateRule`'s.
  *
  * @param values - The draft.
- * @returns Private for a draft with a usable web link, else the draft's own visibility. Pure.
+ * @param recipe - The server's recipe, or `undefined` before the first save.
+ * @returns `true` when Public is held. Pure.
  */
-export function derivedVisibility(values: Pick<RecipeFormValues, 'sourceLink' | 'visibility'>): RecipeVisibility {
-    return draftSourceOf(values).kind === 'link' ? RecipeVisibility.PRIVATE : values.visibility;
+export function publicHeldOf(values: Pick<RecipeFormValues, 'sourceLink'>, recipe: StoredRecipe | undefined): boolean {
+    if (recipe === undefined) {
+        return false;
+    }
+
+    return (
+        recipe.publicNeedsCheck === true ||
+        ((recipe.sourceKind === 'public_web' || recipe.sourceKind === 'book') && draftSourceOf(values).kind === 'none')
+    );
+}
+
+/**
+ * The visibility the draft is SENT with. A web copy is private only, so a draft with a link goes out Private whatever the
+ * cook chose, and so does a recipe a recorded source holds out of Public ({@link publicHeldOf}); `values.visibility` is left
+ * alone: taking the link off a draft-only link brings their choice back.
+ *
+ * @param values - The draft.
+ * @param recipe - The server's recipe, or `undefined` before the first save.
+ * @returns Private for a draft with a usable web link or a held recipe, else the draft's own visibility. Pure.
+ */
+export function derivedVisibility(
+    values: Pick<RecipeFormValues, 'sourceLink' | 'visibility'>,
+    recipe?: StoredRecipe,
+): RecipeVisibility {
+    return draftSourceOf(values).kind === 'link' || publicHeldOf(values, recipe)
+        ? RecipeVisibility.PRIVATE
+        : values.visibility;
 }
 
 /**

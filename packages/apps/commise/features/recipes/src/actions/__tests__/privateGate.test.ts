@@ -6,12 +6,14 @@
  * that is ALREADY private stays private and shows so, in every state: going back to what the server holds needs no
  * entitlement.
  */
+import { BadRequestError, InvalidVisibilityError } from '@kitchensink/recipe-service-client';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
 
 import {
     effectiveVisibility,
     heldVisibility,
+    invalidVisibilityReasonOf,
     makePublicConsequence,
     mayRestorePrivate,
     offersPrivate,
@@ -204,5 +206,24 @@ describe('serverRefusalOf — why a Private the server DID refuse was refused', 
         ['hidden', 'final'],
     ] as const)('for a profile reading of %s → %s', (known, why) => {
         expect(serverRefusalOf(known)).toBe(why);
+    });
+});
+
+/** ADR-0092: the four reasons a `400 INVALID_VISIBILITY` names, read off the typed error and nothing else. */
+describe('invalidVisibilityReasonOf', () => {
+    it.each([
+        'SOURCE_CONFLICT',
+        'STATEMENT_REQUIRED',
+        'PUBLIC_CONFIRMATION_REQUIRED',
+        'FROM_PERSON_PRIVATE_ONLY',
+    ] as const)('reads %s', (reason) => {
+        expect(invalidVisibilityReasonOf(new InvalidVisibilityError('refused', reason))).toBe(reason);
+    });
+
+    it('is undefined for a refusal that named none, for any other failure and for a non-error', () => {
+        expect(invalidVisibilityReasonOf(new InvalidVisibilityError('refused', undefined))).toBeUndefined();
+        expect(invalidVisibilityReasonOf(new BadRequestError('x', 'VALIDATION_FAILED'))).toBeUndefined();
+        expect(invalidVisibilityReasonOf(new Error('x'))).toBeUndefined();
+        expect(invalidVisibilityReasonOf(undefined)).toBeUndefined();
     });
 });

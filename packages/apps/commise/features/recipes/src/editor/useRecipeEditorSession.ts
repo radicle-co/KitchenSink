@@ -168,7 +168,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
      * to refuse is not sent, and the finish says so (`visibilityFollowUp`). @sideEffect
      */
     const finished = (stored: RecipeDetail, outcome: FinishedOutcome): void => {
-        const followUp = visibilityFollowUp(derivedVisibility(editor.values), stored, privateRefusal);
+        const followUp = visibilityFollowUp(derivedVisibility(editor.values, stored), stored, privateRefusal);
 
         if (followUp.kind === 'send') {
             setVisibility.mutate({ id: stored.id, visibility: followUp.visibility });
@@ -343,10 +343,10 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
                         recipeIsPublished(seed.recipe) ? privateRefusal : refusalWhileDrafting(privateRefusal),
                         heldVisibility(
                             seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
-                            derivedVisibility(editor.values),
+                            derivedVisibility(editor.values, seed.recipe),
                         ),
                         // ⛔ DERIVED (ADR-0089): a draft with a web link is previewed as the private recipe it will be.
-                        derivedVisibility(editor.values),
+                        derivedVisibility(editor.values, seed.recipe),
                     ),
                 },
                 recipe: seed.recipe,

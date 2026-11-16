@@ -307,6 +307,8 @@ export interface EditorMessages {
         /** `{site}` is the Source that was kept. */
         readonly keptExisting: string;
         readonly remove: string;
+        /** Said politely when a source the server holds is taken off (ADR-0092). */
+        readonly removed: string;
         readonly locked: string;
         /** The paste note when the source is locked and a pasted link was left out. */
         readonly lockedLeftOut: string;
@@ -349,6 +351,8 @@ export interface EditorMessages {
         readonly publicRefused: string;
         /** The same under the Public card of a recipe copied from a web page, whose author owns the writing (ADR-0089). */
         readonly publicRefusedWebSource: string;
+        /** The same under the Public card of a recipe a recorded source holds out of Public, though the draft states none (ADR-0092). */
+        readonly publicHeldBySource: string;
         /** A downgraded cook holds more private recipes than slots (`{count}`, `{total}` are the server's numbers). */
         readonly overLimit: string;
         /** The link under `overLimit`, where paid features are shown: opens the Premium sheet. */
@@ -619,6 +623,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             ownSiteLeftOut: 'Left out a Commise link. It isn’t a source.',
             keptExisting: 'Kept {site} as the source. The other link was left out.',
             remove: 'Remove source',
+            removed: 'Source removed.',
             locked: 'The source can’t be changed after publishing.',
             lockedLeftOut: 'Left out the link. A published recipe’s source can’t be added or changed.',
             linkOnly:
@@ -642,6 +647,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             publicRefused: 'Not for this recipe. Its source is a book or a paid site, not a public web page.',
             publicRefusedWebSource:
                 'Not for this recipe. It’s copied from a web page, and its author owns the writing.',
+            publicHeldBySource: 'Not for this recipe. It was saved with a source, so it stays private.',
             overLimit:
                 'You have {count} private recipes and {total} private slots. They stay private. To make another recipe private, first bring your private recipes under {total}.',
             aboutPremium: 'About Pro',

@@ -12,6 +12,7 @@ import {
     draftSourceOf,
     isLinkOnly,
     pastedSourcePlanOf,
+    publicHeldOf,
     sourceRowOf,
     sourceStatementOf,
 } from '../sourceLink.js';
@@ -54,7 +55,45 @@ describe('draftSourceOf', () => {
     });
 });
 
+describe('publicHeldOf', () => {
+    it('is false before the first save, and for a recipe holding no source', () => {
+        expect(publicHeldOf(makeRecipeFormValues(), undefined)).toBe(false);
+        expect(publicHeldOf(makeRecipeFormValues(), makeRecipeDetail())).toBe(false);
+    });
+
+    it('is true when the server says the recipe is held, whatever the draft says', () => {
+        expect(publicHeldOf(makeRecipeFormValues(), makeRecipeDetail({ publicNeedsCheck: true }))).toBe(true);
+        expect(publicHeldOf(withLink(ALLRECIPES), makeRecipeDetail({ publicNeedsCheck: true }))).toBe(true);
+    });
+
+    it('is true for a stored web source whose draft source was removed: the source stays on record', () => {
+        expect(publicHeldOf(makeRecipeFormValues(), webCopy())).toBe(true);
+        expect(publicHeldOf(withLink('   '), webCopy())).toBe(true);
+    });
+
+    it('is false while the draft still holds the stored link (the link rule answers, not this one)', () => {
+        expect(publicHeldOf(withLink(ALLRECIPES), webCopy())).toBe(false);
+    });
+
+    it('is true for a stored book source with no draft source', () => {
+        expect(
+            publicHeldOf(
+                makeRecipeFormValues(),
+                makeRecipeDetail({ sourceType: RecipeSourceType.IMPORTED_PHYSICAL, sourceKind: 'book' }),
+            ),
+        ).toBe(true);
+    });
+});
+
 describe('derivedVisibility', () => {
+    it('is Private for a recipe the stored source holds out of Public, though the cook chose Public', () => {
+        const values = makeRecipeFormValues({ visibility: RecipeVisibility.PUBLIC });
+
+        expect(derivedVisibility(values, webCopy())).toBe(RecipeVisibility.PRIVATE);
+        expect(derivedVisibility(values, makeRecipeDetail({ publicNeedsCheck: true }))).toBe(RecipeVisibility.PRIVATE);
+        expect(derivedVisibility(values, makeRecipeDetail())).toBe(RecipeVisibility.PUBLIC);
+    });
+
     it('is Private for a draft with a source link, whatever the cook chose', () => {
         expect(derivedVisibility(withLink(ALLRECIPES, { visibility: RecipeVisibility.PUBLIC }))).toBe(
             RecipeVisibility.PRIVATE,

@@ -26,7 +26,12 @@ import {
     RecipeVisibility,
     type RecipeDetail,
 } from '@kitchensink/recipe-core';
-import type { CreateRecipeRequest, PublicConfirmationInput, UpdateRecipeRequest } from '@kitchensink/schema-recipe';
+import type {
+    CreateRecipeRequest,
+    PublicConfirmationInput,
+    RecipeStatementInput,
+    UpdateRecipeRequest,
+} from '@kitchensink/schema-recipe';
 import { type RecipeFormValues } from './values.js';
 import { sourceStatementOf, type DraftWebStatement, type PublicWebWording } from './sourceLink.js';
 import { isStoredLine, seedLineKey, type IngredientLineKey } from './lineKey.js';
@@ -42,14 +47,22 @@ export interface ShownWordings {
     readonly publicConfirmation?: PublicConfirmationInput;
     /** The wording shown beside a pasted web link. */
     readonly statementWording?: PublicWebWording;
+    /**
+     * The statement the cook gave in the source-statement sheet (ADR-0092), with the wording it showed. It beats the Source
+     * field's own, and rides only a write that publishes: a draft checkpoint carries none, so a statement is stated and
+     * recorded once and a server that holds "I wrote this" is never owed its confirmation by a second one.
+     */
+    readonly statement?: RecipeStatementInput;
 }
 
 /** The create body. Its `statement` carries no wording until a screen supplies one, so it is the contract's body only then. */
-export type CreateRecipeBody = Omit<CreateRecipeRequest, 'statement'> & { readonly statement?: DraftWebStatement };
+export type CreateRecipeBody = Omit<CreateRecipeRequest, 'statement'> & {
+    readonly statement?: DraftWebStatement | RecipeStatementInput;
+};
 
 /** The update body, minus `expectedVersion`. Its `statement` follows {@link CreateRecipeBody}. */
 export type UpdateRecipeBody = Omit<UpdateRecipeRequest, 'expectedVersion' | 'statement'> & {
-    readonly statement?: DraftWebStatement | null;
+    readonly statement?: DraftWebStatement | RecipeStatementInput | null;
 };
 
 /**
@@ -123,9 +136,19 @@ export const toCreateRecipeInput = (
     visibility: values.visibility,
     ...(status === undefined ? {} : { status }),
     ...publicConfirmationOf(values, status, shown.publicConfirmation),
-    // ADR-0089: the link the cook pasted, when it parses. Never the raw text, and never the curator's `source`.
-    ...createStatementOf(values, shown.statementWording),
+    // ADR-0092: the client's word that content was pasted, never `false`: an absent key is "nothing seen".
+    ...(values.pasted === true ? { contentPasted: true as const } : {}),
+    // The sheet's answer when it rides this write, else (ADR-0089) the link the cook pasted, when it parses. Never the raw
+    // text, and never the curator's `source`.
+    ...(sheetStatementOf(shown, status) ?? createStatementOf(values, shown.statementWording)),
 });
+
+/** The sheet's statement as a body key, when it rides this write: only one that publishes. Pure. */
+const sheetStatementOf = (
+    shown: ShownWordings,
+    status: RecipeStatus | undefined,
+): { readonly statement: RecipeStatementInput } | undefined =>
+    shown.statement !== undefined && status === RecipeStatus.PUBLISHED ? { statement: shown.statement } : undefined;
 
 /**
  * The passive Public confirmation (attestation record, migration 0088): sent when the write can leave the recipe published
@@ -213,7 +236,8 @@ export const toUpdateRecipeInput = (
         ...(status === RecipeStatus.PUBLISHED ? publicConfirmationOf(values, status, shown.publicConfirmation) : {}),
         // ⛔ A change of source, never the create's statement (ADR-0089): only before the first publish, `null` to remove one
         // the server holds, and nothing at all when the caller does not say which recipe this updates.
-        ...(recipe === undefined ? {} : updateStatementOf(values, recipe, shown.statementWording)),
+        ...(sheetStatementOf(shown, status) ??
+            (recipe === undefined ? {} : updateStatementOf(values, recipe, shown.statementWording))),
         // ⛔ A pasted line's source is CREATE-ONLY (ADR-0023's shape, blueprint A5): a PATCH that re-asserted it could
         // steer the cross-user memo, and the strict update contract refuses the keys outright, so every save after a
         // paste would 400. Destructured out for the same reason `visibility` is: a spread skips the excess check.

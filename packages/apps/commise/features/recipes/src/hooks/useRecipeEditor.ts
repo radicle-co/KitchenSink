@@ -787,7 +787,7 @@ function writeVisibilityFirst(ctx: EditorContext, trigger: CheckpointTrigger): b
         return false;
     }
 
-    const followUp = visibilityFollowUp(derivedVisibility(draft), server.recipe, ctx.opts.privateRefusal);
+    const followUp = visibilityFollowUp(derivedVisibility(draft, server.recipe), server.recipe, ctx.opts.privateRefusal);
 
     if (followUp.kind !== 'send') {
         return false;
@@ -881,7 +881,7 @@ function checkGate(
     entryText: string,
     trigger: CheckpointTrigger,
 ): Exclude<GateOutcome, { readonly kind: 'busy' }> {
-    const { draft } = ctx.core.get();
+    const { draft, server } = ctx.core.get();
     const found = validateRecipeForm(draft, entryText);
     const outcome = gateOutcomeOf(found);
     // ⛔ ADR-0073 section 12: a draft holds no slot, and PUBLISHING a private one takes it. Only the first Publish is asked:
@@ -891,7 +891,7 @@ function checkGate(
     const needsSlot =
         trigger === 'publish' &&
         ctx.opts.privateRefusal === 'slots' &&
-        derivedVisibility(draft) === RecipeVisibility.PRIVATE;
+        derivedVisibility(draft, server.kind === 'stored' ? server.recipe : undefined) === RecipeVisibility.PRIVATE;
 
     ctx.setGate((gate) => ({
         refused: refusedFieldsOf(found),

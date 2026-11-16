@@ -11,14 +11,17 @@
  *     that is explicit, a cleared row with a wording, a wording with no locale, a malformed wording key, a locale outside
  *     its bounds, an unknown choice or action.
  *  4. UPDATE and DELETE are refused for the service role AND the database owner (append-only for every role).
- *  4a. The one UPDATE the guard admits: `account_id` from a real id to an `erased_` token (what account erasure writes), with
- *     every other column unchanged. Any other change, a second swap and a non-token value are refused.
- *  5. Hard-deleting the recipe removes its rows (the guard lets the cascade through); a soft delete keeps them.
+ *  4a. The UPDATE the guard admits for erasure: `account_id` from a real id to an `erased_` token, with every other column
+ *     unchanged, WHILE an erasure job is queued or running for that account (0090). Any other change, a second swap and a
+ *     non-token value are refused.
+ *  5. Hard-deleting the recipe KEEPS its rows (migration 0090: `recipe_id` becomes NULL, `recipe_ref` stays); so does a soft delete.
  *  6. A clone has NO attestation rows: they are the acts of the cook who made them.
  *  7. The widened capture CHECK accepts `editorCitation` with a book citation, and refuses it without a citation or on a
  *     web source.
  */
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
+
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
 import { SEED_INGREDIENTS, seed } from '../../../src/database/seed.js';
@@ -26,8 +29,6 @@ import { recipeDb } from '../../support/roleDb.js';
 
 const roleDb = recipeDb();
 const OWNER_ID = '01JU7ATTEST000000000000OWNER';
-const RECIPE_ID = '99999999-9999-4999-8999-000000000c01';
-const CLONE_ID = '99999999-9999-4999-8999-000000000c02';
 const CHECK_VIOLATION = '23514';
 
 interface AttestationInput {
@@ -60,8 +61,16 @@ const CLEARED: AttestationInput = {
     action: 'update',
 };
 
-describe('recipe_statement_attestations (migration 0088)', () => {
+describe('recipe_statement_attestations (migrations 0088 and 0090)', () => {
+    // Rows outlive their recipe (0090), so every case gets recipes of its own and never meets another case's rows.
+    let RECIPE_ID: string;
+    let CLONE_ID: string;
     let pool: pg.Pool;
+
+    beforeEach(() => {
+        RECIPE_ID = randomUUID();
+        CLONE_ID = randomUUID();
+    });
 
     beforeAll(() => {
         pool = new pg.Pool({ connectionString: roleDb.appUrl });
@@ -86,15 +95,15 @@ describe('recipe_statement_attestations (migration 0088)', () => {
 
     async function attest(input: AttestationInput, recipeId: string = RECIPE_ID): Promise<void> {
         await pool.query(
-            `INSERT INTO recipe_statement_attestations (recipe_id, account_id, mode, choice, wording_version, locale, action)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            `INSERT INTO recipe_statement_attestations (recipe_id, recipe_ref, account_id, mode, choice, wording_version, locale, action)
+             VALUES ($1, $1, $2, $3, $4, $5, $6, $7)`,
             [recipeId, OWNER_ID, input.mode, input.choice, input.wordingVersion, input.locale, input.action],
         );
     }
 
     async function attestationCount(recipeId: string): Promise<number> {
         const { rows } = await pool.query<{ n: string }>(
-            `SELECT count(*) AS n FROM recipe_statement_attestations WHERE recipe_id = $1`,
+            `SELECT count(*) AS n FROM recipe_statement_attestations WHERE recipe_ref = $1`,
             [recipeId],
         );
 
@@ -208,9 +217,18 @@ describe('recipe_statement_attestations (migration 0088)', () => {
         const TOKEN = `erased_${'a1'.repeat(16)}`;
         const OTHER_TOKEN = `erased_${'b2'.repeat(16)}`;
 
+        // 0090: the swap is admitted only while an erasure job is in flight for the account, as it is when the worker runs it.
+        beforeEach(async () => {
+            await pool.query(`INSERT INTO account_erasure_jobs (owner_id, status) VALUES ($1, 'running')`, [OWNER_ID]);
+        });
+
+        afterEach(async () => {
+            await pool.query(`DELETE FROM account_erasure_jobs WHERE owner_id = $1`, [OWNER_ID]);
+        });
+
         async function accountsOf(recipeId: string): Promise<string[]> {
             const { rows } = await pool.query<{ account_id: string }>(
-                `SELECT account_id FROM recipe_statement_attestations WHERE recipe_id = $1 ORDER BY recorded_at, id`,
+                `SELECT account_id FROM recipe_statement_attestations WHERE recipe_ref = $1 ORDER BY recorded_at, id`,
                 [recipeId],
             );
 
@@ -333,37 +351,39 @@ describe('recipe_statement_attestations (migration 0088)', () => {
 
             await expect(
                 pool.query(
-                    `INSERT INTO recipe_statement_attestations (recipe_id, account_id, mode, choice, wording_version, locale, action)
-                     VALUES ($1, 'erased_nothex', 'explicit', 'authored', 'statementAuthored.v1', 'en', 'create')`,
+                    `INSERT INTO recipe_statement_attestations (recipe_id, recipe_ref, account_id, mode, choice, wording_version, locale, action)
+                     VALUES ($1, $1, 'erased_nothex', 'explicit', 'authored', 'statementAuthored.v1', 'en', 'create')`,
                     [RECIPE_ID],
                 ),
             ).rejects.toMatchObject({ code: CHECK_VIOLATION });
 
             await pool.query(
-                `INSERT INTO recipe_statement_attestations (recipe_id, account_id, mode, choice, wording_version, locale, action)
-                 VALUES ($1, $2, 'explicit', 'authored', 'statementAuthored.v1', 'en', 'create')`,
+                `INSERT INTO recipe_statement_attestations (recipe_id, recipe_ref, account_id, mode, choice, wording_version, locale, action)
+                 VALUES ($1, $1, $2, 'explicit', 'authored', 'statementAuthored.v1', 'en', 'create')`,
                 [RECIPE_ID, TOKEN],
             );
 
             expect(await accountsOf(RECIPE_ID)).toEqual([TOKEN]);
         });
 
-        it('still refuses DELETE of a tokenised row, and still cascades with its recipe', async () => {
+        // Rewritten for 0090: this case used to prove the recipe's cascade removed a tokenised row. It now proves the row is kept.
+        it('still refuses DELETE of a tokenised row, and KEEPS it when its recipe is hard-deleted', async () => {
             await insertRecipe();
             await attest(AUTHORED);
-            await pool.query(`UPDATE recipe_statement_attestations SET account_id = $2 WHERE recipe_id = $1`, [
+            await pool.query(`UPDATE recipe_statement_attestations SET account_id = $2 WHERE recipe_ref = $1`, [
                 RECIPE_ID,
                 TOKEN,
             ]);
 
             await expect(
-                pool.query(`DELETE FROM recipe_statement_attestations WHERE recipe_id = $1`, [RECIPE_ID]),
+                pool.query(`DELETE FROM recipe_statement_attestations WHERE recipe_ref = $1`, [RECIPE_ID]),
             ).rejects.toMatchObject({ code: CHECK_VIOLATION });
             expect(await attestationCount(RECIPE_ID)).toBe(1);
 
             await pool.query(`DELETE FROM recipes WHERE id = $1`, [RECIPE_ID]);
 
-            expect(await attestationCount(RECIPE_ID)).toBe(0);
+            expect(await attestationCount(RECIPE_ID)).toBe(1);
+            expect(await accountsOf(RECIPE_ID)).toEqual([TOKEN]);
         });
     });
 
@@ -431,14 +451,15 @@ describe('recipe_statement_attestations (migration 0088)', () => {
         expect(rows).toHaveLength(1);
     });
 
-    it('removes the rows when the recipe is hard-deleted: the guard lets the ON DELETE CASCADE through', async () => {
+    // Rewritten for 0090: the rows used to go with the recipe by cascade. Retention now keeps them (ADR-0095 section 6).
+    it('keeps the rows when the recipe is hard-deleted: the foreign key empties recipe_id and nothing else', async () => {
         await insertRecipe();
         await attest(AUTHORED);
         await attest(CONFIRM);
 
         await pool.query(`DELETE FROM recipes WHERE id = $1`, [RECIPE_ID]);
 
-        expect(await attestationCount(RECIPE_ID)).toBe(0);
+        expect(await attestationCount(RECIPE_ID)).toBe(2);
     });
 
     it('keeps the rows when the recipe is only soft-deleted', async () => {

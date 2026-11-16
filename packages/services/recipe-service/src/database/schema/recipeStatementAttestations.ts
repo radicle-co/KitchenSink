@@ -1,5 +1,5 @@
 /**
- * Drizzle mirror for `recipe_statement_attestations` (migration 0088): the append-only record of every statement a cook made
+ * Drizzle mirror for `recipe_statement_attestations` (migrations 0088 and 0090): the append-only record of every statement a cook made
  * about a recipe and every Public confirmation.
  *
  * ⚠️ The hand-authored SQL in `src/database/migrations/0088_recipe_statement_attestations.sql` is the SOURCE OF TRUTH (repo
@@ -32,9 +32,10 @@ export const recipeStatementAttestations = pgTable(
     'recipe_statement_attestations',
     {
         id: uuid('id').primaryKey().defaultRandom(),
-        recipeId: uuid('recipe_id')
-            .notNull()
-            .references(() => recipes.id, { onDelete: 'cascade' }),
+        /** The recipe, while it exists. NULL once the recipe is hard-deleted (`ON DELETE SET NULL`, migration 0090): the row stays. */
+        recipeId: uuid('recipe_id').references(() => recipes.id, { onDelete: 'set null' }),
+        /** The recipe's id for good, equal to `recipeId` while the recipe exists. Written by the service on insert. */
+        recipeRef: uuid('recipe_ref').notNull(),
         accountId: varchar('account_id', { length: 255 }).notNull(),
         mode: text('mode').$type<AttestationMode>().notNull(),
         choice: text('choice').$type<AttestationChoice>().notNull(),
@@ -51,7 +52,12 @@ export const recipeStatementAttestations = pgTable(
             'recipe_statement_attestations_account_shape',
             sql`${table.accountId} !~ '^erased_' OR ${table.accountId} ~ '^erased_[0-9a-f]{32}$'`,
         ),
+        check(
+            'recipe_statement_attestations_ref_matches',
+            sql`${table.recipeId} IS NULL OR ${table.recipeId} = ${table.recipeRef}`,
+        ),
         index('recipe_statement_attestations_recipe_idx').on(table.recipeId, table.recordedAt),
+        index('recipe_statement_attestations_ref_idx').on(table.recipeRef, table.recordedAt),
     ],
 );
 

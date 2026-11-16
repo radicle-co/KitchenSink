@@ -47,7 +47,14 @@ ALTER TABLE recipes
     ),
     ADD CONSTRAINT recipes_statement_from_person_is_own CHECK (
         statement_kind IS DISTINCT FROM 'fromPerson' OR (source_type = 'user_created' AND source_kind IS NULL)
-    ),
+    );
+
+-- A recipe stored before this file that already states a source has no statement kind, and the pairing CHECK below refuses
+-- it. Its source IS a statement (the one the cook made), so it is written as one before the CHECK is added. The one-statement
+-- ALTER this replaces failed the whole migration on any database that held such a row.
+UPDATE recipes SET statement_kind = 'source' WHERE source_kind IS NOT NULL AND statement_kind IS NULL;
+
+ALTER TABLE recipes
     ADD CONSTRAINT recipes_statement_kind_pairs_source_kind CHECK (
         (source_kind IS NULL) = (statement_kind IS DISTINCT FROM 'source')
     );

@@ -485,6 +485,28 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(detachIndex).toBeLessThan(deleteIndex);
     });
 
+    // 0090: every attestation row of the account is kept, so the account moves to the erasure token BEFORE any recipe is
+    // deleted, for the account's rows as a whole and not only the rows of a recipe that survives.
+    it('moves the account of EVERY attestation row to the erasure token BEFORE the recipe delete, keyed on the account alone', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const statements = control.statements();
+        const swapIndex = statements.findIndex((s) =>
+            /^update recipe_statement_attestations\s+set account_id/i.test(s.text),
+        );
+        const deleteIndex = statements.findIndex((s) => /^delete from recipes where/i.test(s.text));
+
+        expect(swapIndex).toBeGreaterThanOrEqual(0);
+        expect(swapIndex).toBeLessThan(deleteIndex);
+        // Keyed on the account, with no join to a recipe: a removed recipe's rows are moved too.
+        expect(statements[swapIndex]?.text).toMatch(/where account_id = \$\d$/i);
+        expect(statements[swapIndex]?.text).not.toMatch(/\bfrom recipes\b|\bjoin\b|\bin \(select/i);
+        expect(statements[swapIndex]?.params).toEqual([expect.stringMatching(/^erased_[0-9a-f]{32}$/), OWNER]);
+    });
+
     it('scopes the clone-detach to the REMOVED set and guards SURVIVORS (id NOT IN removed), not owner_id', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A, REMOVED_B);

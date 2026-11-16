@@ -8,16 +8,16 @@
   this". Spec 004 `004-FR-024` says "existing behaviour is unchanged". That is no longer true for publishing. The spec
   text is amended separately.
 - **Relates to:**
-  - [ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md): a copied recipe stays private
-    until its Commise-written version ships, and source evidence is locked and append-only (§8). The evidence here is
-    that record.
-    - [ADR-0072](0072-bulk-recipe-import.md) §9: a recipe without a statement stays out of the library.
-    - [ADR-0074](0074-content-source-check.md): the public hold. It is not built yet. It replaces one rule here.
-    - [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md) §8: a missing input
-      reads as held.
-    - [ADR-0035](0035-schema-stacks-decoupled-from-service-deploys.md): migrations run ahead of the service.
-    - [ADR-0014](0014-service-owned-api-contracts.md): the wire contract.
-    - Spec 016: `016-FR-014` and `016-FR-069`.
+    - [ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md): a copied recipe stays private
+      until its Commise-written version ships, and source evidence is locked and append-only (§8). The evidence here is
+      that record.
+        - [ADR-0072](0072-bulk-recipe-import.md) §9: a recipe without a statement stays out of the library.
+        - [ADR-0074](0074-content-source-check.md): the public hold. It is not built yet. It replaces one rule here.
+        - [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md) §8: a missing input
+          reads as held.
+        - [ADR-0035](0035-schema-stacks-decoupled-from-service-deploys.md): migrations run ahead of the service.
+        - [ADR-0014](0014-service-owned-api-contracts.md): the wire contract.
+        - Spec 016: `016-FR-014` and `016-FR-069`.
 
 ## Context
 
@@ -128,14 +128,22 @@ copies no attestations.
     - set-visibility to public on a published recipe.
 
     Set-visibility to public on a draft accepts it and records it. A missing one is `400 INVALID_VISIBILITY`,
-    `details.reason: 'PUBLIC_CONFIRMATION_REQUIRED'`. API writers (seeds, tests, k6) send
-    `PUBLIC_CONFIRMATION_FOR_API_WRITERS`.
+    `details.reason: 'PUBLIC_CONFIRMATION_REQUIRED'`.
+
+- **API writers send a marker, not a wording.** Seeds, tests and k6 send
+  `PUBLIC_CONFIRMATION_FOR_API_WRITERS`, which is `{ apiWriter: true }`. The marker meets the confirmation duty and writes no
+  attestation row, because no person saw a wording. Only a test principal can send it. A real cook who sends it gets
+  `400 INVALID_VISIBILITY` with `details.reason: 'API_WRITER_CONFIRMATION_FORBIDDEN'`. The service checks this before any
+  other rule.
 
 - **"From a cookbook or magazine"** is a `book` statement with a required citation. It forces Private. It writes
   evidence with `capture = 'editorCitation'`. A book source can be corrected
   (`sourceIsCorrectable`).
 - **"From another person"** is stored as `statement_kind = 'fromPerson'`, with no source kind. A stored `fromPerson`
-  refuses Public at every route (`FROM_PERSON_PRIVATE_ONLY`), and erasure never donates it (`recipe_is_from_person`). Spec 016 §15 adds
+  refuses Public at every route (`FROM_PERSON_PRIVATE_ONLY`), and erasure never donates it (`recipe_is_from_person`).
+  A statement of `null` cannot clear it: the write is refused with `403 SOURCE_LOCKED`. A recipe whose statement is empty but
+  that has a past `fromPerson` attestation row counts as `fromPerson` too. The rule is `fromPersonOf` in `recipe-core`, and its SQL
+  twin is `recipe_is_from_person`. Spec 016 §15 adds
   the `family` and `adapted` kinds later. Then this choice sets one of them.
 - Set-visibility takes a `statement`. Make public with an answer is one write.
 - **An explicit "I wrote this" in the same write meets the Public-confirmation duty.** Its own attestation row records
@@ -146,16 +154,18 @@ copies no attestations.
   its `public_web` statement may omit one. The service then writes the source and its `editorLink` evidence, and no
   attestation row, because nothing was shown to attest. The sheet's "From a web page" sends the wording and is recorded
   as above. The other three statements still require a wording.
-- The import save does not carry wordings yet. It writes no attestation rows and needs no confirmation. The paste
-  import adds one implicit row per item, all with the same wording.
+- The import save saves Private only. It carries no wording and writes no attestation row, so it cannot make a recipe
+  public. An import that asks for Public is held for the cook, and the item shows the `visibilityRefused` issue. When the
+  paste import carries wordings and writes one implicit row per item, it can offer Public.
 
 ### 5. Account erasure
 
 - Erasure never donates a recipe that the evidence rule holds, or a recipe that needs a statement. Erasure deletes it
-  with the owner-only set. Its evidence and attestations go by cascade.
-- On a donated recipe, the attestation rows keep the choice, the wording, the locale and the time. Erasure replaces
-  their `account_id` with one random token for the erasure: `erased_` and 32 hex characters. The trigger allows only
-  this one UPDATE.
+  with the owner-only set. Its evidence rows go by cascade.
+- Erasure keeps every attestation row of the erased owner. Before it deletes any recipe, it replaces `account_id` on all
+  of those rows with one random token for the erasure: `erased_` and 32 hex characters.
+- The trigger allows this one UPDATE only while an `account_erasure_jobs` row for that account has the status `queued` or
+  `running`.
 - **Owed in the next PR:** on donated recipes, `recipes.owner_id` and `recipe_versions.created_by` still hold the
   erased account's id. They get the same token.
 
@@ -163,8 +173,13 @@ copies no attestations.
 
 An attestation is kept while its recipe is public, plus 6 years. Then it is deleted.
 
-**Owed:** the purge job. Also owed: keeping the rows when a public recipe is hard-deleted. Today the cascade removes
-them.
+- Migration `0090` adds `recipe_ref`. It always equals the id of the recipe that the row was written for. The foreign key
+  on `recipe_id` is now `ON DELETE SET NULL`, so a deleted recipe leaves the row in place with `recipe_id` empty.
+- The trigger allows one more UPDATE: `recipe_id` to empty, when the recipe is gone. It always refuses DELETE.
+- A hard delete by the cook keeps the rows. A soft delete keeps everything.
+- Evidence rows keep their cascade. They go with the recipe.
+
+**Owed:** the purge job.
 
 ### 7. Deploy order
 
@@ -174,6 +189,9 @@ The schema runs ahead of the service (ADR-0035). In the time between the migrati
 - the old service does not refuse a recipe with no statement on its way to Public.
 
 Nothing is live, so we accept this window and add no shim.
+
+Migration `0090` pins `search_path` to `pg_catalog, public, pg_temp` on every trigger and rule function from `0086`,
+`0087` and `0088`. A role that can create temporary tables can no longer shadow `recipes` with its own table.
 
 ## Consequences
 

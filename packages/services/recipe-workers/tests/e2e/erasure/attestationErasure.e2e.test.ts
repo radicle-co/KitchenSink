@@ -1,12 +1,14 @@
 /**
- * Account erasure and `recipe_statement_attestations` (migration 0088), against a REAL Postgres.
+ * Account erasure and `recipe_statement_attestations` (migrations 0088 and 0090), against a REAL Postgres.
  *
- * A recipe erasure removes takes its attestation rows by the cascade. A recipe it keeps (a donated one) keeps its rows, but
- * `account_id` becomes ONE random `erased_` token per erasure, shared by every kept row of that account and linked to nothing
- * else. The choice, wording version, locale and instant of each act stay. The append-only trigger admits that one UPDATE.
+ * An attestation is kept while its recipe is public plus 6 years (ADR-0095 section 6), so erasure keeps EVERY row of the erased
+ * account: the rows of a recipe it donates and the rows of a recipe it deletes. `account_id` becomes ONE random `erased_` token
+ * per erasure, shared by every kept row of that account and linked to nothing else, and the rows of a deleted recipe lose their
+ * `recipe_id` (the foreign key's `SET NULL`) and keep `recipe_ref`. The choice, wording version, locale and instant of each act
+ * stay. The append-only trigger admits the swap only while the account's erasure job is queued or running.
  *
- * ⛔ A unit test over the emitted SQL cannot prove this: whether the trigger admits the swap, whether the cascade still
- * passes, and whether a second account's rows are left alone are all decided by the database.
+ * ⛔ A unit test over the emitted SQL cannot prove this: whether the trigger admits the swap, whether the foreign key keeps the
+ * rows, and whether a second account's rows are left alone are all decided by the database.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -30,7 +32,7 @@ type AttestationRow = {
     readonly recorded_at: string;
 };
 
-describe('erasure pseudonymises the attestations of the recipes it keeps (migration 0088)', () => {
+describe('erasure keeps and pseudonymises every attestation of the erased account (migrations 0088 and 0090)', () => {
     let pool: pg.Pool;
     let db: NodePgDatabase<Record<string, never>>;
 
@@ -47,6 +49,11 @@ describe('erasure pseudonymises the attestations of the recipes it keeps (migrat
     afterAll(async () => {
         await pool.end();
     });
+
+    /** The erasure job the worker holds while it erases: the swap of `account_id` is admitted only while one is in flight. */
+    async function startJob(ownerId: string): Promise<void> {
+        await db.execute(sql`INSERT INTO account_erasure_jobs (owner_id, status) VALUES (${ownerId}, 'running')`);
+    }
 
     async function insertRecipe(ownerId: string, visibility: 'public' | 'private'): Promise<string> {
         const { rows } = await db.execute<{ id: string }>(sql`
@@ -68,8 +75,8 @@ describe('erasure pseudonymises the attestations of the recipes it keeps (migrat
         const implicit = choice === 'publicConfirm';
 
         await db.execute(sql`
-            INSERT INTO recipe_statement_attestations (recipe_id, account_id, mode, choice, wording_version, locale, action)
-            VALUES (${recipeId}, ${accountId}, ${implicit ? 'implicit' : 'explicit'}, ${choice},
+            INSERT INTO recipe_statement_attestations (recipe_id, recipe_ref, account_id, mode, choice, wording_version, locale, action)
+            VALUES (${recipeId}, ${recipeId}, ${accountId}, ${implicit ? 'implicit' : 'explicit'}, ${choice},
                     ${implicit ? 'publicConfirm.v1' : 'statementAuthored.v1'}, 'en', 'create')
         `);
     }
@@ -77,13 +84,14 @@ describe('erasure pseudonymises the attestations of the recipes it keeps (migrat
     async function rowsOf(recipeId: string): Promise<AttestationRow[]> {
         const { rows } = await db.execute<AttestationRow>(sql`
             SELECT account_id, choice, wording_version, locale, recorded_at::text AS recorded_at
-              FROM recipe_statement_attestations WHERE recipe_id = ${recipeId} ORDER BY choice
+              FROM recipe_statement_attestations WHERE recipe_ref = ${recipeId} ORDER BY choice
         `);
 
         return rows;
     }
 
-    it('removes the rows of a removed recipe, tokenises the rows of a donated one with one shared token, and leaves other accounts alone', async () => {
+    // Rewritten for 0090: the rows of a removed recipe used to go with it. They are now kept, tokenised like the rest.
+    it('keeps the rows of a removed recipe and of a donated one, tokenises all with one shared token, and leaves other accounts alone', async () => {
         const kept = await insertRecipe(USER_ERASED, 'private');
         const keptToo = await insertRecipe(USER_ERASED, 'private');
         const removed = await insertRecipe(USER_ERASED, 'private');
@@ -96,17 +104,27 @@ describe('erasure pseudonymises the attestations of the recipes it keeps (migrat
 
         await attest(others, USER_OTHER, 'authored');
 
+        await startJob(USER_ERASED);
+
         const before = await rowsOf(kept);
         const otherBefore = await rowsOf(others);
 
         // The cook donates two of the three; the third is removed with the owner-only set.
         await eraseRecipeRows(db, USER_ERASED, [kept, keptToo]);
 
-        expect(await rowsOf(removed)).toEqual([]);
+        const afterRemoved = await rowsOf(removed);
+
+        expect(afterRemoved).toHaveLength(2);
+        // The recipe is gone and the rows name it still, by `recipe_ref`.
+        const { rows: orphaned } = await db.execute<{ n: string }>(sql`
+            SELECT count(*) AS n FROM recipe_statement_attestations WHERE recipe_ref = ${removed} AND recipe_id IS NULL
+        `);
+
+        expect(Number(orphaned[0]?.n)).toBe(2);
 
         const afterKept = await rowsOf(kept);
         const afterKeptToo = await rowsOf(keptToo);
-        const tokens = new Set([...afterKept, ...afterKeptToo].map((row) => row.account_id));
+        const tokens = new Set([...afterKept, ...afterKeptToo, ...afterRemoved].map((row) => row.account_id));
 
         expect(afterKept).toHaveLength(2);
         expect(afterKeptToo).toHaveLength(2);
@@ -131,6 +149,8 @@ describe('erasure pseudonymises the attestations of the recipes it keeps (migrat
 
         await attest(mine, USER_ERASED, 'authored');
         await attest(theirs, USER_OTHER, 'authored');
+        await startJob(USER_ERASED);
+        await startJob(USER_OTHER);
 
         await eraseRecipeRows(db, USER_ERASED, [mine]);
         await eraseRecipeRows(db, USER_OTHER, [theirs]);
@@ -144,5 +164,39 @@ describe('erasure pseudonymises the attestations of the recipes it keeps (migrat
 
         await expect(eraseRecipeRows(db, USER_ERASED, [mine])).resolves.toBeDefined();
         expect((await rowsOf(mine))[0]?.account_id).toBe(first);
+    });
+
+    it('refuses the swap when no erasure job is in flight for the account, and rolls the whole erasure back', async () => {
+        const mine = await insertRecipe(USER_ERASED, 'private');
+
+        await attest(mine, USER_ERASED, 'authored');
+
+        await expect(eraseRecipeRows(db, USER_ERASED, [])).rejects.toMatchObject({});
+
+        // Nothing moved: the recipe and the row are as they were, because the transaction rolled back.
+        expect(await rowsOf(mine)).toHaveLength(1);
+        expect((await rowsOf(mine))[0]?.account_id).toBe(USER_ERASED);
+
+        const { rows } = await db.execute<{ n: string }>(sql`SELECT count(*) AS n FROM recipes WHERE id = ${mine}`);
+
+        expect(Number(rows[0]?.n)).toBe(1);
+    });
+
+    // The donate step reads `recipe_is_from_person`, which counts a past attestation when the statement was cleared.
+    it('does not donate a recipe whose statement was cleared after "from another person", and keeps its rows', async () => {
+        const cleared = await insertRecipe(USER_ERASED, 'private');
+
+        await db.execute(sql`
+            INSERT INTO recipe_statement_attestations (recipe_id, recipe_ref, account_id, mode, choice, wording_version, locale, action)
+            VALUES (${cleared}, ${cleared}, ${USER_ERASED}, 'explicit', 'fromPerson', 'statementFromPerson.v1', 'en', 'update')
+        `);
+        await startJob(USER_ERASED);
+
+        await eraseRecipeRows(db, USER_ERASED, [cleared]);
+
+        const { rows } = await db.execute<{ n: string }>(sql`SELECT count(*) AS n FROM recipes WHERE id = ${cleared}`);
+
+        expect(Number(rows[0]?.n)).toBe(0);
+        expect(await rowsOf(cleared)).toHaveLength(1);
     });
 });

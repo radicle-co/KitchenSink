@@ -574,6 +574,11 @@ export interface EraseRecipeRowsResult {
  *     P of a private source Q → P kept, Q removed, P→Q dangles), which `owner_id <> ownerId` would miss and
  *     the delete would then FK-fail. Rows in the removed set are NOT detached: they are deleted by the same
  *     statement as their source, and the NO ACTION check at end-of-statement sees both already gone.
+ *  5a. **Statement attestations (migrations 0088 and 0090)**, before the delete. EVERY row of the account is kept (an attestation
+ *     is kept while its recipe is public plus 6 years), so `account_id` is replaced by ONE random `erased_` token for this
+ *     erasure on all of them, a removed recipe's included. Step 6's foreign key then empties `recipe_id` and `recipe_ref` keeps
+ *     the id. Only the account moves, which is the UPDATE the table's append-only trigger admits while this account's erasure
+ *     job is queued or running.
  *  6. **Scoped recipe delete.** `DELETE FROM recipes WHERE id = ANY(removed)` — NOT `WHERE owner_id`, so
  *     truly-public + donated recipes survive. No `deleted_at` filter: a tombstoned owner-only recipe is
  *     erased too (retention is not reachability). Cascades to `recipe_steps`, `ingredients` (the LINES),
@@ -598,9 +603,6 @@ export interface EraseRecipeRowsResult {
  *     `created_by` — the predicate `handleSyncWorker` itself uses to write this column.
  *     Steps 9 and 10 also CLEAR the username copies (`author_username`, `editor_username`, migration 0055) to
  *     NULL — never the pseudonym, which is a legal Clerk username (plan 2026-10-15-010 D10).
- *     Step 10a, right after it: **statement attestations (migration 0088).** The rows of a KEPT recipe stay, with
- *     `account_id` replaced by ONE random `erased_` token for this erasure; the removed recipes' rows went with step 6's
- *     cascade. Only the account moves, which is the one UPDATE the table's append-only trigger admits.
  * 11. **`author_handles` read-model root — now step 0, a TOMBSTONE rather than a delete (migration 0056).**
  *     The row used to be deleted here. But `handleSyncWorker`'s stale-snapshot guard is a comparison against that
  *     row, and a guard cannot refuse against a row that is gone: a late, redelivered or DLQ'd snapshot took the
@@ -686,7 +688,7 @@ export const eraseRecipeRows = async (
     publishRecipeIds: readonly string[],
 ): Promise<EraseRecipeRowsResult> => {
     const pseudonym = pseudonymizedAuthorHandle(ownerId);
-    // ONE random token for this erasure (migration 0088): every kept attestation row of the account gets the same one, it is
+    // ONE random token for this erasure (migration 0088): every attestation row of the account gets the same one (all are kept), it is
     // derived from nothing, and it is stored nowhere else, so it links the rows to each other and to no one.
     const attestationAccountToken = `erased_${randomBytes(16).toString('hex')}`;
     // The election is bound as a single jsonb parameter (NOT `= ANY($1::uuid[])` over a JS array, which
@@ -779,6 +781,19 @@ export const eraseRecipeRows = async (
               AND id NOT IN (SELECT id FROM recipes WHERE ${ownerOnly})
         `);
 
+        // 5a. Statement attestations (migrations 0088 and 0090) — BEFORE the recipe delete, and for EVERY row of the account. An
+        //     attestation is kept while its recipe is public plus 6 years (ADR-0095 section 6), so the rows of a recipe step 6
+        //     removes stay too: its foreign key empties `recipe_id` (`ON DELETE SET NULL`) and `recipe_ref` keeps the id. Only the
+        //     account moves, to this erasure's one token (the append-only trigger admits exactly that UPDATE, and only while this
+        //     account's erasure job is queued or running, which is the job the claim above holds), so what was chosen, in which
+        //     wording and locale, and when, is kept and by whom is not. `account_id = ownerId` makes a replay a no-op: swapped
+        //     rows no longer match.
+        await tx.execute(sql`
+            UPDATE recipe_statement_attestations
+            SET account_id = ${attestationAccountToken}
+            WHERE account_id = ${ownerId}
+        `);
+
         // 6. Scoped recipe delete — the removed set (owner-only, post-flip), NOT owner-wide, so truly-public +
         //    donated survive. No `deleted_at` filter: a tombstoned owner-only recipe is erased too.
         await tx.execute(sql`DELETE FROM recipes WHERE ${ownerOnly}`);
@@ -818,16 +833,6 @@ export const eraseRecipeRows = async (
             SET editor_handle = CASE WHEN editor_handle IS NULL THEN NULL ELSE ${pseudonym} END,
                 editor_username = NULL
             WHERE created_by = ${ownerId} AND (editor_handle IS NOT NULL OR editor_username IS NOT NULL)
-        `);
-
-        // 10a. Statement attestations (migration 0088) — the rows of the recipes KEPT (donated) stay, with `account_id`
-        //     replaced by this erasure's one token; the rows of the removed recipes went with step 6's cascade. Only the
-        //     account moves (the append-only trigger admits exactly that UPDATE), so what was chosen, in which wording and
-        //     locale, and when, is kept. `account_id = ownerId` makes a replay a no-op: swapped rows no longer match.
-        await tx.execute(sql`
-            UPDATE recipe_statement_attestations
-            SET account_id = ${attestationAccountToken}
-            WHERE account_id = ${ownerId}
         `);
 
         // 11. (author_handles — moved to step 0 as a tombstone; see the docstring.)

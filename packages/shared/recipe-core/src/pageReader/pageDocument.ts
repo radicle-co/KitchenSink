@@ -29,8 +29,11 @@ export interface PageElement {
     attr(name: string): string | undefined;
     /** The element's child ELEMENTS, in order. */
     children(): readonly PageElement[];
-    /** The element's visible text in blocks: a new block starts at a block element or a line break. At most {@link MAX_WALK_NODES} nodes are read. */
-    blocks(): readonly string[];
+    /**
+     * The element's visible text in blocks: a new block starts at a block element or a line break. At most
+     * {@link MAX_WALK_NODES} nodes are read, and `truncated` says that cap cut the text short.
+     */
+    blocks(): { readonly blocks: readonly string[]; readonly truncated: boolean };
     /** The same blocks, read to the page's own budget ({@link MAX_VISIBLE_NODES}), and whether that budget cut them short. */
     visibleText(): { readonly blocks: readonly string[]; readonly truncated: boolean };
     /** The text children exactly as written, with no entity decoding. For a `<script>`, its source. */
@@ -278,7 +281,7 @@ function elementView(node: DomNode): PageElement | undefined {
         tag: node.name,
         attr: (name) => (Object.hasOwn(node.attribs, name) ? node.attribs[name] : undefined),
         children: () => node.children.flatMap((child) => elementView(child) ?? []),
-        blocks: () => blocksOf(node.children, false).blocks,
+        blocks: () => blocksOf(node.children, false),
         visibleText: () => blocksOf(node.children, false, MAX_VISIBLE_NODES),
         rawText: () => node.children.map((child) => (isText(child) ? child.data : '')).join(''),
     };

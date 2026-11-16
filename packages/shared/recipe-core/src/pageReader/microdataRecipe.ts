@@ -57,18 +57,18 @@ function newItem(element: PageElement): Item {
     return item;
 }
 
-/** What an element that is a property (and not an item) holds. */
-function valueOf(element: PageElement): string | readonly string[] {
+/** What an element that is a property (and not an item) holds, and whether reading its text hit the node cap. */
+function valueOf(element: PageElement): { readonly value: string | readonly string[]; readonly truncated: boolean } {
     const attribute = VALUE_ATTRIBUTE[element.tag];
     const stated = attribute === undefined ? undefined : element.attr(attribute);
 
     if (stated !== undefined) {
-        return stated;
+        return { value: stated, truncated: false };
     }
 
-    const blocks = element.blocks();
+    const { blocks, truncated } = element.blocks();
 
-    return blocks.length === 1 ? (blocks[0] ?? '') : blocks;
+    return { value: blocks.length === 1 ? (blocks[0] ?? '') : blocks, truncated };
 }
 
 interface Frame {
@@ -87,13 +87,21 @@ const framesBelow = (element: PageElement, item: Item): readonly Frame[] =>
     element.children().map((child) => ({ element: child, item }));
 
 /** Add what `element` declares to `item`, and give the frames below it: an item with no property name is a separate item. */
-function visitElement({ element, item }: Frame): readonly Frame[] {
+function visitElement({ element, item }: Frame, onTextCut: () => void): readonly Frame[] {
     const names = words(element.attr('itemprop'));
     const isItem = element.attr('itemscope') !== undefined;
     const inner = isItem ? newItem(element) : item;
 
-    for (const name of names) {
-        (item[name] ??= []).push(isItem ? inner : valueOf(element));
+    if (!isItem && names.length > 0) {
+        const { value, truncated } = valueOf(element);
+
+        if (truncated) {
+            onTextCut();
+        }
+
+        names.forEach((name) => (item[name] ??= []).push(value));
+    } else {
+        names.forEach((name) => (item[name] ??= []).push(inner));
     }
 
     return !isItem || names.length > 0 ? framesBelow(element, inner) : [];
@@ -102,9 +110,17 @@ function visitElement({ element, item }: Frame): readonly Frame[] {
 /** The properties of the item `root` declares, in document order. */
 function itemOf(root: PageElement): ItemRead {
     const item = newItem(root);
-    const { truncated } = boundedWalk(framesBelow(root, item), visitElement, 1);
+    let textCut = false;
+    const { truncated } = boundedWalk(
+        framesBelow(root, item),
+        (frame) =>
+            visitElement(frame, () => {
+                textCut = true;
+            }),
+        1,
+    );
 
-    return { item, truncated };
+    return { item, truncated: truncated || textCut };
 }
 
 const isRecipeItem = (element: PageElement): boolean =>

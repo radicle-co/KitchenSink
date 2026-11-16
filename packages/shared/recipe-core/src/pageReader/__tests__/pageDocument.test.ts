@@ -90,13 +90,13 @@ describe('parsePage', () => {
         const [root] = page.withAttribute('itemscope');
 
         expect(root?.children().map((child) => child.tag)).toEqual(['span']);
-        expect(root?.blocks()).toEqual(['Pie deluxe']);
+        expect(root?.blocks()).toEqual({ blocks: ['Pie deluxe'], truncated: false });
     });
 
     it('does not split an element on a newline inside its text', () => {
         const [paragraph] = parsePage('<p>one\ntwo</p>').byTag('p');
 
-        expect(paragraph?.blocks()).toEqual(['one two']);
+        expect(paragraph?.blocks()).toEqual({ blocks: ['one two'], truncated: false });
     });
 
     it('stops at 400,000 nested elements: it is quick, and it says the page was cut short', () => {
@@ -105,7 +105,7 @@ describe('parsePage', () => {
         const deep = parsePage(`<i>kept</i>${'<div>'.repeat(depth)}core${'</div>'.repeat(depth)}`);
 
         expect(deep.truncated).toBe(true);
-        expect(deep.byTag('i')[0]?.blocks()).toEqual(['kept']);
+        expect(deep.byTag('i')[0]?.blocks()).toEqual({ blocks: ['kept'], truncated: false });
         expect(deep.byTag('div').length).toBeLessThan(depth / 10);
         expect(performance.now() - started).toBeLessThan(2_000);
     });
@@ -119,7 +119,10 @@ describe('parsePage', () => {
 
     it('reads at most the node budget of one element, so a huge value costs a bounded walk', () => {
         const [huge] = parsePage(`<div>${'<b>x</b>'.repeat(MAX_WALK_NODES * 3)}</div>`).byTag('div');
-        const text = huge?.blocks().join(' ') ?? '';
+        const read = huge?.blocks();
+        const text = read?.blocks.join(' ') ?? '';
+
+        expect(read?.truncated).toBe(true);
 
         expect(text.length).toBeGreaterThan(MAX_WALK_NODES / 4);
         expect(text.length).toBeLessThanOrEqual(MAX_WALK_NODES / 2);
@@ -136,7 +139,7 @@ describe('parsePage', () => {
         const [wide] = parsePage(`<body>${'<b>x</b>'.repeat(MAX_VISIBLE_NODES)}</body>`).byTag('body');
 
         expect(wide?.visibleText().truncated).toBe(true);
-        expect(wide?.blocks().join('').length).toBeLessThanOrEqual(MAX_WALK_NODES);
+        expect(wide?.blocks().blocks.join('').length).toBeLessThanOrEqual(MAX_WALK_NODES);
     });
 
     it('reads 200,000 sibling elements without slowing down', () => {

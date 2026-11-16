@@ -111,6 +111,7 @@ describe('readPastedContent over a whole synthetic page', () => {
         expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
     });
 
+    /** Rewritten: the property text that wraps the rest is cut at the node cap, so the page is `pageTooComplex`, not `noRecipe`. */
     it('reads hostile microdata inside the time budget: Recipe items nested to the cap, each wrapping the rest in a property', () => {
         const levels = 120;
         const open = '<div itemscope itemtype="https://schema.org/Recipe"><span itemprop="note">';
@@ -123,7 +124,7 @@ describe('readPastedContent over a whole synthetic page', () => {
         const started = performance.now();
         const result = readPastedContent(page);
 
-        expect(result).toMatchObject({ kind: 'notExtractable', reason: 'noRecipe' });
+        expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageTooComplex' });
         expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
     });
 

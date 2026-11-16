@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { MAX_PASTE_BYTES, MAX_WALK_NODES } from '../pageCaps.js';
+import { MAX_JSON_LD_BLOCK_BYTES, MAX_PASTE_BYTES, MAX_WALK_NODES } from '../pageCaps.js';
 import { readPastedContent } from '../readPastedContent.js';
 import {
     makeLinkHead,
@@ -224,6 +224,33 @@ describe('readPastedContent', () => {
             expect(
                 readPastedContent(makePage({ body: body(`${props}<p itemprop="recipeInstructions">Serve.</p>`) })),
             ).toMatchObject(tooComplex);
+        });
+
+        it('JSON-LD: a block over the byte cap, beside another recipe', () => {
+            const big = makeRecipeNode({
+                name: 'Big Pancakes',
+                recipeIngredient: ['x'.repeat(MAX_JSON_LD_BLOCK_BYTES)],
+            });
+
+            expect(readPastedContent(makePage({ jsonLd: [makeRecipeNode({ name: 'Small Pancakes' })] }))).toMatchObject(
+                {
+                    kind: 'extracted',
+                },
+            );
+            expect(
+                readPastedContent(makePage({ jsonLd: [big, makeRecipeNode({ name: 'Small Pancakes' })] })),
+            ).toMatchObject(tooComplex);
+        });
+
+        it('microdata: a property whose text runs past the node budget', () => {
+            // Comments are nodes the text read counts but the element walk does not, so only the text read is cut.
+            const step = (comments: number) =>
+                `<p itemprop="recipeInstructions">Simmer.${'<!---->'.repeat(comments)} Serve.</p>`;
+            const body = (inner: string) =>
+                `<div itemscope itemtype="https://schema.org/Recipe"><h1 itemprop="name">Soup</h1><i itemprop="recipeIngredient">1 onion</i>${inner}</div>`;
+
+            expect(readPastedContent(makePage({ body: body(step(5)) }))).toMatchObject({ kind: 'extracted' });
+            expect(readPastedContent(makePage({ body: body(step(MAX_WALK_NODES + 5)) }))).toMatchObject(tooComplex);
         });
 
         it('microdata: an item nested past the depth cap', () => {

@@ -6,7 +6,7 @@
  *
  * ⛔ Hostile-input bounds (blueprint §4): at most {@link MAX_JSON_LD_BLOCKS} blocks, each at most
  * {@link MAX_JSON_LD_BLOCK_BYTES} bytes before `JSON.parse`; the walk is `boundedWalk`, {@link MAX_WALK_DEPTH} deep and
- * `MAX_WALK_NODES` nodes, and a block nested deeper or a walk that hits the node cap makes the page `tooComplex`; a block that does not parse is skipped. Parsed objects are never spread or merged.
+ * `MAX_WALK_NODES` nodes, and a block over the byte limit, a block nested deeper or a walk that hits the node cap makes the page `tooComplex`; a block that does not parse is skipped. Parsed objects are never spread or merged.
  */
 import { boundedWalk } from './boundedWalk.js';
 import { MAX_JSON_LD_BLOCK_BYTES, MAX_JSON_LD_BLOCKS, MAX_WALK_DEPTH, fitsInBytes } from './pageCaps.js';
@@ -80,24 +80,25 @@ function isShallow(root: unknown): boolean {
 /** A block as read: its JSON, or why it gives none. */
 type ParsedBlock =
     | { readonly kind: 'json'; readonly value: unknown }
-    /** Over the byte limit, or not JSON: skipped. */
+    /** Not JSON: skipped. */
     | { readonly kind: 'skipped' }
-    /** Nests deeper than {@link MAX_WALK_DEPTH}: unread, so the page is only partly read. */
-    | { readonly kind: 'tooDeep' };
+    /** Over the byte limit, or nested deeper than {@link MAX_WALK_DEPTH}: unread, so the page is only partly read. */
+    | { readonly kind: 'unread' };
 
 const SKIPPED: ParsedBlock = { kind: 'skipped' };
+const UNREAD: ParsedBlock = { kind: 'unread' };
 
 function parsedBlock(script: PageElement): ParsedBlock {
     const text = script.rawText();
 
     if (!fitsInBytes(text, MAX_JSON_LD_BLOCK_BYTES)) {
-        return SKIPPED;
+        return UNREAD;
     }
 
     try {
         const value = JSON.parse(text) as unknown;
 
-        return isShallow(value) ? { kind: 'json', value } : { kind: 'tooDeep' };
+        return isShallow(value) ? { kind: 'json', value } : UNREAD;
     } catch {
         return SKIPPED;
     }
@@ -107,13 +108,13 @@ function parsedBlock(script: PageElement): ParsedBlock {
  * Find the recipe in a page's JSON-LD.
  *
  * @param page - The parsed paste.
- * @returns What the JSON-LD holds: `none` when no block has a recipe, and `tooComplex` when a block nests past the depth cap
+ * @returns What the JSON-LD holds: `none` when no block has a recipe, and `tooComplex` when a block is over the byte limit or nests past the depth cap
  *   or a walk hit the node cap, because a recipe (or a second one) may lie in what was not read. Pure.
  */
 export function jsonLdRecipe(page: PageDocument): RecipeExtraction {
     const blocks = page.byTag('script').filter(isJsonLdScript).slice(0, MAX_JSON_LD_BLOCKS).map(parsedBlock);
 
-    if (blocks.some((block) => block.kind === 'tooDeep')) {
+    if (blocks.some((block) => block.kind === 'unread')) {
         return TOO_COMPLEX;
     }
 

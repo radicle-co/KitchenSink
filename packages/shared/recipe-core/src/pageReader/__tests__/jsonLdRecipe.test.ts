@@ -279,14 +279,12 @@ describe('jsonLdRecipe: blocks', () => {
         });
     });
 
-    it('skips a block over the byte limit without parsing it', () => {
+    /** Rewritten: a block over the byte limit was skipped, so another block's recipe was picked. It is `tooComplex` now. */
+    it("refuses a block over the byte limit without parsing it: it may hold the page's real recipe", () => {
         const big = makeRecipeNode({ recipeIngredient: ['x'.repeat(MAX_JSON_LD_BLOCK_BYTES)] });
 
-        expect(read(big).kind).toBe('none');
-        expect(read(big, makeRecipeNode({ name: 'Small' }))).toMatchObject({
-            kind: 'candidates',
-            candidates: [{ recipe: { title: 'Small' } }],
-        });
+        expect(read(big).kind).toBe('tooComplex');
+        expect(read(big, makeRecipeNode({ name: 'Small' })).kind).toBe('tooComplex');
     });
 
     it('counts the limit in bytes, not characters', () => {
@@ -294,7 +292,7 @@ describe('jsonLdRecipe: blocks', () => {
 
         expect(fits.length).toBeLessThan(MAX_JSON_LD_BLOCK_BYTES);
         expect(new TextEncoder().encode(fits).length).toBeGreaterThan(MAX_JSON_LD_BLOCK_BYTES);
-        expect(read(fits).kind).toBe('none');
+        expect(read(fits).kind).toBe('tooComplex');
     });
 
     it('reads at most 16 blocks', () => {

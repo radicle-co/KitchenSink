@@ -71,6 +71,17 @@ describe('scope and hydrate', () => {
         expect(data.has(KEY_A)).toBe(false);
     });
 
+    it("R7b: sign-out removes every cook's key, including one another tab wrote after sign-in", async () => {
+        const stored = serializeKeptDocument(makeDoc({ entries: { r1: makeCooking() } }));
+        const { store, data } = setup({ [KEY_A]: stored });
+
+        await store.scope('A');
+        data.set(keptKeyFor('B'), stored);
+        await store.scope(null);
+
+        expect([...data.keys()]).toEqual([]);
+    });
+
     it('RT4: ended session, live session and a stale page entry leave only the live one, in one write', async () => {
         const old = iso(T0 - 25 * HOUR);
         const stored = serializeKeptDocument(
@@ -200,6 +211,44 @@ describe('dispatch', () => {
         expect(warn).toHaveBeenCalledTimes(1);
     });
 
+    it('a dispatch waiting on the lock when the cook signs out writes nothing and changes nothing', async () => {
+        const base = makeFakeLocks();
+        let held: Promise<void> | undefined = undefined;
+        let release: () => void = () => undefined;
+        let entered: () => void = () => undefined;
+        const inLock = new Promise<void>((resolve) => {
+            entered = resolve;
+        });
+        const locks: ExclusiveRunner = (name, work) =>
+            base(name, async () => {
+                if (held !== undefined) {
+                    entered();
+                    await held;
+                }
+
+                return work();
+            });
+        const { store, calls, data } = setup({}, locks);
+
+        await store.scope('A');
+        held = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        const writesBefore = calls.write;
+        const waiting = store.dispatch(tick);
+
+        await inLock;
+
+        const signingOut = store.scope(null);
+
+        release();
+        await signingOut;
+
+        expect(await waiting).toEqual({ kind: 'unchanged' });
+        expect(calls.write).toBe(writesBefore);
+        expect(data.has(KEY_A)).toBe(false);
+    });
+
     it('joined, refused and unchanged write nothing and leave the snapshot as it is', async () => {
         const stored = serializeKeptDocument(makeDoc({ entries: { r1: makeCooking() } }));
         const { store, calls } = setup({ [KEY_A]: stored });
@@ -261,6 +310,17 @@ describe('reread and snapshot identity', () => {
 
         expect(listener).toHaveBeenCalledTimes(1);
         expect(docOf(store.getSnapshot()).entries['r1']).toBeDefined();
+    });
+
+    it('a re-read of an unreadable value keeps the open session (left for the next locked write)', async () => {
+        const entry = makeCooking();
+        const { store, data } = setup({ [KEY_A]: serializeKeptDocument(makeDoc({ rev: 2, entries: { r1: entry } })) });
+
+        await store.scope('A');
+        data.set(KEY_A, '{');
+        await store.reread();
+
+        expect(docOf(store.getSnapshot()).entries['r1']).toEqual(entry);
     });
 
     it('getSnapshot returns the same object until something changes', async () => {

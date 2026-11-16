@@ -15,10 +15,12 @@
  *  - **The lines**: a pick applies only against the digest the cook saw; the “to check” list and count are exactly the lines
  *    saved as written that no one has picked, owned by the caller, whose recipe still exists.
  */
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
+import * as schema from '../../../src/database/schema/index.js';
 import { RecipeImportItemsDal } from '../../../src/import/dal/recipeImportItems.dal.js';
 import { RecipeImportLinesDal } from '../../../src/import/dal/recipeImportLines.dal.js';
 import { RecipeImportsDal } from '../../../src/import/dal/recipeImports.dal.js';
@@ -648,22 +650,11 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
         it('⛔ measures the cap from payload_bytes: no statement of the request serialises a payload to text', async () => {
             const header = await newImport(3);
             const issued: string[] = [];
-            const original = pg.Client.prototype.query;
-            const spy = vi.spyOn(pg.Client.prototype, 'query').mockImplementation(function (
-                this: pg.Client,
-                ...args: unknown[]
-            ) {
-                const first = args[0];
-                issued.push(typeof first === 'string' ? first : ((first as { text?: string }).text ?? ''));
+            // A drizzle instance with a query logger: every statement the DAL issues through it is recorded, typed.
+            const traced = drizzle(pool, { schema, logger: { logQuery: (query: string) => void issued.push(query) } });
+            const tracedDal = new RecipeImportItemsDal(traced, new ImportAllowanceDal(), CAP);
 
-                return (original as (...a: unknown[]) => unknown).apply(this, args);
-            } as never);
-
-            try {
-                expect(await store(header.id, 0, 'a')).toEqual({ kind: 'ok' });
-            } finally {
-                spy.mockRestore();
-            }
+            expect(await store(header.id, 0, 'a', undefined, tracedDal)).toEqual({ kind: 'ok' });
 
             const measures = issued.filter((text) => /sum\(/iu.test(text));
 

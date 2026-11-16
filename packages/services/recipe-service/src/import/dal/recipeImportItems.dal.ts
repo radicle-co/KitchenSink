@@ -193,6 +193,11 @@ class StorageFullError extends Error {
     }
 }
 
+/** Whether `error` is the cap refusal `upsertItems` turns into `storageFull`. Pure. */
+function isStorageFullError(error: unknown): error is StorageFullError {
+    return error instanceof StorageFullError;
+}
+
 /**
  * Whether a decision writes a payload, so it can add stored bytes. Exhaustive: a new decision kind is a compile error here.
  *
@@ -231,7 +236,7 @@ export class RecipeImportItemsDal {
         try {
             return await this.upsertWithin(importId, inputs);
         } catch (error) {
-            if (error instanceof StorageFullError) {
+            if (isStorageFullError(error)) {
                 return { kind: 'storageFull' };
             }
 

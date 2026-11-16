@@ -13,9 +13,9 @@
 import path from 'node:path';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
+import { laneCosts } from '@kitchensink/e2e-plan/laneCosts';
 
 import { IOS_MAX_LANES, laneSimulatorName, tunnelsFromManifest, type IosDevice } from './iosLane.js';
-import { laneCosts } from './laneCosts.js';
 import type { DeviceAdapter, HostFacts, LaneSpec, RunContext } from './laneTypes.js';
 import type { LocalSettings } from './localSettings.js';
 import { MAC_DIR, MacSession, macPathsOf, remote, type MacShell } from './macSession.js';
@@ -37,12 +37,7 @@ const HEX = /^[0-9a-f]+$/u;
 
 const RUNNER = 'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh';
 
-/** What one iPhone and one iPad lane cost; the measurements are recorded beside the figures in `laneCosts.ts`. */
-const IPHONE_LANE_COST: LaneCost = laneCosts.iphone;
-
-const IPAD_LANE_COST: LaneCost = laneCosts.ipad;
-
-const IOS_LANE_COSTS: Readonly<Record<IosDevice, LaneCost>> = { iphone: IPHONE_LANE_COST, ipad: IPAD_LANE_COST };
+const IOS_LANE_COSTS: Readonly<Record<IosDevice, LaneCost>> = { iphone: laneCosts.iphone, ipad: laneCosts.ipad };
 
 export class IosAdapter implements DeviceAdapter {
     readonly platform = 'ios' as const;

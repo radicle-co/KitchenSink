@@ -5,9 +5,7 @@
     "type": "module",
     "exports": {
         ".": "./src/index.ts",
-        "./hostLock": "./src/maestroLanes/hostLock.ts",
-        "./laneCosts": "./src/maestroLanes/laneCosts.ts",
-        "./laneCosts.json": "./src/maestroLanes/laneCosts.json"
+        "./hostLock": "./src/maestroLanes/hostLock.ts"
     },
     "scripts": {
         "audit": "tsx bin/audit.ts",

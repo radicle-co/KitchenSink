@@ -30,12 +30,15 @@
  * - `webServer`: what the one shared `next start` costs, whatever the lane count: CPU mean 0.54 (peak 0.90), memory
  *   mean 0.57 GiB (peak 0.62).
  *
- * @sideEffect reads `laneCosts.json` once, when the module loads.
+ * Read outside the repo: `~/.claude/hooks/e2eLoadGuard.py` reads this file's repo path, its key set and the `gib` unit
+ * through `git show origin/main:packages/tools/e2ePlan/src/laneCosts.json`. Moving or renaming any of them needs a
+ * matching hook edit. The hook reads `origin/main` while the planners read the working tree, so a branch that changes a
+ * cost disagrees with the hook until it merges.
  */
-import { readFileSync } from 'node:fs';
-
-import type { LaneCost } from '@kitchensink/e2e-plan';
 import { z } from 'zod';
+
+import raw from './laneCosts.json' with { type: 'json' };
+import type { LaneCost } from './lanePlan.js';
 
 const GIB = 1024 ** 3;
 
@@ -68,6 +71,4 @@ export function parseLaneCosts(raw: unknown): LaneCosts {
     };
 }
 
-export const laneCosts: LaneCosts = parseLaneCosts(
-    JSON.parse(readFileSync(new URL('./laneCosts.json', import.meta.url), 'utf8')),
-);
+export const laneCosts: LaneCosts = parseLaneCosts(raw);

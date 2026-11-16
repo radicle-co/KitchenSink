@@ -8,18 +8,14 @@
  * @pattern Facade over {@link MacSession} and `bin/mac/androidLaneHost.sh`
  * @sideEffect Runs commands on the Mac: boots and kills emulators, copies the APK, opens a tunnel.
  */
-import type { LaneCost } from '@kitchensink/e2e-plan';
+import { laneCosts } from '@kitchensink/e2e-plan/laneCosts';
 
 import type { AndroidHost } from './androidHost.js';
 import { consolePort } from './androidSerials.js';
 import { tunnelsFromManifest } from './iosLane.js';
-import { laneCosts } from './laneCosts.js';
 import type { LaneSpec, RunContext } from './laneTypes.js';
 import type { LocalSettings } from './localSettings.js';
 import { MacSession, macPathsOf, remote, type MacShell } from './macSession.js';
-
-/** What a Mac Android lane costs; the measurement is recorded beside the figure in `laneCosts.ts`. */
-const MAC_ANDROID_LANE_COST: LaneCost = laneCosts.macAndroid;
 
 const HEX = /^[0-9a-f]+$/u;
 
@@ -58,7 +54,7 @@ export function createMacAndroidHost(options: MacAndroidHostOptions): AndroidHos
 
     return {
         abi,
-        laneCost: MAC_ANDROID_LANE_COST,
+        laneCost: laneCosts.macAndroid,
         hostFacts: () => session.facts(),
         prepare: async (run: RunContext, apk: string, key: string) => {
             if (!HEX.test(key)) {

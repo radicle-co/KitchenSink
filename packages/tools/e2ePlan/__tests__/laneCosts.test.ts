@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { laneCosts, parseLaneCosts } from '../laneCosts.js';
+import { laneCosts, parseLaneCosts } from '../src/laneCosts.js';
 
 const GIB = 1024 ** 3;
 

@@ -12,11 +12,11 @@
 import path from 'node:path';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
+import { laneCosts } from '@kitchensink/e2e-plan/laneCosts';
 import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
 import { createLocalAndroidHost, type AndroidHost } from './androidHost.js';
 import { ANDROID_LANE_SERIALS } from './androidSerials.js';
-import { laneCosts } from './laneCosts.js';
 import type { CommandPort, DeviceAdapter, LaneSpec, RunContext } from './laneTypes.js';
 
 /** What one Android lane costs the host at its peak; the measurement is recorded beside the figure in `laneCosts.ts`. */

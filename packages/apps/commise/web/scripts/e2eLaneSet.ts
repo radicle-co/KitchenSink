@@ -6,7 +6,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
-import { laneCosts } from '@kitchensink/local-sandbox/laneCosts';
+import { laneCosts } from '@kitchensink/e2e-plan/laneCosts';
 import { processEnv, type Env } from '@kitchensink/e2e-plan/stampRun';
 
 import { BLOB_DIR, LANE_LOG_DIR } from './e2ePaths';
@@ -14,7 +14,7 @@ import { run, sleep, waitForExit } from './e2eProcess';
 import { parseReport, type PlaywrightReport } from './e2eReport';
 import { deadOrigins } from './e2eServer';
 
-/** What one lane and the one shared `next start` cost; the measurements are recorded beside the figures in `laneCosts.ts`. */
+/** What one lane and the one shared `next start` cost; the measurements are recorded beside the figures in `laneCosts.ts` (`@kitchensink/e2e-plan`). */
 export const LANE_COST: LaneCost = laneCosts.web;
 
 export const SERVER_COST: LaneCost = laneCosts.webServer;

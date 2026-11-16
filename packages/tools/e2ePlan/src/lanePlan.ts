@@ -1,6 +1,6 @@
 /**
- * What a lane, or the one server the lanes share, costs the machine. Each door measures its own figure and keeps it with
- * the lane runner: `web/scripts/e2eLanes.ts`, `androidAdapter.ts` and `iosAdapter.ts`.
+ * What a lane, or the one server the lanes share, costs the machine. The measured figures live in `laneCosts.json`, read
+ * through `laneCosts.ts`.
  */
 export interface LaneCost {
     readonly cpus: number;

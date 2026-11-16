@@ -32,7 +32,10 @@ export interface PublishedFacts {
 
 /** What a write owes the passive confirmation. */
 export interface PublicConfirmationDuty {
-    /** The write makes the recipe published and public where it was not: it must carry the confirmation. */
+    /**
+     * The write makes the recipe published and public where it was not, and says no "I wrote this" of its own: it must carry
+     * the confirmation. An explicit `authored` statement in the same write is the stronger act, so it answers for it.
+     */
     readonly required: boolean;
     /** The cook chose Public in this write: a confirmation they sent is recorded. (Always true when `required`.) */
     readonly recordedWhenSupplied: boolean;
@@ -47,20 +50,23 @@ export interface PublicConfirmationDuty {
  *
  * @param input.before - The recipe as stored, or `undefined` for a create.
  * @param input.after - The status and visibility the write LEAVES.
+ * @param input.authoredInWrite - The write carries an explicit "I wrote this" that TOOK EFFECT (its own attestation row is
+ *   written), so no separate confirmation is owed. A confirmation it was sent is still recorded.
  * @returns The duty. Pure.
  */
 export function publicConfirmationDutyOf(input: {
     readonly before: PublishedFacts | undefined;
     readonly after: PublishedFacts;
+    readonly authoredInWrite: boolean;
 }): PublicConfirmationDuty {
-    const { before, after } = input;
+    const { before, after, authoredInWrite } = input;
     const isPublic = after.visibility === 'public';
     const wasPublic = before?.visibility === 'public';
     const isLive = after.status === 'published' && isPublic;
     const wasLive = before?.status === 'published' && wasPublic;
-    const required = isLive && !wasLive;
+    const becomesLive = isLive && !wasLive;
 
-    return { required, recordedWhenSupplied: required || (isPublic && !wasPublic) };
+    return { required: becomesLive && !authoredInWrite, recordedWhenSupplied: becomesLive || (isPublic && !wasPublic) };
 }
 
 /** One row before it is given its recipe and account. */

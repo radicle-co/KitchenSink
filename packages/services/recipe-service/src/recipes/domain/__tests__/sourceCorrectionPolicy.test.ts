@@ -111,11 +111,25 @@ describe('evaluateSourceCorrection — a clear (statement null) before the first
 });
 
 describe('evaluateSourceCorrection — the source is locked', () => {
-    it.each([STATEMENT, null])('after the first publish, whatever the statement (%j)', (statement) => {
-        expect(evaluateSourceCorrection({ statement, stored: stored({ firstPublishedAt: AT }) })).toEqual({
+    it('after the first publish, a clear is locked', () => {
+        expect(evaluateSourceCorrection({ statement: null, stored: stored({ firstPublishedAt: AT }) })).toEqual({
             kind: 'locked',
         });
     });
+
+    it.each([
+        ['a web link', STATEMENT, true],
+        ['a cookbook', BOOK, true],
+        ['another person', FROM_PERSON, true],
+    ] as const)(
+        'after the first publish, from no statement, %s is the cook’s first statement: it applies, and it forces Private',
+        (_name, statement, makePrivate) => {
+            expect(evaluateSourceCorrection({ statement, stored: stored({ firstPublishedAt: AT }) })).toMatchObject({
+                kind: 'apply',
+                makePrivate,
+            });
+        },
+    );
 
     it('after the first publish, a statement over a stated source stays locked: authored cannot relabel a web copy', () => {
         expect(
@@ -278,11 +292,11 @@ describe('evaluateSourceCorrection — the whole table', () => {
     // before the first publish (an import saves published, so an imported book is already locked); a paid site is never.
     // "From another person" and a book are locked exactly where a web link is: setBook and fromPerson behave as setWeb here.
     const TABLE: ReadonlyArray<readonly [string, Move, string, string]> = [
-        ['no statement', 'setWeb', 'apply', 'locked'],
+        ['no statement', 'setWeb', 'apply', 'apply'],
         ['no statement', 'clear', 'unchanged', 'locked'],
         ['no statement', 'authored', 'apply', 'apply'],
-        ['no statement', 'setBook', 'apply', 'locked'],
-        ['no statement', 'fromPerson', 'apply', 'locked'],
+        ['no statement', 'setBook', 'apply', 'apply'],
+        ['no statement', 'fromPerson', 'apply', 'apply'],
         ['authored', 'setWeb', 'apply', 'locked'],
         ['authored', 'clear', 'apply', 'locked'],
         ['authored', 'authored', 'unchanged', 'unchanged'],
@@ -407,10 +421,15 @@ describe('evaluateSourceCorrection — a cookbook, or another person, before the
         ).toMatchObject({ kind: 'apply', makePrivate: false });
     });
 
-    it.each([BOOK, FROM_PERSON])('is locked after the first publish, whatever it says (%j)', (statement) => {
-        expect(evaluateSourceCorrection({ statement, stored: stored({ firstPublishedAt: AT }) })).toEqual({
-            kind: 'locked',
-        });
+    // Rewritten by ADR-0092: after the first publish a recipe with NO statement takes any first statement; one that holds a
+    // statement keeps it locked.
+    it.each([BOOK, FROM_PERSON])('after the first publish, changes a held statement: locked (%j)', (statement) => {
+        expect(
+            evaluateSourceCorrection({
+                statement,
+                stored: stored({ statementKind: 'authored', firstPublishedAt: AT }),
+            }),
+        ).toEqual({ kind: 'locked' });
     });
 
     it('keeps a book INHERITED by a clone locked: cloning is not a way to relabel a recipe', () => {

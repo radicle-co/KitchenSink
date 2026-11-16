@@ -887,6 +887,7 @@ export class RecipesService {
             contentPastedAt,
             pending: evidence,
             confirmation: dto.publicConfirmation,
+            authoredInWrite: dto.statement?.kind === 'authored',
             confirmationExempt: imported !== undefined,
             afterState: () =>
                 assertPublishable({
@@ -1730,6 +1731,7 @@ export class RecipesService {
                 dto.contentPasted === true ? (current.contentPastedAt ?? new Date()) : current.contentPastedAt,
             pending: pendingEvidence,
             confirmation: dto.publicConfirmation,
+            authoredInWrite: applied && dto.statement?.kind === 'authored',
         });
 
         if (input.publishesDraft && visibilityAfter === RecipeVisibility.PRIVATE) {
@@ -2077,6 +2079,7 @@ export class RecipesService {
                 contentPastedAt: current.contentPastedAt,
                 pending: pendingEvidence,
                 confirmation: extras.publicConfirmation,
+                authoredInWrite: correction.kind === 'apply' && extras.statement?.kind === 'authored',
             });
 
             assertVisibilityAllowed(visibilityAskOf(principal, source, visibility, verdict), standing);

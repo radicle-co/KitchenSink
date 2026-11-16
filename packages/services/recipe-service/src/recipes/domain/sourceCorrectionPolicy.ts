@@ -64,7 +64,7 @@ export type SourceCorrection =
 
 /**
  * Whether the stored recipe has no statement and no source of its own: a recipe the cook wrote, with nothing stated.
- * The only state "I wrote this" may be said from after the first publish.
+ * The only state a first statement may be made from after the first publish.
  */
 function statesNothing(stored: StoredSource): boolean {
     return stored.sourceType === 'user_created' && stored.sourceKind === null && stored.statementKind === null;
@@ -87,13 +87,14 @@ function holdsAlready(provenance: ResolvedProvenance, stored: StoredSource): boo
 /**
  * Decide what a PATCH's `statement` does. Pure.
  *
- * ## The one move the lock lets through (Option B)
+ * ## The one move the lock lets through (Option B, widened by ADR-0092)
  *
- * After the first publish the source stays frozen, with one exception: "I wrote this" from NO statement. Without it a recipe
- * published private (or one whose paste was reported after it went public) could never be made public, because the cook
- * could never attest. It writes no source and no visibility, so it relabels nothing: it is the cook's attestation, on a recipe
- * that has none. Saying it AGAIN is `unchanged` (nothing to write), so a retry of "attest, then make public" does not meet a
- * lock the first half already passed. Every other move keeps the lock it had.
+ * After the first publish the source stays frozen, with one exception: the cook's FIRST statement, from NO statement, whatever
+ * it says (I wrote this, a web page, a cookbook, another person). Without it a recipe published private (or one whose paste
+ * was reported after it went public) could never be made public, because the cook could never attest, and a cook who owes an
+ * answer could never give the honest one. It relabels nothing the cook had stated. A third-party statement forces Private in
+ * the same write and appends its evidence. Saying "I wrote this" AGAIN is `unchanged` (nothing to write), so a retry of
+ * "attest, then make public" does not meet a lock the first half already passed. CHANGING a statement stays locked.
  *
  * ## What took effect
  *
@@ -121,16 +122,18 @@ export function evaluateSourceCorrection(input: {
     // inherited by a clone. The editor's rule is unchanged; the one exception is made HERE, so the editor's reading of "can the
     // link still change" stays true.
     if (!sourceIsCorrectable(stored)) {
+        // A statement the recipe already holds, said again, changes nothing.
         if (statement?.kind === 'authored') {
             const decision = evaluateProvenance({ statement, grantedScopes: [] });
 
             if (decision.allowed && holdsAlready(decision.provenance, stored)) {
                 return { kind: 'unchanged' };
             }
+        }
 
-            if (statesNothing(stored)) {
-                return applyOf(decision);
-            }
+        // The one move the lock lets through: the cook's FIRST statement, whichever it is.
+        if (statement !== null && statesNothing(stored)) {
+            return applyOf(evaluateProvenance({ statement, grantedScopes: [] }));
         }
 
         return { kind: 'locked' };

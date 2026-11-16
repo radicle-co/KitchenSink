@@ -58,7 +58,34 @@ describe('publicConfirmationDutyOf — when a write must carry the passive Publi
         ['a move to private of a published public recipe', LIVE_PUBLIC, LIVE_PRIVATE, false, false],
         ['a re-draft of a published public recipe', LIVE_PUBLIC, DRAFT_PUBLIC, false, false],
     ] as const)('%s', (_name, before, after, required, recorded) => {
-        expect(publicConfirmationDutyOf({ before, after })).toEqual({ required, recordedWhenSupplied: recorded });
+        expect(publicConfirmationDutyOf({ before, after, authoredInWrite: false })).toEqual({
+            required,
+            recordedWhenSupplied: recorded,
+        });
+    });
+});
+
+describe('publicConfirmationDutyOf — an explicit "I wrote this" in the same write', () => {
+    const DRAFT_PUBLIC = { status: 'draft', visibility: 'public' } as const;
+    const LIVE_PRIVATE = { status: 'published', visibility: 'private' } as const;
+    const LIVE_PUBLIC = { status: 'published', visibility: 'public' } as const;
+
+    it.each([
+        ['a create that is published and public', undefined, LIVE_PUBLIC],
+        ['a publish of a public draft', DRAFT_PUBLIC, LIVE_PUBLIC],
+        ['a move to public of a published private recipe', LIVE_PRIVATE, LIVE_PUBLIC],
+    ] as const)('%s owes no separate confirmation, and still records one it was sent', (_name, before, after) => {
+        expect(publicConfirmationDutyOf({ before, after, authoredInWrite: true })).toEqual({
+            required: false,
+            recordedWhenSupplied: true,
+        });
+    });
+
+    it('does not make a write that stays private record a confirmation', () => {
+        expect(publicConfirmationDutyOf({ before: LIVE_PRIVATE, after: LIVE_PRIVATE, authoredInWrite: true })).toEqual({
+            required: false,
+            recordedWhenSupplied: false,
+        });
     });
 });
 

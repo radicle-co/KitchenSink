@@ -63,6 +63,8 @@ export interface PublicWrite {
     readonly pending: readonly EvidenceToWrite[];
     /** The request's confirmation, if it sent one. */
     readonly confirmation: PublicConfirmationInput | undefined;
+    /** The write carries an explicit "I wrote this" that took effect: its own attestation row answers for the confirmation. */
+    readonly authoredInWrite: boolean;
     /** The bulk import states no wording yet: it is neither asked for a confirmation nor recorded as having given one. */
     readonly confirmationExempt?: boolean;
     /** A check the caller makes AFTER the state rules and BEFORE the confirmation (the publish floor), so its order is kept. */
@@ -146,7 +148,11 @@ export class PublicStatementGate {
         write.afterState?.();
 
         const exempt = write.confirmationExempt === true;
-        const duty = publicConfirmationDutyOf({ before: write.before, after: write.after });
+        const duty = publicConfirmationDutyOf({
+            before: write.before,
+            after: write.after,
+            authoredInWrite: write.authoredInWrite,
+        });
 
         if (!exempt && duty.required && write.confirmation === undefined) {
             throw publicConfirmationRequired(details);

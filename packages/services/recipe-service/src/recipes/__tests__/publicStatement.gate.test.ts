@@ -60,6 +60,7 @@ function writeOf(over: Partial<PublicWrite> = {}): PublicWrite {
         pending: [],
         confirmation: CONFIRM,
         confirmationExempt: false,
+        authoredInWrite: false,
         ...over,
     };
 }
@@ -205,6 +206,22 @@ describe('PublicStatementGate.judge — the confirmation', () => {
         });
 
         await expect(gate.judge(write)).resolves.toMatchObject({ recordsConfirmation: true });
+    });
+
+    it('an explicit "I wrote this" in the same write satisfies the duty: no confirmation is needed', async () => {
+        const { gate } = gateOf();
+
+        await expect(
+            gate.judge(writeOf({ confirmation: undefined, authoredInWrite: true, statementKind: 'authored' })),
+        ).resolves.toMatchObject({ recordsConfirmation: true });
+    });
+
+    it('the statement answers only for itself: a write without it still owes the confirmation', async () => {
+        const { gate } = gateOf();
+
+        await expect(
+            reasonOf(gate.judge(writeOf({ confirmation: undefined, statementKind: 'authored' }))),
+        ).resolves.toBe('PUBLIC_CONFIRMATION_REQUIRED');
     });
 
     it('the import is exempt: nothing is required and nothing is recorded', async () => {

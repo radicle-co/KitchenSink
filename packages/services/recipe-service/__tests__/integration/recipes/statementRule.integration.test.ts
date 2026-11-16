@@ -60,6 +60,12 @@ const WEB = {
     citation: LINK,
     wording: { version: 'statementPublicWeb.v1', locale: 'en' },
 } as const;
+const BOOK = {
+    kind: 'book',
+    citation: 'Joy of Cooking, p. 12',
+    wording: { version: 'statementBook.v1', locale: 'en' },
+} as const;
+const FROM_PERSON = { kind: 'fromPerson', wording: { version: 'statementFromPerson.v1', locale: 'en' } } as const;
 const AUTHORED = { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } } as const;
 
 let stored: RecipeRow;
@@ -90,11 +96,13 @@ const update = vi.fn(async (_id: string, patch: UpdateRecipeInput, _tx?: unknown
 
     return aggregateOf(stored);
 });
-const setVisibility = vi.fn(async (_id: string, visibility: RecipeVisibility) => {
-    stored = { ...stored, visibility };
+const setVisibility = vi.fn(
+    async (_id: string, visibility: RecipeVisibility, _tx?: unknown, provenance?: UpdateRecipeInput['provenance']) => {
+        stored = { ...stored, ...(provenance === undefined ? {} : provenance), visibility };
 
-    return aggregateOf(stored);
-});
+        return aggregateOf(stored);
+    },
+);
 
 let evidence: RecipeSourceEvidenceRow[] = [];
 const insertEvidence = vi.fn(async (_tx: unknown, row: NewRecipeSourceEvidenceRow) => {
@@ -300,6 +308,26 @@ describe('POST /api/v1/recipes — the statement rule on create', () => {
             }),
             expect.anything(),
         );
+    });
+
+    it('ALLOWS "I wrote this" with NO separate confirmation: the explicit statement satisfies the duty', async () => {
+        const { publicConfirmation: _omitted, ...withoutConfirmation } = PUBLISHED_PUBLIC_BODY;
+        const response = await call('POST', '/api/v1/recipes', {
+            ...withoutConfirmation,
+            contentPasted: true,
+            statement: AUTHORED,
+        });
+
+        expect(response.status).toBe(201);
+    });
+
+    it('still asks for the confirmation when the write carries no statement', async () => {
+        const { publicConfirmation: _omitted, ...withoutConfirmation } = PUBLISHED_PUBLIC_BODY;
+
+        expect(await refusalOf(await call('POST', '/api/v1/recipes', withoutConfirmation))).toMatchObject({
+            status: 400,
+            details: { reason: 'PUBLIC_CONFIRMATION_REQUIRED' },
+        });
     });
 
     it('ALLOWS a recipe typed by hand (no flag) with no statement: it publishes with nothing said', async () => {
@@ -508,12 +536,38 @@ describe('PATCH /api/v1/recipes/{id} — the statement rule on update and publis
         expect(update).not.toHaveBeenCalled();
     });
 
-    it('still refuses a web statement after the first publish, even over a recipe with no statement', async () => {
-        stored = pasted();
+    it('takes ANY first statement after the first publish, and a third-party one forces Private and writes its evidence', async () => {
+        stored = pasted({ visibility: 'public' });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: WEB });
+
+        expect(response.status).toBe(200);
+        expect(stored).toMatchObject({ sourceKind: 'public_web', visibility: 'private' });
+        expect(insertEvidence).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ capture: 'editorLink', sourceKind: 'public_web' }),
+        );
+    });
+
+    it('still refuses CHANGING a statement the recipe already holds after the first publish: 403 SOURCE_LOCKED', async () => {
+        stored = pasted({ statementKind: 'authored' });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: WEB });
 
         expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+    });
+
+    it('publishes a public draft with "I wrote this" and NO separate confirmation: the statement is the confirmation', async () => {
+        stored = pasted({ status: 'draft', visibility: 'public' });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            status: 'published',
+            statement: AUTHORED,
+        });
+
+        expect(response.status).toBe(200);
+        expect(stored).toMatchObject({ status: 'published', statementKind: 'authored', visibility: 'public' });
     });
 
     it('ORDER: a recipe with evidence AND a missing statement is refused as SOURCE_CONFLICT, not STATEMENT_REQUIRED', async () => {
@@ -576,6 +630,49 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
         });
 
         expect(response.status).toBe(200);
+    });
+
+    it('ALLOWS "I wrote this" with Public and NO separate confirmation on a published private recipe', async () => {
+        stored = pasted();
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            statement: AUTHORED,
+        });
+
+        expect(response.status).toBe(200);
+        expect(stored).toMatchObject({ visibility: 'public', statementKind: 'authored' });
+    });
+
+    it.each([
+        ['a web link', WEB, { sourceKind: 'public_web' }],
+        ['a cookbook', BOOK, { sourceKind: 'book' }],
+        ['another person', FROM_PERSON, { statementKind: 'fromPerson' }],
+    ] as const)(
+        'Private with %s on a PUBLISHED recipe with no statement succeeds, and writes the statement',
+        async (_name, statement, expected) => {
+            stored = pasted({ visibility: 'public' });
+
+            const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+                visibility: 'private',
+                statement,
+            });
+
+            expect(response.status).toBe(200);
+            expect(stored).toMatchObject({ visibility: 'private', ...expected });
+        },
+    );
+
+    it('Public with a third-party statement is still refused: it forces Private, so Public cannot stand', async () => {
+        stored = pasted();
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            statement: WEB,
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
+
+        expect(response.status).toBe(400);
     });
 
     it('NEVER refuses Private', async () => {

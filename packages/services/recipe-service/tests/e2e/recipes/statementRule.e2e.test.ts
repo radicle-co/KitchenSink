@@ -219,6 +219,41 @@ describe('the statement rule (e2e)', () => {
         expect(reasonOf(attempt.json)).toBe('SOURCE_LOCKED');
     });
 
+    it('after the first publish, a recipe with NO statement takes a web statement with Private in one write, and keeps its evidence', async () => {
+        const { id: other } = await create({ visibility: 'private' });
+        const stated = await send('PATCH', `/api/v1/recipes/${other}/visibility`, {
+            visibility: 'private',
+            statement: WEB,
+        });
+
+        expect(stated.status).toBe(200);
+        expect(await readRow(other)).toMatchObject({ sourceKind: 'public_web', visibility: 'private' });
+
+        const { rows } = await pool.query<{ n: string }>(
+            'SELECT count(*) AS n FROM recipe_source_evidence WHERE recipe_id = $1',
+            [other],
+        );
+
+        expect(Number(rows[0]?.n)).toBe(1);
+    });
+
+    it('an explicit "I wrote this" makes a published private recipe public with NO separate confirmation, and records one row', async () => {
+        const { id } = await create({ contentPasted: true, visibility: 'private' });
+        const opened = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
+            visibility: 'public',
+            statement: AUTHORED,
+        });
+
+        expect(opened.status).toBe(200);
+
+        const { rows } = await pool.query<{ choice: string; mode: string }>(
+            'SELECT choice, mode FROM recipe_statement_attestations WHERE recipe_id = $1 AND action = $2',
+            [id, 'setVisibility'],
+        );
+
+        expect(rows).toEqual([{ choice: 'authored', mode: 'explicit' }]);
+    });
+
     it('content_pasted_at is never cleared by a PATCH and keeps its FIRST instant when the flag is sent again', async () => {
         const { id, version } = await create({ contentPasted: true, visibility: 'private' });
         const first = (await readRow(id)).contentPastedAt;

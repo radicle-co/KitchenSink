@@ -432,8 +432,14 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled until the fir
         expect(update.mock.calls[0]?.[1]).not.toHaveProperty('provenance');
     });
 
-    it('refuses a statement after the first publish with 403 FORBIDDEN, details.reason SOURCE_LOCKED, writing nothing', async () => {
-        stored = makeRecipeRow({ id: RECIPE_ID, ownerId: COOK, status: 'published', cuisine: 'Italian' });
+    it('refuses CHANGING a stated source after the first publish with 403 FORBIDDEN, details.reason SOURCE_LOCKED, writing nothing', async () => {
+        stored = makeRecipeRow({
+            id: RECIPE_ID,
+            ownerId: COOK,
+            status: 'published',
+            cuisine: 'Italian',
+            statementKind: 'authored',
+        });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 1,

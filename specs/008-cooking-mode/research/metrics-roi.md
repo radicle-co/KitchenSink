@@ -1,7 +1,7 @@
 # Metrics and ROI: Cooking Mode
 
 **Branch**: `008-cooking-mode` | **Date**: 2026-05-09
-**Status**: Complete | **Sources**: [spec.md](../spec.md), [v-model/requirements.md](../v-model/requirements.md), [plan.md](../plan.md), [research.md](../research.md)
+**Status**: Complete | **Sources**: [spec.md](../spec.md), [plan.md](../plan.md), [research.md](../research.md)
 
 ---
 

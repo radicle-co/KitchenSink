@@ -1,0 +1,553 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:03:20Z"
+  },
+  "title": "Commise Screens, web: Cook with me",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "CookWithMeStartWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, start (web, 1280)"
+    },
+    "CookWithMeInviteWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, invite (web, 1280)"
+    },
+    "CookWithMeInviteEmptyWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, invite empty (web, 1280)"
+    },
+    "CookWithMeJoiningWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, joining (web, 1280)"
+    },
+    "CookWithMeAgeAskWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, age ask (web, 1280)"
+    },
+    "CookWithMeAgeUnder16Web1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, age under16 (web, 1280)"
+    },
+    "CookWithMeLoadingWeb1280.dc.html": {
+      "x": 8160,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, loading (web, 1280)"
+    },
+    "CookWithMeWaitingWeb1280.dc.html": {
+      "x": 9520,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, waiting (web, 1280)"
+    },
+    "CookWithMeTogetherWeb1280.dc.html": {
+      "x": 10880,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, together (web, 1280)"
+    },
+    "CookWithMeTogetherCameraOffWeb1280.dc.html": {
+      "x": 12240,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, together camera off (web, 1280)"
+    },
+    "CookWithMeTogetherWeakLinkWeb1280.dc.html": {
+      "x": 13600,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, together weak link (web, 1280)"
+    },
+    "CookWithMeTogetherNoAccessWeb1280.dc.html": {
+      "x": 14960,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, together no access (web, 1280)"
+    },
+    "CookWithMeTogetherKitchenWeb1280.dc.html": {
+      "x": 16320,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, together kitchen (web, 1280)"
+    },
+    "CookWithMeFellBehindWeb1280.dc.html": {
+      "x": 17680,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, fell behind (web, 1280)"
+    },
+    "CookWithMeSomeoneLeftWeb1280.dc.html": {
+      "x": 19040,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, someone left (web, 1280)"
+    },
+    "CookWithMeConnectionLostWeb1280.dc.html": {
+      "x": 20400,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, connection lost (web, 1280)"
+    },
+    "CookWithMeEndedWeb1280.dc.html": {
+      "x": 21760,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, ended (web, 1280)"
+    },
+    "CookWithMeVoiceListeningWeb1280.dc.html": {
+      "x": 23120,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, voice listening (web, 1280)"
+    },
+    "CookWithMeVoiceDidNotHearWeb1280.dc.html": {
+      "x": 24480,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, voice did not hear (web, 1280)"
+    },
+    "CookWithMeVoicePausedWeb1280.dc.html": {
+      "x": 25840,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, voice paused (web, 1280)"
+    },
+    "CookWithMeClassesEmptyWeb1280.dc.html": {
+      "x": 27200,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, classes empty (web, 1280)"
+    },
+    "CookWithMeClassesWeb1280.dc.html": {
+      "x": 28560,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, classes (web, 1280)"
+    },
+    "CookWithMeClassAgeAskWeb1280.dc.html": {
+      "x": 29920,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, class age ask (web, 1280)"
+    },
+    "CookWithMeClassUnder16Web1280.dc.html": {
+      "x": 31280,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, class under16 (web, 1280)"
+    },
+    "CookWithMeClassScheduledWeb1280.dc.html": {
+      "x": 32640,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, class scheduled (web, 1280)"
+    },
+    "CookWithMeClassFullWeb1280.dc.html": {
+      "x": 34000,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, class full (web, 1280)"
+    },
+    "CookWithMeClassStartingSoonWeb1280.dc.html": {
+      "x": 35360,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, class starting soon (web, 1280)"
+    },
+    "CookWithMeClassCancelledWeb1280.dc.html": {
+      "x": 36720,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, class cancelled (web, 1280)"
+    },
+    "CookWithMeClassLiveWeb1280.dc.html": {
+      "x": 38080,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, class live (web, 1280)"
+    },
+    "CookWithMeClassEndedWeb1280.dc.html": {
+      "x": 39440,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, class ended (web, 1280)"
+    },
+    "CookWithMeClassStoppedWeb1280.dc.html": {
+      "x": 40800,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, class stopped (web, 1280)"
+    },
+    "CookWithMeClassReplayWeb1280.dc.html": {
+      "x": 42160,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cook with me, class replay (web, 1280)"
+    },
+    "CookWithMeStartWeb390.dc.html": {
+      "x": 0,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, start (web, 390)"
+    },
+    "CookWithMeInviteWeb390.dc.html": {
+      "x": 470,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, invite (web, 390)"
+    },
+    "CookWithMeInviteEmptyWeb390.dc.html": {
+      "x": 940,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, invite empty (web, 390)"
+    },
+    "CookWithMeJoiningWeb390.dc.html": {
+      "x": 1410,
+      "y": 1720,
+      "w": 390,
+      "h": 1000,
+      "title": "Cook with me, joining (web, 390)"
+    },
+    "CookWithMeAgeAskWeb390.dc.html": {
+      "x": 1880,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, age ask (web, 390)"
+    },
+    "CookWithMeAgeUnder16Web390.dc.html": {
+      "x": 2350,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, age under16 (web, 390)"
+    },
+    "CookWithMeLoadingWeb390.dc.html": {
+      "x": 2820,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, loading (web, 390)"
+    },
+    "CookWithMeWaitingWeb390.dc.html": {
+      "x": 3290,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, waiting (web, 390)"
+    },
+    "CookWithMeTogetherWeb390.dc.html": {
+      "x": 3760,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, together (web, 390)"
+    },
+    "CookWithMeTogetherCameraOffWeb390.dc.html": {
+      "x": 4230,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, together camera off (web, 390)"
+    },
+    "CookWithMeTogetherWeakLinkWeb390.dc.html": {
+      "x": 4700,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, together weak link (web, 390)"
+    },
+    "CookWithMeTogetherNoAccessWeb390.dc.html": {
+      "x": 5170,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, together no access (web, 390)"
+    },
+    "CookWithMeTogetherKitchenWeb390.dc.html": {
+      "x": 5640,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, together kitchen (web, 390)"
+    },
+    "CookWithMeFellBehindWeb390.dc.html": {
+      "x": 6110,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, fell behind (web, 390)"
+    },
+    "CookWithMeSomeoneLeftWeb390.dc.html": {
+      "x": 6580,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, someone left (web, 390)"
+    },
+    "CookWithMeConnectionLostWeb390.dc.html": {
+      "x": 7050,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, connection lost (web, 390)"
+    },
+    "CookWithMeEndedWeb390.dc.html": {
+      "x": 7520,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, ended (web, 390)"
+    },
+    "CookWithMeVoiceListeningWeb390.dc.html": {
+      "x": 7990,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, voice listening (web, 390)"
+    },
+    "CookWithMeVoiceDidNotHearWeb390.dc.html": {
+      "x": 8460,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, voice did not hear (web, 390)"
+    },
+    "CookWithMeVoicePausedWeb390.dc.html": {
+      "x": 8930,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, voice paused (web, 390)"
+    },
+    "CookWithMeClassesEmptyWeb390.dc.html": {
+      "x": 9400,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, classes empty (web, 390)"
+    },
+    "CookWithMeClassesWeb390.dc.html": {
+      "x": 9870,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, classes (web, 390)"
+    },
+    "CookWithMeClassAgeAskWeb390.dc.html": {
+      "x": 10340,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, class age ask (web, 390)"
+    },
+    "CookWithMeClassUnder16Web390.dc.html": {
+      "x": 10810,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, class under16 (web, 390)"
+    },
+    "CookWithMeClassScheduledWeb390.dc.html": {
+      "x": 11280,
+      "y": 1720,
+      "w": 390,
+      "h": 1080,
+      "title": "Cook with me, class scheduled (web, 390)"
+    },
+    "CookWithMeClassFullWeb390.dc.html": {
+      "x": 11750,
+      "y": 1720,
+      "w": 390,
+      "h": 1120,
+      "title": "Cook with me, class full (web, 390)"
+    },
+    "CookWithMeClassStartingSoonWeb390.dc.html": {
+      "x": 12220,
+      "y": 1720,
+      "w": 390,
+      "h": 1088,
+      "title": "Cook with me, class starting soon (web, 390)"
+    },
+    "CookWithMeClassCancelledWeb390.dc.html": {
+      "x": 12690,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, class cancelled (web, 390)"
+    },
+    "CookWithMeClassLiveWeb390.dc.html": {
+      "x": 13160,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, class live (web, 390)"
+    },
+    "CookWithMeClassEndedWeb390.dc.html": {
+      "x": 13630,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, class ended (web, 390)"
+    },
+    "CookWithMeClassStoppedWeb390.dc.html": {
+      "x": 14100,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, class stopped (web, 390)"
+    },
+    "CookWithMeClassReplayWeb390.dc.html": {
+      "x": 14570,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cook with me, class replay (web, 390)"
+    }
+  },
+  "order": [
+    "CookWithMeStartWeb1280.dc.html",
+    "CookWithMeInviteWeb1280.dc.html",
+    "CookWithMeInviteEmptyWeb1280.dc.html",
+    "CookWithMeJoiningWeb1280.dc.html",
+    "CookWithMeAgeAskWeb1280.dc.html",
+    "CookWithMeAgeUnder16Web1280.dc.html",
+    "CookWithMeLoadingWeb1280.dc.html",
+    "CookWithMeWaitingWeb1280.dc.html",
+    "CookWithMeTogetherWeb1280.dc.html",
+    "CookWithMeTogetherCameraOffWeb1280.dc.html",
+    "CookWithMeTogetherWeakLinkWeb1280.dc.html",
+    "CookWithMeTogetherNoAccessWeb1280.dc.html",
+    "CookWithMeTogetherKitchenWeb1280.dc.html",
+    "CookWithMeFellBehindWeb1280.dc.html",
+    "CookWithMeSomeoneLeftWeb1280.dc.html",
+    "CookWithMeConnectionLostWeb1280.dc.html",
+    "CookWithMeEndedWeb1280.dc.html",
+    "CookWithMeVoiceListeningWeb1280.dc.html",
+    "CookWithMeVoiceDidNotHearWeb1280.dc.html",
+    "CookWithMeVoicePausedWeb1280.dc.html",
+    "CookWithMeClassesEmptyWeb1280.dc.html",
+    "CookWithMeClassesWeb1280.dc.html",
+    "CookWithMeClassAgeAskWeb1280.dc.html",
+    "CookWithMeClassUnder16Web1280.dc.html",
+    "CookWithMeClassScheduledWeb1280.dc.html",
+    "CookWithMeClassFullWeb1280.dc.html",
+    "CookWithMeClassStartingSoonWeb1280.dc.html",
+    "CookWithMeClassCancelledWeb1280.dc.html",
+    "CookWithMeClassLiveWeb1280.dc.html",
+    "CookWithMeClassEndedWeb1280.dc.html",
+    "CookWithMeClassStoppedWeb1280.dc.html",
+    "CookWithMeClassReplayWeb1280.dc.html",
+    "CookWithMeStartWeb390.dc.html",
+    "CookWithMeInviteWeb390.dc.html",
+    "CookWithMeInviteEmptyWeb390.dc.html",
+    "CookWithMeJoiningWeb390.dc.html",
+    "CookWithMeAgeAskWeb390.dc.html",
+    "CookWithMeAgeUnder16Web390.dc.html",
+    "CookWithMeLoadingWeb390.dc.html",
+    "CookWithMeWaitingWeb390.dc.html",
+    "CookWithMeTogetherWeb390.dc.html",
+    "CookWithMeTogetherCameraOffWeb390.dc.html",
+    "CookWithMeTogetherWeakLinkWeb390.dc.html",
+    "CookWithMeTogetherNoAccessWeb390.dc.html",
+    "CookWithMeTogetherKitchenWeb390.dc.html",
+    "CookWithMeFellBehindWeb390.dc.html",
+    "CookWithMeSomeoneLeftWeb390.dc.html",
+    "CookWithMeConnectionLostWeb390.dc.html",
+    "CookWithMeEndedWeb390.dc.html",
+    "CookWithMeVoiceListeningWeb390.dc.html",
+    "CookWithMeVoiceDidNotHearWeb390.dc.html",
+    "CookWithMeVoicePausedWeb390.dc.html",
+    "CookWithMeClassesEmptyWeb390.dc.html",
+    "CookWithMeClassesWeb390.dc.html",
+    "CookWithMeClassAgeAskWeb390.dc.html",
+    "CookWithMeClassUnder16Web390.dc.html",
+    "CookWithMeClassScheduledWeb390.dc.html",
+    "CookWithMeClassFullWeb390.dc.html",
+    "CookWithMeClassStartingSoonWeb390.dc.html",
+    "CookWithMeClassCancelledWeb390.dc.html",
+    "CookWithMeClassLiveWeb390.dc.html",
+    "CookWithMeClassEndedWeb390.dc.html",
+    "CookWithMeClassStoppedWeb390.dc.html",
+    "CookWithMeClassReplayWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Cook with me: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1460,
+      "text": "Cook with me: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

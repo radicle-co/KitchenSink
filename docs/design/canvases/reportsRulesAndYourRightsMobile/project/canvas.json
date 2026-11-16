@@ -1,0 +1,216 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:36Z"
+  },
+  "title": "Commise Screens, mobile: Reports, rules and your rights",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "RightsReportIphone390.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, report (mobile, iPhone 390)"
+    },
+    "RightsReportReceivedIphone390.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, report received (mobile, iPhone 390)"
+    },
+    "RightsStatementOfReasonsIphone390.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, statement of reasons (mobile, iPhone 390)"
+    },
+    "RightsRulesIphone390.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, rules (mobile, iPhone 390)"
+    },
+    "RightsYourDataIphone390.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, your data (mobile, iPhone 390)"
+    },
+    "RightsEraseIphone390.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, erase (mobile, iPhone 390)"
+    },
+    "RightsAiDisclosureIphone390.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, ai disclosure (mobile, iPhone 390)"
+    },
+    "RightsReportAndroid384.dc.html": {
+      "x": 0,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Reports, rules and your rights, report (mobile, Android 384)"
+    },
+    "RightsReportReceivedAndroid384.dc.html": {
+      "x": 464,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Reports, rules and your rights, report received (mobile, Android 384)"
+    },
+    "RightsStatementOfReasonsAndroid384.dc.html": {
+      "x": 928,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Reports, rules and your rights, statement of reasons (mobile, Android 384)"
+    },
+    "RightsRulesAndroid384.dc.html": {
+      "x": 1392,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Reports, rules and your rights, rules (mobile, Android 384)"
+    },
+    "RightsYourDataAndroid384.dc.html": {
+      "x": 1856,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Reports, rules and your rights, your data (mobile, Android 384)"
+    },
+    "RightsEraseAndroid384.dc.html": {
+      "x": 2320,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Reports, rules and your rights, erase (mobile, Android 384)"
+    },
+    "RightsAiDisclosureAndroid384.dc.html": {
+      "x": 2784,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Reports, rules and your rights, ai disclosure (mobile, Android 384)"
+    },
+    "RightsReportIpad820.dc.html": {
+      "x": 0,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Reports, rules and your rights, report (mobile, iPad 820)"
+    },
+    "RightsReportReceivedIpad820.dc.html": {
+      "x": 900,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Reports, rules and your rights, report received (mobile, iPad 820)"
+    },
+    "RightsStatementOfReasonsIpad820.dc.html": {
+      "x": 1800,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Reports, rules and your rights, statement of reasons (mobile, iPad 820)"
+    },
+    "RightsRulesIpad820.dc.html": {
+      "x": 2700,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Reports, rules and your rights, rules (mobile, iPad 820)"
+    },
+    "RightsYourDataIpad820.dc.html": {
+      "x": 3600,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Reports, rules and your rights, your data (mobile, iPad 820)"
+    },
+    "RightsEraseIpad820.dc.html": {
+      "x": 4500,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Reports, rules and your rights, erase (mobile, iPad 820)"
+    },
+    "RightsAiDisclosureIpad820.dc.html": {
+      "x": 5400,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Reports, rules and your rights, ai disclosure (mobile, iPad 820)"
+    }
+  },
+  "order": [
+    "RightsReportIphone390.dc.html",
+    "RightsReportReceivedIphone390.dc.html",
+    "RightsStatementOfReasonsIphone390.dc.html",
+    "RightsRulesIphone390.dc.html",
+    "RightsYourDataIphone390.dc.html",
+    "RightsEraseIphone390.dc.html",
+    "RightsAiDisclosureIphone390.dc.html",
+    "RightsReportAndroid384.dc.html",
+    "RightsReportReceivedAndroid384.dc.html",
+    "RightsStatementOfReasonsAndroid384.dc.html",
+    "RightsRulesAndroid384.dc.html",
+    "RightsYourDataAndroid384.dc.html",
+    "RightsEraseAndroid384.dc.html",
+    "RightsAiDisclosureAndroid384.dc.html",
+    "RightsReportIpad820.dc.html",
+    "RightsReportReceivedIpad820.dc.html",
+    "RightsStatementOfReasonsIpad820.dc.html",
+    "RightsRulesIpad820.dc.html",
+    "RightsYourDataIpad820.dc.html",
+    "RightsEraseIpad820.dc.html",
+    "RightsAiDisclosureIpad820.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Reports, rules and your rights: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1504,
+      "text": "Reports, rules and your rights: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 2996,
+      "text": "Reports, rules and your rights: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

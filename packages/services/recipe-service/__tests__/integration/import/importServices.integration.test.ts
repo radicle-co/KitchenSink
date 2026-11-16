@@ -204,11 +204,19 @@ describe('the import services under the real injector', () => {
 
         expect(importViewSchema.parse(view)).toEqual(view);
         expect(view.allowance).toEqual(ALLOWANCE);
-        expect(allowance.stateOf).toHaveBeenCalledWith(DB, USER, { channel: 'bulk', isPremium: false });
+        expect(allowance.stateOf).toHaveBeenCalledWith(DB, USER, {
+            channel: 'bulk',
+            isPremium: false,
+            principalKind: 'real',
+        });
 
         await service.getView(makePrincipal({ roles: ['vip'] }), IMPORT_ID, {});
 
-        expect(allowance.stateOf).toHaveBeenLastCalledWith(DB, USER, { channel: 'bulk', isPremium: true });
+        expect(allowance.stateOf).toHaveBeenLastCalledWith(DB, USER, {
+            channel: 'bulk',
+            isPremium: true,
+            principalKind: 'real',
+        });
     });
 
     it('an advance with nothing to do answers the view, which parses', async () => {
@@ -219,6 +227,7 @@ describe('the import services under the real injector', () => {
         expect(items.payUnpaid).toHaveBeenCalledWith(USER, IMPORT_ID, {
             limit: DEFAULT_IMPORT_ADVANCE_LIMITS.payBatch,
             isPremium: false,
+            principalKind: 'real',
         });
         // ADR-0072 §9's purge clock moves on every advance, through the real injector's wiring.
         expect(imports.touch).toHaveBeenCalledWith(IMPORT_ID);

@@ -565,6 +565,73 @@ describe('RecipesService.getById', () => {
         expect(response.viewerRating).toBeUndefined();
         expect('viewerRating' in response).toBe(false);
     });
+
+    describe('sourceLine is OWNER-ONLY (ADR-0082 §2, transcriptionDisclosure.ts)', () => {
+        const PASTED = '2 cups flour, sifted (grandmother’s card)';
+
+        const transcribed = (overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {}): RecipeAggregate => {
+            const base = aggregate(overrides);
+
+            return {
+                ...base,
+                ingredients: [
+                    makeIngredientLineRow({
+                        recipeId: base.recipe.id,
+                        sourceLine: PASTED,
+                        sourceLineTranscribedByOwner: true,
+                    }),
+                    makeIngredientLineRow({ recipeId: base.recipe.id, sourceLine: null, sortOrder: 1 }),
+                ],
+            };
+        };
+
+        it('gives the owner the verbatim line, and only on the line that has one', async () => {
+            const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(transcribed({ visibility: 'public' })) });
+
+            const response = await newService(dal).getById({
+                viewerId: OWNER,
+                id: 'r-1',
+                caller: undefined,
+                budget: 'read',
+            });
+
+            expect(response.ingredients[0]?.sourceLine).toBe(PASTED);
+            expect(response.ingredients[1]).not.toHaveProperty('sourceLine');
+        });
+
+        it('NEVER gives another cook reading a public recipe the line: no key, no text', async () => {
+            const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(transcribed({ visibility: 'public' })) });
+
+            const response = await newService(dal).getById({
+                viewerId: OTHER,
+                id: 'r-1',
+                caller: undefined,
+                budget: 'read',
+            });
+
+            expect(response.ingredients.every((line) => !('sourceLine' in line))).toBe(true);
+            expect(JSON.stringify(response)).not.toContain('grandmother');
+        });
+
+        it('⛔ gives the OWNER nothing for a line whose text another cook wrote — their clone (ADR-0090)', async () => {
+            const owned = transcribed({ visibility: 'public' });
+            const cloned: RecipeAggregate = {
+                ...owned,
+                ingredients: owned.ingredients.map((line) => ({ ...line, sourceLineTranscribedByOwner: false })),
+            };
+            const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(cloned) });
+
+            const response = await newService(dal).getById({
+                viewerId: OWNER,
+                id: 'r-1',
+                caller: undefined,
+                budget: 'read',
+            });
+
+            expect(response.ingredients.every((line) => !('sourceLine' in line))).toBe(true);
+            expect(JSON.stringify(response)).not.toContain('grandmother');
+        });
+    });
 });
 
 /**
@@ -1677,6 +1744,33 @@ describe('RecipesService — response mapping fidelity (Tier-2)', () => {
 });
 
 describe('RecipesService — snapshot mapping fidelity (Tier-2)', () => {
+    it('⛔ a version snapshot never carries sourceLine, even when the stored rows do (ADR-0082 §2)', async () => {
+        const created: RecipeAggregate = {
+            recipe: makeRecipeRow({ id: 'r-1', ownerId: OWNER, currentVersion: 1 }),
+            steps: [makeRecipeStepRow({ recipeId: 'r-1', stepNumber: 1, instruction: 'Mix', timerSeconds: null })],
+            ingredients: [
+                makeIngredientLineRow({
+                    recipeId: 'r-1',
+                    foodLookupId: LINE_LOOKUP_ID,
+                    sourceLine: 'two cups of flour (verbatim secret)',
+                }),
+            ],
+        };
+        const versions = makeFakeVersionsService();
+        const dal = fakeRecipesDal({ create: vi.fn().mockResolvedValue(created) });
+
+        await makeRecipesService({
+            dal: dal,
+            versions: versions,
+            foodNutrition: nutritionGatewayDouble,
+        }).create(principal(), CREATE_DTO, undefined);
+
+        const snapshot = (versions.createSnapshot as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0].snapshot;
+
+        expect(snapshot.ingredients[0]).not.toHaveProperty('sourceLine');
+        expect(JSON.stringify(snapshot)).not.toContain('verbatim secret');
+    });
+
     it('captures ALL user-nutrition overrides and coerces numeric strings', async () => {
         const created: RecipeAggregate = {
             recipe: makeRecipeRow({ id: 'r-1', ownerId: OWNER, currentVersion: 1 }),
@@ -2111,6 +2205,8 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
                         quantity: { kind: 'exact', value: 2 },
                         unit: 'cup',
                         displayText: 'sifted',
+                        // The source line carried no text, so there is nothing for the owner to have written (ADR-0090).
+                        sourceLineTranscribedByOwner: false,
                         sortOrder: 0,
                     },
                 ],

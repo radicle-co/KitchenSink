@@ -8,6 +8,7 @@ import type { RecipeDifficulty, RecipeMealType } from '@kitchensink/recipe-core'
 import type { MoveDirection } from './ingredientGroups.js';
 import type { SettledAnswer } from './ingredientStatus.js';
 import type { LineBinding } from './lineBinding.js';
+import type { LineFieldsMemento } from './lineFieldsMemento.js';
 import type { IngredientLineKey } from './lineKey.js';
 import type { RecipeFormIngredient, RecipeFormStep } from './values.js';
 
@@ -80,6 +81,12 @@ export type DraftAction =
           /** By key, not index: a re-point lands after a network call, and a removal above moves every index. */
           readonly key: IngredientLineKey;
           readonly binding: LineBinding;
+      }
+    | {
+          /** The row editor's Cancel: put back the fields it edited (`./lineFieldsMemento.ts`), and nothing else. */
+          readonly kind: 'restoreIngredientFields';
+          readonly key: IngredientLineKey;
+          readonly memento: LineFieldsMemento;
       }
     | {
           readonly kind: 'removeIngredient';

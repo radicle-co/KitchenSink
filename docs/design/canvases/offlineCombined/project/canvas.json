@@ -1,0 +1,304 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-27T19:13:01Z"
+  },
+  "title": "Commise Screens: Offline",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "OfflineColdStartMobile.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Offline, cold start (phone)"
+    },
+    "OfflineCookRecipeMobile.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Offline, cook recipe (phone)"
+    },
+    "OfflineMyRecipesMobile.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Offline, my recipes (phone)"
+    },
+    "OfflineNotOnDeviceMobile.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Offline, not on device (phone)"
+    },
+    "OfflineSignOutMobile.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Offline, sign out (phone)"
+    },
+    "OfflineSignOutOfflineMobile.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Offline, sign out offline (phone)"
+    },
+    "OfflineSyncProblemMobile.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Offline, sync problem (phone)"
+    },
+    "OfflineSyncingMobile.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Offline, syncing (phone)"
+    },
+    "OfflineColdStart834Mobile.dc.html": {
+      "x": 0,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Offline, cold start (tablet 834 px)"
+    },
+    "OfflineColdStart1194Mobile.dc.html": {
+      "x": 914,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Offline, cold start (tablet 1194 px)"
+    },
+    "OfflineCookRecipe834Mobile.dc.html": {
+      "x": 2188,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Offline, cook recipe (tablet 834 px)"
+    },
+    "OfflineCookRecipe1194Mobile.dc.html": {
+      "x": 3102,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Offline, cook recipe (tablet 1194 px)"
+    },
+    "OfflineMyRecipes834Mobile.dc.html": {
+      "x": 4376,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Offline, my recipes (tablet 834 px)"
+    },
+    "OfflineMyRecipes1194Mobile.dc.html": {
+      "x": 5290,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Offline, my recipes (tablet 1194 px)"
+    },
+    "OfflineNotOnDevice834Mobile.dc.html": {
+      "x": 6564,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Offline, not on device (tablet 834 px)"
+    },
+    "OfflineNotOnDevice1194Mobile.dc.html": {
+      "x": 7478,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Offline, not on device (tablet 1194 px)"
+    },
+    "OfflineSignOut834Mobile.dc.html": {
+      "x": 8752,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Offline, sign out (tablet 834 px)"
+    },
+    "OfflineSignOut1194Mobile.dc.html": {
+      "x": 9666,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Offline, sign out (tablet 1194 px)"
+    },
+    "OfflineSignOutOffline834Mobile.dc.html": {
+      "x": 10940,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Offline, sign out offline (tablet 834 px)"
+    },
+    "OfflineSignOutOffline1194Mobile.dc.html": {
+      "x": 11854,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Offline, sign out offline (tablet 1194 px)"
+    },
+    "OfflineSyncProblem834Mobile.dc.html": {
+      "x": 13128,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Offline, sync problem (tablet 834 px)"
+    },
+    "OfflineSyncProblem1194Mobile.dc.html": {
+      "x": 14042,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Offline, sync problem (tablet 1194 px)"
+    },
+    "OfflineSyncing834Mobile.dc.html": {
+      "x": 15316,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Offline, syncing (tablet 834 px)"
+    },
+    "OfflineSyncing1194Mobile.dc.html": {
+      "x": 16230,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Offline, syncing (tablet 1194 px)"
+    },
+    "OfflineColdStart.dc.html": {
+      "x": 0,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Offline, cold start (web)"
+    },
+    "OfflineCookRecipe.dc.html": {
+      "x": 1360,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Offline, cook recipe (web)"
+    },
+    "OfflineMyRecipes.dc.html": {
+      "x": 2720,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Offline, my recipes (web)"
+    },
+    "OfflineNotOnDevice.dc.html": {
+      "x": 4080,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Offline, not on device (web)"
+    },
+    "OfflineSignOut.dc.html": {
+      "x": 5440,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Offline, sign out (web)"
+    },
+    "OfflineSignOutOffline.dc.html": {
+      "x": 6800,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Offline, sign out offline (web)"
+    },
+    "OfflineSyncProblem.dc.html": {
+      "x": 8160,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Offline, sync problem (web)"
+    },
+    "OfflineSyncing.dc.html": {
+      "x": 9520,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Offline, syncing (web)"
+    }
+  },
+  "order": [
+    "OfflineColdStartMobile.dc.html",
+    "OfflineCookRecipeMobile.dc.html",
+    "OfflineMyRecipesMobile.dc.html",
+    "OfflineNotOnDeviceMobile.dc.html",
+    "OfflineSignOutMobile.dc.html",
+    "OfflineSignOutOfflineMobile.dc.html",
+    "OfflineSyncProblemMobile.dc.html",
+    "OfflineSyncingMobile.dc.html",
+    "OfflineColdStart834Mobile.dc.html",
+    "OfflineColdStart1194Mobile.dc.html",
+    "OfflineCookRecipe834Mobile.dc.html",
+    "OfflineCookRecipe1194Mobile.dc.html",
+    "OfflineMyRecipes834Mobile.dc.html",
+    "OfflineMyRecipes1194Mobile.dc.html",
+    "OfflineNotOnDevice834Mobile.dc.html",
+    "OfflineNotOnDevice1194Mobile.dc.html",
+    "OfflineSignOut834Mobile.dc.html",
+    "OfflineSignOut1194Mobile.dc.html",
+    "OfflineSignOutOffline834Mobile.dc.html",
+    "OfflineSignOutOffline1194Mobile.dc.html",
+    "OfflineSyncProblem834Mobile.dc.html",
+    "OfflineSyncProblem1194Mobile.dc.html",
+    "OfflineSyncing834Mobile.dc.html",
+    "OfflineSyncing1194Mobile.dc.html",
+    "OfflineColdStart.dc.html",
+    "OfflineCookRecipe.dc.html",
+    "OfflineMyRecipes.dc.html",
+    "OfflineNotOnDevice.dc.html",
+    "OfflineSignOut.dc.html",
+    "OfflineSignOutOffline.dc.html",
+    "OfflineSyncProblem.dc.html",
+    "OfflineSyncing.dc.html"
+  ],
+  "notes": {
+    "row18": {
+      "x": 0,
+      "y": 0,
+      "text": "Offline: phone",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row19": {
+      "x": 0,
+      "y": 1224,
+      "text": "Offline: tablet",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row20": {
+      "x": 0,
+      "y": 2798,
+      "text": "Offline: web",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

@@ -16,19 +16,19 @@ See Clarifications.
 
 ## Dependencies
 
-| Spec or decision                                                                                        | Relationship                                                                                                                                                                                                                                   |
-| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [010-subscriptions](../010-subscriptions/spec.md)                                                       | **Required.** Owns the plans and the [plan register](../010-subscriptions/spec.md#plan-register). Also owns the one-trial rule (`010-FR-041h`), plan changes (`010-FR-041i`), lapse (`010-FR-043a`) and the tier claim (`010-FR-044`).         |
-| [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md) | **Required.** App Store, Google Play and Stripe sell the plans, and RevenueCat joins them into one entitlement per cook. Reward time reaches the cook through these rails (section D)                                                          |
-| [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md)                             | **Required, items owed.** Owns consent records (`016-FR-007`), consent withdrawal (`016-FR-035`) and the age basis (`016-FR-008`). Also owns market switches (`016-FR-048`) and the counsel list (`016-FR-050`). Section I lists what is owed. |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)                                             | **Referenced, not edited.** The signed-out front door is sign-in (`001-FR-045a`), and every feature ships to web and mobile together (`001-FR-044a`). Attribution and invite codes must survive that front door                                |
-| [017-recime-parity](../017-recime-parity/spec.md)                                                       | **Referenced.** The household (`017-FR-030` onward). A household member never earns a referral reward for someone in the same household (FR-030)                                                                                               |
-| [018-chef-program-marketplace](../018-chef-program-marketplace/spec.md)                                 | **Governs.** `018-FR-058k`: a referral reward is never anything in 015's recognition layer                                                                                                                                                     |
-| [ADR-0024](../../docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md)             | **Governs.** The $100 monthly AI ceiling stands until launch funding. No reward is AI uses (FR-024)                                                                                                                                            |
-| [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)                           | **Required.** At the end of reward time, private recipes stay private. The 50-slot rule returns (FR-026).                                                                                                                                      |
-| [beta-exit-criteria](../beta-exit-criteria.md) and [v1-launch-plan](../v1-launch-plan.md)               | **Referenced.** Beta needs product analytics and a waitlist. This spec specifies both                                                                                                                                                          |
-| [User-needs synthesis](../../docs/research/userNeeds/synthesis.md)                                      | **Referenced.** Its question 6, "Which of these problems do people pay to solve", is what the interviews in section G aim at                                                                                                                   |
-| `GR-003` FR Identifier Namespace                                                                        | **Governs.** Cross-feature references are written `{feature}-FR-{NNN}`. The cross-feature FR index needs entries for this spec. Its owner adds them (this change does not edit that file)                                                      |
+| Spec or decision                                                                                        | Relationship                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [010-subscriptions](../010-subscriptions/spec.md)                                                       | **Required.** Owns the plans and the [plan register](../010-subscriptions/spec.md#plan-register). Also owns the one-trial rule (`010-FR-041h`), plan changes (`010-FR-041i`), lapse (`010-FR-043a`) and the tier claim (`010-FR-044`).               |
+| [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md) | **Required.** App Store, Google Play and Stripe sell the plans, and RevenueCat joins them into one entitlement per cook. Reward time reaches the cook through these rails (section D)                                                                |
+| [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md)                             | **Required, items owed.** Owns consent records (`016-FR-007`), consent withdrawal (`016-FR-035`) and the age basis (`016-FR-008`). Also owns market switches (`016-FR-048`) and the open-decision list (`016-FR-050`). Section I lists what is owed. |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)                                             | **Referenced, not edited.** The signed-out front door is sign-in (`001-FR-045a`), and every feature ships to web and mobile together (`001-FR-044a`). Attribution and invite codes must survive that front door                                      |
+| [017-recime-parity](../017-recime-parity/spec.md)                                                       | **Referenced.** The household (`017-FR-030` onward). A household member never earns a referral reward for someone in the same household (FR-030)                                                                                                     |
+| [018-chef-program-marketplace](../018-chef-program-marketplace/spec.md)                                 | **Governs.** `018-FR-058k`: a referral reward is never anything in 015's recognition layer                                                                                                                                                           |
+| [ADR-0024](../../docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md)             | **Governs.** The $100 monthly AI ceiling stands until launch funding. No reward is AI uses (FR-024)                                                                                                                                                  |
+| [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)                           | **Required.** At the end of reward time, private recipes stay private. The 50-slot rule returns (FR-026).                                                                                                                                            |
+| [beta-exit-criteria](../beta-exit-criteria.md) and [v1-launch-plan](../v1-launch-plan.md)               | **Referenced.** Beta needs product analytics and a waitlist. This spec specifies both                                                                                                                                                                |
+| [User-needs synthesis](../../docs/research/userNeeds/synthesis.md)                                      | **Referenced.** Its question 6, "Which of these problems do people pay to solve", is what the interviews in section G aim at                                                                                                                         |
+| `GR-003` FR Identifier Namespace                                                                        | **Governs.** Cross-feature references are written `{feature}-FR-{NNN}`. The cross-feature FR index needs entries for this spec. Its owner adds them (this change does not edit that file)                                                            |
 
 ## Overview
 
@@ -536,23 +536,17 @@ from the staff research list.
 #### F. Disclosure, store rules and tax
 
 - **FR-033**: The share text MUST include a disclosure by default, for example "Join Commise with my link and we both
-  get a free month of Pro." The invite screen MUST tell the cook to keep a disclosure in any public post. The FTC's
-  Endorsement Guides require disclosure of a connection that "might materially affect the weight or credibility" of an
-  endorsement. The advertiser must also take steps so that people disclose. Source:
-  [16 CFR 255.5](https://www.law.cornell.edu/cfr/text/16/255.5). Final wording is `clo`'s.
+  get a free month of Pro." The invite screen MUST tell the cook to keep a disclosure in any public post. Final wording is
+  `clo`'s.
 - **FR-034**: A reward MUST NEVER be tied to a review, a rating, a social post's content or any sentiment. The invite
-  flow MUST NOT ask for a review. No store review prompt can show in the same session as a reward grant. The FTC rule
-  bans incentives for reviews that require a positive or negative sentiment. Source:
-  [FTC Q&A on 16 CFR Part 465](https://www.ftc.gov/business-guidance/resources/consumer-reviews-testimonials-rule-questions-answers).
-  Apple guideline 5.6.3 forbids manipulating "charts, search, reviews, or referrals". Google forbids rewards for
-  ratings or reviews. Source: [Google Play](https://support.google.com/googleplay/android-developer/answer/9898684).
+  flow MUST NOT ask for a review. No store review prompt can show in the same session as a reward grant. Apple guideline 5.6.3 and Google Play's
+  policy also forbid rewards for ratings or reviews.
 - **FR-035**: A reward MUST be non-cash, non-transferable and not exchangeable for money. The program terms MUST be a
   versioned document (`016-FR-003`), shown before a cook's first invite, and changeable with notice. Ending the program
   never takes back a reward already earned.
 - **FR-036**: The yearly cap (FR-029) bounds one cook's referral rewards at 12 months of their own plan in a year. At
   monthly list prices that is $119.88 on Pro and $239.88 on Pro with AI. An interview thank-you adds 3 months
-  (FR-043). Whether that value creates any tax reporting or sales tax duty is a question for the tax adviser and
-  counsel (section I). Cash and gift
+  (FR-043). Whether that value creates any tax reporting or sales tax duty is a question for the tax adviser (section I). Cash and gift
   cards are not used as rewards, so no tax form is collected from cooks.
 
 #### G. Waitlist and interview recruitment
@@ -616,12 +610,12 @@ from the staff research list.
 
 This change does not edit 001, 016 or the cross-feature FR index. These items are recorded for their owners:
 
-- **016-FR-050 gains six counsel items**:
-    - **Referral terms and the FTC.** The disclosure wording for share text, and what monitoring of public posts is
-      enough under 16 CFR 255.5. **What breaks**: without it, an undisclosed public post is our liability.
+- **016-FR-050 gains six open owner decisions**:
+    - **Referral terms.** The disclosure wording for share text, and what monitoring of public posts is enough.
+      **What breaks**: without it, a public post may go out with no disclosure.
     - **Apple guideline 3.1.1.** It says apps "may not use their own mechanisms to unlock content or functionality,
-      such as license keys". Reward time is granted by our server and no code unlocks it. Counsel and App Review
-      agree on this reading before launch. **What breaks**: App Review can disagree. Then the "no active paid plan" row on
+      such as license keys". Reward time is granted by our server and no code unlocks it. This reading is
+      confirmed with App Review before launch. **What breaks**: App Review can disagree. Then the "no active paid plan" row on
       iPhone moves to Apple offer codes. Those start a renewing subscription, so `010-FR-041h`'s card and notice rules
       apply.
     - **Tax on reward value.** Whether non-cash plan time creates information reporting or sales tax duties. One
@@ -641,7 +635,7 @@ This change does not edit 001, 016 or the cross-feature FR index. These items ar
 - **017-FR-019** _(added 2026-10-28)_: the export credit line of section K is owed to 017's export requirement. 017
   is being edited by another writer, so it is not applied here. Its owner moves FR-055 to FR-057 into `017-FR-019` and
   leaves a pointer in section K.
-- **016-FR-050 gains one counsel item** _(added 2026-10-28)_: whether a food-moment event for a religious or cultural
+- **016-FR-050 gains one open owner decision** _(added 2026-10-28)_: whether a food-moment event for a religious or cultural
   festival needs any wording care beyond review by cooks from that culture (FR-049).
 
 #### J. The store launch program _(added 2026-10-28, owner ruling)_
@@ -681,8 +675,9 @@ Launch has no date yet (`v1-launch-plan.md`, D2), so later steps are dated "laun
     - Apple reviews each event. It MUST be a real thing in the app, with no fake urgency (`022-FR-036`).
     - The event's deep link opens the collection on both platforms. A collection used by an event holds only recipes
       that are open to the web (`021-FR-002`) or that Commise wrote. _(Note 2026-11-03, owner ruling, ADR-0082: "open
-      to the web" now includes family and public-domain recipes and clones of open recipes. A linked facts card is not
-      a recipe here. Counsel review is owed before launch (`016-FR-050`).)_ A person who is signed out reaches sign-in or
+      to the web" now includes family and public-domain recipes and clones of open recipes. A cook's private copy of an
+      imported recipe is not a recipe here. A Commise-written version is one Commise wrote (`021-FR-003`, amended
+      2026-11-15).)_ A person who is signed out reaches sign-in or
       sign-up first, then the collection, through the parsed return path.
     - The collection and its states need `staff-ux-engineer` DESIGN and SPECIFY.
     - **Kill rule**: three events in a row with no installs on their tokens stops the program.
@@ -842,7 +837,7 @@ dashboard and the research list are staff tooling and web only.
 ## Assumptions
 
 1. **The soft launch is US only.** Web billing starts US only (ADR-0075 §3), and the attribution consent question for
-   other markets is a counsel item (section I).
+   other markets is an open owner decision (section I).
 2. **30 days for both people.** The business plan's design gives one free month to the inviter and the friend
    (section 8.4.7). 30 days is used so the reward is the same length on every rail.
 3. **The friend's reward comes at sign-up, the inviter's at activation.** Giving the friend value early helps them
@@ -861,7 +856,7 @@ dashboard and the research list are staff tooling and web only.
 - **`staff-architect`**: the effective-plan computation across identity, RevenueCat and the household (FR-027e), the
   reward ledger and its rail adapters, and where stage events live (FR-048).
 - **`ts-1` with `da-1`**: the event schema for FR-008 and FR-009, and the dashboard's queries.
-- **`clo`**: the counsel items in section I.
+- **`clo`**: the open decisions in section I.
 - **`cfo-1`**: the reward cost and the thank-you cost.
 - **`dpo-1`**: the retention periods in FR-047, FR-038 and FR-041.
 - **`gmm-1` and `cmo-1`** _(added 2026-10-28)_: the food-moment calendar, the events and the nominations (section J).

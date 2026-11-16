@@ -1,0 +1,304 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-27T19:13:01Z"
+  },
+  "title": "Commise Screens: Cooking school",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "SchoolCoursesMobile.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking school, courses (phone)"
+    },
+    "SchoolCourseMobile.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 1060,
+      "title": "Cooking school, course (phone)"
+    },
+    "SchoolLessonMobile.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 1240,
+      "title": "Cooking school, lesson (phone)"
+    },
+    "SchoolLessonFreeMobile.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 1320,
+      "title": "Cooking school, lesson free (phone)"
+    },
+    "SchoolLessonLockedMobile.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 990,
+      "title": "Cooking school, lesson locked (phone)"
+    },
+    "SchoolLessonOfflineMobile.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking school, lesson offline (phone)"
+    },
+    "SchoolProgressMobile.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking school, progress (phone)"
+    },
+    "SchoolCourseCheckoutMobile.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking school, course checkout (phone)"
+    },
+    "SchoolCourses834Mobile.dc.html": {
+      "x": 0,
+      "y": 1960,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking school, courses (tablet 834 px)"
+    },
+    "SchoolCourses1194Mobile.dc.html": {
+      "x": 914,
+      "y": 1960,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking school, courses (tablet 1194 px)"
+    },
+    "SchoolCourse834Mobile.dc.html": {
+      "x": 2188,
+      "y": 1960,
+      "w": 834,
+      "h": 1420,
+      "title": "Cooking school, course (tablet 834 px)"
+    },
+    "SchoolCourse1194Mobile.dc.html": {
+      "x": 3102,
+      "y": 1960,
+      "w": 1194,
+      "h": 920,
+      "title": "Cooking school, course (tablet 1194 px)"
+    },
+    "SchoolLesson834Mobile.dc.html": {
+      "x": 4376,
+      "y": 1960,
+      "w": 834,
+      "h": 1400,
+      "title": "Cooking school, lesson (tablet 834 px)"
+    },
+    "SchoolLesson1194Mobile.dc.html": {
+      "x": 5290,
+      "y": 1960,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking school, lesson (tablet 1194 px)"
+    },
+    "SchoolLessonFree834Mobile.dc.html": {
+      "x": 6564,
+      "y": 1960,
+      "w": 834,
+      "h": 1460,
+      "title": "Cooking school, lesson free (tablet 834 px)"
+    },
+    "SchoolLessonFree1194Mobile.dc.html": {
+      "x": 7478,
+      "y": 1960,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking school, lesson free (tablet 1194 px)"
+    },
+    "SchoolLessonLocked834Mobile.dc.html": {
+      "x": 8752,
+      "y": 1960,
+      "w": 834,
+      "h": 1300,
+      "title": "Cooking school, lesson locked (tablet 834 px)"
+    },
+    "SchoolLessonLocked1194Mobile.dc.html": {
+      "x": 9666,
+      "y": 1960,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking school, lesson locked (tablet 1194 px)"
+    },
+    "SchoolLessonOffline834Mobile.dc.html": {
+      "x": 10940,
+      "y": 1960,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking school, lesson offline (tablet 834 px)"
+    },
+    "SchoolLessonOffline1194Mobile.dc.html": {
+      "x": 11854,
+      "y": 1960,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking school, lesson offline (tablet 1194 px)"
+    },
+    "SchoolProgress834Mobile.dc.html": {
+      "x": 13128,
+      "y": 1960,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking school, progress (tablet 834 px)"
+    },
+    "SchoolProgress1194Mobile.dc.html": {
+      "x": 14042,
+      "y": 1960,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking school, progress (tablet 1194 px)"
+    },
+    "SchoolCourseCheckout834Mobile.dc.html": {
+      "x": 15316,
+      "y": 1960,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking school, course checkout (tablet 834 px)"
+    },
+    "SchoolCourseCheckout1194Mobile.dc.html": {
+      "x": 16230,
+      "y": 1960,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking school, course checkout (tablet 1194 px)"
+    },
+    "SchoolCourses.dc.html": {
+      "x": 0,
+      "y": 3800,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking school, courses (web)"
+    },
+    "SchoolCourse.dc.html": {
+      "x": 1360,
+      "y": 3800,
+      "w": 1280,
+      "h": 880,
+      "title": "Cooking school, course (web)"
+    },
+    "SchoolLesson.dc.html": {
+      "x": 2720,
+      "y": 3800,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking school, lesson (web)"
+    },
+    "SchoolLessonFree.dc.html": {
+      "x": 4080,
+      "y": 3800,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking school, lesson free (web)"
+    },
+    "SchoolLessonLocked.dc.html": {
+      "x": 5440,
+      "y": 3800,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking school, lesson locked (web)"
+    },
+    "SchoolLessonOffline.dc.html": {
+      "x": 6800,
+      "y": 3800,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking school, lesson offline (web)"
+    },
+    "SchoolProgress.dc.html": {
+      "x": 8160,
+      "y": 3800,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking school, progress (web)"
+    },
+    "SchoolCourseCheckout.dc.html": {
+      "x": 9520,
+      "y": 3800,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking school, course checkout (web)"
+    }
+  },
+  "order": [
+    "SchoolCoursesMobile.dc.html",
+    "SchoolCourseMobile.dc.html",
+    "SchoolLessonMobile.dc.html",
+    "SchoolLessonFreeMobile.dc.html",
+    "SchoolLessonLockedMobile.dc.html",
+    "SchoolLessonOfflineMobile.dc.html",
+    "SchoolProgressMobile.dc.html",
+    "SchoolCourseCheckoutMobile.dc.html",
+    "SchoolCourses834Mobile.dc.html",
+    "SchoolCourses1194Mobile.dc.html",
+    "SchoolCourse834Mobile.dc.html",
+    "SchoolCourse1194Mobile.dc.html",
+    "SchoolLesson834Mobile.dc.html",
+    "SchoolLesson1194Mobile.dc.html",
+    "SchoolLessonFree834Mobile.dc.html",
+    "SchoolLessonFree1194Mobile.dc.html",
+    "SchoolLessonLocked834Mobile.dc.html",
+    "SchoolLessonLocked1194Mobile.dc.html",
+    "SchoolLessonOffline834Mobile.dc.html",
+    "SchoolLessonOffline1194Mobile.dc.html",
+    "SchoolProgress834Mobile.dc.html",
+    "SchoolProgress1194Mobile.dc.html",
+    "SchoolCourseCheckout834Mobile.dc.html",
+    "SchoolCourseCheckout1194Mobile.dc.html",
+    "SchoolCourses.dc.html",
+    "SchoolCourse.dc.html",
+    "SchoolLesson.dc.html",
+    "SchoolLessonFree.dc.html",
+    "SchoolLessonLocked.dc.html",
+    "SchoolLessonOffline.dc.html",
+    "SchoolProgress.dc.html",
+    "SchoolCourseCheckout.dc.html"
+  ],
+  "notes": {
+    "row36": {
+      "x": 0,
+      "y": 0,
+      "text": "Cooking school: phone",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row37": {
+      "x": 0,
+      "y": 1700,
+      "text": "Cooking school: tablet",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row38": {
+      "x": 0,
+      "y": 3540,
+      "text": "Cooking school: web",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

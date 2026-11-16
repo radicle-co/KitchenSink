@@ -1,11 +1,11 @@
 /**
  * @module @commise/features-recipes/editor — a refused line as the refusal sheet lists it: the amount as the editor row
- * shows it (`formatQuantity`), then the cook's own words (or the food's name) (private foods spec section 7.2). The sheet
+ * shows it (`formatAmount`), then the cook's own words (or the food's name) (private foods spec section 7.2). The sheet
  * draws the two parts as the row's own text run (`AmountRun`), so a refused line looks exactly like its row. Pure.
  */
 import type { IngredientQuantity } from '@kitchensink/recipe-core';
 
-import { formatQuantity } from '../detail/model.js';
+import { formatAmount } from '../detail/model.js';
 
 /** The two parts of a refused line. */
 export interface RefusedLineParts {
@@ -30,7 +30,7 @@ export function refusedLineParts(
     locale: string,
 ): RefusedLineParts {
     return {
-        amount: formatQuantity(line.quantity, locale, line.unit),
+        amount: formatAmount(line.quantity, locale, line.unit),
         words: line.displayText ?? line.name ?? '',
     };
 }

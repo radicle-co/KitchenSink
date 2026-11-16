@@ -289,6 +289,7 @@ export function makeIngredientRow(overrides: Partial<IngredientRow> = {}): Ingre
         displayText: null,
         note: null,
         sourceLine: null,
+        sourceLineTranscribedByOwner: false,
         sourcePhrase: null,
         statedQuantity: null,
         statedQuantityHigh: null,

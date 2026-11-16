@@ -1,7 +1,7 @@
 # Implementation Plan: Cooking School (Video Learning Platform)
 
 **Branch**: `013-cooking-school` | **Date**: 2026-05-12 | **Spec**: [spec.md](./spec.md)
-**Input**: [`spec.md`](./spec.md), [`product-spec/product-spec.md`](./product-spec/product-spec.md), [`research.md`](./research.md), [`v-model/`](./v-model/)
+**Input**: [`spec.md`](./spec.md), [`product-spec/product-spec.md`](./product-spec/product-spec.md), [`research.md`](./research.md)
 **Milestone**: [`M7` Minas Tirith](../v1-launch-plan.md#38-m7--milestone-minas-tirith)
 **Governance Authority**: [`governance-rules.md`](../governance-rules.md)
 

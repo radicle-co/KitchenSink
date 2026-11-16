@@ -1,6 +1,11 @@
 /**
- * That the CORS POLICY IS ACTUALLY INSTALLED — `src/main.ts` hands `buildCorsPolicy`'s options to
- * `enableCors`, and nothing else.
+ * That the CORS POLICY IS ACTUALLY INSTALLED — `src/config/httpSetup.ts` hands `buildCorsPolicy`'s options to
+ * `enableCors`, and nothing else, and `src/main.ts` applies that setup.
+ *
+ * REWRITTEN when the call moved out of `main.ts`: CORS must be registered BEFORE the service's own JSON parser (a parser
+ * refusal skips every later non-error middleware), and the integration and e2e tiers apply the same setup, so the call
+ * lives in the one setup they share. The integration tier now proves the headers behaviourally on a parser refusal;
+ * these source checks still guard the wiring a header test with one allowed origin cannot see.
  *
  * `cors.test.ts` proves the policy decides correctly and `corsHeaders.test.ts` proves the middleware emits
  * the right headers, but both construct the options themselves. Neither would notice the failure that actually
@@ -21,24 +26,24 @@ import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import ts from 'typescript';
 
-/** `src/main.ts`, parsed. `import.meta.dirname` is `src/config/__tests__`. */
-const MAIN_PATH = join(import.meta.dirname, '../../main.ts');
+/** A source file, parsed. `import.meta.dirname` is `src/config/__tests__`. */
+function parsed(relativePath: string): ts.SourceFile {
+    const path = join(import.meta.dirname, relativePath);
 
-const mainSource = ts.createSourceFile(
-    MAIN_PATH,
-    readFileSync(MAIN_PATH, 'utf8'),
-    ts.ScriptTarget.ES2022,
-    true,
-    ts.ScriptKind.TS,
-);
+    return ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+}
+
+const setupSource = parsed('../httpSetup.ts');
+const mainSource = parsed('../../main.ts');
 
 /**
- * Every call expression in `main.ts` whose callee ends in `.name` or is exactly `name`. Pure.
+ * Every call expression in `source` whose callee ends in `.name` or is exactly `name`. Pure.
  *
  * @param name - The function or method name to collect calls to.
+ * @param source - The parsed file; the setup by default.
  * @returns The source text of each matching call's arguments, one array per call.
  */
-function callArgumentsOf(name: string): string[][] {
+function callArgumentsOf(name: string, source: ts.SourceFile = setupSource): string[][] {
     const calls: string[][] = [];
 
     const visit = (node: ts.Node): void => {
@@ -49,19 +54,23 @@ function callArgumentsOf(name: string): string[][] {
                 : ts.isIdentifier(callee) && callee.text === name;
 
             if (matches) {
-                calls.push(node.arguments.map((argument) => argument.getText(mainSource)));
+                calls.push(node.arguments.map((argument) => argument.getText(source)));
             }
         }
 
         ts.forEachChild(node, visit);
     };
 
-    visit(mainSource);
+    visit(source);
 
     return calls;
 }
 
-describe('src/main.ts installs the CORS policy', () => {
+describe('the HTTP setup installs the CORS policy', () => {
+    it('is applied by src/main.ts exactly once', () => {
+        expect(callArgumentsOf('configure', mainSource)).toEqual([['app']]);
+    });
+
     // ⛔ NON-VACUITY: if the walk found no `enableCors` call, every assertion below about its argument would
     // pass trivially. This is the assertion that fails if the call is ever deleted.
     it('calls enableCors exactly once', () => {

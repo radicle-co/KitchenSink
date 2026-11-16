@@ -16,7 +16,7 @@ research already lives** and what remains genuinely unknown, rather than restati
 | Which mechanics are counter-indicated here?              | §2 — streaks (frequency mismatch + loss framing), global leaderboards (demotivate the ~99% who do not create), volume-threshold badges (steer at volume), peer-voted scores (collusion) |
 | How should the schedule be shaped?                       | §3 — front-loaded, mildly diminishing, terminating at the ceiling                                                                                                                       |
 | What reaches premium users?                              | §5 — recognition, early access, contributor input; discovery placement and anything monetary rejected                                                                                   |
-| What is the legal exposure of a reward programme?        | §6 — _Grokster_ inducement, §512(c)(1)(B); DSA Art. 25 applies, EU AI Act Art. 5 does **not** (it is scoped to AI systems)                                                              |
+| What product rules keep rewards to the cook's own work?  | §6 — own-work only, non-monetary, takedown reverses the grant, no manipulative design                                                                                                   |
 | Is the migration safe on the target engine?              | [`migrations/migration-plan.md`](./migrations/migration-plan.md) §2.5 — executed against PG 16 and PG 18.6                                                                              |
 
 ## Decisions taken during planning

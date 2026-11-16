@@ -1,7 +1,7 @@
 # Metrics and ROI: AI Integration
 
 **Branch**: `005-ai-integration` | **Date**: 2026-05-09
-**Status**: Complete | **Sources**: [spec.md](../spec.md), [plan.md](../plan.md), [v-model/requirements.md](../v-model/requirements.md)
+**Status**: Complete | **Sources**: [spec.md](../spec.md), [plan.md](../plan.md)
 
 ---
 

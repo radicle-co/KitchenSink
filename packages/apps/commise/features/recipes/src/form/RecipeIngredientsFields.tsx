@@ -2,19 +2,20 @@
 
 /**
  * @module @commise/features-recipes/form — `RecipeIngredientsFields` (web): the editor's Ingredients section body
- * (build spec §7.5): quiet read rows with their `⋯`, the row editor (a sheet below a 600 container, inline from 600),
- * the groups, the one add field (type the amount, then pick the food), Paste a list in the empty section, and the
+ * (build spec §7.5): quiet read rows with their `⋯`, the row editor (inline in its row when the window and the container
+ * both meet the limits in `inlineEditorFit.ts`, otherwise the sheet), the groups, the one add field (type the amount, then pick the food), Paste a list in the empty section, and the
  * running total at the section's foot.
  *
  * This orchestration component takes the section's state, focus and views from `useIngredientsFields` and picks the
- * row editor's frame by the container's class (`useMainContainerClass`); the leaves only draw. Rows are grouped in one
- * list per run: an ungrouped recipe is one list named "Ingredients" with no group chrome, and each group's list is named
+ * row editor's frame by `useRowEditorPlacement`; the leaves only draw. Rows are grouped in one list per run: an ungrouped recipe is one list named "Ingredients" with no group chrome, and each group's list is named
  * by its heading. A row that moves to another group remounts under it, and its `⋯` takes focus back by request.
  *
  * @pattern Mediator — between the host's row-editor controllers and the row controls, through `useIngredientsFields`
  */
+import { LiveRegion } from '@commise/ui/live-region';
 import { Button } from '@commise/ui/button';
 import { Combobox } from '@commise/ui/combobox';
+import { DialogActions } from '@commise/ui/dialog-actions';
 import { Icon } from '@commise/ui/icon';
 import { useOptionalScrollHost } from '@commise/ui/scroll-host';
 import { useLocale, useMessages } from '@commise/i18n/react';
@@ -23,7 +24,6 @@ import { useEffect, useEffectEvent, type FC, type ReactNode } from 'react';
 import { VariantDetailsDialog } from '../details/VariantDetailsDialog.js';
 import { editorMessages } from '../editor/messages.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
-import { useMainContainerClass } from '../layout/useMainContainerClass.js';
 import { AuthoredFoodSheet } from './AuthoredFoodSheet.js';
 import { FoodDetailsSheet } from './FoodDetailsSheet.js';
 import { ingredientAddFieldId, ingredientRowId } from './fieldIds.js';
@@ -49,6 +49,7 @@ import { trailingEntryFieldOf } from './trailingEntryField.js';
 import type { SectionAddView } from './useIngredientGroups.js';
 import { usePasteLayout } from './usePasteLayout.js';
 import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredientsFields.js';
+import { useRowEditorPlacement } from './useRowEditorPlacement.js';
 
 /** The one add field, with its reading, its notices and its sentences (§7.5.3). */
 const AddField: FC<{ readonly model: IngredientsFieldsModel; readonly trailingAction?: ReactNode }> = ({
@@ -128,8 +129,9 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
     const { nutrition, rowEditor, paste } = props;
     const reading = paste?.reading ?? [];
     const { authoredFood, details } = rowEditor;
-    // §7.5.2: the row editor is a sheet below a 600 container and inline from 600.
-    const inline = useMainContainerClass() !== 'narrow';
+    // §7.5.2: the row editor is inline when the window and the container both meet the limits in `inlineEditorFit.ts`,
+    // otherwise the sheet, whose Done and Cancel stay pinned.
+    const { inline, wideContainer } = useRowEditorPlacement(model.openRow !== undefined);
     // The add field when no run holds it: the empty section, or a list whose rows are all being read.
     const addFieldHere =
         model.sections.length === 0 && !model.emptyGroups.some((group) => group.addHere.kind === 'field');
@@ -140,7 +142,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                 {editor.pasteList}
             </Button>
         ) : null;
-    const pasteBesideField = pasteButton !== null && addFieldHere && inline;
+    const pasteBesideField = pasteButton !== null && addFieldHere && wideContainer;
     // ⛔ NO LINE DRAWN TWICE: the draft lines the paste list owns are drawn by its matched list (`PasteMatchedBlock`).
     const { wide, sections, matching } = usePasteLayout(model.sections, paste);
     const rows = sections.flatMap((section) => section.rows);
@@ -157,6 +159,24 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             revealArrival(arrivedKey);
         }
     }, [arrivedKey]);
+
+    // A link names a row, and the page scrolls to it on mount. The container class is read after the first layout, so that
+    // scroll sees a row one line tall, with its editor still a sheet; the inline editor mounts a moment later and the row
+    // grows. So once the editor is inline, the row's start is asked for again, over the row as it ends up
+    // (`ScrollHost.scrollToStart`). Not timed: it is the editor mounting that moves the row's end.
+    const linkedKey = props.arrivalLine?.kind === 'found' ? props.arrivalLine.key : undefined;
+    const settleLinkedRow = useEffectEvent((): void => {
+        if (linkedKey !== undefined && model.openRow?.line.key === linkedKey) {
+            scrollHost?.scrollToStart(ingredientRowId(linkedKey));
+        }
+    });
+
+    // @sideEffect Asks the scroll host to place the linked row again when the editor becomes inline.
+    useEffect(() => {
+        if (inline) {
+            settleLinkedRow();
+        }
+    }, [inline]);
     // The sheet keeps its row while it closes; the key is kept, never the row object.
     const sheetKey = useLastDefined(model.openRow?.line.key);
     const sheetRow = rows.find((row) => row.line.key === sheetKey);
@@ -191,11 +211,14 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                         }}
                     >
                         <IngredientLineEditor view={row.lineEditor} index={row.index} m={m} details={detailsOf(row)} />
-                        <div className="flex justify-end">
-                            <Button variant="secondary" icon="check" onPress={row.lineEditor.onDone}>
+                        <DialogActions sideBySideFrom={400}>
+                            <Button variant="secondary" width="fill" onPress={row.lineEditor.onCancel}>
+                                {m.rowCancel}
+                            </Button>
+                            <Button icon="check" width="fill" onPress={row.lineEditor.onDone}>
                                 {m.rowDone}
                             </Button>
-                        </div>
+                        </DialogActions>
                     </div>
                 ) : null
             }
@@ -245,6 +268,10 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             <p role="status" className="sr-only">
                 {model.settledMessage}
             </p>
+            {/* A link named an ingredient the draft does not hold: said quietly and politely, until a row is opened. */}
+            <LiveRegion politeness="polite" announceOnMount className="text-caption text-ink-muted">
+                {model.jumpNotice ?? ''}
+            </LiveRegion>
             {model.listError !== undefined && (
                 <p id={ingredientsErrorId} className={errorText} role="alert">
                     {model.listError}

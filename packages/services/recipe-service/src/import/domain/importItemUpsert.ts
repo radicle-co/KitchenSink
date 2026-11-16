@@ -9,8 +9,9 @@
  * saved item is refused outright (its text was shed at the save, so nothing can be compared, and an item is saved once).
  *
  * ONE exception to the lock (re-review of #220): a `matched` item the save holds because it cannot READ its recipe can never be
- * saved from it, so a different recipe REOPENS it: back to `received`, its snapshot dropped, a new parse generation, and the
- * unit it paid still spent. Without it the cook had no way out of that hold.
+ * saved from it, so a different recipe REOPENS it: back to `received`, its snapshot dropped, a new parse generation, and its unit
+ * UN-SPENT (review of #261: every reopen is a new parse against the shared LLM ceiling, so each costs a unit and one unit cannot
+ * buy unlimited re-parses). Without it the cook had no way out of that hold.
  */
 import { isDeepStrictEqual } from 'node:util';
 

@@ -19,10 +19,14 @@ import { describe, expect, it } from 'vitest';
 import {
     TALL_LIBRARY_RECIPE_BASE_TITLE,
     CAP_FOOD_BASE_NAME,
+    COOKING_RECIPE_BASE_TITLE,
     deriveAmbiguityProbe,
     deriveFixtureManifest,
+    deriveNeedsReviewProbe,
     FIXTURE_ENV_KEYS,
     manifestToEnvLines,
+    NEEDS_REVIEW_FOOD_NAME,
+    NEEDS_REVIEW_SOURCE_LINE,
     PRIVATE_FOOD_NAME,
     PRIVATE_FOOD_RECIPE,
     runScopedTitle,
@@ -666,6 +670,74 @@ describe('the ambiguity probe', () => {
     });
 });
 
+/**
+ * `recipes/needsReviewJump`: the owner's recipe whose one line reads NEEDS_REVIEW. Like the ambiguity probe it is NOT part of
+ * the seeded world (every other flow counts three recipes) and is made by its own reset mode, after the reconcile.
+ */
+describe('the needs-review probe', () => {
+    const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+    const probe = deriveNeedsReviewProbe(manifest);
+
+    it('scopes its title to the run, with the run key last', () => {
+        expect(manifest.needsReviewProbeTitle).toBe(runScopedTitle('Needs Review Probe', RUN));
+        expect(probe.title).toBe(manifest.needsReviewProbeTitle);
+    });
+
+    it('is the SIGNER’s PRIVATE recipe: the control is the owner’s alone, and Discover must not list it', () => {
+        expect(probe.owner).toBe('signer');
+        expect(probe.visibility).toBe('private');
+        expect(probe.key).toBe('needsReviewProbe');
+    });
+
+    it('has ONE line, 2 cups of a food whose name differs from the source line it was written as', () => {
+        expect(probe.ingredients).toHaveLength(1);
+        expect(probe.ingredients[0]).toMatchObject({
+            name: NEEDS_REVIEW_FOOD_NAME,
+            quantity: 2,
+            unit: 'cup',
+            sourceLine: NEEDS_REVIEW_SOURCE_LINE,
+        });
+        expect(NEEDS_REVIEW_SOURCE_LINE.toLowerCase()).not.toContain(NEEDS_REVIEW_FOOD_NAME.toLowerCase());
+    });
+
+    it('is NOT in SEED_WORLD and not in manifest.recipes, so every other flow still sees "3 recipes"', () => {
+        expect(SEED_WORLD.map((recipe) => recipe.key)).not.toContain('needsReviewProbe');
+        expect(manifest.recipes.map((recipe) => recipe.key)).not.toContain('needsReviewProbe');
+        expect(manifest.libraryFillers.map((recipe) => recipe.key)).not.toContain('needsReviewProbe');
+    });
+
+    it('builds a request the shipped contract accepts, carrying the source line', () => {
+        const request = toCreateRequest(
+            probe,
+            new Map([[NEEDS_REVIEW_FOOD_NAME, '00000000-0000-4000-8000-0000000000b1']]),
+        );
+
+        expect(createRecipeRequestSchema.safeParse(request).success).toBe(true);
+        expect(request.ingredients.map((line) => line.sourceLine)).toEqual([NEEDS_REVIEW_SOURCE_LINE]);
+    });
+
+    it('reaches the flow as three keys: the recipe, the food and the source line', () => {
+        const lines = manifestToEnvLines(manifest, provisioned(ERASURE));
+
+        expect(FIXTURE_ENV_KEYS.needsReviewProbeRecipe).toBe('E2E_RECIPE_NEEDS_REVIEW_PROBE');
+        expect(FIXTURE_ENV_KEYS.needsReviewFood).toBe('E2E_NEEDS_REVIEW_FOOD');
+        expect(FIXTURE_ENV_KEYS.needsReviewSourceLine).toBe('E2E_NEEDS_REVIEW_SOURCE_LINE');
+        expect(lines).toContain(`E2E_RECIPE_NEEDS_REVIEW_PROBE=${runScopedTitle('Needs Review Probe', RUN)}`);
+        expect(lines).toContain(`E2E_NEEDS_REVIEW_FOOD=${NEEDS_REVIEW_FOOD_NAME}`);
+        expect(lines).toContain(`E2E_NEEDS_REVIEW_SOURCE_LINE=${NEEDS_REVIEW_SOURCE_LINE}`);
+    });
+
+    it('uses no regex metacharacters in the title or the food, because the flow puts them inside a Maestro pattern', () => {
+        expect(manifest.needsReviewProbeTitle).toMatch(/^[A-Za-z0-9 -]+$/u);
+        expect(NEEDS_REVIEW_FOOD_NAME).toMatch(/^[A-Za-z ]+$/u);
+    });
+
+    it('is frozen, lines and all, like the rest of the manifest', () => {
+        expect(Object.isFrozen(probe)).toBe(true);
+        expect(Object.isFrozen(probe.ingredients)).toBe(true);
+    });
+});
+
 describe('the tall library recipe (the pinned ingredients bar needs a card that can scroll off the screen)', () => {
     const manifest = deriveFixtureManifest('pr-91-android-1', 'android', 1);
     const tall = manifest.libraryFillers.find((recipe) => recipe.baseTitle === TALL_LIBRARY_RECIPE_BASE_TITLE);
@@ -684,5 +756,85 @@ describe('the tall library recipe (the pinned ingredients bar needs a card that 
     it('is tall: ten or more long steps, so the ingredients card can scroll off a 2400 px screen', () => {
         expect(tall?.steps.length).toBeGreaterThanOrEqual(10);
         expect(tall?.steps.every((step) => step.instruction.length >= 120)).toBe(true);
+    });
+});
+
+/**
+ * The cooking-mode Maestro flow cooks a recipe whose first two steps each split into two or more
+ * lines, so it can tick line 1 and see the focus move, and so the device run on Hermes asserts a real
+ * split. It is the signer's, outside SEED_WORLD, and made only by `reset --mode cooking`, so every other flow still
+ * counts the signer's library as before.
+ */
+describe('the cooking recipe (cooking mode)', () => {
+    const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+    const cooking = manifest.cookingRecipe;
+
+    it("is the signer's, PRIVATE and published, and run-scoped", () => {
+        expect(cooking.owner).toBe('signer');
+        expect(cooking.visibility).toBe('private');
+        expect(cooking.status).toBeUndefined();
+        expect(cooking.title).toBe(runScopedTitle(COOKING_RECIPE_BASE_TITLE, RUN));
+    });
+
+    it('has at least three steps, and its first two each hold two or more sentences', () => {
+        // A sentence end here is a full stop before a space and a capital: the trap-table abbreviation below is followed
+        // by a lowercase word, so it is not counted (the real splitter is cooking-core's; the device run proves it).
+        const sentences = (text: string): number => text.split(/\.\s+(?=[A-Z])/u).length;
+
+        expect(cooking.steps.length).toBeGreaterThanOrEqual(3);
+        expect(sentences(cooking.steps[0]?.instruction ?? '')).toBeGreaterThanOrEqual(2);
+        expect(sentences(cooking.steps[1]?.instruction ?? '')).toBeGreaterThanOrEqual(2);
+    });
+
+    // qse condition 4: one trap-table line, an abbreviation a naive splitter would cut at.
+    it('carries a trap-table abbreviation inside a sentence', () => {
+        expect(cooking.steps.some((step) => /\btbsp\. [a-z]/u.test(step.instruction))).toBe(true);
+    });
+
+    it('is NOT in SEED_WORLD and not in manifest.recipes, so every other flow keeps its count', () => {
+        expect(SEED_WORLD.map((recipe) => recipe.baseTitle)).not.toContain(COOKING_RECIPE_BASE_TITLE);
+        expect(manifest.recipes.map((recipe) => recipe.title)).not.toContain(cooking.title);
+    });
+
+    it('builds a request the shipped contract accepts', () => {
+        const ids = new Map(
+            cooking.ingredients.map((line, index) => [
+                line.name,
+                `00000000-0000-4000-8000-0000000000c${String(index)}`,
+            ]),
+        );
+
+        expect(createRecipeRequestSchema.safeParse(toCreateRequest(cooking, ids)).success).toBe(true);
+    });
+
+    it('reaches the flow as E2E_RECIPE_COOKING, with the run-scoped title', () => {
+        expect(FIXTURE_ENV_KEYS.cookingRecipe).toBe('E2E_RECIPE_COOKING');
+        expect(manifestToEnvLines(manifest, provisioned(ERASURE))).toContain(`E2E_RECIPE_COOKING=${cooking.title}`);
+    });
+
+    it('uses no regex metacharacters in its title, because the flow puts it inside a Maestro pattern', () => {
+        expect(cooking.title).toMatch(/^[A-Za-z0-9 -]+$/u);
+    });
+
+    // qse condition 3: lanes run in parallel. Each lane resets as its OWN signer (asserted above), and the reset can only
+    // delete what that signer's list returned, so the cleanup by title cannot reach another lane's recipe. The title is
+    // also scoped by each lane's run key, so no lane could keep another lane's cooking recipe by title either.
+    it('is scoped by the lane’s run key, on every platform and shard', () => {
+        const lanes = MAESTRO_PLATFORMS.flatMap((platform) =>
+            Array.from(
+                { length: maestroShardCapacity(platform) },
+                (_, index) => `${RUN}-${platform}-${String(index + 1)}`,
+            ),
+        );
+        const titles = lanes.map((runKey) => deriveFixtureManifest(runKey, 'android', 1).cookingRecipe.title);
+
+        expect(new Set(titles).size).toBe(lanes.length);
+        expect(titles.every((title, index) => title.endsWith(lanes[index] ?? '?'))).toBe(true);
+    });
+
+    it('is frozen, lines and steps too', () => {
+        expect(Object.isFrozen(cooking)).toBe(true);
+        expect(Object.isFrozen(cooking.steps)).toBe(true);
+        expect(Object.isFrozen(cooking.ingredients)).toBe(true);
     });
 });

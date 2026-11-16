@@ -43,5 +43,5 @@
 - Facts seen only in a search snippet are marked as such and become plan-time checks: Apple's tax regions, the EU
   withdrawal date, and the current text of Quebec's software rule.
 - Prices are not stated. 010 owns them (FR-060, FR-111).
-- `staff-ux-engineer` DESIGN and SPECIFY, `staff-architect` PLANNING, counsel, `cfo-1`, `gmm-1`, `dpo-1` and a native
+- `staff-ux-engineer` DESIGN and SPECIFY, `staff-architect` PLANNING, the legal review, `cfo-1`, `gmm-1`, `dpo-1` and a native
   culinary reviewer per language are plan-time dependencies. None has run.

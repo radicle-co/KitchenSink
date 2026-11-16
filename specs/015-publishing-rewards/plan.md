@@ -196,7 +196,7 @@ Verified against the codebase, not assumed:
 
 | #   | Blocker                                                                             | Status in code                                                         | Blocks                                                                                                                                       | Severity                              |
 | --- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| B1  | **016 Legal Compliance Framework** — portfolio-wide DMCA/takedown                   | Spec drafted 2026-08-22, **no code**                                   | `FR-015`–`FR-019` (**US4 only**)                                                                                                             | 🔴 **Hard for US4**                   |
+| B1  | **016 Legal Compliance Framework** — portfolio-wide notice and takedown             | Spec drafted 2026-08-22, **no code**                                   | `FR-015`–`FR-019` (**US4 only**)                                                                                                             | 🔴 **Hard for US4**                   |
 | B1a | **016's user content licence** (`016-FR-010`–`FR-015`)                              | No terms acceptance, consent record or age floor exists (`016` spec)   | Nothing in 015 _newly_ — see the note below                                                                                                  | 🟠 **Pre-existing; 015 amplifies it** |
 | B2  | **001-FR-003 amendment (D4a)** — un-gate free-tier privacy in `visibilityPolicy.ts` | **Decided 2026-10-26** (ADR-0073, base of 50); code owed outside 015   | Nothing further in 015. The earned slots add to the base                                                                                     | ✅ **Decided**                        |
 | B3  | **008 Cooking Mode** — the producer of cook events                                  | **Not implemented** (only a mockup e2e reference)                      | `FR-007f` cook signal, `FR-007g` milestones, `FR-007h` standing → all of **US5**                                                             | 🟠 **Hard for US5, not for US1–3**    |
@@ -212,10 +212,8 @@ Verified against the codebase, not assumed:
 > **ship today**. The missing licence therefore blocks the _current product_; it is not a novel consequence of
 > this feature.
 >
-> **What 015 adds is a low inducement risk** _(amended 2026-11-03, owner ruling, ADR-0082)_. [Law] Rewarding
-> cooks for publishing their own recipes is not inducement (MGM v. Grokster, 545 U.S. 913 (2005), Cox v. Sony,
-> 2026). [House rule] Only Written-by-you recipes earn rewards, and a Commise version never does. Counsel review is
-> owed before launch (`016-FR-050`). 015 does not open the hole.
+> **015 rewards only recipes the cook wrote** _(owner ruling, 2026-11-03, ADR-0082)_. Only Written-by-you recipes
+> earn rewards, and a Commise version never does. 015 does not open the hole.
 >
 > **The takedown half is a genuine, narrow 015 blocker**: `FR-016`–`FR-019` consume a process that does not
 > exist, which hard-blocks **US4 only**. The spec already conceded as much in US4's priority note — _"the

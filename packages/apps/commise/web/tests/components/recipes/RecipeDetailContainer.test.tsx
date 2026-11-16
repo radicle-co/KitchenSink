@@ -26,7 +26,7 @@ import { renderToString } from 'react-dom/server';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { SetRatingRequest } from '@kitchensink/schema-recipe';
-import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { BadRequestError, NotFoundError, PrivateSlotsFullError } from '@kitchensink/recipe-service-client';
 import {
     RECIPE_VISIBILITY_MUTATION_KEY,
@@ -1688,6 +1688,44 @@ describe('RecipeDetailContainer', () => {
             expect(screen.queryByRole('radiogroup', { name: 'Your rating' })).not.toBeInTheDocument();
             expect(screen.queryByRole('radio', { name: 'Rate 4 stars' })).not.toBeInTheDocument();
             expect(setRatingMutateMock).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('Start cooking (plan 0002 R-1; the row is the shared body’s, decisions/0030)', () => {
+        const STEPS = [
+            { stepNumber: 1, instruction: 'Heat the oil.' },
+            { stepNumber: 2, instruction: 'Roast for 40 min.' },
+        ];
+
+        const renderWith = (recipe: Parameters<typeof makeRecipeDetail>[0]) => {
+            const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, ...recipe }),
+            );
+            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+        };
+
+        it('opens the cook route from Start cooking', async () => {
+            const user = userEvent.setup();
+            renderWith({ status: RecipeStatus.PUBLISHED, steps: STEPS });
+
+            await user.click(await screen.findByRole('button', { name: 'Start cooking' }));
+
+            expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1/cook');
+        });
+
+        it('draws no Start cooking for a published recipe with no steps', async () => {
+            renderWith({ status: RecipeStatus.PUBLISHED, steps: [{ stepNumber: 1, instruction: ' ' }] });
+
+            await screen.findByRole('heading', { level: 1 });
+            expect(screen.queryByRole('button', { name: 'Start cooking' })).not.toBeInTheDocument();
+        });
+
+        it('draws no Start cooking for a draft', async () => {
+            renderWith({ status: RecipeStatus.DRAFT, steps: STEPS });
+
+            await screen.findByRole('link', { name: 'Edit recipe' });
+            expect(screen.queryByRole('button', { name: 'Start cooking' })).not.toBeInTheDocument();
         });
     });
 });

@@ -185,9 +185,7 @@ npm run test --workspace=packages/services/recipe-service   # includes the media
 | Each gate test fails alone                 | For each of the six tests, a record that passes the other five and fails this one → not label 7. `FR-015k`                                                |
 | A translator's term counts                 | A record whose author died long ago but whose translator died too late → not label 7. `FR-015k`                                                           |
 | CC BY is refused off label 1               | Ask for `cc-by-4.0` on labels 2 to 7, on an unchecked label 1, and from an under-age account → each refused. `FR-010`                                     |
-| The licence reaches the page               | A CC BY recipe's public page carries schema.org `license`. A facts card is never marked CC0. `FR-033`                                                     |
-| The cap counts over time                   | Make cards public from one site to the cap, withdraw one, add one more → the new one is cut back. `FR-030a`                                               |
-| Two writers cannot both take the last slot | Two concurrent publishes from one site at cap minus one → exactly one gets a full card. `FR-030a`                                                         |
+| The licence reaches the page               | A CC BY recipe's public page carries schema.org `license`. Commise-written text carries CC BY-SA 4.0, credited "Commise and contributors". `FR-078`       |
 | robots.txt follows RFC 9309                | A robots.txt with only a `*` group that disallows the path → the fetch is refused and logged as `star`. `FR-024a`                                         |
 | An AI opt-out is honoured                  | A page with `tdm-reservation: 1`, or `ai-input=no` → refused, and the log names the signal. `FR-024a`                                                     |
 | "None found" is logged                     | A page with no signals → a log row with `none_found` in every signal column, never NULL. `FR-024a`                                                        |
@@ -213,8 +211,7 @@ tier was never written is a false status, and false status is worse than a known
 ## What this quickstart cannot prove
 
 - **The registered designated agent exists** (`FR-025`) — not software. Its three-yearly renewal is a
-  monitored obligation with a named owner, and a lapse is a lapse in safe harbour.
-- **The documents say the right thing** — counsel's work product. Slice 1 ships the machinery with placeholder
+  monitored obligation with a named owner, and the registration must never lapse.
+- **The documents say the right thing** — drafted outside the product. Slice 1 ships the machinery with placeholder
   content, and the machinery is fully testable without the words.
-- **That our legal position is correct** — `FR-050` lists what counsel must confirm and what breaks if each
-  assumption is wrong.
+- **That every confirmed item was confirmed** — `FR-050` requires each item to be confirmed before launch.

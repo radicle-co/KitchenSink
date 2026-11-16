@@ -223,13 +223,13 @@ non-identifying provenance marker (`GR-014` AC-014-i, `001-FR-005d`).
 ### `POST /api/v1/internal/restrictions` _(added 2026-11-03, ADR-0082)_
 
 Recipe-service → identity, when it places a restriction that did not start from a notice: a 020 hold or refusal, a
-demotion or visibility limit, or a facts card cut back for an opt-out or the cap (spec `FR-018`).
+demotion or visibility limit, a public version withdrawn for an opt-out, or a public version hidden by a report (spec `FR-018`, `FR-081`, `FR-030a`).
 
 ```jsonc
 {
     "accountId": "string",
     "contentRef": "string",
-    "kind": "refused_to_publish|held_for_review|not_approved|demoted|visibility_limited|card_reduced_opt_out|card_reduced_cap",
+    "kind": "refused_to_publish|held_for_review|not_approved|demoted|visibility_limited|version_withdrawn_opt_out|version_hidden_report",
     "ground": "string",
     "facts": "string",
     "automated": true, // 020's automated hold is true. A person's decision is false

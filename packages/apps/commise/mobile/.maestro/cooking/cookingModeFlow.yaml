@@ -1,0 +1,90 @@
+appId: ${APP_ID}
+---
+# Cooking mode S1, the happy path on a device (plan 0002 acceptance 1-6; T4). The recipe is the signer's
+# `${E2E_RECIPE_COOKING}` (e2e-seed `reset --mode cooking`, decisions/0019): three steps, the first two of two lines each.
+#
+#   1. Start cooking opens step 1 with its FOCUS line. This is the Hermes check (decisions/0015 condition 3): the step
+#      "Heat the oven to 200 degrees. Rub 1 tbsp. olive oil over a roasting tray." must arrive as exactly two lines, the
+#      first one focused, and "tbsp." must NOT cut the second (trap table). vitest runs on V8; only this run proves the
+#      splitter on the phone's engine.
+#   2. Tick line 1: the focus moves to line 2.
+#   3. Next step, then Back: line 1 is still ticked.
+#   4. A swipe from step 2 goes to step 3; on iOS a left-edge swipe does NOT leave the step (gestureEnabled: false).
+#   5. Finish opens Done, "All 3 steps done"; Back to the recipe shows Start cooking again.
+#   6. The signer's draft (the Crostini, kept in every reset mode) offers no Start cooking.
+#
+# Android system Back = Exit is its own flow, `cooking/cookingSystemBack`, because Maestro's `back` is Android-only.
+- runFlow: common/openCookingRecipe.yaml
+
+# ── 1. ONE STEP, TWO LINES, THE FIRST FOCUSED (the Hermes check) ──
+- assertVisible: 'Line 1 of 2'
+- assertVisible:
+      text: '^Heat the oven to 200 degrees\.$'
+      checked: false
+- assertVisible:
+      text: '^Rub 1 tbsp\. olive oil over a roasting tray\.$'
+      checked: false
+- assertNotVisible: '.*degrees\. Rub.*'
+
+# ── 2. TICK LINE 1: THE FOCUS MOVES ──
+- tapOn: '^Heat the oven to 200 degrees\.$'
+- assertVisible: 'Line 2 of 2'
+- assertVisible: 'You ticked 1 line'
+
+# ── 3. NEXT, THEN BACK: THE TICK IS KEPT ──
+- tapOn: 'Next step, step 2'
+- assertVisible: 'Step 2 of 3'
+- assertVisible: '^Slice the lemon and crush the garlic\.$'
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          # From the left edge, the gesture that would pop a native stack: the cooking route turns it off.
+          - swipe:
+                start: 1%, 50%
+                end: 80%, 50%
+          - assertVisible: 'Step 2 of 3'
+- tapOn: 'Back to step 1'
+- assertVisible: 'Step 1 of 3'
+- assertVisible: 'You ticked 1 line'
+- assertVisible: 'Line 2 of 2'
+
+# ── 4. A SWIPE IS AN EXTRA ROUTE: STEP 2 TO STEP 3 ──
+- tapOn: 'Next step, step 2'
+- assertVisible: 'Step 2 of 3'
+- swipe:
+      start: 85%, 50%
+      end: 15%, 50%
+- assertVisible: 'Step 3 of 3'
+- assertVisible: 'Rest the tray for 5 minutes before serving.'
+- assertNotVisible: 'Line 1 of 1'
+
+# ── 5. FINISH, DONE, BACK TO THE RECIPE ──
+- tapOn: 'Finish'
+- assertVisible: 'All 3 steps done'
+- tapOn: 'Back to the recipe'
+- assertVisible: 'Start cooking'
+
+# ── 6. A DRAFT OFFERS NO START COOKING ──
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Back to My recipes'
+          DIRECTION: UP
+          TIMEOUT: 20000
+- tapOn: 'Back to My recipes'
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: '^${E2E_RECIPE_PRIVATE_FOOD}$'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+- tapOn:
+      text: '^${E2E_RECIPE_PRIVATE_FOOD}$'
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: UP
+          TIMEOUT: 20000
+- assertNotVisible: 'Start cooking'

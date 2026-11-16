@@ -221,6 +221,34 @@ const CONTAINMENT_DISPOSITION: {
                 'Marks lines of the caller’s own parse job withdrawn; it starts no parse and spends nothing shared, ' +
                 'and the owner predicate is the authorization (a stranger gets 404).',
         },
+        // ADR-0072: the bulk import. Its header, items, cursor and choices are the caller's own working rows, and the owner
+        // predicate on every read is the authorization (a stranger gets 404).
+        'ImportController.create': {
+            ownerScoped: 'Writes the caller’s own import header and items; creating an import pays and saves nothing.',
+        },
+        'ImportController.putItems': {
+            ownerScoped: 'Replaces items of the caller’s own import; nothing is paid, parsed or saved by it.',
+        },
+        'ImportController.remove': {
+            ownerScoped: 'Deletes the working data of the caller’s own import; the recipes it saved stay.',
+        },
+        // The advance step saves each ready item through `RecipesService.create` (the visibility policy, then the
+        // verification enqueue, both contained there) and starts the parse jobs the paste route's ADR-0040 Residual risk covers.
+        'ImportController.advance': { reaches: ['publish', 'requestVerification'] },
+        'ImportController.moveCursor': {
+            ownerScoped: 'Moves the wizard cursor of the caller’s own import and marks its items reviewed or skipped.',
+        },
+        // A pick on a SAVED item rebinds the draft through the same path as `RecipesController.rebindIngredientLine`.
+        'ImportController.pick': { reaches: ['promoteCorrection', 'requestVerification'] },
+        'ImportController.recordChoices': {
+            ownerScoped: 'Records the cook’s statement and visibility on an unsaved item of their own import.',
+        },
+        'ImportController.recordChoicesBatch': {
+            ownerScoped: 'Records the same choices on unsaved items of the caller’s own import.',
+        },
+        'ImportController.leave': {
+            ownerScoped: 'Closes the review of the caller’s own import; it saves and spends nothing.',
+        },
         'RecipesController.create': { reaches: ['publish', 'requestVerification'] },
         'RecipesController.getNutritionBatch': {
             ownerScoped: 'Writes nothing: a batched nutrition read issued as POST so the id list travels in the body.',

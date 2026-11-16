@@ -1,0 +1,96 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:34Z"
+  },
+  "title": "Commise Screens, mobile: In-app notices",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "NoticeReadyIphone390.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "In-app notices, ready (mobile, iPhone 390)"
+    },
+    "NoticeCatchUpIphone390.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "In-app notices, catch up (mobile, iPhone 390)"
+    },
+    "NoticeReadyAndroid384.dc.html": {
+      "x": 0,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "In-app notices, ready (mobile, Android 384)"
+    },
+    "NoticeCatchUpAndroid384.dc.html": {
+      "x": 464,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "In-app notices, catch up (mobile, Android 384)"
+    },
+    "NoticeReadyIpad820.dc.html": {
+      "x": 0,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "In-app notices, ready (mobile, iPad 820)"
+    },
+    "NoticeCatchUpIpad820.dc.html": {
+      "x": 900,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "In-app notices, catch up (mobile, iPad 820)"
+    }
+  },
+  "order": [
+    "NoticeReadyIphone390.dc.html",
+    "NoticeCatchUpIphone390.dc.html",
+    "NoticeReadyAndroid384.dc.html",
+    "NoticeCatchUpAndroid384.dc.html",
+    "NoticeReadyIpad820.dc.html",
+    "NoticeCatchUpIpad820.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "In-app notices: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1504,
+      "text": "In-app notices: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 2996,
+      "text": "In-app notices: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

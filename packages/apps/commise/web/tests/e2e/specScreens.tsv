@@ -25,6 +25,7 @@ collections.spec.ts	/, /collections, /collections/[id], /sign-in/[[...sign-in]]
 collectionsFirstRunZoom.spec.ts	/, /collections, /sign-in/[[...sign-in]]
 colorScheme.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /sign-in/[[...sign-in]]
 controlLabels.spec.ts	/, /collections, /collections/[id], /recipes, /recipes/[id], /sign-in/[[...sign-in]]
+cookingMode.spec.ts	/, /recipes/[id], /recipes/[id]/cook, /recipes/[id]/edit, /sign-in/[[...sign-in]]
 createEntry.spec.ts	/, /recipes, /recipes/new, /sign-in/[[...sign-in]]
 cuisineField.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
 dataSources.spec.ts	/, /legal/sources, /profile, /sign-in/[[...sign-in]]
@@ -58,6 +59,7 @@ ingredientVariantSearch.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[
 layoutContainers.spec.ts	/, /sign-in/[[...sign-in]]
 mockupFidelity.spec.ts	*
 namelessLines.spec.ts	/, /recipes/[id], /recipes/[id]/versions, /sign-in/[[...sign-in]]
+needsReviewJump.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
 notFound.spec.ts	*
 overhaulLayout.spec.ts	/, /collections, /discover, /recipes, /recipes/[id], /recipes/[id]/edit, /sign-in/[[...sign-in]]
 paidFeatureGate.spec.ts	*

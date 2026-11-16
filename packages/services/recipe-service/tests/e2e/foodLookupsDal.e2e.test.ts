@@ -153,7 +153,13 @@ async function inRetryRead(unresolvedFoodId: string): Promise<boolean> {
 async function saveLine(recipeId: string, lookupId: string): Promise<void> {
     await createRecipeDrizzle(pool).transaction(async (tx) => {
         await new IngredientLinesDal().replaceForRecipe(tx, recipeId, [
-            { foodLookupId: lookupId, quantity: { kind: 'exact', value: 1 }, unit: 'g', sortOrder: 0 },
+            {
+                foodLookupId: lookupId,
+                quantity: { kind: 'exact', value: 1 },
+                unit: 'g',
+                sourceLineTranscribedByOwner: false,
+                sortOrder: 0,
+            },
         ]);
     });
 }

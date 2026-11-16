@@ -63,7 +63,7 @@ interface WorkflowDocument {
 
 /** Every tracked file, POSIX-relative to the repo root. `git ls-files` IS the definition of "committed". */
 function trackedFiles(): readonly string[] {
-    return execFileSync('git', ['ls-files'], { cwd: REPO_ROOT, encoding: 'utf8' })
+    return execFileSync('git', ['ls-files'], { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 1024 * 1024 * 64 })
         .split('\n')
         .filter((line) => line.length > 0);
 }
@@ -177,15 +177,6 @@ describe('every Python source this repository owns is linted, formatted and type
         // A vacuous pass here would make every rule below assert nothing, which is precisely the state
         // this suite exists to end.
         expect(sources.length).toBeGreaterThanOrEqual(2);
-    });
-
-    it('leaves the VENDORED Spec Kit extension alone — it arrives with its own toolchain', () => {
-        // `.specify/extensions/v-model/` carries 46 Python files, its own pyproject.toml and its own
-        // requirementsDev.txt. Re-linting a vendored tree to our house style is churn we would then own.
-        expect(tracked.filter((file) => file.startsWith('.specify/') && file.endsWith('.py')).length).toBeGreaterThan(
-            0,
-        );
-        expect(sources.filter((file) => file.startsWith('.specify/'))).toEqual([]);
     });
 
     it('declares every check at the root, aimed at the whole authored tree', () => {

@@ -5330,6 +5330,18 @@ components:
             code:
               type: string
               enum:
+                - IMPORT_STORAGE_FULL
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
                 - UNAUTHORIZED
             message:
               type: string
@@ -5927,6 +5939,9 @@ components:
                   - default
                   - autoBest
                   - cook
+              sourceLine:
+                type: string
+                minLength: 1
             required:
               - ingredientId
               - quantity

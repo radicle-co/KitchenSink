@@ -53,15 +53,17 @@
  *     `${{ github.sha }}` instead of the tag read from ECS.
  *   - both negative-control fixtures below fail if the corresponding positive rule is loosened.
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { minimatch } from 'minimatch';
 import { parse } from 'yaml';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { EDGE_POLICY } from '../lib/platform/EdgeStack.js';
-import { isServiceDirectoryOf } from '@kitchensink/repo-guards/serviceSources';
+import { enablesCors, isServiceDirectoryOf, isTestFile, presentFiles } from '@kitchensink/repo-guards/serviceSources';
 import { scalarText } from '@kitchensink/repo-guards/workflowScalar';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -353,25 +355,31 @@ function builtPackage(step: WorkflowStep): string | undefined {
 }
 
 /**
- * Whether a service is reachable from a BROWSER, decided by whether its own bootstrap enables CORS.
+ * Whether a service is reachable from a BROWSER, decided by whether its production source enables CORS.
  *
- * DERIVED, not listed, and that distinction is the whole point. A service whose `main.ts` calls `app.enableCors(…)`
- * must have its smoke see a preflight ADMIT the web origin; one that does not must have its smoke see a preflight
- * REFUSE it (`--expect-cors deny`, plan 002 S2). All three image-pushing services enable CORS since plan 002 S4.
+ * DERIVED, not listed, and that distinction is the whole point. A service that calls `app.enableCors(…)` must have its
+ * smoke see a preflight ADMIT the web origin; one that does not must have its smoke see a preflight REFUSE it
+ * (`--expect-cors deny`, plan 002 S2). All three image-pushing services enable CORS since plan 002 S4.
+ *
+ * Every production source under the service's `src/` is read, not only `main.ts`, through the repo's one CORS
+ * detector (`enablesCors`): a service may register CORS inside
+ * a setup helper its bootstrap and its test tiers share (recipe-service's `config/httpSetup.ts` does, because CORS must
+ * come before its own body parser). Reading `main.ts` alone made such a service read as not browser-facing, the
+ * PERMISSIVE answer. Reading all of `src/` errs the strict way: a CORS call anywhere in production code owes the admit
+ * assertion.
  *
  * An exception list here would be a place to add a service to in order to make a check go away. Reading the source
  * means a service that GAINS CORS immediately owes the admit assertion, and one that has it cannot silently drop it.
  *
- * @sideEffect Reads the service's `main.ts`.
+ * @param servicePackage - The workspace directory, e.g. `packages/services/food-service`.
+ * @param root - The repository to read; the real tree unless a test supplies a throwaway one.
+ * @returns `true` when any production source of the service turns CORS on.
+ * @sideEffect Lists the service's files through git and reads them.
  */
-function isBrowserFacing(servicePackage: string): boolean {
-    try {
-        return /\.enableCors\s*\(/.test(readFileSync(join(REPO_ROOT, servicePackage, 'src/main.ts'), 'utf8'));
-    } catch {
-        // A service with no `src/main.ts` is not a Nest HTTP app; treat it as not browser-facing rather
-        // than inventing a violation.
-        return false;
-    }
+function isBrowserFacing(servicePackage: string, root: string = REPO_ROOT): boolean {
+    return presentFiles([`${servicePackage}/src`], root)
+        .filter((file) => file.endsWith('.ts') && !isTestFile(file))
+        .some((file) => enablesCors({ file, contents: readFileSync(join(root, file), 'utf8') }));
 }
 
 /**
@@ -485,7 +493,7 @@ function findShallowImageSmokes(doc: WorkflowDocument, facts: ServiceFacts = TRE
             if (browserFacing && (!run.includes('--web-origin') || assertsRefusal)) {
                 violations.push(
                     `${flag}::${stepLabel(step)} → does not assert browser reachability ` +
-                        `(needs --web-origin without --expect-cors deny: ${servicePackage as string}/src/main.ts ` +
+                        `(needs --web-origin without --expect-cors deny: ${servicePackage as string}/src ` +
                         'enables CORS, so a CORS regression stays invisible)',
                 );
             }
@@ -984,5 +992,64 @@ describe('every image-pushing leg of prod-deploy.yml has a smoke a stale task wo
             recipe: isBrowserFacing('packages/services/recipe-service'),
             food: isBrowserFacing('packages/services/food-service'),
         }).toEqual({ identity: true, recipe: true, food: true });
+    });
+});
+
+describe('isBrowserFacing reads CORS wherever the service turns it on', () => {
+    // A throwaway git repository: `presentFiles` lists through git, so a fixture must be one.
+    const root = mkdtempSync(join(tmpdir(), 'browserFacing-'));
+
+    execFileSync('git', ['init', '-q'], { cwd: root });
+
+    /** Write a fixture service's files under `packages/services/<name>/`. */
+    function service(name: string, files: Readonly<Record<string, string>>): string {
+        const servicePackage = `packages/services/${name}`;
+
+        for (const [file, contents] of Object.entries(files)) {
+            const path = join(root, servicePackage, file);
+
+            mkdirSync(dirname(path), { recursive: true });
+            writeFileSync(path, contents);
+        }
+
+        return servicePackage;
+    }
+
+    afterAll(() => {
+        rmSync(root, { recursive: true, force: true });
+    });
+
+    it('⛔ sees CORS a service turns on inside a helper that main.ts calls', () => {
+        const hidden = service('hidden', {
+            'src/main.ts': "import { setup } from './config/httpSetup.js';\nsetup(app);\n",
+            'src/config/httpSetup.ts': 'export function setup(app) {\n    app.enableCors(policy);\n}\n',
+        });
+
+        expect(isBrowserFacing(hidden, root)).toBe(true);
+    });
+
+    it('sees the NestFactory cors option', () => {
+        const option = service('option', {
+            'src/main.ts': 'const app = await NestFactory.create(AppModule, { cors: policy });\n',
+        });
+
+        expect(isBrowserFacing(option, root)).toBe(true);
+    });
+
+    it('sees the Express cors middleware', () => {
+        const middleware = service('middleware', {
+            'src/main.ts': "import cors from 'cors';\napp.use(cors(policy));\n",
+        });
+
+        expect(isBrowserFacing(middleware, root)).toBe(true);
+    });
+
+    it('does not count a test file or a comment that names enableCors', () => {
+        const quiet = service('quiet', {
+            'src/main.ts': '// app.enableCors() is not called here\nexport const a = 1;\n',
+            'src/config/__tests__/cors.test.ts': 'app.enableCors(policy);\n',
+        });
+
+        expect(isBrowserFacing(quiet, root)).toBe(false);
     });
 });

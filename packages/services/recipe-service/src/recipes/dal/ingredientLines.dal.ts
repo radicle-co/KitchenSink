@@ -47,6 +47,12 @@ export interface IngredientLineInput {
     sourceLine?: string;
     /** The ingredient PHRASE the parse lifted out of {@link sourceLine} — the memo tier's key grain (0041). */
     sourcePhrase?: string;
+    /**
+     * Whether the recipe's OWNER supplied {@link sourceLine} (migration 0072, ADR-0090). REQUIRED, so every path that
+     * writes a line states it: a create (the caller is the owner), the carry-forward of an edit, and a clone (FALSE for
+     * another cook's recipe). It is not derived from {@link sourceLine} being present, because a clone copies the text.
+     */
+    sourceLineTranscribedByOwner: boolean;
     /** What the SOURCE printed, when {@link quantity}/{@link unit} are a RESTATEMENT of it (migration 0027). */
     statedMeasure?: StatedMeasure;
     /**
@@ -170,6 +176,7 @@ export class IngredientLinesDal {
                     sourcePhrase: line.sourcePhrase ?? null,
                     boundBy: line.boundBy ?? null,
                     importLineId: line.importLineId ?? null,
+                    sourceLineTranscribedByOwner: line.sourceLineTranscribedByOwner,
                     // All THREE stated columns on every line, `null` included, through the ONE adapter.
                     ...statedMeasureColumns(line.statedMeasure),
                     sortOrder: line.sortOrder,

@@ -5,7 +5,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { revealNothing, type RevealTarget } from '../fieldRevealContext.js';
+import { revealNothing, withRevealEnd, type RevealRequest, type RevealTarget } from '../fieldRevealContext.js';
 
 const field: RevealTarget = { measureLayout: () => undefined };
 
@@ -32,5 +32,40 @@ describe('revealNothing', () => {
         const release = revealNothing({ kind: 'target', field, onShown: () => undefined });
 
         expect(release()).toBeUndefined();
+    });
+});
+
+describe('withRevealEnd', () => {
+    const end: RevealTarget = { measureLayout: () => undefined };
+
+    it('adds the end to a focus request and hands back the parent’s release', () => {
+        const release = (): void => undefined;
+        const parent = vi.fn<(request: RevealRequest) => () => void>(() => release);
+
+        const handed = withRevealEnd(parent, end)({ kind: 'focus', field });
+
+        expect(parent).toHaveBeenCalledWith({ kind: 'focus', field, end });
+        expect(handed).toBe(release);
+    });
+
+    it.each([
+        ['list', { kind: 'list', field, below: 120 }],
+        ['arrival', { kind: 'arrival', field, above: 60 }],
+        ['start', { kind: 'start', field }],
+    ] as const)('passes a %s request through unchanged', (_kind, request) => {
+        const parent = vi.fn<(request: RevealRequest) => () => void>(() => () => undefined);
+
+        withRevealEnd(parent, end)(request);
+
+        expect(parent).toHaveBeenCalledWith(request);
+    });
+
+    it('passes a target request through unchanged', () => {
+        const parent = vi.fn<(request: RevealRequest) => () => void>(() => () => undefined);
+        const request: RevealRequest = { kind: 'target', field, onShown: () => undefined };
+
+        withRevealEnd(parent, end)(request);
+
+        expect(parent).toHaveBeenCalledWith(request);
     });
 });

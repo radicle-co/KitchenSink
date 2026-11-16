@@ -2,10 +2,11 @@
  * THE TRANSCRIPTION CARRY-FORWARD RULE (plan U11/U14, widened by U7) — when an updated ingredient line keeps
  * what it was transcribed from, and when that transcription has gone stale.
  *
- * ⚠️ It carries THREE facts, and the module was renamed from `sourceLineCarryForward.ts` when the second
+ * ⚠️ It carries FOUR facts, and the module was renamed from `sourceLineCarryForward.ts` when the second
  * arrived: the raw source line (migration 0024), the measure the source PRINTED before a historical unit
- * was restated (migration 0027), and the ingredient PHRASE the parse lifted out of the line — the memo
- * tier's key grain (migration 0041, owner ruling 2026-08-31). A name that enumerated only one of them was
+ * was restated (migration 0027), the ingredient PHRASE the parse lifted out of the line — the memo
+ * tier's key grain (migration 0041, owner ruling 2026-08-31) — and whether the recipe's OWNER supplied that
+ * line (migration 0072, ADR-0090), which decides who is shown it. A name that enumerated only one of them was
  * an invitation to add the next carry-forward somewhere else instead of here.
  *
  * DESIGN PATTERN: **Specification / Policy module**, the sibling of `provenancePolicy.ts` and
@@ -74,6 +75,11 @@ export interface CarriedTranscription {
      * owner ruling 2026-08-31) — inherited, or `undefined` when the line predates the field or was authored.
      */
     readonly sourcePhrase: string | undefined;
+    /**
+     * Whether the recipe's OWNER supplied {@link sourceLine} (ADR-0090), inherited; `false` when nothing is inherited,
+     * so a line with no text never claims its owner wrote one.
+     */
+    readonly sourceLineTranscribedByOwner: boolean;
 }
 
 /** One PERSISTED line, reduced to the facts a verdict about it would be keyed on, plus what it transcribed. */
@@ -97,6 +103,8 @@ export interface StoredTranscription {
     readonly statedMeasure: StatedMeasure | undefined;
     /** The parsed phrase held for it, or `undefined`. In the bundle, not the tuple, like its two siblings. */
     readonly sourcePhrase: string | undefined;
+    /** Whether the recipe's owner supplied {@link sourceLine} (ADR-0090). In the bundle, not the tuple. */
+    readonly sourceLineTranscribedByOwner: boolean;
 }
 
 /** One INCOMING line, reduced to the same facts. Deliberately a subset of `IngredientLineInput`. */
@@ -156,7 +164,12 @@ export function carryForwardTranscription(
         );
 
         if (match === -1) {
-            return { sourceLine: undefined, statedMeasure: undefined, sourcePhrase: undefined };
+            return {
+                sourceLine: undefined,
+                statedMeasure: undefined,
+                sourcePhrase: undefined,
+                sourceLineTranscribedByOwner: false,
+            };
         }
 
         claimed[match] = true;
@@ -165,11 +178,13 @@ export function carryForwardTranscription(
         // author has since edited would claim the source printed a gill for a quantity it never printed —
         // a restatement whose two halves describe different lines, which is worse than no restatement. The
         // phrase rides the same rule: a memo key detached from the line it was lifted from is the cross-user
-        // poisoning shape the create-only wire exists to prevent.
+        // poisoning shape the create-only wire exists to prevent. The owner flag rides it too (ADR-0090): taken from a
+        // different line, it would show a cook text they never wrote, or hide text they did.
         return {
             sourceLine: stored[match]?.sourceLine,
             statedMeasure: stored[match]?.statedMeasure,
             sourcePhrase: stored[match]?.sourcePhrase,
+            sourceLineTranscribedByOwner: stored[match]?.sourceLineTranscribedByOwner ?? false,
         };
     });
 }

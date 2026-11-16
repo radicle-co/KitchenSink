@@ -39,7 +39,7 @@ Seven rulings shape or block ideas. Each idea's risk line names the one it meets
 - **Imported recipes never go public.** 021-FR-003 keeps `imported_public` off the open web. Nothing may seed search pages from imported blogs.
 - **Capture is user-directed only.** Spec `017-recime-parity` allows no crawl and no batch, and the extension gets `activeTab` only.
 - **No AI as bait.** The ADR-0024 ceiling stands until launch (ADR-0024 §6), and 023-FR-024 bars AI uses as a reward. No idea spends AI on free or signed-out users to attract them.
-- **US only at v1.** 016-FR-048 serves one market, and an unserved market fails closed. Store work inside the US storefront is fine. A new country needs counsel.
+- **US only at v1.** 016-FR-048 serves one market, and an unserved market fails closed. Store work inside the US storefront is fine. A new country needs its 016 market checks first (016-FR-048a).
 - **English only today.** The web app's i18n config lists `locales: ['en']`.
 - **People first.** The age floor is 16 (022-FR-047). No fingerprinting and no ad SDK (023-FR-031, FR-048). No reward tied to a review (023-FR-034). Deceptive patterns are refused, not weighed.
 
@@ -118,7 +118,7 @@ The 41 ideas sit in six groups: store and platform surfaces, search and content,
 - **Why it works.** Instacart "launched a new shopping app inside ChatGPT" in December 2025 [S, [Digital Commerce 360](https://www.digitalcommerce360.com/2025/12/12/instacart-debuts-its-new-chatgpt-app/)]. Claude's directory says "Organizations can submit their MCP servers for review and inclusion" [P, [Claude docs](https://www.claude.com/docs/connectors/directory)]. The assistant runs the model, so Commise pays for no AI call.
 - **Effort and cash.** M to L. A small tool server over the existing APIs. $0 cash.
 - **Expected effect and test.** No evidence for installs. Test: submit to Claude's directory first, which takes submissions today. OpenAI's submission status could not be confirmed. Kill rule: under 50 connected accounts within 60 days of listing means stop.
-- **Risks.** Recipe and list data flow to an outside AI company. That needs a privacy notice entry and a counsel check (016). Public recipes only for unauthenticated tools (021-FR-102).
+- **Risks.** Recipe and list data flow to an outside AI company. That needs a privacy notice entry and a pre-launch review (016-FR-050). Public recipes only for unauthenticated tools (021-FR-102).
 - **Spec.** New spec needed. `staff-architect` review, because it adds a public surface.
 
 #### A9. Treat browser extension stores as a channel, with a free "just the recipe" view
@@ -414,9 +414,9 @@ The 41 ideas sit in six groups: store and platform surfaces, search and content,
 
 - **What.** Turn on Canada, the UK, Ireland, Australia and New Zealand through the market switch, with no translation.
 - **Why it works.** No evidence: target plus test. RevenueCat reports a "$0.38 median RPI at D14" for North America, with no country split opened [S, [RevenueCat](https://www.revenuecat.com/state-of-subscription-apps/)].
-- **Effort and cash.** M per market, mostly counsel. Cost GAP.
+- **Effort and cash.** M per market, mostly market checks. Cost GAP.
 - **Expected effect and test.** Test with Canada first after launch + 90 days. Kill rule: under 5% of US installs per month after 60 days means pause the next market.
-- **Risks.** 016 says Australia is the sharpest legal market. Each market needs counsel before the switch (016-FR-048a).
+- **Risks.** Each market needs its 016 checks before the switch (016-FR-048a).
 - **Spec.** `016-legal-compliance-framework` FR-048.
 
 #### F2. Enter awards

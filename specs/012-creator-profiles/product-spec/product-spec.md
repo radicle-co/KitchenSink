@@ -115,7 +115,7 @@ KitchenSink becomes the home for food creators who want a professional public pr
 
 **FR-021** A suspended creator MUST receive an in-app notification stating the reason and an appeal path.
 
-**FR-022** DMCA takedown requests targeting a creator's recipe MUST be routable to the Compliance Reviewer role; the affected recipe MUST be unpublished within 24 hours of a valid notice.
+**FR-022** Takedown requests targeting a creator's recipe MUST be routable to the Compliance Reviewer role; the affected recipe MUST be unpublished within 24 hours of a valid notice.
 
 ### Analytics
 
@@ -238,10 +238,10 @@ Base: `/api/v1/`. Runtime: Node 24.x. Package: `@kitchensink/creator-profiles-se
 
 These are operational roles, not user personas. They do not appear in User Stories.
 
-| Role                         | Responsibilities                                                                                                                                                                                                                                                 |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Support / Admin Operator** | Handle creator profile disputes; process handle-squatting complaints; suspend or reinstate profiles pending review; manage moderation appeals from creators who believe a suspension was incorrect.                                                              |
-| **Compliance Reviewer**      | Process DMCA takedown notices targeting creator-published recipes; enforce content policy violations (hate speech, dangerous content); coordinate with legal on cross-border content removal obligations; audit `audience` scope changes for compliance logging. |
+| Role                         | Responsibilities                                                                                                                                                                                                                                            |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Support / Admin Operator** | Handle creator profile disputes; process handle-squatting complaints; suspend or reinstate profiles pending review; manage moderation appeals from creators who believe a suspension was incorrect.                                                         |
+| **Compliance Reviewer**      | Process takedown notices targeting creator-published recipes; enforce content policy violations (hate speech, dangerous content); coordinate with legal on cross-border content removal obligations; audit `audience` scope changes for compliance logging. |
 
 ---
 

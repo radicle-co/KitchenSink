@@ -31,6 +31,8 @@
 # The guard (tests/e2eScreenRegistry.integration.test.ts) fails when a top-level flow has no row, a row names no
 # flow or sub-flow, or a row names a screen that does not exist.
 auth/loginFlow	CompleteSignUpScreen, HomeScreen, RecipeListScreen, login, signup
+cooking/cookingModeFlow	CookingModeScreen, HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
+cooking/cookingSystemBack	CookingModeScreen, HomeScreen, RecipeDetailScreen, RecipeListScreen
 home	HomeScreen, RecipeListScreen
 recipes/rating	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/listDetail	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
@@ -99,6 +101,7 @@ recipes/ingredientCandidates	HomeScreen, RecipeDetailScreen, RecipeEditorScreen,
 recipes/ingredientRemoteFoods	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/pinnedActionBar	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/ambiguityReview	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/needsReviewJump	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/photos	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/photosOnCreate	HomeScreen, RecipeEditorScreen, RecipeListScreen
 recipes/accessibility	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen

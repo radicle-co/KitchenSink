@@ -69,6 +69,7 @@ const stored = (over: Partial<StoredTranscription> = {}): StoredTranscription =>
     sourceLine: '2 cups all-purpose flour, sifted',
     statedMeasure: undefined,
     sourcePhrase: undefined,
+    sourceLineTranscribedByOwner: true,
     ...over,
 });
 
@@ -201,7 +202,12 @@ describe('carryForwardTranscription — the source phrase rides with the transcr
     it('DROPS the phrase with the rest of the bundle when the judgement moved', () => {
         const [carried] = carryForwardTranscription([phrased()], [incoming({ quantity: exact(3) })]);
 
-        expect(carried).toEqual({ sourceLine: undefined, statedMeasure: undefined, sourcePhrase: undefined });
+        expect(carried).toEqual({
+            sourceLine: undefined,
+            statedMeasure: undefined,
+            sourcePhrase: undefined,
+            sourceLineTranscribedByOwner: false,
+        });
     });
 
     it('carries a transcription with no phrase, which every pre-existing row is', () => {
@@ -230,7 +236,7 @@ describe('carryForwardTranscription — the stated measure rides with the transc
 
     it('CARRIES both facts together when the judgement is unchanged', () => {
         expect(carryForwardTranscription([restated()], [unchanged()])).toEqual([
-            { sourceLine: 'one gill of milk', statedMeasure: GILL },
+            { sourceLine: 'one gill of milk', statedMeasure: GILL, sourceLineTranscribedByOwner: true },
         ]);
     });
 
@@ -252,14 +258,18 @@ describe('carryForwardTranscription — the stated measure rides with the transc
         // source printed a gill for a quantity it never printed — a restatement whose two halves describe
         // different lines, which is worse than no restatement at all.
         expect(carryForwardTranscription([restated()], [line])).toEqual([
-            { sourceLine: undefined, statedMeasure: undefined },
+            { sourceLine: undefined, statedMeasure: undefined, sourceLineTranscribedByOwner: false },
         ]);
     });
 
     // The two members are INDEPENDENTLY optional: the dominant line is transcribed and never restated.
     it('carries a transcription with no stated measure, which is the ordinary case', () => {
         expect(carryForwardTranscription([stored()], [incoming()])).toEqual([
-            { sourceLine: '2 cups all-purpose flour, sifted', statedMeasure: undefined },
+            {
+                sourceLine: '2 cups all-purpose flour, sifted',
+                statedMeasure: undefined,
+                sourceLineTranscribedByOwner: true,
+            },
         ]);
     });
 
@@ -273,11 +283,47 @@ describe('carryForwardTranscription — the stated measure rides with the transc
         });
 
         expect(carryForwardTranscription([sponge, dough], [unchanged(), unchanged()])).toEqual([
-            { sourceLine: 'one gill of milk, for the sponge', statedMeasure: GILL },
+            { sourceLine: 'one gill of milk, for the sponge', statedMeasure: GILL, sourceLineTranscribedByOwner: true },
             {
                 sourceLine: 'one gill of milk, for the dough',
                 statedMeasure: { quantity: statedExact(2), unit: 'gill' },
+                sourceLineTranscribedByOwner: true,
             },
+        ]);
+    });
+});
+
+/**
+ * The FOURTH fact in the bundle (ADR-0090): whether the recipe's OWNER supplied the line's source text. It decides
+ * whether the owner is shown that text (`transcriptionDisclosure.ts`), so it must come from the SAME matched stored
+ * line as the text itself. A flag taken from a different line could show a cook text they never wrote, or hide text
+ * they did.
+ */
+describe('carryForwardTranscription — the transcribed-by-owner flag rides with the text it describes', () => {
+    it('CARRIES the flag from the matched line', () => {
+        const [own] = carryForwardTranscription([stored()], [incoming()]);
+        const [copied] = carryForwardTranscription([stored({ sourceLineTranscribedByOwner: false })], [incoming()]);
+
+        expect(own?.sourceLineTranscribedByOwner).toBe(true);
+        expect(copied?.sourceLineTranscribedByOwner).toBe(false);
+    });
+
+    it('answers FALSE when nothing is carried, so a line with no text never claims the owner wrote it', () => {
+        const [carried] = carryForwardTranscription([stored()], [incoming({ quantity: exact(3) })]);
+
+        expect(carried?.sourceLineTranscribedByOwner).toBe(false);
+    });
+
+    it('takes each flag from the line its text came from, for duplicate tuples', () => {
+        const copied = stored({ sourceLine: '2 cups flour, for the sponge', sourceLineTranscribedByOwner: false });
+        const own = stored({ sourceLine: '2 cups flour, for the dough', sourceLineTranscribedByOwner: true });
+
+        expect(carryForwardTranscription([copied, own], [incoming(), incoming()])).toEqual([
+            expect.objectContaining({
+                sourceLine: '2 cups flour, for the sponge',
+                sourceLineTranscribedByOwner: false,
+            }),
+            expect.objectContaining({ sourceLine: '2 cups flour, for the dough', sourceLineTranscribedByOwner: true }),
         ]);
     });
 });

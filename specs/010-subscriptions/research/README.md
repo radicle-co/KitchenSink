@@ -37,13 +37,13 @@ This index file.
 
 ## Source Traceability
 
-| Research File        | Primary Sources                                                                             |
-| -------------------- | ------------------------------------------------------------------------------------------- |
-| competitors.md       | `research.md` section 1, user-provided competitor set                                       |
-| ux-patterns.md       | `research.md` sections 1.2/3.x, `plan.md` gating + API response model                       |
-| codebase-analysis.md | root `package.json`, `AGENTS.md`, `plan.md`, `tasks.md`                                     |
-| tech-stack.md        | `research.md` sections 2/4/5, `plan.md` sections 1/3/5                                      |
-| metrics-roi.md       | `spec.md` success criteria + NFRs, `tasks.md` traceability table, `v-model/requirements.md` |
+| Research File        | Primary Sources                                                       |
+| -------------------- | --------------------------------------------------------------------- |
+| competitors.md       | `research.md` section 1, user-provided competitor set                 |
+| ux-patterns.md       | `research.md` sections 1.2/3.x, `plan.md` gating + API response model |
+| codebase-analysis.md | root `package.json`, `AGENTS.md`, `plan.md`, `tasks.md`               |
+| tech-stack.md        | `research.md` sections 2/4/5, `plan.md` sections 1/3/5                |
+| metrics-roi.md       | `spec.md` success criteria + NFRs, `tasks.md` traceability table      |
 
 ---
 

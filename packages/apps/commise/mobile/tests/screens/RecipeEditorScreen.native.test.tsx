@@ -9,8 +9,9 @@
 import { recipeLoadMessages } from '@commise/features-recipes/detail';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { useEffect, useState, type ReactElement } from 'react';
 
-import { renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
+import { dialogTitled, queryDialogTitled, renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
 import { SyncProvider } from '@commise/query/sync';
 import { recipeSender } from '@commise/query/recipe-sender';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
@@ -24,7 +25,7 @@ import { recipeFormMessages } from '@commise/features-recipes';
 import type { PhotoUploaderTarget } from '@commise/features-recipes/editor';
 
 import { RecipeEditorScreen } from '../../src/screens/RecipeEditorScreen.js';
-import { makeRecipeDetail } from '../__fixtures__/recipes.js';
+import { makeIngredientView, makeRecipeDetail } from '../__fixtures__/recipes.js';
 
 /** The window's width: a phone unless a test widens it to a tablet (the section index's rail shows from 960). */
 const win = vi.hoisted(() => ({ width: undefined as number | undefined }));
@@ -225,6 +226,61 @@ describe('RecipeEditorScreen (native)', () => {
 
         await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
         expect(create.mock.calls[0]?.[0]).toMatchObject({ title: 'Left by Back', status: 'draft' });
+    });
+
+    /**
+     * A deep link's `line` is read ONCE, when the screen mounts. The route clears the param on its first commit
+     * (`RecipeEditRoute`), but a stored recipe's editor is mounted only after its reads resolve, so a param read there
+     * would be gone: no row editor, no notice. The screen holds the arrival from its first render.
+     */
+    it('⛔ opens the addressed line’s editor and its notice though the route cleared the param before the reads resolved', async () => {
+        const client = createFakeRecipeServiceClient();
+        const stored = makeRecipeDetail({
+            id: 'rec_1',
+            title: 'Stored Stew',
+            status: RecipeStatus.DRAFT,
+            currentVersion: 3,
+            ingredients: [
+                makeIngredientView({ ingredientId: 'ing_a', name: 'salt' }),
+                makeIngredientView({ ingredientId: 'ing_b', name: 'paprika', resolutionStatus: 'NEEDS_REVIEW' }),
+            ],
+        });
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(stored);
+
+        // What `RecipeEditRoute` does: hand the screen the line, then let go of it after the first commit.
+        const Cleared = (): ReactElement => {
+            const [line, setLine] = useState<{ version: number; position: number } | undefined>({
+                version: 3,
+                position: 1,
+            });
+
+            useEffect(() => setLine(undefined), []);
+
+            return (
+                <RecipeEditorScreen
+                    recipeId="rec_1"
+                    section="ingredients"
+                    {...(line === undefined ? {} : { line })}
+                    onFinished={vi.fn()}
+                    onClose={vi.fn()}
+                    onDiscarded={vi.fn()}
+                />
+            );
+        };
+
+        renderWithRecipeClient(
+            withFoodClient(
+                <SyncProvider subject="user_cook" send={recipeSender(() => client)}>
+                    <Cleared />
+                </SyncProvider>,
+            ),
+            client,
+        );
+
+        await screen.findByRole('heading', { name: 'Edit recipe' });
+
+        await waitFor(() => expect(queryDialogTitled('paprika')).not.toBeNull());
+        expect(within(dialogTitled('paprika')).getByText(recipeFormMessages.en.statusExplainNeedsReview)).toBeTruthy();
     });
 
     it('opens a stored recipe from its read', async () => {

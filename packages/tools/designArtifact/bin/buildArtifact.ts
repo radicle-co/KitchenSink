@@ -6,8 +6,8 @@
  * `src/buildArtifact.ts`.
  *
  * Usage: `npm run artifact:build --workspace=packages/tools/designArtifact`. Only the Design System payload is ever
- * published. The canvas payload is for the LOCAL e2e render and is never published, because the screen canvases are
- * edited live (`docs/design/canvases/README.md`). `DESIGN_SYSTEM_ARTIFACT_URL` and `DESIGN_SYSTEM_ARTIFACT_VERSION`
+ * published. The canvas payload is for the LOCAL e2e render and is never published, because each screen canvas has its
+ * own source, the registry `folder` under `docs/design/canvases/`, published from `main` (`docs/design/canvases/README.md`). `DESIGN_SYSTEM_ARTIFACT_URL` and `DESIGN_SYSTEM_ARTIFACT_VERSION`
  * still record a design system in the local canvas when set together; setting only one is an error.
  */
 import { buildArtifact } from '../src/buildArtifact.js';
@@ -27,8 +27,8 @@ try {
             `Canvas:        ${result.canvasDir} (${String(result.boards)} boards)`,
             '',
             'Nothing is published. Publish only the Design System payload, with the Artifact tool by hand.',
-            'The canvas payload is for the LOCAL e2e render and is never published: the screen canvases are',
-            'edited live (docs/design/canvases/README.md).',
+            'The canvas payload is for the LOCAL e2e render and is never published: each screen canvas has its',
+            'own source under docs/design/canvases/, published from main (docs/design/canvases/README.md).',
             '',
         ].join('\n'),
     );

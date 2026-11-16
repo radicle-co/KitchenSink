@@ -1,0 +1,169 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:33Z"
+  },
+  "title": "Commise Screens, web: Recipe digitization and family circles",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "CirclePhotoCaptureWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, photo capture (web, 1280)"
+    },
+    "CircleReadingWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, reading (web, 1280)"
+    },
+    "CircleCorrectionWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, correction (web, 1280)"
+    },
+    "CircleCardsInRecipesWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, cards in recipes (web, 1280)"
+    },
+    "CircleCircleCreateWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, circle create (web, 1280)"
+    },
+    "CircleCircleInviteWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, circle invite (web, 1280)"
+    },
+    "CircleCircleJoinWeb1280.dc.html": {
+      "x": 8160,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, circle join (web, 1280)"
+    },
+    "CircleCircleViewWeb1280.dc.html": {
+      "x": 9520,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, circle view (web, 1280)"
+    },
+    "CirclePhotoCaptureWeb390.dc.html": {
+      "x": 0,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, photo capture (web, 390)"
+    },
+    "CircleReadingWeb390.dc.html": {
+      "x": 470,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, reading (web, 390)"
+    },
+    "CircleCorrectionWeb390.dc.html": {
+      "x": 940,
+      "y": 1720,
+      "w": 390,
+      "h": 916,
+      "title": "Recipe digitization and family circles, correction (web, 390)"
+    },
+    "CircleCardsInRecipesWeb390.dc.html": {
+      "x": 1410,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, cards in recipes (web, 390)"
+    },
+    "CircleCircleCreateWeb390.dc.html": {
+      "x": 1880,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, circle create (web, 390)"
+    },
+    "CircleCircleInviteWeb390.dc.html": {
+      "x": 2350,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, circle invite (web, 390)"
+    },
+    "CircleCircleJoinWeb390.dc.html": {
+      "x": 2820,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, circle join (web, 390)"
+    },
+    "CircleCircleViewWeb390.dc.html": {
+      "x": 3290,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, circle view (web, 390)"
+    }
+  },
+  "order": [
+    "CirclePhotoCaptureWeb1280.dc.html",
+    "CircleReadingWeb1280.dc.html",
+    "CircleCorrectionWeb1280.dc.html",
+    "CircleCardsInRecipesWeb1280.dc.html",
+    "CircleCircleCreateWeb1280.dc.html",
+    "CircleCircleInviteWeb1280.dc.html",
+    "CircleCircleJoinWeb1280.dc.html",
+    "CircleCircleViewWeb1280.dc.html",
+    "CirclePhotoCaptureWeb390.dc.html",
+    "CircleReadingWeb390.dc.html",
+    "CircleCorrectionWeb390.dc.html",
+    "CircleCardsInRecipesWeb390.dc.html",
+    "CircleCircleCreateWeb390.dc.html",
+    "CircleCircleInviteWeb390.dc.html",
+    "CircleCircleJoinWeb390.dc.html",
+    "CircleCircleViewWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Recipe digitization and family circles: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1460,
+      "text": "Recipe digitization and family circles: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

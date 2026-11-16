@@ -361,7 +361,7 @@
         },
         "@kitchensink/design-artifact#test:e2e": {
             "dependsOn": ["^build"],
-            "passThroughEnv": ["DESIGN_CANVAS_RUNTIME"],
+            "passThroughEnv": ["DESIGN_CANVAS_RUNTIME", "CANVASES"],
             "outputs": [],
             "cache": false
         },

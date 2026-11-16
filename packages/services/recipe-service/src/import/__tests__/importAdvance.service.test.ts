@@ -307,6 +307,8 @@ interface World {
     readonly limits?: Partial<ImportAdvanceLimits>;
     /** The cook's plan roles, read from the signed token (`isPremiumPrincipal`). None is a free cook. */
     readonly roles?: readonly Role[];
+    /** The principal's kind (ADR-0040). A test principal has no allowance limit; real is the default. */
+    readonly principalKind?: 'real' | 'test';
 }
 
 function build(world: World = {}) {
@@ -435,7 +437,13 @@ function build(world: World = {}) {
         builder,
         limits,
     );
-    const principal = world.roles === undefined ? COOK : makePrincipal({ roles: [...world.roles] });
+    const principal =
+        world.roles === undefined && world.principalKind === undefined
+            ? COOK
+            : makePrincipal({
+                  roles: [...(world.roles ?? [])],
+                  ...(world.principalKind === undefined ? {} : { principalKind: world.principalKind }),
+              });
 
     return {
         service,
@@ -468,7 +476,17 @@ describe('ImportAdvanceService — paying and giving each item its parse job', (
         expect(store.payUnpaid).toHaveBeenCalledWith(USER, IMPORT_ID, {
             limit: DEFAULT_IMPORT_ADVANCE_LIMITS.payBatch,
             isPremium: false,
+            principalKind: 'real',
         });
+    });
+
+    // Owner ruling 2026-11-15: a test principal has no limit, so the principal's kind must reach the allowance.
+    it('⛔ hands the principal’s kind to the allowance, so a test principal is admitted without a limit', async () => {
+        const { answered, store } = run({ items: [received(0)], principalKind: 'test' });
+
+        await answered;
+
+        expect(store.payUnpaid.mock.calls[0]?.[2]).toMatchObject({ principalKind: 'test' });
     });
 
     // REWRITTEN twice: owner ruling 2026-11-11 puts bulk at 200 a day on Free and 1,000 on a paid plan, so the cook's plan
@@ -489,6 +507,7 @@ describe('ImportAdvanceService — paying and giving each item its parse job', (
             expect(store.payUnpaid.mock.calls[0]?.[2]).toStrictEqual({
                 limit: DEFAULT_IMPORT_ADVANCE_LIMITS.payBatch,
                 isPremium,
+                principalKind: 'real',
             });
         },
     );
@@ -960,6 +979,9 @@ describe('ImportAdvanceService — saving what is ready', () => {
         expect(lines[2]).not.toHaveProperty('unit');
         expect(lines[3]).toMatchObject({ quantity: { kind: 'absent' }, sourceLine: 'FOR THE SAUCE' });
         expect(lines[3]).not.toHaveProperty('sourcePhrase');
+        // ⛔ EVERY line carries its file line (the two foods of line 1 both carry it): `create` marks a line the cook's own
+        // words only when it has one (ADR-0090 §2), so a line without it would be saved as not the cook's.
+        expect(lines.map((line) => line.sourceLine)).toEqual([0, 1, 1, 2].map((index) => payloadLines[index]));
     });
 
     it('names a line kept as written with its parsed phrase, and a heading with its text (declared, never converging)', async () => {

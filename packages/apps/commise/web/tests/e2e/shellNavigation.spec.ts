@@ -4,6 +4,7 @@ import type { Locator, Page } from '@playwright/test';
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import { applyTextScale } from './utils/textScale';
 
 /**
  * The web shell of the UI overhaul, slice 3 (`docs/design/uiOverhaul/buildSpec.md` §3.2-§3.6; ownerDecisions D5),
@@ -233,7 +234,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
             await page.setViewportSize({ width: 320, height: 640 });
             await signedIn(page);
             await page.goto(route('/'));
-            await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
+            await applyTextScale(page, 2);
 
             for (const link of await visibleNav(page).getByRole('link').all()) {
                 const fit = await link.locator('.text-caption').evaluate(

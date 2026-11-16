@@ -5,3 +5,10 @@
 # manifest). A checkout's line-ending conversion would change those bytes, so git must never touch them.
 packages/services/food-service/src/foods/seed/data/** -text
 *.zip binary
+
+# Byte-for-byte snapshots of the published claude.ai design canvases (docs/design/canvases/README.md). A checkout's
+# line-ending conversion would make a snapshot differ from the canvas it records, so git must never touch them.
+docs/design/canvases/*/** -text
+# Canvas images live as canvas files under project/assets/ and are stored with Git LFS (ADR-0092). Nothing else in
+# the repo uses LFS; designCanvasFolders.test.ts holds that.
+docs/design/canvases/*/project/assets/** filter=lfs diff=lfs merge=lfs -text

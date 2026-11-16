@@ -4087,6 +4087,21 @@
             ],
             "type": "string"
         },
+        "importOrdinalParamsSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "ordinal": {
+                    "maximum": 2147483646,
+                    "minimum": 0,
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "ordinal"
+            ],
+            "type": "object"
+        },
         "importPickRequestSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -10879,6 +10894,23 @@
                     "additionalProperties": {},
                     "properties": {
                         "code": {
+                            "const": "IMPORT_STORAGE_FULL",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
                             "const": "UNAUTHORIZED",
                             "type": "string"
                         },
@@ -11339,6 +11371,10 @@
                                 ],
                                 "type": "string"
                             },
+                            "sourceLine": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
                             "unit": {
                                 "minLength": 1,
                                 "type": "string"
@@ -11683,6 +11719,7 @@
                 "PRIVATE_FOODS_ON_PUBLIC_RECIPE",
                 "IMPORT_ITEM_LOCKED",
                 "IMPORT_ID_IN_USE",
+                "IMPORT_STORAGE_FULL",
                 "UNAUTHORIZED",
                 "IDENTITY_SYNC_PENDING",
                 "FORBIDDEN",
@@ -13935,6 +13972,10 @@
                                             "FOOD_REMOVED",
                                             "FOOD_UNREACHABLE"
                                         ],
+                                        "type": "string"
+                                    },
+                                    "sourceLine": {
+                                        "minLength": 1,
                                         "type": "string"
                                     },
                                     "unit": {

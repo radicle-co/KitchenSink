@@ -1,0 +1,304 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-27T19:13:01Z"
+  },
+  "title": "Commise Screens: Drafts",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "DraftLibraryMobile.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, library (phone)"
+    },
+    "DraftDraftMenuMobile.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, draft menu (phone)"
+    },
+    "DraftEditorMobile.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, editor (phone)"
+    },
+    "DraftPlanPickerMobile.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, plan picker (phone)"
+    },
+    "DraftCollectionPickerMobile.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, collection picker (phone)"
+    },
+    "DraftListPickerMobile.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, list picker (phone)"
+    },
+    "DraftSetBackToDraftMobile.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, set back to draft (phone)"
+    },
+    "DraftDeleteDraftMobile.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, delete draft (phone)"
+    },
+    "DraftLibrary834Mobile.dc.html": {
+      "x": 0,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Drafts, library (tablet 834 px)"
+    },
+    "DraftLibrary1194Mobile.dc.html": {
+      "x": 914,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Drafts, library (tablet 1194 px)"
+    },
+    "DraftDraftMenu834Mobile.dc.html": {
+      "x": 2188,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Drafts, draft menu (tablet 834 px)"
+    },
+    "DraftDraftMenu1194Mobile.dc.html": {
+      "x": 3102,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Drafts, draft menu (tablet 1194 px)"
+    },
+    "DraftEditor834Mobile.dc.html": {
+      "x": 4376,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Drafts, editor (tablet 834 px)"
+    },
+    "DraftEditor1194Mobile.dc.html": {
+      "x": 5290,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Drafts, editor (tablet 1194 px)"
+    },
+    "DraftPlanPicker834Mobile.dc.html": {
+      "x": 6564,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Drafts, plan picker (tablet 834 px)"
+    },
+    "DraftPlanPicker1194Mobile.dc.html": {
+      "x": 7478,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Drafts, plan picker (tablet 1194 px)"
+    },
+    "DraftCollectionPicker834Mobile.dc.html": {
+      "x": 8752,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Drafts, collection picker (tablet 834 px)"
+    },
+    "DraftCollectionPicker1194Mobile.dc.html": {
+      "x": 9666,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Drafts, collection picker (tablet 1194 px)"
+    },
+    "DraftListPicker834Mobile.dc.html": {
+      "x": 10940,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Drafts, list picker (tablet 834 px)"
+    },
+    "DraftListPicker1194Mobile.dc.html": {
+      "x": 11854,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Drafts, list picker (tablet 1194 px)"
+    },
+    "DraftSetBackToDraft834Mobile.dc.html": {
+      "x": 13128,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Drafts, set back to draft (tablet 834 px)"
+    },
+    "DraftSetBackToDraft1194Mobile.dc.html": {
+      "x": 14042,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Drafts, set back to draft (tablet 1194 px)"
+    },
+    "DraftDeleteDraft834Mobile.dc.html": {
+      "x": 15316,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Drafts, delete draft (tablet 834 px)"
+    },
+    "DraftDeleteDraft1194Mobile.dc.html": {
+      "x": 16230,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Drafts, delete draft (tablet 1194 px)"
+    },
+    "DraftLibrary.dc.html": {
+      "x": 0,
+      "y": 3058,
+      "w": 1280,
+      "h": 1040,
+      "title": "Drafts, library (web)"
+    },
+    "DraftDraftMenu.dc.html": {
+      "x": 1360,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Drafts, draft menu (web)"
+    },
+    "DraftEditor.dc.html": {
+      "x": 2720,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Drafts, editor (web)"
+    },
+    "DraftPlanPicker.dc.html": {
+      "x": 4080,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Drafts, plan picker (web)"
+    },
+    "DraftCollectionPicker.dc.html": {
+      "x": 5440,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Drafts, collection picker (web)"
+    },
+    "DraftListPicker.dc.html": {
+      "x": 6800,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Drafts, list picker (web)"
+    },
+    "DraftSetBackToDraft.dc.html": {
+      "x": 8160,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Drafts, set back to draft (web)"
+    },
+    "DraftDeleteDraft.dc.html": {
+      "x": 9520,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Drafts, delete draft (web)"
+    }
+  },
+  "order": [
+    "DraftLibraryMobile.dc.html",
+    "DraftDraftMenuMobile.dc.html",
+    "DraftEditorMobile.dc.html",
+    "DraftPlanPickerMobile.dc.html",
+    "DraftCollectionPickerMobile.dc.html",
+    "DraftListPickerMobile.dc.html",
+    "DraftSetBackToDraftMobile.dc.html",
+    "DraftDeleteDraftMobile.dc.html",
+    "DraftLibrary834Mobile.dc.html",
+    "DraftLibrary1194Mobile.dc.html",
+    "DraftDraftMenu834Mobile.dc.html",
+    "DraftDraftMenu1194Mobile.dc.html",
+    "DraftEditor834Mobile.dc.html",
+    "DraftEditor1194Mobile.dc.html",
+    "DraftPlanPicker834Mobile.dc.html",
+    "DraftPlanPicker1194Mobile.dc.html",
+    "DraftCollectionPicker834Mobile.dc.html",
+    "DraftCollectionPicker1194Mobile.dc.html",
+    "DraftListPicker834Mobile.dc.html",
+    "DraftListPicker1194Mobile.dc.html",
+    "DraftSetBackToDraft834Mobile.dc.html",
+    "DraftSetBackToDraft1194Mobile.dc.html",
+    "DraftDeleteDraft834Mobile.dc.html",
+    "DraftDeleteDraft1194Mobile.dc.html",
+    "DraftLibrary.dc.html",
+    "DraftDraftMenu.dc.html",
+    "DraftEditor.dc.html",
+    "DraftPlanPicker.dc.html",
+    "DraftCollectionPicker.dc.html",
+    "DraftListPicker.dc.html",
+    "DraftSetBackToDraft.dc.html",
+    "DraftDeleteDraft.dc.html"
+  ],
+  "notes": {
+    "row3": {
+      "x": 0,
+      "y": 0,
+      "text": "Drafts: phone",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row4": {
+      "x": 0,
+      "y": 1224,
+      "text": "Drafts: tablet",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row5": {
+      "x": 0,
+      "y": 2798,
+      "text": "Drafts: web",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

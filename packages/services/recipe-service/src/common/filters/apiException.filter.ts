@@ -2,7 +2,11 @@ import { Catch, HttpException, HttpStatus, Logger, type ArgumentsHost, type Exce
 import { isRecipeError } from '@kitchensink/recipe-core';
 import * as Sentry from '@sentry/nestjs';
 
-import { normalizeHttpException, normalizeUnstorableText } from '@kitchensink/nest-error-envelope';
+import {
+    normalizeBodyParserError,
+    normalizeHttpException,
+    normalizeUnstorableText,
+} from '@kitchensink/nest-error-envelope';
 import type { ApiErrorEnvelope, EnvelopeVocabulary, NormalizedFailure } from '@kitchensink/nest-error-envelope';
 import type { Request, Response } from 'express';
 
@@ -80,8 +84,8 @@ function classifyRecipeError(exception: unknown): ClassifiedEnvelope | undefined
  * put FOUR error shapes on this service's wire: the envelope, Nest's `{ statusCode, message, error? }`,
  * `nestjs-zod`'s `{ statusCode, message: 'Validation failed', errors }`, and — for the `429` — a bare JSON STRING.
  * Because the guarantee now lives HERE rather than at each throw site, it also covers failures this service does
- * not raise: `ClerkAuthService`'s argument-less `401`s, Nest's `404` for an unrouted path, the body parser's
- * `413`, the throttler's string `429`. No amount of controller discipline would have reached those.
+ * not raise: `ClerkAuthService`'s argument-less `401`s, Nest's `404` for an unrouted path and the throttler's string
+ * `429`. (The body parser's refusals are not `HttpException`s: `normalizeBodyParserError` answers them below.) No amount of controller discipline would have reached those.
  *
  * ⛔ Do not reintroduce a "pass it through if it looks fine" shortcut — "looks fine" is what the four shapes were.
  *
@@ -100,6 +104,7 @@ function resolve(exception: unknown): NormalizedFailure {
     }
 
     return (
+        normalizeBodyParserError(exception, VOCABULARY) ??
         normalizeUnstorableText(exception, VOCABULARY) ?? {
             status: HttpStatus.INTERNAL_SERVER_ERROR,
             // ⚠️ The message is a CONSTANT, never the throwable's. An unexpected `Error`'s message is the one place

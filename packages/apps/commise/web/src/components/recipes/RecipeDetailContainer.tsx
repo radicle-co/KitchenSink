@@ -236,6 +236,8 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                 refreshNotice={refreshNotice}
                 unreachableRetry={unreachableRetry}
                 headerActions={headerActions}
+                canStartCooking={page.canStartCooking}
+                onStartCooking={() => router.push(`/${locale}/recipes/${id}/cook` as Route)}
                 heroControls={
                     <>
                         <span className="nav:hidden">

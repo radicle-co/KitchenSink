@@ -5,6 +5,16 @@
  * (the test) holds the request-budget ones against the recipe client's timeout.
  */
 
+/**
+ * The most UNPAID recipe bytes (the stored payload text of every item that has not spent an allowance unit, across all of a
+ * cook's imports) one cook may hold. Never a cap on a file's size (owner ruling): a 2,000-recipe export is accepted and the
+ * allowance paces it. The routes are public to any signed-in account, and an unpaid item waits up to 30 days for the purge,
+ * so without a bound one account could write `MAX_IMPORT_RECIPE_BYTES` (90 kB) at the write throttle's 300 a minute and fill
+ * the database in hours. 64 MiB holds about 10,000 ordinary (6 kB) recipes, more than a Free cook can pay for inside the
+ * purge window (200 a day), and bounds the worst case at about 700 recipes of the largest size one request allows.
+ */
+export const IMPORT_MAX_UNPAID_BYTES = 64 * 1024 * 1024;
+
 /** Items shown when a request names no page size. */
 export const IMPORT_DEFAULT_PAGE_SIZE = 100;
 

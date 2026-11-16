@@ -1,0 +1,183 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T02:01:02Z"
+  },
+  "title": "Commise Screens, web: Home",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "HomeWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 1048,
+      "title": "Home, proposal (web, 1280)"
+    },
+    "HomeLoadingWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 1345,
+      "title": "Home, loading, proposal (web, 1280)"
+    },
+    "HomeEmptyWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 811,
+      "title": "Home, first run, proposal (web, 1280)"
+    },
+    "HomeErrorsWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 885,
+      "title": "Home, could not load, proposal (web, 1280)"
+    },
+    "HomeSubscriptionNudgeWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 1048,
+      "title": "Home, Pro offer, proposal (web, 1280)"
+    },
+    "HomeTwoSessionsWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 1128,
+      "title": "Home, two cooking sessions, proposal (web, 1280)"
+    },
+    "HomeWeb1024.dc.html": {
+      "x": 0,
+      "y": 2265,
+      "w": 1024,
+      "h": 1100,
+      "title": "Home, proposal (web, 1024)"
+    },
+    "HomeTwoSessionsWeb1024.dc.html": {
+      "x": 1104,
+      "y": 2265,
+      "w": 1024,
+      "h": 1176,
+      "title": "Home, two cooking sessions, proposal (web, 1024)"
+    },
+    "HomeWeb768.dc.html": {
+      "x": 0,
+      "y": 4101,
+      "w": 768,
+      "h": 1296,
+      "title": "Home, proposal (web, 768)"
+    },
+    "HomeTwoSessionsWeb768.dc.html": {
+      "x": 848,
+      "y": 4101,
+      "w": 768,
+      "h": 1396,
+      "title": "Home, two cooking sessions, proposal (web, 768)"
+    },
+    "HomeWeb390.dc.html": {
+      "x": 0,
+      "y": 6157,
+      "w": 390,
+      "h": 1609,
+      "title": "Home (web, 390)"
+    },
+    "HomeLoadingWeb390.dc.html": {
+      "x": 470,
+      "y": 6157,
+      "w": 390,
+      "h": 1339,
+      "title": "Home, loading (web, 390)"
+    },
+    "HomeEmptyWeb390.dc.html": {
+      "x": 940,
+      "y": 6157,
+      "w": 390,
+      "h": 1162,
+      "title": "Home, first run (web, 390)"
+    },
+    "HomeErrorsWeb390.dc.html": {
+      "x": 1410,
+      "y": 6157,
+      "w": 390,
+      "h": 1254,
+      "title": "Home, could not load (web, 390)"
+    },
+    "HomeSubscriptionNudgeWeb390.dc.html": {
+      "x": 1880,
+      "y": 6157,
+      "w": 390,
+      "h": 1609,
+      "title": "Home, Pro offer (web, 390)"
+    },
+    "HomeTwoSessionsWeb390.dc.html": {
+      "x": 2350,
+      "y": 6157,
+      "w": 390,
+      "h": 1709,
+      "title": "Home, two cooking sessions (web, 390)"
+    }
+  },
+  "order": [
+    "HomeWeb1280.dc.html",
+    "HomeLoadingWeb1280.dc.html",
+    "HomeEmptyWeb1280.dc.html",
+    "HomeErrorsWeb1280.dc.html",
+    "HomeSubscriptionNudgeWeb1280.dc.html",
+    "HomeTwoSessionsWeb1280.dc.html",
+    "HomeWeb1024.dc.html",
+    "HomeTwoSessionsWeb1024.dc.html",
+    "HomeWeb768.dc.html",
+    "HomeTwoSessionsWeb768.dc.html",
+    "HomeWeb390.dc.html",
+    "HomeLoadingWeb390.dc.html",
+    "HomeEmptyWeb390.dc.html",
+    "HomeErrorsWeb390.dc.html",
+    "HomeSubscriptionNudgeWeb390.dc.html",
+    "HomeTwoSessionsWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Home: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 2005,
+      "text": "Home: web 1024",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 3841,
+      "text": "Home: web 768",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row3": {
+      "x": 0,
+      "y": 5897,
+      "text": "Home: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

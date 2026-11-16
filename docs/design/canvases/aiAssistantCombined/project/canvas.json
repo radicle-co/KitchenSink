@@ -1,0 +1,304 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-27T19:13:01Z"
+  },
+  "title": "Commise Screens: AI assistant",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "AssistantGenerateMobile.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, generate (phone)"
+    },
+    "AssistantPreviewMobile.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, preview (phone)"
+    },
+    "AssistantProviderSetupMobile.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, provider setup (phone)"
+    },
+    "AssistantAgentConsentMobile.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, agent consent (phone)"
+    },
+    "AssistantConnectedAppsMobile.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, connected apps (phone)"
+    },
+    "AssistantConnectedAppsProMobile.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, connected apps pro (phone)"
+    },
+    "AssistantProGateMobile.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, pro gate (phone)"
+    },
+    "AssistantAllowanceUsedUpMobile.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "AI assistant, allowance used up (phone)"
+    },
+    "AssistantGenerate834Mobile.dc.html": {
+      "x": 0,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "AI assistant, generate (tablet 834 px)"
+    },
+    "AssistantGenerate1194Mobile.dc.html": {
+      "x": 914,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "AI assistant, generate (tablet 1194 px)"
+    },
+    "AssistantPreview834Mobile.dc.html": {
+      "x": 2188,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "AI assistant, preview (tablet 834 px)"
+    },
+    "AssistantPreview1194Mobile.dc.html": {
+      "x": 3102,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "AI assistant, preview (tablet 1194 px)"
+    },
+    "AssistantProviderSetup834Mobile.dc.html": {
+      "x": 4376,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "AI assistant, provider setup (tablet 834 px)"
+    },
+    "AssistantProviderSetup1194Mobile.dc.html": {
+      "x": 5290,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "AI assistant, provider setup (tablet 1194 px)"
+    },
+    "AssistantAgentConsent834Mobile.dc.html": {
+      "x": 6564,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "AI assistant, agent consent (tablet 834 px)"
+    },
+    "AssistantAgentConsent1194Mobile.dc.html": {
+      "x": 7478,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "AI assistant, agent consent (tablet 1194 px)"
+    },
+    "AssistantConnectedApps834Mobile.dc.html": {
+      "x": 8752,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "AI assistant, connected apps (tablet 834 px)"
+    },
+    "AssistantConnectedAppsPro834Mobile.dc.html": {
+      "x": 9666,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "AI assistant, connected apps pro (tablet 834 px)"
+    },
+    "AssistantConnectedApps1194Mobile.dc.html": {
+      "x": 10580,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "AI assistant, connected apps (tablet 1194 px)"
+    },
+    "AssistantConnectedAppsPro1194Mobile.dc.html": {
+      "x": 11854,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "AI assistant, connected apps pro (tablet 1194 px)"
+    },
+    "AssistantProGate834Mobile.dc.html": {
+      "x": 13128,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "AI assistant, pro gate (tablet 834 px)"
+    },
+    "AssistantProGate1194Mobile.dc.html": {
+      "x": 14042,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "AI assistant, pro gate (tablet 1194 px)"
+    },
+    "AssistantAllowanceUsedUp834Mobile.dc.html": {
+      "x": 15316,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "AI assistant, allowance used up (tablet 834 px)"
+    },
+    "AssistantAllowanceUsedUp1194Mobile.dc.html": {
+      "x": 16230,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "AI assistant, allowance used up (tablet 1194 px)"
+    },
+    "AssistantGenerate.dc.html": {
+      "x": 0,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "AI assistant, generate (web)"
+    },
+    "AssistantPreview.dc.html": {
+      "x": 1360,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "AI assistant, preview (web)"
+    },
+    "AssistantProviderSetup.dc.html": {
+      "x": 2720,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "AI assistant, provider setup (web)"
+    },
+    "AssistantAgentConsent.dc.html": {
+      "x": 4080,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "AI assistant, agent consent (web)"
+    },
+    "AssistantConnectedApps.dc.html": {
+      "x": 5440,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "AI assistant, connected apps (web)"
+    },
+    "AssistantConnectedAppsPro.dc.html": {
+      "x": 6800,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "AI assistant, connected apps pro (web)"
+    },
+    "AssistantProGate.dc.html": {
+      "x": 8160,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "AI assistant, pro gate (web)"
+    },
+    "AssistantAllowanceUsedUp.dc.html": {
+      "x": 9520,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "AI assistant, allowance used up (web)"
+    }
+  },
+  "order": [
+    "AssistantGenerateMobile.dc.html",
+    "AssistantPreviewMobile.dc.html",
+    "AssistantProviderSetupMobile.dc.html",
+    "AssistantAgentConsentMobile.dc.html",
+    "AssistantConnectedAppsMobile.dc.html",
+    "AssistantConnectedAppsProMobile.dc.html",
+    "AssistantProGateMobile.dc.html",
+    "AssistantAllowanceUsedUpMobile.dc.html",
+    "AssistantGenerate834Mobile.dc.html",
+    "AssistantGenerate1194Mobile.dc.html",
+    "AssistantPreview834Mobile.dc.html",
+    "AssistantPreview1194Mobile.dc.html",
+    "AssistantProviderSetup834Mobile.dc.html",
+    "AssistantProviderSetup1194Mobile.dc.html",
+    "AssistantAgentConsent834Mobile.dc.html",
+    "AssistantAgentConsent1194Mobile.dc.html",
+    "AssistantConnectedApps834Mobile.dc.html",
+    "AssistantConnectedAppsPro834Mobile.dc.html",
+    "AssistantConnectedApps1194Mobile.dc.html",
+    "AssistantConnectedAppsPro1194Mobile.dc.html",
+    "AssistantProGate834Mobile.dc.html",
+    "AssistantProGate1194Mobile.dc.html",
+    "AssistantAllowanceUsedUp834Mobile.dc.html",
+    "AssistantAllowanceUsedUp1194Mobile.dc.html",
+    "AssistantGenerate.dc.html",
+    "AssistantPreview.dc.html",
+    "AssistantProviderSetup.dc.html",
+    "AssistantAgentConsent.dc.html",
+    "AssistantConnectedApps.dc.html",
+    "AssistantConnectedAppsPro.dc.html",
+    "AssistantProGate.dc.html",
+    "AssistantAllowanceUsedUp.dc.html"
+  ],
+  "notes": {
+    "row15": {
+      "x": 0,
+      "y": 0,
+      "text": "AI assistant: phone",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row16": {
+      "x": 0,
+      "y": 1224,
+      "text": "AI assistant: tablet",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row17": {
+      "x": 0,
+      "y": 2798,
+      "text": "AI assistant: web",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

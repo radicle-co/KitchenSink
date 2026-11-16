@@ -21,6 +21,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     IMPORT_ALLOWANCE_RULES,
+    TEST_PRINCIPAL_ALLOWANCE_LIMIT,
     describeImportAllowance,
     evaluateImportAllowance,
     importAllowanceLimitOf,
@@ -44,8 +45,9 @@ function spread(count: number, firstAgeMs: number, stepMs: number, channel: Impo
 }
 
 const PASTE: ImportAllowanceScope = { channel: 'paste' };
-const BULK_FREE: ImportAllowanceScope = { channel: 'bulk', isPremium: false };
-const BULK_PAID: ImportAllowanceScope = { channel: 'bulk', isPremium: true };
+const BULK_FREE: ImportAllowanceScope = { channel: 'bulk', isPremium: false, principalKind: 'real' };
+const BULK_PAID: ImportAllowanceScope = { channel: 'bulk', isPremium: true, principalKind: 'real' };
+const BULK_TEST: ImportAllowanceScope = { channel: 'bulk', isPremium: false, principalKind: 'test' };
 /** The scope each channel's shared cases run under: bulk on the paid plan, whose limit the cases were written for. */
 const SCOPE_OF = { paste: PASTE, bulk: BULK_PAID } as const;
 
@@ -355,5 +357,35 @@ describe('describeImportAllowance — the state the import view shows (ADR-0072 
         expect(view.limit).toBe(200);
         expect(view.used).toBe(205);
         expect(view.resetsAt).toBe(refusal.kind === 'refuse' ? refusal.resetsAt.toISOString() : 'not refused');
+    });
+});
+
+// Owner ruling 2026-11-15: "if this is for testing, then there are no limits. IF this is for user-facing behavior, then
+// one pipeline, one allowance." A test principal (ADR-0040) is the testing; a real cook is the user-facing behaviour.
+describe('a test principal has no limit (owner ruling 2026-11-15)', () => {
+    it('⛔ admits a request however much the window already holds', () => {
+        const events = [eventAged(HOUR, 50_000, 'bulk')];
+
+        expect(decide(BULK_TEST, events, 1_000)).toEqual({ kind: 'admit', units: 1_000 });
+        // The same ledger refuses a real cook on either plan: the difference is the principal, not the data.
+        expect(decide(BULK_PAID, events, 1).kind).toBe('refuse');
+        expect(decide(BULK_FREE, events, 1).kind).toBe('refuse');
+    });
+
+    it('states its limit as the int4 ceiling the view contract can carry, and is never "spent" at ordinary volume', () => {
+        const view = describeImportAllowance({
+            ...BULK_TEST,
+            windowEvents: [eventAged(HOUR, 50_000, 'bulk')],
+            now: NOW,
+        });
+
+        expect(importAllowanceLimitOf(BULK_TEST)).toBe(TEST_PRINCIPAL_ALLOWANCE_LIMIT);
+        expect(view.limit).toBe(TEST_PRINCIPAL_ALLOWANCE_LIMIT);
+        expect(view.used).toBeLessThan(view.limit);
+    });
+
+    it('a real cook on the same scope shape keeps the plan limit', () => {
+        expect(importAllowanceLimitOf(BULK_FREE)).toBe(200);
+        expect(importAllowanceLimitOf(BULK_PAID)).toBe(1000);
     });
 });

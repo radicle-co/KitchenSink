@@ -73,6 +73,10 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
     let warnedNoLocks = false;
     let reportedWriteFailure = false;
     let subscribedExternal = false;
+    /** After a failed write only: the document memory holds, valid while storage still holds `fromRev` (KTD2). */
+    let pending: { readonly fromRev: number; readonly doc: KeptDocument } | undefined;
+    /** The last raw string this store read or wrote, so a re-read can tell a different record from the same one. */
+    let lastRaw: string | null | undefined;
 
     const set = (next: Partial<StoreState>): void => {
         state = { ...state, ...next };
@@ -95,10 +99,20 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
         return run(name, () => work(true));
     };
 
-    const persist = async (key: string, doc: KeptDocument): Promise<void> => {
-        const outcome = await port.write(key, serializeKeptDocument(doc));
+    const persist = async (key: string, doc: KeptDocument, fromRev: number): Promise<void> => {
+        const raw = serializeKeptDocument(doc);
+        const outcome = await port.write(key, raw);
 
-        if (!outcome.ok && !reportedWriteFailure) {
+        if (outcome.ok) {
+            pending = undefined;
+            lastRaw = raw;
+
+            return;
+        }
+
+        pending = { fromRev, doc };
+
+        if (!reportedWriteFailure) {
             reportedWriteFailure = true;
             deps.report(outcome.error);
         }
@@ -108,11 +122,14 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
         const key = keptKeyFor(subject);
 
         return exclusive(key, async (locked) => {
-            const parsed = parseKeptDocument(await port.read(key));
+            const raw = await port.read(key);
+            const parsed = parseKeptDocument(raw);
 
             if (state.generation !== generation) {
                 return;
             }
+
+            lastRaw = raw;
 
             let doc = EMPTY_KEPT_DOCUMENT;
 
@@ -132,7 +149,7 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
                 doc = pruned.doc;
 
                 if (locked && state.generation === generation) {
-                    await persist(key, doc);
+                    await persist(key, doc, parsed.kind === 'ok' ? parsed.doc.rev : 0);
                 }
             }
 
@@ -157,15 +174,25 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
             return;
         }
 
-        const parsed = parseKeptDocument(await port.read(keptKeyFor(subject)));
+        const raw = await port.read(keptKeyFor(subject));
 
-        if (parsed.kind === 'ok' && state.generation === generation && parsed.doc.rev !== snapshot.doc.rev) {
-            set({ snapshot: { status: 'ready', doc: parsed.doc } });
+        if (state.generation !== generation || raw === lastRaw) {
+            return;
+        }
+
+        const parsed = parseKeptDocument(raw);
+
+        // An absent key is a cleared record; an unreadable one is left for the next locked write to replace.
+        if (parsed.kind !== 'invalid') {
+            lastRaw = raw;
+            set({ snapshot: { status: 'ready', doc: parsed.kind === 'ok' ? parsed.doc : EMPTY_KEPT_DOCUMENT } });
         }
     };
 
     const clear = async (subject: string | undefined): Promise<void> => {
         hydrating = undefined;
+        pending = undefined;
+        lastRaw = undefined;
         set({
             subject: undefined,
             generation: state.generation + 1,
@@ -205,6 +232,8 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
 
         const generation = state.generation + 1;
 
+        pending = undefined;
+        lastRaw = undefined;
         set({ subject, generation, snapshot: { status: 'loading' } });
         // Assigned before the first await, so a dispatch made while the cook loads waits for it.
         hydrating = removeKeys(keptKeyFor(subject)).then(() => hydrate(subject, generation));
@@ -223,14 +252,21 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
         const key = keptKeyFor(subject);
 
         return exclusive(key, async (locked) => {
-            // The stored document is the truth unless a failed write left memory ahead of it (KTD2).
+            // Storage is the truth. The one exception: our own write failed and nobody has written since, so storage
+            // still holds the rev it held then (an absent or unreadable key is rev 0, and every real record is 1 or
+            // more). Otherwise an absent key means empty, never memory, or a record another tab cleared would come back
+            // (KTD3).
             const stored = locked ? parseKeptDocument(await port.read(key)) : undefined;
-            const memory = state.snapshot.status === 'ready' ? state.snapshot.doc : undefined;
-            const storedDoc = stored?.kind === 'ok' ? stored.doc : undefined;
-            const base =
-                storedDoc !== undefined && (memory === undefined || storedDoc.rev >= memory.rev)
-                    ? storedDoc
-                    : (memory ?? EMPTY_KEPT_DOCUMENT);
+            const storedDoc = stored?.kind === 'ok' ? stored.doc : EMPTY_KEPT_DOCUMENT;
+            const held = pending;
+            const useHeld = held !== undefined && storedDoc.rev === held.fromRev;
+            const memory = state.snapshot.status === 'ready' ? state.snapshot.doc : EMPTY_KEPT_DOCUMENT;
+            const base = stored === undefined ? memory : useHeld ? held.doc : storedDoc;
+
+            if (stored !== undefined && !useHeld) {
+                pending = undefined;
+            }
+
             const outcome = applyKeptCommand(base, command, deps.now());
 
             if (outcome.kind !== 'applied' || state.generation !== generation) {
@@ -238,7 +274,7 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
             }
 
             if (locked) {
-                await persist(key, outcome.doc);
+                await persist(key, outcome.doc, storedDoc.rev);
             }
 
             if (state.generation === generation) {

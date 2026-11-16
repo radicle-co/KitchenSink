@@ -205,6 +205,31 @@ describe('reread and snapshot identity', () => {
         await vi.waitFor(() => expect(docOf(store.getSnapshot()).rev).toBe(3));
     });
 
+    it('a re-read of a key another tab cleared shows no session', async () => {
+        const { store, data } = setup({
+            [KEY_A]: serializeKeptDocument(makeDoc({ rev: 2, entries: { r1: makeCooking() } })),
+        });
+
+        await store.scope('A');
+        data.delete(KEY_A);
+        await store.reread();
+
+        expect(docOf(store.getSnapshot()).entries).toEqual({});
+    });
+
+    it('a record recreated at the same rev with other content is a change (mutant: compares revs)', async () => {
+        const { store, data } = setup({ [KEY_A]: serializeKeptDocument(makeDoc({ rev: 2 })) });
+        const listener = vi.fn();
+
+        await store.scope('A');
+        store.subscribe(listener);
+        data.set(KEY_A, serializeKeptDocument(makeDoc({ rev: 2, entries: { r1: makeCooking() } })));
+        await store.reread();
+
+        expect(listener).toHaveBeenCalledTimes(1);
+        expect(docOf(store.getSnapshot()).entries['r1']).toBeDefined();
+    });
+
     it('getSnapshot returns the same object until something changes', async () => {
         const { store } = setup();
 

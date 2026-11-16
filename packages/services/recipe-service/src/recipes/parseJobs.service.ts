@@ -46,6 +46,7 @@ import {
 import { lineProgressOf } from './domain/lineProgress.js';
 import { RecipeDomainError, importQuotaExceeded } from './recipe.error.js';
 import { PARSE_JOB_QUEUE, type ParseJobQueuePort } from './parseJob.queue.js';
+import { isPremiumPrincipal, type Principal } from '../auth/principal.js';
 import type { AdmitRequest } from '../common/dal/importAllowance.dal.js';
 import type { ParseJobLineStatus, ParseJobStatus } from '../database/schema/parseJobs.js';
 import type { ParseJobLineProgress, ParseJobResponse, ParseProposal } from './parseJobs.schema.js';
@@ -114,6 +115,9 @@ export interface ReenqueueableLine {
     readonly sourceLine: string;
     readonly lineDigest: string;
 }
+
+/** The slice of the verified principal a paste is admitted on: the owner key, and the plan and kind the one allowance reads. */
+export type PasteCaller = Pick<Principal, 'userId' | 'roles' | 'principalKind'>;
 
 /**
  * How a job pays for itself (004 FR-022). REQUIRED on {@link ParseJobsDalPort.createJob}, so no call site creates a job
@@ -332,13 +336,22 @@ export class ParseJobsService {
      * ⛔ A PASTE IS ONE UNIT, whatever its line count (004 D-013's reasoning: the allowance bounds outbound fetching and
      * OCR spend, which a paste does neither of). It is spent inside the job's transaction, so a refusal creates nothing.
      *
-     * @param ownerId - The verified caller.
+     * The unit is drawn from the ONE import allowance bulk import also draws on (004 FR-067, owner ruling 2026-11-15): the
+     * caller's plan and kind come from the verified principal, so a paid cook has the larger limit and a test principal has none.
+     *
+     * @param caller - The verified caller: the owner key, and the roles and kind the allowance reads.
      * @param text - The pasted block.
      * @throws `IMPORT_QUOTA_EXCEEDED` (429, `details.resetsAt`) when the allowance is spent.
      * @sideEffect Writes the parse-job tables and the allowance ledger, and enqueues SQS messages.
      */
-    public async create(ownerId: string, text: string): Promise<ParseJobResponse> {
-        return this.createWith(ownerId, splitParseJobLines(text), { kind: 'charge', channel: 'paste', units: 1 });
+    public async create(caller: PasteCaller, text: string): Promise<ParseJobResponse> {
+        return this.createWith(caller.userId, splitParseJobLines(text), {
+            kind: 'charge',
+            channel: 'paste',
+            units: 1,
+            isPremium: isPremiumPrincipal(caller),
+            principalKind: caller.principalKind,
+        });
     }
 
     /**

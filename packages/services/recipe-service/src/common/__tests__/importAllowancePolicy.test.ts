@@ -14,13 +14,19 @@
  * as ADR-0072 §8 says (the flat 1,000 was wrong). The bulk scope now carries `isPremium`, and the cases that pinned 1,000
  * name the paid plan; the Free boundary is pinned on its own. Paste is one limit for every plan and carries no plan.
  *
+ * REWRITTEN AGAIN for the owner's ruling of 2026-11-15 ("one pipeline, one allowance"; test principals have no limit). The
+ * editor's ingredient-list paste now draws on the ONE import allowance with bulk import: one rule (200 a day on Free,
+ * 1,000 on a paid plan), every channel's rows count against it, and the paste scope carries the plan and the principal's
+ * kind like bulk's. The block that pinned "each channel counts only its own rows" is replaced by one that pins the
+ * opposite, because that is the ruling, not an accident of the code.
+ *
  * The edge rule is stated once in the policy and pinned from BOTH sides here: an event 24 h minus 1 ms old still
  * counts, an event exactly 24 h old does not.
  */
 import { describe, expect, it } from 'vitest';
 
 import {
-    IMPORT_ALLOWANCE_RULES,
+    IMPORT_ALLOWANCE_RULE,
     TEST_PRINCIPAL_ALLOWANCE_LIMIT,
     describeImportAllowance,
     evaluateImportAllowance,
@@ -44,7 +50,9 @@ function spread(count: number, firstAgeMs: number, stepMs: number, channel: Impo
     return Array.from({ length: count }, (_unused, index) => eventAged(firstAgeMs - index * stepMs, 1, channel));
 }
 
-const PASTE: ImportAllowanceScope = { channel: 'paste' };
+const PASTE: ImportAllowanceScope = { channel: 'paste', isPremium: false, principalKind: 'real' };
+const PASTE_PAID: ImportAllowanceScope = { channel: 'paste', isPremium: true, principalKind: 'real' };
+const PASTE_TEST: ImportAllowanceScope = { channel: 'paste', isPremium: false, principalKind: 'test' };
 const BULK_FREE: ImportAllowanceScope = { channel: 'bulk', isPremium: false, principalKind: 'real' };
 const BULK_PAID: ImportAllowanceScope = { channel: 'bulk', isPremium: true, principalKind: 'real' };
 const BULK_TEST: ImportAllowanceScope = { channel: 'bulk', isPremium: false, principalKind: 'test' };
@@ -60,17 +68,23 @@ function decide(
     return evaluateImportAllowance({ ...scope, windowEvents, requestedUnits, now });
 }
 
-describe('the allowance numbers (ADR-0072 §8; 004 FR-022 and plan.md §5)', () => {
-    it('is 200 a rolling day for paste, and for bulk 200 recipes a day on Free and 1,000 on a paid plan', () => {
-        expect(IMPORT_ALLOWANCE_RULES).toEqual({
-            paste: { limit: 200, windowMs: 24 * HOUR },
-            bulk: { limit: { free: 200, paid: 1000 }, windowMs: 24 * HOUR },
-        });
+describe('the allowance numbers (ADR-0072 §8; 004 FR-022 and FR-067)', () => {
+    it('is ONE rule for every channel: 200 a rolling day on Free and 1,000 on a paid plan', () => {
+        expect(IMPORT_ALLOWANCE_RULE).toEqual({ limit: { free: 200, paid: 1000 }, windowMs: 24 * HOUR });
         expect([
             importAllowanceLimitOf(PASTE),
+            importAllowanceLimitOf(PASTE_PAID),
             importAllowanceLimitOf(BULK_FREE),
             importAllowanceLimitOf(BULK_PAID),
-        ]).toEqual([200, 200, 1000]);
+        ]).toEqual([200, 1000, 200, 1000]);
+    });
+
+    it('⛔ gives a test principal no limit on any channel (owner ruling 2026-11-15)', () => {
+        expect([importAllowanceLimitOf(PASTE_TEST), importAllowanceLimitOf(BULK_TEST)]).toEqual([
+            TEST_PRINCIPAL_ALLOWANCE_LIMIT,
+            TEST_PRINCIPAL_ALLOWANCE_LIMIT,
+        ]);
+        expect(decide(PASTE_TEST, [eventAged(HOUR, 5000, 'paste')], 1)).toEqual({ kind: 'admit', units: 1 });
     });
 });
 
@@ -114,29 +128,29 @@ describe('evaluateImportAllowance — paste', () => {
     });
 });
 
-describe('evaluateImportAllowance — each channel counts only its own rows (ADR-0072 §8)', () => {
-    it('does not charge a full paste allowance against bulk import', () => {
-        expect(decide(BULK_PAID, spread(200, HOUR, 1000, 'paste'), 1)).toEqual({ kind: 'admit', units: 1 });
+describe('⛔ evaluateImportAllowance — every channel draws on the ONE allowance (owner ruling 2026-11-15)', () => {
+    it('refuses a paste once bulk import has spent the allowance', () => {
+        expect(decide(PASTE, [eventAged(HOUR, 200, 'bulk')], 1).kind).toBe('refuse');
+        expect(decide(PASTE_PAID, [eventAged(HOUR, 1000, 'bulk')], 1).kind).toBe('refuse');
     });
 
-    it('does not charge a full bulk allowance against paste', () => {
-        expect(decide(PASTE, [eventAged(HOUR, 1000, 'bulk')], 1)).toEqual({ kind: 'admit', units: 1 });
+    it('refuses bulk import once pastes have spent the allowance', () => {
+        expect(decide(BULK_FREE, spread(200, HOUR, 1000, 'paste'), 1).kind).toBe('refuse');
     });
 
-    it('does not let bulk rows shrink the paste room, or paste rows shrink the bulk room', () => {
-        const mixed = [eventAged(HOUR, 199, 'paste'), eventAged(HOUR, 999, 'bulk')];
+    it('sums both channels’ rows against the one limit', () => {
+        const mixed = [eventAged(HOUR, 120, 'paste'), eventAged(HOUR, 79, 'bulk')];
 
         expect(decide(PASTE, mixed, 1)).toEqual({ kind: 'admit', units: 1 });
-        expect(decide(BULK_PAID, mixed, 1)).toEqual({ kind: 'admit', units: 1 });
-        expect(decide(PASTE, mixed, 2)).toMatchObject({ kind: 'partial', units: 1 });
-        expect(decide(BULK_PAID, mixed, 2)).toMatchObject({ kind: 'partial', units: 1 });
+        expect(decide(BULK_FREE, mixed, 2)).toMatchObject({ kind: 'partial', units: 1 });
+        expect(decide(PASTE, [...mixed, eventAged(HOUR, 1, 'bulk')], 1).kind).toBe('refuse');
     });
 
-    it('takes resetsAt from its own channel only', () => {
-        // Paste is full with its oldest unit 20 h old. A very old bulk row must not become the reset instant.
-        const events = [eventAged(23 * HOUR, 1, 'bulk'), eventAged(20 * HOUR, 1, 'paste'), ...spread(199, HOUR, 1000)];
+    it('takes resetsAt from the oldest unit on any channel', () => {
+        // Full on Free; the oldest unit is a bulk row 23 h old, so one unit frees in 1 h.
+        const events = [eventAged(23 * HOUR, 1, 'bulk'), ...spread(199, HOUR, 1000)];
 
-        expect(decide(PASTE, events, 1)).toEqual({ kind: 'refuse', resetsAt: new Date(NOW.getTime() + 4 * HOUR) });
+        expect(decide(PASTE, events, 1)).toEqual({ kind: 'refuse', resetsAt: new Date(NOW.getTime() + HOUR) });
     });
 });
 
@@ -222,7 +236,7 @@ describe('evaluateImportAllowance — bulk admits what fits (ADR-0072 §8)', () 
 describe('the window edge', () => {
     it.each(['paste', 'bulk'] as const)('%s: counts an event 24 h minus 1 ms old', (channel) => {
         const full = [
-            eventAged(IMPORT_ALLOWANCE_RULES[channel].windowMs - 1, importAllowanceLimitOf(SCOPE_OF[channel]), channel),
+            eventAged(IMPORT_ALLOWANCE_RULE.windowMs - 1, importAllowanceLimitOf(SCOPE_OF[channel]), channel),
         ];
 
         expect(decide(SCOPE_OF[channel], full, 1).kind).toBe('refuse');
@@ -230,7 +244,7 @@ describe('the window edge', () => {
 
     it.each(['paste', 'bulk'] as const)('%s: does not count an event exactly 24 h old', (channel) => {
         const full = [
-            eventAged(IMPORT_ALLOWANCE_RULES[channel].windowMs, importAllowanceLimitOf(SCOPE_OF[channel]), channel),
+            eventAged(IMPORT_ALLOWANCE_RULE.windowMs, importAllowanceLimitOf(SCOPE_OF[channel]), channel),
         ];
 
         expect(decide(SCOPE_OF[channel], full, 1)).toEqual({ kind: 'admit', units: 1 });
@@ -238,16 +252,14 @@ describe('the window edge', () => {
 
     it.each(['paste', 'bulk'] as const)('%s: does not count an event older than 24 h', (channel) => {
         const full = [
-            eventAged(IMPORT_ALLOWANCE_RULES[channel].windowMs + 1, importAllowanceLimitOf(SCOPE_OF[channel]), channel),
+            eventAged(IMPORT_ALLOWANCE_RULE.windowMs + 1, importAllowanceLimitOf(SCOPE_OF[channel]), channel),
         ];
 
         expect(decide(SCOPE_OF[channel], full, 1)).toEqual({ kind: 'admit', units: 1 });
     });
 
-    it.each(['paste', 'bulk'] as const)('%s: exposes the same edge to the DAL', (channel) => {
-        expect(importAllowanceWindowStart(channel, NOW).getTime()).toBe(
-            NOW.getTime() - IMPORT_ALLOWANCE_RULES[channel].windowMs,
-        );
+    it('exposes the same edge to the DAL', () => {
+        expect(importAllowanceWindowStart(NOW).getTime()).toBe(NOW.getTime() - IMPORT_ALLOWANCE_RULE.windowMs);
     });
 });
 
@@ -296,14 +308,14 @@ describe('describeImportAllowance — the state the import view shows (ADR-0072 
         expect(describeAt('bulk', [])).toStrictEqual({ limit: 1000, used: 0, resetsAt: null });
     });
 
-    it('sums only this channel’s units in the window (kills: counting paste against bulk)', () => {
-        expect(describeAt('bulk', [eventAged(HOUR, 30, 'bulk'), eventAged(HOUR, 99, 'paste')]).used).toBe(30);
-        expect(describeAt('paste', [eventAged(HOUR, 30, 'bulk'), eventAged(HOUR, 99, 'paste')]).used).toBe(99);
+    it('sums every channel’s units in the window: the view shows the one allowance', () => {
+        expect(describeAt('bulk', [eventAged(HOUR, 30, 'bulk'), eventAged(HOUR, 99, 'paste')]).used).toBe(129);
+        expect(describeAt('paste', [eventAged(HOUR, 30, 'bulk'), eventAged(HOUR, 99, 'paste')]).used).toBe(129);
     });
 
-    it('reports each channel’s own limit', () => {
-        expect(describeAt('bulk', []).limit).toBe(IMPORT_ALLOWANCE_RULES.bulk.limit.paid);
-        expect(describeAt('paste', []).limit).toBe(IMPORT_ALLOWANCE_RULES.paste.limit);
+    it('reports the plan’s limit on every channel', () => {
+        expect(describeAt('bulk', []).limit).toBe(IMPORT_ALLOWANCE_RULE.limit.paid);
+        expect(describeImportAllowance({ ...PASTE, windowEvents: [], now: NOW }).limit).toBe(IMPORT_ALLOWANCE_RULE.limit.free);
     });
 
     it('resets when the OLDEST counted event leaves the window', () => {
@@ -311,12 +323,12 @@ describe('describeImportAllowance — the state the import view shows (ADR-0072 
         const result = describeAt('bulk', [eventAged(HOUR, 4, 'bulk'), oldest]);
 
         expect(result.resetsAt).toBe(
-            new Date(oldest.createdAt.getTime() + IMPORT_ALLOWANCE_RULES.bulk.windowMs).toISOString(),
+            new Date(oldest.createdAt.getTime() + IMPORT_ALLOWANCE_RULE.windowMs).toISOString(),
         );
     });
 
     it('does not count an event at or past the window edge (the same edge the decision uses)', () => {
-        const windowMs = IMPORT_ALLOWANCE_RULES.bulk.windowMs;
+        const windowMs = IMPORT_ALLOWANCE_RULE.windowMs;
 
         expect(describeAt('bulk', [eventAged(windowMs, 5, 'bulk')])).toStrictEqual({
             limit: 1000,

@@ -1,6 +1,6 @@
 /**
- * The create route charges the VERIFIED principal's allowance (never an id from the body) and passes no tier: the
- * allowance is the same for every caller until 010 specifies tier rules (004 FR-022).
+ * The create route charges the VERIFIED principal's allowance (never an id from the body), and hands the service the
+ * principal's owner key, roles and kind: the one import allowance (004 FR-067) reads the plan and the test kind from them.
  */
 import 'reflect-metadata';
 
@@ -36,11 +36,13 @@ async function createAs(principal: Principal): Promise<ReturnType<typeof vi.fn>>
 }
 
 describe('ParseJobsController.create — the allowance', () => {
-    it('charges the verified principal for the pasted text, whatever its roles', async () => {
+    it('hands the service the verified principal for the pasted text: owner, roles and kind', async () => {
         const free = await createAs(BASE);
         const paid = await createAs({ ...BASE, roles: ['premium'] });
+        const test = await createAs({ ...BASE, principalKind: 'test' });
 
-        expect(free).toHaveBeenCalledWith(BASE.userId, '1 cup milk');
-        expect(paid).toHaveBeenCalledWith(BASE.userId, '1 cup milk');
+        expect(free).toHaveBeenCalledWith(expect.objectContaining({ userId: BASE.userId, roles: [] }), '1 cup milk');
+        expect(paid).toHaveBeenCalledWith(expect.objectContaining({ roles: ['premium'] }), '1 cup milk');
+        expect(test).toHaveBeenCalledWith(expect.objectContaining({ principalKind: 'test' }), '1 cup milk');
     });
 });

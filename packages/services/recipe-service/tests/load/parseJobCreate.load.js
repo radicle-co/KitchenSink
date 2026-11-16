@@ -19,12 +19,15 @@
 // budget that matters to a cook mid-flow) and `maxPaste` (200 lines at the admission cap — the fan-out
 // worst case that exercises 20 concurrent batches per request).
 //
-// ⛔ THE DAILY IMPORT ALLOWANCE (004 FR-022) BOUNDS THIS SCRIPT. Every create spends one unit of a user's 200-a-day
-// allowance (a trailing 24 hours), and nothing resets a pool user's ledger between k6 runs. A ramp that creates as fast
-// as the pace lets it would spend a pool user's whole day in a minute and then measure 429s. So each VU stops creating
-// once it has used its share of `PASTES_PER_USER` (default 60, so three runs inside a day still fit under 200).
+// ⛔ THE ONE IMPORT ALLOWANCE (004 FR-022, FR-067; owner ruling 2026-11-15) SHAPES THIS SCRIPT. Every create spends one unit
+// of the user's ONE allowance (200 a trailing day on Free, shared with bulk import), and nothing resets a user's ledger
+// between k6 runs. The pool users are TEST principals (ADR-0040), which have no limit on any channel, so a pool user is
+// never refused; the cap below still keeps a run's ledger small and stays correct if a pool user were a real, free cook.
+// Each VU stops creating once it has used its share of `PASTES_PER_USER` (default 60, so three runs inside a day still fit
+// under 200).
 //
-// A fourth scenario, `quotaRefusal`, asserts the refusal itself: `429`, the code `IMPORT_QUOTA_EXCEEDED`, and a
+// A fourth scenario, `quotaRefusal`, asserts the refusal itself, so its throwaway user MUST be a REAL (not test) principal,
+// because a test principal is never refused: `429`, the code `IMPORT_QUOTA_EXCEEDED`, and a
 // `details.resetsAt` that is a future ISO instant within 24 hours. It drains one user's allowance ON PURPOSE, so it never
 // borrows a pool user: it runs only for a throwaway user NOBODY ELSE USES (not a pool member), named by
 // `RECIPE_QUOTA_HANDLES_FILE` (a sign-in handle, so the bearer is re-minted like the pool's) or, on the substrate profile,
@@ -71,7 +74,7 @@ const TYPICAL_P95_MS = Number(__ENV['RECIPE_PARSE_JOB_P95_MS'] || SC009_P95_MS);
  */
 const MAX_PASTE_P95_MS = Number(__ENV['RECIPE_PARSE_JOB_MAX_P95_MS'] || TYPICAL_P95_MS * 2);
 
-/** The service's daily import allowance per user (004 FR-022, plan.md §5). Mirrors `IMPORT_ALLOWANCE_RULES.paste.limit`. */
+/** The service's daily import allowance per user (004 FR-022, plan.md §5). Mirrors `IMPORT_ALLOWANCE_RULE.limit.free`. */
 const DAILY_ALLOWANCE = Number(__ENV['RECIPE_IMPORT_DAILY_LIMIT'] || 200);
 
 /**

@@ -6,79 +6,138 @@
  * - a group whose content opens with a whole group and then a comma loses its outer brackets: `((or a pinch), plus a few
  *   sprigs)` becomes `(or a pinch), plus a few sprigs`.
  *
- * The reader cleans the text here; the gate never rewrites. Round and square brackets are read apart, by a depth-counting
- * character scan (no regular expression runs over page text). Every occurrence is collapsed, an unbalanced bracket is
- * left alone, and the result is a fixed point.
+ * The reader cleans the text here; the gate never rewrites. Round and square brackets are read apart, by a character scan
+ * (no regular expression runs over page text). Every occurrence is collapsed, an unbalanced bracket is left alone, and the
+ * result is a fixed point.
+ *
+ * ⛔ The text is hostile, so the work is LINEAR and never recursive. One pass over a stack records where each bracket
+ * closes ({@link closeIndexes}), and an explicit stack of frames (not the call stack) walks the groups, so a line of
+ * 100,000 nested or unclosed brackets costs a scan and cannot overflow the stack. The reader also refuses a line past
+ * `PARSE_JOB_LINE_MAX_CHARS` before it gets here (`pageRecipeCandidate.ts`).
  */
 
-/** Where the group opened at `start` closes, or -1 when it never does. */
-function groupEnd(text: string, start: number, open: string, close: string): number {
-    let depth = 0;
+/**
+ * Where each `open` in `text` closes, in one pass: `closes[i]` is the index of the `close` that matches the `open` at `i`,
+ * or -1 when `i` is not an `open` or never closes. A `close` with nothing open is ignored.
+ */
+function closeIndexes(text: string, open: string, close: string): Int32Array {
+    const closes = new Int32Array(text.length).fill(-1);
+    const opened: number[] = [];
 
-    for (let index = start; index < text.length; index += 1) {
+    for (let index = 0; index < text.length; index += 1) {
         const char = text.charAt(index);
 
         if (char === open) {
-            depth += 1;
+            opened.push(index);
         } else if (char === close) {
-            depth -= 1;
+            const start = opened.pop();
 
-            if (depth === 0) {
-                return index;
+            if (start !== undefined) {
+                closes[start] = index;
             }
         }
     }
 
-    return -1;
+    return closes;
 }
 
-/** Whether `inner` opens with a whole round group that a comma follows: `(a), b`. */
-function opensWithGroupAndComma(inner: string): boolean {
-    if (inner.charAt(0) !== '(') {
-        return false;
+/** How a group's cleaned content joins the text before it. */
+type Join =
+    /** The text itself. */
+    | 'root'
+    /** Between its own brackets. */
+    | 'wrapped'
+    /** In place of the group, after the text before it loses its trailing space: `butter (, softened)`. */
+    | 'afterComma'
+    /** In place of the group. */
+    | 'bare';
+
+/** A stretch of the text being cleaned, from `index` to `hi`, and the output so far. */
+interface Frame {
+    readonly hi: number;
+    readonly join: Join;
+    index: number;
+    out: string;
+}
+
+/** `frame`'s output, placed in its parent's. */
+function joined(parent: Frame, child: Frame, open: string, close: string): void {
+    if (child.join === 'wrapped') {
+        parent.out += `${open}${child.out}${close}`;
+    } else if (child.join === 'afterComma') {
+        parent.out = `${parent.out.trimEnd()}${child.out}`;
+    } else {
+        parent.out += child.out;
+    }
+}
+
+/** Whether `text[lo..hi)` opens with a whole round group that a comma follows: `(a), b`. */
+function opensWithGroupAndComma(text: string, closes: Int32Array, lo: number, hi: number): boolean {
+    const end = closes[lo] ?? -1;
+
+    return text.charAt(lo) === '(' && end > lo && end + 1 < hi && text.charAt(end + 1) === ',';
+}
+
+/** The frame for the group opened at `start`, which closes at `end`: its doubled outer brackets peeled, and how it joins. */
+function groupFrame(text: string, closes: Int32Array, start: number, end: number, open: string): Frame {
+    let lo = start + 1;
+    let hi = end;
+
+    while (text.charAt(lo) === open && closes[lo] === hi - 1) {
+        lo += 1;
+        hi -= 1;
     }
 
-    const end = groupEnd(inner, 0, '(', ')');
+    if (open === '(' && hi - lo >= 2 && text.startsWith(', ', lo)) {
+        return { hi, join: 'afterComma', index: lo, out: '' };
+    }
 
-    return end > 0 && inner.charAt(end + 1) === ',';
+    return {
+        hi,
+        join: open === '(' && opensWithGroupAndComma(text, closes, lo, hi) ? 'bare' : 'wrapped',
+        index: lo,
+        out: '',
+    };
 }
 
 function collapseKind(text: string, open: string, close: string): string {
-    let out = '';
-    let index = 0;
+    const closes = closeIndexes(text, open, close);
+    const frames: Frame[] = [{ hi: text.length, join: 'root', index: 0, out: '' }];
+    let result = '';
 
-    while (index < text.length) {
-        const end = text.charAt(index) === open ? groupEnd(text, index, open, close) : -1;
+    for (let frame = frames.at(-1); frame !== undefined; frame = frames.at(-1)) {
+        if (frame.index >= frame.hi) {
+            frames.pop();
 
-        if (end < 0) {
-            out += text.charAt(index);
-            index += 1;
+            const parent = frames.at(-1);
+
+            if (parent === undefined) {
+                result = frame.out;
+            } else {
+                joined(parent, frame, open, close);
+            }
+
             continue;
         }
 
-        let inner = text.slice(index + 1, end);
+        const end = text.charAt(frame.index) === open ? (closes[frame.index] ?? -1) : -1;
 
-        while (inner.charAt(0) === open && groupEnd(inner, 0, open, close) === inner.length - 1) {
-            inner = inner.slice(1, -1);
+        if (end < 0) {
+            frame.out += text.charAt(frame.index);
+            frame.index += 1;
+            continue;
         }
 
-        if (open === '(' && inner.startsWith(', ')) {
-            out = `${out.trimEnd()}${collapseKind(inner, open, close)}`;
-        } else if (open === '(' && opensWithGroupAndComma(inner)) {
-            out += collapseKind(inner, open, close);
-        } else {
-            out += `${open}${collapseKind(inner, open, close)}${close}`;
-        }
-
-        index = end + 1;
+        frames.push(groupFrame(text, closes, frame.index, end, open));
+        frame.index = end + 1;
     }
 
-    return out;
+    return result;
 }
 
 /**
  * @param text - One line of text.
- * @returns `text` with each doubled bracket group made single. Pure.
+ * @returns `text` with each doubled bracket group made single. Linear in the text, whatever its nesting. Pure.
  */
 export function collapseBracketGroups(text: string): string {
     return collapseKind(collapseKind(text, '(', ')'), '[', ']');

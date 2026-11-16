@@ -56,4 +56,44 @@ describe('collapseBracketGroups', () => {
 
         expect(notIdempotent).toEqual([]);
     });
+
+    describe('hostile input: linear time and no recursion, whatever the nesting', () => {
+        /** The longest line the reader hands it, and far past it: the function must be safe on its own. */
+        const DEPTH = 100_000;
+
+        it.each([
+            ['nested brackets with a word in each level', `${'(a'.repeat(DEPTH)}${')'.repeat(DEPTH)}`],
+            ['one word under a doubled group 100,000 deep', `${'('.repeat(DEPTH)}x${')'.repeat(DEPTH)}`],
+            ['square brackets nested', `${'[a'.repeat(DEPTH)}${']'.repeat(DEPTH)}`],
+        ])('does not overflow the stack or stall on %s', (_name, text) => {
+            const started = performance.now();
+            const out = collapseBracketGroups(text);
+
+            expect(out.length).toBeGreaterThan(0);
+            expect(performance.now() - started).toBeLessThan(1_000);
+        });
+
+        it('collapses a doubled group however deep it is', () => {
+            expect(collapseBracketGroups(`${'('.repeat(DEPTH)}x${')'.repeat(DEPTH)}`)).toBe('(x)');
+        });
+
+        it.each([
+            ['round', '('],
+            ['square', '['],
+        ])('does not stall on 100,000 unclosed %s brackets', (_name, open) => {
+            const text = `${open.repeat(DEPTH)}x`;
+            const started = performance.now();
+
+            expect(collapseBracketGroups(text)).toBe(text);
+            expect(performance.now() - started).toBeLessThan(1_000);
+        });
+
+        it('does not stall on 50,000 unclosed brackets in front of closed ones', () => {
+            const text = `${'('.repeat(50_000)}${'(a)'.repeat(10_000)}`;
+            const started = performance.now();
+
+            expect(collapseBracketGroups(text).length).toBe(text.length);
+            expect(performance.now() - started).toBeLessThan(1_000);
+        });
+    });
 });

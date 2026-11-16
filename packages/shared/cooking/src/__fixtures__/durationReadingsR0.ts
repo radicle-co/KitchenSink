@@ -8,6 +8,23 @@ import type { DurationReading } from '../duration.js';
  * STEP_LINE_TRAPS and STEP_LINE_TRAPS_2 (`stepLinesGolden.ts`), then over the modern set (`modern.json`), and prints one
  * row per distinct line. The modern set is part of this file: it is the lines below the last public-domain one.
  *
+ * gen.ts, in full (main's reader imported by path; the rows below are its output after prettier):
+ *
+ *     import { readFileSync } from 'node:fs';
+ *     import { readDuration } from './duration.ts';
+ *     import { GOLDEN_CORPUS_STEPS, STEP_LINE_TRAPS, STEP_LINE_TRAPS_2 } from './__fixtures__/stepLinesGolden.ts';
+ *
+ *     const modern: string[] = JSON.parse(readFileSync(process.argv[2] ?? '', 'utf8'));
+ *     const lines = [
+ *         ...GOLDEN_CORPUS_STEPS.flatMap((s) => s.lines),
+ *         ...STEP_LINE_TRAPS.flatMap((s) => s.lines),
+ *         ...STEP_LINE_TRAPS_2.flatMap((s) => s.lines),
+ *         ...modern,
+ *     ];
+ *     const unique = [...new Set(lines)];
+ *     const rows = unique.map((line) => `    { line: ${JSON.stringify(line)}, reading: ${JSON.stringify(readDuration(line)).replace(/"(\w+)":/g, '$1:').replace(/,/g, ', ').replace(/\{/g, '{ ').replace(/\}/g, ' }')} },`);
+ *     process.stdout.write(rows.join('\n') + '\n');
+ *
  * This is the frozen r0 reader in data form (qse carry 1). A later edit to this file is a test change and needs a qse
  * TEST-CHANGE record.
  */

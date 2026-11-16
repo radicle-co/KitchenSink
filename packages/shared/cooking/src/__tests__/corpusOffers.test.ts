@@ -36,6 +36,18 @@ describe('AE4a line rows', () => {
     });
 });
 
+/**
+ * Lines the r0 reader read wrongly, with the right length. A later reader may fix one, so these two may differ from r0
+ * and no other line may. The r0 file itself is never edited. Each reason is a statement of the line in AE4a's terms: a
+ * time is read whole or not at all.
+ */
+const R0_CORRECTIONS: ReadonlyMap<string, number> = new Map([
+    // r0 reads only "15 minutes", so it drops the hour.
+    ['Bake for an hour and 15 minutes.', 4_500],
+    // r0 reads only "1 h", so it drops the 30 minutes after the "h" and before "then".
+    ['Roast for 1 h 30 then rest.', 5_400],
+]);
+
 describe('no loss against the r0 reader', () => {
     it.each(
         DURATION_READINGS_R0.filter((row) => row.reading.kind !== 'none').map(
@@ -47,7 +59,17 @@ describe('no loss against the r0 reader', () => {
         expect(now.kind).toBe(reading.kind);
 
         if (reading.kind === 'one' && now.kind === 'one') {
-            expect(now.seconds).toBe(reading.seconds);
+            const corrected = R0_CORRECTIONS.get(line);
+
+            expect([reading.seconds, corrected]).toContain(now.seconds);
+        }
+    });
+
+    it('names only lines the r0 file really holds', () => {
+        const lines = new Set(DURATION_READINGS_R0.map((row) => row.line));
+
+        for (const line of R0_CORRECTIONS.keys()) {
+            expect(lines.has(line), line).toBe(true);
         }
     });
 });

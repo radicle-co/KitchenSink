@@ -106,9 +106,14 @@ describe('the duration reader over the golden cookbook steps', () => {
         (step) => step.lines,
     );
 
-    /** An independent, deliberately plain check that a line states some number of a time unit. */
+    /**
+     * An independent, deliberately plain check that a line states some number of a time unit, in digits or in words.
+     * The words are the cook's own plain ones, written here and not read from the reader's lexicon.
+     */
     const statesATime = (line: string) =>
-        /[\d½¼¾⅓⅔]\s*(?:-\s*)?(?:hours?|hrs?|h|minutes?|mins?|seconds?|secs?)(?![a-z])/iu.test(line);
+        /(?:[\d½¼¾⅓⅔]|\b(?:an?|half|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty))\s*(?:-\s*)?(?:hours?|hrs?|h|minutes?|mins?|seconds?|secs?)(?![a-z])/iu.test(
+            line,
+        );
 
     it('has real lines to read, some of which state a time', () => {
         expect(lines.length).toBeGreaterThan(50);

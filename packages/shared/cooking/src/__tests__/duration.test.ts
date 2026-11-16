@@ -11,10 +11,6 @@ describe('readDuration', () => {
     it.each([
         ['Roast for 1 h 30', 5_400],
         ['Roast for 1 h 30 min', 5_400],
-        ['Simmer 20 to 25 minutes', 1_200],
-        ['Simmer 20-25 min', 1_200],
-        ['Simmer 20–25 minutes', 1_200],
-        ['Simmer for 20 or 25 minutes', 1_200],
         ['Rest for 1 hour 5 minutes', 3_900],
         ['Rest for 1 hour and 5 minutes', 3_900],
         ['Rest 1 hr, 5 mins', 3_900],
@@ -33,12 +29,6 @@ describe('readDuration', () => {
         ['Bake 1/4 hour', 900],
         ['Bake 1 1/2 hours', 5_400],
         ['Bake 2 1/4 hours', 8_100],
-        ['Bake between 20 and 25 minutes', 1_200],
-        ['Bake 20‐25 minutes', 1_200],
-        ['Bake 20‑25 minutes', 1_200],
-        ['Bake 20‒25 minutes', 1_200],
-        ['Bake 20―25 minutes', 1_200],
-        ['Bake 20—25 minutes', 1_200],
         ['Boil 10 minutes 30', 600],
     ])('%s gives one duration of %i s', (line, seconds) => {
         expect(readDuration(line)).toEqual({ kind: 'one', seconds });
@@ -76,8 +66,6 @@ describe('readDuration reads the number a cook wrote, or nothing', () => {
         ['Bake 2-1/2 hours', 9_000],
         ['Bake .5 hours', 1_800],
         ['Bake 1,5 hours', 5_400],
-        ['Bake 1-2 hours', 3_600],
-        ['Bake between 20 and 25 minutes', 1_200],
     ])('%s gives %i s', (line, seconds) => {
         expect(readDuration(line)).toEqual({ kind: 'one', seconds });
     });

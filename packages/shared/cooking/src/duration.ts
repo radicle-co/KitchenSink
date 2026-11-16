@@ -5,18 +5,26 @@
  * because a duration library adds up every unit in a string and cannot find exactly one span in prose or take the low
  * end of a range. It reads English only.
  *
- * shortcut: number words ("an hour", "half an hour", "two minutes") are not read and a step that only says them offers
- * no timer, upgrade when a real recipe needs them. A bare number after an hour unit reads as minutes ("1 h 30") only
- * at the end of the text or before punctuation, so "1 h 30 then flip" reads one hour.
+ * Times written in words ("an hour and a half", "ten to fifteen minutes") are read by `durationWords.ts`. That layer
+ * runs only when this digit layer matched no span, so a line with a digit time is never read by it.
+ *
+ * shortcut: a bare number after an hour unit reads as minutes ("1 h 30") only at the end of the text or before
+ * punctuation, so "1 h 30 then flip" reads one hour. Upgrade when a real recipe needs more.
  */
 
 import { amountAt } from '@kitchensink/recipe-core/parsing/measure-reader';
 
+import { readWordDuration } from './durationWords.js';
 import { isValidTimerMs } from './timer.js';
 
-/** What a line says: no duration, exactly one (in seconds), or several. */
+/**
+ * What a line says: no duration, exactly one (in seconds), or several. A range ("20 to 25 minutes") gives its low end
+ * as `seconds` and its high end as `highSeconds`. Only a span that is one range carries `highSeconds`.
+ */
 export type DurationReading =
-    { readonly kind: 'none' } | { readonly kind: 'one'; readonly seconds: number } | { readonly kind: 'many' };
+    | { readonly kind: 'none' }
+    | { readonly kind: 'one'; readonly seconds: number; readonly highSeconds?: number }
+    | { readonly kind: 'many' };
 
 const SECONDS_PER_UNIT: Readonly<Record<string, number>> = { h: 3_600, m: 60, s: 1 };
 
@@ -40,14 +48,15 @@ const DASH = '[-‐‑‒–—―]';
 const UNIT = String.raw`(?:hours?|hrs?|h|minutes?|mins?|seconds?|secs?)`;
 
 /**
- * One amount: a number, an optional range to a second number (only the first is read), an optional hyphen, and a unit.
+ * One amount: a number, an optional range to a second number (the first is the low end, the second the high end), an
+ * optional hyphen, and a unit.
  * A trailing `(?![a-z])` stops a unit word being a prefix of a longer word ("hash", "minced").
  */
 const amountSource = (capture: boolean): string => {
     const group = (inner: string): string => (capture ? `(${inner})` : `(?:${inner})`);
 
     // No amount starts inside a run of digits, points or commas, and the whitespace before the unit has one reading.
-    return `(?<![\\d.,])${group(NUMBER)}(?:\\s*(?:${DASH}|to|or)\\s*${NUMBER}|\\s+and\\s+${NUMBER})?\\s*(?:-\\s*)?${group(UNIT)}(?![a-z])`;
+    return `(?<![\\d.,])${group(NUMBER)}(?:(?:\\s*(?:${DASH}|to|or)\\s*|\\s+and\\s+)${group(NUMBER)})?\\s*(?:-\\s*)?${group(UNIT)}(?![a-z])`;
 };
 
 /** What may sit between two amounts of one duration: only space, a comma or "and". */
@@ -103,8 +112,9 @@ export function readDuration(line: string): DurationReading {
 
     const spans = [...line.matchAll(SPAN)];
 
+    // The word layer runs only when the digit layer matched no span. A span an UNREAD guard turns to none stays none.
     if (spans.length === 0) {
-        return { kind: 'none' };
+        return readWordDuration(line);
     }
 
     if (spans.length > 1) {
@@ -120,8 +130,9 @@ export function readDuration(line: string): DurationReading {
     }
 
     const amounts = [...span.matchAll(AMOUNT)].map((amount) => ({
-        seconds: secondsOfAmount(amount[1] ?? '', amount[2] ?? ''),
-        rank: unitSeconds(amount[2] ?? ''),
+        seconds: secondsOfAmount(amount[1] ?? '', amount[3] ?? ''),
+        highSeconds: amount[2] === undefined ? undefined : secondsOfAmount(amount[2], amount[3] ?? ''),
+        rank: unitSeconds(amount[3] ?? ''),
     }));
 
     // An amount that is not a real number ("1/0") leaves the whole span unread, never a wrong total.
@@ -139,7 +150,17 @@ export function readDuration(line: string): DurationReading {
         amounts.reduce((sum, amount) => sum + (amount.seconds ?? 0), 0) +
         (bareMinutes === undefined ? 0 : Number.parseInt(bareMinutes, 10) * 60);
 
-    return total > 0 ? { kind: 'one', seconds: Math.round(total) } : { kind: 'none' };
+    if (total <= 0) {
+        return { kind: 'none' };
+    }
+
+    // Only a span that is exactly one range carries its high end.
+    const [only] = amounts;
+    const high = amounts.length === 1 && bareMinutes === undefined ? only?.highSeconds : undefined;
+
+    return high !== undefined && high > total
+        ? { kind: 'one', seconds: Math.round(total), highSeconds: Math.round(high) }
+        : { kind: 'one', seconds: Math.round(total) };
 }
 
 /** The one duration a line reads, in seconds, or `undefined` when it reads none or several. */

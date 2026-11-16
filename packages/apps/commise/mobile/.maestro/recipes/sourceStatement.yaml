@@ -64,12 +64,11 @@ appId: ${APP_ID}
       timeout: 10000
 - assertVisible: 'Where is this recipe from?'
 
-# "I wrote this" publishes it public. The keyboard is up for the title field, so a small phone has scrolled the first
-# answer out of view: drag the answer list (not the footer) to bring it back.
-- swipe:
-      from:
-          text: 'From another person'
-      direction: DOWN
+# With the keyboard up for the title field the list has scrolled to that field, so the first answer is above the visible
+# part of the list. Choose the answer in view (its first tap works with the keyboard up and removes the title field), and
+# "I wrote this" is back in view.
+- tapOn: 'From another person'
+- assertNotVisible: 'Book or magazine title'
 - assertVisible: 'I wrote this'
 - tapOn: 'I wrote this'
 - tapOn:

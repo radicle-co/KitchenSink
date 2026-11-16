@@ -195,6 +195,10 @@ export interface LockedRecipeFacts extends SlotFacts {
     readonly statementKind: RecipeRow['statementKind'];
     /** When content was first reported pasted (0087), under the same lock. */
     readonly contentPastedAt: RecipeRow['contentPastedAt'];
+    /** When the recipe was first published, under the same lock: with the next field, what decides if its source can still change. */
+    readonly firstPublishedAt: RecipeRow['firstPublishedAt'];
+    /** The recipe this one was cloned from, under the same lock. */
+    readonly clonedFromId: RecipeRow['clonedFromId'];
 }
 
 /**
@@ -312,6 +316,8 @@ export class RecipesDal {
                 sourceKind: recipes.sourceKind,
                 statementKind: recipes.statementKind,
                 contentPastedAt: recipes.contentPastedAt,
+                firstPublishedAt: recipes.firstPublishedAt,
+                clonedFromId: recipes.clonedFromId,
             })
             .from(recipes)
             .where(and(eq(recipes.id, id), activeRecipe()))
@@ -795,18 +801,21 @@ export class RecipesDal {
      *
      * @param enlistIn - The open transaction to write in. REQUIRED (ADR-0073): a move to private is decided under the per-user
      *   lock in a transaction, and a write that fell back to the base client would commit outside it.
+     * @param provenance - A statement the same request made (the source correction, ADR-0089): its columns are written in this
+     *   same UPDATE, so "I wrote this" and Make public are one write. ABSENT leaves the source alone.
      * @returns The updated aggregate, or `undefined` when no active recipe has that id.
-     * @sideEffect Updates the `recipes` row's `visibility` + `updated_at`.
+     * @sideEffect Updates the `recipes` row's `visibility` + `updated_at` (and the four source columns, when stated).
      */
     public async setVisibility(
         id: string,
         visibility: RecipeVisibility,
         enlistIn: RecipeTx,
+        provenance?: UpdateRecipeInput['provenance'],
     ): Promise<RecipeAggregate | undefined> {
         const writer = enlistIn;
         const [recipe] = await writer
             .update(recipes)
-            .set({ visibility, updatedAt: new Date() })
+            .set({ ...(provenance ?? {}), visibility, updatedAt: new Date() })
             .where(and(eq(recipes.id, id), activeRecipe()))
             .returning();
 

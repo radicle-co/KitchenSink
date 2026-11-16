@@ -317,6 +317,43 @@ export function statementRequiredRefused(reason: string, details: Record<string,
     return invalidVisibility(reason, { ...details, reason: STATEMENT_REQUIRED_REASON });
 }
 
+/** `details.reason` of the `INVALID_VISIBILITY` a missing Public confirmation answers with. */
+const PUBLIC_CONFIRMATION_REQUIRED_REASON = 'PUBLIC_CONFIRMATION_REQUIRED';
+
+/**
+ * `INVALID_VISIBILITY` with `details.reason: 'PUBLIC_CONFIRMATION_REQUIRED'` (→ 400): the write would make the recipe
+ * published AND public, and the request carries no `publicConfirmation` (the attestation record). Nothing is live and nothing
+ * is shimmed, so a writer that does not send it is refused rather than recorded as having confirmed. The same shape as
+ * {@link statementRequiredRefused}, for the same reason: no new published code.
+ *
+ * @param details - The attempted visibility and source type, as {@link invalidVisibility} carries.
+ * @returns The error to throw.
+ */
+export function publicConfirmationRequired(details: Record<string, unknown> = {}): RecipeDomainError {
+    return invalidVisibility('Making a recipe public needs the cook’s confirmation.', {
+        ...details,
+        reason: PUBLIC_CONFIRMATION_REQUIRED_REASON,
+    });
+}
+
+/** `details.reason` of the `INVALID_VISIBILITY` "from another person" answers with when asked to be public. */
+const FROM_PERSON_PRIVATE_ONLY_REASON = 'FROM_PERSON_PRIVATE_ONLY';
+
+/**
+ * `INVALID_VISIBILITY` with `details.reason: 'FROM_PERSON_PRIVATE_ONLY'` (→ 400): the cook said the recipe is another
+ * person's, and the same request asked for it to be public. A recipe from another person is private; the request
+ * contradicts itself, and the server never picks a side silently.
+ *
+ * @param details - The attempted visibility and source type, as {@link invalidVisibility} carries.
+ * @returns The error to throw.
+ */
+export function fromPersonPrivateOnly(details: Record<string, unknown> = {}): RecipeDomainError {
+    return invalidVisibility('A recipe from another person stays private.', {
+        ...details,
+        reason: FROM_PERSON_PRIVATE_ONLY_REASON,
+    });
+}
+
 /**
  * `FORBIDDEN` — the caller declared a provenance it is not granted to declare (004-FR-025, ADR-0023).
  *

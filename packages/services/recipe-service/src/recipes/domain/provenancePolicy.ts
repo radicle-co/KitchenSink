@@ -169,6 +169,11 @@ export function resolveStatementProvenance(
                 : undefined;
         }
 
+        // "From another person" states no source and no statement: it is the cook's word, kept in the attestation record, and
+        // the recipe stays the cook's own label. The caller keeps it Private (`sourceCorrectionPolicy`, the service).
+        case 'fromPerson':
+            return UNDECLARED;
+
         case 'book':
             return {
                 sourceType: RecipeSourceType.IMPORTED_PHYSICAL,

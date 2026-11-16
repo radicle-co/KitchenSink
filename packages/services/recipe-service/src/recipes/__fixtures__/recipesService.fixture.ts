@@ -38,6 +38,7 @@ import type { PhotosDal } from '../../photos/dal/photos.dal.js';
 import type { RatingsDal } from '../../ratings/dal/ratings.dal.js';
 import type { RecipesDal } from '../dal/recipes.dal.js';
 import type { RecipeSourceEvidenceDal } from '../dal/recipeSourceEvidence.dal.js';
+import type { RecipeStatementAttestationsDal } from '../dal/recipeStatementAttestations.dal.js';
 import type { VerificationQueuePort } from '../verification.queue.js';
 import type { VersionsService } from '../../versions/versions.service.js';
 import { IngredientLinePlanner } from '../ingredientLine.planner.js';
@@ -88,6 +89,8 @@ export interface RecipesServiceCollaborators {
     readonly authorHandles: Pick<AuthorHandlesDal, 'findByline'>;
     /** The evidence table: by default one that holds no evidence, so a recipe is never held out of Public. */
     readonly sourceEvidence: Pick<RecipeSourceEvidenceDal, 'insert' | 'listForRecipe' | 'listCommitted'>;
+    /** The attestation record: by default one that accepts every append, so a write is never refused for want of it. */
+    readonly attestations: Pick<RecipeStatementAttestationsDal, 'insertMany'>;
 }
 
 /** An evidence table that is empty and accepts every append. */
@@ -115,6 +118,7 @@ export function makeRecipesService(overrides: Partial<RecipesServiceCollaborator
         lineVerificationsDal: fakeLineVerificationsDal(new Map()),
         authorHandles: { findByline: async () => undefined },
         sourceEvidence: noSourceEvidence(),
+        attestations: { insertMany: async () => undefined },
         ...overrides,
     };
 
@@ -143,5 +147,6 @@ export function makeRecipesService(overrides: Partial<RecipesServiceCollaborator
         detailAssembler,
         collaborators.authorHandles,
         collaborators.sourceEvidence,
+        collaborators.attestations,
     );
 }

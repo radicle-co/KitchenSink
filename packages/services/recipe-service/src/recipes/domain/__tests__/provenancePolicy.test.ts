@@ -153,7 +153,16 @@ describe('resolveStatementProvenance — the one reading of a statement, for cre
         ['book', 'imported_physical'],
         ['paid_site', 'imported_paid'],
     ] as const)('a %s statement is %s with its own kind and the citation as the credit', (kind, sourceType) => {
-        expect(resolveStatementProvenance({ kind, citation: 'Joy of Cooking, p. 12' })).toEqual({
+        const statement =
+            kind === 'book'
+                ? ({
+                      kind,
+                      citation: 'Joy of Cooking, p. 12',
+                      wording: { version: 'statementBook.v1', locale: 'en' },
+                  } as const)
+                : ({ kind, citation: 'Joy of Cooking, p. 12' } as const);
+
+        expect(resolveStatementProvenance(statement)).toEqual({
             sourceType,
             sourceUrl: null,
             sourceAttribution: 'Joy of Cooking, p. 12',
@@ -163,7 +172,12 @@ describe('resolveStatementProvenance — the one reading of a statement, for cre
     });
 
     it('"I wrote this" is user_created with no source at all, and it is the ONE resolution that is `authored`', () => {
-        expect(resolveStatementProvenance({ kind: 'authored' })).toEqual({
+        expect(
+            resolveStatementProvenance({
+                kind: 'authored',
+                wording: { version: 'statementAuthored.v1', locale: 'en' },
+            }),
+        ).toEqual({
             sourceType: RecipeSourceType.USER_CREATED,
             sourceUrl: null,
             sourceAttribution: null,
@@ -172,13 +186,38 @@ describe('resolveStatementProvenance — the one reading of a statement, for cre
         });
     });
 
+    it('"from another person" states no source, no kind and no statement: it records the cook\u2019s word and nothing else', () => {
+        expect(
+            resolveStatementProvenance({
+                kind: 'fromPerson',
+                wording: { version: 'statementFromPerson.v1', locale: 'en' },
+            }),
+        ).toEqual({
+            sourceType: RecipeSourceType.USER_CREATED,
+            sourceUrl: null,
+            sourceAttribution: null,
+            sourceKind: null,
+            statementKind: null,
+        });
+    });
+
     it('a web link that is not a usable source resolves to nothing', () => {
-        expect(resolveStatementProvenance({ kind: 'public_web', citation: 'https://commise.app/r/1' })).toBeUndefined();
+        expect(
+            resolveStatementProvenance({
+                kind: 'public_web',
+                citation: 'https://commise.app/r/1',
+                wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+            }),
+        ).toBeUndefined();
     });
 
     it('every resolution satisfies the pairing the 0071 CHECK enforces, so no import write can violate it', () => {
         for (const statement of [
-            { kind: 'public_web', citation: 'https://example.com/r' },
+            {
+                kind: 'public_web',
+                citation: 'https://example.com/r',
+                wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+            },
             { kind: 'book', citation: 'A book' },
             { kind: 'paid_site', citation: 'A site' },
         ] as const) {
@@ -193,7 +232,11 @@ describe('resolveStatementProvenance — the one reading of a statement, for cre
     });
 
     it('the statement branch of evaluateProvenance IS this function, not a second copy', () => {
-        const statement = { kind: 'public_web', citation: 'https://www.allrecipes.com/r/1/' } as const;
+        const statement = {
+            kind: 'public_web',
+            citation: 'https://www.allrecipes.com/r/1/',
+            wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+        } as const;
         const decision = evaluateProvenance({ declared: undefined, statement, grantedScopes: [] });
 
         expect(decision.allowed && decision.provenance).toEqual(resolveStatementProvenance(statement));
@@ -201,7 +244,11 @@ describe('resolveStatementProvenance — the one reading of a statement, for cre
 });
 
 describe('evaluateProvenance — a pasted web link as the cook’s statement (ADR-0089)', () => {
-    const WEB = { kind: 'public_web', citation: 'https://www.allrecipes.com/recipe/1/soup/' } as const;
+    const WEB = {
+        kind: 'public_web',
+        citation: 'https://www.allrecipes.com/recipe/1/soup/',
+        wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+    } as const;
 
     it.each([[[]], [['admin:users']], [[CURATOR_IMPORT_SCOPE]]])(
         'is ALLOWED for any caller (grants %j) and resolves to a web copy of the registrable domain',
@@ -232,7 +279,11 @@ describe('evaluateProvenance — a pasted web link as the cook’s statement (AD
     it('refuses an address that is not a usable source (our own site), whatever the schema let through', () => {
         const decision = evaluateProvenance({
             declared: undefined,
-            statement: { kind: 'public_web', citation: 'https://commise.app/recipes/1' },
+            statement: {
+                kind: 'public_web',
+                citation: 'https://commise.app/recipes/1',
+                wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+            },
             grantedScopes: [],
         });
 
@@ -255,7 +306,7 @@ describe('evaluateProvenance — an authored statement (Option B)', () => {
         (grantedScopes) => {
             const decision = evaluateProvenance({
                 declared: undefined,
-                statement: { kind: 'authored' },
+                statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } },
                 grantedScopes,
             });
 

@@ -15,6 +15,7 @@
  * Whether the lock really excludes a second connection, and whether the count is the right rows, are the LOCAL e2e tier's
  * (`tests/e2e/recipes/privateSlots.e2e.test.ts`).
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import 'reflect-metadata';
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -297,6 +298,7 @@ describe('POST /api/v1/recipes with visibility private', () => {
         const response = await call(FREE_COOK, ['default'], 'POST', '/api/v1/recipes', {
             ...CREATE_BODY,
             visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
         });
 
         expect(response.status).toBe(201);

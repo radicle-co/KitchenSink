@@ -2,7 +2,7 @@
  * The closed lists of wordings a cook can have been shown when they stated where a recipe came from, or confirmed Public
  * (the attestation record, migration 0088).
  *
- * DESIGN PATTERN: **Closed registry**. A wording key is a stable name for counsel-approved copy at one version: the record
+ * DESIGN PATTERN: **Closed registry**. A wording key is a stable name for approved copy at one version: the record
  * stores the key and the locale the cook saw, never the text. The wire validates a request against these lists, so a new
  * wording is a change HERE plus `contract:generate`, and needs no migration (the database checks only the key's format).
  *

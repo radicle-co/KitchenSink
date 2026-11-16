@@ -16,8 +16,18 @@ import type { RecipeSourceKind, RecipeSourceType } from '@kitchensink/recipe-cor
 import { evaluateSourceCorrection, type StoredSource } from '../sourceCorrectionPolicy.js';
 
 const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
-const STATEMENT = { kind: 'public_web', citation: LINK } as const;
-const AUTHORED = { kind: 'authored' } as const;
+const STATEMENT = {
+    kind: 'public_web',
+    citation: LINK,
+    wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+} as const;
+const AUTHORED = { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } } as const;
+const BOOK = {
+    kind: 'book',
+    citation: 'Joy of Cooking, p. 12',
+    wording: { version: 'statementBook.v1', locale: 'en' },
+} as const;
+const FROM_PERSON = { kind: 'fromPerson', wording: { version: 'statementFromPerson.v1', locale: 'en' } } as const;
 const AT = new Date('2026-11-01T00:00:00.000Z');
 
 const NONE: StoredSource = {
@@ -128,7 +138,6 @@ describe('evaluateSourceCorrection — the source is locked', () => {
 
     it.each<[RecipeSourceType, RecipeSourceKind | null]>([
         ['imported_public', null],
-        ['imported_physical', 'book'],
         ['imported_paid', 'paid_site'],
     ])('for a source the cook did not state through a link: %s with kind %s', (sourceType, sourceKind) => {
         for (const statement of [STATEMENT, null, AUTHORED]) {
@@ -146,7 +155,11 @@ describe('evaluateSourceCorrection — a statement that is not a usable source',
     it('is refused, so the policy is total even though the wire schema refuses it first', () => {
         expect(
             evaluateSourceCorrection({
-                statement: { kind: 'public_web', citation: 'https://commise.app/recipes/1' },
+                statement: {
+                    kind: 'public_web',
+                    citation: 'https://commise.app/recipes/1',
+                    wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+                },
                 stored: NONE,
             }),
         ).toEqual({ kind: 'unusable' });
@@ -247,39 +260,60 @@ describe('evaluateSourceCorrection — the whole table', () => {
         ['a web copy inherited by a clone', stored({ ...WEB_COPY, clonedFromId: 'r-1' })],
     ];
 
-    type Move = 'setWeb' | 'clear' | 'authored';
-    const STATEMENT_OF = { setWeb: STATEMENT, clear: null, authored: AUTHORED } as const;
+    type Move = 'setWeb' | 'clear' | 'authored' | 'setBook' | 'fromPerson';
+    const MOVES = ['setWeb', 'clear', 'authored', 'setBook', 'fromPerson'] as const;
+    const STATEMENT_OF = {
+        setWeb: STATEMENT,
+        clear: null,
+        authored: AUTHORED,
+        setBook: BOOK,
+        fromPerson: FROM_PERSON,
+    } as const;
 
-    // [source, move, outcome before the first publish, outcome after it]
+    // [source, move, outcome before the first publish, outcome after it]. A book the cook stated in the editor is correctable
+    // before the first publish (an import saves published, so an imported book is already locked); a paid site is never.
+    // "From another person" and a book are locked exactly where a web link is: setBook and fromPerson behave as setWeb here.
     const TABLE: ReadonlyArray<readonly [string, Move, string, string]> = [
         ['no statement', 'setWeb', 'apply', 'locked'],
         ['no statement', 'clear', 'apply', 'locked'],
         ['no statement', 'authored', 'apply', 'apply'],
+        ['no statement', 'setBook', 'apply', 'locked'],
+        ['no statement', 'fromPerson', 'apply', 'locked'],
         ['authored', 'setWeb', 'apply', 'locked'],
         ['authored', 'clear', 'apply', 'locked'],
         ['authored', 'authored', 'apply', 'unchanged'],
+        ['authored', 'setBook', 'apply', 'locked'],
+        ['authored', 'fromPerson', 'apply', 'locked'],
         ['a stated web copy', 'setWeb', 'apply', 'locked'],
         ['a stated web copy', 'clear', 'apply', 'locked'],
         ['a stated web copy', 'authored', 'apply', 'locked'],
+        ['a stated web copy', 'setBook', 'apply', 'locked'],
+        ['a stated web copy', 'fromPerson', 'apply', 'locked'],
         ['the curator’s text', 'setWeb', 'locked', 'locked'],
         ['the curator’s text', 'clear', 'locked', 'locked'],
         ['the curator’s text', 'authored', 'locked', 'locked'],
-        ['a stated book', 'setWeb', 'locked', 'locked'],
-        ['a stated book', 'clear', 'locked', 'locked'],
-        ['a stated book', 'authored', 'locked', 'locked'],
+        ['the curator’s text', 'setBook', 'locked', 'locked'],
+        ['the curator’s text', 'fromPerson', 'locked', 'locked'],
+        ['a stated book', 'setWeb', 'apply', 'locked'],
+        ['a stated book', 'clear', 'apply', 'locked'],
+        ['a stated book', 'authored', 'apply', 'locked'],
+        ['a stated book', 'setBook', 'apply', 'locked'],
+        ['a stated book', 'fromPerson', 'apply', 'locked'],
         ['a stated paid site', 'setWeb', 'locked', 'locked'],
         ['a stated paid site', 'clear', 'locked', 'locked'],
         ['a stated paid site', 'authored', 'locked', 'locked'],
+        ['a stated paid site', 'setBook', 'locked', 'locked'],
+        ['a stated paid site', 'fromPerson', 'locked', 'locked'],
         ['a web copy inherited by a clone', 'setWeb', 'locked', 'locked'],
         ['a web copy inherited by a clone', 'clear', 'locked', 'locked'],
         ['a web copy inherited by a clone', 'authored', 'locked', 'locked'],
+        ['a web copy inherited by a clone', 'setBook', 'locked', 'locked'],
+        ['a web copy inherited by a clone', 'fromPerson', 'locked', 'locked'],
     ];
 
     it('covers every source × move exactly once', () => {
         expect(TABLE.map(([name, move]) => `${name}/${move}`).sort()).toEqual(
-            SOURCES.flatMap(([name]) =>
-                (['setWeb', 'clear', 'authored'] as const).map((move) => `${name}/${move}`),
-            ).sort(),
+            SOURCES.flatMap(([name]) => MOVES.map((move) => `${name}/${move}`)).sort(),
         );
     });
 
@@ -294,5 +328,77 @@ describe('evaluateSourceCorrection — the whole table', () => {
 
         expect(evaluateSourceCorrection({ statement, stored: source }).kind).toBe(before);
         expect(evaluateSourceCorrection({ statement, stored: { ...source, firstPublishedAt: AT } }).kind).toBe(after);
+    });
+});
+
+describe('evaluateSourceCorrection — a cookbook, or another person, before the first publish', () => {
+    it('a book sets the label, the kind, the citation as the credit, and Private in the same write', () => {
+        expect(evaluateSourceCorrection({ statement: BOOK, stored: NONE })).toEqual({
+            kind: 'apply',
+            provenance: {
+                sourceType: 'imported_physical',
+                sourceUrl: null,
+                sourceAttribution: 'Joy of Cooking, p. 12',
+                sourceKind: 'book',
+                statementKind: 'source',
+            },
+            makePrivate: true,
+        });
+    });
+
+    it('"from another person" sets no source and no statement, but still makes the recipe Private in the same write', () => {
+        expect(evaluateSourceCorrection({ statement: FROM_PERSON, stored: NONE })).toEqual({
+            kind: 'apply',
+            provenance: {
+                sourceType: 'user_created',
+                sourceUrl: null,
+                sourceAttribution: null,
+                sourceKind: null,
+                statementKind: null,
+            },
+            makePrivate: true,
+        });
+    });
+
+    it('replaces a stated book with a web link, and a web link with a book', () => {
+        expect(
+            evaluateSourceCorrection({
+                statement: STATEMENT,
+                stored: stored({ sourceType: 'imported_physical', sourceKind: 'book', statementKind: 'source' }),
+            }),
+        ).toMatchObject({ kind: 'apply', provenance: { sourceKind: 'public_web' } });
+        expect(evaluateSourceCorrection({ statement: BOOK, stored: stored(WEB_COPY) })).toMatchObject({
+            kind: 'apply',
+            provenance: { sourceKind: 'book' },
+        });
+    });
+
+    it('clears a stated book (statement null) without touching the visibility', () => {
+        expect(
+            evaluateSourceCorrection({
+                statement: null,
+                stored: stored({ sourceType: 'imported_physical', sourceKind: 'book', statementKind: 'source' }),
+            }),
+        ).toMatchObject({ kind: 'apply', makePrivate: false });
+    });
+
+    it.each([BOOK, FROM_PERSON])('is locked after the first publish, whatever it says (%j)', (statement) => {
+        expect(evaluateSourceCorrection({ statement, stored: stored({ firstPublishedAt: AT }) })).toEqual({
+            kind: 'locked',
+        });
+    });
+
+    it('keeps a book INHERITED by a clone locked: cloning is not a way to relabel a recipe', () => {
+        expect(
+            evaluateSourceCorrection({
+                statement: FROM_PERSON,
+                stored: stored({
+                    sourceType: 'imported_physical',
+                    sourceKind: 'book',
+                    statementKind: 'source',
+                    clonedFromId: 'r-1',
+                }),
+            }),
+        ).toEqual({ kind: 'locked' });
     });
 });

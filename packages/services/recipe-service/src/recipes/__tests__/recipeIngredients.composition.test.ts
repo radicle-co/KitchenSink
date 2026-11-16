@@ -15,7 +15,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 
-import { FoodResolutionStatus, RecipeErrorCode } from '@kitchensink/recipe-core';
+import { FoodResolutionStatus, PUBLIC_CONFIRMATION_FOR_API_WRITERS, RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import type { RecipeAggregate } from '../dal/recipes.dal.js';
 import { isRecipeDomainError } from '../recipe.error.js';
@@ -113,6 +113,7 @@ async function catchError(promise: Promise<unknown>): Promise<unknown> {
 }
 
 const CREATE_DTO: CreateRecipeDto = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Soup',
     cuisine: 'Thai',
     servings: 2,

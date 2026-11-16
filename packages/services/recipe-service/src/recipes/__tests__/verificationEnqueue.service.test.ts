@@ -47,7 +47,7 @@ vi.mock('@sentry/nestjs', () => ({
 import { RecipesService } from '../recipes.service.js';
 import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
 import type { RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
-import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+import { FoodResolutionStatus, PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 import { sha256Hex } from '../../common/sha256.js';
 import type { FoodLookupArm, FoodRef } from '../../database/schema/foodLookupArm.js';
@@ -186,6 +186,7 @@ function makeService(
 
 /** A create body. `sourceLine: null` means the cook AUTHORED the line — the field is simply not sent. */
 const createDto = (sourceLine: string | null = SOURCE_LINE): CreateRecipeDto => ({
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Bread',
     cuisine: 'French',
     servings: 2,

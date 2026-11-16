@@ -8,6 +8,7 @@
  * Whether the real database stores and constrains the columns, and whether `recipe_needs_statement` answers what
  * `statementRequiredOf` answers, is the LOCAL e2e tier's (`recipeStatementKind.e2e.test.ts`, `statementRule.e2e.test.ts`).
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import 'reflect-metadata';
 
 import { HttpException } from '@nestjs/common';
@@ -54,8 +55,12 @@ const BASIL: FoodLookupArm = {
     createdAt: AT,
 };
 const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
-const WEB = { kind: 'public_web', citation: LINK } as const;
-const AUTHORED = { kind: 'authored' } as const;
+const WEB = {
+    kind: 'public_web',
+    citation: LINK,
+    wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+} as const;
+const AUTHORED = { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } } as const;
 
 let stored: RecipeRow;
 
@@ -143,6 +148,7 @@ const PUBLISHED_PUBLIC_BODY = {
     steps: [{ instruction: 'Simmer.' }],
     status: 'published',
     visibility: 'public',
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
 };
 
 async function refusalOf(response: Response): Promise<{ status: number; code: string; details: unknown }> {
@@ -364,6 +370,7 @@ describe('PATCH /api/v1/recipes/{id} — the statement rule on update and publis
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 1,
             status: 'published',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
         });
 
         expect(await refusalOf(response)).toMatchObject(STATEMENT_REQUIRED);
@@ -376,6 +383,7 @@ describe('PATCH /api/v1/recipes/{id} — the statement rule on update and publis
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 1,
             status: 'published',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
             statement: AUTHORED,
         });
 
@@ -514,6 +522,7 @@ describe('PATCH /api/v1/recipes/{id} — the statement rule on update and publis
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 1,
             status: 'published',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
         });
 
         expect(await refusalOf(response)).toMatchObject(SOURCE_CONFLICT);
@@ -524,7 +533,10 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
     it('REFUSES Public for a pasted published recipe with no statement: 400 STATEMENT_REQUIRED, nothing written', async () => {
         stored = pasted();
 
-        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(await refusalOf(response)).toMatchObject(STATEMENT_REQUIRED);
         expect(setVisibility).not.toHaveBeenCalled();
@@ -534,7 +546,10 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
         stored = pasted({ contentPastedAt: null });
         evidence.push(evidenceRow({ sourceDomain: null, sourceKind: null, sourceUrl: null, sourceKey: null }));
 
-        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(await refusalOf(response)).toMatchObject(STATEMENT_REQUIRED);
     });
@@ -542,7 +557,10 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
     it('ALLOWS Public once the cook has said "I wrote this"', async () => {
         stored = pasted({ statementKind: 'authored' });
 
-        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(response.status).toBe(200);
         expect(setVisibility).toHaveBeenCalledOnce();
@@ -551,7 +569,10 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
     it('ALLOWS Public for a recipe typed by hand with no statement', async () => {
         stored = pasted({ contentPastedAt: null });
 
-        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(response.status).toBe(200);
     });
@@ -567,7 +588,10 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
     it('does not refuse Public for a DRAFT: only its owner can read it', async () => {
         stored = pasted({ status: 'draft' });
 
-        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(response.status).toBe(200);
     });
@@ -576,7 +600,10 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
         stored = pasted({ contentPastedAt: null });
         underLock = { ...stored, contentPastedAt: AT };
 
-        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(await refusalOf(response)).toMatchObject(STATEMENT_REQUIRED);
         expect(setVisibility).not.toHaveBeenCalled();
@@ -606,7 +633,7 @@ describe('PATCH /api/v1/recipes/{id}/visibility — the statement rule on set-vi
 });
 
 describe('the whole paths a cook walks', () => {
-    it('THE OLD LEGAL PATH IS STILL REFUSED: state a web source, clear it, say "I wrote this", ask for Public: 400 SOURCE_CONFLICT', async () => {
+    it('THE CLEAR-THEN-CLAIM PATH IS STILL REFUSED: state a web source, clear it, say "I wrote this", ask for Public: 400 SOURCE_CONFLICT', async () => {
         const created = await call('POST', '/api/v1/recipes', {
             ...PUBLISHED_PUBLIC_BODY,
             status: 'draft',
@@ -625,7 +652,10 @@ describe('the whole paths a cook walks', () => {
         ).toBe(200);
         expect(stored).toMatchObject({ statementKind: 'authored' });
 
-        const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+        const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(await refusalOf(asked)).toMatchObject(SOURCE_CONFLICT);
         expect(setVisibility).not.toHaveBeenCalled();
@@ -638,7 +668,10 @@ describe('the whole paths a cook walks', () => {
             (await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: AUTHORED })).status,
         ).toBe(200);
 
-        const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+        const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(asked.status).toBe(200);
         expect(stored.visibility).toBe('public');
@@ -648,7 +681,12 @@ describe('the whole paths a cook walks', () => {
         stored = pasted();
 
         expect(
-            await refusalOf(await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' })),
+            await refusalOf(
+                await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+                    visibility: 'public',
+                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                }),
+            ),
         ).toMatchObject(STATEMENT_REQUIRED);
 
         // The recipe page retries the pair: the second "I wrote this" is a no-op, never SOURCE_LOCKED.
@@ -658,9 +696,14 @@ describe('the whole paths a cook walks', () => {
             ).toBe(200);
         }
 
-        expect((await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' })).status).toBe(
-            200,
-        );
+        expect(
+            (
+                await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+                    visibility: 'public',
+                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                })
+            ).status,
+        ).toBe(200);
     });
 });
 
@@ -786,7 +829,10 @@ describe('the owner-only response — what a stranger must never learn', () => {
         expect(updated).toMatchObject({ statementKind: 'authored', publicNeedsStatement: false });
 
         const made = (await (
-            await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' })
+            await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+                visibility: 'public',
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            })
         ).json()) as Record<string, unknown>;
         expect(made).toMatchObject({ statementKind: 'authored', publicNeedsStatement: false });
     });

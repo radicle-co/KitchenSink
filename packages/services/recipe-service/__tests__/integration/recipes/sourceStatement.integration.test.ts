@@ -13,6 +13,7 @@
  * 0087: the provenance expectations here were rewritten to prove the NEW behaviour, a fifth resolved column `statementKind`
  * (`source` for a stated web copy, `null` for no statement); the statement rule's own routes are `statementRule.integration.test.ts`.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import 'reflect-metadata';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -57,7 +58,11 @@ const BASIL: FoodLookupArm = {
     createdAt: AT,
 };
 const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
-const STATEMENT = { kind: 'public_web', citation: LINK } as const;
+const STATEMENT = {
+    kind: 'public_web',
+    citation: LINK,
+    wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+} as const;
 
 /** The recipe the double holds. Each test sets it. */
 let stored: RecipeRow;
@@ -256,7 +261,11 @@ describe('POST /api/v1/recipes — a statement makes a private web copy', () => 
         const response = await call('POST', '/api/v1/recipes', {
             ...DRAFT_BODY,
             visibility: 'private',
-            statement: { kind: 'public_web', citation: `${page}.` },
+            statement: {
+                kind: 'public_web',
+                citation: `${page}.`,
+                wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+            },
         });
 
         expect(response.status).toBe(201);
@@ -319,7 +328,11 @@ describe('POST /api/v1/recipes — a statement makes a private web copy', () => 
         const response = await call('POST', '/api/v1/recipes', {
             ...DRAFT_BODY,
             visibility: 'private',
-            statement: { kind: 'public_web', citation: 'https://commise.app/recipes/1' },
+            statement: {
+                kind: 'public_web',
+                citation: 'https://commise.app/recipes/1',
+                wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+            },
         });
 
         expect(await refusalOf(response)).toMatchObject({ status: 400, code: 'VALIDATION_FAILED' });
@@ -538,7 +551,9 @@ describe('RecipesService.create with the bulk import’s provenance (ADR-0089)',
     }
 
     it('REFUSES a public save of a public_web item, and writes nothing', async () => {
-        await expect(createWith({ visibility: 'public' })).rejects.toMatchObject({ code: 'INVALID_VISIBILITY' });
+        await expect(
+            createWith({ visibility: 'public', publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS }),
+        ).rejects.toMatchObject({ code: 'INVALID_VISIBILITY' });
         expect(create).not.toHaveBeenCalled();
     });
 
@@ -567,7 +582,10 @@ describe('PATCH /api/v1/recipes/{id}/visibility — judged on the source under t
             sourceUrl: LINK,
         };
 
-        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect((await refusalOf(response)).code).toBe('INVALID_VISIBILITY');
         expect(setVisibility).not.toHaveBeenCalled();
@@ -576,7 +594,10 @@ describe('PATCH /api/v1/recipes/{id}/visibility — judged on the source under t
     it('makes the same cook-written recipe public when the row under the lock is unchanged', async () => {
         stored = makeRecipeRow({ id: RECIPE_ID, ownerId: COOK, status: 'published', visibility: 'private' });
 
-        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(response.status).toBe(200);
         expect(setVisibility).toHaveBeenCalledOnce();
@@ -612,7 +633,7 @@ describe('POST /api/v1/recipes/{id}/clone — the kind travels with the source',
 });
 
 /**
- * THE EVIDENCE RULE (launch-blocking legal fix): a recipe that EVER had a third-party source stated may not be Public, even
+ * THE EVIDENCE RULE: a recipe that EVER had a third-party source stated may not be Public, even
  * after the cook clears the statement. This block is the named path, one request at a time, over the real pipeline with the
  * evidence table as a stateful double. Private is never refused by it.
  */
@@ -656,7 +677,10 @@ describe('the evidence rule: a cleared source does not make a copied recipe the 
         // The recipe now reads as the cook's own...
         expect(stored).toMatchObject({ sourceType: 'user_created', sourceKind: null, sourceUrl: null });
 
-        const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+        const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(await refusalOf(asked)).toMatchObject({
             status: 400,
@@ -690,7 +714,7 @@ describe('the evidence rule: a cleared source does not make a copied recipe the 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'private' });
 
         expect(response.status).toBe(200);
-        expect(setVisibility).toHaveBeenCalledWith(RECIPE_ID, 'private', expect.anything());
+        expect(setVisibility).toHaveBeenCalledWith(RECIPE_ID, 'private', expect.anything(), undefined);
     });
 
     it('lands the CLONE of such a recipe private, and the original is untouched', async () => {
@@ -706,7 +730,10 @@ describe('the evidence rule: a cleared source does not make a copied recipe the 
     it('a recipe that never had a source can be made Public (the control, so the refusal is the evidence’s)', async () => {
         stored = clearedDraft();
 
-        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(response.status).toBe(200);
         expect(setVisibility).toHaveBeenCalledOnce();

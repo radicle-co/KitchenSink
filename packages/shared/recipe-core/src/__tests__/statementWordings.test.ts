@@ -12,7 +12,7 @@ import {
 /** The format the database CHECK on `recipe_statement_attestations.wording_version` accepts (migration 0088). */
 const WORDING_FORMAT = /^[a-z][A-Za-z0-9]*\.v[0-9]+$/;
 
-describe('the closed wording lists (counsel-approved copy a cook saw)', () => {
+describe('the closed wording lists (the copy a cook saw)', () => {
     it('names exactly the four statement wordings and the one confirmation, as the blueprint fixes them', () => {
         expect([...STATEMENT_WORDINGS].sort()).toEqual([
             'statementAuthored.v1',
@@ -28,7 +28,12 @@ describe('the closed wording lists (counsel-approved copy a cook saw)', () => {
     });
 
     it('derives the flat statement list from the per-choice record, so the two cannot disagree', () => {
-        expect(Object.keys(STATEMENT_WORDINGS_BY_CHOICE).sort()).toEqual(['authored', 'book', 'fromPerson', 'publicWeb']);
+        expect(Object.keys(STATEMENT_WORDINGS_BY_CHOICE).sort()).toEqual([
+            'authored',
+            'book',
+            'fromPerson',
+            'publicWeb',
+        ]);
         expect([...STATEMENT_WORDINGS].sort()).toEqual(Object.values(STATEMENT_WORDINGS_BY_CHOICE).flat().sort());
     });
 

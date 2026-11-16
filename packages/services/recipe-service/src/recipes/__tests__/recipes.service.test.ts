@@ -9,7 +9,12 @@
 import { HttpException } from '@nestjs/common';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
-import { RecipeErrorCode, RecipeVisibility, recipeIngredientViewSchema } from '@kitchensink/recipe-core';
+import {
+    PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    RecipeErrorCode,
+    recipeIngredientViewSchema,
+    RecipeVisibility,
+} from '@kitchensink/recipe-core';
 
 import { RecipesService } from '../recipes.service.js';
 import { CURATOR_IMPORT_SCOPE } from '../recipes.schema.js';
@@ -139,6 +144,7 @@ async function catchError(promise: Promise<unknown>): Promise<unknown> {
 }
 
 const CREATE_DTO: CreateRecipeDto = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Soup',
     // A published create needs a cuisine (the publish policy); the body defaults to published.
     cuisine: 'Thai',
@@ -1031,7 +1037,12 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
             update: vi.fn().mockResolvedValue(aggregate({ currentVersion: 2 })),
         });
 
-        await newService(dal).update(principal(), 'r-1', { expectedVersion: 1, status: 'published' }, undefined);
+        await newService(dal).update(
+            principal(),
+            'r-1',
+            { expectedVersion: 1, status: 'published', publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS },
+            undefined,
+        );
 
         expect(dal.update).toHaveBeenCalledWith('r-1', expect.objectContaining({ status: 'published' }), FAKE_TX);
     });
@@ -1069,6 +1080,7 @@ describe('RecipesService — draft status boundary (W8-a.3 security + W8-a.4 IDO
             {
                 expectedVersion: 1,
                 status: 'published',
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
                 ingredients: [
                     {
                         ingredientId: '00000000-0000-4000-8000-0000000000ff',
@@ -1199,7 +1211,12 @@ describe('RecipesService — the publish policy (owner rulings 2026-10-13: a cui
         await newService(supplied).update(
             principal(),
             'r-1',
-            { expectedVersion: 1, status: 'published', cuisine: 'Thai' },
+            {
+                expectedVersion: 1,
+                status: 'published',
+                cuisine: 'Thai',
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            },
             undefined,
         );
 
@@ -1587,7 +1604,12 @@ describe('RecipesService — a never-published draft records no version (ADR-005
         });
         const { service, versions } = serviceWith(dal);
 
-        await service.update(principal(), 'r-1', { expectedVersion: 6, status: 'published' }, undefined);
+        await service.update(
+            principal(),
+            'r-1',
+            { expectedVersion: 6, status: 'published', publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS },
+            undefined,
+        );
 
         expect(versions.createSnapshot).toHaveBeenCalledTimes(1);
         expect(versions.createSnapshot).toHaveBeenCalledWith(
@@ -2102,7 +2124,7 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
 
         const res = await newService(dal).setVisibility(premiumPrincipal(), 'r-1', RecipeVisibility.PRIVATE, undefined);
 
-        expect(setVisibility).toHaveBeenCalledWith('r-1', 'private', FAKE_TX);
+        expect(setVisibility).toHaveBeenCalledWith('r-1', 'private', FAKE_TX, undefined);
         expect(res.visibility).toBe('private');
     });
 
@@ -2305,6 +2327,7 @@ describe('RecipesService — a write reads its bindings in one batch (S-R6)', ()
 
     /** A 3-line create DTO: A, B, then A again (a repeated binding across two lines). */
     const MULTI_LINE_DTO: CreateRecipeDto = {
+        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
         title: 'Stew',
         cuisine: 'Irish',
         servings: 2,

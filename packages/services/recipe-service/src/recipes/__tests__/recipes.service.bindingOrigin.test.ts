@@ -16,7 +16,12 @@
  */
 import { HttpException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { RecipeErrorCode, RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
+import {
+    PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    RecipeErrorCode,
+    RecipeSourceType,
+    RecipeVisibility,
+} from '@kitchensink/recipe-core';
 
 import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
 import type { Principal } from '../../auth/principal.js';
@@ -220,6 +225,7 @@ describe('RecipesService.update — the stored origin follows the line', () => {
 });
 
 const CREATE_DTO: CreateRecipeDto = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Pancakes',
     cuisine: 'American',
     servings: 2,

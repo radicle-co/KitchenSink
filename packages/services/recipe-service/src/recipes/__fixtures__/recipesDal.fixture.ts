@@ -49,6 +49,8 @@ export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal 
                       sourceKind: null,
                       statementKind: null,
                       contentPastedAt: null,
+                      firstPublishedAt: null,
+                      clonedFromId: null,
                   }
                 : {
                       visibility: found.recipe.visibility,
@@ -57,6 +59,8 @@ export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal 
                       sourceKind: found.recipe.sourceKind,
                       statementKind: found.recipe.statementKind,
                       contentPastedAt: found.recipe.contentPastedAt,
+                      firstPublishedAt: found.recipe.firstPublishedAt,
+                      clonedFromId: found.recipe.clonedFromId,
                   };
         }),
         // ADR-0029 section 4: no captured owners to clear and no private lines by default.

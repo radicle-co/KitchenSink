@@ -15,7 +15,7 @@
  *     set-visibility or publish that moved the row in between must not slip past a check made on the stale state.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { RecipeErrorCode, RecipeVisibility } from '@kitchensink/recipe-core';
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS, RecipeErrorCode, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import type { Principal } from '../../auth/principal.js';
 import type { FoodLookupArm } from '../../database/schema/foodLookupArm.js';
@@ -105,6 +105,7 @@ function refsDouble(says: Partial<Record<string, FoodSays>> = {}): FoodRefsGatew
 }
 
 const CREATE: CreateRecipeDto = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Soup',
     cuisine: 'Thai',
     servings: 2,
@@ -253,6 +254,11 @@ describe('RecipesService.create - public recipes hold no private food', () => {
 
 describe('RecipesService.update - public recipes hold no private food (rebind and restore go through it)', () => {
     const patch = (overrides: Partial<UpdateRecipeDto> = {}): UpdateRecipeDto => ({ expectedVersion: 1, ...overrides });
+    const WEB_STATEMENT = {
+        kind: 'public_web',
+        citation: 'https://example.com/soup',
+        wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+    } as const;
 
     it('refuses replacement lines that bind a private food on a published public recipe', async () => {
         const update = vi.fn();
@@ -298,12 +304,7 @@ describe('RecipesService.update - public recipes hold no private food (rebind an
             [PRIVATE_FOOD]: 'public',
         });
 
-        await service.update(
-            principal,
-            'r-1',
-            patch({ status: 'published', statement: { kind: 'public_web', citation: 'https://example.com/soup' } }),
-            undefined,
-        );
+        await service.update(principal, 'r-1', patch({ status: 'published', statement: WEB_STATEMENT }), undefined);
 
         expect(update).toHaveBeenCalledTimes(1);
         // A private recipe is not bound by the rule, so no recapture runs and the captured owner stays.
@@ -317,12 +318,7 @@ describe('RecipesService.update - public recipes hold no private food (rebind an
             .mockResolvedValue(aggregate({ status: 'draft', visibility: 'public' }, [PRIVATE_LOOKUP]));
         const { service } = serviceOver(fakeRecipesDal({ findById, update }));
 
-        await service.update(
-            principal,
-            'r-1',
-            patch({ status: 'published', statement: { kind: 'public_web', citation: 'https://example.com/soup' } }),
-            undefined,
-        );
+        await service.update(principal, 'r-1', patch({ status: 'published', statement: WEB_STATEMENT }), undefined);
 
         expect(update).toHaveBeenCalledTimes(1);
     });

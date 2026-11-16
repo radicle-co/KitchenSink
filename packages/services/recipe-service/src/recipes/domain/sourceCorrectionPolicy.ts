@@ -15,13 +15,13 @@
  *
  * It closes at `first_published_at` (ADR-0058, set by a trigger and never cleared) and stays closed: a recipe set back to
  * draft is still locked, because a source label that could be removed after publishing would be the relabel route ADR-0077
- * section 2 refuses. It is also closed for any source the cook did not state through a link (the curator's public-domain
- * text, a book, a paid site): a pasted link restates nothing about those. And it is closed for a source a clone inherited,
+ * section 2 refuses. It is also closed for any source the cook did not state in the editor (the curator's public-domain
+ * text, a paid site; an imported book is published, so locked already): a pasted link restates nothing about those. And it is closed for a source a clone inherited,
  * so cloning is not a way to relabel a recipe. The rule is `sourceIsCorrectable`, which the editor reads too.
  *
  * ## Visibility
  *
- * Every write that SETS a source sets Private with it, in the same write: a web copy is private only, and a draft holds no
+ * Every write that SETS a source sets Private with it, in the same write: a web copy or a book is private only, and a draft holds no
  * slot, so nothing is counted. The policy does not read the stored visibility, so a draft that raced to public still ends
  * private. A clear never touches visibility: removing the source does not make a recipe public.
  *
@@ -103,7 +103,7 @@ export function evaluateSourceCorrection(input: {
     if (!sourceIsCorrectable(stored)) {
         if (statement?.kind === 'authored') {
             if (statesNothing(stored)) {
-                return applyOf(evaluateProvenance({ statement, grantedScopes: [] }));
+                return applyOf(evaluateProvenance({ statement, grantedScopes: [] }), false);
             }
 
             if (
@@ -123,6 +123,7 @@ export function evaluateSourceCorrection(input: {
         statement === null
             ? evaluateProvenance({ declared: undefined, grantedScopes: [] })
             : evaluateProvenance({ statement, grantedScopes: [] }),
+        statement?.kind === 'fromPerson',
     );
 }
 
@@ -131,13 +132,18 @@ export function evaluateSourceCorrection(input: {
  *
  * Every write that SETS a source sets Private with it, keyed on the provenance that results (`sourceKind`) and not on the
  * statement's presence: "I wrote this" sets no source, so it never makes a recipe private, and a published recipe attested
- * after its first publish keeps the visibility it has. It is not decided from a visibility read outside the lock: a draft that
+ * after its first publish keeps the visibility it has. The one exception is "from another person" (`fromPerson`): it sets no
+ * source either, but the recipe is not the cook's to publish, so it is private in the same write. It is not decided from a visibility read outside the lock: a draft that
  * raced to public between that read and this write must still end private.
  */
-function applyOf(decision: ReturnType<typeof evaluateProvenance>): SourceCorrection {
+function applyOf(decision: ReturnType<typeof evaluateProvenance>, fromPerson: boolean): SourceCorrection {
     if (!decision.allowed) {
         return { kind: 'unusable' };
     }
 
-    return { kind: 'apply', provenance: decision.provenance, makePrivate: decision.provenance.sourceKind !== null };
+    return {
+        kind: 'apply',
+        provenance: decision.provenance,
+        makePrivate: decision.provenance.sourceKind !== null || fromPerson,
+    };
 }

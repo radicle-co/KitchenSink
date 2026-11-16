@@ -9,6 +9,7 @@
  *
  * Whether the real database stores and clears the value is the LOCAL e2e tier's (`tests/e2e/publishGate.e2e.test.ts`).
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import 'reflect-metadata';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -101,6 +102,7 @@ async function call(method: string, path: string, body: unknown): Promise<Respon
 
 /** A create body with a line and a step; `status` absent, so it publishes. */
 const PUBLISH_BODY = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Pesto',
     servings: 2,
     prepTimeMinutes: 5,

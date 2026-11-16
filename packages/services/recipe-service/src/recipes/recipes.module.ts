@@ -20,6 +20,7 @@ import {
 } from './recipes.tokens.js';
 import { RecipesDal } from './dal/recipes.dal.js';
 import { RecipeSourceEvidenceDal } from './dal/recipeSourceEvidence.dal.js';
+import { RecipeStatementAttestationsDal } from './dal/recipeStatementAttestations.dal.js';
 import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import { PhotosDal } from '../photos/dal/photos.dal.js';
 import { LineVerificationsDal } from './dal/lineVerifications.dal.js';
@@ -124,6 +125,9 @@ import { CURATION_DISAGREEMENT_SINK, emitCurationDisagreement, ParseJobMatchView
             inject: [DrizzleProvider],
             useFactory: (db: RecipeDrizzle): RecipeSourceEvidenceDal => new RecipeSourceEvidenceDal(db),
         },
+        // The append-only record of every statement and Public confirmation (migration 0088). INSERT only, always in the
+        // write's own transaction, so it holds no client of its own.
+        RecipeStatementAttestationsDal,
         {
             // Plan 2026-10-15-010 D8 — the byline read model a write resolves its author from. Its OWN instance over
             // the shared Drizzle client, the embedded-DAL pattern `CollectionsModule` already uses for it.

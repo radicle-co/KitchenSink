@@ -6351,8 +6351,24 @@ components:
                   type: string
                   enum:
                     - authored
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementAuthored.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
               required:
                 - kind
+                - wording
               additionalProperties: false
             - type: object
               properties:
@@ -6364,14 +6380,100 @@ components:
                   type: string
                   maxLength: 2000
                   format: uri
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementPublicWeb.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
               required:
                 - kind
                 - citation
+                - wording
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - book
+                citation:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementBook.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
+              required:
+                - kind
+                - citation
+                - wording
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - fromPerson
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementFromPerson.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
+              required:
+                - kind
+                - wording
               additionalProperties: false
         contentPasted:
           type: boolean
           enum:
             - true
+        publicConfirmation:
+          type: object
+          properties:
+            version:
+              type: string
+              enum:
+                - publicConfirm.v1
+            locale:
+              type: string
+              minLength: 2
+              maxLength: 35
+          required:
+            - version
+            - locale
+          additionalProperties: false
       required:
         - title
         - ingredients
@@ -6570,8 +6672,24 @@ components:
                   type: string
                   enum:
                     - authored
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementAuthored.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
               required:
                 - kind
+                - wording
               additionalProperties: false
             - type: object
               properties:
@@ -6583,14 +6701,100 @@ components:
                   type: string
                   maxLength: 2000
                   format: uri
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementPublicWeb.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
               required:
                 - kind
                 - citation
+                - wording
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - book
+                citation:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementBook.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
+              required:
+                - kind
+                - citation
+                - wording
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - fromPerson
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementFromPerson.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
+              required:
+                - kind
+                - wording
               additionalProperties: false
         contentPasted:
           type: boolean
           enum:
             - true
+        publicConfirmation:
+          type: object
+          properties:
+            version:
+              type: string
+              enum:
+                - publicConfirm.v1
+            locale:
+              type: string
+              minLength: 2
+              maxLength: 35
+          required:
+            - version
+            - locale
+          additionalProperties: false
       required:
         - expectedVersion
       additionalProperties: false
@@ -6979,6 +7183,133 @@ components:
           enum:
             - public
             - private
+        statement:
+          oneOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - authored
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementAuthored.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
+              required:
+                - kind
+                - wording
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - public_web
+                citation:
+                  type: string
+                  maxLength: 2000
+                  format: uri
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementPublicWeb.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
+              required:
+                - kind
+                - citation
+                - wording
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - book
+                citation:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementBook.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
+              required:
+                - kind
+                - citation
+                - wording
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - fromPerson
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementFromPerson.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
+              required:
+                - kind
+                - wording
+              additionalProperties: false
+        publicConfirmation:
+          type: object
+          properties:
+            version:
+              type: string
+              enum:
+                - publicConfirm.v1
+            locale:
+              type: string
+              minLength: 2
+              maxLength: 35
+          required:
+            - version
+            - locale
+          additionalProperties: false
       required:
         - visibility
       additionalProperties: false

@@ -11,6 +11,7 @@
  * (`first_published_at` set on the first publish, kept after). Whether the real trigger does that is the LOCAL e2e
  * tier's (`tests/e2e/draftVersions.e2e.test.ts`).
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import 'reflect-metadata';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -218,6 +219,7 @@ describe('a never-published draft records no version (ADR-0058, integration)', (
         const published = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 2,
             status: 'published',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
         });
 
         expect(published.status).toBe(200);
@@ -238,6 +240,7 @@ describe('a never-published draft records no version (ADR-0058, integration)', (
         const created = await call('POST', '/api/v1/recipes', {
             ...DRAFT_BODY,
             status: undefined,
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
             cuisine: 'Southern',
             ingredients: [{ ingredientId: BRISKET.lookupId, quantity: { kind: 'exact', value: 1 }, unit: 'g' }],
             steps: [{ instruction: 'Cook.' }],
@@ -257,7 +260,11 @@ describe('a never-published draft records no version (ADR-0058, integration)', (
         const created = recipeDetailSchema.parse(await (await call('POST', '/api/v1/recipes', DRAFT_BODY)).json());
         const published = recipeDetailSchema.parse(
             await (
-                await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, status: 'published' })
+                await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+                    expectedVersion: 1,
+                    status: 'published',
+                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                })
             ).json(),
         );
         const redrafted = recipeDetailSchema.parse(

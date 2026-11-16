@@ -33,7 +33,7 @@ describe('evidenceRowOf — the row a statement leaves behind', () => {
     ])('keys a web source by its page, never by %s', (_label, address, key) => {
         const provenance = { ...defined(WEB), sourceUrl: address };
 
-        const row = evidenceRowOf(provenance, 'editorLink');
+        const row = evidenceRowOf(provenance, 'editor');
 
         expect(row).toMatchObject({ sourceKey: key });
         // The stored address is what the cook stated; only the KEY drops the fragment.
@@ -41,13 +41,25 @@ describe('evidenceRowOf — the row a statement leaves behind', () => {
     });
 
     it('records a web statement with its address, key, site and kind', () => {
-        expect(evidenceRowOf(defined(WEB), 'editorLink')).toEqual({
+        expect(evidenceRowOf(defined(WEB), 'editor')).toEqual({
             capture: 'editorLink',
             sourceUrl: 'https://www.allrecipes.com/recipe/1/soup/',
             sourceKey: 'https://www.allrecipes.com/recipe/1/soup/',
             sourceDomain: 'allrecipes.com',
             sourceKind: 'public_web',
         });
+    });
+
+    it('records a book the cook stated in the editor with the editorCitation capture, never editorLink', () => {
+        expect(evidenceRowOf(defined(BOOK), 'editor')).toEqual({
+            capture: 'editorCitation',
+            sourceKind: 'book',
+            citation: 'Joy of Cooking',
+        });
+    });
+
+    it('refuses a paid site stated in the editor: the editor cannot state one, and no capture would fit', () => {
+        expect(() => evidenceRowOf(defined(PAID), 'editor')).toThrow(/paid/u);
     });
 
     it('records a book by citation, with no address and no domain', () => {
@@ -66,7 +78,7 @@ describe('evidenceRowOf — the row a statement leaves behind', () => {
     });
 
     it('records nothing for a recipe the cook says is their own, or for the curator’s text', () => {
-        expect(evidenceRowOf(defined(OWN), 'editorLink')).toBeUndefined();
+        expect(evidenceRowOf(defined(OWN), 'editor')).toBeUndefined();
         expect(
             evidenceRowOf(
                 {
@@ -76,13 +88,13 @@ describe('evidenceRowOf — the row a statement leaves behind', () => {
                     sourceKind: null,
                     statementKind: null,
                 },
-                'editorLink',
+                'editor',
             ),
         ).toBeUndefined();
     });
 
     it('refuses a web provenance with no address: a defect in the caller, never a silent gap in the evidence', () => {
-        expect(() => evidenceRowOf({ ...defined(WEB), sourceUrl: null }, 'editorLink')).toThrow(/address/u);
+        expect(() => evidenceRowOf({ ...defined(WEB), sourceUrl: null }, 'editor')).toThrow(/address/u);
     });
 });
 

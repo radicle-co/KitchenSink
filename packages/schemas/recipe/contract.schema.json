@@ -2561,6 +2561,27 @@
                     "minimum": 0,
                     "type": "integer"
                 },
+                "publicConfirmation": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "locale": {
+                            "maxLength": 35,
+                            "minLength": 2,
+                            "type": "string"
+                        },
+                        "version": {
+                            "enum": [
+                                "publicConfirm.v1"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "version",
+                        "locale"
+                    ],
+                    "type": "object"
+                },
                 "servings": {
                     "exclusiveMinimum": 0,
                     "maximum": 2147483647,
@@ -2616,10 +2637,32 @@
                                 "kind": {
                                     "const": "authored",
                                     "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementAuthored.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
                                 }
                             },
                             "required": [
-                                "kind"
+                                "kind",
+                                "wording"
                             ],
                             "type": "object"
                         },
@@ -2634,11 +2677,109 @@
                                 "kind": {
                                     "const": "public_web",
                                     "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementPublicWeb.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
                                 }
                             },
                             "required": [
                                 "kind",
-                                "citation"
+                                "citation",
+                                "wording"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "book",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementBook.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation",
+                                "wording"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "kind": {
+                                    "const": "fromPerson",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementFromPerson.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "wording"
                             ],
                             "type": "object"
                         }
@@ -9167,6 +9308,28 @@
                 }
             ]
         },
+        "publicConfirmationSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "locale": {
+                    "maxLength": 35,
+                    "minLength": 2,
+                    "type": "string"
+                },
+                "version": {
+                    "enum": [
+                        "publicConfirm.v1"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "version",
+                "locale"
+            ],
+            "type": "object"
+        },
         "publicWebStatementSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -12356,10 +12519,32 @@
                         "kind": {
                             "const": "authored",
                             "type": "string"
+                        },
+                        "wording": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "statementAuthored.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
+                            ],
+                            "type": "object"
                         }
                     },
                     "required": [
-                        "kind"
+                        "kind",
+                        "wording"
                     ],
                     "type": "object"
                 },
@@ -12374,11 +12559,109 @@
                         "kind": {
                             "const": "public_web",
                             "type": "string"
+                        },
+                        "wording": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "statementPublicWeb.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
+                            ],
+                            "type": "object"
                         }
                     },
                     "required": [
                         "kind",
-                        "citation"
+                        "citation",
+                        "wording"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "maxLength": 2000,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "book",
+                            "type": "string"
+                        },
+                        "wording": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "statementBook.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation",
+                        "wording"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "kind": {
+                            "const": "fromPerson",
+                            "type": "string"
+                        },
+                        "wording": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "statementFromPerson.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "wording"
                     ],
                     "type": "object"
                 }
@@ -14515,6 +14798,183 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "publicConfirmation": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "locale": {
+                            "maxLength": 35,
+                            "minLength": 2,
+                            "type": "string"
+                        },
+                        "version": {
+                            "enum": [
+                                "publicConfirm.v1"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "version",
+                        "locale"
+                    ],
+                    "type": "object"
+                },
+                "statement": {
+                    "oneOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "kind": {
+                                    "const": "authored",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementAuthored.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "wording"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "format": "uri",
+                                    "maxLength": 2000,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "public_web",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementPublicWeb.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation",
+                                "wording"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "book",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementBook.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation",
+                                "wording"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "kind": {
+                                    "const": "fromPerson",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementFromPerson.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "wording"
+                            ],
+                            "type": "object"
+                        }
+                    ]
+                },
                 "visibility": {
                     "enum": [
                         "public",
@@ -14820,6 +15280,27 @@
                     "minimum": 0,
                     "type": "integer"
                 },
+                "publicConfirmation": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "locale": {
+                            "maxLength": 35,
+                            "minLength": 2,
+                            "type": "string"
+                        },
+                        "version": {
+                            "enum": [
+                                "publicConfirm.v1"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "version",
+                        "locale"
+                    ],
+                    "type": "object"
+                },
                 "servings": {
                     "exclusiveMinimum": 0,
                     "maximum": 2147483647,
@@ -14835,10 +15316,32 @@
                                         "kind": {
                                             "const": "authored",
                                             "type": "string"
+                                        },
+                                        "wording": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "locale": {
+                                                    "maxLength": 35,
+                                                    "minLength": 2,
+                                                    "type": "string"
+                                                },
+                                                "version": {
+                                                    "enum": [
+                                                        "statementAuthored.v1"
+                                                    ],
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "version",
+                                                "locale"
+                                            ],
+                                            "type": "object"
                                         }
                                     },
                                     "required": [
-                                        "kind"
+                                        "kind",
+                                        "wording"
                                     ],
                                     "type": "object"
                                 },
@@ -14853,11 +15356,109 @@
                                         "kind": {
                                             "const": "public_web",
                                             "type": "string"
+                                        },
+                                        "wording": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "locale": {
+                                                    "maxLength": 35,
+                                                    "minLength": 2,
+                                                    "type": "string"
+                                                },
+                                                "version": {
+                                                    "enum": [
+                                                        "statementPublicWeb.v1"
+                                                    ],
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "version",
+                                                "locale"
+                                            ],
+                                            "type": "object"
                                         }
                                     },
                                     "required": [
                                         "kind",
-                                        "citation"
+                                        "citation",
+                                        "wording"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "citation": {
+                                            "maxLength": 2000,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "const": "book",
+                                            "type": "string"
+                                        },
+                                        "wording": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "locale": {
+                                                    "maxLength": 35,
+                                                    "minLength": 2,
+                                                    "type": "string"
+                                                },
+                                                "version": {
+                                                    "enum": [
+                                                        "statementBook.v1"
+                                                    ],
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "version",
+                                                "locale"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "citation",
+                                        "wording"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "kind": {
+                                            "const": "fromPerson",
+                                            "type": "string"
+                                        },
+                                        "wording": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "locale": {
+                                                    "maxLength": 35,
+                                                    "minLength": 2,
+                                                    "type": "string"
+                                                },
+                                                "version": {
+                                                    "enum": [
+                                                        "statementFromPerson.v1"
+                                                    ],
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "version",
+                                                "locale"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "wording"
                                     ],
                                     "type": "object"
                                 }

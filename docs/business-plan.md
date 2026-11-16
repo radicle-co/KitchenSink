@@ -82,14 +82,13 @@ is hired after review volume reaches a set trigger. Recorded in
 
 ### Recipe rights
 
-- Cooks keep the copyright in what they write.
-- A recipe imported from someone else's web page stays private, or shows to anyone as a linked facts card that points
-  to the source. _(Amended 2026-11-03, owner ruling, ADR-0082: the facts of any recipe are free, so the card is open
-  to signed-out readers. It stays `noindex` by house rule. A cook can publish their own "Adapted by you" version.
-  Counsel review is owed before launch (`016-FR-050`).)_
+- Cooks keep the rights in what they write.
+- A cook's private copy of an imported recipe keeps the source's wording, with the source author's name.
+- An imported recipe goes public only as a version Commise writes, unless its source is on the copy-outright
+  allowlist. There are no facts cards. Owner ruling, 2026-11-15. Recorded in
+  [ADR-0092](./architecture/decisions/0092-imported-recipes-go-public-only-as-a-commise-written-version.md).
 - The research is [recipeOwnershipResearch.md](./research/business/recipeOwnershipResearch.md) and
-  [linkedCardResearch.md](./research/business/linkedCardResearch.md). Both are research, not legal advice. The spec
-  changes for these rulings (2026-10-29) are being written into specs 016, 020 and 021.
+  [linkedCardResearch.md](./research/business/linkedCardResearch.md). Both are research.
 
 ### Evidence rule
 

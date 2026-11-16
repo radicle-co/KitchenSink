@@ -1,14 +1,19 @@
-# 0077: Every recipe carries a derived rights label, a web import goes public only as a linked card, and a recipe headed public is checked against outside sources
+# 0077: Every recipe carries a derived rights label, and a recipe headed public is checked against outside sources
 
 - **Status:** Accepted
 - **Date:** 2026-10-29
-- **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): §2 and §3: family recipes and gated public domain are open to the web, the linked card is readable signed out, book and paid-site recipes get a facts card, and the AI-rewrite ban is a launch decision with a pilot gate. §3's "Noindexed and signed-in only" no longer holds: facts cards are readable signed out and indexable. §4 "never blocking" means "never rejected automatically". Every other part stands.
+- **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): §2:
+  family recipes and gated public domain are open to the web. §4 "never blocking" means "never rejected
+  automatically". Every other part stands.
+- **Amended by:** [ADR-0092](0092-imported-recipes-go-public-only-as-a-commise-written-version.md): §3. The linked card
+  is retired, with the facts card (owner ruling, 2026-11-15). The public form of a recipe from someone else's page is a
+  Commise-written version. Every other part stands.
 - **Amended by:** [ADR-0078](0078-a-live-site-claim-clears-the-own-site-hit.md): §4's rule for a blogger who imports
   their own posts. A live site claim (026) now clears the hit on the recipe's own origin page. Any other hit, model
   item or photo signal still goes to a person. Every other decision here stands.
-- **Amended by:** [ADR-0089](0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md): §3. The linked card
-  has no read path yet, so a recipe copied from a web page (a pasted link) is private only, and the "public as a linked
-  card" state is not offered until that path ships. Every other part stands.
+- **Amended by:** [ADR-0089](0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md): §3. A recipe
+  copied from a web page (a pasted link) is private only until the Commise-written version (ADR-0092) ships. Every
+  other part stands.
 - **Amends:** [ADR-0072](0072-bulk-recipe-import.md) §9, its list of source statements. Two statements are added, and
   a family or friend recipe is no longer labelled like a paid source. §6 below also removes §9's rule that a web
   import goes private only with Pro and a substantive edit. Every other part of §9 stands.
@@ -20,7 +25,7 @@
   recipe, and every reviewer is an employee. This ADR also writes down that staff review is a rights check only.
 - **Relates to:** spec [016](../../../specs/016-legal-compliance-framework/spec.md) section B2, which holds the rights
   label table and its cook-facing rules. Spec [021](../../../specs/021-public-discovery-and-sharing/spec.md)
-  `021-FR-014a` to `FR-014h`, the linked card. Spec [020](../../../specs/020-content-source-check/spec.md)
+  `021-FR-014a` to `FR-014h`, the linked card that ADR-0092 retires. Spec [020](../../../specs/020-content-source-check/spec.md)
   `020-FR-012` to `FR-012h`, the outside-copy checks. Spec [004](../../../specs/004-recipe-importing/spec.md)
   `004-FR-014a` and C-001. Spec [001](../../../specs/001-commise-recipe-app/spec.md) C-004 and `001-FR-005`.
   [ADR-0023](0023-curator-declared-provenance.md): who can declare `imported_public`, and its downgrade-only rule,
@@ -114,38 +119,16 @@ ADR-0072 §9's statement list becomes six statements. The table replaces §9's t
   downgrade of provenance after a save, and that stays. A cook who rewrites a saved web recipe makes a new recipe with
   the "Adapted" statement.
 
-### 3. A recipe from someone else's web page is private in full, or public as a linked card
+### 3. A recipe from someone else's web page is private in full, and its public form is ADR-0092's
 
-A recipe imported from someone else's web page has exactly two states. Until the card's read path ships, only the first
-is offered (ADR-0089): a recipe with a pasted web link is private only, and the server refuses Public for it.
+ADR-0092 replaces the linked card that stood here (owner ruling, 2026-11-15).
 
-- **Private:** the full recipe, for the cook and their household.
-- **Public as a linked card**, for other signed-in cooks. The card holds exactly this: the title, servings, times,
-  yield and step count, our own computed nutrition, and the ingredients in our normalized form (quantity, unit and our
-  food name). It also holds the cook's own notes and photos, a prominent "Open the full recipe on [site]" link, and
-  every add-to action (meal plan, grocery list, cart, and AI features that run on ingredient data).
-
-The rules that make the card safe:
-
-- **Never the source's words or photo.** The card never shows the source's method text, headnote or photo, and never
-  a source line word for word. A line with no food match (ADR-0045) shows only the quantity, unit and ingredient name
-  the parse read, never the raw line. A line the parse could not read is left out and counted.
-- **The cook still sees the full recipe.** The cook, and their household where it is shared, see the full private copy
-  whether or not the card is public.
-- **A clone of a card copies the card, never the full copy.** A cook who wants the full recipe captures it from the
-  site themselves, as their own private copy.
-- **One public card per page.** C-001's uniqueness moves from "one shared public recipe per page" to one public card
-  per canonical page address. Each cook's private copy is their own.
-- **Noindexed and signed-in only.** A signed-out reader still gets 021's source card.
-- **A per-site opt-out.** A site on the opt-out list gets a card with only the title, the site's name and the link.
-- **The page's own licence wins.** A page that states a licence allowing it, such as some Creative Commons licences,
-  can be shown in full, on that licence's terms. Public domain text under the curator grant is shown in full too.
-- **The EU database right.** A cap on public cards per site, its number set with counsel, and no feature that lists,
-  browses or filters public cards by site. The cap applies to every site, because we cannot reliably tell where a site
-  was made.
-- **No AI rewrite of the source's method for anyone else.**
-- **The owner's fallback**, used only if counsel says so: hide the ingredient list on the card and keep add-to-list,
-  with words that say so. The research found that hiding them makes no legal difference, so the default shows them.
+- **Private:** the full recipe, for the cook and their household (spec 017 sets what a household sees).
+- **Public:** only as a Commise-written version, or in full when the source is on ADR-0092's allowlist. A page that
+  states an open licence is shown on that licence's terms. Public-domain text under the curator grant is shown in full.
+- **Never the source's words or photo** on any public form, outside the allowlist. A line with no food match (ADR-0045)
+  is never shown word for word to anyone but the cook.
+- **No surface lists, browses or filters public recipes by source site.**
 
 ### 4. A recipe headed public is compared with outside sources, cheapest first
 
@@ -159,7 +142,8 @@ This is the change to ADR-0074 and to `020-FR-012`. It applies only to a recipe 
    anything else about the cook.
 
 - The search runs only where other cooks will read the method: a written, adapted or family recipe, or a clone of one,
-  headed public. It does not run for a linked card, which shows no method, or for public domain text.
+  headed public. It does not run for public domain text. A Commise-written version has its own similarity check
+  (ADR-0092 §4).
 - What either check finds is **for a person**, never blocking. Only the rule-based detectors block (ADR-0074 §2).
 - **The search has its own monthly budget, outside ADR-0024's pool**, with its own counter and its own off switch. It
   is not an LLM call. When the budget is spent or the switch is off, the search part is not read. So the recipe is not
@@ -198,7 +182,7 @@ Owner ruling, 2026-10-29, on the question "Who can keep a web import private?": 
   (`usesPremiumCapability`) and its wire field stay and answer false for every recipe, because installed clients read
   the field. Removing the field, or giving the badge a new meaning, is a separate decision. Spec 010's plan register
   lists the capability under every plan.
-- **What does not change.** Public stays a linked card (§3). The substantive edit still gates publication of a clone
+- **What does not change.** The public form of a web import is ADR-0092's (§3). The substantive edit still gates publication of a clone
   (`001-FR-005b`). ADR-0023's downgrade-only rule is untouched.
 - **The code follows this.** `privateRuleOf(imported_public)` answers `slots`, and `PrivateRule` has no Premium member, so
   every exhaustive switch over it is checked by the compiler. `evaluateVisibility` and `slotRuleApplies` treat
@@ -220,23 +204,15 @@ Owner ruling, 2026-10-29, on the question "Who can keep a web import private?": 
 
 - **The statement kind values.** They are stored per recipe and sent to clients. A value that is renamed later needs a
   migration and a client release.
-- **The card's field list.** Sites will read it as our promise of what we show. Adding a field later, such as a method
-  excerpt, breaks that promise.
 - **The fingerprint's version.** A change of shingle size or normalisation makes every stored fingerprint stale. It
   carries a `v1:` prefix, as ADR-0074's digests do.
 
 ## Residual risks
 
 - **Typed copies of private sources pass.** Nothing can see a family card or an offline book.
-- **The card at scale.** Across many cooks, Commise can show a large share of one EU site's catalogue. That is the
-  "cumulative" case of Directive 96/9/EC Art 7(5), and it is ours, not the cook's. The cap answers it only if counsel
-  sets it well.
-- **Server-side fetching.** A server that returns again and again to a site whose terms it knows fits the pattern of
-  _Register.com v. Verio_ (2d Cir. 2004). The cook's own capture (paste, share sheet, browser extension) is safer under
-  site terms than repeated server fetches. A URL shared from the share sheet that our server then fetches is still a
-  server fetch. Only pasted or shared text, and the page the extension reads in the cook's own browser, are the cook's
-  own capture. That is a risk for counsel against `004-FR-008`'s URL fetch and against 017's
-  tier 5 source-page lookup (`017-FR-005`). This ADR notes it and changes neither.
+- **Server-side fetching.** The import never fetches a page (spec 004, owner ruling 2026-11-15). The cook supplies
+  the page's content. What replaces `004-FR-008`'s URL fetch and 017's tier 5 source-page lookup (`017-FR-005`) is
+  an open owner question.
 - **A stored fingerprint could count as a copy.** Counsel confirms that word-shingle hashes are not a reproduction.
 - **Brave's API terms are unread.** Whether we can keep a search result as evidence is unconfirmed.
 - **Embedding.** The source's photo is still shown by reference to the saving cook (`016-FR-027a`). _Goldman v.
@@ -246,12 +222,9 @@ Owner ruling, 2026-10-29, on the question "Who can keep a web import private?": 
 
 - **A fifth `sourceType` for private sources.** Rejected: a one-way door on the wire, for a recipe the existing
   classes already describe.
-- **Keep imports private only (ReciMe's model).** Safest, and it ends public sharing of web recipes, which the owner
-  wants to keep.
-- **Publish a web import only after the cook rewrites the method.** It adds friction to every share, and an AI rewrite
-  would be the easy way round it.
-- **Hide the card's ingredients and keep add-to-list.** No different in law, and odd for cooks. Kept as the counsel
-  fallback only.
+- **Keep imports private only.** It ends public sharing of web recipes, which the owner wants to keep.
+- **Publish a web import only after the cook rewrites the method.** It adds friction to every share. ADR-0092 has
+  Commise write the public version instead.
 - **Search the web for every recipe, private ones too.** It sends private content to a vendor for no gain, since a
   private copy shows nothing to anyone else.
 - **Let an outside hit block.** A blogger importing their own post, or a classic recipe, would be blocked. A person is

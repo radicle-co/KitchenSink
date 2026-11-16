@@ -2,14 +2,17 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-03
-- **Amends:** [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md) §2 and §3. A family recipe
-  and gated public-domain text are open to the web. The linked card is readable signed out. Book and paid-site recipes
-  get a facts card. The ban on an AI rewrite becomes a launch decision with a pilot gate (§6 below). Its §4 "never
-  blocking" wording means "never rejected automatically". Every other part of ADR-0077 stands.
+- **Amended by:** [ADR-0092](0092-imported-recipes-go-public-only-as-a-commise-written-version.md): §2, §3, §5's
+  licence for Commise's own text, §6 and §7 (owner ruling, 2026-11-15). There are no facts cards and no linked cards.
+  The public form of an import is a Commise-written version, and the import never fetches a page. Every other part
+  stands.
+- **Amends:** [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md) §2. A family recipe and
+  gated public-domain text are open to the web. Its §4 "never blocking" wording means "never rejected automatically".
+  Every other part of ADR-0077 stands.
   [ADR-0072](0072-bulk-recipe-import.md) §9 and its Related work: a recipe whose source is not a public web page can be
-  public as the cook's own "Adapted" version or as a facts card, and the server looks for a STATED licence, never for
-  "no copyright". [ADR-0073](0073-free-tier-private-slots.md): a public facts card is a public recipe and uses no slot. A private
-  bulk-imported recipe no longer waits in review, so it uses its slot like any private recipe (§9 below).
+  public as the cook's own "Adapted" version, and the server looks for a STATED licence, never for "no copyright".
+  [ADR-0073](0073-free-tier-private-slots.md): a private bulk-imported recipe no longer waits in review, so it uses its
+  slot like any private recipe (§9 below).
   [ADR-0074](0074-content-source-check.md): the hold covers every door to public, and fails closed (§8 below). Its §3a
   rule that a private bulk import waits in review is replaced: a private bulk import is usable at once, and only going
   public or on sale waits for review (§9 below, `020-FR-003b`).
@@ -22,10 +25,8 @@
   `FR-040` to `FR-042`. Spec [020](../../../specs/020-content-source-check/spec.md) section K. Spec
   [004](../../../specs/004-recipe-importing/spec.md) `FR-008`, `FR-014a`, `FR-014b`, `FR-023` and `FR-026`. Spec
   [025](../../../specs/025-international-launch/spec.md). GR-014.
-- **Drivers:** owner rulings of 2026-11-03. The founder's goal: recipes are a public resource, and Commise is a free,
-  open, worldwide recipe library, except private recipes. Every dish is fully readable by anyone, signed in or not,
-  with nothing hidden. A legal analysis of the same day, held outside the repository, tested every earlier rule. It is
-  analysis, not legal advice. Every rule here is subject to counsel review before launch (`016-FR-050`).
+- **Drivers:** owner rulings of 2026-11-03. The goal: Commise is a free, open, worldwide recipe library, except for
+  private recipes. Every public recipe is fully readable by anyone, signed in or not.
 
 ## Context
 
@@ -51,55 +52,40 @@ translations and for books with no named author.
 
 A recipe is open to the web in full when its rights label (`016-FR-015c`) is Written by you, Adapted by you, From a
 family member or friend (with permission that covers the web), or Public domain passing `016-FR-015k`, or it is a
-clone of one of those. Open to the web reads the LABEL, never the source type alone, because public-domain text is
+clone of one of those, or it is a Commise-written public version (ADR-0092). Open to the web reads the LABEL, never the source type alone, because public-domain text is
 `imported_public` under the curator grant. Every such recipe passes 020's check and carries the cook's licence
 (`016-FR-010`). The full rule is `021-FR-002`.
 
-### 2. The facts of every public recipe are readable signed out
+### 2. Every public recipe is readable signed out, and there are no facts cards
 
-- **The linked card is a signed-out public projection** (`021-FR-014`, `021-FR-014a`). Its field list does not grow:
-  title, servings, times, yield, step count, our nutrition, the ingredients in our normalized form, the owner's own
-  notes and photos, and the source link. It never shows the source's method, headnote, photo, ratings or any line
-  word for word.
-- **Book and paid-site recipes get a facts card** (`004-FR-014b`, `021-FR-004`): the same field list, with a credit to
-  the book (title, author, publisher) or the site, a per-source cap, and never in the book's order. Our servers never
-  fetch paid sites. The cook's full copy stays private.
-- **Facts cards are indexable** (owner ruling 2026-11-03). The founder's words: "Our competitors rely on making users
-  pay to access any recipe. I want to undercut them and I believe recipes are like a library and so I want people to
-  find public and creator recipes on our app over all others." Indexing is not a separate permission. It follows the
-  public rule. Every indexable page, a card included, is server-rendered signed out, has one canonical URL and a
+ADR-0092 replaces the facts card and the linked card that stood here (owner ruling, 2026-11-15).
+
+- **No facts cards and no linked cards**, anywhere. The public form of an import is a Commise-written version, or the
+  source in full when it is on ADR-0092's allowlist.
+- **No line of another page goes word for word onto a public form**, outside the allowlist.
+- **Indexing follows the public rule.** Every indexable page is server-rendered signed out, has one canonical URL and a
   sitemap entry, and carries schema.org `Recipe` data built only from our own facts and the cook's or Commise's own
-  text, with `isBasedOn` pointing at the source (`021-FR-020`, `FR-023`, `FR-027`). The card keeps its facts-only
-  field list, its caps, a visible credit and link, and no source prose, headnote or photo.
-- **One canonical page per dish from one source page.** Where many cards, or a card and a cook's own recipe, describe
-  one dish from the same page, one canonical page wins and the others declare it, so we never publish thin duplicates
-  (`021-FR-026a`). Two cooks' texts are never merged.
+  text (`021-FR-020`, `FR-023`, `FR-027`).
+- **One canonical page per dish from one source page.** Where several public pages describe one dish from the same
+  source page, one canonical page wins and the others declare it (`021-FR-026a`). Two cooks' texts are never merged.
 - **No paywall on reading a public recipe** (owner ruling 2026-11-03). No Pro gate or other charge ever applies to
-  reading a PUBLIC recipe or collection, signed in or out. Commise never charges anyone to read a recipe. Pro sells
-  private capacity and tools, never access. A creator's sale of a private recipe or collection (§9) is the creator's
-  own offer, not a Commise paywall.
-- **A public facts card is a public recipe.** It uses no private slot (ADR-0073). The cook's full copy behind it is
-  visible only to the cook and their household. This matches ADR-0077 §3 for web imports, and `016-FR-029a` forbids
-  pricing on imported content in any case. A free cook can therefore import a whole cookbook, publish each recipe as a
-  card and keep every full copy without a slot, so ADR-0073's "bulk import pauses" no longer happens for book
-  recipes. Owner ruling 2026-11-03: "No, it is free." This follows `016-FR-029a`.
+  reading a PUBLIC recipe or collection, signed in or out. Pro sells private capacity and tools, never access. A
+  creator's sale of a private recipe or collection (§9) is the creator's own offer, not a Commise paywall.
+- **Slots.** Whether the cook's private copy uses a slot when its public version is Commise-written is an open owner
+  question (ADR-0092 §8). Until the owner rules, ADR-0073 applies: every private recipe a free cook holds uses a slot.
 
-### 3. Caps are counted over time, per site and per source
+### 3. Caps are counted over time, per site and per publisher
 
-[Law, EU and UK] A per-site cap on public facts cards answers Art. 7(5)'s repeated and systematic taking. [Law, US]
-Copying one site's or one book's selection wholesale engages compilation copyright (17 U.S.C. §103). [House rule]
-Goodwill. So:
+- A cap is counted over time, across every public version from one site, never per import.
+- User-recipe aggregator sites get no public version (owner ruling 2026-11-03). A cook's import from one stays
+  private, or the cook publishes it in their own words as "Adapted by you". Whether a Commise-written version changes
+  this is an open owner question (ADR-0092 §8).
+- A paid site's per-publisher cap counts only its distinctive recipes (ADR-0092 §5). Bulk import has a per-source public
+  cap (`004-FR-026`).
+- No surface lists, browses or filters public recipes by source site or by book.
+- A site or book past its cap gets no further public versions.
 
-- the cap is counted over time, across every public card and any later Commise version together, never per import.
-- user-recipe aggregator sites get NO public facts cards (owner ruling 2026-11-03). Their recipes are other users'
-  work, and they carry the highest database-right risk (_British Horseracing Board_, C-203/02). A cook's import from one
-  stays private, or the cook publishes it in their own words as "Adapted by you". Edited publishers' collections get
-  the tightest cap.
-- book and paid-site cards have a per-source cap, and bulk import has a per-source public cap (`004-FR-026`).
-- no surface lists, browses or filters public cards by site or by book.
-- a site or book past its cap shows only the title, its name and the link.
-
-The numbers are set with counsel (`016-FR-030a`).
+The numbers are set in `016-FR-030a`.
 
 ### 4. Public domain opens under one rolling global gate
 
@@ -124,58 +110,34 @@ creator, the edition used, the markets checked, who checked and when, and the ru
   a separate photo licence. The recipe's read contract sends them to clients, and public pages carry schema.org
   `license`.
 - **CC BY 4.0 is opt-in, per recipe, only on a "Written by you" recipe that passed 020's check.** The cook is the
-  licensor. Adults only. The words say "irrevocable as far as the law allows" ([Law] French moral right of withdrawal,
-  CPI L121-4, a free licence can be revocable in England, 17 U.S.C. §203).
-- **CC0 1.0 on text Commise itself writes.** Never CC0 on collected facts as a class, because facts taken from another
-  site's EU or UK database are not ours to waive.
+  licensor. Adults only. The words say "irrevocable as far as the law allows".
+- **CC BY-SA 4.0 on text Commise itself writes**, credited "Commise and contributors" (ADR-0092 §4, owner ruling
+  2026-11-15). It replaces CC0. No licence is applied to collected facts as a class.
 - **The Public Domain Mark** on public-domain text.
 - The app, code, ranking, ingredient matching, the food catalog (ADR-0052), user data, the brand and 018's paid
   content stay proprietary. `016-FR-030`'s anti-extraction terms carve out what a CC licence allows.
 
-### 6. The Commise version is not built at launch
+### 6. The Commise version
 
-An AI rewrite of another site's recipe, published as Commise's own, is not built at launch. [Law] Commise is then the
-publisher, outside the §512(c) safe harbor and outside DSA Art. 6. _Thomson Reuters v. Ross_ (3d Cir., 29 Sep 2026)
-weighs a commercial substitute against fair use. The database right applies to rewritten text. At launch, the facts
-card and the cook's own "Adapted by you" version carry the search value.
+ADR-0092 replaces the launch ban and the pilot gate that stood here (owner ruling, 2026-11-15). The import writes a
+Commise version of every public-facing recipe from a source outside ADR-0092's allowlist, under the rules in
+ADR-0092 §4 and §5. Spec 003B (public versions of imported recipes, planned) builds it.
 
-A later pilot needs all of these first:
+### 7. The import never fetches a page
 
-1. US users only, behind a per-market flag, until EU and UK counsel sign off.
-2. Open-web blog sources only. No paid sites, cookbooks, magazines, user-recipe aggregators or test kitchens.
-3. Extraction to structured fields only: quantities, temperatures, times and a short verb list. No tips or reasons.
-4. A sentence check and a structure check, each with a low threshold and each logged. Either one holds publication.
-5. Human review for registered or high-value publishers.
-6. The §3 cap, counted across versions and cards together.
-7. Every opt-out honoured, AI signals included (§7).
-8. CC0 only on the Commise text, labelled as written by Commise and AI-made. No CC0 on facts. No rewards.
-9. Media and IP liability insurance, a live publisher opt-out contact, and counsel sign-off.
-10. A wide launch only if it adds real search traffic over facts cards and cook adaptations.
-
-So `021-FR-014h` and `016-FR-015i` stand at launch, as a launch decision and an honesty rule, not as law.
-
-### 7. Fetching follows the signals that bind, and the URL import depends on the market
-
-- [Law] Never pass a paywall, login or meter, use a cook's credentials, pose as another bot or rotate addresses
-  (17 U.S.C. §1201, _Facebook v. Power Ventures_, 844 F.3d 1058 (9th Cir. 2016), UK Computer Misuse Act).
-- robots.txt follows RFC 9309: the group that names our user-agent binds us, and otherwise the `*` group binds us.
-- [Law, EU, Judgement, strong] Machine-readable data-mining opt-outs bind under DSM Art. 4(3): TDMRep, `noai` tags,
-  blocks on AI crawlers and `ai-input=no`. [House rule] We honour them everywhere from v1, and log per fetch what each
-  signal said, including "none found".
-- **The per-market URL-import switch.** [Law, EU and UK] Our server makes the copy, so no private-copy or hosting
-  defence covers a stored verbatim copy (UK s.28B quashed, _VCAST_, C-265/16, DSM Art. 4(2)). EU and UK cooks keep
-  facts and a link from a URL import. US cooks keep the private full copy (defensible but untested). A cook who wants
-  the full text pastes it. The switch lives in one policy and is closed for any market counsel has not cleared.
+ADR-0092 replaces the fetch rules and the per-market URL-import switch that stood here (owner ruling, 2026-11-15).
+Every import goes through one pipeline, with source detection first, and never fetches a page (spec 004). The cook
+supplies the page's content. Publisher opt-outs are honoured through a form and a staff list (`016`). What replaces a
+link-only import is an open owner question (ADR-0092 §8).
 
 ### 8. One gate covers every door to public, and it fails closed
 
-[Law] A copy-check flag creates knowledge, so a flagged recipe must not reach the public until a person decides, and a
-person never publishes a confirmed copy (DSA Art. 7, the §512(c)(1)(A) knowledge test). ADR-0074 already holds a
+A flagged recipe does not reach the public until a person decides, and a person never publishes a confirmed copy. ADR-0074 already holds a
 non-green recipe. "Never blocking" in ADR-0077 §4 and ADR-0078 means "never rejected automatically". The hold stays.
 
 Every door that makes content public or more visible goes through the one hold in the read rule: publish, a toggle,
-an edit to any checked field or photo, a version restore, a clone, a public collection, bulk import, a facts card, a
-licensed page, a CC BY switch, a re-publish after takedown and a donation at erasure. A missing or unknown input reads
+an edit to any checked field or photo, a version restore, a clone, a public collection, bulk import, a
+licensed page, a CC BY switch, a re-publish after takedown, a donation at erasure and a Commise-written version. A missing or unknown input reads
 as held. A later change outside the recipe (an opt-out, a cap, a failed public-domain record, a lost site claim) is
 read live. The door list and its failure modes live in `020` section K. Notice and takedown, counter-notice, repeat
 infringers and the DSA and UK OSA duties live in `016-FR-016` to `FR-066`.
@@ -184,8 +146,7 @@ infringers and the DSA and UK OSA duties live in `016-FR-016` to `FR-066`.
 
 Owner rulings of 2026-11-03, each accepting the recommendation put to the founder:
 
-- **Creator pages** list only recipes the cook wrote or adapted, never their facts cards (`012-FR-008`,
-  `021-FR-015`).
+- **Creator pages** list only recipes the cook wrote or adapted (`012-FR-008`, `021-FR-015`).
 - **Pages shown under their own stated open licence are indexable**, and so are public-domain pages (`021-FR-014f`,
   `021-FR-006`).
 - **At launch the app is listed only in US app stores.** The EU and UK duties (`016-FR-048c`) must be met before any
@@ -243,11 +204,11 @@ Owner rulings of 2026-11-03, each accepting the recommendation put to the founde
   A creator can offer a PDF or EPUB with a cookbook or recipe, and the buyer keeps it. The file holds only content the
   creator can sell, and passes the 020 gate like any sale (`026-FR-044`, `020-FR-079`). A chef-club member keeps nothing
   after leaving (`026-FR-045`).
-- **Selling rules.** [Law] A creator can sell only content they own: "Written by
+- **Selling rules.** A creator can sell only content they own: "Written by
   you", "Adapted by you" in their own words, and a family recipe whose giver's permission covers selling. Never a
-  copy of someone else's page, book or paid site, a facts card, or public-domain curator text (17 U.S.C. §106(3),
-  `016-FR-029a`). A collection for sale holds only sellable recipes. Facts cards and other people's recipes can sit
-  only in a free public collection. Selling is distribution, so every sold recipe passes the same 020 hold as
+  copy of someone else's page, book or paid site, a Commise-written version, or public-domain curator text
+  (`016-FR-029a`). A collection for sale holds only sellable recipes. Commise-written versions and other people's
+  recipes can sit only in a free public collection. Selling is distribution, so every sold recipe passes the same 020 hold as
   publishing (`020-FR-057`).
 - **The copy check runs at import, and suggests fresh wording** (owner ruling 2026-11-03, `020-FR-075` to
   `FR-078`, `004-FR-054`, `016-FR-067`, `016-FR-068`). The check runs on the steps beside the ingredient-match review.
@@ -287,39 +248,24 @@ Owner rulings of 2026-11-03, each accepting the recommendation put to the founde
 - Family recipes and public-domain cookbooks join the open web.
 - A cook can publish a cookbook recipe in their own words, with credit.
 - Cooks can open their own recipes under CC BY 4.0.
-- EU and UK cooks get a weaker URL import than US cooks.
-- The rights label Policy, the public-domain record, the licence fields, the facts-card projection, the cap ledger
-  and the fetch-signal log are new work. None of them exists in code yet.
-- A free cook can publish a book or web recipe as a facts card without using a slot. That follows `016-FR-029a`, and
-  it is the founder's ruling of 2026-11-03 (§2).
+- The rights label Policy, the public-domain record, the licence fields and the cap ledger are new work. None of them
+  exists in code yet.
 
 ## One-way doors
 
 - **The statement kind values and the licence values.** They are stored and sent to clients.
 - **A CC BY grant.** Copies others make under it cannot be recalled.
-- **The facts card's field list.** Sites read it as our promise. Adding a method excerpt later breaks it.
 - **Opening a public-domain text.** Once indexed, a mistaken page is copied by others. The record and the annual
   counsel check exist for this reason.
 
 ## Residual risks
 
-- **Counsel has not reviewed any of this.** Every rule is subject to `016-FR-050`.
-- **The founder has not registered the DMCA agent.** Until then there is no safe harbor for anything users post.
-- **UK traffic can still reach the open web pages.** At launch the app is listed only in US stores (§9), but the UK
-  OSA can attach through a significant number of UK users (s.4(5)). `025` holds the market preconditions.
-- **The cap numbers are not set.** A cap set too high does not answer Art. 7(5).
-- **The law on prose-only opt-outs is not settled** (_Kneschke v. LAION_, further appeal pending).
+- **The cap numbers are not set** (`016-FR-030a`).
 - **Shipped code is behind this decision.** `visibilityPolicy.ts` still lets a full `imported_public` copy go public,
   and the read rule carries no hold yet.
 
 ## Alternatives
 
-- **Keep the signed-out source card with no ingredients.** No legal difference, and it hides what the founder wants
-  open.
+- **Keep the signed-out source card with no ingredients.** It hides what the founder wants open.
 - **Open public domain under the 70-year test.** Fails in at least six common cases. Rejected.
-- **Ship the Commise version at launch.** Commise is then the direct infringer for any close paraphrase, with no safe
-  harbor. Rejected for launch, kept as a gated pilot.
-- **CC0 on every recipe's facts.** It implies rights we do not hold in other sites' databases. Rejected.
-- **Keep facts cards `noindex`.** Lawful, and weaker for discovery. The founder chose to be found over all others.
-  Rejected.
-- **Keep the US URL-import copy in every market.** Fails in the EU and UK. Rejected.
+- **Facts cards and linked cards.** Retired by ADR-0092 (owner ruling, 2026-11-15).

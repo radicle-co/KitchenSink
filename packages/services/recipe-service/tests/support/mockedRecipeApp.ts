@@ -8,7 +8,7 @@
  */
 import { bootServiceApp, type BootedServiceApp, type ProviderDouble } from '@kitchensink/service-test-harness';
 
-import { RECIPE_HTTP_SETUP } from '../../src/config/bodyParsing.js';
+import { RECIPE_HTTP_SETUP } from '../../src/config/httpSetup.js';
 
 import { RECIPE_APP_ENV_DEFAULTS } from './recipeAppEnv.js';
 

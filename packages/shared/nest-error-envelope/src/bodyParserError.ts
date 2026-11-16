@@ -2,23 +2,23 @@
  * THE BODY PARSER'S REFUSALS ARE THE CALLER'S `4xx`, not a server fault.
  *
  * `body-parser` refuses a request body with an `http-errors` object (`type: 'entity.too.large'`, `'entity.parse.failed'`,
- * `'encoding.unsupported'`, `'charset.unsupported'`, and raw-body's `'request.size.invalid'`), which is NOT a Nest
+ * `'encoding.unsupported'`, `'charset.unsupported'`, and raw-body's `'request.size.invalid'` and `'request.aborted'`), which is NOT a Nest
  * `HttpException`, so `normalizeHttpException` never sees it and a filter's `500` fallback answered it.
  *
  * ⛔ THE THROWN OBJECT CARRIES THE REQUEST TEXT: `entity.parse.failed` has the raw body as its `body` property, and its
  * `message` (a `SyntaxError`'s) quotes the characters around the error. Every published message here is a CONSTANT,
  * and a filter that gets a failure from this link answers at `warn` with the code only (a `4xx` is never a Sentry issue).
  *
- * ⛔ THIS LINK ONLY SEES WHAT NEST HANDS ON UNCHANGED. Nest's own body parser routes a parse failure through
+ * ⛔ THE FILTER ONLY SEES WHAT NEST HANDS ON UNCHANGED. Nest's own body parser routes a parse failure through
  * `mapExternalException`, which rewrites any `SyntaxError` into a `BadRequestException` carrying the parser's message,
- * so this link never sees it and that message is published. A service that serves a JSON body therefore registers its
- * own parser (`bodyParser: false`) and strips each refusal to `{ type, status, expose }` before Nest's handler; see
- * recipe-service's `config/bodyParsing.ts`.
+ * so the normaliser never sees it and that message is published. A service that serves a JSON body therefore creates
+ * its app with `bodyParser: false`, registers its own parser, and registers {@link stripBodyParserRefusal} directly
+ * after it, so each refusal reaches Nest's handler as `{ type, status, expose }`.
  *
- * A filter that serves a body-parsing route consults this before its `500` fallback, so the rule lives once rather than
- * once per filter. (Food's and identity's filters do not consult it yet.)
+ * A filter that serves a body-parsing route consults the normaliser before its `500` fallback, so the rule lives once
+ * rather than once per filter.
  *
- * @pattern Chain of Responsibility — one link of a service filter's resolve chain, consulted before its 500 fallback
+ * @pattern Chain of Responsibility — one link of a service filter's resolve chain, and one link of the Express chain
  * @module
  */
 import { HttpStatus } from '@nestjs/common';
@@ -34,6 +34,9 @@ export const BODY_ENCODING_UNSUPPORTED_MESSAGE = 'The request body uses an encod
 
 /** The published `message` for a body whose length does not match its `content-length`: a CONSTANT. */
 export const BODY_LENGTH_MISMATCH_MESSAGE = 'The request body does not match its declared length.';
+
+/** The published `message` for a body the client stopped sending: a CONSTANT. */
+export const BODY_INCOMPLETE_MESSAGE = 'The request body was not received in full.';
 
 /** What each parser `type` this link claims answers with. Read through `Object.hasOwn`: a `type` of `constructor` is not one. */
 const PARSER_FAILURES: Readonly<
@@ -56,7 +59,51 @@ const PARSER_FAILURES: Readonly<
         message: BODY_LENGTH_MISMATCH_MESSAGE,
         validation: false,
     },
+    'request.aborted': { status: HttpStatus.BAD_REQUEST, message: BODY_INCOMPLETE_MESSAGE, validation: false },
 };
+
+/** Whether `type` is one this module claims. `Object.hasOwn`: a `type` of `constructor` is not one. Pure. */
+function isClaimedType(type: unknown): type is string {
+    return typeof type === 'string' && Object.hasOwn(PARSER_FAILURES, type);
+}
+
+/**
+ * The Express error link a service registers directly after its JSON parser. A refusal {@link normalizeBodyParserError}
+ * claims travels on as `{ type, status, expose }` only, so neither its `body` (the request text) nor its `message`
+ * (which quotes it) can reach the envelope or the log. Any other error travels on as the same object with any `body`
+ * property removed, because a filter logs a `5xx` whole.
+ *
+ * @param error - What the parser passed to `next`.
+ * @param _request - Unused (Express passes the request).
+ * @param _response - Unused (Express passes the response).
+ * @param next - The next link (Nest's error handler).
+ * @sideEffect Deletes `body` from an unclaimed error, and calls `next`.
+ */
+export function stripBodyParserRefusal(
+    error: unknown,
+    _request: unknown,
+    _response: unknown,
+    next: (error: unknown) => void,
+): void {
+    if (typeof error !== 'object' || error === null) {
+        next(error);
+
+        return;
+    }
+
+    if ('type' in error && isClaimedType(error.type)) {
+        next({
+            type: error.type,
+            status: 'status' in error ? error.status : undefined,
+            expose: 'expose' in error ? error.expose : undefined,
+        });
+
+        return;
+    }
+
+    Reflect.deleteProperty(error, 'body');
+    next(error);
+}
 
 /**
  * Answer a body-parser refusal as its `4xx`, or `undefined` when the thrown value is not one.
@@ -77,8 +124,7 @@ export function normalizeBodyParserError(
     }
 
     const { type, status, expose } = exception as { type?: unknown; status?: unknown; expose?: unknown };
-    const failure =
-        typeof type === 'string' && Object.hasOwn(PARSER_FAILURES, type) ? PARSER_FAILURES[type] : undefined;
+    const failure = isClaimedType(type) ? PARSER_FAILURES[type] : undefined;
 
     if (failure === undefined || expose !== true || typeof status !== 'number' || status < 400 || status > 499) {
         return undefined;

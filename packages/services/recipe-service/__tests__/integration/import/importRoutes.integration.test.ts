@@ -453,6 +453,26 @@ describe('the body parser refuses with the published envelope', () => {
         expect(imports.insertHeader).not.toHaveBeenCalled();
     });
 
+    // ⛔ A PARSER REFUSAL STILL CARRIES CORS. Express skips every non-error middleware after `next(err)`, so a parser
+    // registered before CORS answers a browser with no `access-control-allow-origin`, and the web app reads "Failed to
+    // fetch" instead of the status. The origin is the tier's allowed party (`recipeAppEnv.ts`).
+    it.each([
+        ['a 150 kB body', JSON.stringify({ id: IMPORT_ID, padding: 'a'.repeat(150_000) }), 413],
+        ['malformed JSON', '{"t": MARKER}', 400],
+    ])('⛔ answers %s from an allowed origin with its status and the CORS header', async (_name, body, status) => {
+        const origin = 'http://localhost:3000';
+        const response = await asPrincipal(COOK, () =>
+            fetch(`${booted.baseUrl}${BASE}`, {
+                method: 'POST',
+                headers: { authorization: bearerFor(COOK), 'content-type': 'application/json', origin },
+                body,
+            }),
+        );
+
+        expect(response.status).toBe(status);
+        expect(response.headers.get('access-control-allow-origin')).toBe(origin);
+    });
+
     it('⛔ answers an unsupported content-encoding with 415 UNSUPPORTED_MEDIA_TYPE, not a 500', async () => {
         const response = await asPrincipal(COOK, () =>
             fetch(`${booted.baseUrl}${BASE}`, {

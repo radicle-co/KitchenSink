@@ -22,6 +22,7 @@ export type { ApiErrorEnvelope, EnvelopeVocabulary, NormalizedFailure } from './
 export { normalizeUnstorableText, UNSTORABLE_TEXT_MESSAGE } from './unstorableText.js';
 export {
     normalizeBodyParserError,
+    stripBodyParserRefusal,
     BODY_ENCODING_UNSUPPORTED_MESSAGE,
     BODY_NOT_PARSEABLE_MESSAGE,
     BODY_TOO_LARGE_MESSAGE,

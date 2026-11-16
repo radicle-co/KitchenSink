@@ -22,7 +22,7 @@
  */
 import { bootServiceApp, type BootedServiceApp } from '@kitchensink/service-test-harness';
 
-import { RECIPE_HTTP_SETUP } from '../../src/config/bodyParsing.js';
+import { RECIPE_HTTP_SETUP } from '../../src/config/httpSetup.js';
 import { SEED_ERASURE_QUEUE_URL, SEED_PARSE_QUEUE_URL, SEED_VERIFICATION_QUEUE_URL } from '../support/localHarness.js';
 import { RECIPE_APP_ENV_DEFAULTS } from '../support/recipeAppEnv.js';
 

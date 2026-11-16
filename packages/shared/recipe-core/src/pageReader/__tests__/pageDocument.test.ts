@@ -26,6 +26,17 @@ describe('textBlocks', () => {
         expect(textBlocks('Keep<script>var a = "x";</script><style>p{}</style> this')).toEqual(['Keep this']);
     });
 
+    it.each([
+        ['a template', '<template><p>no</p></template>'],
+        ['a noscript', '<noscript>no</noscript>'],
+        ['a textarea', '<textarea>no</textarea>'],
+        ['an element marked hidden', '<p hidden>no</p>'],
+        ['an inline element marked hidden', '<span hidden="">no</span>'],
+        ['an element nested in a hidden one', '<div hidden><ul><li>no</li></ul></div>'],
+    ])('never reads text a cook cannot see: %s', (_name, markup) => {
+        expect(textBlocks(`Keep ${markup}`)).toEqual(['Keep']);
+    });
+
     it('returns nothing for blank input', () => {
         expect(textBlocks('')).toEqual([]);
         expect(textBlocks('   \n  ')).toEqual([]);
@@ -33,6 +44,20 @@ describe('textBlocks', () => {
 });
 
 describe('isTextCut', () => {
+    it('sees a cut made in the SECOND decode pass: entities that decode into more markup than a read holds', () => {
+        const entities = '&lt;b&gt;x&lt;/b&gt; '.repeat(MAX_WALK_NODES);
+
+        // No `<` at all, so the first pass reads one text node; the second reads 2 x MAX_WALK_NODES elements and cuts.
+        expect(entities.includes('<')).toBe(false);
+        expect(isTextCut(entities)).toBe(true);
+        expect(isTextCut('&lt;b&gt;x&lt;/b&gt; fine')).toBe(false);
+    });
+
+    it('stays cut when a later pass is not: a cut in the first pass is never undone', () => {
+        // Pass 1 reads the text, hits the node cap in the comments and stops; pass 2 reads the decoded text, whole.
+        expect(isTextCut(`a &amp;amp; b${'<!---->'.repeat(MAX_WALK_NODES + 5)}`)).toBe(true);
+    });
+
     it('is false for text, markup and entities within the budget', () => {
         expect(isTextCut('Bake 20 min.')).toBe(false);
         expect(isTextCut('a &amp; b')).toBe(false);

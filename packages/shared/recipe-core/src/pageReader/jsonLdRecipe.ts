@@ -6,7 +6,7 @@
  *
  * ⛔ Hostile-input bounds (blueprint §4): at most {@link MAX_JSON_LD_BLOCKS} blocks (more make the page `tooComplex`), each at most
  * {@link MAX_JSON_LD_BLOCK_BYTES} bytes before `JSON.parse`; the walk is `boundedWalk`, {@link MAX_WALK_DEPTH} deep and
- * `MAX_WALK_NODES` nodes, and a block over the byte limit, a block nested deeper or a walk that hits the node cap makes the page `tooComplex`; a block that does not parse is skipped. Parsed objects are never spread or merged.
+ * `MAX_WALK_NODES` nodes, and a block over the byte limit, a block that does not parse, a block nested deeper or a walk that hits the node cap makes the page `tooComplex` (a blank block holds nothing and is passed over). Parsed objects are never spread or merged.
  */
 import { boundedWalk } from './boundedWalk.js';
 import { MAX_JSON_LD_BLOCK_BYTES, MAX_JSON_LD_BLOCKS, MAX_WALK_DEPTH, fitsInBytes } from './pageCaps.js';
@@ -71,12 +71,12 @@ function isShallow(root: unknown): boolean {
 /** A block as read: its JSON, or why it gives none. */
 type ParsedBlock =
     | { readonly kind: 'json'; readonly value: unknown }
-    /** Not JSON: skipped. */
-    | { readonly kind: 'skipped' }
-    /** Over the byte limit, or nested deeper than {@link MAX_WALK_DEPTH}: unread, so the page is only partly read. */
+    /** Blank: it holds nothing, so it cannot hold the page's recipe. */
+    | { readonly kind: 'empty' }
+    /** Over the byte limit, nested deeper than {@link MAX_WALK_DEPTH}, or not JSON: unread, so the page is only partly read. */
     | { readonly kind: 'unread' };
 
-const SKIPPED: ParsedBlock = { kind: 'skipped' };
+const EMPTY: ParsedBlock = { kind: 'empty' };
 const UNREAD: ParsedBlock = { kind: 'unread' };
 
 function parsedBlock(script: PageElement): ParsedBlock {
@@ -86,12 +86,17 @@ function parsedBlock(script: PageElement): ParsedBlock {
         return UNREAD;
     }
 
+    if (text.trim() === '') {
+        return EMPTY;
+    }
+
     try {
         const value = JSON.parse(text) as unknown;
 
         return isShallow(value) ? { kind: 'json', value } : UNREAD;
     } catch {
-        return SKIPPED;
+        // A block that does not parse may be the page's own recipe: the page is not read whole.
+        return UNREAD;
     }
 }
 
@@ -99,14 +104,14 @@ function parsedBlock(script: PageElement): ParsedBlock {
  * Find the recipe in a page's JSON-LD.
  *
  * @param page - The parsed paste.
- * @returns What the JSON-LD holds: `none` when no block has a recipe, and `tooComplex` when there are more blocks than the cap, a block is over the byte limit or nests past the depth cap
- *   or a walk hit the node cap, because a recipe (or a second one) may lie in what was not read. Pure.
+ * @returns What the JSON-LD holds: `none` when no block has a recipe, and `tooComplex` when there are more blocks than the cap, a block is over the byte limit, does not parse or nests past
+ *   the depth cap, or a walk hit the node cap, because a recipe (or a second one) may lie in what was not read. Pure.
  */
 export function jsonLdRecipe(page: PageDocument): RecipeExtraction {
     const scripts = page.byTag('script').filter(isJsonLdScript);
     const blocks = scripts.slice(0, MAX_JSON_LD_BLOCKS).map(parsedBlock);
 
-    // A block past the cap, or one too big or too deep to read, may hold the page's own recipe.
+    // A block past the cap, or one too big, too deep or not JSON to read, may hold the page's own recipe.
     if (scripts.length > MAX_JSON_LD_BLOCKS || blocks.some((block) => block.kind === 'unread')) {
         return TOO_COMPLEX;
     }

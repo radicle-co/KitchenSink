@@ -114,14 +114,20 @@ describe('microdataRecipe', () => {
         expect(titles(one('A') + one('A'))).toEqual(['A']);
     });
 
-    it('reads at most the first 64 recipe items of a page', () => {
+    /** Rewritten: items past the 64th were dropped and the first 64 read. A page with more is `tooComplex`, never read as its first 64. */
+    it('refuses a page with more than 64 recipe items, and reads exactly 64', () => {
         const one = (index: number) =>
             recipeScope(`<h1 itemprop="name">R${String(index)}</h1><i itemprop="recipeIngredient">1 egg</i>`);
-        const extraction = read(Array.from({ length: MAX_RECIPES_PER_PAGE + 36 }, (_, index) => one(index)).join(''));
+        const many = (count: number) => read(Array.from({ length: count }, (_, index) => one(index)).join(''));
 
         expect(MAX_RECIPES_PER_PAGE).toBe(64);
-        expect(extraction.kind === 'candidates' ? extraction.candidates : []).toHaveLength(MAX_RECIPES_PER_PAGE);
-        expect(extraction.kind === 'candidates' ? extraction.candidates[0]?.title : undefined).toBe('R0');
+        expect(many(MAX_RECIPES_PER_PAGE + 1)).toEqual({ kind: 'tooComplex' });
+        expect(many(MAX_RECIPES_PER_PAGE + 36)).toEqual({ kind: 'tooComplex' });
+
+        const exact = many(MAX_RECIPES_PER_PAGE);
+
+        expect(exact.kind === 'candidates' ? exact.candidates : []).toHaveLength(MAX_RECIPES_PER_PAGE);
+        expect(exact.kind === 'candidates' ? exact.candidates[0]?.title : undefined).toBe('R0');
     });
 
     it('applies one itemprop with several names to each', () => {

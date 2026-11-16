@@ -5,15 +5,20 @@
  * it and the page. The gate (`recipeAcceptance.ts`) stays blind to the page and the strategies stay blind to both; this
  * stage sits between selection and the gate.
  *
- * | #       | Predicate                                                                                                   | Reason                    | Tier     |
- * | ------- | ----------------------------------------------------------------------------------------------------------- | ------------------------- | -------- |
- * | G-EMPTY | no `recipeInstructions` property the page declares holds no text (a paragraph a parser closed early)         | `declaredStepsEmpty`      | microdata |
- * | G-CORR  | the page has a `<body>`, and shows every ingredient line to the end of a visible block and every raw step     | `pageHasNoBody`, `pageDisagreesWithSchema` | JSON-LD |
+ * | #       | Predicate                                                                                                                         | Reason                                     | Tier      |
+ * | ------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | --------- |
+ * | G-EMPTY | no `recipeInstructions` property the page declares holds no text (a paragraph a parser closed early)                               | `declaredStepsEmpty`                       | microdata |
+ * | G-CORR  | the page has a `<body>`, and its visible card is the schema both ways: every line and step, and no line or step the schema lacks  | `pageHasNoBody`, `pageDisagreesWithSchema` | both      |
  *
- * G-CORR exists because a site's JSON-LD is written for a search engine, and some sites let it drift from the card a cook
- * reads: a note cut off a line, a step missing, a base form where the page says "raisins". A recipe whose data the page
- * does not show is a no, never a wrong yes (precision first). It reads each step's RAW text (`schemaSteps`), never the
- * built instruction, so a heading the reader adds can never make a correct page disagree with itself.
+ * G-CORR exists because a site's structured data is written for a search engine, and some sites let it drift from the card
+ * a cook reads: a note cut off a line, a step or an ingredient missing, a base form where the page says "raisins". It is
+ * two-way (`VisibleText.shows`): each ingredient line is a whole visible line (it starts and ends where a visible block
+ * does, so "flour" is not "2 cups flour"), the steps are read in order, and a list the lines sit in has no line the
+ * schema leaves out, so a schema that is missing one is caught as surely as a page that is missing one. Text a cook cannot
+ * see (a template, a `noscript`, a `textarea`, anything `hidden`, a `<meta>`) is no part of the page. A line or step with no
+ * letter or digit never agrees. A recipe whose data the page does not show is a no, never a wrong yes (precision first). It
+ * reads each step's RAW text (`schemaSteps`), never the built instruction, so a heading the reader adds can never make a
+ * correct page disagree with itself.
  *
  * The same page text answers R3: a step's `name` is a heading only where the page shows it ({@link withShownStepNames}).
  */
@@ -37,23 +42,18 @@ const AGREES: Corroboration = Object.freeze({ ok: true });
 
 const refusal = (reason: CorroborationReason): Corroboration => Object.freeze({ ok: false, reason });
 
-/** G-CORR over a page's visible text: every ingredient line to a block end, every raw step anywhere. */
+/** G-CORR over a page's visible text: the card the cook reads is the ingredient lines and the steps, no more and no less. */
 function pageShows(candidate: PageCandidate, text: VisibleText): Corroboration {
-    const lines = candidate.recipe.ingredientLines.map((line) => ({ run: tokensOf(line), endsBlock: true }));
-    const steps = candidate.schemaSteps.map((step) => ({ run: tokensOf(step.text), endsBlock: false }));
+    const ingredients = candidate.recipe.ingredientLines.map(tokensOf);
+    const steps = candidate.schemaSteps.map((step) => tokensOf(step.text));
 
-    for (const { run, endsBlock } of [...lines, ...steps]) {
-        if (run.length === 0) {
-            continue;
-        }
-
-        const lookup = text.find(run, endsBlock);
-
+    // Whole lines, one visible block each (or several, joined): "flour" is not "2 cups flour".
+    for (const lookup of [text.shows(ingredients, true), text.shows(steps, false)]) {
         if (lookup === 'overBudget') {
             return refusal('pageTooComplex');
         }
 
-        if (lookup === 'absent') {
+        if (lookup === 'differs') {
             return refusal('pageDisagreesWithSchema');
         }
     }
@@ -65,7 +65,7 @@ function pageShows(candidate: PageCandidate, text: VisibleText): Corroboration {
  * Judge whether a page agrees with the recipe it carries.
  *
  * @param candidate - The one recipe selected from the page.
- * @param tier - Which strategy read it: JSON-LD is held to the page (G-CORR), microdata to its own markup (G-EMPTY).
+ * @param tier - Which strategy read it: microdata is also held to its own markup (G-EMPTY); both are held to the page (G-CORR).
  * @param visible - The page's visible text, read at most once (`memoizedVisibleText`).
  * @returns `{ ok: true }`, or the first predicate it fails. Pure.
  */
@@ -74,8 +74,8 @@ export function corroborate(
     tier: ExtractionTier,
     visible: () => VisibleTextResult,
 ): Corroboration {
-    if (tier === 'microdata') {
-        return candidate.emptyDeclaredSteps ? refusal('declaredStepsEmpty') : AGREES;
+    if (tier === 'microdata' && candidate.emptyDeclaredSteps) {
+        return refusal('declaredStepsEmpty');
     }
 
     const page = visible();

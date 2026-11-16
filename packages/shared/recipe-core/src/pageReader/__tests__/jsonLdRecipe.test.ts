@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_JSON_LD_BLOCK_BYTES, MAX_JSON_LD_BLOCKS, MAX_WALK_NODES } from '../pageCaps.js';
+import { MAX_JSON_LD_BLOCK_BYTES, MAX_JSON_LD_BLOCKS, MAX_RECIPES_PER_PAGE, MAX_WALK_NODES } from '../pageCaps.js';
 import { parsePage } from '../pageDocument.js';
 import { jsonLdRecipe } from '../jsonLdRecipe.js';
 import { makeJsonLdScript, makePage, makeRecipeNode } from '../__fixtures__/pageFixtures.js';
@@ -261,10 +261,25 @@ describe('jsonLdRecipe: reading every candidate', () => {
 });
 
 describe('jsonLdRecipe: blocks', () => {
-    it('skips a block that is not JSON and reads the next', () => {
+    /** Rewritten: a block that is not JSON was skipped, so a second block's recipe won. It may hold the page's own recipe, so it is `tooComplex`. */
+    it("refuses a block that is not JSON: it may hold the page's own recipe, and the next block's must not win", () => {
         const page = makePage({ jsonLd: ['{"@type": "Recipe", broken', makeRecipeNode()] });
 
+        expect(jsonLdRecipe(parsePage(page))).toEqual({ kind: 'tooComplex' });
+    });
+
+    it('passes over a blank block, which holds nothing', () => {
+        const page = makePage({ jsonLd: ['  \n ', makeRecipeNode()] });
+
         expect(jsonLdRecipe(parsePage(page))).toMatchObject({ kind: 'candidates' });
+    });
+
+    it('refuses more Recipe nodes than the page cap, and reads exactly the cap', () => {
+        const nodes = (count: number) =>
+            Array.from({ length: count }, (_, index) => makeRecipeNode({ '@id': `r${String(index)}` }));
+
+        expect(read({ '@graph': nodes(MAX_RECIPES_PER_PAGE + 1) }).kind).toBe('tooComplex');
+        expect(read({ '@graph': nodes(MAX_RECIPES_PER_PAGE) })).toMatchObject({ kind: 'candidates' });
     });
 
     it('only reads scripts of type application/ld+json, with any case or parameters', () => {

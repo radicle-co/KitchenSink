@@ -209,6 +209,13 @@ describe('acceptRecipe: the black-and-white gate, one case per predicate and bot
             expect(acceptRecipe(recipeOf(overrides), 'jsonLd')).toEqual({ ok: false, reason: 'garbledText' });
         });
 
+        it.each([
+            ['an ingredient line of punctuation only', { ingredientLines: ['1 cup flour', '***'] }],
+            ['a step of punctuation only', { steps: stepsOf('Mix well.', '***') }],
+        ])('refuses %s: nothing a cook can read', (_label, overrides) => {
+            expect(acceptRecipe(recipeOf(overrides), 'jsonLd')).toEqual({ ok: false, reason: 'garbledText' });
+        });
+
         it.each(['\u007F', '\u00A0', '\u00E9', '\u2019', '\u{1F600}'])('accepts %j, just outside the set', (char) => {
             expect(
                 acceptRecipe(

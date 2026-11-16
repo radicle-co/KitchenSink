@@ -8,7 +8,7 @@
  * reader in `pageRecipeCandidate.ts` serves both strategies. A value comes from the attribute the element type names
  * (`meta` content, `time` datetime, `link` and `a` href, `img` src, `data` value) and otherwise from its text blocks.
  *
- * ⛔ At most {@link MAX_RECIPES_PER_PAGE} recipe items are read. The walk is `boundedWalk`, `MAX_WALK_DEPTH` deep and
+ * ⛔ A page with more than {@link MAX_RECIPES_PER_PAGE} recipe items is `tooComplex`. The walk is `boundedWalk`, `MAX_WALK_DEPTH` deep and
  * `MAX_WALK_NODES` elements, per recipe (a cap that cuts it makes the page `tooComplex`), and the text of one property is read from at most that many nodes. An item is built
  * on a prototype-less object, so a property named `__proto__` or `constructor` is plain data.
  */
@@ -134,7 +134,13 @@ const isRecipeItem = (element: PageElement): boolean =>
  *   a property (or a step) may lie in what was not read. Pure.
  */
 export function microdataRecipe(page: PageDocument): RecipeExtraction {
-    const roots = page.withAttribute('itemscope').filter(isRecipeItem).slice(0, MAX_RECIPES_PER_PAGE);
+    const roots = page.withAttribute('itemscope').filter(isRecipeItem);
+
+    // More items than the cap are never read, and never dropped quietly: the page is too complex.
+    if (roots.length > MAX_RECIPES_PER_PAGE) {
+        return TOO_COMPLEX;
+    }
+
     const reads = roots.map(itemOf);
 
     return reads.some((read) => read.truncated)

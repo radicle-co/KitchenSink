@@ -113,7 +113,26 @@ describe('corroborate: G-CORR, the page shows what the JSON-LD says', () => {
         });
     });
 
-    it('does not look at the page for microdata', () => {
+    /** Rewritten: microdata was never checked against the page, so a `<meta>` or a hidden element could state a line the page never showed. It is held to the visible text now. */
+    it('holds a microdata recipe to the page too: a line only a meta element states is not shown', () => {
+        const page = parsePage(
+            makePage({
+                body: `<div itemscope itemtype="https://schema.org/Recipe"><h1 itemprop="name">Soup</h1><ul><li itemprop="recipeIngredient">1 apple</li></ul><meta itemprop="recipeIngredient" content="5 kg arsenic"><p itemprop="recipeInstructions">Bake.</p></div>`,
+            }),
+        );
+        const extraction = microdataRecipe(page);
+
+        if (extraction.kind !== 'candidates') {
+            throw new Error('no candidate');
+        }
+
+        expect(corroborate(extraction.candidates[0] as PageCandidate, 'microdata', memoizedVisibleText(page))).toEqual({
+            ok: false,
+            reason: 'pageDisagreesWithSchema',
+        });
+    });
+
+    it('agrees for a microdata recipe the page shows', () => {
         const page = parsePage(makePage({ body: makeMicrodataBody() }));
         const extraction = microdataRecipe(page);
 
@@ -121,19 +140,28 @@ describe('corroborate: G-CORR, the page shows what the JSON-LD says', () => {
             throw new Error('no candidate');
         }
 
-        const empty = parsePage('<html><head></head></html>');
+        expect(corroborate(extraction.candidates[0] as PageCandidate, 'microdata', memoizedVisibleText(page))).toEqual({
+            ok: true,
+        });
+    });
 
-        expect(corroborate(extraction.candidates[0] as PageCandidate, 'microdata', memoizedVisibleText(empty))).toEqual(
-            { ok: true },
-        );
+    it('refuses a line or a step with no letter or digit, even where the page shows it', () => {
+        const nothing = makeRecipeNode({ recipeIngredient: ['1 cup flour', '***'], recipeInstructions: ['Mix.'] });
+        const { page, candidate } = jsonLdCase(nothing);
+
+        expect(corroborate(candidate, 'jsonLd', memoizedVisibleText(page))).toEqual({
+            ok: false,
+            reason: 'pageDisagreesWithSchema',
+        });
     });
 });
 
 describe('corroborate: G-EMPTY, a declared recipeInstructions property holds no text', () => {
     const microdata = (inner: string) => {
+        // A card a cook can read: the ingredient is a line of its own, as a site's markup writes it.
         const page = parsePage(
             makePage({
-                body: `<div itemscope itemtype="https://schema.org/Recipe"><span itemprop="name">Pie</span><span itemprop="recipeIngredient">1 apple</span>${inner}</div>`,
+                body: `<div itemscope itemtype="https://schema.org/Recipe"><h1 itemprop="name">Pie</h1><ul><li itemprop="recipeIngredient">1 apple</li></ul>${inner}</div>`,
             }),
         );
         const extraction = microdataRecipe(page);

@@ -2,8 +2,8 @@
  * What a page shows a cook, as tokens that a run can be looked up in: the one thing the corroboration stage and the
  * step-name check ask of a page.
  *
- * DESIGN PATTERN: **Adapter** over {@link PageDocument}, narrowed to one question, "is this run of tokens on the page".
- * It is built once per paste and holds no extraction logic.
+ * DESIGN PATTERN: **Adapter** over {@link PageDocument}, narrowed to two questions, "is this run of tokens on the page" and
+ * "does the page show exactly this list, no more". It is built once per paste and holds no extraction logic.
  *
  * ⛔ A page is hostile input, so the read is bounded three ways. The body is read to `MAX_VISIBLE_NODES` (`pageCaps.ts`) nodes and
  * {@link MAX_VISIBLE_TOKENS} tokens, and a page past either is `tooComplex`, never half read. A lookup goes through an index
@@ -12,11 +12,14 @@
  * Only linear whitespace and newline splits run over page text, and no pattern can backtrack.
  */
 import { MAX_TOKEN_COMPARISONS, MAX_VISIBLE_TOKENS } from './pageCaps.js';
-import type { PageDocument } from './pageDocument.js';
+import type { PageDocument, VisibleBlock } from './pageDocument.js';
 import { tokensOf } from './pageTokens.js';
 
 /** Whether a run was found, was not, or could not be looked for within the page's comparison budget. */
 export type RunLookup = 'found' | 'absent' | 'overBudget';
+
+/** Whether the page shows exactly a list, shows something else, or could not be checked within its comparison budget. */
+export type ListLookup = 'matches' | 'differs' | 'overBudget';
 
 /** The visible text of one page. */
 export interface VisibleText {
@@ -27,6 +30,18 @@ export interface VisibleText {
      * @param endsBlock - Whether the run must END where a visible block (a list item, a paragraph) ends.
      */
     find(run: readonly string[], endsBlock: boolean): RunLookup;
+
+    /**
+     * Whether the page shows these runs as ONE list, in order, and nothing else in the lists they sit in: the check that a
+     * schema is neither more nor less than the card the cook reads. Each run is found after the one before it. Every block
+     * of every list a run sits in (the blocks that share its container) must be read by a run, except a heading, and no
+     * block is read by a run in part. A schema that leaves a line out, or reads only the end of one, therefore differs.
+     *
+     * @param runs - The tokens of each line, in order. A run with no tokens never matches.
+     * @param wholeBlocks - Whether each run must START where a block starts and END where one ends (an ingredient line),
+     *   or may sit anywhere in a block (a sentence of a step, with its neighbours the rest of the block).
+     */
+    shows(runs: readonly (readonly string[])[], wholeBlocks: boolean): ListLookup;
 }
 
 /** The page's visible text, or why there is none: no `<body>`, or a page too big or too deep to read whole. */
@@ -67,8 +82,80 @@ function matchedPrefix(tokens: readonly string[], run: readonly string[], start:
     return at;
 }
 
-/** The first-token index and the block ends of one page's tokens. */
-function textOfTokens(tokens: readonly string[], blockEnds: Uint8Array): VisibleText {
+/** The index of the first of the ascending `list` that is at least `least`, or its length. */
+function firstAtLeast(list: readonly number[], least: number): number {
+    let low = 0;
+    let high = list.length;
+
+    while (low < high) {
+        const middle = (low + high) >>> 1;
+
+        if ((list[middle] ?? 0) < least) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+
+    return low;
+}
+
+/** A page's tokens, and the blocks they came from. Only a block with a token is one. */
+interface Tokenized {
+    readonly tokens: readonly string[];
+    /** For each token, 1 when it starts a block. */
+    readonly blockStarts: Uint8Array;
+    /** For each token, 1 when it ends a block. */
+    readonly blockEnds: Uint8Array;
+    /** For each block, its first and last token and its container. */
+    readonly blocks: readonly BlockSpan[];
+}
+
+interface BlockSpan {
+    readonly first: number;
+    readonly last: number;
+    readonly group: number;
+    readonly isHeading: boolean;
+}
+
+/** `locate` found no place for the run. */
+const ABSENT = -1;
+/** `locate` ran past the comparison budget. */
+const OVER_BUDGET = -2;
+
+/** Whether the blocks that a run was read from leave a line of their list unread: see {@link VisibleText.shows}. */
+function leavesLinesUnread({ blocks }: Tokenized, covered: Uint8Array): boolean {
+    const touched = new Set<number>();
+    const unread: BlockSpan[] = [];
+
+    for (const block of blocks) {
+        let reads = 0;
+
+        for (let at = block.first; at <= block.last; at += 1) {
+            reads += covered[at] ?? 0;
+        }
+
+        if (reads > 0) {
+            touched.add(block.group);
+        }
+
+        if (reads > 0 && reads < block.last - block.first + 1) {
+            // Read in part: a line of the page whose other words the schema does not state.
+            return true;
+        }
+
+        if (reads === 0 && !block.isHeading) {
+            unread.push(block);
+        }
+    }
+
+    // Loose text (group 0) is not a list: any other block is a line of the list its siblings are.
+    return unread.some((block) => block.group !== 0 && touched.has(block.group));
+}
+
+/** The first-token index, the block marks and the comparison budget of one page's tokens. */
+function textOfTokens(page: Tokenized): VisibleText {
+    const { tokens, blockStarts, blockEnds } = page;
     const positions = new Map<string, number[]>();
 
     tokens.forEach((token, position) => {
@@ -83,62 +170,89 @@ function textOfTokens(tokens: readonly string[], blockEnds: Uint8Array): Visible
 
     let comparisons = 0;
 
+    /** Where the first place at or after `from` that shows `run` starts, {@link ABSENT}, or {@link OVER_BUDGET}. */
+    const locate = (run: readonly string[], from: number, startsBlock: boolean, endsBlock: boolean): number => {
+        const last = run.length - 1;
+        const { anchor, anchored } = rarestToken(run, positions);
+
+        comparisons += run.length;
+
+        for (let at = firstAtLeast(anchored, from + anchor); at < anchored.length; at += 1) {
+            const start = (anchored[at] ?? 0) - anchor;
+            const end = start + last;
+
+            comparisons += 1;
+
+            if (comparisons > MAX_TOKEN_COMPARISONS) {
+                return OVER_BUDGET;
+            }
+
+            if (
+                end < tokens.length &&
+                tokens[end] === run[last] &&
+                (!endsBlock || blockEnds[end] === 1) &&
+                (!startsBlock || blockStarts[start] === 1)
+            ) {
+                const matched = matchedPrefix(tokens, run, start);
+
+                comparisons += matched;
+
+                if (matched >= last) {
+                    return start;
+                }
+            }
+        }
+
+        return ABSENT;
+    };
+
     return {
         find: (run, endsBlock) => {
-            const last = run.length - 1;
-
-            if (last < 0) {
+            if (run.length === 0) {
                 return 'found';
             }
 
-            const { anchor, anchored } = rarestToken(run, positions);
+            const start = locate(run, 0, false, endsBlock);
 
-            comparisons += run.length;
+            if (start === OVER_BUDGET) {
+                return 'overBudget';
+            }
 
-            for (const position of anchored) {
-                const start = position - anchor;
-                const end = start + last;
+            return start === ABSENT ? 'absent' : 'found';
+        },
+        shows: (runs, wholeBlocks) => {
+            const covered = new Uint8Array(tokens.length);
+            let cursor = 0;
 
-                comparisons += 1;
+            for (const run of runs) {
+                const start = run.length === 0 ? ABSENT : locate(run, cursor, wholeBlocks, wholeBlocks);
 
-                if (comparisons > MAX_TOKEN_COMPARISONS) {
+                if (start === OVER_BUDGET) {
                     return 'overBudget';
                 }
 
-                if (
-                    start >= 0 &&
-                    end < tokens.length &&
-                    tokens[end] === run[last] &&
-                    (!endsBlock || blockEnds[end] === 1)
-                ) {
-                    const matched = matchedPrefix(tokens, run, start);
-
-                    comparisons += matched;
-
-                    if (matched >= last) {
-                        return 'found';
-                    }
+                if (start === ABSENT) {
+                    return 'differs';
                 }
+
+                covered.fill(1, start, start + run.length);
+                cursor = start + run.length;
             }
 
-            return 'absent';
+            return leavesLinesUnread(page, covered) ? 'differs' : 'matches';
         },
     };
 }
 
-/** A page's tokens, and a flag for each that ends a block. */
-interface Tokenized {
-    readonly tokens: readonly string[];
-    readonly blockEnds: Uint8Array;
-}
-
 /** The tokens of `blocks`, or `undefined` when they pass {@link MAX_VISIBLE_TOKENS}: a page that long is never half read. */
-function tokenizedBlocks(blocks: readonly string[]): Tokenized | undefined {
+function tokenizedBlocks(blocks: readonly VisibleBlock[]): Tokenized | undefined {
     const tokens: string[] = [];
-    const ends: number[] = [];
+    const spans: BlockSpan[] = [];
 
     for (const block of blocks) {
-        for (const token of tokensOf(block)) {
+        const first = tokens.length;
+
+        for (const token of tokensOf(block.text)) {
             tokens.push(token);
         }
 
@@ -146,18 +260,20 @@ function tokenizedBlocks(blocks: readonly string[]): Tokenized | undefined {
             return undefined;
         }
 
-        if (tokens.length > 0) {
-            ends.push(tokens.length - 1);
+        if (tokens.length > first) {
+            spans.push({ first, last: tokens.length - 1, group: block.group, isHeading: block.isHeading });
         }
     }
 
+    const blockStarts = new Uint8Array(tokens.length);
     const blockEnds = new Uint8Array(tokens.length);
 
-    ends.forEach((end) => {
-        blockEnds[end] = 1;
+    spans.forEach((span) => {
+        blockStarts[span.first] = 1;
+        blockEnds[span.last] = 1;
     });
 
-    return { tokens, blockEnds };
+    return { tokens, blockStarts, blockEnds, blocks: spans };
 }
 
 /**
@@ -186,9 +302,7 @@ export function visibleTextOf(page: PageDocument): VisibleTextResult {
 
     const tokenized = tokenizedBlocks(blocks);
 
-    return tokenized === undefined
-        ? { kind: 'tooComplex' }
-        : { kind: 'ok', text: textOfTokens(tokenized.tokens, tokenized.blockEnds) };
+    return tokenized === undefined ? { kind: 'tooComplex' } : { kind: 'ok', text: textOfTokens(tokenized) };
 }
 
 /**

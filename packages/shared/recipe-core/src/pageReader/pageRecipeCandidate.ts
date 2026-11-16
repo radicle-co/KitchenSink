@@ -7,12 +7,13 @@
  * `recipeYield` means, how a time is read) has ONE home.
  *
  * ⛔ A value the page does not state is ABSENT, never made up: the import holds such an item for the cook (ADR-0072 §3).
- * No image is read: fetching one is a server fetch, and photos are protected (ADR-0082).
+ * No image is read: images are never fetched (ADR-0082).
  *
  * The shape is recipe-core's own and plain on purpose. `@kitchensink/schema-recipe` depends on this package, so this
  * package cannot import its `importRecipeSchema`; the caller parses a {@link PageRecipe} with it, which is the check that
  * a recipe's size and step limits hold.
  */
+import { PARSE_JOB_LINE_MAX_CHARS } from '../parsing/parseJobText.js';
 import { recipeCuisineSchema, recipeDescriptionSchema } from '../recipeRequestBounds.js';
 import { MAX_JSON_LD_BLOCK_BYTES, MAX_RECIPES_PER_PAGE } from './pageCaps.js';
 import { collapseBracketGroups } from './collapseBracketGroups.js';
@@ -125,6 +126,12 @@ function linesOf(value: unknown): readonly string[] {
         .flatMap((item) => (isList(item) ? item : [item]))
         .flatMap((item) => {
             const text = textOf(item);
+
+            if (text !== undefined && text.length > PARSE_JOB_LINE_MAX_CHARS) {
+                // Left as written, and the gate refuses it (`ingredientLineTooLong`): a line this long is not cleaned.
+                return [text];
+            }
+
             const line = text === undefined ? undefined : withoutTrailingComma(collapseBracketGroups(text));
 
             return line === undefined || line === '' || isHeadingLine(line) ? [] : [line];
@@ -246,14 +253,20 @@ function candidateOf(node: SchemaNode): CandidateRead {
  *
  * @param nodes - Recipe nodes: JSON-LD objects, or microdata items shaped like them.
  * @param tier - The strategy that read them.
- * @returns The candidates, `none` when there is no recipe node, or `tooComplex` when a node's steps were cut short by a
- *   walk cap (a recipe with half its steps is never a candidate). Pure.
+ * @returns The candidates, `none` when there is no recipe node, or `tooComplex` when there are more nodes than
+ *   {@link MAX_RECIPES_PER_PAGE} or a node's steps were cut short by a walk cap (a recipe with half its steps is never a
+ *   candidate). Pure.
  */
 export function extractionOf(nodes: readonly SchemaNode[], tier: ExtractionTier): RecipeExtraction {
+    // A page with more is not one recipe's page, and a recipe past the cap is never read: say so, never drop it quietly.
+    if (nodes.length > MAX_RECIPES_PER_PAGE) {
+        return TOO_COMPLEX;
+    }
+
     const seen = new Set<string>();
     const candidates: PageCandidate[] = [];
 
-    for (const node of nodes.slice(0, MAX_RECIPES_PER_PAGE)) {
+    for (const node of nodes) {
         const { candidate, truncated } = candidateOf(node);
 
         if (truncated) {

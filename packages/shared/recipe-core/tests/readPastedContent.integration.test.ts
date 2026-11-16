@@ -128,16 +128,19 @@ describe('readPastedContent over a whole synthetic page', () => {
         expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
     });
 
-    /** A microdata Recipe item that passes the gate: a name, an ingredient and a step. */
+    /**
+     * A microdata Recipe item that passes the gate and the page check: a name, an ingredient and a step, each a line of the
+     * card as a site writes it (microdata is held to the visible text too).
+     */
     const microdataRecipe = (name: string, extra = '') =>
-        `<div itemscope itemtype="https://schema.org/Recipe"><i itemprop="name">${name}</i><i itemprop="recipeIngredient">1 egg</i><i itemprop="recipeInstructions">Cook it well.</i>${extra}</div>`;
+        `<div itemscope itemtype="https://schema.org/Recipe"><h2 itemprop="name">${name}</h2><ul><li itemprop="recipeIngredient">1 egg</li></ul><p itemprop="recipeInstructions">Cook it well.</p>${extra}</div>`;
 
     /**
      * Rewritten for the 2026-11-15 ruling: this page used to come back as `several`. It is now `severalRecipes`, a plain no,
      * and it must still cost the same: one selection over 64 candidates, the addresses read once.
      */
     it('reads a 1.4 MB microdata page of many different Recipe items, among 200,000 empty elements, to severalRecipes inside the time budget', () => {
-        const items = Array.from({ length: 100 }, (_, index) => microdataRecipe(`r${index}`)).join('');
+        const items = Array.from({ length: MAX_RECIPES_PER_PAGE }, (_, index) => microdataRecipe(`r${index}`)).join('');
         const started = performance.now();
         const result = readPastedContent(makePage({ body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }));
 
@@ -171,7 +174,7 @@ describe('readPastedContent over a whole synthetic page', () => {
         expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
     });
 
-    it('reads a page whose JSON-LD holds over a thousand Recipe nodes to severalRecipes inside the time budget', () => {
+    it('refuses a page whose JSON-LD holds over a thousand Recipe nodes as pageTooComplex inside the time budget', () => {
         // Small nodes, so the one block stays under the byte limit and only the per-page recipe cap bounds the work.
         const nodes = Array.from({ length: 1_500 }, (_, index) => ({
             '@type': 'Recipe',
@@ -183,7 +186,7 @@ describe('readPastedContent over a whole synthetic page', () => {
         const started = performance.now();
         const result = readPastedContent(makePage({ jsonLd: [{ '@graph': nodes }] }));
 
-        expect(result).toMatchObject({ kind: 'notExtractable', reason: 'severalRecipes' });
+        expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageTooComplex' });
         expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
     });
 
@@ -206,6 +209,7 @@ describe('readPastedContent over a whole synthetic page', () => {
 
         it('stops a page whose every token is common, against steps that each end up found at the very end', () => {
             // The worst case for the index: the rarest token of "b a" still occurs 100,000 times, and only the last place is the run.
+            // The steps are read in order, so the first takes that place and the second has none after it: no is the answer.
             const node = makeRecipeNode({
                 recipeIngredient: ['1 a'],
                 recipeInstructions: Array.from({ length: 200 }, () => 'b a'),
@@ -217,7 +221,7 @@ describe('readPastedContent over a whole synthetic page', () => {
             const started = performance.now();
             const result = readPastedContent(page);
 
-            expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageTooComplex' });
+            expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
             expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
         });
 

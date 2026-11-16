@@ -21,6 +21,18 @@ type DomText = Extract<DomNode, { type: ElementType.ElementType.Text }>;
 const isTag = (node: DomNode): node is DomElement => ElementType.isTag(node);
 const isText = (node: DomNode): node is DomText => node.type === ElementType.ElementType.Text;
 
+/** One visible block of text, and where it sits. */
+export interface VisibleBlock {
+    readonly text: string;
+    /**
+     * Which container the block is a line of: blocks with one `group` are siblings (the items of one list, the lines of
+     * one paragraph). A block that is not inside any block element is in group 0.
+     */
+    readonly group: number;
+    /** Whether the block is a heading or a caption, which labels a list and is no line of it. */
+    readonly isHeading: boolean;
+}
+
 /** One element of a pasted page. */
 export interface PageElement {
     /** The lower-case tag name. */
@@ -34,8 +46,11 @@ export interface PageElement {
      * {@link MAX_WALK_NODES} nodes are read, and `truncated` says that cap cut the text short.
      */
     blocks(): { readonly blocks: readonly string[]; readonly truncated: boolean };
-    /** The same blocks, read to the page's own budget ({@link MAX_VISIBLE_NODES}), and whether that budget cut them short. */
-    visibleText(): { readonly blocks: readonly string[]; readonly truncated: boolean };
+    /**
+     * The same blocks, read to the page's own budget ({@link MAX_VISIBLE_NODES}), each with what the extras check needs
+     * to know of where it sits, and whether that budget cut them short.
+     */
+    visibleText(): { readonly blocks: readonly VisibleBlock[]; readonly truncated: boolean };
     /** The text children exactly as written, with no entity decoding. For a `<script>`, its source. */
     rawText(): string;
 }
@@ -87,8 +102,26 @@ const BLOCK_TAGS: ReadonlySet<string> = new Set([
     'ul',
 ]);
 
-/** Elements whose content is code or style, never text a cook reads. */
-const NON_TEXT_TAGS: ReadonlySet<string> = new Set(['script', 'style']);
+/** Elements that label what follows rather than being a line of it. */
+const HEADING_TAGS: ReadonlySet<string> = new Set([
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'legend',
+    'figcaption',
+    'caption',
+    'summary',
+]);
+
+/** Elements whose content is code, style, an inert template, a fallback or a form field's value: never text a cook reads. */
+const NON_TEXT_TAGS: ReadonlySet<string> = new Set(['script', 'style', 'template', 'noscript', 'textarea']);
+
+/** Whether an element is one a cook cannot see: a non-text tag, or any element carrying the `hidden` attribute. */
+const isHiddenElement = (element: DomElement): boolean =>
+    NON_TEXT_TAGS.has(element.name) || Object.hasOwn(element.attribs, 'hidden');
 
 /** The most times {@link plainText} reads a value again to undo an earlier encoding. */
 const MAX_DECODE_PASSES = 2;
@@ -152,6 +185,19 @@ const collapseSpace = (text: string): string =>
         .filter((word) => word !== '')
         .join(' ');
 
+/** The container the text being read belongs to. */
+interface Owner {
+    readonly group: number;
+    readonly isHeading: boolean;
+}
+
+/** The end of a block element: its text is flushed, and the element that held it before is the owner again. */
+class BlockEnd {
+    public constructor(public readonly previous: Owner) {}
+}
+
+const LOOSE_TEXT: Owner = { group: 0, isHeading: false };
+
 /**
  * The text blocks of a list of nodes, in order. One explicit stack, so depth costs memory and never the call stack.
  *
@@ -165,15 +211,17 @@ function blocksOf(
     roots: readonly DomNode[],
     newlineBreaks: boolean,
     maxNodes = MAX_WALK_NODES,
-): { readonly blocks: readonly string[]; readonly truncated: boolean } {
-    const blocks: string[] = [];
+): { readonly blocks: readonly VisibleBlock[]; readonly truncated: boolean } {
+    const blocks: VisibleBlock[] = [];
+    const groups = new Map<unknown, number>();
+    let owner = LOOSE_TEXT;
     let current = '';
 
     const flush = (): void => {
         const text = collapseSpace(current);
 
         if (text !== '') {
-            blocks.push(text);
+            blocks.push({ text, group: owner.group, isHeading: owner.isHeading });
         }
 
         current = '';
@@ -195,8 +243,8 @@ function blocksOf(
         });
     };
 
-    // A node to read, or `null` marking the end of a block element.
-    const stack: (DomNode | null)[] = [...roots].reverse();
+    // A node to read, or the end of a block element.
+    const stack: (DomNode | BlockEnd)[] = [...roots].reverse();
 
     let visited = 0;
     let next = stack.pop();
@@ -204,14 +252,17 @@ function blocksOf(
     for (; next !== undefined && visited <= maxNodes; next = stack.pop()) {
         visited += 1;
 
-        if (next === null) {
+        if (next instanceof BlockEnd) {
             flush();
+            owner = next.previous;
         } else if (isText(next)) {
             addText(next.data);
-        } else if (isTag(next) && !NON_TEXT_TAGS.has(next.name)) {
+        } else if (isTag(next) && !isHiddenElement(next)) {
             if (BLOCK_TAGS.has(next.name)) {
                 flush();
-                stack.push(null);
+                stack.push(new BlockEnd(owner));
+                groups.set(next.parent, groups.get(next.parent) ?? groups.size + 1);
+                owner = { group: groups.get(next.parent) ?? 0, isHeading: HEADING_TAGS.has(next.name) };
             }
 
             pushReversed(stack, next.children);
@@ -224,6 +275,19 @@ function blocksOf(
 }
 
 /**
+ * One read of a value as markup: parsed, then its blocks taken, and whether either step stopped early.
+ *
+ * @param html - A value taken from a page.
+ * @returns The non-blank blocks of text, and whether the parse depth cap or the node cap cut the read short.
+ */
+function readMarkup(html: string): { readonly blocks: readonly string[]; readonly truncated: boolean } {
+    const { root, truncated } = parseDocument(html);
+    const read = blocksOf(root.children, true);
+
+    return { blocks: read.blocks.map((block) => block.text), truncated: truncated || read.truncated };
+}
+
+/**
  * The text blocks of a string of markup: tags removed, entities decoded, whitespace collapsed, blank blocks dropped. A
  * block starts at a block element, a `<br>` and a newline.
  *
@@ -231,24 +295,47 @@ function blocksOf(
  * @returns The non-blank blocks, in order. Pure.
  */
 export function textBlocks(html: string): readonly string[] {
-    return blocksOf(parseDocument(html).root.children, true).blocks;
+    return readMarkup(html).blocks;
 }
 
 /**
- * Whether reading `html` as text would stop early: its markup nests past the parse depth cap, or holds more than
- * {@link MAX_WALK_NODES} nodes. Text with no `<` has one node and is never cut.
+ * A value read to one line, as {@link plainText} reads it, and whether ANY of its decode passes stopped early. A value
+ * written as entities (`&lt;b&gt;`) has no `<` for the first pass to cut, and is markup for the second.
+ */
+function decodedText(html: string): { readonly text: string; readonly truncated: boolean } {
+    let text = html;
+    let truncated = false;
+
+    for (let pass = 0; pass < MAX_DECODE_PASSES; pass += 1) {
+        if (!text.includes('&') && !text.includes('<')) {
+            break;
+        }
+
+        const read = readMarkup(text);
+        const joinedBlocks = read.blocks.join(' ');
+
+        truncated = truncated || read.truncated;
+
+        if (joinedBlocks === text) {
+            break;
+        }
+
+        text = joinedBlocks;
+    }
+
+    return { text: collapseSpace(text), truncated };
+}
+
+/**
+ * Whether reading `html` as text would stop early in any of its decode passes: its markup nests past the parse depth cap,
+ * or holds more than {@link MAX_WALK_NODES} nodes, as written or once its entities are decoded. Text with no `&` and no
+ * `<` is one node and is never cut.
  *
  * @param html - A value taken from a page.
  * @returns `true` when {@link textBlocks} and {@link plainText} would lose part of it. Pure.
  */
 export function isTextCut(html: string): boolean {
-    if (!html.includes('<')) {
-        return false;
-    }
-
-    const { root, truncated } = parseDocument(html);
-
-    return truncated || blocksOf(root.children, true).truncated;
+    return decodedText(html).truncated;
 }
 
 /**
@@ -256,26 +343,11 @@ export function isTextCut(html: string): boolean {
  * value that was encoded twice (`&amp;amp;`, `&lt;b&gt;`) is read once more, so the cook never sees markup.
  *
  * @param html - A value taken from a page.
- * @returns The text, empty when there is none. Pure.
+ * @returns The text, empty when there is none. A value a pass stopped early on is cut: the caller asks {@link isTextCut}
+ *   first. Pure.
  */
 export function plainText(html: string): string {
-    let text = html;
-
-    for (let pass = 0; pass < MAX_DECODE_PASSES; pass += 1) {
-        if (!text.includes('&') && !text.includes('<')) {
-            break;
-        }
-
-        const read = textBlocks(text).join(' ');
-
-        if (read === text) {
-            break;
-        }
-
-        text = read;
-    }
-
-    return collapseSpace(text);
+    return decodedText(html).text;
 }
 
 /** File `element` under `key` in a one-to-many index. */
@@ -298,7 +370,11 @@ function elementView(node: DomNode): PageElement | undefined {
         tag: node.name,
         attr: (name) => (Object.hasOwn(node.attribs, name) ? node.attribs[name] : undefined),
         children: () => node.children.flatMap((child) => elementView(child) ?? []),
-        blocks: () => blocksOf(node.children, false),
+        blocks: () => {
+            const read = blocksOf(node.children, false);
+
+            return { blocks: read.blocks.map((block) => block.text), truncated: read.truncated };
+        },
         visibleText: () => blocksOf(node.children, false, MAX_VISIBLE_NODES),
         rawText: () => node.children.map((child) => (isText(child) ? child.data : '')).join(''),
     };

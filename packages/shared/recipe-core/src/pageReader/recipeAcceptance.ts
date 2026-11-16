@@ -15,7 +15,7 @@
  * | G5 | at least one step, each at least 3 characters trimmed                                             | `noSteps`             |
  * | G6 | no step is an amount and a canonical unit in at most 8 words (an ingredient in the method)        | `ingredientsInSteps`  |
  * | G7 | no line is in both the ingredients and the steps (a range read twice)                             | `ingredientsInSteps`  |
- * | G8 | no title, ingredient line or step holds U+FFFD or a C1 control character (U+0080 to U+009F)       | `garbledText`         |
+ * | G8 | no title, ingredient line or step holds U+FFFD or a C1 control character (U+0080 to U+009F), and no line or step is without a letter or digit | `garbledText`         |
  *
  * The first predicate that fails, in table order, is the reason. Every predicate here is language-neutral except G6's unit
  * test, which reads English units: a page it cannot read gives no, never a wrong yes (precision first). The step LIMITS
@@ -29,6 +29,7 @@ import { MAX_PARSE_JOB_LINES, PARSE_JOB_LINE_MAX_CHARS } from '../parsing/parseJ
 import { recipeTitleSchema } from '../recipeRequestBounds.js';
 import { classifyUnit } from '../units.js';
 import type { ExtractionTier, PageRecipe } from './pageRecipeCandidate.js';
+import { tokensOf } from './pageTokens.js';
 import { folded } from './recipeSelection.js';
 
 /** Why a recipe that was read is still not sent. */
@@ -106,6 +107,9 @@ function isGarbled(text: string): boolean {
     return false;
 }
 
+/** G8: whether `text` has no letter or digit in it ("***"): nothing a cook can read. */
+const hasNoTokens = (text: string): boolean => tokensOf(text).length === 0;
+
 /** A step without its section label ("For the glaze: 1 cup sugar" → "1 cup sugar"). */
 function withoutSectionLabel(step: string): string {
     const colon = step.indexOf(':');
@@ -173,7 +177,9 @@ const PREDICATES: readonly Predicate[] = [
     },
     {
         reason: 'garbledText',
-        fails: ({ recipe, steps }) => [recipe.title, ...recipe.ingredientLines, ...steps].some(isGarbled),
+        fails: ({ recipe, steps }) =>
+            [recipe.title, ...recipe.ingredientLines, ...steps].some(isGarbled) ||
+            [...recipe.ingredientLines, ...steps].some(hasNoTokens),
     },
 ];
 

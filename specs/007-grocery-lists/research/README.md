@@ -1,7 +1,7 @@
 # Research: Grocery Lists & Online Ordering
 
 **Branch**: `007-grocery-lists` | **Date**: 2026-05-09
-**Status**: Complete | **Input**: [spec.md](../spec.md), [plan.md](../plan.md), [research.md](./research.md), [v-model/requirements.md](../v-model/requirements.md)
+**Status**: Complete | **Input**: [spec.md](../spec.md), [plan.md](../plan.md), [research.md](./research.md)
 
 ---
 
@@ -34,5 +34,4 @@ Operational SLOs and ROI hypotheses mapped to SC-004, SC-008, FR-028..FR-031, an
 ## Traceability Notes
 
 - Canonical requirement IDs remain in [spec.md](../spec.md).
-- Atomic requirement mapping remains in [v-model/requirements.md](../v-model/requirements.md).
 - This research layer is additive and does not override upstream artifacts.

@@ -10,11 +10,10 @@
 - **Relates to:** spec [020](../../../specs/020-content-source-check/spec.md) `020-FR-012g`, the rule this ADR
   records. Spec [026](../../../specs/026-chef-spaces/spec.md) `026-FR-001`, `FR-002` and `FR-005`: the claim, what it
   proves, and the clearing rule. Spec [016](../../../specs/016-legal-compliance-framework/spec.md) `FR-014`, the
-  per-item attestation, and `FR-050`, the counsel list. [ADR-0074](0074-content-source-check.md) §2: only rules block,
+  per-item attestation, and `FR-050`, the pre-launch review list. [ADR-0074](0074-content-source-check.md) §2: only rules block,
   a model never clears a recipe, and a person decides what is left.
-- **Drivers:** owner ruling, 2026-10-29, on 026 Q1: "Claim clears own-site hit". Option B, with counsel review before
-  build. The ruling rests on a research note by the CLO agent of the same day, held outside the repository. It is
-  research, not legal advice. The rule is subject to counsel review before it is built.
+- **Drivers:** owner ruling, 2026-10-29, on 026 Q1: a site claim clears the own-site hit (option B), reviewed before
+  it is built (`016-FR-050`).
 
 ## Context
 
@@ -58,10 +57,10 @@ The clearing removes one false alarm. It does not make the recipe the chef's. Th
 on the chef's blog are the per-recipe statement (`004-FR-014a`), the rights label (`016-FR-015c` to `FR-015j`) and
 takedown (`016-FR-016` to `FR-022`), as for any "I wrote this" recipe.
 
-### 4. Counsel reviews this before it is built
+### 4. This is reviewed before it is built
 
 `020-FR-012g` carries the same warning. The rule is in the spec and in this ADR, and it is not to be implemented
-until counsel has confirmed it (`016-FR-050`).
+until the pre-launch review (`016-FR-050`) has confirmed it.
 
 ## Consequences
 
@@ -78,11 +77,11 @@ until counsel has confirmed it (`016-FR-050`).
 - **"Does not reopen."** Once a recipe is cleared and public, reopening it on a later claim failure would hide a
   public recipe from its readers, and that is a notice-and-action decision (`016-FR-016` and after), not a silent one.
 
-## Residual risks
+## Open items
 
-- **A claim proves control, not authorship.** A chef can claim a site, then import a copy of a competitor's recipe
+- **A claim proves control, not authorship.** A chef can claim a site, then import a copy of another author's recipe
   that a guest posted there. The own-origin hit clears. The per-recipe statement, the other signals and takedown are
-  the only controls. Counsel confirms that this is enough.
+  the only controls. The pre-launch review (`016-FR-050`) confirms that this is enough.
 - **A claim can be taken over.** If a domain changes hands, the new owner holds the claim until the next scheduled
   check. A recipe cleared in that window stays cleared. 026 has no plan yet, so the check interval is not set.
 - **The own-origin page is trusted.** The matched page is the one we fetched at the chef's request. A page that

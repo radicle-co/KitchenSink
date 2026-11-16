@@ -18,7 +18,7 @@
       Paths: unknown
       Size: XL
       Blocks: NOTHING in 015 newly — the licence gap is pre-existing (001-FR-004 public read and 001-FR-005 clone already ship). 015 adds only a low inducement risk (amended 2026-11-03, ADR-0082) and does not create the gap. Sequence for the product's sake, not as a 015 gate.
-- [ ] A002 — Land 016's registered DMCA agent + repeat-infringer policy (D24)
+- [ ] A002 — Land 016's designated agent + repeat-infringer policy (D24)
       Paths: unknown
       Size: L
       Blocks: FR-015–FR-019 — User Story 4 ONLY. US1–US3 do not depend on it.

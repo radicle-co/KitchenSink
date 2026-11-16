@@ -2,7 +2,9 @@ import { MEMORY_SAFETY_MARGIN } from '@kitchensink/e2e-plan/hostMemory';
 import { describe, expect, it } from 'vitest';
 
 import {
+    IOS_DEVICES,
     IOS_MAX_LANES,
+    isIosDevice,
     laneSimulatorName,
     macHostFromEnv,
     parseHostFacts,
@@ -47,14 +49,28 @@ describe('parseHostFacts', () => {
 });
 
 describe('lane naming and ports', () => {
-    it('names lane Simulators by lane number', () => {
-        expect(laneSimulatorName(3)).toBe('ks-maestro-lane-3');
+    it('names lane Simulators by lane number, an iPhone lane and an iPad lane apart', () => {
+        expect(laneSimulatorName(3, 'iphone')).toBe('ks-maestro-lane-3');
+        expect(laneSimulatorName(3, 'ipad')).toBe('ks-maestro-ipad-3');
     });
 
-    it('refuses a lane outside 1..IOS_MAX_LANES', () => {
+    it('refuses a lane outside 1..IOS_MAX_LANES, in either class', () => {
         expect(IOS_MAX_LANES).toBe(5);
-        expect(() => laneSimulatorName(0)).toThrow();
-        expect(() => laneSimulatorName(IOS_MAX_LANES + 1)).toThrow();
+
+        for (const device of IOS_DEVICES) {
+            expect(() => laneSimulatorName(0, device)).toThrow();
+            expect(() => laneSimulatorName(IOS_MAX_LANES + 1, device)).toThrow();
+        }
+    });
+
+    it('knows exactly two device classes, and refuses any other word', () => {
+        expect(IOS_DEVICES).toEqual(['iphone', 'ipad']);
+        expect(isIosDevice('iphone')).toBe(true);
+        expect(isIosDevice('ipad')).toBe(true);
+
+        for (const raw of ['', 'iPad', 'ipod', ' ipad', 'ipad ']) {
+            expect(isIosDevice(raw)).toBe(false);
+        }
     });
 });
 

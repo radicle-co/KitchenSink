@@ -160,7 +160,7 @@ The corrections listed in Revision 1 remain **open blocking corrections** for en
 
 - 556 untested scenarios with no executed test results or waivers.
 - `RELEASE READY` cannot be asserted until GR-001 conditions are met.
-- See [`v-model/release-audit-report.md`](./v-model/release-audit-report.md) for the canonical blocked notice.
+- The V-Model artifacts and GR-001 were removed on 2026-11-13; this status is historical.
 
 ### Approval Marker
 

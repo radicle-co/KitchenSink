@@ -11,7 +11,7 @@ codebase_path: '.'
 features_dir: 'specs'
 
 # ─── SpecKit Integration ───────────────────────────────────────────────────────
-default_speckit_mode: 'v-model'
+default_speckit_mode: 'classic'
 constitution_path: '.specify/memory/constitution.md'
 
 # ─── Research Defaults ─────────────────────────────────────────────────────────

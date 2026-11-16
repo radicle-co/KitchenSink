@@ -135,7 +135,7 @@ NestJS providers — it is a _dot_, never a hyphen. `clerkAuth.service.ts` is wr
    `[param].tsx` — none is tracked today, so the guard carries no mandate for them until one lands, because a
    mandate that excuses nothing fails); `package-lock.json`; husky hook scripts, which must carry the git hook name
    (`.husky/pre-commit`); `nest-cli.json`, the only spellings the Nest CLI discovers being `nest-cli.json` and
-   `.nest-cli.json`; and the Spec Kit tree (`.specify/`, `v-model-config.yml`, and product-forge's
+   `.nest-cli.json`; and the Spec Kit tree (`.specify/` and product-forge's
    `.forge-status.yml` / `sync-report.json` inside a feature directory). "The tool's default is hyphenated" is
    NOT this class when the tool also accepts another name — `docker-compose.yml` is `compose.yml`,
    `lint-staged.config.js` is `.lintstagedrc.js`, and Playwright's hyphenated baseline names are overridden

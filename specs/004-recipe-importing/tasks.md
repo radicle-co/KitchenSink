@@ -2,7 +2,16 @@
 
 **Feature**: `004-recipe-importing`
 **Regenerated**: 2026-08-02
-**Source**: `spec.md`, `plan.md`, `v-model/architecture-design.md`
+**Source**: `spec.md`, `plan.md`
+
+> ⚠️ **Owner rulings, 2026-11-15 (spec `FR-064` to `FR-067`).** A link is fetched on the cook's device first and by
+> the server if that fails, so the URL fetch tasks apply to that server fetch (`FR-008`, `FR-023`). A paste is never
+> fetched. There are no facts cards, no linked card, no per-market switch and no per-source caps: T-034, T-035 and
+> T-036 are withdrawn, and so are the facts-card and `MarketCopyPolicy` items in T-014. Every user-facing import
+> spends one import allowance, 200 a day on Free and 1,000 on a paid plan, with no limit for test principals
+> (`FR-067`). New tasks for `FR-064` to `FR-067` are owed: the device fetch of a link with the server fallback, the
+> device extraction tiers with a strict yes or no, the on-device AI tier and its account setting, the Private, Public
+> or Both choice, the private copy's wording and author name, and the one allowance.
 
 > **Regeneration note.** Every file path in the previous revision was wrong: it targeted
 > `packages/api/recipe/` (a directory containing only `.gitkeep`) and `packages/shared/db/` (does not exist),
@@ -321,8 +330,8 @@ half (GR-017 §17-f).
 **Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-023-A, ITP-014-A`
 
 - [ ] DAL + service over `paywalled_domains` with audit fields (`added_by`, `created_at`, `reason`)
-- [ ] _(added 2026-11-03, ADR-0082)_ Known pirate hosts are seeded as blocked hosts (DSM Art. 4(1)), and the reason
-      field names the law basis (17 U.S.C. §1201, CFAA)
+- [ ] _(added 2026-11-03, ADR-0082)_ Known pirate hosts are seeded as blocked hosts, each with its reason
+      field filled
 - [ ] Matching is **exact host or registrable suffix — never substring** (`notnytimes.com` must not match `nytimes.com`)
 - [ ] Host normalized (lowercase, strip `www.`) before lookup
 - [ ] Bounded-TTL cache; a cache miss fails **closed** (blocked) rather than open
@@ -417,7 +426,7 @@ The previous task list specified **none** of this. Security tests are written fi
 - [ ] **Integration tests**: duplicate delivery produces one effect; poison message reaches the DLQ
 - [ ] **Daily allowance (D-006)** enforced in `ImportsService` as domain policy — **not** a second registered
       throttler (`throttle.config.ts` documents that v6 ANDs every throttler across every route)
-- [ ] 200 imports/day/user across channels _(the 50/day OCR sub-allowance transfers to 011 with the channel — REQ-029)_; `IMPORT_QUOTA_EXCEEDED` (`429`) carries `resetsAt`
+- [ ] _(amended 2026-11-15: one import allowance for every user-facing channel, no limit for test principals, spec `FR-067`)_ 200 imports/day/user across channels _(the 50/day OCR sub-allowance transfers to 011 with the channel — REQ-029)_; `IMPORT_QUOTA_EXCEEDED` (`429`) carries `resetsAt`
 - [ ] Quota function accepts the principal's tier and returns identical limits for all tiers today — the seam 010 needs
 - [ ] Burst limits via shipped `@Throttle`: 10/min url+instagram, 10/min text _(the 5/min photo limit transfers to 011)_
 - [ ] **Explicit idempotency test**: same key twice ⇒ exactly one draft (`ENGINEERING_EXCELLENCE §9`)
@@ -434,10 +443,10 @@ The previous task list specified **none** of this. Security tests are written fi
 
 - [ ] `POST /api/v1/import/url` → `202 { jobId }`; `GET /import/jobs/{id}` → status
 - [ ] Duplicate canonical URL resolves to the existing recipe with `cloneAvailable: true` — **200, not an error**
-- [ ] _(amended 2026-11-03, ADR-0082)_ The existing public item is the page's one **facts card**, readable signed out.
+- [ ] _(withdrawn 2026-11-15: no facts cards; a second import is matched by `sourceLinkKey`, spec C-001)_ The existing public item is the page's one **facts card**, readable signed out.
       URL-only matching misses the same recipe at another address and pasted copies. That is a recorded product gap
       (C-001), not a legal bar
-- [ ] _(amended 2026-11-03, ADR-0082)_ The stored copy follows `MarketCopyPolicy` (T-034): EU and UK keep facts and a
+- [ ] _(withdrawn 2026-11-15: no per-market switch, spec `FR-066`)_ The stored copy follows `MarketCopyPolicy` (T-034): EU and UK keep facts and a
       link only
 - [ ] Constraint violation on insert is caught and resolved to the winning recipe (HAZ-018)
 - [ ] **Integration test** for the concurrent-duplicate race: two simultaneous imports ⇒ exactly one recipe
@@ -497,8 +506,8 @@ Touches **001's shipped code**, not 004's. Additive: `POST /api/v1/recipes` beha
 
 - [ ] File parser detects a collection and yields **one draft per recipe**, sharing one import job
 - [ ] Bounded: **max 1,000 recipes per file** (D-013) and max file size; streamed parse, chunked persistence (HAZ-060)
-- [ ] A bulk file import counts as **one** import against the D-006 daily allowance, not one per recipe
-- [ ] _(added 2026-11-03, ADR-0082, E7)_ A per-source cap applies to the facts cards a file would make public (T-035)
+- [ ] _(replaced 2026-10-26 and 2026-11-15: per recipe, against the one import allowance, `FR-067`)_ A bulk file import counts as **one** import against the D-006 daily allowance, not one per recipe
+- [ ] _(withdrawn 2026-11-15: no facts cards)_ A per-source cap applies to the facts cards a file would make public (T-035)
 - [ ] `POST /import/drafts/confirm-bulk` → `207` with a per-draft outcome (`created` / `already_existed` / `failed` + reason)
 - [ ] Deduplication applies **per recipe**; an already-present recipe is `already_existed`, **not** a failure
 - [ ] One recipe's failure does not discard the others (HAZ-058)
@@ -552,8 +561,7 @@ Touches **001's shipped code**, not 004's. Additive: `POST /api/v1/recipes` beha
 > `FR-028` and D-014 no longer gate these channels on premium. Do not build the checklist below as written. A free
 > cook may use every channel, and each recipe that must be private uses one of their 50 private slots. The refusal is
 > `PRIVATE_SLOTS_FULL` (`403`, with `used` and `limit`), decided by the C-004 policy under the slot lock, and the
-> channels stay advertised. REQ-035, ATP-035-A/B and HAZ-061 in `v-model/` still describe the premium gate and are
-> owed a rewrite before this task is built.
+> channels stay advertised. The V-Model artifacts that described the premium gate were removed on 2026-11-13.
 
 **Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-035-A, ATP-035-B`
 
@@ -619,7 +627,7 @@ is entirely about it — while `spec.md`, `plan.md` and this file shipped no end
 That is a hole, not a new feature. It is also what the OCR transfer makes load-bearing: with photo owned by
 011, paste is how a user gets a cookbook recipe in **today**.
 
-- [ ] A paste is a one-recipe import on `POST /api/v1/import`. A page with JSON-LD or microdata is read on the device with no AI and no vendor call. `POST /api/v1/import/text` answers **`202`** and `GET /api/v1/import/text/{id}` is polled, only for text with no structured data (the AI fallback, T-048, `FR-056`)
+- [ ] A paste is a one-recipe import on `POST /api/v1/import`. A page with JSON-LD or microdata is read on the device with no vendor call. `POST /api/v1/import/text` answers **`202`** and `GET /api/v1/import/text/{id}` is polled, only for text with no structured data (the AI fallback, T-048, `FR-056`)
 - [ ] Body is `{ text, declaredSource, sourceCitation? }`. `text` is bounded (48,000 UTF-8 bytes, `FR-058`) and rejected empty;
       the bound is asserted, because an unbounded body is the memory-exhaustion vector this repo has already
       been bitten by
@@ -856,7 +864,7 @@ SC-002 is unverifiable without this; the number is meaningless until the corpus 
 - [ ] Captured as static fixtures — the measurement must be deterministic and offline, never live-fetching
 - [ ] Automated field-level accuracy report for title, ingredient lines, and steps
 - [ ] **CI gate fails below 85%** (SC-002) and below 95% zero-missing-required for JSON-LD sources (SC-003)
-- [ ] Corpus composition and licensing recorded in `v-model/acceptance-plan.md`
+- [ ] Corpus composition and licensing recorded in the plan
 
 **Files** `src/imports/__fixtures__/corpus/`, `src/imports/__tests__/extraction-accuracy.test.ts`
 
@@ -904,7 +912,8 @@ together.
 
 ## Phase 7 — Open recipe library (added 2026-11-03, owner ruling, ADR-0082)
 
-Counsel review is owed before launch (`016-FR-050`). Each task is test-first and needs no UI change except T-036.
+Each task is test-first and needs no UI change except T-036. _(Amended 2026-11-15, owner rulings: T-033 applies to the
+server fetch of a link. T-034, T-035 and T-036 are withdrawn: no per-market switch and no facts cards. T-037 stays.)_
 
 ### T-033 · FetchSignalPolicy and the per-fetch signal log
 
@@ -920,19 +929,19 @@ Counsel review is owed before launch (`016-FR-050`). Each task is test-first and
 
 **Files** `src/imports/fetch/fetchSignal.policy.ts`, `src/imports/fetch/__tests__/fetchSignal.policy.test.ts`
 
-### T-034 · MarketCopyPolicy (the per-market URL-import switch, D6)
+### T-034 · _(Withdrawn 2026-11-15)_ MarketCopyPolicy (the per-market URL-import switch, D6)
 
 **Priority** P1 · **Effort** M · **Depends on** T-014 · **Implements** FR-008 ruling
 
 **Test-first:** true. The tests are written and confirmed **failing** before any implementation.
 
-- [ ] Pure `MarketCopyPolicy`: US gives `keepPrivateCopy`. EU, UK and any market counsel has not cleared give
+- [ ] Pure `MarketCopyPolicy`: US gives `keepPrivateCopy`. EU, UK and any market not yet cleared give
       `factsAndLinkOnly`. The default is closed
 - [ ] The extractor stores no verbatim method, headnote or photo reference when the policy says `factsAndLinkOnly`
 - [ ] **Unit tests** for every market and for an unknown market. **Integration test** that a UK cook's URL import
       leaves no verbatim method row
 
-### T-035 · Per-source cap for facts cards (single imports and bulk)
+### T-035 · _(Withdrawn 2026-11-15)_ Per-source cap for facts cards (single imports and bulk)
 
 **Priority** P1 · **Effort** M · **Depends on** T-030 · **Implements** FR-014b, FR-026
 
@@ -948,7 +957,7 @@ Counsel review is owed before launch (`016-FR-050`). Each task is test-first and
 - [ ] No feature lists, browses or filters public cards by site
 - [ ] **Unit and integration tests**, including a cap crossed by a 1,000-recipe file
 
-### T-036 · Facts card for book and paid-site recipes (D5)
+### T-036 · _(Withdrawn 2026-11-15)_ Facts card for book and paid-site recipes (D5)
 
 **Priority** P2 · **Effort** M · **Depends on** T-035 · **Implements** FR-014b
 
@@ -999,7 +1008,7 @@ Counsel review is owed before launch (`016-FR-050`). Each task is test-first and
 
 The owner statement 1a (`FR-014a`) on paste, URL and social import, and the offer to verify the site through 026's
 claim. It builds on ADR-0078 and adds no second way to verify. Every task is test-first: the failing tests in every
-tier come before the code. Counsel review is owed before launch (`016-FR-050`).
+tier come before the code.
 
 ### T-040 · Owner statement 1a on paste, URL and social import
 
@@ -1036,7 +1045,7 @@ tier come before the code. Counsel review is owed before launch (`016-FR-050`).
 
 **Test-first:** true. The tests are written and confirmed **failing** before any implementation.
 
-- [ ] A URL import with statement 1a of a page that already has a public facts card by another cook creates the
+- [ ] _(withdrawn 2026-11-15 with the facts card)_ A URL import with statement 1a of a page that already has a public facts card by another cook creates the
       cook's own recipe and leaves the card as it is.
 - [ ] **Unit test** on the dedup branch, and an **integration test** against the C-001 constraint: the owner import
       succeeds, and an import of the same page without the statement still surfaces the card.
@@ -1130,7 +1139,7 @@ tier come before the code. Counsel review is owed before launch (`016-FR-050`).
       gains a row. `llmSpendGuards` stays green and `natEgressConsumers` is updated.
 - [ ] Prompt builder takes the text only, signature pinned, system prompt pinned by length and SHA-256. The model returns
       line numbers only. Out-of-range or overlapping ranges are refused.
-- [ ] Input over 48,000 UTF-8 bytes is refused, never truncated. A page opt-out (`noai`, `noimageai`, TDM reservation) skips the fallback with a neutral type-it-in message (`FR-063`, attorney sign-off owed).
+- [ ] Input over 48,000 UTF-8 bytes is refused, never truncated. A page opt-out (`noai`, `noimageai`, TDM reservation) skips the fallback with a neutral type-it-in message (`FR-063`, confirmed before launch).
 - [ ] Pasted text is deleted when the job leaves `pending`. All six states have copy and a localisation key.
 - [ ] A ceiling denial ends `budgetSpent`, is acknowledged and is not retried. An unreadable counter retries. A job
       older than 10 minutes is `failed`.

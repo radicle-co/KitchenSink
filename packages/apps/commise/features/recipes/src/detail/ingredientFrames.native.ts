@@ -97,12 +97,14 @@ export const RemovedFoodNotice = styled(Text, {
     paddingVertical: '$2',
 });
 
-/** The list's first row: "Servings" and the stepper at the end (board `.sheetServe`); the stepper wraps under the label when the line is too narrow. */
+/**
+ * The list's first row: "Servings" and the stepper at the end (board `.sheetServe`); the stepper wraps under the label
+ * when the line is too narrow.
+ */
 export const PinnedServingsRow = styled(XStack, {
     name: 'PinnedServingsRow',
     alignItems: 'center',
     justifyContent: 'space-between',
-    // A stepper too wide for the label's line drops under it, as on the web row.
     flexWrap: 'wrap',
     columnGap: '$3',
     rowGap: '$2',

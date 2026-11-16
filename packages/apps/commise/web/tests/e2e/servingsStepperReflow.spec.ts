@@ -3,12 +3,13 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { signInWithTicket } from './utils/auth';
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { applyTextScale } from './utils/textScale';
 
 /**
  * The recipe page's servings stepper stays on screen at the narrowest width and the largest text (WCAG 1.4.10
  * Reflow): the page must not scroll sideways at 320 px with 200% text. The measurements
- * are taken in a real browser, because jsdom lays nothing out. The text size is set the way `variantSurfaceReflow`
- * sets it: the root font at 200%, which grows the rem-sized buttons, gaps and padding with it.
+ * are taken in a real browser, because jsdom lays nothing out. The text size is set by `applyTextScale`: the root font
+ * at 200%, which grows the rem-sized buttons, gaps and padding with it.
  */
 
 const RECIPE_ID = 'db000000-0000-4000-8000-0000000000f1';
@@ -111,7 +112,7 @@ for (const viewport of [
                 }) => {
                     await seed(page, servings);
                     await page.goto(route(`/recipes/${RECIPE_ID}`));
-                    await page.addStyleTag({ content: `html { font-size: ${String(textScale * 100)}% !important; }` });
+                    await applyTextScale(page, textScale);
 
                     const stepper = page.getByRole('group', { name: 'Servings' }).first();
 

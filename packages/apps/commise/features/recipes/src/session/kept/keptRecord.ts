@@ -88,7 +88,6 @@ export type StepMark = z.infer<typeof stepRefSchema>;
 export type LineTickRef = z.infer<typeof lineTickSchema>;
 export type KeptEntry = z.infer<typeof keptEntrySchema>;
 export type KeptTimer = z.infer<typeof keptTimerSchema>;
-export type KeptTimerState = KeptTimer['state'];
 export type CookingEntry = Extract<KeptEntry, { kind: 'cooking' }>;
 export type PausedTimer = Extract<KeptTimer, { state: 'paused' }>;
 export type RunningTimer = Extract<KeptTimer, { state: 'running' }>;

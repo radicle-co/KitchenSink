@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 
 import { sessionClock, timerClock } from '../sessionClock.js';
 
-import { HOUR, iso, makeCooking, makeEnded, makePage, makePaused, makeTimer, T0 } from './keptFixtures.js';
+import {
+    HOUR,
+    iso,
+    makeCooking,
+    makeEnded,
+    makePage,
+    makePaused,
+    makeTimer,
+    T0,
+} from '../__fixtures__/keptFixtures.js';
 
 const S = 1000;
 

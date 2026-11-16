@@ -6,7 +6,7 @@
  * servings. "Makes 24 cookies" says how many cookies, not how many cooks it feeds, and a range names no number, so each
  * leaves servings absent and the item is held for the cook (ADR-0072 §3). Nothing is guessed.
  */
-import { recipeServingsSchema } from '../recipeRequestBounds.js';
+import { recipeServingsSchema } from '@kitchensink/recipe-core';
 import { scalar } from './schemaNode.js';
 
 /** The words that may sit beside the number and still mean servings. Every other word means the number counts something else. */

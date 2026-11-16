@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { INT4_CEILING } from '../../recipeRequestBounds.js';
+import { INT4_CEILING } from '@kitchensink/recipe-core';
 import { servingsOf } from '../recipeYield.js';
 
 describe('servingsOf', () => {

@@ -24,10 +24,13 @@
  * Only linear whitespace and newline splits run over page text, and no pattern can backtrack: a line is scanned one character
  * at a time.
  */
-import { readCooksMeasure } from '../parsing/measureReader.js';
-import { MAX_PARSE_JOB_LINES, PARSE_JOB_LINE_MAX_CHARS } from '../parsing/parseJobText.js';
-import { recipeTitleSchema } from '../recipeRequestBounds.js';
-import { classifyUnit } from '../units.js';
+import { readCooksMeasure } from '@kitchensink/recipe-core/parsing/measure-reader';
+import {
+    MAX_PARSE_JOB_LINES,
+    PARSE_JOB_LINE_MAX_CHARS,
+    recipeTitleSchema,
+    classifyUnit,
+} from '@kitchensink/recipe-core';
 import type { ExtractionTier, PageRecipe } from './pageRecipeCandidate.js';
 import { folded } from './recipeSelection.js';
 

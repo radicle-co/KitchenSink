@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { INT4_CEILING } from '../../recipeRequestBounds.js';
+import { INT4_CEILING } from '@kitchensink/recipe-core';
 import { durationMinutes } from '../isoDuration.js';
 
 describe('durationMinutes', () => {

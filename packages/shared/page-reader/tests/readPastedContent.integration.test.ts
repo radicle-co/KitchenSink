@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { MAX_PASTE_BYTES, readPastedContent } from '@kitchensink/recipe-core/page-reader';
+import { MAX_PASTE_BYTES, readPastedContent } from '@kitchensink/page-reader';
 
-import { MAX_JSON_LD_BLOCK_BYTES, MAX_RECIPES_PER_PAGE } from '../src/pageReader/pageCaps.js';
-import { parsePage, type PageDocument } from '../src/pageReader/pageDocument.js';
-import type * as PageDocumentModule from '../src/pageReader/pageDocument.js';
-import { makeLinkHead, makePage, makeRecipeCard, makeRecipeNode } from '../src/pageReader/__fixtures__/pageFixtures.js';
+import { MAX_JSON_LD_BLOCK_BYTES, MAX_RECIPES_PER_PAGE } from '../src/pageCaps.js';
+import { parsePage, type PageDocument } from '../src/pageDocument.js';
+import type * as PageDocumentModule from '../src/pageDocument.js';
+import { makeLinkHead, makePage, makeRecipeCard, makeRecipeNode } from '../src/__fixtures__/pageFixtures.js';
 
 /**
- * The page reader as a package consumer sees it: through the `page-reader` export, over the real htmlparser2 and
+ * The page reader as a package consumer sees it: through its package name, `@kitchensink/page-reader`, over the real htmlparser2 and
  * tinyduration, on a page the size of the largest one measured (about 4 times over). Nothing is replaced: the parser is
  * only watched, so a test can read how much of the page the reader walked.
  *
@@ -17,7 +17,7 @@ import { makeLinkHead, makePage, makeRecipeCard, makeRecipeNode } from '../src/p
  * walks that report to it: that a tag lookup is a map read, not a walk, holds by how `parsePage` builds its index, not
  * by this count. Token comparisons, bracket collapse and the JSON-LD walk are counted in their own unit tests.
  */
-vi.mock('../src/pageReader/pageDocument.js', async (importOriginal) => {
+vi.mock('../src/pageDocument.js', async (importOriginal) => {
     const actual = await importOriginal<typeof PageDocumentModule>();
 
     return { ...actual, parsePage: vi.fn(actual.parsePage) };

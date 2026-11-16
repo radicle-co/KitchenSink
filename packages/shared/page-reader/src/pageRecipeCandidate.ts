@@ -9,12 +9,10 @@
  * ⛔ A value the page does not state is ABSENT, never made up: the import holds such an item for the cook (ADR-0072 §3).
  * No image is read: images are never fetched (ADR-0082).
  *
- * The shape is recipe-core's own and plain on purpose. `@kitchensink/schema-recipe` depends on this package, so this
- * package cannot import its `importRecipeSchema`; the caller parses a {@link PageRecipe} with it, which is the check that
- * a recipe's size and step limits hold.
+ * The shape is plain on purpose: the caller parses a {@link PageRecipe} with `@kitchensink/schema-recipe`'s
+ * `importRecipeSchema`, which is the check that a recipe's size and step limits hold.
  */
-import { PARSE_JOB_LINE_MAX_CHARS } from '../parsing/parseJobText.js';
-import { recipeCuisineSchema, recipeDescriptionSchema } from '../recipeRequestBounds.js';
+import { PARSE_JOB_LINE_MAX_CHARS, recipeCuisineSchema, recipeDescriptionSchema } from '@kitchensink/recipe-core';
 import { MAX_JSON_LD_BLOCK_BYTES, MAX_RECIPES_PER_PAGE } from './pageCaps.js';
 import { collapseBracketGroups } from './collapseBracketGroups.js';
 import { boundedWalk } from './boundedWalk.js';
@@ -25,7 +23,7 @@ import { creditOf, imageRefsOf } from './pageEvidence.js';
 import type { PageCredit } from './pageEvidence.js';
 import { durationMinutes } from './isoDuration.js';
 import { servingsOf } from './recipeYield.js';
-import { readCooksMeasure } from '../parsing/measureReader.js';
+import { readCooksMeasure } from '@kitchensink/recipe-core/parsing/measure-reader';
 import { asList, childrenOf, field, isList, isSchemaNode, scalar, textOf } from './schemaNode.js';
 import type { SchemaNode } from './schemaNode.js';
 

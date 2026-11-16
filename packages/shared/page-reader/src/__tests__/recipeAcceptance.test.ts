@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_PARSE_JOB_LINES, PARSE_JOB_LINE_MAX_CHARS } from '../../parsing/parseJobText.js';
+import { MAX_PARSE_JOB_LINES, PARSE_JOB_LINE_MAX_CHARS } from '@kitchensink/recipe-core';
 import { acceptRecipe } from '../recipeAcceptance.js';
 import type { PageRecipe } from '../pageRecipeCandidate.js';
 

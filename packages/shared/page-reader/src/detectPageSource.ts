@@ -10,8 +10,8 @@
  * unsure the answer is `none`. Two valid addresses that name different registrable domains give `none`, and the site is
  * never guessed from a publisher name, a title or a layout (ADR-0089 §1, §3). Nothing is fetched.
  */
-import { SOURCE_LINK_INPUT_MAX_LENGTH, parseSourceLink } from '../sourceLink.js';
-import type { SourceLink } from '../sourceLink.js';
+import { SOURCE_LINK_INPUT_MAX_LENGTH, parseSourceLink } from '@kitchensink/recipe-core';
+import type { SourceLink } from '@kitchensink/recipe-core';
 import type { PageDocument } from './pageDocument.js';
 
 /** What detection found: a suggested source, or nothing. */

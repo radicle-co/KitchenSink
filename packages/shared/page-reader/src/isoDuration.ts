@@ -10,7 +10,7 @@
  */
 import { parse } from 'tinyduration';
 
-import { recipeMinutesSchema } from '../recipeRequestBounds.js';
+import { recipeMinutesSchema } from '@kitchensink/recipe-core';
 
 /** The longest text read as a duration. `P1DT23H59M59S` is 13; anything past this is not one, and costs one comparison. */
 const MAX_DURATION_CHARS = 64;

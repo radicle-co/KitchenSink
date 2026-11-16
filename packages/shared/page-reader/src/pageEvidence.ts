@@ -8,7 +8,7 @@
  * past its bound is LEFT OUT, never cut short, so a half-sentence is never shown as the credit. An image address is a
  * string only: it is never fetched, and only an absolute `http` or `https` address is kept.
  */
-import { safeHttpUrl } from '../externalUrl.js';
+import { safeHttpUrl } from '@kitchensink/recipe-core/external-url';
 import { MAX_IMAGE_URL_CHARS } from './pageCaps.js';
 import { asList, field, isList, isSchemaNode, scalar, textOf } from './schemaNode.js';
 import type { SchemaNode } from './schemaNode.js';

@@ -228,10 +228,6 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/*/scaling',
         '!@kitchensink/*/external-url',
         '!@kitchensink/*/food-name',
-        // `page-reader` (the whole-page paste import): reads a pasted recipe page on the cook's device. It is a declared
-        // entry point of `recipe-core`, kept off the barrel for the same contract-hash reason; the negation below lets a
-        // consumer import it by that subpath.
-        '!@kitchensink/*/page-reader',
         // `resolution/normalized-key` (plan U10) — the PERSISTED match grain of
         // the ingredient-resolution knowledge base. It is a subpath for the same
         // reason `food-name` is, and the reason is stronger here: TWO processes
@@ -399,7 +395,7 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/repo-guards/*',
     ],
     message:
-        "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, database-name, scaling, external-url, food-name, page-reader, infra, types/*, hooks, testing, users/handle-sync-publisher, denylist, core, logAttributes, or any subpath of the shared tooling packages) — don't reach into other internals.",
+        "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, database-name, scaling, external-url, food-name, infra, types/*, hooks, testing, users/handle-sync-publisher, denylist, core, logAttributes, or any subpath of the shared tooling packages) — don't reach into other internals.",
 };
 
 /**

@@ -15,7 +15,7 @@
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 
-import { extractSourceLink } from '../sourceLink.js';
+import { extractSourceLink } from '@kitchensink/recipe-core';
 import { detectPageSource, pageAddressesOf } from './detectPageSource.js';
 import type { DetectedSource } from './detectPageSource.js';
 import { MAX_PASTE_BYTES, classifyPaste } from './pageCaps.js';

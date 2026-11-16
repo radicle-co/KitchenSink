@@ -243,9 +243,7 @@ describe('the window edge', () => {
     });
 
     it.each(['paste', 'bulk'] as const)('%s: does not count an event exactly 24 h old', (channel) => {
-        const full = [
-            eventAged(IMPORT_ALLOWANCE_RULE.windowMs, importAllowanceLimitOf(SCOPE_OF[channel]), channel),
-        ];
+        const full = [eventAged(IMPORT_ALLOWANCE_RULE.windowMs, importAllowanceLimitOf(SCOPE_OF[channel]), channel)];
 
         expect(decide(SCOPE_OF[channel], full, 1)).toEqual({ kind: 'admit', units: 1 });
     });
@@ -315,7 +313,9 @@ describe('describeImportAllowance — the state the import view shows (ADR-0072 
 
     it('reports the plan’s limit on every channel', () => {
         expect(describeAt('bulk', []).limit).toBe(IMPORT_ALLOWANCE_RULE.limit.paid);
-        expect(describeImportAllowance({ ...PASTE, windowEvents: [], now: NOW }).limit).toBe(IMPORT_ALLOWANCE_RULE.limit.free);
+        expect(describeImportAllowance({ ...PASTE, windowEvents: [], now: NOW }).limit).toBe(
+            IMPORT_ALLOWANCE_RULE.limit.free,
+        );
     });
 
     it('resets when the OLDEST counted event leaves the window', () => {

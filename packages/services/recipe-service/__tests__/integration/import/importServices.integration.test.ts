@@ -11,7 +11,7 @@
  *    projection (`projectMatch`), so the line the wizard receives is what the published schema accepts, including the row the
  *    import saves (migration 0074: name, shown words, note) and a review the spend ceiling refused this month
  *    (`reviewBudgetSpent`, owner ruling 2026-10-26).
- *  - **The allowance asks one flat limit.** The view reads the ledger through `stateOf(db, user, 'bulk')`: no tier rides it.
+ *  - **The allowance asks one flat limit.** The view reads the ledger through `stateOf(db, user, holder)`: no tier rides it.
  *  - **What the save needs holds an item, through every service at once** (ADR-0072 §3 as amended 2026-11-11). An advance
  *    holds an item whose file states no cuisine, servings or times and never calls the create path, the view names
  *    `needsCuisine`, `needsServings` or `needsTimes` in a shape the published contract accepts, the step shows each as `null`,
@@ -205,7 +205,6 @@ describe('the import services under the real injector', () => {
         expect(importViewSchema.parse(view)).toEqual(view);
         expect(view.allowance).toEqual(ALLOWANCE);
         expect(allowance.stateOf).toHaveBeenCalledWith(DB, USER, {
-            channel: 'bulk',
             isPremium: false,
             principalKind: 'real',
         });
@@ -213,7 +212,6 @@ describe('the import services under the real injector', () => {
         await service.getView(makePrincipal({ roles: ['vip'] }), IMPORT_ID, {});
 
         expect(allowance.stateOf).toHaveBeenLastCalledWith(DB, USER, {
-            channel: 'bulk',
             isPremium: true,
             principalKind: 'real',
         });

@@ -311,7 +311,7 @@ describe('create — the daily import allowance (004 FR-022)', () => {
         expect(dal.createJob.mock.calls[0]?.[3]).toMatchObject({ kind: 'charge', units: 1 });
     });
 
-    it('⛔ states the caller\'s plan and kind to the ONE allowance: paid, and test, are read from the principal', async () => {
+    it("⛔ states the caller's plan and kind to the ONE allowance: paid, and test, are read from the principal", async () => {
         const dal = makeDal();
         const service = new ParseJobsService(dal, makeQueue());
 

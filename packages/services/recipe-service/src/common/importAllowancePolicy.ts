@@ -73,10 +73,13 @@ export interface ImportAllowanceScope {
     readonly principalKind: PrincipalKind;
 }
 
+/** Whose allowance it is: the plan and the principal kind. The channel does not change the one allowance. */
+export type AllowanceHolder = Pick<ImportAllowanceScope, 'isPremium' | 'principalKind'>;
+
 /**
- * The units a scope may spend in one window. Pure.
+ * The units a holder may spend in one window. Pure.
  */
-export function importAllowanceLimitOf(scope: ImportAllowanceScope): number {
+export function importAllowanceLimitOf(scope: AllowanceHolder): number {
     if (scope.principalKind === 'test') {
         return TEST_PRINCIPAL_ALLOWANCE_LIMIT;
     }
@@ -153,7 +156,7 @@ function whenUnitsLeave(
  * @returns The counted events and `room` (the limit minus the units spent; negative when over it). Pure.
  */
 function countedOn(
-    scope: ImportAllowanceScope,
+    scope: AllowanceHolder,
     windowEvents: readonly AllowanceEvent[],
     now: Date,
 ): { readonly counted: readonly AllowanceEvent[]; readonly room: number } {
@@ -224,7 +227,7 @@ export interface ImportAllowanceState {
  * @returns The limit, the units spent and when more opens. Pure.
  */
 export function describeImportAllowance(
-    input: ImportAllowanceScope & { readonly windowEvents: readonly AllowanceEvent[]; readonly now: Date },
+    input: AllowanceHolder & { readonly windowEvents: readonly AllowanceEvent[]; readonly now: Date },
 ): ImportAllowanceState {
     const { counted, room } = countedOn(input, input.windowEvents, input.now);
     const limit = importAllowanceLimitOf(input);

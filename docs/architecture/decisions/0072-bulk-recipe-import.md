@@ -284,7 +284,7 @@ and 1,000 on a paid plan, where superusers and VIPs count as paid (owner ruling,
   and 2026-11-15). The plan is read once, through `isPremiumPrincipal`. The plan decides the limit at the first send of
   a line.
 - **A test principal has no limit** (owner ruling, 2026-11-15, verbatim): "if this is for testing, then there are no
-  limits. IF this is for user-facing behavior, then one pipeline, one allowance." The bulk scope carries the principal's
+  limits. IF this is for user-facing behavior, then one pipeline, one allowance." Every scope carries the principal's
   kind (ADR-0040). A test principal is stated with `TEST_PRINCIPAL_ALLOWANCE_LIMIT` (the int4 ceiling, so the view's
   `allowance.limit` stays a number the contract can carry) and is always admitted. The unit is still written to the
   ledger and `allowance_spent_at` is still stamped, so `advance` stays safe to repeat and the one pipeline runs end to
@@ -295,7 +295,7 @@ and 1,000 on a paid plan, where superusers and VIPs count as paid (owner ruling,
 - **The editor's ingredient-list paste draws on the one allowance too.** `ParseJobsService.create` takes the verified
   principal and admits one unit on the `paste` channel with the principal's plan (`isPremiumPrincipal`) and kind, so a
   paid cook's paste is admitted past 200 and a test principal's paste is never refused. Its refusal is still `429
-  IMPORT_QUOTA_EXCEEDED` with `details.resetsAt`. The `channel` column is attribution only: every channel's rows are
+IMPORT_QUOTA_EXCEEDED` with `details.resetsAt`. The `channel` column is attribution only: every channel's rows are
   counted against the one limit and pruned at the one window edge, and `advance` still never answers the refusal. The
   table did not change, so there is no migration, and the `paste` rows already stored count like any other.
 - An item spends its unit at the first send of its lines for parsing, because LLM spend starts there. The item
@@ -313,8 +313,7 @@ and 1,000 on a paid plan, where superusers and VIPs count as paid (owner ruling,
   cook's allowance lock. Past it the request is rolled back with `IMPORT_STORAGE_FULL` (`409`, not `413`: a client halves
   its chunk on `413`, and a smaller chunk does not help here). A request that shrinks or keeps what the cook holds is
   never refused.
-- `importAllowancePolicy.ts` counts each channel's rows against that channel's limit. On bulk, the limit is the
-  cook's plan's.
+- `importAllowancePolicy.ts` counts every channel's rows against the one limit, set by the cook's plan.
 
 ### 9. Each recipe carries its own source statement, and the statement sets its provenance
 

@@ -41,8 +41,8 @@ import { recipeDb } from '../../support/roleDb.js';
 const USER = '01JIMPORTALLOWANCEE2E00001';
 const OTHER = '01JIMPORTALLOWANCEE2E00002';
 const roleDb = recipeDb();
-const PAID_BULK_LIMIT = importAllowanceLimitOf({ channel: 'bulk', isPremium: true, principalKind: 'real' });
-const FREE_BULK_LIMIT = importAllowanceLimitOf({ channel: 'bulk', isPremium: false, principalKind: 'real' });
+const PAID_BULK_LIMIT = importAllowanceLimitOf({ isPremium: true, principalKind: 'real' });
+const FREE_BULK_LIMIT = importAllowanceLimitOf({ isPremium: false, principalKind: 'real' });
 
 describe('the one import allowance (LOCAL e2e)', () => {
     let pool: pg.Pool;

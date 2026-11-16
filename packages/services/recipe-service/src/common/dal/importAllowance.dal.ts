@@ -41,11 +41,13 @@ import {
     evaluateImportAllowance,
     importAllowanceWindowStart,
     type ImportAllowanceScope,
+    type AllowanceHolder,
     type ImportAllowanceState,
 } from '../importAllowancePolicy.js';
 
 /**
- * What a caller asks the allowance for: the scope spending (its channel label, the plan and the principal kind) and how many units, a positive integer (the policy throws otherwise). More than the room left is admitted in part.
+ * What a caller asks the allowance for: the scope spending (its channel label, the plan and the principal kind) and how
+ * many units, a positive integer (the policy throws otherwise). More than the room left is admitted in part.
  */
 export type AdmitRequest = ImportAllowanceScope & { readonly units: number };
 
@@ -154,13 +156,13 @@ export class ImportAllowanceDal {
      *
      * @param reader - The client (or a transaction).
      * @param userId - The verified app-user ULID.
-     * @param scope - The channel label, the plan and the principal kind.
+     * @param holder - The plan and the principal kind: the channel does not change the one allowance.
      * @returns The state. @sideEffect Reads the database clock and the ledger.
      */
     public async stateOf(
         reader: Pick<Writer, 'select'>,
         userId: string,
-        scope: ImportAllowanceScope,
+        holder: AllowanceHolder,
     ): Promise<ImportAllowanceState> {
         const now = await this.readClock(reader);
         const rows = await reader
@@ -179,7 +181,7 @@ export class ImportAllowanceDal {
             .orderBy(asc(importAllowanceEvents.createdAt));
 
         return describeImportAllowance({
-            ...scope,
+            ...holder,
             windowEvents: rows.map((row) => ({ ...row, channel: channelOf(row.channel) })),
             now,
         });

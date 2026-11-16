@@ -45,8 +45,10 @@ export type NotExtractableReason =
     | 'severalRecipes';
 
 /**
- * What reading a paste came to: a recipe, or a plain no (owner ruling 2026-11-15: no review in the middle, no AI).
- * Every result but `tooLarge` carries the digest of the paste it read.
+ * What reading a paste came to: a recipe, or a plain no (owner ruling 2026-11-15: no review in the middle). These are
+ * the deterministic tiers. An optional on-device AI tier may later run after a `notExtractable` here and before server
+ * AI (owner ruling 2026-11-15); it would add its own member to `ExtractionTier`. HTML a link import fetched is read the
+ * same way as a paste. Every result but `tooLarge` carries the digest of the paste it read.
  */
 export type PasteReadResult =
     | {

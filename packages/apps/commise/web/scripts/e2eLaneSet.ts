@@ -14,9 +14,10 @@ import { run, sleep, waitForExit } from './e2eProcess';
 import { parseReport, type PlaywrightReport } from './e2eReport';
 import { deadOrigins } from './e2eServer';
 
-/** What one lane and the one shared `next start` cost; the measurements are recorded beside the figures in `laneCosts.ts` (`@kitchensink/e2e-plan`). */
+/** What one lane costs; the measurement is recorded beside the figure in `@kitchensink/e2e-plan`'s `laneCosts.ts`. */
 export const LANE_COST: LaneCost = laneCosts.web;
 
+/** What the one shared `next start` costs; measured as `LANE_COST` is. */
 export const SERVER_COST: LaneCost = laneCosts.webServer;
 
 /**

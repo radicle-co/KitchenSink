@@ -16,7 +16,7 @@ import { ANDROID_LANE_SERIALS } from '../androidSerials.js';
 import type { CommandPort, LaneSpec } from '../laneTypes.js';
 
 describe('ANDROID_LANE_COST', () => {
-    it('is the laneCosts entry itself, so ADR-0088 and the file name one figure', () => {
+    it('is the laneCosts entry itself, not a copy of its figure', () => {
         expect(ANDROID_LANE_COST).toBe(laneCosts.android);
     });
 });

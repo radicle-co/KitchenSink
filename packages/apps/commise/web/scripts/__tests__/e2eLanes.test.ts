@@ -500,7 +500,7 @@ describe('main — the lane variables are read before anything runs', () => {
 });
 
 describe('the web lane costs', () => {
-    it('are the laneCosts entries themselves, so ADR-0088 and the file name one figure', () => {
+    it('are the laneCosts entries themselves, not copies of their figures', () => {
         expect(LANE_COST).toBe(laneCosts.web);
         expect(SERVER_COST).toBe(laneCosts.webServer);
     });

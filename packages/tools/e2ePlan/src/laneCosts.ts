@@ -42,7 +42,12 @@ import type { LaneCost } from './lanePlan.js';
 
 const GIB = 1024 ** 3;
 
-const figure = z.strictObject({ cpus: z.number().positive(), gib: z.number().positive() });
+const toLaneCost = ({ cpus, gib }: { cpus: number; gib: number }): LaneCost => ({
+    cpus,
+    memBytes: Math.round(gib * GIB),
+});
+
+const figure = z.strictObject({ cpus: z.number().positive(), gib: z.number().positive() }).transform(toLaneCost);
 
 const LaneCostsFileSchema = z.strictObject({
     android: figure,
@@ -53,22 +58,11 @@ const LaneCostsFileSchema = z.strictObject({
     webServer: figure,
 });
 
-export type LaneCosts = Readonly<Record<keyof z.infer<typeof LaneCostsFileSchema>, LaneCost>>;
-
-const toLaneCost = ({ cpus, gib }: z.infer<typeof figure>): LaneCost => ({ cpus, memBytes: Math.round(gib * GIB) });
+export type LaneCosts = Readonly<z.output<typeof LaneCostsFileSchema>>;
 
 /** Parse the file's content and convert each GiB figure to bytes. Throws on a missing, unknown or non-positive figure. */
 export function parseLaneCosts(raw: unknown): LaneCosts {
-    const file = LaneCostsFileSchema.parse(raw);
-
-    return {
-        android: toLaneCost(file.android),
-        iphone: toLaneCost(file.iphone),
-        ipad: toLaneCost(file.ipad),
-        macAndroid: toLaneCost(file.macAndroid),
-        web: toLaneCost(file.web),
-        webServer: toLaneCost(file.webServer),
-    };
+    return LaneCostsFileSchema.parse(raw);
 }
 
 export const laneCosts: LaneCosts = parseLaneCosts(raw);

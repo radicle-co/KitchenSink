@@ -21,6 +21,12 @@ const PROJECT_PREFIX = 'project/';
 /** Blob oid by path. */
 export type Oids = ReadonlyMap<string, string>;
 
+/**
+ * The oids a downloaded file's bytes can have in git, by path: the one the repo's attributes give (an LFS image's
+ * pointer) and, when it differs, the raw one. A tree stored the bytes either way, so a match with any is a match.
+ */
+export type LiveOids = ReadonlyMap<string, readonly string[]>;
+
 /** Where the baseline commit came from. */
 export type BaselineSource = 'marker' | 'snapshot';
 
@@ -160,7 +166,7 @@ export function planCanvas(input: { baseline: Oids; main: Oids; from: BaselineSo
     return { status, changed, deleted, download, expected };
 }
 
-function stateOf(expected: ExpectedOids, live: string | undefined, isLive: boolean): FileState['state'] {
+function stateOf(expected: ExpectedOids, live: readonly string[] | undefined, isLive: boolean): FileState['state'] {
     if (!isLive) {
         // Absent live is fine when the repo never had the path or removes it.
         if (expected.baseline === null) {
@@ -174,21 +180,25 @@ function stateOf(expected: ExpectedOids, live: string | undefined, isLive: boole
         return 'drift';
     }
 
-    if (live === expected.baseline) {
+    if (expected.baseline !== null && live.includes(expected.baseline)) {
         return 'atBaseline';
     }
 
-    return live === expected.main ? 'atMain' : 'drift';
+    return expected.main !== null && live.includes(expected.main) ? 'atMain' : 'drift';
 }
 
 /**
  * Decides whether the live canvas may be overwritten. A live file passes when it equals the baseline or main (main
  * covers a merged drift import and a retried publish). A file that should be live but was not downloaded is drift.
  *
- * @param input - The plan, the oids of the downloaded files, and the live path list.
+ * @param input - The plan, the oids of the downloaded files (any one of a file's oids may match), and the live path list.
  * @returns The verdict with a state per downloaded path, and live paths neither tree knows or that vanished.
  */
-export function driftVerdict(input: { plan: CanvasPlan; liveOids: Oids; livePaths: readonly string[] }): DriftVerdict {
+export function driftVerdict(input: {
+    plan: CanvasPlan;
+    liveOids: LiveOids;
+    livePaths: readonly string[];
+}): DriftVerdict {
     const livePaths = new Set(input.livePaths.filter(publishable));
     const files = input.plan.download.map((path) => ({
         path,

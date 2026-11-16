@@ -23,7 +23,7 @@ import { CONTRACT_HASH as SCHEMA_PACKAGE_CONTRACT_HASH } from '@kitchensink/sche
 import { CONTRACT_HASH } from './contract/contractHash.js';
 import { assertContractHashesAgree } from './contract/contractSkew.js';
 import { NestRoutedLogger } from '@kitchensink/service-logging';
-import { buildCorsPolicy } from './config/cors.js';
+import { IDENTITY_HTTP_SETUP } from './config/httpSetup.js';
 import { DrizzleProvider, type IdentityDrizzle } from './database/database.module.js';
 import { verifyIdentitySchemaCurrent } from './database/schemaCurrency.js';
 
@@ -38,22 +38,11 @@ async function bootstrap(): Promise<void> {
 
     const { AppModule } = await import('./app.module.js');
     const logger = new NestRoutedLogger();
-    const app = await NestFactory.create(AppModule, { logger });
+    const app = await NestFactory.create(AppModule, { ...IDENTITY_HTTP_SETUP.nestOptions, logger });
 
-    // U11/F3: the service is fronted by a public ALB and called cross-origin by the web app, so with no
-    // CORS those calls are blocked. The origin allowlist is DERIVED from the same Clerk `azp` boundary the
-    // token check uses (`config/cors.ts`), per stage, and denies when nothing is configured. The resolved
-    // mode is logged because "which posture is live" was previously unobservable — an empty parties list
-    // silently became `origin: true` on every non-prod stage.
-    const cors = buildCorsPolicy({
-        stage: process.env['STAGE'] ?? 'dev',
-        authorizedPartiesRaw: process.env['CLERK_AUTHORIZED_PARTIES'],
-        previewBaseDomain: process.env['CLERK_AZP_PATTERN'],
-        previewMode: process.env['CLERK_AZP_PREVIEW_MODE'],
-    });
-
-    app.enableCors(cors.options);
-    logger.log(`CORS origin mode: ${cors.mode}`, 'bootstrap');
+    // U11/F3: the service is fronted by a public ALB and called cross-origin by the web app, so with no CORS those
+    // calls are blocked. CORS, then the JSON parser, then the refusal link, in that order (`config/httpSetup.ts`).
+    IDENTITY_HTTP_SETUP.configure(app);
 
     // DRIFT LAYER 4 (Schema) — is the database this process is about to serve from actually current for this
     // release? The pipeline migrates ahead of this deploy (ADR-0035), so on the ordinary release path this

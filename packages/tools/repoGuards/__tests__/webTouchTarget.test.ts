@@ -6,7 +6,8 @@
  *
  * Refused in non-native app source, behind any variant prefix, in a string, template or JSX text:
  *  - a `size-11` token;
- *  - `h-11` and `w-11` in the SAME class string (a fixed square spelled in two tokens).
+ *  - `h-11` and `w-11` in the SAME string literal (a fixed square spelled in two tokens). Two literals of one call,
+ *    such as `cn('h-11', 'w-11')`, are read one at a time and are not caught.
  *
  * Not refused: a lone `h-11` or `w-11` (a bar or an input), `min-h-11` and `min-w-11` (a text target's floor, a separate
  * question), `size-[44px]` and `sm:size-4`.

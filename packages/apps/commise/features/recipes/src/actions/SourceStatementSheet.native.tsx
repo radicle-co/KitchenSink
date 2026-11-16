@@ -7,7 +7,8 @@
  * - The effect line is pinned in the footer, above the buttons, so it is read before the confirm at any text size; the body
  *   scrolls and the title and footer stay put.
  * - The two footer buttons are equal shares; their labels wrap and are never clipped.
- * - React Native has no `aria-describedby`: a field's error is its accessibility hint (`error`) as well as drawn.
+ * - React Native has no `aria-describedby`: a field's error is its accessibility hint (`error`) as well as drawn, and the message
+ *   above the field is an assertive live region, so it is spoken as it appears.
  * - The platform back route is the dismiss, and does nothing while the change is in flight.
  *
  * @pattern Adapter over the design-system `Sheet` — the platform expression of the web leaf
@@ -15,6 +16,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { FieldLabel, Input } from '@commise/ui/input';
+import { LiveRegion } from '@commise/ui/live-region';
 import { RadioList } from '@commise/ui/radio-list';
 import { Sheet } from '@commise/ui/sheet';
 import { Text } from '@commise/ui/text';
@@ -103,11 +105,10 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
                     <Field>
                         <FieldLabel forId={fieldId} label={field.label} />
                         {/* Said above the field: below it, the keyboard and the pinned footer leave it off screen. */}
-                        {field.error === undefined ? null : (
-                            <Text typeRole="caption" color="$dangerText">
-                                {field.error}
-                            </Text>
-                        )}
+                        {/* Mounted before there is an error, so the screen reader hears the error appear. */}
+                        <LiveRegion politeness="assertive" typeRole="caption" tone="dangerText">
+                            {field.error ?? ''}
+                        </LiveRegion>
                         <Input
                             id={fieldId}
                             label={field.label}

@@ -245,3 +245,23 @@ describe('SourceStatementSheet (native) — the field message is said above the 
         },
     );
 });
+
+// A screen reader says a field error as it appears (review item 11): the house `Input` carries it as the field's hint, which is read
+// on reaching the field, and the sheet's own message above the field is an assertive live region, which is what Android reads
+// at once and what iOS is handed as an announcement. `role="alert"` is how the live region shows on this tier.
+describe('SourceStatementSheet (native) — the field error is announced', () => {
+    it.each([
+        ['book', 'Add the book or magazine title.'],
+        ['publicWeb', 'That isn’t a web link. Paste the page address, like https://example.com/recipe.'],
+    ] as const)('the %s error is an alert carrying the message', (answer, message) => {
+        renderSheet({ state: { answer, attempted: true } });
+
+        expect(screen.getByRole('alert').textContent).toBe(message);
+    });
+
+    it('says nothing before Confirm was pressed', () => {
+        renderSheet({ state: { answer: 'book' } });
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+});

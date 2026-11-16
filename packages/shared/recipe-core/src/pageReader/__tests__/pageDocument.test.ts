@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_VISIBLE_NODES, MAX_WALK_NODES } from '../pageCaps.js';
+import { MAX_WALK_NODES } from '../pageCaps.js';
 import { MAX_ELEMENT_DEPTH, PARSE_CHUNK_CHARS, isTextCut, parsePage, plainText, textBlocks } from '../pageDocument.js';
 
 describe('textBlocks', () => {
@@ -169,18 +169,24 @@ describe('parsePage', () => {
         expect(text.length).toBeLessThanOrEqual(MAX_WALK_NODES / 2);
     });
 
-    it('reads a whole body past the property budget, and says so when even the visible budget cuts it', () => {
+    it('reads a whole body past the property budget: the visible read has a budget of its own', () => {
         const paragraphs = MAX_WALK_NODES * 2;
         const [body] = parsePage(`<body>${'<p>x</p>'.repeat(paragraphs)}</body>`).byTag('body');
         const all = body?.visibleText();
 
         expect(all?.truncated).toBe(false);
         expect(all?.blocks).toHaveLength(paragraphs);
+        expect(body?.blocks().truncated).toBe(true);
+    });
 
-        const [wide] = parsePage(`<body>${'<b>x</b>'.repeat(MAX_VISIBLE_NODES)}</body>`).byTag('body');
+    // The visible budget is injected small, so it is reached with a few nodes: the production one (pinned in
+    // visiblePageText.test.ts) takes seconds to reach on a CI runner.
+    it('says the visible read was cut once its budget is spent, and not at the budget', () => {
+        // Each `<b>x</b>` is two nodes: the element and its text.
+        const [body] = parsePage(`<body>${'<b>x</b>'.repeat(5)}</body>`).byTag('body');
 
-        expect(wide?.visibleText().truncated).toBe(true);
-        expect(wide?.blocks().blocks.join('').length).toBeLessThanOrEqual(MAX_WALK_NODES);
+        expect(body?.visibleText(9).truncated).toBe(true);
+        expect(body?.visibleText(10)).toMatchObject({ truncated: false, blocks: [{ text: 'xxxxx' }] });
     });
 
     it('counts its nodes once, and every node a read visits; a lookup adds nothing to the count', () => {
@@ -198,10 +204,11 @@ describe('parsePage', () => {
         expect(page.work().visits).toBe(5 + 4 + 2);
     });
 
-    it('reads 200,000 sibling elements: width is not depth, so nothing is cut', () => {
-        const wide = parsePage(`<div>${'<i>a</i>'.repeat(200_000)}</div>`);
+    it('reads siblings far past the depth cap: width is not depth, so nothing is cut', () => {
+        const siblings = MAX_ELEMENT_DEPTH * 10;
+        const wide = parsePage(`<div>${'<i>a</i>'.repeat(siblings)}</div>`);
 
         expect(wide.truncated).toBe(false);
-        expect(wide.byTag('i')).toHaveLength(200_000);
+        expect(wide.byTag('i')).toHaveLength(siblings);
     });
 });

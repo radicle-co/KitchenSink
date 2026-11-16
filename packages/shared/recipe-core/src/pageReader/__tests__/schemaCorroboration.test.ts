@@ -5,7 +5,7 @@ import { microdataRecipe } from '../microdataRecipe.js';
 import { parsePage } from '../pageDocument.js';
 import type { PageCandidate } from '../pageRecipeCandidate.js';
 import { corroborate, withShownStepNames } from '../schemaCorroboration.js';
-import { memoizedVisibleText } from '../visiblePageText.js';
+import { DEFAULT_VISIBLE_CAPS, memoizedVisibleText, visibleTextOf } from '../visiblePageText.js';
 import { makeMicrodataBody, makePage, makeRecipeCard, makeRecipeNode } from '../__fixtures__/pageFixtures.js';
 
 /** The one candidate a JSON-LD page holds, and the page. */
@@ -105,9 +105,11 @@ describe('corroborate: G-CORR, the page shows what the JSON-LD says', () => {
 
     it('answers pageTooComplex when the page is too big to check against', () => {
         const { candidate } = jsonLdCase(NODE);
-        const huge = parsePage(`<body><p>${'word '.repeat(300_000)}</p></body>`);
+        // The token cap is injected small: the production cap is reached in visiblePageText.test.ts by the same rule.
+        const huge = parsePage(`<body><p>${'word '.repeat(11)}</p></body>`);
+        const visible = () => visibleTextOf(huge, { ...DEFAULT_VISIBLE_CAPS, maxTokens: 10 });
 
-        expect(corroborate(candidate, 'jsonLd', memoizedVisibleText(huge))).toEqual({
+        expect(corroborate(candidate, 'jsonLd', visible)).toEqual({
             ok: false,
             reason: 'pageTooComplex',
         });

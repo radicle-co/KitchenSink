@@ -11,7 +11,7 @@
  * {@link MAX_TOKEN_COMPARISONS} comparisons: a page that repeats one token thousands of times answers `overBudget`.
  * Only linear whitespace and newline splits run over page text, and no pattern can backtrack.
  */
-import { MAX_TOKEN_COMPARISONS, MAX_VISIBLE_TOKENS } from './pageCaps.js';
+import { MAX_TOKEN_COMPARISONS, MAX_VISIBLE_NODES, MAX_VISIBLE_TOKENS } from './pageCaps.js';
 import type { ElementExtent, PageDocument, VisibleBlock } from './pageDocument.js';
 import { tokensOf } from './pageTokens.js';
 
@@ -299,8 +299,26 @@ function textOfTokens(page: Tokenized): VisibleText {
     };
 }
 
-/** The tokens of `blocks`, or `undefined` when they pass {@link MAX_VISIBLE_TOKENS}: a page that long is never half read. */
-function tokenizedBlocks(blocks: readonly VisibleBlock[], elements: readonly ElementExtent[]): Tokenized | undefined {
+/** The caps a page's visible read stops at. */
+export interface VisibleCaps {
+    /** The most nodes of the body read. */
+    readonly maxNodes: number;
+    /** The most tokens of the body read. */
+    readonly maxTokens: number;
+}
+
+/** The production caps (`pageCaps.ts`). A test passes smaller ones to reach a cap with a small page. */
+export const DEFAULT_VISIBLE_CAPS: VisibleCaps = Object.freeze({
+    maxNodes: MAX_VISIBLE_NODES,
+    maxTokens: MAX_VISIBLE_TOKENS,
+});
+
+/** The tokens of `blocks`, or `undefined` when they pass `maxTokens`: a page that long is never half read. */
+function tokenizedBlocks(
+    blocks: readonly VisibleBlock[],
+    elements: readonly ElementExtent[],
+    maxTokens: number,
+): Tokenized | undefined {
     const tokens: string[] = [];
     const spans: BlockSpan[] = [];
 
@@ -311,7 +329,7 @@ function tokenizedBlocks(blocks: readonly VisibleBlock[], elements: readonly Ele
             tokens.push(token);
         }
 
-        if (tokens.length > MAX_VISIBLE_TOKENS) {
+        if (tokens.length > maxTokens) {
             return undefined;
         }
 
@@ -342,10 +360,11 @@ function tokenizedBlocks(blocks: readonly VisibleBlock[], elements: readonly Ele
  * Read what a page shows.
  *
  * @param page - The parsed paste.
+ * @param caps - The caps the read stops at: the production ones unless a test passes smaller.
  * @returns `ok` with the text, `noBody` when the paste has no `<body>`, or `tooComplex` when the page was cut for depth or
  *   its body is past the node or token cap. Pure apart from the budget the returned text spends as it is asked.
  */
-export function visibleTextOf(page: PageDocument): VisibleTextResult {
+export function visibleTextOf(page: PageDocument, caps: VisibleCaps = DEFAULT_VISIBLE_CAPS): VisibleTextResult {
     if (page.truncated) {
         return { kind: 'tooComplex' };
     }
@@ -356,13 +375,13 @@ export function visibleTextOf(page: PageDocument): VisibleTextResult {
         return { kind: 'noBody' };
     }
 
-    const { blocks, elements, truncated } = body.visibleText();
+    const { blocks, elements, truncated } = body.visibleText(caps.maxNodes);
 
     if (truncated) {
         return { kind: 'tooComplex' };
     }
 
-    const tokenized = tokenizedBlocks(blocks, elements);
+    const tokenized = tokenizedBlocks(blocks, elements, caps.maxTokens);
 
     return tokenized === undefined ? { kind: 'tooComplex' } : { kind: 'ok', text: textOfTokens(tokenized) };
 }

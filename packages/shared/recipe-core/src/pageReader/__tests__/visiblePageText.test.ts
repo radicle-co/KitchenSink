@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { MAX_ELEMENT_DEPTH, parsePage } from '../pageDocument.js';
 import { MAX_TOKEN_COMPARISONS, MAX_VISIBLE_NODES, MAX_VISIBLE_TOKENS } from '../pageCaps.js';
 import { tokensOf } from '../pageTokens.js';
-import { visibleTextOf } from '../visiblePageText.js';
+import { DEFAULT_VISIBLE_CAPS, visibleTextOf } from '../visiblePageText.js';
 import type { VisibleText } from '../visiblePageText.js';
 
 const visible = (body: string): VisibleText => {
@@ -99,14 +99,33 @@ describe('visibleTextOf', () => {
         });
     });
 
-    it('says too complex for a page cut for depth, for too many tokens, and for too many nodes', () => {
+    it('says too complex for a page cut for depth', () => {
         const deep = parsePage(`<body>${'<div>'.repeat(MAX_ELEMENT_DEPTH + 10)}1 cup flour</body>`);
-        const manyWords = parsePage(`<body><p>${'word '.repeat(MAX_VISIBLE_TOKENS + 1)}</p></body>`);
-        const manyNodes = parsePage(`<body>${'<b>x</b>'.repeat(MAX_VISIBLE_NODES)}</body>`);
 
         expect(visibleTextOf(deep)).toEqual({ kind: 'tooComplex' });
-        expect(visibleTextOf(manyWords)).toEqual({ kind: 'tooComplex' });
-        expect(visibleTextOf(manyNodes)).toEqual({ kind: 'tooComplex' });
+    });
+
+    // The caps are injected small, so each is reached with a few nodes: a page at the production caps takes seconds on
+    // a CI runner. The production values themselves are pinned in the next test.
+    it('says too complex past the token cap, and reads a page at it', () => {
+        const words = (count: number) => parsePage(`<body><p>${'word '.repeat(count)}</p></body>`);
+        const caps = { ...DEFAULT_VISIBLE_CAPS, maxTokens: 10 };
+
+        expect(visibleTextOf(words(11), caps)).toEqual({ kind: 'tooComplex' });
+        expect(visibleTextOf(words(10), caps).kind).toBe('ok');
+    });
+
+    it('says too complex past the node cap, and reads a page at it', () => {
+        // Each `<b>x</b>` is two nodes: the element and its text.
+        const bold = parsePage(`<body>${'<b>x</b>'.repeat(5)}</body>`);
+
+        expect(visibleTextOf(bold, { ...DEFAULT_VISIBLE_CAPS, maxNodes: 9 })).toEqual({ kind: 'tooComplex' });
+        expect(visibleTextOf(bold, { ...DEFAULT_VISIBLE_CAPS, maxNodes: 10 }).kind).toBe('ok');
+    });
+
+    it('reads to the production caps unless told otherwise', () => {
+        expect(DEFAULT_VISIBLE_CAPS).toEqual({ maxNodes: MAX_VISIBLE_NODES, maxTokens: MAX_VISIBLE_TOKENS });
+        expect([MAX_VISIBLE_NODES, MAX_VISIBLE_TOKENS]).toEqual([400_000, 250_000]);
     });
 
     it('does not try a common first word at every place it occurs: a run starts from its rarest token', () => {

@@ -67,10 +67,10 @@ export interface PageElement {
      */
     blocks(): { readonly blocks: readonly string[]; readonly truncated: boolean };
     /**
-     * The same blocks, read to the page's own budget ({@link MAX_VISIBLE_NODES}), each with what the extras check needs
+     * The same blocks, read to the page's own budget (`maxNodes`, by default {@link MAX_VISIBLE_NODES}), each with what the extras check needs
      * to know of where it sits, and whether that budget cut them short.
      */
-    visibleText(): VisibleRead;
+    visibleText(maxNodes?: number): VisibleRead;
     /** The text children exactly as written, with no entity decoding. For a `<script>`, its source. */
     rawText(): string;
 }
@@ -333,7 +333,7 @@ function blocksOf(
     let visited = 0;
     let next = stack.pop();
 
-    for (; next !== undefined && visited <= maxNodes; next = stack.pop()) {
+    for (; next !== undefined && visited < maxNodes; next = stack.pop()) {
         visited += 1;
 
         if (next instanceof BlockEnd) {
@@ -482,7 +482,7 @@ function elementView(node: DomNode, meter: WorkMeter): PageElement | undefined {
 
             return { blocks: read.blocks.map((block) => block.text), truncated: read.truncated };
         },
-        visibleText: () => walked(MAX_VISIBLE_NODES),
+        visibleText: (maxNodes = MAX_VISIBLE_NODES) => walked(maxNodes),
         rawText: () => {
             meter.visits += node.children.length;
 

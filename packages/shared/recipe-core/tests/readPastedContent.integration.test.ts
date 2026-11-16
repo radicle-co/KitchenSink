@@ -1,19 +1,55 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { MAX_PASTE_BYTES, readPastedContent } from '@kitchensink/recipe-core/page-reader';
 
 import { MAX_JSON_LD_BLOCK_BYTES, MAX_RECIPES_PER_PAGE } from '../src/pageReader/pageCaps.js';
+import { parsePage, type PageDocument } from '../src/pageReader/pageDocument.js';
+import type * as PageDocumentModule from '../src/pageReader/pageDocument.js';
 import { makeLinkHead, makePage, makeRecipeCard, makeRecipeNode } from '../src/pageReader/__fixtures__/pageFixtures.js';
 
 /**
  * The page reader as a package consumer sees it: through the `page-reader` export, over the real htmlparser2 and
- * tinyduration, on a page the size of the largest one measured (about 4 times over). Nothing is mocked.
+ * tinyduration, on a page the size of the largest one measured (about 4 times over). Nothing is replaced: the parser is
+ * only watched, so a test can read how much of the page the reader walked.
+ *
+ * ⛔ Work is COUNTED, never timed: a time budget fails on a busy CI runner and passes a slow reader on a fast one. A
+ * page's walks are bounded by its own node count (`PageDocument.work`). Token comparisons, bracket collapse and the
+ * JSON-LD walk are counted in their own unit tests.
  */
+vi.mock('../src/pageReader/pageDocument.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof PageDocumentModule>();
+
+    return { ...actual, parsePage: vi.fn(actual.parsePage) };
+});
+
+/**
+ * The most node visits a read may make per node of the page: one walk to index it, and a few bounded reads of parts of
+ * it. A lookup that walked the whole page again for every tag (28.9 s measured before the page was indexed once) makes
+ * hundreds.
+ */
+const VISITS_PER_NODE = 4;
+
+/** Read a paste, and say whether the page's walks stayed within {@link VISITS_PER_NODE} of its size. */
+function readCounted(text: string): {
+    readonly result: ReturnType<typeof readPastedContent>;
+    readonly bounded: boolean;
+} {
+    vi.mocked(parsePage).mockClear();
+
+    const result = readPastedContent(text);
+    const documents: readonly PageDocument[] = vi
+        .mocked(parsePage)
+        .mock.results.flatMap((call) => (call.type === 'return' ? [call.value] : []));
+
+    return {
+        result,
+        // Non-vacuous: a read that never parsed a page proves nothing about its walks.
+        bounded: documents.length > 0 && documents.every(({ work }) => work().visits <= VISITS_PER_NODE * work().nodes),
+    };
+}
 
 /** One 32,000-character line, the length of the longest line measured on real pages (31,800). */
 const LONG_LINE_CHARS = 32_000;
-/** The budget for reading a 2 MB paste on Node. The measured cost is a fraction of it; the headroom is for a busy CI runner. */
-const TIME_BUDGET_MS = 1_500;
 /** Empty elements around the recipes on the several-recipes page: every tag lookup walks all of them (28.9 s measured at 250,000 before the page was indexed once). */
 const EMPTY_ELEMENTS = 200_000;
 
@@ -44,15 +80,13 @@ function makeHugePage(bytes: number): string {
 }
 
 describe('readPastedContent over a whole synthetic page', () => {
-    it('reads a 2 MB page with 32,000-character lines inside the time budget', () => {
+    it('reads a 2 MB page with 32,000-character lines within a bounded walk', () => {
         const page = makeHugePage(1_900_000);
 
         expect(page.length).toBeGreaterThan(1_800_000);
         expect(page.split('\n').some((line) => line.length >= LONG_LINE_CHARS)).toBe(true);
 
-        const started = performance.now();
-        const result = readPastedContent(page);
-        const elapsed = performance.now() - started;
+        const { result, bounded } = readCounted(page);
 
         expect(result).toMatchObject({
             kind: 'extracted',
@@ -67,7 +101,7 @@ describe('readPastedContent over a whole synthetic page', () => {
             },
             source: { kind: 'found', citation: { site: 'example.com' } },
         });
-        expect(elapsed).toBeLessThan(TIME_BUDGET_MS);
+        expect(bounded).toBe(true);
     });
 
     it('refuses the same page once it passes the byte cap', () => {
@@ -95,24 +129,23 @@ describe('readPastedContent over a whole synthetic page', () => {
         expect(({} as Record<string, unknown>)['polluted']).toBeUndefined();
     });
 
-    it('reads a 2 MB page with no recipe in its JSON-LD inside the time budget, so every strategy runs', () => {
+    it('reads a 2 MB page with no recipe in its JSON-LD within a bounded walk, so every strategy runs', () => {
         const page = makeHugePage(1_900_000).replace(/"@type":"Recipe"/u, '"@type":"Article"');
 
         expect(page).not.toContain('"@type":"Recipe"');
 
-        const started = performance.now();
-        const result = readPastedContent(page);
+        const { result, bounded } = readCounted(page);
 
         expect(result).toMatchObject({
             kind: 'notExtractable',
             reason: 'noRecipe',
             source: { kind: 'found', citation: { site: 'example.com' } },
         });
-        expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+        expect(bounded).toBe(true);
     });
 
     /** Rewritten: the property text that wraps the rest is cut at the node cap, so the page is `pageTooComplex`, not `noRecipe`. */
-    it('reads hostile microdata inside the time budget: Recipe items nested to the cap, each wrapping the rest in a property', () => {
+    it('reads hostile microdata within a bounded walk: Recipe items nested to the cap, each wrapping the rest in a property', () => {
         const levels = 120;
         const open = '<div itemscope itemtype="https://schema.org/Recipe"><span itemprop="note">';
         const close = '</span></div>';
@@ -121,11 +154,10 @@ describe('readPastedContent over a whole synthetic page', () => {
 
         expect(page.length).toBeGreaterThan(1_000_000);
 
-        const started = performance.now();
-        const result = readPastedContent(page);
+        const { result, bounded } = readCounted(page);
 
         expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageTooComplex' });
-        expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+        expect(bounded).toBe(true);
     });
 
     /**
@@ -139,42 +171,39 @@ describe('readPastedContent over a whole synthetic page', () => {
      * Rewritten for the 2026-11-15 ruling: this page used to come back as `several`. It is now `severalRecipes`, a plain no,
      * and it must still cost the same: one selection over 64 candidates, the addresses read once.
      */
-    it('reads a 1.4 MB microdata page of many different Recipe items, among 200,000 empty elements, to severalRecipes inside the time budget', () => {
+    it('reads a 1.4 MB microdata page of many different Recipe items, among 200,000 empty elements, to severalRecipes within a bounded walk', () => {
         const items = Array.from({ length: MAX_RECIPES_PER_PAGE }, (_, index) => microdataRecipe(`r${index}`)).join('');
-        const started = performance.now();
-        const result = readPastedContent(makePage({ body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }));
+        const { result, bounded } = readCounted(makePage({ body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }));
 
         expect(result).toMatchObject({ kind: 'notExtractable', reason: 'severalRecipes' });
-        expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+        expect(bounded).toBe(true);
     });
 
-    it('collapses 64 near-duplicate microdata Recipe items, among 200,000 empty elements, to the one recipe inside the time budget', () => {
+    it('collapses 64 near-duplicate microdata Recipe items, among 200,000 empty elements, to the one recipe within a bounded walk', () => {
         // Each differs from the first only in the case and spacing of its name, so none shares a key and all reach selection.
         const items = Array.from({ length: MAX_RECIPES_PER_PAGE }, (_, index) =>
             microdataRecipe(index % 2 === 0 ? 'Pancakes' : ` PANCAKES${' '.repeat(index)}`),
         ).join('');
-        const started = performance.now();
-        const result = readPastedContent(makePage({ body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }));
+        const { result, bounded } = readCounted(makePage({ body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }));
 
         expect(result).toMatchObject({ kind: 'extracted', tier: 'microdata', recipe: { title: 'Pancakes' } });
-        expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+        expect(bounded).toBe(true);
     });
 
-    it('selects among 64 microdata items that each name an address, one of them the page, inside the time budget', () => {
+    it('selects among 64 microdata items that each name an address, one of them the page, within a bounded walk', () => {
         const page = 'https://www.example.com/recipe/32/';
         const items = Array.from({ length: MAX_RECIPES_PER_PAGE }, (_, index) =>
             microdataRecipe(`r${index}`, `<link itemprop="url" href="https://www.example.com/recipe/${index}/">`),
         ).join('');
-        const started = performance.now();
-        const result = readPastedContent(
+        const { result, bounded } = readCounted(
             makePage({ head: makeLinkHead({ canonical: page }), body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }),
         );
 
         expect(result).toMatchObject({ kind: 'extracted', recipe: { title: 'r32' } });
-        expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+        expect(bounded).toBe(true);
     });
 
-    it('refuses a page whose JSON-LD holds over a thousand Recipe nodes as pageTooComplex inside the time budget', () => {
+    it('refuses a page whose JSON-LD holds over a thousand Recipe nodes as pageTooComplex within a bounded walk', () => {
         // Small nodes, so the one block stays under the byte limit and only the per-page recipe cap bounds the work.
         const nodes = Array.from({ length: 1_500 }, (_, index) => ({
             '@type': 'Recipe',
@@ -183,14 +212,13 @@ describe('readPastedContent over a whole synthetic page', () => {
             recipeIngredient: ['1 egg'],
             recipeInstructions: 'Cook it well.',
         }));
-        const started = performance.now();
-        const result = readPastedContent(makePage({ jsonLd: [{ '@graph': nodes }] }));
+        const { result, bounded } = readCounted(makePage({ jsonLd: [{ '@graph': nodes }] }));
 
         expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageTooComplex' });
-        expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+        expect(bounded).toBe(true);
     });
 
-    describe('G-CORR over hostile pages (round 5), each inside the time budget', () => {
+    describe('G-CORR over hostile pages (round 5), each within a bounded walk', () => {
         it('says pageTooComplex for a 1.9 MB page of visible words, without reading it all twice', () => {
             const node = makeRecipeNode();
             const page = makePage({
@@ -200,11 +228,10 @@ describe('readPastedContent over a whole synthetic page', () => {
 
             expect(page.length).toBeGreaterThan(1_800_000);
 
-            const started = performance.now();
-            const result = readPastedContent(page);
+            const { result, bounded } = readCounted(page);
 
             expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageTooComplex', tier: 'jsonLd' });
-            expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+            expect(bounded).toBe(true);
         });
 
         it('stops a page whose every token is common, against steps that each end up found at the very end', () => {
@@ -218,11 +245,10 @@ describe('readPastedContent over a whole synthetic page', () => {
                 jsonLd: [node],
                 body: `<ul><li>1 a</li></ul><p>${'a '.repeat(100_000)}${'b '.repeat(100_000)}a</p>`,
             });
-            const started = performance.now();
-            const result = readPastedContent(page);
+            const { result, bounded } = readCounted(page);
 
             expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
-            expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+            expect(bounded).toBe(true);
         });
 
         it('reads a recipe of 4,000 steps that the page shows, and refuses the page that shows all but one', () => {
@@ -233,13 +259,12 @@ describe('readPastedContent over a whole synthetic page', () => {
 
             expect(missing).not.toBe(page);
 
-            const started = performance.now();
-            const read = readPastedContent(page);
-            const refused = readPastedContent(missing);
+            const read = readCounted(page);
+            const refused = readCounted(missing);
 
-            expect(read).toMatchObject({ kind: 'extracted', recipe: { steps: { length: 4_000 } } });
-            expect(refused).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
-            expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS * 2);
+            expect(read.result).toMatchObject({ kind: 'extracted', recipe: { steps: { length: 4_000 } } });
+            expect(refused.result).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+            expect(read.bounded && refused.bounded).toBe(true);
         });
     });
 

@@ -83,6 +83,16 @@ export interface PageDocument {
     byTag(tag: string): readonly PageElement[];
     /** Every element that carries this attribute (even an empty one), in document order. */
     withAttribute(name: string): readonly PageElement[];
+    /**
+     * The page's size in nodes, and the node visits every read of it has made so far: the work a test holds bounded in
+     * place of a time budget. A lookup is a map read and costs none.
+     */
+    work(): { readonly nodes: number; readonly visits: number };
+}
+
+/** The node visits the reads of one page have made. */
+interface WorkMeter {
+    visits: number;
 }
 
 /** Elements whose start and end break the text into blocks. */
@@ -274,7 +284,11 @@ const LOOSE_TEXT: Owner = { group: 0, isHeading: false, element: 0, item: 0 };
  * @param newlineBreaks - Whether a newline inside text starts a new block (true for a plain string, false for markup,
  *   where a newline is only whitespace).
  */
-function blocksOf(roots: readonly DomNode[], newlineBreaks: boolean, maxNodes = MAX_WALK_NODES): VisibleRead {
+function blocksOf(
+    roots: readonly DomNode[],
+    newlineBreaks: boolean,
+    maxNodes = MAX_WALK_NODES,
+): VisibleRead & { readonly visited: number } {
     const blocks: VisibleBlock[] = [];
     const elements: { parent: number; last: number }[] = [{ parent: -1, last: 0 }];
     const groups = new Map<unknown, number>();
@@ -351,7 +365,7 @@ function blocksOf(roots: readonly DomNode[], newlineBreaks: boolean, maxNodes = 
     flush();
     elements[0] = { parent: -1, last: elements.length - 1 };
 
-    return { blocks, elements, truncated: next !== undefined };
+    return { blocks, elements, truncated: next !== undefined, visited };
 }
 
 /**
@@ -441,22 +455,39 @@ function filed(index: Map<string, DomElement[]>, key: string, element: DomElemen
     }
 }
 
-function elementView(node: DomNode): PageElement | undefined {
+function elementView(node: DomNode, meter: WorkMeter): PageElement | undefined {
     if (!isTag(node)) {
         return undefined;
     }
 
+    /** A walk of the element's nodes, its visits added to the page's meter. */
+    const walked = (maxNodes: number): VisibleRead => {
+        const { blocks, elements, truncated, visited } = blocksOf(node.children, false, maxNodes);
+
+        meter.visits += visited;
+
+        return { blocks, elements, truncated };
+    };
+
     return {
         tag: node.name,
         attr: (name) => (Object.hasOwn(node.attribs, name) ? node.attribs[name] : undefined),
-        children: () => node.children.flatMap((child) => elementView(child) ?? []),
+        children: () => {
+            meter.visits += node.children.length;
+
+            return node.children.flatMap((child) => elementView(child, meter) ?? []);
+        },
         blocks: () => {
-            const read = blocksOf(node.children, false);
+            const read = walked(MAX_WALK_NODES);
 
             return { blocks: read.blocks.map((block) => block.text), truncated: read.truncated };
         },
-        visibleText: () => blocksOf(node.children, false, MAX_VISIBLE_NODES),
-        rawText: () => node.children.map((child) => (isText(child) ? child.data : '')).join(''),
+        visibleText: () => walked(MAX_VISIBLE_NODES),
+        rawText: () => {
+            meter.visits += node.children.length;
+
+            return node.children.map((child) => (isText(child) ? child.data : '')).join('');
+        },
     };
 }
 
@@ -474,8 +505,12 @@ export function parsePage(html: string): PageDocument {
     const byTagName = new Map<string, DomElement[]>();
     const byAttribute = new Map<string, DomElement[]>();
     const stack: DomNode[] = [...root.children].reverse();
+    const meter: WorkMeter = { visits: 0 };
+    let nodes = 0;
 
     for (let next = stack.pop(); next !== undefined; next = stack.pop()) {
+        nodes += 1;
+
         if (isTag(next)) {
             filed(byTagName, next.name, next);
             Object.keys(next.attribs).forEach((name) => filed(byAttribute, name, next));
@@ -483,12 +518,15 @@ export function parsePage(html: string): PageDocument {
         }
     }
 
+    meter.visits = nodes;
+
     const viewsOf = (index: Map<string, DomElement[]>, key: string): readonly PageElement[] =>
-        (index.get(key) ?? []).flatMap((element) => elementView(element) ?? []);
+        (index.get(key) ?? []).flatMap((element) => elementView(element, meter) ?? []);
 
     return {
         truncated,
         byTag: (tag) => viewsOf(byTagName, tag),
         withAttribute: (name) => viewsOf(byAttribute, name),
+        work: () => ({ nodes, visits: meter.visits }),
     };
 }

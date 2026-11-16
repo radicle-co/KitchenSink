@@ -183,6 +183,21 @@ describe('parsePage', () => {
         expect(wide?.blocks().blocks.join('').length).toBeLessThanOrEqual(MAX_WALK_NODES);
     });
 
+    it('counts its nodes once, a lookup as free, and every node a read visits', () => {
+        const page = parsePage('<div><p>one</p><p>two</p></div>');
+        const indexed = page.work();
+
+        // div, two p, two text nodes: the one indexing walk visits each once.
+        expect(indexed).toEqual({ nodes: 5, visits: 5 });
+
+        const [div] = page.byTag('div');
+
+        expect(page.work().visits).toBe(5);
+        expect(div?.blocks().blocks).toEqual(['one', 'two']);
+        // The read inside the div: two p and two text nodes, and the end of each p.
+        expect(page.work().visits).toBe(5 + 4 + 2);
+    });
+
     it('reads 200,000 sibling elements: width is not depth, so nothing is cut', () => {
         const wide = parsePage(`<div>${'<i>a</i>'.repeat(200_000)}</div>`);
 

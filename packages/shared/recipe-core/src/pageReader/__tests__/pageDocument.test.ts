@@ -183,7 +183,7 @@ describe('parsePage', () => {
         expect(wide?.blocks().blocks.join('').length).toBeLessThanOrEqual(MAX_WALK_NODES);
     });
 
-    it('counts its nodes once, a lookup as free, and every node a read visits', () => {
+    it('counts its nodes once, and every node a read visits; a lookup adds nothing to the count', () => {
         const page = parsePage('<div><p>one</p><p>two</p></div>');
         const indexed = page.work();
 

@@ -12,9 +12,10 @@ import { makeLinkHead, makePage, makeRecipeCard, makeRecipeNode } from '../src/p
  * tinyduration, on a page the size of the largest one measured (about 4 times over). Nothing is replaced: the parser is
  * only watched, so a test can read how much of the page the reader walked.
  *
- * ⛔ Work is COUNTED, never timed: a time budget fails on a busy CI runner and passes a slow reader on a fast one. A
- * page's walks are bounded by its own node count (`PageDocument.work`). Token comparisons, bracket collapse and the
- * JSON-LD walk are counted in their own unit tests.
+ * ⛔ Work is COUNTED, never timed: a time budget fails on a busy CI runner and passes a slow reader on a fast one. The
+ * walks that element reads make are bounded by the page's own node count (`PageDocument.work`). The count sees only
+ * walks that report to it: that a tag lookup is a map read, not a walk, holds by how `parsePage` builds its index, not
+ * by this count. Token comparisons, bracket collapse and the JSON-LD walk are counted in their own unit tests.
  */
 vi.mock('../src/pageReader/pageDocument.js', async (importOriginal) => {
     const actual = await importOriginal<typeof PageDocumentModule>();
@@ -23,34 +24,41 @@ vi.mock('../src/pageReader/pageDocument.js', async (importOriginal) => {
 });
 
 /**
- * The most node visits a read may make per node of the page: one walk to index it, and a few bounded reads of parts of
- * it. A lookup that walked the whole page again for every tag (28.9 s measured before the page was indexed once) makes
- * hundreds.
+ * The most node visits the reads of a page may make per node of it: one walk to index it, and a few bounded reads of parts
+ * of it. Measured: every case here stays under 3. A reader that walked the page's body once per recipe makes dozens.
  */
 const VISITS_PER_NODE = 4;
 
-/** Read a paste, and say whether the page's walks stayed within {@link VISITS_PER_NODE} of its size. */
+type PageWork = ReturnType<PageDocument['work']>;
+
+/** Read a paste, and the work of each page it parsed. */
 function readCounted(text: string): {
     readonly result: ReturnType<typeof readPastedContent>;
-    readonly bounded: boolean;
+    readonly works: readonly PageWork[];
 } {
     vi.mocked(parsePage).mockClear();
 
     const result = readPastedContent(text);
-    const documents: readonly PageDocument[] = vi
+    const works = vi
         .mocked(parsePage)
-        .mock.results.flatMap((call) => (call.type === 'return' ? [call.value] : []));
+        .mock.results.flatMap((call) => (call.type === 'return' ? [call.value.work()] : []));
 
-    return {
-        result,
-        // Non-vacuous: a read that never parsed a page proves nothing about its walks.
-        bounded: documents.length > 0 && documents.every(({ work }) => work().visits <= VISITS_PER_NODE * work().nodes),
-    };
+    return { result, works };
+}
+
+/** Each parsed page's reads stayed within {@link VISITS_PER_NODE} of its size, and at least one page was parsed. */
+function expectBoundedWalks(works: readonly PageWork[]): void {
+    // Non-vacuous: a read that never parsed a page proves nothing about its walks.
+    expect(works.length).toBeGreaterThan(0);
+
+    for (const { nodes, visits } of works) {
+        expect(visits).toBeLessThanOrEqual(VISITS_PER_NODE * nodes);
+    }
 }
 
 /** One 32,000-character line, the length of the longest line measured on real pages (31,800). */
 const LONG_LINE_CHARS = 32_000;
-/** Empty elements around the recipes on the several-recipes page: every tag lookup walks all of them (28.9 s measured at 250,000 before the page was indexed once). */
+/** Empty elements around the recipes on the several-recipes pages: a page whose node count the recipes are a small part of. */
 const EMPTY_ELEMENTS = 200_000;
 
 /**
@@ -86,7 +94,7 @@ describe('readPastedContent over a whole synthetic page', () => {
         expect(page.length).toBeGreaterThan(1_800_000);
         expect(page.split('\n').some((line) => line.length >= LONG_LINE_CHARS)).toBe(true);
 
-        const { result, bounded } = readCounted(page);
+        const { result, works } = readCounted(page);
 
         expect(result).toMatchObject({
             kind: 'extracted',
@@ -101,7 +109,7 @@ describe('readPastedContent over a whole synthetic page', () => {
             },
             source: { kind: 'found', citation: { site: 'example.com' } },
         });
-        expect(bounded).toBe(true);
+        expectBoundedWalks(works);
     });
 
     it('refuses the same page once it passes the byte cap', () => {
@@ -134,14 +142,14 @@ describe('readPastedContent over a whole synthetic page', () => {
 
         expect(page).not.toContain('"@type":"Recipe"');
 
-        const { result, bounded } = readCounted(page);
+        const { result, works } = readCounted(page);
 
         expect(result).toMatchObject({
             kind: 'notExtractable',
             reason: 'noRecipe',
             source: { kind: 'found', citation: { site: 'example.com' } },
         });
-        expect(bounded).toBe(true);
+        expectBoundedWalks(works);
     });
 
     /** Rewritten: the property text that wraps the rest is cut at the node cap, so the page is `pageTooComplex`, not `noRecipe`. */
@@ -154,10 +162,10 @@ describe('readPastedContent over a whole synthetic page', () => {
 
         expect(page.length).toBeGreaterThan(1_000_000);
 
-        const { result, bounded } = readCounted(page);
+        const { result, works } = readCounted(page);
 
         expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageTooComplex' });
-        expect(bounded).toBe(true);
+        expectBoundedWalks(works);
     });
 
     /**
@@ -173,10 +181,10 @@ describe('readPastedContent over a whole synthetic page', () => {
      */
     it('reads a 1.4 MB microdata page of many different Recipe items, among 200,000 empty elements, to severalRecipes within a bounded walk', () => {
         const items = Array.from({ length: MAX_RECIPES_PER_PAGE }, (_, index) => microdataRecipe(`r${index}`)).join('');
-        const { result, bounded } = readCounted(makePage({ body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }));
+        const { result, works } = readCounted(makePage({ body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }));
 
         expect(result).toMatchObject({ kind: 'notExtractable', reason: 'severalRecipes' });
-        expect(bounded).toBe(true);
+        expectBoundedWalks(works);
     });
 
     it('collapses 64 near-duplicate microdata Recipe items, among 200,000 empty elements, to the one recipe within a bounded walk', () => {
@@ -184,10 +192,10 @@ describe('readPastedContent over a whole synthetic page', () => {
         const items = Array.from({ length: MAX_RECIPES_PER_PAGE }, (_, index) =>
             microdataRecipe(index % 2 === 0 ? 'Pancakes' : ` PANCAKES${' '.repeat(index)}`),
         ).join('');
-        const { result, bounded } = readCounted(makePage({ body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }));
+        const { result, works } = readCounted(makePage({ body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }));
 
         expect(result).toMatchObject({ kind: 'extracted', tier: 'microdata', recipe: { title: 'Pancakes' } });
-        expect(bounded).toBe(true);
+        expectBoundedWalks(works);
     });
 
     it('selects among 64 microdata items that each name an address, one of them the page, within a bounded walk', () => {
@@ -195,12 +203,12 @@ describe('readPastedContent over a whole synthetic page', () => {
         const items = Array.from({ length: MAX_RECIPES_PER_PAGE }, (_, index) =>
             microdataRecipe(`r${index}`, `<link itemprop="url" href="https://www.example.com/recipe/${index}/">`),
         ).join('');
-        const { result, bounded } = readCounted(
+        const { result, works } = readCounted(
             makePage({ head: makeLinkHead({ canonical: page }), body: items + '<u></u>'.repeat(EMPTY_ELEMENTS) }),
         );
 
         expect(result).toMatchObject({ kind: 'extracted', recipe: { title: 'r32' } });
-        expect(bounded).toBe(true);
+        expectBoundedWalks(works);
     });
 
     it('refuses a page whose JSON-LD holds over a thousand Recipe nodes as pageTooComplex within a bounded walk', () => {
@@ -212,10 +220,10 @@ describe('readPastedContent over a whole synthetic page', () => {
             recipeIngredient: ['1 egg'],
             recipeInstructions: 'Cook it well.',
         }));
-        const { result, bounded } = readCounted(makePage({ jsonLd: [{ '@graph': nodes }] }));
+        const { result, works } = readCounted(makePage({ jsonLd: [{ '@graph': nodes }] }));
 
         expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageTooComplex' });
-        expect(bounded).toBe(true);
+        expectBoundedWalks(works);
     });
 
     describe('G-CORR over hostile pages (round 5), each within a bounded walk', () => {
@@ -228,10 +236,10 @@ describe('readPastedContent over a whole synthetic page', () => {
 
             expect(page.length).toBeGreaterThan(1_800_000);
 
-            const { result, bounded } = readCounted(page);
+            const { result, works } = readCounted(page);
 
             expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageTooComplex', tier: 'jsonLd' });
-            expect(bounded).toBe(true);
+            expectBoundedWalks(works);
         });
 
         it('stops a page whose every token is common, against steps that each end up found at the very end', () => {
@@ -245,10 +253,10 @@ describe('readPastedContent over a whole synthetic page', () => {
                 jsonLd: [node],
                 body: `<ul><li>1 a</li></ul><p>${'a '.repeat(100_000)}${'b '.repeat(100_000)}a</p>`,
             });
-            const { result, bounded } = readCounted(page);
+            const { result, works } = readCounted(page);
 
             expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
-            expect(bounded).toBe(true);
+            expectBoundedWalks(works);
         });
 
         it('reads a recipe of 4,000 steps that the page shows, and refuses the page that shows all but one', () => {
@@ -264,7 +272,8 @@ describe('readPastedContent over a whole synthetic page', () => {
 
             expect(read.result).toMatchObject({ kind: 'extracted', recipe: { steps: { length: 4_000 } } });
             expect(refused.result).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
-            expect(read.bounded && refused.bounded).toBe(true);
+            expectBoundedWalks(read.works);
+            expectBoundedWalks(refused.works);
         });
     });
 

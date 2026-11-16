@@ -800,6 +800,9 @@ describe('enablesCors — every way to turn CORS on', () => {
         ["Nest's enableCors", 'app.enableCors(options);'],
         ["NestFactory's cors option", 'const app = await NestFactory.create(AppModule, { cors: true });'],
         ['the cors middleware', "import cors from 'cors';"],
+        // `jsonBodyHttpSetup` calls `enableCors` itself, in `@kitchensink/nest-error-envelope`, so a service that uses it
+        // has no `.enableCors(` in its own source and is still browser-facing.
+        ['the shared JSON-body setup', 'export const SETUP = jsonBodyHttpSetup(() => buildCorsPolicy(input));'],
     ])('finds %s', (_label, contents) => {
         expect(enablesCors(source(contents))).toBe(true);
     });
@@ -808,6 +811,11 @@ describe('enablesCors — every way to turn CORS on', () => {
         ['a comment', '// app.enableCors() is not called here\nexport const a = 1;'],
         ['a cors key on an unrelated object', 'const o = { cors: true };'],
         ['a module whose name contains the word', "import x from 'cors-anywhere-docs';"],
+        [
+            'a comment naming the shared setup',
+            '// jsonBodyHttpSetup(() => policy) is not called here\nexport const a = 1;',
+        ],
+        ['a method that merely shares its name', 'export const a = helpers.jsonBodyHttpSetup;'],
     ])('does not mistake %s for enabling CORS', (_label, contents) => {
         expect(enablesCors(source(contents))).toBe(false);
     });
@@ -914,11 +922,17 @@ describe('the real tree — discovery', () => {
         }
     });
 
+    // `@kitchensink/nest-error-envelope` calls `enableCors` but decides no policy: `jsonBodyHttpSetup` installs whatever
+    // policy its caller builds. Its callers are the packages this guard must see, and `enablesCors` flags every one of
+    // them through the `jsonBodyHttpSetup(` call, so exempting the carrier hides no service.
+    const POLICY_CARRIER = 'packages/shared/nest-error-envelope';
+
     it('every package that turns CORS on adopts the shared policy, so none escapes this guard', () => {
         const enabling = [
             ...new Set(
                 treeSources
                     .filter((candidate) => enablesCors(candidate))
+                    .filter((candidate) => packageOf(candidate.file, manifestDirectories) !== POLICY_CARRIER)
                     .flatMap((candidate) => packageOf(candidate.file, manifestDirectories) ?? []),
             ),
         ].sort();

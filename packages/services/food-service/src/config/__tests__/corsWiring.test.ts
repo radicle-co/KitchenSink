@@ -1,20 +1,23 @@
 /**
- * That the CORS policy is actually INSTALLED: `src/config/httpSetup.ts` hands `corsPolicyFromEnv`'s options to
- * `enableCors` and nothing else, and `src/main.ts` applies that setup before `listen` (plan 002 S4, ADR-0047).
+ * That the CORS policy is actually INSTALLED: `src/config/httpSetup.ts` hands `corsPolicyFromEnv` to
+ * `jsonBodyHttpSetup` and nothing else, and `src/main.ts` applies that setup before `listen` (plan 002 S4, ADR-0047).
  *
- * REWRITTEN when the call moved out of `main.ts`: CORS must be registered BEFORE the service's own JSON parser (a parser
- * refusal skips every later non-error middleware), and the mocked integration and e2e tiers apply the same setup, so the
- * call lives in the one setup they share. `tests/bodyParser.integration.test.ts` proves the headers behaviourally on a
- * parser refusal; these source checks still guard the wiring a header test with one allowed origin cannot see.
+ * REWRITTEN twice. First when the `enableCors` call moved out of `main.ts` into this service's setup (CORS must be
+ * registered BEFORE the JSON parser, since a parser refusal skips every later non-error middleware). Then when the
+ * ordered setup (`enableCors`, `express.json`, the strip link) moved into `jsonBodyHttpSetup` in
+ * `@kitchensink/nest-error-envelope`, which is where its order is now proved; so this file no longer looks for
+ * `enableCors` here. It guards what stayed in the service: that its own policy reaches the shared setup and that
+ * `main.ts` applies the setup before `listen`. `tests/bodyParser.integration.test.ts` proves the headers behaviourally on
+ * a parser refusal.
  *
  * `cors.test.ts` proves the adapter decides correctly and `tests/foodCors.integration.test.ts` proves the headers on
  * food's real routes, but both install the policy themselves. Neither would notice the failure recipe already
  * shipped once: a defect in the WIRING, where `main.ts` passed a value that degraded to `origin: true`. A one-line
- * "simplification" here (`app.enableCors({ origin: true })`, or dropping the call) would leave both green.
+ * "simplification" here (`jsonBodyHttpSetup(() => ({ options: { origin: true }, mode: 'x' }))`, or dropping the call) would leave both green.
  *
  * So this reads the SOURCE of the setup and of the entry point, for the reason `contract/__tests__/mainBootOrder.test.ts`
  * gives: importing `main.ts` would boot a real app with a real pool. It parses rather than greps, so prose that names
- * `enableCors` can neither satisfy nor defeat it.
+ * `jsonBodyHttpSetup` can neither satisfy nor defeat it.
  *
  * @module
  */
@@ -76,32 +79,18 @@ function callsOf(name: string, source: ts.SourceFile): readonly CallSite[] {
 }
 
 describe('the HTTP setup installs the CORS policy', () => {
-    // ⛔ NON-VACUITY: with no `enableCors` call at all, every assertion below about its argument would pass.
-    it('calls enableCors exactly once', () => {
-        expect(callsOf('enableCors', setup)).toHaveLength(1);
+    // ⛔ NON-VACUITY: with no `jsonBodyHttpSetup` call, every assertion below about its argument would pass.
+    it('builds the setup with jsonBodyHttpSetup exactly once', () => {
+        expect(callsOf('jsonBodyHttpSetup', setup)).toHaveLength(1);
     });
 
-    it('passes the resolved policy, never an inline literal', () => {
-        expect(callsOf('enableCors', setup)[0]?.arguments).toEqual(['cors.options']);
+    it('hands it the policy resolved through the one shared reader, never an inline options literal', () => {
+        expect(callsOf('jsonBodyHttpSetup', setup)[0]?.arguments).toEqual(['corsPolicyFromEnv']);
     });
 
-    it('resolves that policy through the one shared reader, from the environment', () => {
-        expect(callsOf('corsPolicyFromEnv', setup)).toHaveLength(1);
-        expect(callsOf('corsPolicyFromEnv', setup)[0]?.arguments).toEqual([]);
-    });
-
-    it('logs which origin rule is live, so the posture is observable after a deploy', () => {
-        expect(callsOf('log', setup).some((call) => call.arguments.some((text) => text.includes('cors.mode')))).toBe(
-            true,
-        );
-    });
-
-    it('registers CORS before the JSON parser, so a parser refusal still carries its headers', () => {
-        const cors = callsOf('enableCors', setup)[0]?.position ?? Number.POSITIVE_INFINITY;
-        const parser = callsOf('json', setup)[0]?.position ?? Number.NEGATIVE_INFINITY;
-
-        expect(callsOf('json', setup)).toHaveLength(1);
-        expect(cors).toBeLessThan(parser);
+    it('does not call enableCors or register a parser itself: the shared setup holds that order', () => {
+        expect(callsOf('enableCors', setup)).toEqual([]);
+        expect(callsOf('json', setup)).toEqual([]);
     });
 });
 

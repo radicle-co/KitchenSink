@@ -48,7 +48,6 @@
         "@nestjs/throttler": "^6.7.1",
         "@sentry/nestjs": "^10.57.0",
         "drizzle-orm": "^0.45.2",
-        "express": "5.2.1",
         "file-type": "^22.0.2",
         "jose": "^6.2.3",
         "lru-cache": "^11.5.2",

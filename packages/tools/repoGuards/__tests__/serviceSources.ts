@@ -392,7 +392,9 @@ export function moduleNamedBy(node: ts.Node): string | undefined {
 
 /**
  * Whether a source turns CORS on by any route Nest or Express offers: `app.enableCors(…)`,
- * `NestFactory.create(…, { cors: … })`, or an import of the `cors` middleware. Read through the parser, so a comment
+ * `NestFactory.create(…, { cors: … })`, an import of the `cors` middleware, or a call to `jsonBodyHttpSetup(…)`
+ * (`@kitchensink/nest-error-envelope`), whose `configure` always calls `enableCors` — so a service built on it carries
+ * no `.enableCors(` of its own. Read through the parser, so a comment
  * or a string that names `enableCors` is not a call. The one authority for this question: the bearer-only guard and
  * the deploy smoke-depth guard (`packages/infra/global`) both ask it. Pure.
  *
@@ -404,6 +406,14 @@ export function enablesCors(source: SourceFile): boolean {
 
     visit(parse(source), (node) => {
         if (moduleNamedBy(node) === 'cors') {
+            enables = true;
+        }
+
+        if (
+            ts.isCallExpression(node) &&
+            ts.isIdentifier(node.expression) &&
+            node.expression.text === 'jsonBodyHttpSetup'
+        ) {
             enables = true;
         }
 

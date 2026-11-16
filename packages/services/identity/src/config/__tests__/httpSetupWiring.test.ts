@@ -1,7 +1,10 @@
 /**
- * That the HTTP setup is actually INSTALLED, in the order that keeps a parser refusal readable by a browser:
- * `src/config/httpSetup.ts` registers CORS, then the JSON parser, then the strip link, and `src/main.ts` applies it
- * before `listen`.
+ * That the HTTP setup is actually INSTALLED: `src/config/httpSetup.ts` hands a policy built by `buildCorsPolicy` from the
+ * environment to `jsonBodyHttpSetup`, and `src/main.ts` applies the setup before `listen`.
+ *
+ * The ordered setup itself (CORS, then `express.json`, then the strip link) lives once, in `jsonBodyHttpSetup` in
+ * `@kitchensink/nest-error-envelope`, where its order is proved on a real Nest app. This file replaced a check of that
+ * order in this service when it moved, so it asserts only what stayed here: the service's own policy and its entry point.
  *
  * `tests/bodyParser.integration.test.ts` proves the behaviour through the harness, which applies the setup itself. It
  * cannot see `main.ts` dropping the call, because importing `main.ts` would boot a real app with a real pool (the
@@ -57,17 +60,23 @@ function positionsOf(name: string, source: ts.SourceFile): readonly number[] {
 }
 
 describe('the HTTP setup', () => {
-    // ⛔ NON-VACUITY: the order assertion needs both calls to exist.
-    it('registers CORS before the JSON parser, so a parser refusal still carries its headers', () => {
-        const cors = positionsOf('enableCors', setup);
-        const parser = positionsOf('json', setup);
-
-        expect([cors.length, parser.length]).toEqual([1, 1]);
-        expect(cors[0]).toBeLessThan(parser[0] ?? Number.NEGATIVE_INFINITY);
+    // ⛔ NON-VACUITY: with no `jsonBodyHttpSetup` call, every assertion below about its argument would pass.
+    it('builds the setup with jsonBodyHttpSetup exactly once', () => {
+        expect(positionsOf('jsonBodyHttpSetup', setup)).toHaveLength(1);
     });
 
-    it('links the strip step directly after the parser, the only place a refusal can still be stripped', () => {
-        expect(setup.getText()).toMatch(/app\.use\(express\.json\([^;]*\);\s*app\.use\(stripBodyParserRefusal\);/);
+    it('hands it a policy built by buildCorsPolicy from the environment, including the azp pattern selectors', () => {
+        const text = setup.getText();
+
+        expect(positionsOf('buildCorsPolicy', setup)).toHaveLength(1);
+        expect(text).toMatch(/jsonBodyHttpSetup\(\(\) =>\s*buildCorsPolicy\(/);
+        expect(text).toContain("authorizedPartiesRaw: process.env['CLERK_AUTHORIZED_PARTIES']");
+        expect(text).toContain("previewBaseDomain: process.env['CLERK_AZP_PATTERN']");
+    });
+
+    it('does not call enableCors or register a parser itself: the shared setup holds that order', () => {
+        expect(positionsOf('enableCors', setup)).toEqual([]);
+        expect(positionsOf('json', setup)).toEqual([]);
     });
 });
 

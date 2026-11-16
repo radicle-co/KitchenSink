@@ -27,3 +27,5 @@ export {
     BODY_NOT_PARSEABLE_MESSAGE,
     BODY_TOO_LARGE_MESSAGE,
 } from './bodyParserError.js';
+export { jsonBodyHttpSetup } from './jsonBodyHttpSetup.js';
+export type { JsonBodyCorsPolicy, JsonBodyHttpSetup } from './jsonBodyHttpSetup.js';

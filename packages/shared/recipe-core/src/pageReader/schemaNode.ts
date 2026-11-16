@@ -11,9 +11,14 @@ import { plainText } from './pageDocument.js';
 /** A parsed JSON object, or a microdata item. */
 export type SchemaNode = Readonly<Record<string, unknown>>;
 
+/** Whether `value` is a list. `Array.isArray` narrows `unknown` to `any[]`; this narrows it to a list of `unknown`. */
+export function isList(value: unknown): value is readonly unknown[] {
+    return Array.isArray(value);
+}
+
 /** Whether `value` is an object that is not an array. */
 export function isSchemaNode(value: unknown): value is SchemaNode {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
+    return typeof value === 'object' && value !== null && !isList(value);
 }
 
 /** The own property `key` of `node`, or `undefined`. */
@@ -23,8 +28,8 @@ export function field(node: SchemaNode, key: string): unknown {
 
 /** `value` as a list: itself when it is one, `[]` when it is absent, otherwise a list of one. */
 export function asList(value: unknown): readonly unknown[] {
-    if (Array.isArray(value)) {
-        return value as readonly unknown[];
+    if (isList(value)) {
+        return value;
     }
 
     return value === undefined || value === null ? [] : [value];
@@ -38,15 +43,13 @@ export function asList(value: unknown): readonly unknown[] {
  *   items joined by a space.
  */
 export function textOf(value: unknown): string | undefined {
-    if (Array.isArray(value)) {
+    if (isList(value)) {
         // Microdata gives every property as a list, and a value of several blocks as a list inside it, so several blocks
         // of one value read as one line. Exactly one list inside the list: a deeper one has no text, so no read recurses.
-        const joined = (value as readonly unknown[])
+        const joined = value
             .flatMap((item) =>
-                Array.isArray(item)
-                    ? (item as readonly unknown[]).flatMap((inner) =>
-                          Array.isArray(inner) ? [] : (textOf(inner) ?? []),
-                      )
+                isList(item)
+                    ? item.flatMap((inner) => (isList(inner) ? [] : (textOf(inner) ?? [])))
                     : (textOf(item) ?? []),
             )
             .join(' ');
@@ -79,5 +82,5 @@ export function typeNames(node: SchemaNode): readonly string[] {
 
 /** The first item of a list, or the value itself: microdata gives every property as a list. */
 export function scalar(value: unknown): unknown {
-    return Array.isArray(value) ? (value as readonly unknown[])[0] : value;
+    return isList(value) ? value[0] : value;
 }

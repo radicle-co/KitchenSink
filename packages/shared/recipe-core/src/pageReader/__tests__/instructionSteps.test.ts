@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { instructionOf, instructionSteps as readSteps } from '../instructionSteps.js';
+import { instructionOf, instructionSteps as walkSteps } from '../instructionSteps.js';
 import { MAX_WALK_DEPTH, MAX_WALK_NODES } from '../pageCaps.js';
+
+/** The steps alone, for the tests that are not about the walk being cut short. */
+const readSteps = (value: unknown) => walkSteps(value).steps;
 
 const step = (text: string) => ({ '@type': 'HowToStep', text });
 
@@ -156,6 +159,21 @@ describe('instructionSteps', () => {
 
         expect(instructionSteps(steps).length).toBeLessThanOrEqual(MAX_WALK_NODES);
         expect(instructionSteps(steps).length).toBeGreaterThan(0);
+    });
+
+    it('says the walk was cut short when the node budget ends it, and not when it does not', () => {
+        expect(walkSteps(Array.from({ length: MAX_WALK_NODES * 5 }, () => 'Stir.')).truncated).toBe(true);
+        expect(walkSteps(['Stir.', 'Stir.']).truncated).toBe(false);
+    });
+
+    it('says the walk was cut short when a node is past the depth cap', () => {
+        let nested: unknown = step('Too deep.');
+
+        for (let level = 0; level < MAX_WALK_DEPTH * 3; level += 1) {
+            nested = { '@type': 'HowToSection', name: 's', itemListElement: [nested] };
+        }
+
+        expect(walkSteps([step('Kept.'), nested]).truncated).toBe(true);
     });
 
     it('does not descend past the depth cap', () => {

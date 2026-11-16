@@ -306,31 +306,37 @@ describe('jsonLdRecipe: blocks', () => {
 });
 
 describe('jsonLdRecipe: hostile input', () => {
-    it('reads a 100,000-deep array without overflowing the stack, and finds nothing', () => {
+    /**
+     * Rewritten: a block too deep to read was skipped and the page read as "no recipe". It is `tooComplex` now, because a
+     * page is never judged against half of itself (`pageCaps.ts`).
+     */
+    it('reads a 100,000-deep array without overflowing the stack, and says the page is too complex', () => {
         const deep = `${'['.repeat(100_000)}${']'.repeat(100_000)}`;
         const started = performance.now();
 
-        expect(read(deep).kind).toBe('none');
+        expect(read(deep).kind).toBe('tooComplex');
         expect(performance.now() - started).toBeLessThan(2_000);
     });
 
-    it('does not find a recipe nested deeper than the depth cap', () => {
+    it('says tooComplex, not none, for a recipe nested deeper than the depth cap', () => {
         let nested: unknown = makeRecipeNode();
 
         for (let level = 0; level < 40; level += 1) {
             nested = { wrapper: nested };
         }
 
-        expect(read(nested).kind).toBe('none');
+        expect(read(nested).kind).toBe('tooComplex');
         expect(read({ wrapper: { wrapper: makeRecipeNode() } }).kind).toBe('candidates');
     });
 
-    it('stops walking after the node budget: a recipe past 10,000 nodes is not found, one before it is', () => {
+    /** Rewritten: a recipe past the budget read as `none`; the walk was cut short, so the page is `tooComplex`. */
+    it('stops walking after the node budget and says tooComplex: a recipe past 10,000 nodes is never half-read', () => {
         // Small values, so the block stays under the byte limit and only the node budget stops the walk.
         const filler = Array.from({ length: MAX_WALK_NODES * 5 }, () => 0);
 
-        expect(read([...filler, makeRecipeNode()]).kind).toBe('none');
-        expect(read([makeRecipeNode(), ...filler]).kind).toBe('candidates');
+        expect(read([...filler, makeRecipeNode()]).kind).toBe('tooComplex');
+        expect(read([makeRecipeNode(), ...filler]).kind).toBe('tooComplex');
+        expect(read([makeRecipeNode(), ...filler.slice(0, 100)]).kind).toBe('candidates');
     });
 
     it('does not pollute Object.prototype from a __proto__ key, and keeps the value as data', () => {

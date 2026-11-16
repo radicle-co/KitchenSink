@@ -37,7 +37,7 @@ export type NotExtractableReason =
     | CorroborationReason
     /** Not a page: a text paste. */
     | 'notAPage'
-    /** The page is nested deeper than the reader looks, and no recipe was found before the cut. */
+    /** The page is nested deeper, or holds more, than the reader looks: it was cut short and is never judged as a whole. */
     | 'pageTooComplex'
     /** The page has no structured recipe. */
     | 'noRecipe'
@@ -137,6 +137,11 @@ export function readPastedContent(text: string): PasteReadResult {
     const page = parsePage(text);
     const extraction = extractRecipe(page);
     const addresses = pageAddressesOf(page);
+
+    if (extraction.kind === 'tooComplex') {
+        // A walk hit a cap, so what was read is part of the page: it is never judged as the whole.
+        return notExtractable('pageTooComplex', detectPageSource(addresses, []), pasteDigest);
+    }
 
     if (extraction.kind === 'none') {
         // A page cut short for depth may have held the recipe past the cut: say so rather than "no recipe".

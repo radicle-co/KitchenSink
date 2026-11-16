@@ -10,7 +10,7 @@
  */
 import { safeHttpUrl } from '../externalUrl.js';
 import { MAX_IMAGE_URL_CHARS } from './pageCaps.js';
-import { asList, field, isSchemaNode, scalar, textOf } from './schemaNode.js';
+import { asList, field, isList, isSchemaNode, scalar, textOf } from './schemaNode.js';
 import type { SchemaNode } from './schemaNode.js';
 
 /** The most authors kept. */
@@ -40,7 +40,7 @@ export interface PageEvidence {
 
 /** The items of a property, microdata's one-level lists flattened. */
 function items(value: unknown): readonly unknown[] {
-    return asList(value).flatMap((item) => (Array.isArray(item) ? (item as readonly unknown[]) : [item]));
+    return asList(value).flatMap((item) => (isList(item) ? item : [item]));
 }
 
 /** The text of a name given as text or as a node with a `name`; `undefined` past `max` characters. */

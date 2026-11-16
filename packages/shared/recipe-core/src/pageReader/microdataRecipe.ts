@@ -8,13 +8,14 @@
  * reader in `pageRecipeCandidate.ts` serves both strategies. A value comes from the attribute the element type names
  * (`meta` content, `time` datetime, `link` and `a` href, `img` src, `data` value) and otherwise from its text blocks.
  *
- * ⛔ At most {@link MAX_RECIPES_PER_PAGE} recipe items are read. The walk is iterative, {@link MAX_WALK_DEPTH} deep and
- * {@link MAX_WALK_NODES} elements, per recipe, and the text of one property is read from at most that many nodes. An item is built
+ * ⛔ At most {@link MAX_RECIPES_PER_PAGE} recipe items are read. The walk is `boundedWalk`, `MAX_WALK_DEPTH` deep and
+ * `MAX_WALK_NODES` elements, per recipe (a cap that cuts it makes the page `tooComplex`), and the text of one property is read from at most that many nodes. An item is built
  * on a prototype-less object, so a property named `__proto__` or `constructor` is plain data.
  */
-import { MAX_RECIPES_PER_PAGE, MAX_WALK_DEPTH, MAX_WALK_NODES } from './pageCaps.js';
+import { boundedWalk } from './boundedWalk.js';
+import { MAX_RECIPES_PER_PAGE } from './pageCaps.js';
 import type { PageDocument, PageElement } from './pageDocument.js';
-import { extractionOf } from './pageRecipeCandidate.js';
+import { TOO_COMPLEX, extractionOf } from './pageRecipeCandidate.js';
 import type { RecipeExtraction } from './pageRecipeCandidate.js';
 import { typeNames } from './schemaNode.js';
 import type { SchemaNode } from './schemaNode.js';
@@ -72,57 +73,38 @@ function valueOf(element: PageElement): string | readonly string[] {
 
 interface Frame {
     readonly element: PageElement;
-    readonly depth: number;
     readonly item: Item;
 }
 
-/** The properties of the item `root` declares, in document order. */
-function itemOf(root: PageElement): Item {
-    const rootItem = newItem(root);
-    const stack: Frame[] = [];
-    let visited = 0;
+/** An item and whether a walk cap left part of it unread. */
+interface ItemRead {
+    readonly item: Item;
+    readonly truncated: boolean;
+}
 
-    const pushChildren = (element: PageElement, depth: number, item: Item): void => {
-        const children = element.children();
+/** The elements below `element`, each filed under `item`. */
+const framesBelow = (element: PageElement, item: Item): readonly Frame[] =>
+    element.children().map((child) => ({ element: child, item }));
 
-        for (let index = children.length - 1; index >= 0; index -= 1) {
-            const child = children[index];
+/** Add what `element` declares to `item`, and give the frames below it: an item with no property name is a separate item. */
+function visitElement({ element, item }: Frame): readonly Frame[] {
+    const names = words(element.attr('itemprop'));
+    const isItem = element.attr('itemscope') !== undefined;
+    const inner = isItem ? newItem(element) : item;
 
-            if (child !== undefined) {
-                stack.push({ element: child, depth, item });
-            }
-        }
-    };
-
-    pushChildren(root, 1, rootItem);
-
-    for (let frame = stack.pop(); frame !== undefined; frame = stack.pop()) {
-        visited += 1;
-
-        if (visited > MAX_WALK_NODES) {
-            break;
-        }
-
-        if (frame.depth > MAX_WALK_DEPTH) {
-            continue;
-        }
-
-        const { element, depth, item } = frame;
-        const names = words(element.attr('itemprop'));
-        const isItem = element.attr('itemscope') !== undefined;
-        const inner = isItem ? newItem(element) : item;
-
-        for (const name of names) {
-            (item[name] ??= []).push(isItem ? inner : valueOf(element));
-        }
-
-        // An item with no property name is a separate item, not part of this one.
-        if (!isItem || names.length > 0) {
-            pushChildren(element, depth + 1, inner);
-        }
+    for (const name of names) {
+        (item[name] ??= []).push(isItem ? inner : valueOf(element));
     }
 
-    return rootItem;
+    return !isItem || names.length > 0 ? framesBelow(element, inner) : [];
+}
+
+/** The properties of the item `root` declares, in document order. */
+function itemOf(root: PageElement): ItemRead {
+    const item = newItem(root);
+    const { truncated } = boundedWalk(framesBelow(root, item), visitElement, 1);
+
+    return { item, truncated };
 }
 
 const isRecipeItem = (element: PageElement): boolean =>
@@ -132,13 +114,17 @@ const isRecipeItem = (element: PageElement): boolean =>
  * Find the recipe in a page's microdata.
  *
  * @param page - The parsed paste.
- * @returns What the microdata holds: `none` when no `itemscope` is a Recipe. Pure.
+ * @returns What the microdata holds: `none` when no `itemscope` is a Recipe, and `tooComplex` when a walk hit a cap, because
+ *   a property (or a step) may lie in what was not read. Pure.
  */
 export function microdataRecipe(page: PageDocument): RecipeExtraction {
     const roots = page.withAttribute('itemscope').filter(isRecipeItem).slice(0, MAX_RECIPES_PER_PAGE);
+    const reads = roots.map(itemOf);
 
-    return extractionOf(
-        roots.map((root): SchemaNode => itemOf(root)),
-        'microdata',
-    );
+    return reads.some((read) => read.truncated)
+        ? TOO_COMPLEX
+        : extractionOf(
+              reads.map((read): SchemaNode => read.item),
+              'microdata',
+          );
 }

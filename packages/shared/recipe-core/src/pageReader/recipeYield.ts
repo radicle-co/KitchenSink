@@ -7,6 +7,7 @@
  * leaves servings absent and the item is held for the cook (ADR-0072 §3). Nothing is guessed.
  */
 import { recipeServingsSchema } from '../recipeRequestBounds.js';
+import { scalar } from './schemaNode.js';
 
 /** The words that may sit beside the number and still mean servings. Every other word means the number counts something else. */
 const SERVING_WORDS: ReadonlySet<string> = new Set([
@@ -29,7 +30,7 @@ function isWholeNumber(token: string): boolean {
 
 /** The text of the first element of `recipeYield`, or `undefined` when there is none. */
 function firstText(value: unknown): string | undefined {
-    const first: unknown = Array.isArray(value) ? (value as readonly unknown[])[0] : value;
+    const first = scalar(value);
 
     if (typeof first === 'number') {
         return Number.isFinite(first) ? String(first) : undefined;

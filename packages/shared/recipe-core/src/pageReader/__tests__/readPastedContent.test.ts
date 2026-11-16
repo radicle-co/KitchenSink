@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { MAX_PASTE_BYTES } from '../pageCaps.js';
+import { MAX_PASTE_BYTES, MAX_WALK_NODES } from '../pageCaps.js';
 import { readPastedContent } from '../readPastedContent.js';
 import {
     makeLinkHead,
@@ -171,6 +171,66 @@ describe('readPastedContent', () => {
             reason: 'pageTooComplex',
             title: 'Test Pancakes',
             tier: 'jsonLd',
+        });
+    });
+
+    /**
+     * A walk cut short by the node or depth cap must refuse the read: "a recipe is never judged against half a page"
+     * (`pageCaps.ts`). Each case below was an `extracted` that dropped what the cut hid (a second recipe, a late step).
+     */
+    describe('a walk cut short is pageTooComplex, never extracted', () => {
+        const tooComplex = { kind: 'notExtractable', reason: 'pageTooComplex' };
+        const filler = Array.from({ length: MAX_WALK_NODES + 5 }, () => 0);
+
+        it('JSON-LD: a second recipe past the node budget', () => {
+            const second = makeRecipeNode({ name: 'Second Pancakes' });
+
+            expect(readPastedContent(makePage({ jsonLd: [{ '@graph': [makeRecipeNode(), second] }] }))).toMatchObject({
+                reason: 'severalRecipes',
+            });
+            expect(
+                readPastedContent(makePage({ jsonLd: [{ '@graph': [makeRecipeNode(), ...filler, second] }] })),
+            ).toMatchObject(tooComplex);
+        });
+
+        it('JSON-LD: a recipe nested past the depth cap', () => {
+            let nested: unknown = makeRecipeNode();
+
+            for (let level = 0; level < 40; level += 1) {
+                nested = { wrapper: nested };
+            }
+
+            expect(readPastedContent(makePage({ jsonLd: [nested], body: '<main>x</main>' }))).toMatchObject(tooComplex);
+        });
+
+        it('instructions: steps past the node budget', () => {
+            const steps = ['Mix.', ...Array.from({ length: MAX_WALK_NODES + 5 }, () => 'Stir.')];
+            const node = makeRecipeNode({ recipeInstructions: steps });
+
+            expect(readPastedContent(makePage({ jsonLd: [node] }))).toMatchObject(tooComplex);
+            expect(
+                readPastedContent(makePage({ jsonLd: [makeRecipeNode({ recipeInstructions: steps.slice(0, 50) })] })),
+            ).toMatchObject({ kind: 'extracted' });
+        });
+
+        it('microdata: a step past the node budget', () => {
+            const props = '<i itemprop="note">n</i>'.repeat(MAX_WALK_NODES + 5);
+            const body = (late: string) =>
+                `<div itemscope itemtype="https://schema.org/Recipe"><h1 itemprop="name">Soup</h1><i itemprop="recipeIngredient">1 onion</i><p itemprop="recipeInstructions">Simmer.</p>${late}</div>`;
+
+            expect(
+                readPastedContent(makePage({ body: body('<p itemprop="recipeInstructions">Serve.</p>') })),
+            ).toMatchObject({ kind: 'extracted' });
+            expect(
+                readPastedContent(makePage({ body: body(`${props}<p itemprop="recipeInstructions">Serve.</p>`) })),
+            ).toMatchObject(tooComplex);
+        });
+
+        it('microdata: an item nested past the depth cap', () => {
+            const nested = `${'<div itemscope itemprop="a" itemtype="https://schema.org/Thing">'.repeat(40)}${'</div>'.repeat(40)}`;
+            const body = `<div itemscope itemtype="https://schema.org/Recipe"><h1 itemprop="name">Soup</h1><i itemprop="recipeIngredient">1 onion</i><p itemprop="recipeInstructions">Simmer.</p>${nested}</div>`;
+
+            expect(readPastedContent(makePage({ body }))).toMatchObject(tooComplex);
         });
     });
 

@@ -23,7 +23,7 @@ import type { PageCredit } from './pageEvidence.js';
 import { durationMinutes } from './isoDuration.js';
 import { servingsOf } from './recipeYield.js';
 import { readCooksMeasure } from '../parsing/measureReader.js';
-import { asList, field, isSchemaNode, scalar, textOf } from './schemaNode.js';
+import { asList, field, isList, isSchemaNode, scalar, textOf } from './schemaNode.js';
 import type { SchemaNode } from './schemaNode.js';
 
 /** One step of a read recipe. */
@@ -65,12 +65,19 @@ export interface PageCandidate {
     readonly emptyDeclaredSteps: boolean;
 }
 
-/** What one strategy found on a page: nothing, or every candidate it read, in page order. */
+/**
+ * What one strategy found on a page: nothing, every candidate it read in page order, or that a walk hit a cap and the page
+ * was only partly read (`tooComplex`). A recipe is never judged against half a page, so `tooComplex` ends the read.
+ */
 export type RecipeExtraction =
     | { readonly kind: 'none' }
+    | { readonly kind: 'tooComplex' }
     | { readonly kind: 'candidates'; readonly tier: ExtractionTier; readonly candidates: readonly PageCandidate[] };
 
 const NONE: RecipeExtraction = Object.freeze({ kind: 'none' });
+
+/** A walk over the page's data hit a cap, so what it read is not the whole page. */
+export const TOO_COMPLEX: RecipeExtraction = Object.freeze({ kind: 'tooComplex' });
 
 /** A string the node states, trimmed, or `undefined`. */
 function rawString(value: unknown): string | undefined {
@@ -113,7 +120,7 @@ function titleWithoutRecipe(name: string): string {
 /** The lines of a list-valued field, one level of nesting flattened (microdata gives a list of blocks). */
 function linesOf(value: unknown): readonly string[] {
     return asList(value)
-        .flatMap((item) => (Array.isArray(item) ? (item as readonly unknown[]) : [item]))
+        .flatMap((item) => (isList(item) ? item : [item]))
         .flatMap((item) => {
             const text = textOf(item);
             const line = text === undefined ? undefined : withoutTrailingComma(collapseBracketGroups(text));
@@ -141,18 +148,26 @@ function stated<K extends string, V>(key: K, value: V | undefined): { readonly [
     return value === undefined ? {} : ({ [key]: value } as { readonly [P in K]?: V });
 }
 
-function candidateOf(node: SchemaNode): PageCandidate | undefined {
+/** A node read as a candidate (`undefined` when it is not a recipe), and whether reading its steps hit a walk cap. */
+interface CandidateRead {
+    readonly candidate: PageCandidate | undefined;
+    readonly truncated: boolean;
+}
+
+const NOT_A_RECIPE: CandidateRead = { candidate: undefined, truncated: false };
+
+function candidateOf(node: SchemaNode): CandidateRead {
     const name = textOf(field(node, 'name'));
 
     if (name === undefined) {
-        return undefined;
+        return NOT_A_RECIPE;
     }
 
     const ingredientLines = linesOf(field(node, 'recipeIngredient') ?? field(node, 'ingredients'));
-    const steps = instructionSteps(field(node, 'recipeInstructions'));
+    const { steps, truncated } = instructionSteps(field(node, 'recipeInstructions'));
 
     if (ingredientLines.length === 0 && steps.length === 0) {
-        return undefined;
+        return { candidate: undefined, truncated };
     }
 
     const id = rawString(scalar(field(node, '@id')));
@@ -182,7 +197,7 @@ function candidateOf(node: SchemaNode): PageCandidate | undefined {
         steps: Object.freeze(steps.map((step) => Object.freeze({ instruction: instructionOf(step, false) }))),
     };
 
-    return {
+    const candidate: PageCandidate = {
         title,
         key,
         recipe: Object.freeze(recipe),
@@ -194,6 +209,8 @@ function candidateOf(node: SchemaNode): PageCandidate | undefined {
             (declared) => !isSchemaNode(declared) && textOf(declared) === undefined,
         ),
     };
+
+    return { candidate, truncated };
 }
 
 /**
@@ -206,14 +223,19 @@ function candidateOf(node: SchemaNode): PageCandidate | undefined {
  *
  * @param nodes - Recipe nodes: JSON-LD objects, or microdata items shaped like them.
  * @param tier - The strategy that read them.
- * @returns The candidates, or `none` when there is no recipe node. Pure.
+ * @returns The candidates, `none` when there is no recipe node, or `tooComplex` when a node's steps were cut short by a
+ *   walk cap (a recipe with half its steps is never a candidate). Pure.
  */
 export function extractionOf(nodes: readonly SchemaNode[], tier: ExtractionTier): RecipeExtraction {
     const seen = new Set<string>();
     const candidates: PageCandidate[] = [];
 
     for (const node of nodes.slice(0, MAX_RECIPES_PER_PAGE)) {
-        const candidate = candidateOf(node);
+        const { candidate, truncated } = candidateOf(node);
+
+        if (truncated) {
+            return TOO_COMPLEX;
+        }
 
         if (candidate !== undefined && !seen.has(candidate.key)) {
             seen.add(candidate.key);

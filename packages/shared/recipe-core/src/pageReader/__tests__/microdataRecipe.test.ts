@@ -147,20 +147,30 @@ describe('microdataRecipe', () => {
         expect(Object.keys(Object.prototype)).toEqual([]);
     });
 
-    it('stops at the node budget', () => {
+    /** Rewritten: a recipe past the budget read as `none`; the walk was cut short, so the page is `tooComplex`. */
+    it('stops at the node budget and says tooComplex', () => {
         const props = '<i itemprop="note">n</i>'.repeat(MAX_WALK_NODES + 5_000);
         const body = recipeScope(`${props}<h1 itemprop="name">Late</h1><i itemprop="recipeIngredient">1 egg</i>`);
         const started = performance.now();
 
-        expect(read(body).kind).toBe('none');
+        expect(read(body).kind).toBe('tooComplex');
         expect(performance.now() - started).toBeLessThan(2_000);
     });
 
-    it('survives items nested 300 deep', () => {
+    /** Rewritten: items nested past the depth cap were skipped and the recipe still read; the walk was cut short, so it is `tooComplex`. */
+    it('survives items nested 300 deep, and says tooComplex because the walk was cut short', () => {
         const nested = `${'<div itemscope itemprop="a" itemtype="https://schema.org/Thing">'.repeat(300)}${'</div>'.repeat(300)}`;
 
         expect(
             read(recipeScope(`<h1 itemprop="name">Deep</h1><i itemprop="recipeIngredient">1 egg</i>${nested}`)).kind,
+        ).toBe('tooComplex');
+    });
+
+    it('reads a recipe whose items nest to the depth cap and no further', () => {
+        const nested = `${'<div itemscope itemprop="a" itemtype="https://schema.org/Thing">'.repeat(5)}${'</div>'.repeat(5)}`;
+
+        expect(
+            read(recipeScope(`<h1 itemprop="name">Shallow</h1><i itemprop="recipeIngredient">1 egg</i>${nested}`)).kind,
         ).toBe('candidates');
     });
 

@@ -5,20 +5,15 @@
  * The node is read by `pageRecipeCandidate.ts`, whose zod schemas are the Parser at the boundary.
  *
  * ⛔ Hostile-input bounds (blueprint §4): at most {@link MAX_JSON_LD_BLOCKS} blocks, each at most
- * {@link MAX_JSON_LD_BLOCK_BYTES} bytes before `JSON.parse`; the walk is iterative, {@link MAX_WALK_DEPTH} deep and
- * {@link MAX_WALK_NODES} nodes; a block that does not parse is skipped. Parsed objects are never spread or merged.
+ * {@link MAX_JSON_LD_BLOCK_BYTES} bytes before `JSON.parse`; the walk is `boundedWalk`, {@link MAX_WALK_DEPTH} deep and
+ * `MAX_WALK_NODES` nodes, and a block nested deeper or a walk that hits the node cap makes the page `tooComplex`; a block that does not parse is skipped. Parsed objects are never spread or merged.
  */
-import {
-    MAX_JSON_LD_BLOCK_BYTES,
-    MAX_JSON_LD_BLOCKS,
-    MAX_WALK_DEPTH,
-    MAX_WALK_NODES,
-    fitsInBytes,
-} from './pageCaps.js';
+import { boundedWalk } from './boundedWalk.js';
+import { MAX_JSON_LD_BLOCK_BYTES, MAX_JSON_LD_BLOCKS, MAX_WALK_DEPTH, fitsInBytes } from './pageCaps.js';
 import type { PageDocument, PageElement } from './pageDocument.js';
-import { extractionOf } from './pageRecipeCandidate.js';
+import { TOO_COMPLEX, extractionOf } from './pageRecipeCandidate.js';
 import type { RecipeExtraction } from './pageRecipeCandidate.js';
-import { isSchemaNode, typeNames } from './schemaNode.js';
+import { isList, isSchemaNode, typeNames } from './schemaNode.js';
 import type { SchemaNode } from './schemaNode.js';
 
 const JSON_LD_TYPE = 'application/ld+json';
@@ -26,55 +21,46 @@ const JSON_LD_TYPE = 'application/ld+json';
 const isJsonLdScript = (script: PageElement): boolean =>
     (script.attr('type') ?? '').split(';')[0]?.trim().toLowerCase() === JSON_LD_TYPE;
 
-interface Frame {
+/** What one block's walk found: its Recipe nodes, in order, and whether a cap cut the walk short. */
+interface BlockWalk {
+    readonly nodes: readonly SchemaNode[];
+    readonly truncated: boolean;
+}
+
+/** The nodes below one node, in order: the items of a list, the values of an object. */
+function childrenOf(value: unknown): readonly unknown[] {
+    if (isList(value)) {
+        return value;
+    }
+
+    return isSchemaNode(value) ? Object.values(value) : [];
+}
+
+/** The Recipe nodes of one parsed block, in order. It does not descend into a Recipe. */
+function recipeNodesOf(root: unknown): BlockWalk {
+    const nodes: SchemaNode[] = [];
+
+    const { truncated } = boundedWalk([root], (value) => {
+        if (isSchemaNode(value) && typeNames(value).includes('Recipe')) {
+            nodes.push(value);
+
+            return [];
+        }
+
+        return childrenOf(value);
+    });
+
+    return { nodes, truncated };
+}
+
+interface DepthFrame {
     readonly value: unknown;
     readonly depth: number;
 }
 
-/** The Recipe nodes of one parsed block, in order. Iterative; it does not descend into a Recipe. */
-function recipeNodesOf(root: unknown): readonly SchemaNode[] {
-    const found: SchemaNode[] = [];
-    const stack: Frame[] = [{ value: root, depth: 0 }];
-    let visited = 0;
-
-    for (let frame = stack.pop(); frame !== undefined; frame = stack.pop()) {
-        visited += 1;
-
-        if (visited > MAX_WALK_NODES) {
-            break;
-        }
-
-        if (frame.depth > MAX_WALK_DEPTH) {
-            continue;
-        }
-
-        const { value, depth } = frame;
-
-        if (Array.isArray(value)) {
-            const items = value as readonly unknown[];
-
-            for (let index = items.length - 1; index >= 0; index -= 1) {
-                stack.push({ value: items[index], depth: depth + 1 });
-            }
-        } else if (isSchemaNode(value)) {
-            if (typeNames(value).includes('Recipe')) {
-                found.push(value);
-            } else {
-                const children = Object.values(value);
-
-                for (let index = children.length - 1; index >= 0; index -= 1) {
-                    stack.push({ value: children[index], depth: depth + 1 });
-                }
-            }
-        }
-    }
-
-    return found;
-}
-
 /** Whether `root` nests no deeper than {@link MAX_WALK_DEPTH}. Iterative: a block under the byte cap can nest 100,000 deep. */
 function isShallow(root: unknown): boolean {
-    const stack: Frame[] = [{ value: root, depth: 0 }];
+    const stack: DepthFrame[] = [{ value: root, depth: 0 }];
 
     for (let frame = stack.pop(); frame !== undefined; frame = stack.pop()) {
         if (frame.depth > MAX_WALK_DEPTH) {
@@ -91,20 +77,29 @@ function isShallow(root: unknown): boolean {
     return true;
 }
 
-/** A block's parsed JSON, or `undefined` when it is over the byte limit, is not JSON, or nests too deeply to read. */
-function parsedBlock(script: PageElement): unknown {
+/** A block as read: its JSON, or why it gives none. */
+type ParsedBlock =
+    | { readonly kind: 'json'; readonly value: unknown }
+    /** Over the byte limit, or not JSON: skipped. */
+    | { readonly kind: 'skipped' }
+    /** Nests deeper than {@link MAX_WALK_DEPTH}: unread, so the page is only partly read. */
+    | { readonly kind: 'tooDeep' };
+
+const SKIPPED: ParsedBlock = { kind: 'skipped' };
+
+function parsedBlock(script: PageElement): ParsedBlock {
     const text = script.rawText();
 
     if (!fitsInBytes(text, MAX_JSON_LD_BLOCK_BYTES)) {
-        return undefined;
+        return SKIPPED;
     }
 
     try {
-        const parsed = JSON.parse(text) as unknown;
+        const value = JSON.parse(text) as unknown;
 
-        return isShallow(parsed) ? parsed : undefined;
+        return isShallow(value) ? { kind: 'json', value } : { kind: 'tooDeep' };
     } catch {
-        return undefined;
+        return SKIPPED;
     }
 }
 
@@ -112,13 +107,22 @@ function parsedBlock(script: PageElement): unknown {
  * Find the recipe in a page's JSON-LD.
  *
  * @param page - The parsed paste.
- * @returns What the JSON-LD holds: `none` when no block has a recipe. Pure.
+ * @returns What the JSON-LD holds: `none` when no block has a recipe, and `tooComplex` when a block nests past the depth cap
+ *   or a walk hit the node cap, because a recipe (or a second one) may lie in what was not read. Pure.
  */
 export function jsonLdRecipe(page: PageDocument): RecipeExtraction {
-    const blocks = page.byTag('script').filter(isJsonLdScript).slice(0, MAX_JSON_LD_BLOCKS);
+    const blocks = page.byTag('script').filter(isJsonLdScript).slice(0, MAX_JSON_LD_BLOCKS).map(parsedBlock);
 
-    return extractionOf(
-        blocks.flatMap((block) => recipeNodesOf(parsedBlock(block))),
-        'jsonLd',
-    );
+    if (blocks.some((block) => block.kind === 'tooDeep')) {
+        return TOO_COMPLEX;
+    }
+
+    const walks = blocks.flatMap((block) => (block.kind === 'json' ? [recipeNodesOf(block.value)] : []));
+
+    return walks.some((walk) => walk.truncated)
+        ? TOO_COMPLEX
+        : extractionOf(
+              walks.flatMap((walk) => walk.nodes),
+              'jsonLd',
+          );
 }

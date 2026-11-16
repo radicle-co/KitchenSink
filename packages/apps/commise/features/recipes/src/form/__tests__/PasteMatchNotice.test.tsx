@@ -30,12 +30,30 @@ describe('PasteMatchNotice (web)', () => {
         expect(screen.queryByText(/on this device/)).toBeNull();
     });
 
-    it('the daily limit: says when matching starts again', () => {
-        const notice = { kind: 'quota', resetsAt: '2026-10-26T04:00:00.000Z', timeZone: 'America/New_York' } as const;
-        render(<PasteMatchNotice notice={notice} />);
+    describe('the daily limit (a fixed clock: the notice carries its `now`)', () => {
+        /** 9:15 AM on Monday 26 October 2026 in New York (EDT). */
+        const resetsAt = '2026-10-26T13:15:00.000Z';
+        const quota = (now: string) => ({ kind: 'quota', resetsAt, now, timeZone: 'America/New_York' }) as const;
 
-        expect(screen.getByText(pasteMatchNoticeOf(notice, m, 'en'))).toBeTruthy();
-        expect(screen.getByText(/Matching starts again at 12:00 AM/)).toBeTruthy();
+        it('reset later today: says matching starts again at the time alone', () => {
+            const notice = quota('2026-10-26T05:00:00.000Z');
+            render(<PasteMatchNotice notice={notice} />);
+
+            expect(screen.getByText(pasteMatchNoticeOf(notice, m, 'en'))).toBeTruthy();
+            expect(screen.getByText(/Matching starts again at 9:15\sAM\./)).toBeTruthy();
+        });
+
+        it('⛔ reset tomorrow: says "tomorrow at <time>", not the time alone', () => {
+            render(<PasteMatchNotice notice={quota('2026-10-25T14:00:00.000Z')} />);
+
+            expect(screen.getByText(/Matching starts again tomorrow at 9:15\sAM\./)).toBeTruthy();
+        });
+
+        it('⛔ reset on a later day: says the weekday and the time', () => {
+            render(<PasteMatchNotice notice={quota('2026-10-22T14:00:00.000Z')} />);
+
+            expect(screen.getByText(/Matching starts again on Monday at 9:15\sAM\./)).toBeTruthy();
+        });
     });
 
     // U9 (staff-ux, WCAG 4.1.3): the notice is a status, so a change to it is spoken; it was not live.

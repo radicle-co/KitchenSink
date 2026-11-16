@@ -87,6 +87,13 @@ describe('pasteMatchSummaryOf', () => {
 });
 
 describe('quotaBodyOf', () => {
+    const NY = 'America/New_York';
+    /** 9:15 AM on Monday 26 October 2026 in New York (EDT, UTC-4). */
+    const RESETS_AT = '2026-10-26T13:15:00.000Z';
+    const sentence = (when: string) =>
+        `You’ve added a lot today. Matching starts again ${when}. These lines are kept as written, and you can choose foods for them then.`;
+    const nine15 = new Intl.DateTimeFormat('en', { timeStyle: 'short', timeZone: NY }).format(new Date(RESETS_AT));
+
     it('says when matching starts again, in the cook’s locale and time zone', () => {
         const resetsAt = '2026-10-26T04:00:00.000Z';
         const time = new Intl.DateTimeFormat('en', { timeStyle: 'short', timeZone: 'America/New_York' }).format(
@@ -94,9 +101,37 @@ describe('quotaBodyOf', () => {
         );
 
         expect(time).toBe('12:00 AM');
-        expect(quotaBodyOf(resetsAt, m, 'en', 'America/New_York')).toBe(
-            `You’ve added a lot today. Matching starts again at ${time}. These lines are kept as written, and you can choose foods for them then.`,
+        expect(quotaBodyOf(resetsAt, '2026-10-26T04:00:00.000Z', m, 'en', 'America/New_York')).toBe(
+            sentence(`at ${time}`),
         );
+    });
+
+    it('⛔ the reset later today reads as the time alone', () => {
+        // 1:00 AM in New York on the same calendar day.
+        expect(quotaBodyOf(RESETS_AT, '2026-10-26T05:00:00.000Z', m, 'en', NY)).toBe(sentence(`at ${nine15}`));
+    });
+
+    it('⛔ the reset on the next day reads "tomorrow at <time>", though it is under 24 hours away', () => {
+        // 10:00 AM on Sunday 25 October in New York: the reset is 23 h 15 min away, on the next calendar day.
+        expect(quotaBodyOf(RESETS_AT, '2026-10-25T14:00:00.000Z', m, 'en', NY)).toBe(sentence(`tomorrow at ${nine15}`));
+    });
+
+    it('⛔ the day is the COOK’S day, not UTC’s: 11 PM in New York is already the next UTC day', () => {
+        // 11:00 PM on Sunday 25 October in New York is 03:00 UTC on the 26th, the reset's own UTC date.
+        expect(quotaBodyOf(RESETS_AT, '2026-10-26T03:00:00.000Z', m, 'en', NY)).toBe(sentence(`tomorrow at ${nine15}`));
+    });
+
+    it('a reset within the week reads the weekday, and one further out reads the date', () => {
+        expect(quotaBodyOf(RESETS_AT, '2026-10-22T14:00:00.000Z', m, 'en', NY)).toBe(
+            sentence(`on Monday at ${nine15}`),
+        );
+        expect(quotaBodyOf(RESETS_AT, '2026-10-10T14:00:00.000Z', m, 'en', NY)).toBe(
+            sentence(`on October 26 at ${nine15}`),
+        );
+    });
+
+    it('a reset already past reads as the time alone', () => {
+        expect(quotaBodyOf(RESETS_AT, '2026-10-27T14:00:00.000Z', m, 'en', NY)).toBe(sentence(`at ${nine15}`));
     });
 });
 
@@ -194,9 +229,16 @@ describe('pasteMatchNoticeOf', () => {
     });
 
     it('the daily limit: says when matching starts again', () => {
-        const notice = { kind: 'quota', resetsAt: '2026-10-26T04:00:00.000Z', timeZone: 'America/New_York' } as const;
+        const notice = {
+            kind: 'quota',
+            resetsAt: '2026-10-26T04:00:00.000Z',
+            now: '2026-10-26T01:00:00.000Z',
+            timeZone: 'America/New_York',
+        } as const;
 
-        expect(pasteMatchNoticeOf(notice, m, 'en')).toBe(quotaBodyOf(notice.resetsAt, m, 'en', notice.timeZone));
+        expect(pasteMatchNoticeOf(notice, m, 'en')).toBe(
+            quotaBodyOf(notice.resetsAt, notice.now, m, 'en', notice.timeZone),
+        );
         expect(pasteMatchNoticeOf(notice, m, 'en')).toContain('12:00 AM');
     });
 });
@@ -240,7 +282,14 @@ describe('noAiCheckBodyOf', () => {
 
 describe('pasteMatchNoticeFor', () => {
     const spent = makeNeedsChoiceLine({ budgetSpent: { resetsAt: '2026-11-01T00:00:00.000Z' } });
-    const base = { quota: undefined, offline: false, keep: 'disk', timeZone: 'UTC', lines: [spent] } as const;
+    const base = {
+        quota: undefined,
+        offline: false,
+        keep: 'disk',
+        timeZone: 'UTC',
+        now: '2026-10-26T01:00:00.000Z',
+        lines: [spent],
+    } as const;
 
     it('is the AI-check notice when a line was matched without the check', () => {
         expect(pasteMatchNoticeFor(base)).toEqual({ kind: 'noAiCheck', resetsAt: '2026-11-01T00:00:00.000Z' });
@@ -254,8 +303,11 @@ describe('pasteMatchNoticeFor', () => {
     });
 
     it('the daily limit and being offline each outrank it: the notice is a status, so one fact at a time', () => {
-        expect(pasteMatchNoticeFor({ ...base, quota: { resetsAt: '2026-10-26T04:00:00.000Z' } })).toMatchObject({
+        expect(pasteMatchNoticeFor({ ...base, quota: { resetsAt: '2026-10-26T04:00:00.000Z' } })).toEqual({
             kind: 'quota',
+            resetsAt: '2026-10-26T04:00:00.000Z',
+            now: base.now,
+            timeZone: 'UTC',
         });
         expect(pasteMatchNoticeFor({ ...base, offline: true })).toEqual({ kind: 'offline', keep: 'disk' });
     });

@@ -36,7 +36,7 @@ export type PasteMatchNotice =
     /** Offline: the check waits, choices are kept where the draft is (D7). */
     | { readonly kind: 'offline'; readonly keep: DraftKeep }
     /** The daily limit (004 FR-022): the lines are kept as written until it resets in the cook's time zone. */
-    | { readonly kind: 'quota'; readonly resetsAt: string; readonly timeZone: string }
+    | { readonly kind: 'quota'; readonly resetsAt: string; readonly now: string; readonly timeZone: string }
     /** The month's AI check is used up (owner design 2026-10-26): the foods were matched without it, until `resetsAt`. */
     | { readonly kind: 'noAiCheck'; readonly resetsAt: string };
 
@@ -88,19 +88,67 @@ export const pasteMatchSummaryOf = (
     };
 };
 
+/** A day in the week ahead is named by its weekday; one further out by its date. */
+const WEEKDAY_NAMED_WITHIN_DAYS = 7;
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 /**
- * The daily limit's notice (004 FR-022), with the time matching starts again in the cook's locale. Pure.
+ * The calendar days from `from` to `to` in `timeZone`: 0 the same day, 1 the next. Whole days by the cook's own calendar, so
+ * a reset 23 hours away can still be "tomorrow", and 11 PM in New York is not already the next UTC day. Pure.
+ *
+ * @param from - The earlier instant.
+ * @param to - The later instant.
+ * @param timeZone - The cook's IANA time zone.
+ * @returns The day difference; negative when `to` is on an earlier day.
+ */
+const calendarDaysBetween = (from: Date, to: Date, timeZone: string): number => {
+    // `en-CA` writes `YYYY-MM-DD`, which `Date.UTC` reads back as a plain calendar day with no zone or DST in it.
+    const dayStartOf = (instant: Date): number =>
+        Date.parse(new Intl.DateTimeFormat('en-CA', { timeZone }).format(instant));
+
+    return Math.round((dayStartOf(to) - dayStartOf(from)) / MS_PER_DAY);
+};
+
+/**
+ * The daily limit's notice (004 FR-022), with when matching starts again in the cook's locale: the time alone when it is later
+ * today, "tomorrow at <time>" on the next day, and the weekday (within a week) or the date after that, because the reset is
+ * a rolling day away and can be nearly 24 hours off. Pure.
  *
  * @param resetsAt - When the limit resets, ISO 8601 (the refusal's `resetsAt`).
+ * @param now - The instant the notice is read at, ISO 8601: passing it keeps this function pure.
  * @param copy - The localised copy.
  * @param locale - The active locale.
  * @param timeZone - The cook's IANA time zone, resolved by the host: passing it keeps this function pure.
  * @returns The notice's sentence.
  */
-export const quotaBodyOf = (resetsAt: string, copy: PasteCopy, locale: string, timeZone: string): string =>
-    fillTemplate(copy.pasteMatch.quota.body, {
-        time: new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone }).format(new Date(resetsAt)),
-    });
+export const quotaBodyOf = (
+    resetsAt: string,
+    now: string,
+    copy: PasteCopy,
+    locale: string,
+    timeZone: string,
+): string => {
+    const reset = new Date(resetsAt);
+    const when = copy.pasteMatch.quota.when;
+    const time = new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone }).format(reset);
+    const days = calendarDaysBetween(new Date(now), reset, timeZone);
+
+    if (days <= 0) {
+        return fillTemplate(copy.pasteMatch.quota.body, { when: fillTemplate(when.today, { time }) });
+    }
+
+    if (days === 1) {
+        return fillTemplate(copy.pasteMatch.quota.body, { when: fillTemplate(when.tomorrow, { time }) });
+    }
+
+    const day = new Intl.DateTimeFormat(
+        locale,
+        days < WEEKDAY_NAMED_WITHIN_DAYS ? { weekday: 'long', timeZone } : { month: 'long', day: 'numeric', timeZone },
+    ).format(reset);
+
+    return fillTemplate(copy.pasteMatch.quota.body, { when: fillTemplate(when.later, { day, time }) });
+};
 
 /**
  * The notice for foods matched without the AI check (board ImportPasteNoAiCheck), with the day it comes back as a day and
@@ -132,6 +180,8 @@ export interface PasteMatchNoticeInput {
     readonly keep: DraftKeep;
     /** The cook's IANA time zone, for the daily limit's time. */
     readonly timeZone: string;
+    /** The instant the notice is read at, ISO 8601, so the daily limit can say which day it resets on. */
+    readonly now: string;
     /** The paste's matched lines. */
     readonly lines: readonly MatchLine[];
 }
@@ -147,7 +197,7 @@ export interface PasteMatchNoticeInput {
  */
 export const pasteMatchNoticeFor = (input: PasteMatchNoticeInput): PasteMatchNotice | undefined => {
     if (input.quota !== undefined) {
-        return { kind: 'quota', resetsAt: input.quota.resetsAt, timeZone: input.timeZone };
+        return { kind: 'quota', resetsAt: input.quota.resetsAt, now: input.now, timeZone: input.timeZone };
     }
 
     if (input.offline && input.lines.length > 0) {
@@ -278,7 +328,7 @@ export const pasteMatchNoticeOf = (notice: PasteMatchNotice, copy: PasteCopy, lo
         case 'offline':
             return notice.keep === 'disk' ? copy.pasteMatch.offline.bodyDevice : copy.pasteMatch.offline.bodyTab;
         case 'quota':
-            return quotaBodyOf(notice.resetsAt, copy, locale, notice.timeZone);
+            return quotaBodyOf(notice.resetsAt, notice.now, copy, locale, notice.timeZone);
         case 'noAiCheck':
             return noAiCheckBodyOf(notice.resetsAt, copy, locale);
     }

@@ -618,8 +618,21 @@ export interface RecipeFormMessages {
             readonly bodyDevice: string;
             readonly bodyTab: string;
         };
-        /** 004 FR-022's daily limit; `{time}` is when it resets. */
-        readonly quota: { readonly body: string };
+        /**
+         * 004 FR-022's daily limit; `{when}` is when it resets, one of the `when` phrases (the reset is a rolling day away,
+         * so it can fall tomorrow or later).
+         */
+        readonly quota: {
+            readonly body: string;
+            readonly when: {
+                /** Later today (contains `{time}`). */
+                readonly today: string;
+                /** The next day (contains `{time}`). */
+                readonly tomorrow: string;
+                /** A later day (contains `{day}`, a weekday or a date, and `{time}`). */
+                readonly later: string;
+            };
+        };
         /**
          * `import.paste.noAiCheck` (owner design 2026-10-26, board ImportPasteNoAiCheck): the month's AI check is used up
          * and these foods were matched without it; `{date}` is the day it comes back, as a day and month in the cook's
@@ -934,7 +947,12 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
                     'You’re offline. Your choices are kept in this tab. Search and the check start again when you’re back online.',
             },
             quota: {
-                body: 'You’ve added a lot today. Matching starts again at {time}. These lines are kept as written, and you can choose foods for them then.',
+                body: 'You’ve added a lot today. Matching starts again {when}. These lines are kept as written, and you can choose foods for them then.',
+                when: {
+                    today: 'at {time}',
+                    tomorrow: 'tomorrow at {time}',
+                    later: 'on {day} at {time}',
+                },
             },
             noAiCheck: {
                 body: 'This month’s AI check is used up, so these foods were matched without it, your matches from before included. Confirm or change each one. The check comes back on {date}.',

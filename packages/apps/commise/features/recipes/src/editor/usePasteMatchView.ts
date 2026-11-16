@@ -271,6 +271,7 @@ export function usePasteMatchView(options: UsePasteMatchViewOptions): PasteMatch
         offline: options.offline,
         keep: options.keep,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        now: new Date().toISOString(),
         lines: matching.lines,
     });
 

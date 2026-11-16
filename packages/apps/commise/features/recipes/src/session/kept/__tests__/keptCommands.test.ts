@@ -421,6 +421,25 @@ describe('End then Undo (KTD13, r3-undo)', () => {
         expect(back.entries['r1']).toMatchObject({ kind: 'cooking', ticks: ['butter', 'salt'] });
     });
 
+    it.each([
+        ['the page entry is newer, so its servings win', iso(T0 + HOUR), 6],
+        ['the snapshot is newer, so its servings win', iso(T0 - HOUR), 4],
+    ])('redteam r3 b: %s', (_name, pageTouch, expected) => {
+        const snapshot = snapshotForEnd(
+            makeDoc({ entries: { r1: makeCooking({ servings: 4, lastTouch: iso(T0) }) } }),
+            'r1',
+        );
+
+        if (snapshot === undefined) {
+            throw new Error('no snapshot');
+        }
+
+        const withPage = makeDoc({ entries: { r1: makePage({ servings: 6, lastTouch: pageTouch }) } });
+        const back = applied(run(withPage, { type: 'restoreSession', snapshot, stepDigests: STEPS }));
+
+        expect(back.entries['r1']).toMatchObject({ kind: 'cooking', servings: expected });
+    });
+
     it('redteam r3 c: with no steps (gone) the timer keeps its stepIndex and ordinal', () => {
         const snapshot = snapshotForEnd(before, 'r1');
         const ended = applied(run(before, { type: 'endSession', recipeId: 'r1' }));

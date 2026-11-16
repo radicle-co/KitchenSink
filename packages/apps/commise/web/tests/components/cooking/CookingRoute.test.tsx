@@ -295,7 +295,7 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
         await user.click(nextStep());
         expect(screen.getByText(stepOf(3, 4))).toBeInTheDocument();
 
-        return { user, read, queryClient, rerender: view.rerender };
+        return { user, client, read, queryClient, rerender: view.rerender };
     }
 
     it.each([
@@ -402,29 +402,41 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
         expect(screen.getByText(stepOf(3, 4))).toBeInTheDocument();
     });
 
-    it('opens again on a 404 as gone', async () => {
-        const { read } = await cookingOnStepThree();
+    // R-15 and po P10: a cook on a step is held through a bad refetch, but LEAVING ends that. Opening the cook link
+    // again on the SAME cache (the app's one QueryClient) must show what the read says now, never the recipe the cache
+    // still holds from before.
+    it.each([
+        [
+            'a 404 as gone',
+            () => Promise.reject(new NotFoundError('Recipe not found')),
+            'This recipe isn’t available any more',
+        ],
+        [
+            'blank steps as no steps',
+            () =>
+                Promise.resolve(
+                    makeRecipeDetail({
+                        id: 'rec_1',
+                        ownerId: OWNER_ID,
+                        status: RecipeStatus.PUBLISHED,
+                        steps: [{ stepNumber: 1, instruction: ' ' }],
+                    }),
+                ),
+            'This recipe has no steps yet',
+        ],
+    ])('opens again, after leaving, on %s', async (_name, next, copy) => {
+        const { client, read, queryClient } = await cookingOnStepThree();
+        read.mockImplementation(next);
+        await act(async () => {
+            await queryClient.refetchQueries();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+        expect(screen.getByText(stepOf(3, 4))).toBeInTheDocument();
+
         cleanup();
-        read.mockRejectedValue(new NotFoundError('Recipe not found'));
-        const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'getRecipeById').mockRejectedValue(new NotFoundError('Recipe not found'));
-        renderWithRecipeClient(<CookingRoute id="rec_1" />, client);
+        renderWithRecipeClient(<CookingRoute id="rec_1" />, client, { queryClient });
 
-        expect(await screen.findByText('This recipe isn’t available any more')).toBeInTheDocument();
-    });
-
-    it('opens again on blank steps as no steps', async () => {
-        const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-            makeRecipeDetail({
-                id: 'rec_1',
-                ownerId: OWNER_ID,
-                status: RecipeStatus.PUBLISHED,
-                steps: [{ stepNumber: 1, instruction: ' ' }],
-            }),
-        );
-        renderWithRecipeClient(<CookingRoute id="rec_1" />, client);
-
-        expect(await screen.findByText('This recipe has no steps yet')).toBeInTheDocument();
+        expect(await screen.findByText(copy)).toBeInTheDocument();
+        expect(screen.queryByText(stepOf(1, 4))).not.toBeInTheDocument();
     });
 });

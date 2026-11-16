@@ -100,8 +100,11 @@ interface SettledCookingProps {
  * (S20, R-15). A query ERROR with data present never reaches here: the boundary only throws before the first data.
  */
 const SettledCooking: FC<SettledCookingProps> = ({ detail, viewer, ways, readAgain }) => {
-    const { data: recipe } = useSuspenseQuery(detail);
-    const read = useCookingRead(cookingReadSourceOf(recipe, viewer, readAgain));
+    const { data: recipe, error } = useSuspenseQuery(detail);
+    // The cache keeps the recipe through a failed refetch; a fresh mount must not cook it (po P10), so the failure is
+    // handed over and the hold keeps only a cook already on a step.
+    const failure = error === null ? undefined : { gone: isNotFoundError(error), offline: !onlineManager.isOnline() };
+    const read = useCookingRead(cookingReadSourceOf(recipe, viewer, readAgain, failure));
 
     return <CookingScreen read={read} {...ways} />;
 };

@@ -95,8 +95,11 @@ interface SettledCookingProps {
  * read, so a later refetch that returns a draft, blank steps or a different status does not move a cook off their step.
  */
 const SettledCooking: FC<SettledCookingProps> = ({ detail, viewer, ways, readAgain }) => {
-    const { data: recipe } = useSuspenseQuery(detail);
-    const read = useCookingRead(cookingReadSourceOf(recipe, viewer, readAgain));
+    const { data: recipe, error } = useSuspenseQuery(detail);
+    // The cache keeps the recipe through a failed refetch; a fresh mount must not cook it (po P10), so the failure is
+    // handed over and the hold keeps only a cook already on a step.
+    const failure = error === null ? undefined : { gone: isNotFoundError(error), offline: !onlineManager.isOnline() };
+    const read = useCookingRead(cookingReadSourceOf(recipe, viewer, readAgain, failure));
 
     return <CookingScreen read={read} {...ways} />;
 };

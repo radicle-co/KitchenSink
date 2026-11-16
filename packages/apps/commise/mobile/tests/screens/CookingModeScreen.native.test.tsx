@@ -65,7 +65,7 @@ async function cookingOnStepThree() {
     fireEvent.click(nextStep());
     expect(screen.getByText(stepOf(3, 4))).toBeTruthy();
 
-    return { read, queryClient, rerender: view.rerender };
+    return { client, read, queryClient, rerender: view.rerender };
 }
 
 describe('CookingModeScreen: the read outcomes', () => {
@@ -187,6 +187,43 @@ describe('CookingModeScreen: a cook on a step is not moved by a later read', () 
         expect(queryClient.isFetching()).toBe(1);
         expect(screen.getByRole('main').getAttribute('aria-busy')).not.toBe('true');
         expect(screen.getByText(stepOf(3, 4))).toBeTruthy();
+    });
+
+    // R-15 and po P10: a cook on a step is held through a bad refetch, but LEAVING ends that. Opening the cook screen
+    // again on the SAME cache must show what the read says now, never the recipe the cache still holds from before.
+    it.each([
+        [
+            'a 404 as gone',
+            () => Promise.reject(new NotFoundError('Recipe not found')),
+            'This recipe isn’t available any more',
+        ],
+        [
+            'blank steps as no steps',
+            () =>
+                Promise.resolve(
+                    makeRecipeDetail({
+                        id: 'rec_1',
+                        ownerId: OWNER_ID,
+                        status: RecipeStatus.PUBLISHED,
+                        steps: [{ stepNumber: 1, instruction: ' ' }],
+                    }),
+                ),
+            'This recipe has no steps yet',
+        ],
+    ])('opens again, after leaving, on %s', async (_name, next, copy) => {
+        const { client, read, queryClient } = await cookingOnStepThree();
+        read.mockImplementation(next);
+        await act(async () => {
+            await queryClient.refetchQueries();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+        expect(screen.getByText(stepOf(3, 4))).toBeTruthy();
+
+        cleanup();
+        renderWithRecipeClient(screenOf(), client, { queryClient });
+
+        expect(await screen.findByText(copy)).toBeTruthy();
+        expect(screen.queryByText(stepOf(1, 4))).toBeNull();
     });
 
     it('ends the session when the cook changes', async () => {

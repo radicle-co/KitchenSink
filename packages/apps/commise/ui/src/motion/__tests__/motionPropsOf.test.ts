@@ -51,4 +51,25 @@ describe('motionPropsOf', () => {
         expect(keys(true)).toEqual(keys(false));
         expect(keys(undefined)).toEqual(keys(false));
     });
+
+    // The check box's check (§1.9). It is a member here because Tamagui 3 removed `animation` and `enterStyle`: a mark
+    // given those draws no spring on a device and logs `prop "animation" was removed in v3`.
+    it('springs the check in from 0.9 of its size, by the v3 enter clause, when reduce motion is known to be off', () => {
+        expect(motionPropsOf(false).check).toEqual({ transition: 'check', scale: '1 enter:0.9' });
+    });
+
+    it.each([
+        ['on', true],
+        ['not read yet', undefined],
+    ] as const)('keeps the check transition but draws no entrance when reduce motion is %s', (_state, answer) => {
+        expect(motionPropsOf(answer).check).toEqual({ transition: 'check' });
+    });
+
+    it.each([true, false, undefined])('uses no key Tamagui 3 removed, for reduce motion %s', (answer) => {
+        const keys = Object.values(motionPropsOf(answer)).flatMap((part) => Object.keys(part));
+
+        expect(keys).not.toContain('animation');
+        expect(keys).not.toContain('enterStyle');
+        expect(keys).not.toContain('exitStyle');
+    });
 });

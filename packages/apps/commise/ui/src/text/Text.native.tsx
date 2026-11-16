@@ -144,3 +144,5 @@ export const Text = TextFrame.resolve(
             Platform.OS === 'ios' ? 'ios' : 'other',
         ),
 );
+
+export { useTextScale } from './useTextScale.native.js';

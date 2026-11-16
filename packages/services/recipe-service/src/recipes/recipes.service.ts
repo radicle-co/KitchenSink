@@ -1500,15 +1500,19 @@ export class RecipesService {
                   };
         const newlySubstantive = !existing.recipe.hasSubstantiveEdit && detectSubstantiveEdit(existing, storedDto);
 
-        // Whether this write could take a slot: only publishing a DRAFT can (a published recipe already holds or never held
-        // one, and set-visibility counts its own moves). The precise verdict needs the row's visibility, read under the lock.
+        // Whether this write could take a slot: publishing a DRAFT can, and so can a third-party statement on a published
+        // recipe, which forces Private in the same write (set-visibility counts its own moves). The precise verdict needs the
+        // row's visibility, read under the lock.
         const isPremium = isPremiumPrincipal(principal);
         const existingStatus = recipeStatusSchema.parse(existing.recipe.status);
         const afterStatus = dto.status ?? existingStatus;
         const publishesDraft = existingStatus === RecipeStatus.DRAFT && afterStatus === RecipeStatus.PUBLISHED;
         // Any write that leaves the recipe published, however it got there: the statement rule judges the state it leaves.
         const leavesPublished = afterStatus === RecipeStatus.PUBLISHED;
-        const takesSlotLock = publishesDraft && slotRuleApplies({ isPremium });
+        const mayForcePrivate =
+            dto.statement !== undefined && dto.statement !== null && dto.statement.kind !== 'authored';
+        const takesSlotLock =
+            (publishesDraft || (leavesPublished && mayForcePrivate)) && slotRuleApplies({ isPremium });
 
         // ⛔ ONE TRANSACTION, and the CAS miss must LEAVE it before it is diagnosed. `raiseVersionConflict`
         // calls `dal.readConflict`, which opens its own transaction AND issues
@@ -1734,7 +1738,7 @@ export class RecipesService {
             authoredInWrite: applied && dto.statement?.kind === 'authored',
         });
 
-        if (input.publishesDraft && visibilityAfter === RecipeVisibility.PRIVATE) {
+        if ((input.publishesDraft || forcesPrivate) && visibilityAfter === RecipeVisibility.PRIVATE) {
             this.assertPrivatePublishAllowed(input, { current, visibilityAfter, sourceAfter, verdict });
         }
 

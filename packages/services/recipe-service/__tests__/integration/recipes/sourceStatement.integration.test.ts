@@ -432,6 +432,8 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled until the fir
         expect(update.mock.calls[0]?.[1]).not.toHaveProperty('provenance');
     });
 
+    // Rewritten by ADR-0092: a recipe with no statement may now take a first statement after the first publish, so the lock is
+    // proved on a recipe that already holds one.
     it('refuses CHANGING a stated source after the first publish with 403 FORBIDDEN, details.reason SOURCE_LOCKED, writing nothing', async () => {
         stored = makeRecipeRow({
             id: RECIPE_ID,

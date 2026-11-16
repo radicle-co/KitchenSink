@@ -619,17 +619,14 @@ export interface RecipeFormMessages {
             readonly bodyTab: string;
         };
         /**
-         * 004 FR-022's daily limit; `{when}` is when it resets, one of the `when` phrases (the reset is at most a rolling
-         * day away, so it falls today or tomorrow).
+         * 004 FR-022's daily limit, one whole sentence per variant because word order differs by language (UI Designer,
+         * 2026-11-16). The reset is at most a rolling day away, so it falls today or tomorrow. Each contains `{time}`.
          */
         readonly quota: {
-            readonly body: string;
-            readonly when: {
-                /** Later today (contains `{time}`). */
-                readonly today: string;
-                /** The next day (contains `{time}`). */
-                readonly tomorrow: string;
-            };
+            /** The reset is later today. */
+            readonly today: string;
+            /** The reset is on the next day. */
+            readonly tomorrow: string;
         };
         /**
          * `import.paste.noAiCheck` (owner design 2026-10-26, board ImportPasteNoAiCheck): the month's AI check is used up
@@ -945,11 +942,9 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
                     'You’re offline. Your choices are kept in this tab. Search and the check start again when you’re back online.',
             },
             quota: {
-                body: 'You’ve added a lot today. Matching starts again {when}. These lines are kept as written, and you can choose foods for them then.',
-                when: {
-                    today: 'at {time}',
-                    tomorrow: 'tomorrow at {time}',
-                },
+                today: 'You’ve added a lot today. Matching starts again at {time}. These lines are kept as written, and you can choose foods for them then.',
+                tomorrow:
+                    'You’ve added a lot today. Matching starts again tomorrow at {time}. These lines are kept as written, and you can choose foods for them then.',
             },
             noAiCheck: {
                 body: 'This month’s AI check is used up, so these foods were matched without it, your matches from before included. Confirm or change each one. The check comes back on {date}.',

@@ -106,6 +106,25 @@ describe('quotaBodyOf', () => {
         );
     });
 
+    it('⛔ a reset at local midnight of the next day reads "tomorrow at 12:00 AM"', () => {
+        // 10:00 PM on Sunday 25 October in New York; the reset is 00:00 on Monday the 26th there (04:00 UTC).
+        expect(quotaBodyOf('2026-10-26T04:00:00.000Z', '2026-10-26T02:00:00.000Z', m, 'en', NY)).toBe(
+            sentence('tomorrow at 12:00 AM'),
+        );
+    });
+
+    // ⛔ Word order differs by language, so each variant is a whole sentence under its own key, never a `{when}` fragment
+    // placed inside another sentence (UI Designer, 2026-11-16).
+    it('uses each variant’s whole sentence as written, with only {time} filled', () => {
+        const reordered = {
+            ...m,
+            pasteMatch: { ...m.pasteMatch, quota: { today: 'HEUTE {time} OK.', tomorrow: 'MORGEN UM {time} OK.' } },
+        };
+
+        expect(quotaBodyOf(RESETS_AT, '2026-10-26T05:00:00.000Z', reordered, 'en', NY)).toBe(`HEUTE ${nine15} OK.`);
+        expect(quotaBodyOf(RESETS_AT, '2026-10-25T14:00:00.000Z', reordered, 'en', NY)).toBe(`MORGEN UM ${nine15} OK.`);
+    });
+
     it('⛔ the reset later today reads as the time alone', () => {
         // 1:00 AM in New York on the same calendar day.
         expect(quotaBodyOf(RESETS_AT, '2026-10-26T05:00:00.000Z', m, 'en', NY)).toBe(sentence(`at ${nine15}`));

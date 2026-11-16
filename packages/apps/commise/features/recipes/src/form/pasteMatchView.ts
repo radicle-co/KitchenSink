@@ -134,15 +134,14 @@ export const quotaBodyOf = (
     timeZone: string,
 ): string => {
     const reset = new Date(resetsAt);
-    const when = copy.pasteMatch.quota.when;
     const time = new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone }).format(reset);
     const days = calendarDaysBetween(new Date(now), reset, timeZone);
 
     if (days <= 0) {
-        return fillTemplate(copy.pasteMatch.quota.body, { when: fillTemplate(when.today, { time }) });
+        return fillTemplate(copy.pasteMatch.quota.today, { time });
     }
 
-    return fillTemplate(copy.pasteMatch.quota.body, { when: fillTemplate(when.tomorrow, { time }) });
+    return fillTemplate(copy.pasteMatch.quota.tomorrow, { time });
 };
 
 /**

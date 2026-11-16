@@ -5,6 +5,25 @@
 **Status**: Ready for implementation
 **Source of truth**: the shipped codebase. Where this plan and `main` disagree, `main` wins and this plan is wrong.
 
+> ⚠️ **Owner rulings, 2026-11-15 ([spec](./spec.md) `FR-064` to `FR-067`,
+> [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)).**
+> They change this plan in five places, and the spec wins where they differ:
+>
+> 1. **A link is fetched on the device first, then by the server.** The cook's device fetches a link's page. If that
+>    fails, the server URL fetch edge (`SourceFetcher`, the outbound fetch budget, robots and data-mining checks before
+>    a fetch, `import_jobs` for the fetch channel) runs, under spec `FR-008`, `FR-023`, `FR-053` and `FR-053a`. On web
+>    it usually runs. A paste is never fetched. Extraction runs on the cook's device in tiers: schema.org, microdata,
+>    a rule-based reader, then an on-device AI tier when the cook's account setting allows it (on by default on mobile,
+>    off on web), each a strict yes or no, with no cook review of the extraction. A "no" from every tier goes to the
+>    server AI fallback (§12a).
+> 2. **The paywall blocklist becomes the paid list.** It classifies a source as a paid site (`FR-014`), it does not
+>    block one.
+> 3. **No facts cards, no linked card, no per-market switch.** `MarketCopyPolicy`, the facts-card cap counter and the
+>    linked-card read are withdrawn. The public path is a Commise-written version (`FR-065`, spec 003B, planned).
+> 4. **One import allowance** for every user-facing channel, 200 a day on Free and 1,000 on a paid plan, with no
+>    limit for test principals (`FR-067`). There are no per-source caps.
+> 5. **The private copy keeps the source wording** and the source author's name (`FR-066`).
+
 ---
 
 ## 0. Pattern register _(CLAUDE.md — design-pattern-first)_
@@ -250,7 +269,8 @@ with `created` / `already_existed` / `failed` plus a reason.
 **Provenance whitelist (`FR-025`, HAZ-057).** The DTO for `POST /api/v1/recipes` accepts only a
 `declaredSource` of `own` or `paid-source + citation`. _(Amended 2026-11-03, ADR-0082: the statement kind is the
 D3 set `authored`, `adapted`, `source`, `family`, `publicDomain`. `publicDomain` is curator-grant only and needs the D1
-record. A book or paid-site `source` keeps its verbatim copy private and can publish a facts card, `FR-014b`.)_
+record. A book or paid-site `source` keeps its verbatim copy private. Amended 2026-11-15: its public form is a
+Commise-written version, `FR-065`, and the facts card, `FR-014b`, is withdrawn.)_
 `imported_public` and `imported_physical` are **not representable** in that DTO — they are set server-side from the channel actually observed. This is why the
 whitelist lives in the type, not in a validation branch someone can forget.
 
@@ -436,7 +456,7 @@ Catastrophic. Required, non-negotiable:
 `robots.txt` is fetched once per host and cached with a TTL. Group selection follows RFC 9309: the group that names
 our agent binds the fetch, and if no group names us the `*` group binds it. _(Amended 2026-11-03, owner ruling,
 ADR-0082: the earlier asymmetric table, which let a bare wildcard `Disallow: /` through for a user-chosen page, is
-withdrawn. Counsel review is owed before launch (`016-FR-050`).)_
+withdrawn.)_ _(Amended 2026-11-15: applies to the server fetch of a link, spec `FR-023`.)_
 
 | Directive applies to                      | Bare `Disallow: /`   | Path-specific `Disallow` |
 | ----------------------------------------- | -------------------- | ------------------------ |
@@ -448,14 +468,13 @@ prohibition), but a _fetch_ of it that times out must not extend the import's ow
 
 **Data-mining opt-outs (`FR-023`).** The same pre-fetch step reads TDMRep (`/.well-known/tdmrep.json` and the
 `tdm-reservation` header), `noai` and `noimageai` tags, AI-crawler blocks (GPTBot, ClaudeBot, Google-Extended, CCBot)
-and Content Signals `ai-input=no`. [Judgement, strong] Our parse uses an LLM, so we honour them everywhere from v1.
+and Content Signals `ai-input=no`. Our parse uses an LLM, so we honour them everywhere from v1.
 A new pure `FetchSignalPolicy` returns allow or deny from the signals. The fetch writes one **signal log row per
 fetch** with what each signal said, including "none found". Known pirate hosts sit on the paywall blocklist. The fetch
 never passes a paywall, login or meter, never uses a cook's cookies, and never rotates addresses.
 
-**Per-market private copy (D6).** A new pure `MarketCopyPolicy` maps the cook's market to `keepPrivateCopy`
-(US) or `factsAndLinkOnly` (EU and UK). Any market counsel has not cleared defaults to `factsAndLinkOnly`. The
-extractor stores no verbatim method, headnote or photo reference when the policy says facts and link only.
+**Per-market private copy (D6).** _(Withdrawn 2026-11-15, owner ruling: the private copy keeps the source wording in
+every market, spec `FR-066`.)_
 
 Every robots-derived block increments a counter (`robots_block_rate`) so the policy can be reviewed on evidence
 rather than argument.
@@ -480,6 +499,9 @@ the seam 010-subscriptions needs, without inventing tier rules 010 hasn't specif
 > **bulk import, 1,000 recipes a rolling day on a paid plan and 200 on Free** (owner, 2026-10-27), one unit per recipe. This replaces "across all channels" above for
 > these two channels. [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §8 holds the rule, and
 > spec `FR-022` carries the same note.
+>
+> ⚠️ **One allowance.** Owner ruling, 2026-11-15: the per-channel counts are replaced by one import allowance for every
+> user-facing import, with no limit for test principals (spec `FR-067`).
 
 Queue depth is bounded; over-capacity sheds with `429`.
 
@@ -512,7 +534,7 @@ _None blocking._ The four that previously blocked this feature were resolved as 
 
 1. **Meta app approval for FR-009** — external workstream; the capability flag defaults off (D-002).
 2. **Fixture corpus curation for SC-002** — the accuracy bar needs a hand-verified corpus; sizing and
-   composition are defined in `v-model/acceptance-plan.md` and must exist before the SC-002 gate can be claimed.
+   composition are fixed at PLANNING and must exist before the SC-002 gate can be claimed.
 
 ---
 
@@ -534,7 +556,8 @@ Ordered by dependency. Each step is test-first (§7.1) and ships web **and** mob
     2026-11-03, ADR-0082: official APIs only, no video download, paste or screenshot fallback, no frames or audio kept.)_
     10a. **Open-library policies** _(added 2026-11-03, ADR-0082)_: `FetchSignalPolicy` and its signal log, `MarketCopyPolicy`
     (D6), the per-source cap counter for facts cards (`FR-014b`, `FR-026`), and the image-deletion step after
-    extraction. See tasks T-033 to T-037. Counsel review is owed before launch (`016-FR-050`).
+    extraction. See tasks T-033 to T-037. _(Amended 2026-11-15: `MarketCopyPolicy` and the facts-card counter are
+    withdrawn. `FetchSignalPolicy` applies to the server fetch. The image-deletion step stays.)_
 11. **UI — web and mobile in lockstep**: import entry, draft review/complete, attribution display, error states.
 12. **Load and soak** (k6) against the §7 SLOs.
     12a. **AI text-extraction fallback** _(added 2026-11-15, `FR-056` to `FR-063`)_: built in this feature, after the page reader and the paste channel. See tasks T-048.

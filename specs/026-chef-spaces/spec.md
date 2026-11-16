@@ -41,7 +41,7 @@ The work comes in three phases. The phases follow what is unblocked, not what ma
 
 | Phase                    | What it holds                                                                                                         | What it waits on                                                                          |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **1. Layer on the blog** | Claim your site, bring your recipes in, the corner page, email sign-up with export, analytics, links back to the blog | `staff-ux-engineer` DESIGN. Counsel review of FR-005                                      |
+| **1. Layer on the blog** | Claim your site, bring your recipes in, the corner page, email sign-up with export, analytics, links back to the blog | `staff-ux-engineer` DESIGN.                                                               |
 | **2. Earn on Commise**   | Digital cookbooks, the chef club, tips, courses, affiliate links, the sponsor line                                    | 018's money-out apparatus. The commission, from the royalties and chef-payments work (Q6) |
 | **3. Replace the blog**  | Home moves to Commise: the canonical address and redirect help. A decision on native email sending                    | Phase 2 earning in practice (Q3)                                                          |
 
@@ -57,7 +57,7 @@ The Pro pool (FR-040) is in no phase yet. The owner deferred it to the royalties
 | [015-publishing-rewards](../015-publishing-rewards/spec.md)                                                                                                   | **Constraining, amended.** Its rewards stay non-monetary (`015-FR-007`, `015-FR-030`). Any future Pro pool (FR-040, deferred) must not become a paid route around it                                                                                          |
 | [004-recipe-importing](../004-recipe-importing/spec.md)                                                                                                       | **Required, amendment requested.** It owns source types (`004-FR-011`) and the per-item statement (`004-FR-014a`). It also owns bulk import (ADR-0072) and the "Save to Commise" button (`FR-053`)                                                            |
 | [020-content-source-check](../020-content-source-check/spec.md) and ADR-0074                                                                                  | **Required, amendment requested.** When the check finds the chef's own blog, a claimed site must count as evidence                                                                                                                                            |
-| [021-public-discovery-and-sharing](../021-public-discovery-and-sharing/spec.md)                                                                               | **Required, amendment requested.** What is open to the web, indexing and canonical addresses. Another session owns the linked card work there                                                                                                                 |
+| [021-public-discovery-and-sharing](../021-public-discovery-and-sharing/spec.md)                                                                               | **Required, amendment requested.** What is open to the web, indexing and canonical addresses. Facts and linked cards are withdrawn there (2026-11-15)                                                                                                         |
 | [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md)                                                                                   | **Required, amendment applied.** The content licence, notice and takedown, the processor terms for the email list                                                                                                                                             |
 | [010-subscriptions](../010-subscriptions/spec.md) and [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md) | **Governs.** Plans, store billing through RevenueCat, Stripe on the web. A future Pro pool (FR-040, deferred) is funded from 010 revenue                                                                                                                      |
 | [014-notification-service](../014-notification-service/spec.md)                                                                                               | **Referenced.** If the owner chooses it (Q3), native email sending in phase 3 is a new 014 channel                                                                                                                                                            |
@@ -73,9 +73,8 @@ The Pro pool (FR-040) is in no phase yet. The owner deferred it to the royalties
 - **`staff-architect` PLANNING**, for the site claim record (section A), the canonical choice (FR-006), the email list
   and its processor role (section C), and the chef club (FR-045). Each is persisted data, a contract
   or money, so each is expensive to reverse.
-- **`clo` and counsel**, for the processor terms (FR-023), CAN-SPAM's postal address (FR-026), the FTC disclosure
-  for affiliate links and sponsors (FR-047, FR-048), and the own-site rule in FR-005, which the owner approved subject
-  to counsel review. The Pro pool and the commission go to the royalties and chef-payments work (Q4, Q6).
+- **`clo`**, for the processor terms (FR-023), the postal address in marketing email (FR-026), the disclosure for
+  affiliate links and sponsors (FR-047, FR-048), and the wording of the own-site rule in FR-005. The Pro pool and the commission go to the royalties and chef-payments work (Q4, Q6).
 - **No printed products (owner rule).** This spec proposes no printed product of any kind. A buyer purchases a digital cookbook and gets the sold version of its recipes in the app, plus a PDF or EPUB file to keep where the chef offers one (FR-044). _(amended 2026-11-03, owner ruling, ADR-0082 §9. Was: a live view, with the file paused.)_ The file is a digital file, not a printed product. Nothing
   here is "print-ready" or print on demand.
 
@@ -257,8 +256,8 @@ change together, and that switching back restores them.
 
 The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session. Each answer is quoted.
 
-- **Q1. When the copy check finds a chef's recipe on their own claimed page, does a person still look?** Owner: "Claim
-  clears own-site hit". Option B, with counsel review before build. Recorded in FR-005 and `020-FR-012g`.
+- **Q1. When the copy check finds a chef's recipe on their own claimed page, does a person still look?** Owner ruling:
+  a claim clears the own-site hit. Option B. Recorded in FR-005 and `020-FR-012g`.
 - **Q2. Does a chef's Home start as their blog or as Commise?** Owner: "Their blog". Recorded in FR-006 and
   `021-FR-010a`.
 - **Q3. Does Commise send email for chefs, or connect only to their provider?** Owner: "Connect only, for now".
@@ -282,8 +281,8 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
 > `020-FR-001`. It goes through 020's one hold before it is shown, and fails closed (020 section K). A buyer reads
 > the live recipe through the same hold, and sees the last approved version while an edit is checked (`020-FR-057`,
 > `020-FR-064`). _(amended 2026-11-03, owner ruling O15b, ADR-0082. Was: a copy delivered to a buyer carries its
-> source's checked-content digest.)_ [House rule] This keeps every path to public
-> behind one gate. Counsel review is owed before launch (`016-FR-050`).
+> source's checked-content digest.)_ This keeps every path to public
+> behind one gate.
 
 #### A. Claim your site and bring your recipes in (phase 1)
 
@@ -304,10 +303,10 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
   right to use them. A photo the chef does not state MUST be left behind, with the chef told which.
 - **FR-005** `→ 020`: A recipe brought in from a claimed site with "I wrote this" and "This is my own page"
   is `user_created`, labelled "Written by you" (ADR-0077 §2, `020-FR-012g`). Its address on the claimed site MUST be
-  stored as its origin. _(Owner ruling Q1, 2026-10-29: "Claim clears own-site hit".)_ A hit on the recipe's own
+  stored as its origin. _(Owner ruling Q1, 2026-10-29: a claim clears the own-site hit.)_ A hit on the recipe's own
   origin page, under a live claim on that domain, MUST NOT count as a copy. Every other part of the check runs as
   usual. A hit on any other page, a model item, or a photo signal still sends the recipe to a person (ADR-0074 §2).
-  Only this one hit changes. ⚠️ Counsel reviews this rule before it is built (`020-FR-012g`).
+  Only this one hit changes (`020-FR-012g`).
   _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ The social twin is FR-061: an import from a post whose author id
   matches the cook's linked account clears the hit on that post, and only that hit.
 - **FR-006** `→ 021`: Each chef MUST choose a Home: their blog or Commise. When
@@ -343,8 +342,7 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
 > - **Social accounts** are proved by linking the account through the platform's own sign-in (FR-061, owner ruling
 >   2026-11-03, OQ-026-S1 resolved). **OPEN: the re-check interval** (OQ-026-S2 below).
 >
-> [House rule] A claim proves control of a site, not authorship of each post (FR-002, ADR-0078 §3). Counsel review is
-> owed before launch (`016-FR-050`).
+> A claim proves control of a site, not authorship of each post (FR-002, ADR-0078 §3).
 
 - **FR-061** `026` _(added 2026-11-03, owner ruling, ADR-0082 §9)_: **A cook links a social account to prove their
   posts are theirs.** The owner ruled out a code placed in the account's bio. The cook links the account to their
@@ -368,13 +366,13 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
       Recipes already public stay public (ADR-0078 §2).
     - **Later claims.** A cook can link an account after import and claim a recipe already saved (`004-FR-055`). The
       "Save to Commise" screen offers the link too (`004-FR-054`).
-    - **Erasure.** [Law] The link and its tokens are personal data (GDPR Art. 4(1)). Account erasure MUST delete the
+    - **Erasure.** The link and its tokens are personal data. Account erasure MUST delete the
       link and revoke and delete its tokens. A decision record that cited the link keeps only an opaque id, the
       platform and the last check time (`016-FR-069`, `020-FR-063`). The privacy notice lists this data
       (`016-FR-071`).
-    - [House rule] A link proves control of an account, not authorship of each post. A repost of someone else's work
+    - A link proves control of an account, not authorship of each post. A repost of someone else's work
       passes the link, so the per-recipe statement (`004-FR-014a`) carries authorship, and takedown still applies
-      (ADR-0078 §3). Counsel review is owed before launch (`016-FR-050`).
+      (ADR-0078 §3).
 
 #### B. The chef corner (phase 1)
 
@@ -396,7 +394,7 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
   paid collection, recipe, digital cookbook, course or club MUST show a signed-out reader at most its title, cover,
   price and the chef's own description. That is enough for a reader to find it and buy it. It MUST NOT show any of
   its recipes, their ingredients, steps or photos, or a course's lessons. The same limit MUST hold in the chef directory and its search
-  (`018-FR-017`), which list chefs and their public work, never linked cards.
+  (`018-FR-017`), which list chefs and their public work, never a Commise-written version of an import.
 
 #### C. The email list (phase 1)
 
@@ -409,7 +407,7 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
   the chef's privacy notice.
 - **FR-022** `026`: Each sign-up MUST record the time, the page, the consent text shown and the reader's market. In a
   market whose law needs it, a sign-up MUST be confirmed by a link in an email before it counts. The GDPR rules are in
-  `research/creatorIncome.md` §5. The CASL details are GAP there, so counsel sets the Canadian rule.
+  `research/creatorIncome.md` §5. The Canadian rule is an open owner decision.
 - **FR-023** `→ requested 016`: The chef MUST be the controller of their list and Commise its processor, under written
   processor terms the chef accepts before connecting.
 - **FR-024** `026`: The chef MUST be able to export every sign-up Commise holds for them, with its consent record, at
@@ -444,12 +442,11 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
   (`018-FR-064`, `015-FR-001`).
 - **FR-043** `→ 018`: **Digital cookbooks.** A chef MUST be able to sell a collection of their own recipes as one
   product (`018-FR-087`), with verified constraint claims (`018-FR-088`). This is the primary sellable unit.
-  _(Amended 2026-11-03, owner ruling O14d and O14e, ADR-0082.)_ [Law] The cookbook MUST hold only sellable recipes:
+  _(Amended 2026-11-03, owner ruling O14d and O14e, ADR-0082.)_ The cookbook MUST hold only sellable recipes:
   "Written by you", "Adapted by you" in the chef's own words, and family recipes whose giver's permission covers selling
-  (`018-FR-026`). It MUST NOT hold an imported copy, a facts card, public-domain curator text or another person's text.
+  (`018-FR-026`). It MUST NOT hold an imported copy, a Commise-written version of an import, public-domain curator text or another person's text.
   A non-sellable recipe MUST be refused when it is added. Every recipe sold passes 020's hold (`020-FR-057`). A chef
-  can also sell a single private recipe or a private collection (`012-FR-034a`). Counsel review is owed before launch
-  (`016-FR-050`).
+  can also sell a single private recipe or a private collection (`012-FR-034a`).
 - **FR-044** `→ 018`: A cookbook purchase MUST grant the sold version of every recipe in it (`018-FR-089`, `018-FR-029`)
   as one act. The buyer MUST be able to read, cook, plan and list them and MUST NOT be able to clone them. Nothing MUST
   offer printing. _(amended 2026-11-03, owner ruling O15, ADR-0082. Amended again the same day, owner ruling, ADR-0082
@@ -459,8 +456,7 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
   or EPUB with a cookbook or a recipe, and the buyer keeps the file. The file MUST hold only content the chef can sell
   (`018-FR-026`) and only a version with an allowing 020 outcome (`020-FR-079`). Each download is an event in the
   commerce record (`018-FR-029l`). After a takedown, every user who downloaded it gets the notice of `018-FR-029k`. A
-  subscriber to the chef reads the current version instead (`018-FR-029h`). [House rule] Counsel review is owed before
-  launch (`016-FR-050`).
+  subscriber to the chef reads the current version instead (`018-FR-029h`).
 - **FR-045** `→ 018`: **A chef club** _(owner ruling Q5, 2026-10-29: "Yes, earlier", so it is in phase 2)_: a monthly price
   paid to one chef. Each new club
   recipe is readable by each member while the membership runs, in its current version, and club courses or live
@@ -494,23 +490,22 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
 | Spec               | Change                                                                                                                                                                | Status                                                                                     |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | 004                | A bulk bring-in from a claimed site, listed from its sitemap or structured data (FR-003)                                                                              | Applied 2026-10-29: `004-FR-053a`                                                          |
-| 020                | A hit on the recipe's own origin page under a live claim does not count as a copy, with counsel review before build (FR-005)                                          | Applied 2026-10-29: `020-FR-012g`                                                          |
+| 020                | A hit on the recipe's own origin page under a live claim does not count as a copy (FR-005)                                                                            | Applied 2026-10-29: `020-FR-012g`                                                          |
 | 021                | When Home is the blog, the canonical address is the chef's blog post, with a "Read on" link (FR-006)                                                                  | Applied 2026-10-29: `021-FR-010a`                                                          |
 | 016                | Processor terms for the email list (FR-023). Creator terms that cover the site claim and the sponsor line. FTC disclosure rules for affiliate links and sponsor lines | Applied 2026-10-29: `016-FR-054` to `FR-057`                                               |
 | 004, 016, 020, 021 | "This is my recipe" (owner ruling O16, 2026-11-03, ADR-0082): the owner statement on single imports, read by the same claim                                           | Applied 2026-11-03: `004-FR-014a` statement 1a, `016-FR-069`, `020-FR-012g`, `021-FR-010a` |
 
-The linked card (`021-FR-014a` to `FR-014h`) is for a recipe from someone else's page. It does not apply to a chef's
-own page under a live claim. This spec does not edit 016 or 010. _(Note 2026-11-03, owner ruling, ADR-0082: the
-linked card is now a signed-out facts card, indexable under 021's public rule (owner ruling O2, amended 2026-11-03). A chef's public pages list every open label
-(written, adapted, family, public domain, clone) and show each label, and the licence where the chef chose CC BY 4.0.
-They never list a linked card. Owner ruling O7, 2026-11-03, ADR-0082, confirms it: no creator or chef page lists a facts card. Counsel review is owed before launch (`016-FR-050`).)_
+_(Amended 2026-11-15, owner ruling, ADR-0093.)_ A recipe from someone else's page goes public only as a Commise-written
+version (`021-FR-003`). That does not apply to a chef's own page under a live claim, which is on the copy-outright
+allowlist. This spec does not edit 016 or 010. A chef's public pages list every open label (written, adapted, family,
+public domain, clone) and show each label, and the licence where the chef chose CC BY 4.0. They never list a
+Commise-written version of an import (owner ruling O7, 2026-11-03, ADR-0082).
 
 ### Key Entities
 
 - **Site claim**: a chef, a domain, the method used, the time it was last checked, its state (live, failed,
   removed). One live claim per domain. Owned here. _(amended 2026-11-03, owner ruling O16, ADR-0082)_ Any cook can
-  hold one, not only a chef. It is personal data, deleted at account erasure (`016-FR-069`). Counsel review is owed
-  before launch (`016-FR-050`).
+  hold one, not only a chef. It is personal data, deleted at account erasure (`016-FR-069`).
 - **Recipe origin**: on a recipe brought in from a claimed site, the page address it came from and the claim it came
   under. An attribute of the 001 recipe, not a new entity.
 - **Home choice**: per chef, blog or Commise, with the time of each change. An attribute of the 012 profile.
@@ -586,7 +581,6 @@ Every number below is a target with a test. None is a forecast. The evidence beh
 - **026-L13** _(added 2026-11-03, owner ruling, ADR-0082 §9)_: Erasure deletes the link and its tokens (`FR-061`). Tests:
   integration (after erasure no link row or token remains, and a decision record keeps only the opaque id, the
   platform and the last check time), erasure-coverage test lists the link table.
-  Counsel review is owed before launch (`016-FR-050`).
 
 ## Owner questions
 

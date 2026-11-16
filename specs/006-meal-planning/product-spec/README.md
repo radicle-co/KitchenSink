@@ -29,7 +29,6 @@ This directory contains the Product Forge product-spec layer for feature 006.
 - [../spec.md](../spec.md) — canonical FR/NFR/SC ids **and the Clarifications that resolve every open question**
 - [../plan.md](../plan.md) — architecture, pattern register, data model, API contracts
 - [../research/codebase-analysis.md](../research/codebase-analysis.md) — what `main` already provides
-- [../v-model/requirements.md](../v-model/requirements.md) — REQ-NNN decomposition
 
 ---
 

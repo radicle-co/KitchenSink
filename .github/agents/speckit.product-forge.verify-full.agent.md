@@ -112,7 +112,7 @@ created/modified during implementation. Reference `tasks.md` for file paths if l
 source the report is computed from. For each row in `rows[]`, read the links by
 **field name** directly:
 
-- `req` — canonical requirement id (V-Model / backfill rows only; null in the
+- `req` — canonical requirement id (backfill rows only; null in the
   standard forward flow)
 - `story` — user story (`US-*`)
 - `journeys` — journeys (`JRN-*`; `STEP-*`/`EDGE-*` nested under the `journeys:`
@@ -647,7 +647,7 @@ Rendered directly from `traceability.yml` rows (live-schema columns):
 | REQ-001 | US-001 | JRN-001  | FR-001, FR-002 | T012, T013 | ✅   | TC-E2E-003 | EVT-prefs_saved | verified    |
 | —       | US-002 | JRN-002  | FR-003         | T014       | ✅   | ⚠️ none    | —               | implemented |
 
-> `req` is populated only for V-Model/backfill rows; the standard forward flow
+> `req` is populated only for backfill rows; the standard forward flow
 > keys on `frs` and leaves `req` null (`—`).
 
 ---

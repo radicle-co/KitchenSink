@@ -104,11 +104,10 @@ Claims in this spec were checked against the repository rather than inherited fr
    **(b)** FR-025 now carves out referenced photographs offline, matching `016-FR-027e`, which `016` had
    already named as a known cook-mode interaction; **(c)** FR-015 records the channel classification, and it
    is accepted that video import is permanently `operator-performed retrieval` under `016-FR-028`/`FR-029`,
-   since no user-supplied-bytes alternative can exist for a hosted video — which does weaken the §512(c)
-   posture for that channel specifically.
+   since no user-supplied-bytes alternative can exist for a hosted video.
    1a. ⚠️ **What genuinely remains, and it is narrow.** Is transient decode-for-extraction a reproduction at all?
-   It is closer to text-and-data-mining than to serving a thumbnail. Session `911043cd` raised **DSM Art. 4**
-   and the machine-readable reservation against `004-FR-023`'s wildcard-`Disallow` carve-out; this is the same
+   It is closer to text-and-data-mining than to serving a thumbnail. Session `911043cd` raised the machine-readable
+   data-mining reservation against `004-FR-023`'s wildcard-`Disallow` carve-out; this is the same
    question applied to video. **Does not block planning. Must be answered before tiers 3–4 ship.**
 2. **ADR-0024's ceiling was sized for the LLM verification gate**, not a vision waterfall. §8 open decision 4
    requires a cost model before committing to tiers 3–4.

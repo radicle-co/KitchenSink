@@ -1,1 +1,0 @@
-../../extensions/v-model/scripts/bash/setup-v-model.sh

@@ -36,7 +36,6 @@ Planning baseline used:
 - Feature spec: [`spec.md`](./spec.md)
 - Product spec: [`product-spec/product-spec.md`](./product-spec/product-spec.md)
 - Research: [`research.md`](./research.md)
-- V-Model corpus: [`v-model/`](./v-model/)
 
 ---
 
@@ -85,7 +84,7 @@ Boundary risk to watch during implementation: prevent monetization logic creep i
 
 1. Handle-change cooldown + reservation edge-case behavior under concurrent claim attempts (policy conflict precedence).
 2. Counter projection strategy finalization (`DB trigger` vs `application projector`) for `followerCount`/`followingCount` SLO.
-3. Moderation and DMCA integration boundaries with notification/compliance tooling in post-1.0 sequencing.
+3. Moderation and takedown integration boundaries with notification/compliance tooling in post-1.0 sequencing.
 4. Feature-flag rollout split between creator onboarding and public browse/follow exposure during M7.
 
 These are implementation-phase decisions, not blockers for planning artifact generation.

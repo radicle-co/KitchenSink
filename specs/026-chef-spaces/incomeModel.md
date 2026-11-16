@@ -129,9 +129,8 @@ blog post, and `020-FR-012g` sends that hit to a person. The site claim in secti
   A hit on any other page, a model item or a photo signal still goes to a person. The claim proves control of the
   site, not authorship, so a guest post or a copied recipe on the chef's own blog can pass. The per-recipe statement,
   the rights label and takedown are the controls for that case, as for any "I wrote this" recipe.
-- **Recommendation: B.** A blogger will not wait weeks for staff to approve their own posts. Counsel reviews B
-  before build, since it lets a claimed site lower our checking for one kind of hit.
-- **Owner ruling, 2026-10-29:** "Claim clears own-site hit". Option B, with counsel review before build.
+- **Recommendation: B.** A blogger will not wait weeks for staff to approve their own posts.
+- **Owner ruling, 2026-10-29:** a claim clears the own-site hit. Option B.
 
 **Q2. Does Home start as the blog or as Commise?**
 

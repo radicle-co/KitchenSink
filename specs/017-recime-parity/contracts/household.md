@@ -27,6 +27,8 @@
 
 1. **Exactly one active household per account**, created implicitly at signup — the endpoint never 404s for an
    authenticated caller, and no client needs a "no household" branch (R-07).
+   1a. **Members' private recipes are read-only to the household** (FR-030d, Owner ruling, 2026-11-15). A paid site's
+   own wording is never shown to the household. It sees the Commise-written version if one exists, otherwise nothing.
 2. **The last active owner cannot leave.** `DELETE` on the sole owner is `409`, not a silent orphan.
 3. `seats.allowance` is read from the signed `public_metadata` claim `010-FR-044` already publishes.
    ⛔ Never from a client-supplied tier — that is the forgeable-header class PR #39 removed.

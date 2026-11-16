@@ -5,13 +5,15 @@
 **Created**: 2026-11-09
 **Status**: Draft. Planned. Not built. The owner answered all eight open questions on 2026-11-09 (see Clarifications).
 **Input**: Owner order, 2026-11-09: write the spec and the plan for signed-out reading of public recipes. Owner legal
-ruling, 2026-11-03 (ADR-0082): the facts of any dish (ingredients, amounts, times, yield, step order) are public and
-readable signed out. In the EU and UK, a per-site cap applies, counted over time.
+ruling, 2026-11-03 (ADR-0082). _(Amended 2026-11-15. Owner ruling, 2026-11-15,
+[ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md).)_
+There are no facts cards. An imported recipe is public only as a Commise-written version, which is a full open recipe
+(`021-FR-003`). So this feature serves one public form, the full recipe, and the not-available answer.
 
 ## How this spec relates to 021
 
 Spec [021](../021-public-discovery-and-sharing/spec.md) already says what signed-out reading is: who can read what, the
-facts card, the page states, the prompts, the cache and purge rules, privacy, and measurement. It has no plan, and none
+page states, the prompts, the cache and purge rules, privacy, and measurement. It has no plan, and none
 of its staff runs had happened. **003A is 021's first delivery slice.** It delivers 021 User Story 1, on web and native. In that story a friend
 with no account opens a shared recipe. It also delivers 021 section J, which says how a signed-out read reaches the
 data.
@@ -74,8 +76,8 @@ The owner confirmed on 2026-11-09 that it stays switched off until then (Clarifi
 
 - It turns 021's open-to-web rule into one Specification that takes each of its inputs as a required, typed reading.
   An input that has no producer yet reads `unknown`, and `unknown` is closed.
-- It serves two public forms, the full recipe and the facts card (`021-FR-014a`), and the one not-available answer
-  (`021-FR-013`).
+- It serves one public form, the full recipe, and the one not-available answer (`021-FR-013`). _(Amended
+  2026-11-15.)_ The facts card form is withdrawn. A Commise-written version (`021-FR-003`) is served as a full recipe.
 - It reads food names and nutrition for a public recipe without any user's credential.
 - It opens a shared link in the app on a phone with the app. Without the app, the link opens on the web
   (`021-FR-016`).
@@ -86,8 +88,8 @@ The owner confirmed on 2026-11-09 that it stays switched off until then (Clarifi
 
 - It does not change the front door. Opening the app or the web root with no link still lands on sign-in
   (`001-FR-045a`).
-- It does not build the hold (020), the rights label or the licence acceptance (016), the per-source cap or the
-  aggregator list (`021-FR-014e`), or the public domain record (`021-FR-006`). It only reads their results.
+- It does not build the hold (020), the rights label or the licence acceptance (016), the Commise-written version
+  (spec 003B, planned), or the public domain record (`021-FR-006`). It only reads their results.
 - It does not make pages indexable. Every public page says `noindex` until 021 section C (sitemaps, the settle period
   and IndexNow removal) ships (FR-017).
 - It adds no share action and no share mark (021 US2, `021-FR-030`, `021-FR-031`). It accepts a share mark in a link and
@@ -99,13 +101,13 @@ The owner confirmed on 2026-11-09 that it stays switched off until then (Clarifi
 
 ### Words used in this spec
 
-021's words apply (**open recipe**, **facts card**, **linked card**, **book card**, **source card**, **not available**,
+021's words apply (**open recipe**, **Commise-written version**, **not available**,
 **exit event**, **purge bound**, **share mark**). 003A adds these:
 
 | Word                   | Meaning                                                                                                                                           |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Public read**        | A read of one recipe by someone who sends no credential. It goes through the open-to-web rule and nothing else                                    |
-| **Public form**        | What a public read returns: the full recipe, a facts card, a source card, or not available                                                        |
+| **Public form**        | What a public read returns: the full recipe or not available                                                                                      |
 | **Reading**            | One input to the open-to-web rule, as its producer reports it: `open`, `closed`, or `unknown`. A feature that is not built yet produces `unknown` |
 | **Ship dark**          | The state in which every reading that 016 and 020 own is `unknown`, so every public read answers not available                                    |
 | **Public view**        | The app's read-only screen for one public recipe, reached by a tapped link while signed out (`021-FR-016`)                                        |
@@ -133,9 +135,9 @@ the whole recipe. The response sets no cookie. The same request with a credentia
 1. **Given** an open recipe, **When** a signed-out visitor opens its public address, **Then** they see the whole recipe
    before any prompt (`021-FR-011`, `021-FR-050`). That is the title, the photos, the facts, and the ingredients with
    amounts and food names. It is also the steps, the nutrition, the rating total and count, and the licence line.
-2. **Given** a public recipe whose rights label makes it a facts card, **When** it is opened signed out, **Then** the page
-   shows only `021-FR-014a`'s fields, with "{n} steps on {site}" and a link to the source in place of the steps
-   (`021-FR-014b`).
+2. **Given** a cook's private copy of an imported recipe, **When** its address is opened signed out, **Then** it
+   answers not available. _(Amended 2026-11-15.)_ Only its Commise-written version, a full recipe, is ever public
+   (`021-FR-003`).
 3. **Given** the same address, **When** it is requested with and without a credential, **Then** both responses are byte
    for byte the same, and neither sets a cookie (`021-FR-012`, `021-FR-075`, `021-FR-101`).
 4. **Given** the address has a share mark or any other query string, **When** it is opened, **Then** the page is the same
@@ -292,8 +294,8 @@ Graph and Twitter card tags with no script needed.
 
 1. **Given** an open recipe, **When** its address is fetched, **Then** the first HTML carries the `021-FR-033` tags and a
    1200 by 630 image built from the cook's cover photo and the title, or a Commise card with no photo.
-2. **Given** a facts card, **When** it is fetched, **Then** the description is never the source's words, and the image is
-   never the source's photo.
+2. **Given** a Commise-written version (`021-FR-003`), **When** it is fetched, **Then** the description is never the
+   source's words, and the image is never the source's photo.
 3. **Given** a not-available address, **When** it is fetched, **Then** the preview is a generic Commise card with no
    recipe detail.
 
@@ -321,8 +323,7 @@ or local storage entry is written.
 
 - **A recipe changes between two reads.** The page serves whatever the last render saw, for at most the cache life
   (FR-013). 020's "last approved version" rule (`020-FR-064`) applies once 020 ships. Until then nothing is open.
-- **Food is down.** A full recipe shows each line's own words and no nutrition. A facts card shows the unavailable
-  state, because it has no line text to fall back on (FR-008). Food's outage never shows a wrong name or amount. The
+- **Food is down.** A full recipe shows each line's own words and no nutrition (FR-008). Food's outage never shows a wrong name or amount. The
   next render after food recovers replaces the page.
 - **A line is bound to a food that food no longer knows.** It shows the cook's own words, like any line food cannot
   answer.
@@ -371,8 +372,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   private bookmark feature is planned.
 - **Q6. Comments on public pages → shown.** The owner, verbatim: "by commenting they are agreeing to leave their name
   and words public - this is normal everywhere. If we need to, update the terms of service feature to make sure that is
-  noted." Comments render on the full public page with the commenter's display name (FR-025). The facts card stays
-  without comments (021 Session 2026-11-04). The terms say so (`016-FR-012c`). `021-FR-070` is amended to match.
+  noted." Comments render on the full public page with the commenter's display name (FR-025). The terms say so (`016-FR-012c`). `021-FR-070` is amended to match.
 - **Q7. `noindex` until 021's search work → yes.** Every public page says `noindex` until 021 section C ships its
   sitemap and its fast removal path. 021 MUST then remove it (`021-FR-020a`, FR-017).
 - **Q8. Recipes an erased cook left public → open, with no author name.** A recipe the cook chose to leave public at
@@ -390,8 +390,8 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
 
 - **FR-001**: The open-to-web rule (`021-FR-001`, `021-FR-002`) MUST be one pure Specification. It
   MUST take each of its inputs as a **required** typed reading: the hold (`021-FR-002` rule 4), the rights label (rule
-  5), the licence acceptance (rule 6), the author standing (rule 7), any 016 restriction (rule 8), and, for facts cards,
-  the per-source cap (`021-FR-014e`). A missing producer MUST be a compile error, never a default. _Sequencing
+  5), the licence acceptance (rule 6), the author standing (rule 7), and any 016 restriction (rule 8). _(Amended
+  2026-11-15.)_ The per-source cap reading is withdrawn with the facts cards. A missing producer MUST be a compile error, never a default. _Sequencing
   decision:_ `021-FR-001` also asks for one SQL form. 003A reads one recipe by id, so no query needs the SQL form yet.
   The first slice that reads a set (the sitemap or a creator page list) MUST add it, and a test MUST hold the two
   forms equal. Building it now would be a second copy of the rule with no reader to keep it honest.
@@ -402,7 +402,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
 - **FR-003**: Until 016 and 020 supply their readings, the rule MUST admit nothing. The feature ships dark. Lighting any
   form earlier is a change to the Specification itself, reviewed like any rule change, never a configuration switch
   (owner ruling 2026-11-09, Q1).
-- **FR-004**: The rule MUST decide the public form: full, facts card, source card, or not available. Which fields each
+- **FR-004** _(amended 2026-11-15)_: The rule MUST decide the public form: full or not available. Which fields each
   form carries is a separate decision (FR-005), tested separately.
 
 #### B. The public read and its contract
@@ -410,16 +410,15 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
 - **FR-005**: The public read MUST return a **public projection** owned by recipe-service and copied to its schema
   package (GR-015). Each form MUST be built by picking fields from the service's schemas, never by omitting fields. It
   MUST carry no owner id, clone source id, version number, binding provenance, impact count, rater, comment or viewer
-  rating. A facts card MUST carry exactly `021-FR-014a`'s fields and nothing from `021-FR-014b`'s list, not even as an
-  unused field. A client MUST read an unknown form as not available, so the set of forms can grow.
+  rating. _(Amended 2026-11-15.)_ A Commise-written version MUST NOT carry the cook's private copy's wording, not even
+  as an unused field. A client MUST read an unknown form as not available, so the set of forms can grow.
 - **FR-006**: The public read MUST answer the same bytes with or without a credential. It MUST NOT read the
   `Authorization` header, a cookie or a session, and MUST NOT run the user authentication path (`021-FR-100`,
   `021-FR-101`). A guard MUST fail the build on any such read.
 - **FR-007**: Every closed case MUST give one fixed not-available answer, with one status and one body. A malformed id
   MUST give the same answer.
 - **FR-008**: When food data cannot be read in time, a full recipe MUST still show, with each line's own words, no
-  invented name or amount, and a count of lines missing nutrition. A facts card has no line text to fall back on, so
-  when its food names cannot be read it MUST show the unavailable state. When the author standing cannot be read, the
+  invented name or amount, and a count of lines missing nutrition. When the author standing cannot be read, the
   answer MUST be the unavailable state (FR-012). The API answer is never cached (FR-013). The web page MUST render a
   degraded or unavailable answer as a normal page, never as an error, so that the next render replaces it. An error
   render keeps the last good copy, which can outlive an exit event.
@@ -487,12 +486,12 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
 - **FR-022**: Measurement MUST follow `021-FR-080` to `021-FR-083`, with nothing stored on the visitor's device and no
   identifier that works across sites.
 - **FR-023**: Every state in `021-FR-019` that applies to US1 and US2 MUST be designed and built on web and native, with
-  copy and a localisation key: loading (native), full, facts card, source card, not available, food data partly
+  copy and a localisation key: loading (native), full, Commise-written version (amended 2026-11-15), not available, food data partly
   unavailable, offline (native), unavailable, rate-limited, the owner note and the signed-in visitor.
 - **FR-024**: Cook marks on a public page or view MUST be kept in memory only.
 - **FR-025**: Comments MUST appear on the full public page and the public view, each with its commenter's display name,
   the same as a signed-in reader sees them (owner ruling 2026-11-09, Q6, amending `021-FR-070`). A comment carries no
-  user id. A facts card shows no comments (021 Session 2026-11-04). Comments are not built yet: the public form gains
+  user id. Comments are not built yet: the public form gains
   them, picked from the comments schema, in the same release that ships comments. The terms say a comment on a public
   recipe is public (`016-FR-012c`).
 - **FR-026**: A public photo MUST be a derived image with its metadata stripped (`021-FR-071`). Until a stripped
@@ -567,8 +566,7 @@ native public view shows the offline state with Try again. The web page is serve
 
 - 021 section C (search engines, sitemaps, IndexNow, the settle period), section E (licence moment, takedown, reports),
   creator pages, the chef directory, collections, the embed widget, the share action and share marks (021 US2).
-- The producers of the hold (020), the rights label and the licence acceptance (016), the per-source cap and the
-  aggregator list (`021-FR-014e`), and the public domain record (`021-FR-006`).
+- The producers of the hold (020), the rights label and the licence acceptance (016), and the public domain record (`021-FR-006`).
 - Any signed-out list, search, feed, bulk or export route (`021-FR-060`).
 
 ## Open questions for the owner

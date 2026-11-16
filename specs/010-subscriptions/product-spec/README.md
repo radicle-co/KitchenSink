@@ -28,7 +28,6 @@ This directory contains Product Forge product specification artifacts for featur
 - [metrics.md](./metrics.md) — story-level metrics
 - [../spec.md](../spec.md) — canonical FR/NFR reference
 - [../plan.md](../plan.md) — architecture and endpoint contracts
-- [../v-model/requirements.md](../v-model/requirements.md) — REQ-NNN decomposition
 
 ---
 

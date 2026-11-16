@@ -2,7 +2,14 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-26
-- **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): §9 and its Related work. A recipe whose source is not a public web page can be public as the cook's own "Adapted" version or as a facts card. The server looks for a stated licence, never for "no copyright". Two statement kinds are added. Every other part stands.
+- **Amended by:** [ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md): §8, §9 and the
+  Related work (owner ruling, 2026-11-15). Every user-facing import draws on one import allowance (200 a day on Free,
+  1,000 on a paid plan), and test principals have no limit. The cook chooses Private, Public (a Commise-written
+  version) or Both at import. A paste never fetches a page. Every other part stands.
+- **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): §9 and
+  its Related work. A recipe whose source is not a public web page can be public as the cook's own "Adapted" version.
+  The server looks for a stated licence, never for a missing notice. Two statement kinds are added. Every other part
+  stands.
 - **Amended by:** [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md): §9's statement list gains
   "Adapted in my own words" and "From a family member or friend, with their permission". A family or friend recipe is
   no longer labelled like a paid source. The rest of §9 stands, except that a web import now goes private for any cook,
@@ -258,29 +265,23 @@ The builder made three choices where the blueprint was silent. They are recorded
   The ruling says "binds every top match", and a default is a suggestion, not a match. The default sits first in the
   list (ADR-0070), so the food is usually the same and only the origin differs. The pinned test names this reading.
 
-### 8. Bulk import has its own allowance: 200 recipes a rolling day on Free, 1,000 on a paid plan
+### 8. Bulk import draws on the one import allowance
 
-The owner ruled that bulk import has an allowance of its own, separate from paste's.
+Owner ruling, 2026-11-15: every user-facing import, paste included, uses one import allowance. Test principals have
+no limit. This replaces the separate paste and bulk allowances that stood here. The one allowance is 200 a rolling day on Free
+and 1,000 on a paid plan, where superusers and VIPs count as paid (owner ruling, 2026-11-15).
 
-- **Paste: 200 a rolling day**, one unit per paste (004 FR-022 and plan §5).
-- **Bulk import: 200 recipes a rolling day on Free, 1,000 on a paid plan**, one unit per recipe (owner ruling,
-  2026-11-11). Superusers and VIPs count as paid. The plan is read once, through `isPremiumPrincipal`. The plan
-  decides the limit at the first send of a line.
-- Both are counted in the one ledger this branch built, `import_allowance_events` (migration 0058), under the per-user
-  advisory lock. Each channel sums only its own rows. The window is the trailing 24 hours that
-  `importAllowancePolicy.ts` defines.
+- Every import is counted in the one ledger, `import_allowance_events` (migration 0058), under the per-user advisory
+  lock. The ledger still records the channel (`bulk`, `paste`) on each row. All channels count against the one limit.
+  The window is the trailing 24 hours that `importAllowancePolicy.ts` defines.
 - An item spends its unit at the first send of its lines for parsing, because LLM spend starts there. The item
   records that it paid, so a repeated `advance` or a re-created parse job never charges it twice.
 - **A file of any size is accepted** (owner ruling, second round). There is no per-file cap. A file larger than the
   room left today imports what fits, and the rest follows as room frees up.
 - An `advance` that reaches the allowance does the work it can still pay for and answers the import view as usual. It
-  never answers `IMPORT_QUOTA_EXCEEDED`, which is paste's refusal. The view's `allowance` carries the cook's limit (200
-  on Free, 1,000 on a paid plan, where superusers and VIPs count as paid), what the window used, and `resetsAt`. Each
-  item still unpaid shows `waitingForAllowance`. The next call after `resetsAt` resumes the import.
-- The ledger's channel names follow the route: `bulk`, not `migration`. Migration 0058 is not pushed, so it is
-  edited in place rather than followed by a rename.
-- `importAllowancePolicy.ts` counts each channel's rows against that channel's limit. On bulk, the limit is the
-  cook's plan's.
+  never answers `IMPORT_QUOTA_EXCEEDED`, which is paste's refusal. The view's `allowance` carries the cook's limit,
+  what the window used, and `resetsAt`. Each item still unpaid shows `waitingForAllowance`. The next call after
+  `resetsAt` resumes the import.
 
 ### 9. Each recipe carries its own source statement, and the statement sets its provenance
 
@@ -319,10 +320,13 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   cook's own statement sets it, and the stored statement and citation are what back the label. A cook's pasted web link
   (`statement` on `POST /api/v1/recipes`, ADR-0089) sets the same label in the same way. ADR-0023 names the exception. `imported_paid` and `imported_physical` are set the same way, from the statement, and stay
   undeclarable on `POST /api/v1/recipes`.
-- **The cook still chooses Public or Private.** The import flow asks once for the whole import, and the review wizard
+- **The cook chooses Private, Public or Both** (ADR-0093 §2). Public means a Commise-written version, and Both keeps
+  the private copy beside it. If the rewrite cannot run, only Private is offered. Until the Commise-written version
+  ships, the table above stands for the cook's own copy. The import flow asks once for the whole import, and the review wizard
   can change it per recipe, the way the editor's visibility field does. The visibility policy (`visibilityPolicy.ts`)
-  decides whether each choice is allowed for that recipe's label, as the table shows. A recipe whose source is not a
-  public web page cannot be public. That is FR-014a's own rule.
+  decides whether each choice is allowed for that recipe's label, as the table shows. The cook's copy of a recipe whose
+  source is not a public web page cannot be public. That is FR-014a's own rule. Its public form is the Commise-written
+  version (ADR-0093).
 - **A free cook has 50 private slots** (ADR-0073). Every recipe a free cook holds as private uses one, book and
   paid-site recipes included. A Premium cook has no limit. A free cook keeps a book, paid-site or web recipe private
   only while a slot is free (ADR-0077 §6, ADR-0089 §5).
@@ -330,10 +334,9 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   the cook's private recipes in review, because each holds its slot. When the private items left exceed the free
   slots, it saves no more private items and warns the cook. The cook chooses to stop there, or to make the rest
   public: one list of the remaining recipes with their sources, which the cook may untick, and one confirmation that
-  records a separate statement for each recipe. A book, paid-site or web item can never go public, so for it the choice
-  is skip or stop. The pause is derived from the live count, and the cook's choice is
+  records a separate statement for each recipe. The private copy of a book, paid-site or web item can never go public,
+  so for it the choice is skip or stop. The pause is derived from the live count, and the cook's choice is
   stored on the item.
-- **Counsel confirms the statement's wording before launch**, both forms included. It is on 016 FR-050's list.
 - **A cook who chooses Public for a public web recipe is refused** (ADR-0089 §5). The item is held under
   "Visibility not allowed" until the cook chooses Private or changes the statement. The import never changes the
   choice or edits the recipe to get round the rule.
@@ -381,7 +384,7 @@ is reached, this path does not wait for the budget to return.
   and `bound_by` follows the food through every later save.
 - One read model, three mappings. The paste view, a saved line's badge and the import flag all read the one
   classifier, so the three surfaces cannot disagree about what a verdict means.
-- The allowance now has two channels in one table. Paste and bulk import never borrow from each other.
+- Paste and bulk import draw on one allowance, recorded in one table.
 - With the budget spent, a bulk import keeps working. Its lines are saved as written and wait under "to check" for
   the cook. Nothing waits for the next month.
 - The `/api/v1/import` prefix now holds a resource, so a later single-recipe channel under it must be a literal word
@@ -414,15 +417,15 @@ is reached, this path does not wait for the budget to return.
   owes both: a spent budget makes `bindingOf` keep every line without a cook choice as written, and the "to check"
   list covers those lines.
 - **A large library takes days.** At 1,000 recipes a rolling day (a paid plan), 017 SC-004's 2,000-recipe export
-  finishes on the second day at the earliest. On Free's 200 a day it takes ten days.
+  finishes on the second day at the earliest. On Free's 200 a day it takes ten days. A paste on the same day uses the
+  same allowance.
 
 - **A purge drops open "to check" lines.** That list is derived from the snapshot. When an import is purged, its
   lines that still wait for the cook leave the list and the count. The saved recipe keeps the line as the import left
   it. This follows the owner's ruling literally, and it is open for the owner. To keep those lines findable, the purge
   needs a rule that spares an import with open lines.
-- **A free cook out of slots is paused on a book or paid-site item.** ADR-0082 §2 lets such a recipe go public as a
-  facts card, which uses no slot, so the import should offer the card and not pause. The facts card is not built, so
-  the import pauses every private item when no slot is free. This follows ADR-0073 §8 until the card exists.
+- **A free cook out of slots is paused on a book or paid-site item.** The import pauses every private item when no slot
+  is free (ADR-0073 §8). A Commise-written public version does not free the private copy from its slot (ADR-0093 §8).
 - **One very large import can outlast a purge statement.** The purge deletes 3 imports per statement, and each one
   takes its items and lines with it by cascade. A file of any size is accepted. So one import that holds tens of
   thousands of recipes can make a single statement run past the tick's time. The tick then fails, and the next tick
@@ -433,7 +436,7 @@ is reached, this path does not wait for the budget to return.
 - Rename the module folder `src/migrations/` to `src/import/`, so it follows the route. It also sits beside
   `src/database/migrations/`, where "migrations" means schema migrations.
 - Edit migration 0058 in place: channel `bulk` for bulk import, and change the comments that say a migration file is
-  one unit. Split the allowance policy by channel, with 200 for paste and 1,000 for bulk.
+  one unit. Count every channel against the one allowance, and exempt test principals (ADR-0093).
 - Add the `budgetSpent` review value and its worker outcome, the `reviewBudgetSpent` reason, and the CRF-only landing
   on a ceiling denial. Each needs a test that fails on a return of the old transient behaviour.
 - Set the provenance label from the per-recipe statement (§9), and store the statement and citation with the
@@ -444,14 +447,9 @@ is reached, this path does not wait for the budget to return.
 
 ## Related work
 
-- **URL import is a separate flow** (004, owner ruling, second round). Before it imports a page, the server checks the
-  source page's copyright or licence and decides public, private, or block. An allowed-public link is stored as
-  `imported_public`. A link allowed only as private is stored as `imported_paid`, private-only on every plan. A
-  free cook keeps it private with no Premium and no edit, within their 50 slots (ADR-0073). A blocked link is not
-  imported. 004's spec records the
-  ruling near FR-008.
-  This ADR does not design that check, and bulk import does not use it: in bulk import, the cook's statement sets the
-  label (§9).
+- **URL import.** A link import fetches the page on the cook's device first and on the server if that fails (spec
+  004, ADR-0093 §2, owner ruling 2026-11-15). Detection on a paste never fetches. Every import goes through one
+  pipeline with source detection first.
 
 ## Alternatives
 

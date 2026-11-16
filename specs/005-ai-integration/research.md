@@ -85,15 +85,15 @@
 
 The BYOK model has become the dominant pattern for AI SaaS targeting technical/power users. The economics are clear:
 
-| Aspect         | Platform-Provided AI           | BYOK Model                           | Hybrid          |
-| -------------- | ------------------------------ | ------------------------------------ | --------------- |
-| Gross margin   | 40–55% (API costs eat revenue) | ~80% (pure software margin)          | Mixed           |
-| User trust     | Data routes through your infra | Direct provider connection           | User choice     |
-| Scale risk     | Power users can bankrupt you   | Zero variable cost to platform       | Quota + BYOK    |
-| Audience       | Mass market                    | Technical users                      | Both            |
-| GDPR liability | You are data controller for AI | User is controller of AI interaction | Depends on mode |
+| Aspect       | Platform-Provided AI           | BYOK Model                           | Hybrid          |
+| ------------ | ------------------------------ | ------------------------------------ | --------------- |
+| Gross margin | 40–55% (API costs eat revenue) | ~80% (pure software margin)          | Mixed           |
+| User trust   | Data routes through your infra | Direct provider connection           | User choice     |
+| Scale risk   | Power users can bankrupt you   | Zero variable cost to platform       | Quota + BYOK    |
+| Audience     | Mass market                    | Technical users                      | Both            |
+| GDPR role    | You are data controller for AI | User is controller of AI interaction | Depends on mode |
 
-**The liability shift is critical**: With a shared platform key, you own GDPR compliance for all AI-generated data and are liable for ToS violations. With BYOK, the API key holder (the user) is the controller of that AI interaction. Your role shifts to a processor. This changes your Terms of Service and DPA obligations substantially.
+**The controller role shifts**: With a shared platform key, you own GDPR compliance for all AI-generated data. With BYOK, the API key holder (the user) is the controller of that AI interaction. Your role shifts to a processor. This changes your Terms of Service and DPA obligations substantially.
 
 ### 2.2 Recommended Architecture: Hybrid Model
 
@@ -486,7 +486,7 @@ await auditLog.record({
 
 With BYOK, the user's data goes directly from KitchenSink's backend to the user's own API account at OpenAI/Anthropic. The user is the data controller for that AI interaction. This:
 
-- Shifts GDPR controller liability to the user for the AI processing step
+- Makes the user the GDPR controller for the AI processing step
 - Eliminates the need for KitchenSink to execute a DPA on behalf of users (users have their own agreements with providers)
 - Increases user trust — their data doesn't pass through a third-party intermediary
 
@@ -586,7 +586,7 @@ interface AiProvider {
 | External agent protocol      | MCP with OAuth 2.1 + PKCE via Clerk                         | Industry standard, Clerk already in stack (feature 002)                 |
 | AI generation pattern        | Async (SQS queue) + SSE streaming option                    | Consistent with existing queue infrastructure, handles long generations |
 | PII in prompts               | Sanitization layer + pseudonymization before API calls      | GDPR compliance, ZDR request to OpenAI                                  |
-| Nutrition advice             | Hard guardrails in system prompt, no medical claims         | Liability, EU AI Act limited-risk classification                        |
+| Nutrition advice             | Hard guardrails in system prompt, no medical claims         | Safety, EU AI Act limited-risk classification                           |
 | ChefGPT / food-specific APIs | Do not use                                                  | Storage prohibition in ToS, no BYOK, vendor lock-in                     |
 
 ---

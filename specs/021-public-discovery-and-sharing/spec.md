@@ -689,9 +689,11 @@ Session 2026-11-15.)_
   per publisher, and aggregator sites follow the normal rules (Owner ruling, 2026-11-15, `016-FR-030a`). The cook's
   private copy uses a slot even when a public version exists (product decision, 2026-11-15). A second import of the
   same page is matched by its normalised source address (`sourceLinkKey`, product decision, 2026-11-15).
-- **Open, for the owner:**
-    - whether one source page can have more than one public version, and which one is canonical (FR-014d, FR-026a)
-    - whether `Recipe` structured data on a version carries `isBasedOn` for a free site (FR-023)
+- **One public version per source page** (Owner ruling, 2026-11-15). A later cook who chooses Public is pointed to the
+  existing public version, and can still keep their private copy (FR-026a).
+- **`isBasedOn` for free sites only** (product decision, 2026-11-15). A public version's `Recipe` data carries
+  `isBasedOn`, pointing at the source page, only when the source is a free site, never a paid site. It matches the
+  credit rule (FR-023).
 
 ## Requirements _(mandatory)_
 
@@ -1025,8 +1027,9 @@ Session 2026-11-15.)_
 - **FR-026a** _(added 2026-11-03, owner ruling O4, ADR-0082)_: We MUST NOT publish thin duplicates. Where several
   public pages describe one dish from the same source page, one canonical page wins and the others declare it as their
   canonical address. A clone stays `noindex` with its own canonical (FR-005, FR-026). Two cooks' texts MUST never be
-  merged. _(Amended 2026-11-15.)_ Which page wins when a Commise-written version and a cook's own open recipe meet, and
-  whether one source page can have more than one version, are open owner questions (Session 2026-11-15).
+  merged. _(Amended 2026-11-15.)_ A source page has one public version (Owner ruling, 2026-11-15). A later cook who
+  chooses Public for the same page is pointed to that version and can still keep a private copy. A cook's own open
+  recipe from the same page is a separate recipe and declares the public version as its canonical address.
 - **FR-027**: Sitemaps MUST list every indexable recipe and creator page, and nothing else, with a last-modified date
   equal to the last change to what the page shows. They MUST be split so no file passes 50,000 addresses, and MUST be
   reachable from a sitemap index. A page that becomes indexable MUST appear within one hour, and one that stops MUST

@@ -245,7 +245,7 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     - **A paste is never fetched.** Source detection on a pasted page reads only what was pasted.
     - **A link is fetched on the device first** (owner ruling, 2026-11-15). For an import from a link, including a link
       shared from a social app, the cook's device fetches the page. If that fails, the server fetches it (`FR-008`,
-      `FR-023`). A web browser usually cannot fetch another site's page, so on web the server fetch usually runs.
+      `FR-023`). A web browser usually cannot fetch another site's page, so on web the server fetch usually runs. The server fallback never runs for a known paid site: if the device cannot fetch a paid site's page, the cook is asked to paste it (product decision, 2026-11-15). A later cook who chooses Public for a page that already has a public version is pointed to it, and can still keep a private copy (Owner ruling, 2026-11-15).
     - **Extraction runs on the cook's device, in tiers:** schema.org `Recipe` data first, then microdata, then a
       rule-based reader. Each tier gives a strict yes or no, and any doubt is a no.
     - **On-device AI is a tier after the deterministic ones** (owner ruling, 2026-11-15). When schema.org, microdata and

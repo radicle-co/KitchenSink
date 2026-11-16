@@ -389,7 +389,8 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
     > only.
     > **Amended, Owner ruling, 2026-11-15.** A link the cook imports, including a link shared from a social app, is
     > fetched on the cook's device first, and by our server if the device cannot fetch it (`004-FR-064`). On web the
-    > server fetch usually runs. A paste is never fetched. The per-market private-copy switch is withdrawn: a cook's
+    > server fetch usually runs. The server fallback never runs for a known paid site; the cook is asked to paste
+    > the page instead (`004-FR-064`). A paste is never fetched. The per-market private-copy switch is withdrawn: a cook's
     > private copy keeps the source's wording in every market (`016-FR-077`).
 - **FR-001b** `→ 004 ADDED`: System MUST monitor extraction success **per source platform**, MUST surface a
   defined degradation path when one platform stops working, and MUST NOT let any single platform be

@@ -39,7 +39,10 @@ public form that Commise writes, and settled what the cook keeps privately.
 - Every import goes through one pipeline, with source detection first (spec 004).
 - Owner ruling, 2026-11-15: detection on a paste never fetches a page. A link import, including a link shared from a
   social app, first fetches the page on the cook's device. If that fails, the server fetches it. A web browser can
-  rarely fetch another site, so on web the server fetch usually runs.
+  rarely fetch another site, so on web the server fetch usually runs. The server fallback never runs for a known paid site: if the device cannot fetch a paid site's page, the cook is asked to paste it (product decision, 2026-11-15).
+- Owner ruling, 2026-11-15: a source page has one public version. A later cook who chooses Public is pointed to
+  the existing version and can still keep a private copy. Its structured data carries `isBasedOn` for a free-site
+  source only, never a paid site (product decision, 2026-11-15).
 - Owner ruling, 2026-11-15: extraction tries the deterministic device tiers first, then an on-device AI tier, then
   server AI. An account setting turns the on-device AI tier on or off. It is on by default on mobile and off by default
   on web. The operating system's built-in text recognition is always allowed.

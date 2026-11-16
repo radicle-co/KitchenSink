@@ -38,14 +38,22 @@ describe('collapseBracketGroups', () => {
     it('is idempotent, over every string of up to 6 characters from ( ) [ ] a , and a space', () => {
         const alphabet = ['(', ')', '[', ']', 'a', ',', ' '];
         let strings = [''];
+        const notIdempotent: string[] = [];
 
+        // One assertion over the whole space, not one per string: about 137,000 `expect` calls took over 5 s on a busy CI
+        // runner, and the list of every failing string is the more useful failure.
         for (let length = 0; length < 6; length += 1) {
             strings = strings.flatMap((text) => alphabet.map((char) => text + char));
-            strings.forEach((text) => {
+
+            for (const text of strings) {
                 const once = collapseBracketGroups(text);
 
-                expect(collapseBracketGroups(once)).toBe(once);
-            });
+                if (collapseBracketGroups(once) !== once) {
+                    notIdempotent.push(text);
+                }
+            }
         }
+
+        expect(notIdempotent).toEqual([]);
     });
 });

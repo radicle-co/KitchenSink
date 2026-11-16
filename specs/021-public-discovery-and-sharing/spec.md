@@ -592,7 +592,8 @@ _(Superseded in part, 2026-11-15: every card reading in this session is withdraw
 
 ### Session 2026-11-03
 
-_(Superseded in part, 2026-11-15: every card reading in this session is withdrawn. See Session 2026-11-15.)_
+_(Superseded, 2026-11-15. Every reading in this session about facts cards, linked cards, "Public is the facts card
+only" and per-site or per-source caps is withdrawn: there are no cards and no caps. See Session 2026-11-15.)_
 
 - **The rulings.** The owner ruled on recipe rights again on 2026-11-03. ADR-0082 records them ("Recipes are an open
   library: facts, cooks' words and gated public domain open to the web"). It amends ADR-0077, ADR-0072, ADR-0023,
@@ -687,11 +688,11 @@ Session 2026-11-15.)_
 - **Decided 2026-11-15.** The linked card is retired, and creator pages and sale listings never show a
   Commise-written version (Owner ruling, 2026-11-15). There are no caps on public versions, per site, per source or
   per publisher, and aggregator sites follow the normal rules (Owner ruling, 2026-11-15, `016-FR-030a`). The cook's
-  private copy uses a slot even when a public version exists (product decision, 2026-11-15). A second import of the
-  same page is matched by its normalised source address (`sourceLinkKey`, product decision, 2026-11-15).
+  private copy uses a slot even when a public version exists (owner ruling, 2026-11-15). A second import of the
+  same page is matched by its normalised source address (`sourceLinkKey`, owner ruling, 2026-11-15).
 - **One public version per source page** (Owner ruling, 2026-11-15). A later cook who chooses Public is pointed to the
   existing public version, and can still keep their private copy (FR-026a).
-- **`isBasedOn` for free sites only** (product decision, 2026-11-15). A public version's `Recipe` data carries
+- **`isBasedOn` for free sites only** (owner ruling, 2026-11-15). A public version's `Recipe` data carries
   `isBasedOn`, pointing at the source page, only when the source is a free site, never a paid site. It matches the
   credit rule (FR-023).
 

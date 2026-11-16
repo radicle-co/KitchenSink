@@ -88,7 +88,7 @@ This fails closed on purpose: the Commise-written version is not built (ADR-0093
 The editor's draft checkpoints can create the server row before the cook pastes the link. So `PATCH` takes `statement`:
 a statement sets the source, `null` removes it, absent leaves it. The rule is one pure policy,
 `evaluateSourceCorrection`. Its lock is ONE pure rule in `recipe-core`, `sourceIsCorrectable`, which the editor's Source
-row reads too. The cook's statement stays editable before and after the first publish (product decision,
+row reads too. The cook's statement stays editable before and after the first publish (owner ruling,
 2026-11-15). Source evidence the import detected is a separate record: it is append-only, and no route lets the cook
 edit or clear it. The statement can no longer change in either of these two cases:
 

@@ -910,7 +910,7 @@ predicted Commise result.
 - _(Amended 2026-11-15, owner ruling, ADR-0093.)_ A recipe copied from someone else's page, book or paid site is never
   public in its source's wording, whatever the tier, unless its source is on the copy-outright allowlist
   (`004-FR-065`). Its public form is a Commise-written version. No tier changes this. The cook's private copy uses a
-  slot even when a public version exists (product decision, 2026-11-15). _(Was: its public form was a facts card that used no
+  slot even when a public version exists (owner ruling, 2026-11-15). _(Was: its public form was a facts card that used no
   slot. Facts cards are withdrawn.)_
 - **Marketplace payments are out of scope for v1 — but entitlement gating is NOT.** Keep these separate;
   conflating them over-blocks downstream work.

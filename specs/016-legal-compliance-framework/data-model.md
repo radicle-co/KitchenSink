@@ -276,8 +276,8 @@ Withdrawn. Owner ruling, 2026-11-15: there are no caps on public versions (spec 
 
 ## 13. The fetch-signal log (the fetching service, `FR-024a`) _(added 2026-11-03, ADR-0082)_
 
-_(Withdrawn, Owner ruling, 2026-11-15.)_ This log is not built. How a link import's fetch treats a page is `004`'s
-(`004-FR-064`). The table below is kept only as the record of what was withdrawn. Publisher opt-outs are spec `FR-081`.
+_(Restored, Owner ruling, 2026-11-15: link import fetches again, `004-FR-064`.)_ Every server fetch of a link import
+writes one row (spec `FR-024a`, `004-FR-023`). A device fetch writes none. Publisher opt-outs are spec `FR-081`.
 
 `fetch_signal_records`, one row per server fetch of a page:
 

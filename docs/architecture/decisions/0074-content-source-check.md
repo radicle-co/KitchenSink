@@ -310,9 +310,7 @@ recipe that is already public.
   the price of not showing a cook whether an exact copy exists.
 - **The queue has no automatic way out.** With one reviewer, a busy week, a spent AI budget or one curated book can
   hold recipes for a long time. The per-cook cap only defers.
-- **Pre-launch review items stay open** (`016-FR-050`): the standard for a reviewer's clearance, a statement for a pending hold, the generic
-  match fact under DSA Art. 17(3)(b), whether 14 days is undue delay for a donation, and a statement owed to an erased
-  cook.
+- **Some wording and timing items wait for the pre-launch review** (`016-FR-050`).
 
 ## Alternatives
 

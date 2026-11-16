@@ -39,16 +39,16 @@ public form that Commise writes, and settled what the cook keeps privately.
 - Every import goes through one pipeline, with source detection first (spec 004).
 - Owner ruling, 2026-11-15: detection on a paste never fetches a page. A link import, including a link shared from a
   social app, first fetches the page on the cook's device. If that fails, the server fetches it. A web browser can
-  rarely fetch another site, so on web the server fetch usually runs. The server fallback never runs for a known paid site: if the device cannot fetch a paid site's page, the cook is asked to paste it (product decision, 2026-11-15).
+  rarely fetch another site, so on web the server fetch usually runs. The server fallback never runs for a known paid site: if the device cannot fetch a paid site's page, the cook is asked to paste it (owner ruling, 2026-11-15).
 - Owner ruling, 2026-11-15: a source page has one public version. A later cook who chooses Public is pointed to
   the existing version and can still keep a private copy. Its structured data carries `isBasedOn` for a free-site
-  source only, never a paid site (product decision, 2026-11-15).
+  source only, never a paid site (owner ruling, 2026-11-15).
 - Owner ruling, 2026-11-15: extraction tries the deterministic device tiers first, then an on-device AI tier, then
   server AI. An account setting turns the on-device AI tier on or off. It is on by default on mobile and off by default
   on web. The operating system's built-in text recognition is always allowed.
 - Owner ruling, 2026-11-15: every user-facing import draws on one allowance: 200 a day on Free and 1,000 a day on a
   paid plan. Test principals have no limit.
-- A second import of the same page is matched by its normalised source address (`sourceLinkKey`) (product decision,
+- A second import of the same page is matched by its normalised source address (`sourceLinkKey`) (owner ruling,
   2026-11-15).
 
 ### 3. Which imports are rewritten
@@ -58,7 +58,8 @@ not on the copy-outright allowlist. The second case is a recipe that the reviewe
 allowlist has four entries:
 
 - The cook's own verified site (ADR-0078).
-- A page whose structured data states an open licence.
+- A page whose structured data states an open licence we honour: CC0, CC BY, CC BY-SA or a public-domain mark. A
+  licence with NonCommercial or NoDerivatives terms does not count.
 - A public-domain work (`016-FR-015k`).
 - A US government work.
 
@@ -87,15 +88,22 @@ A recipe from an allowlisted source can be shown as it is, on its own terms. It 
 - A paid site's signature recipe is never published from that one source.
 - Publisher opt-outs are honoured (`016`).
 - Paid content is held back for 6 months before any public version. The 6 months count from the page's publication
-  date, or, when that is unknown, from the first import of that page by any cook (product decision, 2026-11-15).
+  date, or, when that is unknown, from the first import of that page by any cook (owner ruling, 2026-11-15).
 - The cook's private copy keeps the site's wording, and households never see it. No share or export feature carries
-  that wording, except the account data export, which includes it as the cook's own data (product decision,
+  that wording, except the account data export, which includes it as the cook's own data (owner ruling,
   2026-11-15).
 
 ### 6. No facts cards
 
 There are no facts cards anywhere. The linked card of ADR-0077 §3 is retired with them. No surface shows a public
 projection of an import's facts beside a link to the source.
+
+### 6a. A per-market switch for public versions
+
+Owner ruling, 2026-11-15: Commise-written public versions sit behind one per-market switch. Every market is on at
+launch. Turning a market off stops new public versions there and hides existing ones in that market; private copies
+are unaffected. There is no human-review gate for publishers before a version goes public; spec 020's hold and "Report
+a problem" still apply. This replaces the pilot gate that ADR-0082 §6 once held.
 
 ### 7. Households
 
@@ -108,9 +116,9 @@ it, the household sees the Commise-written version. If no such version exists, t
   User-recipe aggregator sites follow the same rules as any other site.
 - Owner ruling, 2026-11-15: there is no special handling and no list for hosts of unauthorised copies.
 - The cook's private copy uses a private slot (ADR-0073), even when a public Commise-written version of it exists
-  (product decision, 2026-11-15).
+  (owner ruling, 2026-11-15).
 - The cook's statement of where a recipe is from stays editable, also after the first publish. Detected source
-  evidence stays locked and append-only (ADR-0089 §6, product decision, 2026-11-15).
+  evidence stays locked and append-only (ADR-0089 §6, owner ruling, 2026-11-15).
 - Owner ruling, 2026-11-15: a person may use the app from the higher of 13 and the market's digital-consent age
   (`016-FR-008`). Publishing needs age 16 or over everywhere.
 - Owner ruling, 2026-11-15: a Commise-written version is an open recipe, readable signed out. Creator pages and sale

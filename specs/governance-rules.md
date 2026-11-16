@@ -673,11 +673,6 @@ The `Circle` entity is owned by Feature 011. The `CreatorProfile` entity is owne
   gate previously placed on making a clone private is **removed**, consistent with v3.0.0's withdrawal of the
   premium-recipe model.
 
-    ⚠️ Requiring a modification MUST NOT be presented, internally or externally, as a **copyright defence**. A
-    modified copy is a **derivative work**, and a derivative of a protected work still infringes. What makes
-    cloning defensible is AC-014-e's provenance rule and the user content licence (`016-FR-010`); AC-014-g is
-    a corpus-quality rule with a secondary evidentiary benefit and nothing more.
-
 - **AC-014-h**: **A `private` recipe is copyable only by its owner.** No user may clone another user's private
   recipe; the `circle` scope grants **read** access, never a copy. An owner's copy of their own private recipe
   is created `private`, and publishing it later runs AC-014-e.
@@ -697,8 +692,7 @@ licensed, or paywalled against republication. _(Amended 2026-11-15, ADR-0093.)_ 
 the source's wording. A Commise-written version of such a recipe is not a violation (`021-FR-003`). Showing a source's
 wording or photo on it is one.
 Publishing an unmodified clone, cloning another user's private recipe, destroying a clone because the original
-was deleted, or leaving an erased user's name on a surviving clone are each violations of AC-014-g/h/i — as is
-citing the modification requirement as a copyright defence.
+was deleted, or leaving an erased user's name on a surviving clone are each violations of AC-014-g/h/i.
 
 ### Current State (2026-11-15): public versions of imported recipes (ADR-0093)
 
@@ -709,7 +703,7 @@ citing the modification requirement as a copyright defence.
 - **AC-014-f holds for the private copy.** It shows the source author's name, and stored credit and copyright notices
   are never stripped. A free-site Commise-written version names and links the source domain with "Not affiliated."; a
   paid-site version names no site (`021-FR-014`).
-- **The private copy uses a slot** even when the recipe also has a public Commise-written version (product decision,
+- **The private copy uses a slot** even when the recipe also has a public Commise-written version (owner ruling,
   2026-11-15, ADR-0073). There are no caps on public versions (owner ruling, 2026-11-15, `016-FR-030a`).
 
 ### Current State (2026-11-03): open library (ADR-0082)

@@ -490,12 +490,12 @@ The rights label tells the cook who owns the writing.
       trimmed (`FR-015b`). Family recipes are the exception and can be public as themselves (label 5).
     - "Keep it" means a private copy. A free cook keeps it within the 50 private slots (ADR-0073), like any private
       recipe. That includes label 3: the owner ruled on 2026-10-29 that any cook can keep a web import private, using a
-      slot (ADR-0077 §6, `001` C-004). The cook always sees their own full copy, with the source author's name (`FR-077`). _(Amended, Owner ruling, 2026-11-15.)_ The 2026-11-03 rule that a recipe with a public facts card uses no slot fell with the facts card. The private copy uses a slot even when the recipe also has a public Commise-written version (product decision, 2026-11-15).
+      slot (ADR-0077 §6, `001` C-004). The cook always sees their own full copy, with the source author's name (`FR-077`). _(Amended, Owner ruling, 2026-11-15.)_ The 2026-11-03 rule that a recipe with a public facts card uses no slot fell with the facts card. The private copy uses a slot even when the recipe also has a public Commise-written version (owner ruling, 2026-11-15).
     - "Share with the household" means the cook's household under 017. The household sees a read-only view
       (`017-FR-030d`). For a paid site's own words it sees the Commise-written version if
       one exists, otherwise nothing (`FR-080`, Owner ruling, 2026-11-15).
     - "Export" means the cook's own data export (`FR-034`). It is for the cook's own use, and it includes a paid site's
-      own words. No other share or export feature carries them (`FR-080`, product decision, 2026-11-15).
+      own words. No other share or export feature carries them (`FR-080`, owner ruling, 2026-11-15).
     - A recipe from a social video is label 3. The creator owns the video, its voice-over and its caption.
     - A recipe in review or not approved under 020 keeps its label. The 020 state is a separate fact.
     - _(amended 2026-11-03, owner ruling O16, ADR-0082)_ The owner statement "This is my recipe, from my site or
@@ -607,7 +607,7 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
   append-only. The cook cannot edit or clear it, and no control lets them.
 - **FR-074**: **The cook's statement.** The cook's own statement of where a recipe is from stays editable. Each change
   is recorded under `FR-076`. The statement stays editable after the first publish, while the detected evidence stays
-  locked (`FR-073`, ADR-0089 §6) (product decision, 2026-11-15).
+  locked (`FR-073`, ADR-0089 §6) (owner ruling, 2026-11-15).
 - **FR-075**: **When we ask.** The app asks "Where is this recipe from?" only when part of the recipe was pasted and the
   cook gave no statement. The choices are: I wrote this; From a web page; From a cookbook or magazine; From another
   person; Keep it private. Every other Public action shows a passive confirmation line instead of a question. Its
@@ -642,9 +642,9 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
     - A paid site's signature recipe is never published from that single source.
     - Publisher opt-outs are honoured (`FR-081`).
     - Paid content is held back from public versions for 6 months, counted from the page's publication date, or, when
-      that is unknown, from the first import of that page by any cook (product decision, 2026-11-15).
+      that is unknown, from the first import of that page by any cook (owner ruling, 2026-11-15).
     - The cook's private copy keeps the site's wording. No share or export feature carries that wording, apart from the
-      cook's own account data export (`FR-034`), which includes it (product decision, 2026-11-15). It is not shared
+      cook's own account data export (`FR-034`), which includes it (owner ruling, 2026-11-15). It is not shared
       with the household. The household sees the Commise-written version if one exists, otherwise nothing.
 - **FR-081**: **Publisher opt-outs.** A publisher opts out through a form, reachable without an account, or by staff
   adding it to the opt-out list. The list is data, with an audit trail. An opt-out leaves every cook's private import
@@ -714,8 +714,13 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
   to receive notices, and MUST record any notice it declines to process along with the reason.
   _(Amended 2026-11-03, ADR-0082.)_ `FR-066` states how a misuse finding can delay processing without refusing to
   receive.
-- **FR-024a** _(added 2026-10-29; replaced, Owner ruling, 2026-11-15)_: Publisher opt-outs are `FR-081`. The fetch-signal
-  log is withdrawn ([data-model.md §13](./data-model.md)). How a link import's fetch treats a page is `004`.
+- **FR-024a** _(added 2026-10-29; amended, Owner ruling, 2026-11-15)_: Publisher opt-outs by form and staff list are
+  `FR-081`. Every server fetch of a link import (`004-FR-064`) reads and honours the site's machine-readable signals:
+  `robots.txt` per RFC 9309, and the data-mining opt-outs (TDMRep, `noai` and `noimageai` tags, blocks on AI crawlers,
+  and Content Signals `ai-input=no`), as `004-FR-023` states. Each server fetch writes one row to the fetch-signal log,
+  recording what each signal said, including "none found" ([data-model.md §13](./data-model.md)). The fetcher never
+  passes a paywall, login or meter, never uses a cook's password or cookies, never poses as another bot and never
+  rotates addresses.
 
 - **FR-025**: The operator MUST maintain a registered designated agent and MUST treat its three-yearly renewal
   as a monitored obligation with an owner and an alert, so the registration never lapses.
@@ -898,7 +903,7 @@ They fill gaps in FR-016 to FR-026 and do not repeat them._
 
     **Import guardrails** _(owner ruling 2026-10-25, restored 2026-10-27)_. Every import channel is open on every plan
     (`004-FR-028`). A book or paid-site recipe kept private uses one of a free cook's 50 private slots, and Pro removes that limit
-    for every private recipe alike ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)). The private copy uses a slot even when the recipe also has a public Commise-written version (product decision, 2026-11-15).
+    for every private recipe alike ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)). The private copy uses a slot even when the recipe also has a public Commise-written version (owner ruling, 2026-11-15).
     So that imported content is never the draw:
     1. Pro is never marketed, priced or described in terms of importing. No "import your cookbooks with Pro", no
        import-specific offer, and no Pro benefit that names a source.
@@ -923,8 +928,8 @@ They fill gaps in FR-016 to FR-026 and do not repeat them._
 - **FR-030a** _(added 2026-10-29; rewritten, Owner ruling, 2026-11-15)_: There are no caps on public versions: no
   per-site, per-source, per-publisher or distinctive-recipe cap. A user-recipe aggregator site follows the same rules as
   any other site.
-    - A surface MUST NOT list, browse, filter, rank or search public versions by source. A source name links only to
-      the source site, never to a Commise list.
+    - A source name on a public version links to the source site (`FR-077`). _(The earlier rule against listing or
+      searching public versions by source is dropped with the caps, Owner ruling, 2026-11-15.)_
     - A book's recipes are never shown in the book's order or as the book's collection.
     - Two cooks' texts are never merged into one.
 
@@ -959,7 +964,7 @@ They fill gaps in FR-016 to FR-026 and do not repeat them._
   _(amended 2026-11-03, owner ruling, ADR-0082)_ The export is offered from launch. _(Amended 2026-11-03, owner ruling O12, ADR-0082.)_ The personal
   export of a cook's own recipes stays. It is not a public bulk download, and no public bulk route exists for now. It includes the cook's private imported
   copies, with their source's wording, paid sites included, because it goes to that cook. It never includes another
-  cook's private recipe (product decision, 2026-11-15).
+  cook's private recipe (owner ruling, 2026-11-15).
 - **FR-035**: The system MUST provide a consent-withdrawal surface covering every purpose recorded under
   `FR-007`, and dependent features MUST degrade gracefully rather than fail when a consent is withdrawn.
 - **FR-036**: Processing of special-category data — dietary restriction, allergy, health goal, religious

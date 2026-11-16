@@ -8,10 +8,9 @@ owner's rulings on it, the same day. The decision is recorded in
 two new statements and a rights-only review scope, recorded in
 [ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md) Amended 2026-10-29 for the owner's ruling on [026](../026-chef-spaces/spec.md) Q1: a live site claim
 clears a hit on the recipe's own page (`FR-012g`).)
-**Input**: User description, owner, 2026-10-26: "We will need an automated review process checking all new content -
-that needs to be a new feature and spec ... that uses an AI agent to check to see if the content of a recipe is from a
-paid site, copyrighted content, a book, etc." Context ruling, same day: "If we can tell then we can prevent them from
-going public; otherwise we have to rely on the user telling us that it's ok to make them public."
+**Input**: Owner request, 2026-10-26. An automated check reviews every recipe headed public, with an AI agent among its
+steps, to tell whether its content comes from a paid site, a book or another source the cook does not own. Where the
+check can tell, the recipe does not go public. Where it cannot, the cook's own statement decides.
 
 ## Dependencies
 
@@ -484,7 +483,7 @@ one.
   The decision records 016 requires are kept for their period (FR-036).
 - **One cook sends a very large number of recipes to a person.** Each cook has a cap on open referrals. Past it, new
   referrals wait as deferred and open one at a time as the cook's open ones close. The cap never publishes anything
-  (FR-030b).
+  (FR-030b). This cap is kept on purpose: the 2026-11-15 "no caps" ruling covers caps on public content only.
 - **The cook edits a recipe that is in review.** Saving a change to the text, photos or source starts a new check and
   replaces the open referral. The editor warns before the save. The recipe keeps its place in the queue, so editing
   never pushes it back, and it never keeps a recipe in review for ever (FR-030a).

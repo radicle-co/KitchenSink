@@ -141,12 +141,19 @@ describe('cookingReadSourceOf: a settled recipe and who is looking, as the read 
         expect(made.recipe).toEqual({ id: 'r1', title: detail.title, status: detail.status, steps: detail.steps });
     });
 
-    it("offers no recipe to cook when the query's last read failed, so a fresh mount shows the failure", () => {
-        const made = cookingReadSourceOf(detail, { id: 'user-1', known: true }, retry, { gone: true, offline: false });
+    it('offers no recipe to cook when the last read was a 404, so a fresh mount shows it gone', () => {
+        const made = cookingReadSourceOf(detail, { id: 'user-1', known: true }, retry, true);
 
         expect(made.recipe).toBeUndefined();
         expect(made.failure).toEqual({ gone: true, offline: false });
         expect(cookingReadOf(made)).toEqual({ kind: 'gone' });
+    });
+
+    it('keeps the recipe when the last read failed for any other reason (S43)', () => {
+        const made = cookingReadSourceOf(detail, { id: 'user-1', known: true }, retry, false);
+
+        expect(made.recipe).toBeDefined();
+        expect(made.failure).toBeUndefined();
     });
 
     it.each([

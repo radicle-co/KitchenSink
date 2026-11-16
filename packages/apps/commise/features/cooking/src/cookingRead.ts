@@ -49,25 +49,25 @@ export function cookingReadOf({ recipe, failure, viewer, retry }: CookingReadSou
  * @param recipe - The settled recipe.
  * @param viewer - Who is looking, by the detail page's one viewer rule, and whether that is known yet.
  * @param retry - Reads the recipe again.
- * @param failure - Why the query's LAST read failed, when it did: the cache still holds the earlier recipe, but a read
- *     that failed has nothing current to cook (po P10: after leaving, the cook link shows gone or failed). The hold in
- *     {@link useCookingRead} keeps a cook already on a step, so only a fresh mount sees the failure.
+ * @param lastReadGone - Whether the query's LAST read was a 404. The cache still holds the earlier recipe, but a recipe
+ *     the service says is gone is not cooked on re-entry (po P10: the cook link shows `gone` or `noSteps` per
+ *     `cookLinkOutcome`; decisions/0001-staff S43). Any other failed read keeps the cached recipe. The hold in
+ *     {@link useCookingRead} keeps a cook already on a step, so only a fresh mount sees it.
  * @returns The facts for {@link useCookingRead}. Pure.
  */
 export function cookingReadSourceOf(
     recipe: RecipeDetail,
     viewer: { readonly id: string | undefined; readonly known: boolean },
     retry: () => void,
-    failure?: CookingReadSource['failure'],
+    lastReadGone = false,
 ): CookingReadSource {
     return {
         recipeId: recipe.id,
         subject: viewer.id,
-        recipe:
-            failure === undefined
-                ? { id: recipe.id, title: recipe.title, status: recipe.status, steps: recipe.steps }
-                : undefined,
-        failure,
+        recipe: lastReadGone
+            ? undefined
+            : { id: recipe.id, title: recipe.title, status: recipe.status, steps: recipe.steps },
+        failure: lastReadGone ? { gone: true, offline: false } : undefined,
         viewer: {
             known: viewer.known,
             isOwner: viewer.known && viewer.id !== undefined && isOwner(recipe, makeViewer({ id: viewer.id })),

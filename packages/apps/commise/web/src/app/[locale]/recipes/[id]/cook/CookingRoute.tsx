@@ -97,14 +97,14 @@ interface SettledCookingProps {
 /**
  * The screen once the read has settled: the recipe, and who is looking at it. `useCookingRead` holds the first ready
  * read, so a later refetch that returns a draft, blank steps or a different status does not move a cook off their step
- * (S20, R-15). A query ERROR with data present never reaches here: the boundary only throws before the first data.
+ * (S20, R-15). The boundary throws only before the first data, so a failed refetch keeps the cached recipe; only a
+ * 404 withholds it on a fresh mount (`lastReadGone`, S43).
  */
 const SettledCooking: FC<SettledCookingProps> = ({ detail, viewer, ways, readAgain }) => {
     const { data: recipe, error } = useSuspenseQuery(detail);
-    // The cache keeps the recipe through a failed refetch; a fresh mount must not cook it (po P10), so the failure is
-    // handed over and the hold keeps only a cook already on a step.
-    const failure = error === null ? undefined : { gone: isNotFoundError(error), offline: !onlineManager.isOnline() };
-    const read = useCookingRead(cookingReadSourceOf(recipe, viewer, readAgain, failure));
+    // The cache keeps the recipe through a failed refetch; only a 404 withholds it on a fresh mount (S43, po P10).
+    const lastReadGone = error !== null && isNotFoundError(error);
+    const read = useCookingRead(cookingReadSourceOf(recipe, viewer, readAgain, lastReadGone));
 
     return <CookingScreen read={read} {...ways} />;
 };

@@ -439,4 +439,22 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
         expect(await screen.findByText(copy)).toBeInTheDocument();
         expect(screen.queryByText(stepOf(1, 4))).not.toBeInTheDocument();
     });
+
+    // Staff S43: only a 404 is a fact about the recipe. Any other failed refetch is a fact about the moment, so a cook
+    // who leaves and comes back (offline in the kitchen, a 5xx) still opens the recipe the cache holds.
+    it('opens again, after leaving, on the cached recipe when the last refetch failed for another reason', async () => {
+        const { client, read, queryClient } = await cookingOnStepThree();
+        read.mockRejectedValue(new Error('network down'));
+        await act(async () => {
+            await queryClient.refetchQueries();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+        expect(screen.getByText(stepOf(3, 4))).toBeInTheDocument();
+
+        cleanup();
+        renderWithRecipeClient(<CookingRoute id="rec_1" />, client, { queryClient });
+
+        expect(await screen.findByText(stepOf(1, 4))).toBeInTheDocument();
+        expect(screen.queryByText('We couldn’t open this recipe')).not.toBeInTheDocument();
+    });
 });

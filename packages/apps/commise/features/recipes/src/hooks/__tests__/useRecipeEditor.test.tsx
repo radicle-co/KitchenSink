@@ -4484,3 +4484,171 @@ describe('a row editor holds the draft’s server checkpoints', () => {
         expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['update']);
     });
 });
+
+/**
+ * ADR-0092: a Publish that ends public asks where the recipe is from, once, after validation and before the slots question;
+ * the answer rides the publishing write; and the passive line is sent only where it is drawn.
+ */
+describe('the source question on Publish (ADR-0092)', () => {
+    const pasted = () => ({ ...complete(), visibility: RecipeVisibility.PUBLIC, pasted: true as const });
+    const authored = {
+        statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } },
+        visibility: RecipeVisibility.PUBLIC,
+    } as const;
+    const book = {
+        statement: { kind: 'book', citation: 'Joy of Cooking', wording: { version: 'statementBook.v1', locale: 'en' } },
+        visibility: RecipeVisibility.PRIVATE,
+    } as const;
+
+    it('⛔ a public Publish after a paste opens the sheet and sends nothing', async () => {
+        const { result, port } = mount();
+
+        act(() => {
+            result.current.setValues(pasted());
+        });
+        let outcome: unknown;
+        act(() => {
+            outcome = result.current.publish('');
+        });
+        await settle();
+
+        expect(outcome).toEqual({ kind: 'statementNeeded' });
+        expect(result.current.statementAsk).toBe(true);
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+    });
+
+    it('a refused Publish is refused first: the sheet does not open over a missing title', async () => {
+        const { result } = mount();
+
+        act(() => {
+            result.current.setValues({ ...pasted(), title: '' });
+        });
+        let outcome: { kind: string } | undefined;
+        act(() => {
+            outcome = result.current.publish('');
+        });
+
+        expect(outcome?.kind).toBe('refused');
+        expect(result.current.statementAsk).toBe(false);
+    });
+
+    it('a typed recipe is never asked: the passive line is drawn and sent instead', async () => {
+        const { result, port } = mount();
+
+        act(() => {
+            result.current.setValues({ ...complete(), visibility: RecipeVisibility.PUBLIC });
+        });
+
+        expect(result.current.confirmLineShown).toBe(true);
+
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+
+        expect(result.current.statementAsk).toBe(false);
+        expect(port.submitted[0]).toMatchObject({
+            payload: { input: { status: 'published', publicConfirmation: { version: 'publicConfirm.v1' } } },
+        });
+    });
+
+    it('"I wrote this" publishes public with the statement and NO separate confirmation, and the draft is marked pasted', async () => {
+        const { result, port } = mount();
+
+        act(() => {
+            result.current.setValues(pasted());
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        act(() => {
+            result.current.answerStatement(authored);
+        });
+        await settle();
+
+        expect(result.current.statementAsk).toBe(false);
+        expect(result.current.confirmLineShown).toBe(false);
+        const { input } = port.submitted[0]?.payload as { input: Record<string, unknown> };
+        expect(input).toMatchObject({
+            status: 'published',
+            visibility: RecipeVisibility.PUBLIC,
+            contentPasted: true,
+            statement: { kind: 'authored' },
+        });
+        expect(input).not.toHaveProperty('publicConfirmation');
+    });
+
+    it('⛔ a third-party answer moves the draft to Private, sends its statement, and asks only once', async () => {
+        const { result, port } = mount();
+
+        act(() => {
+            result.current.setValues(pasted());
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        act(() => {
+            result.current.answerStatement(book);
+        });
+        await settle();
+
+        expect(result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
+        expect(result.current.statementAsk).toBe(false);
+        expect(port.submitted[0]).toMatchObject({
+            payload: { input: { status: 'published', visibility: RecipeVisibility.PRIVATE, statement: { kind: 'book' } } },
+        });
+    });
+
+    it('dismissing the sheet sends nothing and leaves the draft as it was', async () => {
+        const { result, port } = mount();
+
+        act(() => {
+            result.current.setValues(pasted());
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        act(() => {
+            result.current.dismissStatement();
+        });
+        await settle();
+
+        expect(result.current.statementAsk).toBe(false);
+        expect(result.current.values.visibility).toBe(RecipeVisibility.PUBLIC);
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+    });
+
+    it('an answer with no ask standing does nothing', async () => {
+        const { result, port } = mount();
+
+        act(() => {
+            result.current.setValues(pasted());
+        });
+        act(() => {
+            result.current.answerStatement(book);
+        });
+        await settle();
+
+        expect(result.current.values.visibility).toBe(RecipeVisibility.PUBLIC);
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+    });
+
+    it('"Publish privately" publishes Private with no statement', async () => {
+        const { result, port } = mount();
+
+        act(() => {
+            result.current.setValues(pasted());
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        act(() => {
+            result.current.answerStatement({ visibility: RecipeVisibility.PRIVATE });
+        });
+        await settle();
+
+        const { input } = port.submitted[0]?.payload as { input: Record<string, unknown> };
+        expect(input).not.toHaveProperty('statement');
+        expect(input).toMatchObject({ visibility: RecipeVisibility.PRIVATE });
+    });
+});

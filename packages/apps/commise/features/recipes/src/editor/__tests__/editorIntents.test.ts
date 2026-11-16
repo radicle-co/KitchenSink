@@ -140,6 +140,54 @@ describe('recipeWriteIntent — a create never carries a refused Private', () =>
     });
 });
 
+/**
+ * ADR-0092: what the screen showed (`shown`) rides only the write it was shown for. The sheet's statement and the passive
+ * line go out with a Publish, never with a draft save, on a create and on an update alike.
+ */
+describe('recipeWriteIntent — what the screen showed', () => {
+    const draft = {
+        ...toRecipeFormValues(makeRecipeDetail({ id: 'rec_1' })),
+        title: 'Soup',
+        visibility: RecipeVisibility.PUBLIC,
+    };
+    const statement = { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } } as const;
+    const publicConfirmation = { version: 'publicConfirm.v1', locale: 'en' } as const;
+    const inputOf = (server: ServerFacts, publish: boolean) => ({
+        server,
+        draft,
+        ref: LOCAL,
+        publish,
+        privateRefusal: undefined,
+        shown: { statement, publicConfirmation },
+    });
+
+    it('a publishing create carries the statement and the line', () => {
+        expect(recipeWriteIntent(inputOf(unsaved, true)).payload).toMatchObject({
+            input: { statement, publicConfirmation },
+        });
+    });
+
+    it('a draft create carries neither', () => {
+        const { input } = recipeWriteIntent(inputOf(unsaved, false)).payload as { input: Record<string, unknown> };
+
+        expect(input).not.toHaveProperty('statement');
+        expect(input).not.toHaveProperty('publicConfirmation');
+    });
+
+    it('a publishing update carries the statement and the line', () => {
+        expect(recipeWriteIntent(inputOf(stored(), true)).payload).toMatchObject({
+            input: { statement, publicConfirmation },
+        });
+    });
+
+    it('a draft update carries neither', () => {
+        const { input } = recipeWriteIntent(inputOf(stored(), false)).payload as { input: Record<string, unknown> };
+
+        expect(input).not.toHaveProperty('statement');
+        expect(input).not.toHaveProperty('publicConfirmation');
+    });
+});
+
 describe('discardPlanOf', () => {
     function plan(
         lifecycle: RecipeLifecycle,

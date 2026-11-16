@@ -14,7 +14,7 @@ import { effectiveVisibility, type PrivateRefusal } from '../actions/privateGate
 import { refusalWhileDrafting } from '../actions/recipePrivateGate.js';
 import type { RecipeFormValues } from '../form/values.js';
 import { derivedVisibility } from '../form/sourceLink.js';
-import { toCreateRecipeInput, toUpdateRecipeInput } from '../form/wire.js';
+import { toCreateRecipeInput, toUpdateRecipeInput, type ShownWordings } from '../form/wire.js';
 import type { RecipeLifecycle } from './checkpointPolicy.js';
 import { serverIdOf, type ServerFacts } from './editorCore.js';
 import type { OutstandingWrite } from './writeLane.js';
@@ -32,6 +32,8 @@ export interface RecipeWriteInput {
      * create is the one queued write that carries visibility, so every caller has to say whether a Private may go out.
      */
     readonly privateRefusal: PrivateRefusal | undefined;
+    /** What the screen showed the cook (ADR-0092): sent exactly as given, and only by a write that publishes. */
+    readonly shown?: ShownWordings;
 }
 
 /**
@@ -55,7 +57,7 @@ export function recipeWriteIntent(input: RecipeWriteInput): Intent {
     const status = input.publish ? RecipeStatus.PUBLISHED : undefined;
 
     if (server.kind !== 'stored') {
-        const create = toCreateRecipeInput(draft, status ?? RecipeStatus.DRAFT);
+        const create = toCreateRecipeInput(draft, status ?? RecipeStatus.DRAFT, input.shown);
 
         return {
             entity: 'recipe',
@@ -87,7 +89,7 @@ export function recipeWriteIntent(input: RecipeWriteInput): Intent {
         dependsOn: [],
         payload: {
             id,
-            input: { ...toUpdateRecipeInput(draft, status, server.recipe), expectedVersion: server.baseVersion },
+            input: { ...toUpdateRecipeInput(draft, status, server.recipe, input.shown), expectedVersion: server.baseVersion },
         },
     };
 }

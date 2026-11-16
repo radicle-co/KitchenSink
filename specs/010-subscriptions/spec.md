@@ -2,8 +2,8 @@
 
 **Feature Branch**: `010-subscriptions`
 **Created**: 2026-04-14
-**Last updated**: 2026-10-28
-**Status**: Product decisions revalidated — implementation/test gate blocked pending V-Model regeneration and test execution.
+**Last updated**: 2026-11-15 (owner ruling: the import dead end's "Upgrade to Pro" button, `FR-042c`)
+**Status**: Product decisions revalidated — implementation/test gate blocked pending test execution.
 2026-10-27: the three plans are **Free, Pro and Pro with AI**, and the paid plans are called "Pro" everywhere
 (owner rulings 2026-10-26 and 2026-10-27). AI credits come in three levels, held by Free, Pro and Pro with AI: 3, 30
 and 300 uses a month. See the [plan register](#plan-register) and the
@@ -398,6 +398,10 @@ the page's UX and legal requirements)_
 
 - **FR-042c**: Nothing that adds cost is chosen for the cook. No plan is pre-selected, no add-on is pre-ticked, and
   no upgrade is bundled into a decline. If one billing period is shown first, both prices stay visible.
+  _(Amended 2026-11-15, owner ruling, for one screen only.)_ On the import dead end, where a cook can neither keep an
+  import privately nor publish it, the main button is "Upgrade to Pro", with a "Compare plans" link and a "Not now"
+  button of equal size. Every other rule of `FR-042c` and `FR-042d` still holds
+  on that screen, and every other screen keeps "no plan is chosen for the cook".
 - **FR-042d**: The page MUST NOT use deceptive patterns. "Not now" and the close control are visible at all times and
   look as strong as the buy buttons. Decline copy is neutral, with no confirmshaming. There is no fake urgency: no
   timers, no "today only" and no false scarcity. After "Not now", the same prompt does not come back in the same
@@ -913,9 +917,11 @@ predicted Commise result.
   architecture, and no task covers family plans in this release. A dedicated spec change is required before any
   family-plan work begins." This amendment is that spec change.)_
 - **Web sells through Stripe. The phone apps sell through the stores.** Stripe Checkout and the Stripe Customer Portal are web-only. iPhone sales use App Store in-app purchase and Android sales use Google Play Billing. RevenueCat joins the three into one entitlement record per cook ([O-9](#owner-inputs-still-needed), `FR-042i`, [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md)). _(Was: mobile users are deep-linked to web checkout and in-app purchase is out of scope for v1. Reversed 2026-10-27.)_
-- _(Amended 2026-11-03, owner ruling, ADR-0082.)_ A recipe copied from someone else's page, book or paid site is never
-  public in full, whatever the tier. Its public form is a facts card, which uses no slot (`021-FR-014a`, `016-FR-029a`).
-  No tier changes this.
+- _(Amended 2026-11-15, owner ruling, ADR-0092.)_ A recipe copied from someone else's page, book or paid site is never
+  public in its source's wording, whatever the tier, unless its source is on the copy-outright allowlist
+  (`004-FR-065`). Its public form is a Commise-written version. No tier changes this. Whether the cook's private copy
+  then uses a slot is an open owner question (`004` OQ-004-R2). _(Was: its public form was a facts card that used no
+  slot. Facts cards are withdrawn.)_
 - **Marketplace payments are out of scope for v1 — but entitlement gating is NOT.** Keep these separate;
   conflating them over-blocks downstream work.
     - **In scope / available**: gating any feature on the caller's subscription tier. `FR-040` … `FR-044`

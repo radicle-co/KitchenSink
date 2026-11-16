@@ -346,8 +346,8 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/*/checkScope',
         '!@kitchensink/*/checkScopeGraph',
         // `hostLock` is the one-orchestrator-per-machine lock; the web door takes its own file with it (ADR-0088).
-        // `laneCosts` is the one source of lane costs.
         '!@kitchensink/*/hostLock',
+        // `laneCosts` is the one source of lane costs.
         '!@kitchensink/*/laneCosts',
         // `poolAdmin` (2026-10-18): the only writer of a pool user's `public_metadata`, which the CI job that rebuilds the
         // downgraded owner's world drives through `setLanePhase` rather than writing metadata of its own.

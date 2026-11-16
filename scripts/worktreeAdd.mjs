@@ -22,6 +22,7 @@
  * and made only by the `prepare` script (`husky`), so a cache hit that runs no npm runs `node_modules/.bin/husky`.
  *
  * A failure after `git worktree add` removes the worktree and the branch this run made, so a re-run can start clean.
+ * Pruning runs after that, once the worktree is complete: a failed prune only warns.
  *
  * shortcut: hard links need the install root and the worktree on one filesystem; on another `cp -al` fails loudly,
  * upgrade to a plain copy fallback only if that setup ever appears.
@@ -214,7 +215,7 @@ function giveInstall(path, installRoot) {
  * @returns {void}
  * @sideEffect See the file header.
  */
-export function worktreeAdd({ path, branch, startPoint, installRoot, cwd }) {
+function worktreeAdd({ path, branch, startPoint, installRoot, cwd }) {
     // Hard links cannot cross filesystems: find out before anything is created, not from a failed `cp` half way.
     mkdirSync(installRoot, { recursive: true });
     mkdirSync(dirname(path), { recursive: true });
@@ -227,6 +228,10 @@ export function worktreeAdd({ path, branch, startPoint, installRoot, cwd }) {
 
     const branchExists =
         spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd }).status === 0;
+    if (branchExists && startPoint !== undefined) {
+        throw new Error(`branch ${branch} already exists, so a start point would be ignored: omit it`);
+    }
+
     const start = startPoint === undefined ? [] : [startPoint];
 
     execFileSync('git', ['worktree', 'add', ...(branchExists ? [path, branch] : ['-b', branch, path, ...start])], {
@@ -247,7 +252,12 @@ export function worktreeAdd({ path, branch, startPoint, installRoot, cwd }) {
         throw error;
     }
 
-    prune(installRoot, cwd);
+    // The worktree is complete here: a failed prune (a concurrent run won a rename) only leaves extra installs behind.
+    try {
+        prune(installRoot, cwd);
+    } catch (error) {
+        console.warn(`worktree:add: the worktree is ready, but pruning old installs failed: ${String(error)}`);
+    }
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

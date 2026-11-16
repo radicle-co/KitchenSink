@@ -148,6 +148,14 @@ describe('worktree:add', () => {
         expect(git(wt, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('feature/existing');
     });
 
+    it('refuses a start point for an existing branch, before creating anything', () => {
+        git(repo, 'branch', 'feature/startless', 'main');
+        const wt = path.join(scratch, 'wtStartless');
+
+        expect(() => run([wt, 'feature/startless', 'main'])).toThrow(/already exists/);
+        expect(existsSync(wt)).toBe(false);
+    });
+
     it('resolves a relative path against INIT_CWD, the directory npm was started in', () => {
         const start = path.join(scratch, 'start');
         mkdirSync(start);

@@ -83,11 +83,10 @@ describe('the zero list, over the real tree', () => {
     it('only the lane packers and their validating tests name the two timing tables', () => {
         // The tables are zero-listed because only the lane packers read them (ADR-0086 section 3). A spec, fixture,
         // seed or flow that read one would let a changed row change a run, so each new reader must fail here.
-        const namers = execFileSync(
-            'git',
-            ['grep', '-lE', 'testDurations|maestroFlowSeconds', '--', ':!*.md', ':!*.tsv', ':!testDurations.json'],
-            { cwd: repo, encoding: 'utf8' },
-        )
+        const namers = execFileSync('git', ['grep', '-lE', 'testDurations|maestroFlowSeconds', '--', ':!*.md'], {
+            cwd: repo,
+            encoding: 'utf8',
+        })
             .split('\n')
             .filter((file) => file !== '')
             .sort();

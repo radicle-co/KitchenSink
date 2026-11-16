@@ -33,7 +33,7 @@ const WEIGHT_NAMES: Readonly<Record<string, string>> = {
 };
 
 /** One face a stylesheet asks for. */
-export interface FontRequest {
+interface FontRequest {
     readonly family: string;
     readonly weight: string;
 }
@@ -46,7 +46,7 @@ export interface FontRequest {
  * (`ital,wght@1,700`, a `400..700` range) becomes a face whose weight is the raw spec, which no installed package holds,
  * so it is answered 404 and never silently Regular.
  */
-export function requestedFaces(stylesheetUrl: URL): readonly FontRequest[] {
+function requestedFaces(stylesheetUrl: URL): readonly FontRequest[] {
     return stylesheetUrl.searchParams.getAll('family').flatMap((entry) => {
         const [family = '', axes = ''] = entry.split(':');
         const weights =
@@ -63,7 +63,7 @@ export function requestedFaces(stylesheetUrl: URL): readonly FontRequest[] {
  * @returns The absolute path, or undefined when no installed `@expo-google-fonts` package holds it.
  * @sideEffect Reads the file system to resolve the package.
  */
-export function localFontFile({ family, weight }: FontRequest): string | undefined {
+function localFontFile({ family, weight }: FontRequest): string | undefined {
     const weightName = WEIGHT_NAMES[weight];
 
     if (weightName === undefined) {

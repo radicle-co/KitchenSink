@@ -50,9 +50,10 @@ export const isTestFile = (path: string): boolean => TEST_FILE(path);
 /**
  * The zero list: the ONLY paths that select no test.
  *
- * Markdown is prose. The two lane-packing timing tables are data for the runner, not for a screen. A vitest test or its config cannot change what a Playwright spec or a Maestro flow does. The
- * repo-wide guards read files and run no screen. Everything else, `docs/` and `specs/` included, can feed a test
- * (a mockup HTML a spec screenshots against, a fixture JSON), so it is not here.
+ * Markdown is prose. The two lane-packing timing tables are data for the runner, not for a screen. A vitest test or
+ * its config cannot change what a Playwright spec or a Maestro flow does. The repo-wide guards read files and run no
+ * screen. Everything else, `docs/` and `specs/` included, can feed a test (a mockup HTML a spec screenshots against, a
+ * fixture JSON), so it is not here.
  */
 const IRRELEVANT = picomatch(
     [

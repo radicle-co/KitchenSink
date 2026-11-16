@@ -26,7 +26,7 @@ service.
   consented to, how it met the age floor, how many actioned notices it carries, and whether that tally
   terminates it. Identity already owns account lifecycle, including the erasure fan-out this feature reuses.
 - `NFR-006` requires the notice mechanism to remain reachable when the authenticated application is degraded.
-  Safe harbour depends on _receiving and acting on_ notices; a mechanism that shares a failure domain with the
+  Notices must be received and acted on even when the app is down; a mechanism that shares a failure domain with the
   app is not a mechanism. A Lambda behind API Gateway is a genuinely independent domain.
 - `identity-webhooks` already has everything the intake needs and nothing it does not: a public API Gateway
   route (the Clerk webhook is unauthenticated by design and verified inside the Lambda), a VPC attachment to
@@ -89,7 +89,7 @@ Rendering goes through the existing localization path.
 - `FR-003` requires the system to render _any version a given user accepted_. Git already versions text
   immutably and for free; a database table would need its own history, its own migration story, and its own
   guarantee that a row is never edited in place — which is the exact guarantee a commit already gives.
-- There is no editing audience. Counsel delivers text; an engineer commits it. A CMS would be capability built
+- There is no editing audience. Approved text arrives; an engineer commits it. A CMS would be capability built
   for a presumed future need — the definition of a YAGNI violation.
 
 **Rejected — documents as database rows.** Adds an editing surface nobody asked for, makes "render the version

@@ -366,7 +366,7 @@ The statement kind becomes a closed union of five values. Shipped migration `005
   address the cook says is theirs ("This is my recipe, from my site or account", `004-FR-014a` statement 1a). It adds
   no sixth kind. The site claim is NOT stored on the statement or the recipe. 020 reads the claim live, and its outcome
   cites the claim by opaque id (`020-FR-012g`). The column name is plan work for `staff-architect`, and it is an
-  expand-first change like the rest of this section. Counsel review is owed before launch (`FR-050`).
+  expand-first change like the rest of this section.
 
 ---
 

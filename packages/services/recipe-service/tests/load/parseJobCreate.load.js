@@ -345,6 +345,10 @@ export function quotaRefusal() {
         return;
     }
 
-    // The limit was never reached: the allowance is not enforced (or this user's budget is larger than DAILY_ALLOWANCE).
-    check(null, { 'a 429 IMPORT_QUOTA_EXCEEDED arrives within DAILY_ALLOWANCE + 1 creates': () => false });
+    // The limit was never reached. The likely cause is the quota user: a test principal has no limit and a paid plan has
+    // 1,000, so neither reaches DAILY_ALLOWANCE. Otherwise the allowance is not enforced.
+    check(null, {
+        'a 429 IMPORT_QUOTA_EXCEEDED arrives within DAILY_ALLOWANCE + 1 creates (if not: the quota user is a test principal or on a paid plan, or the allowance is not enforced)':
+            () => false,
+    });
 }

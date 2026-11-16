@@ -42,7 +42,13 @@ describe('ParseJobsController.create — the allowance', () => {
         const test = await createAs({ ...BASE, principalKind: 'test' });
 
         expect(free).toHaveBeenCalledWith(expect.objectContaining({ userId: BASE.userId, roles: [] }), '1 cup milk');
-        expect(paid).toHaveBeenCalledWith(expect.objectContaining({ roles: ['premium'] }), '1 cup milk');
-        expect(test).toHaveBeenCalledWith(expect.objectContaining({ principalKind: 'test' }), '1 cup milk');
+        expect(paid).toHaveBeenCalledWith(
+            expect.objectContaining({ userId: BASE.userId, roles: ['premium'] }),
+            '1 cup milk',
+        );
+        expect(test).toHaveBeenCalledWith(
+            expect.objectContaining({ userId: BASE.userId, principalKind: 'test' }),
+            '1 cup milk',
+        );
     });
 });

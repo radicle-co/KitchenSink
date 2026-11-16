@@ -103,8 +103,8 @@ export type ImportAllowanceDecision =
     /** No unit fits. More room opens at `resetsAt`. */
     | { readonly kind: 'refuse'; readonly resetsAt: Date };
 
-/** What {@link evaluateImportAllowance} reads: the scope asking (every channel's events count) and the request. */
-export type ImportAllowanceInput = ImportAllowanceScope & {
+/** What {@link evaluateImportAllowance} reads: the holder asking (every channel's events count, so no channel) and the request. */
+export type ImportAllowanceInput = AllowanceHolder & {
     /** The user's ledger events, on every channel. Out-of-window ones are ignored here, so a caller may pass a superset. */
     readonly windowEvents: readonly AllowanceEvent[];
     /** Units this request would spend: a positive integer. There is no upper bound; the policy admits what fits. */

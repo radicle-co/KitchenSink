@@ -166,6 +166,14 @@ describe('ImportAllowanceDal.admit', () => {
         expect(test).toEqual({ kind: 'admitted', units: 1 });
     });
 
+    it('⛔ a test principal’s paste still writes its ledger row (ADR-0072 §8): the one pipeline runs end to end', async () => {
+        queueReads([]);
+
+        await dal.admit(control.db, USER, { ...PASTE, principalKind: 'test' });
+
+        expect(valuesPayloads()).toEqual([{ userId: USER, channel: 'paste', units: 1, createdAt: NOW }]);
+    });
+
     it('⛔ writes ONLY the units that fit, and answers partial with when more opens', async () => {
         queueReads([{ channel: 'bulk', units: 990, createdAt: new Date(NOW.getTime() - 3_600_000) }]);
 

@@ -1,8 +1,8 @@
 /**
  * The ONE import allowance (ADR-0072 §8, 004 FR-067) against a REAL database (LOCAL e2e, `docs/CODING_STANDARDS.md` §7.1a).
  *
- * `ImportAllowanceDal.admit` is driven directly as the SERVICE role (`recipe_app`), because the bulk route is not built
- * yet and the allowance is the part of it that only a real database can prove. What each case is there to catch:
+ * `ImportAllowanceDal.admit` is driven directly as the SERVICE role (`recipe_app`), because the allowance is the part of the import
+ * and the paste routes that only a real database can prove (the channel only labels the ledger row). What each case is there to catch:
  *
  * ⚠️ REWRITTEN for the owner ruling of 2026-11-15 ("one pipeline, one allowance"). It used to pin "paste and bulk never
  * borrow from each other", with a limit per channel. That is now the defect: every channel's rows count against one
@@ -137,6 +137,7 @@ describe('the one import allowance (LOCAL e2e)', () => {
         );
 
         expect(outcome).toEqual({ kind: 'admitted', units: 1 });
+        expect(await spent('paste')).toBe(1);
     });
 
     it('⛔ a 2,000-recipe file at an empty ledger admits exactly 1,000 and names a day from now', async () => {

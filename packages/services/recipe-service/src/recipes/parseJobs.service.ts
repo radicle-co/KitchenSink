@@ -127,8 +127,8 @@ export type JobAdmission =
     /** Spend `units` of the caller's daily import allowance, as the FIRST write of the job's own transaction. */
     | ({ readonly kind: 'charge' } & AdmitRequest)
     /**
-     * The caller already spent the unit this job belongs to (a bulk import's recipe pays on the `bulk` channel, ADR-0072 §8):
-     * admit nothing here. `jobId`, when given, is the id the job is created under: a retry that names an id that already
+     * The caller already spent the unit this job belongs to (a bulk import's recipe paid one unit of the one import
+     * allowance, on the `bulk` channel, ADR-0072 §8): admit nothing here. `jobId`, when given, is the id the job is created under: a retry that names an id that already
      * exists is answered with THAT job (`existing`) instead of making a second one, which is what makes a crash between
      * "the job was created" and "the item names it" free of a second LLM bill.
      */
@@ -355,16 +355,14 @@ export class ParseJobsService {
     }
 
     /**
-     * Create a job for lines whose unit the caller ALREADY spent (a bulk import's recipe, ADR-0072 §8: one `bulk` unit per recipe).
+     * Create a job for lines whose unit the caller ALREADY spent (a bulk import's recipe: one unit of the one import
+     * allowance, recorded on the `bulk` channel, ADR-0072 §8).
      *
-     * ⛔ NO LIVE ROUTE MAY CALL THIS. It exists for the parked bulk-import lane (ADR-0072 section 8), which has no route
-     * yet; today the only door to a job is {@link create}, which charges the paste allowance. A controller that called this
-     * would hand every caller an uncharged parse job.
-     *
-     * ⛔ THIS IS NOT A FREE PATH. It is legitimate only for a caller that has already charged a `bulk` unit for the
-     * recipe these lines came from (and recorded that on the item, so a repeat never charges it twice); a caller that has
-     * not must use {@link create}. It admits nothing, so nothing here stops a caller from using it to skip the allowance —
-     * the guard is the call site. A bulk import pays PER RECIPE under its own channel, never against the paste allowance.
+     * ⛔ THIS IS NOT A FREE PATH. Its one live caller is `ImportAdvanceService.startParsing`, which has already charged the
+     * recipe's unit and recorded that on the item, so a repeat never charges it twice. A caller that has not charged must use
+     * {@link create}, which draws one unit from the SAME allowance. This method admits nothing, so nothing here stops a
+     * caller from using it to skip the allowance: the guard is the call site, and a controller that called it directly would
+     * hand every caller an uncharged parse job.
      *
      * @param ownerId - The verified caller.
      * @param lines - The already-split source lines (the importer's own, not a paste).

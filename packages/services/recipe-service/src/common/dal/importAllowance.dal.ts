@@ -117,7 +117,8 @@ export class ImportAllowanceDal {
         const windowEvents = rows.map((row) => ({ ...row, channel: channelOf(row.channel) }));
 
         const decision = evaluateImportAllowance({
-            ...request,
+            isPremium: request.isPremium,
+            principalKind: request.principalKind,
             windowEvents,
             requestedUnits: request.units,
             now,

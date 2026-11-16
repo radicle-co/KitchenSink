@@ -194,7 +194,7 @@ export class ParseJobsDal implements ParseJobsDalPort {
         const outcome = await this.db.transaction(async (tx): Promise<CreateJobOutcome | { kind: 'taken' }> => {
             // ⛔ THE ALLOWANCE IS THE FIRST WRITE (004 FR-022). It takes the per-user lock, so the unit and the job it pays
             // for commit together; a refusal returns before anything below runs, so a refused paste leaves no job, no
-            // line and no ledger row. `prepaid` is the one admission that spends nothing (a bulk import's recipe already paid on its own channel).
+            // line and no ledger row. `prepaid` is the one admission that spends nothing (a bulk import's recipe already spent its unit of the same allowance).
             if (admission.kind === 'charge') {
                 const outcome = await this.allowance.admit(tx, ownerId, admission);
 

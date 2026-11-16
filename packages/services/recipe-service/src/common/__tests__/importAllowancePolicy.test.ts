@@ -65,7 +65,14 @@ function decide(
     requestedUnits: number,
     now = NOW,
 ) {
-    return evaluateImportAllowance({ ...scope, windowEvents, requestedUnits, now });
+    // The channel labels a ledger row; the policy reads only the holder, so only the holder is passed.
+    return evaluateImportAllowance({
+        isPremium: scope.isPremium,
+        principalKind: scope.principalKind,
+        windowEvents,
+        requestedUnits,
+        now,
+    });
 }
 
 describe('the allowance numbers (ADR-0072 §8; 004 FR-022 and FR-067)', () => {

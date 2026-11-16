@@ -6410,7 +6410,6 @@ components:
               required:
                 - kind
                 - citation
-                - wording
               additionalProperties: false
             - type: object
               properties:
@@ -6731,7 +6730,6 @@ components:
               required:
                 - kind
                 - citation
-                - wording
               additionalProperties: false
             - type: object
               properties:
@@ -7250,7 +7248,6 @@ components:
               required:
                 - kind
                 - citation
-                - wording
               additionalProperties: false
             - type: object
               properties:

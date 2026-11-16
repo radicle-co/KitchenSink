@@ -103,7 +103,7 @@ does not depend on the client. Paste evidence (`pastedPage`) is the client's wor
 ### 4. Every statement and every Public confirmation is recorded
 
 Migration `0088` adds the table `recipe_statement_attestations`. It is append-only, with the same trigger pattern as
-§1. There is one row per act. A row holds:
+§1. There is one row per act that showed the cook a wording. A row holds:
 
 - the account.
 - the mode, `explicit` or `implicit`.
@@ -131,6 +131,10 @@ copies no attestations.
 - **"From another person"** is a `fromPerson` attestation with no source kind. It forces Private. Spec 016 §15 adds
   the `family` and `adapted` kinds later. Then this choice sets one of them.
 - Set-visibility takes a `statement`. Make public with an answer is one write.
+- **The Source row's web link states a source with no wording.** The editor's Source row shows the cook no wording, so
+  its `public_web` statement may omit one. The service then writes the source and its `editorLink` evidence, and no
+  attestation row, because nothing was shown to attest. The sheet's "From a web page" sends the wording and is recorded
+  as above. The other three statements still require a wording.
 - The import save does not carry wordings yet. It writes no attestation rows and needs no confirmation. The paste
   import adds one implicit row per item, all with the same wording.
 

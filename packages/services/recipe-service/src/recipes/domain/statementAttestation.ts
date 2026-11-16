@@ -104,7 +104,8 @@ export function attestationRowsOf(input: {
 
     if (statement === null) {
         rows.push({ mode: 'explicit', choice: 'cleared', wordingVersion: null, locale: null, action });
-    } else if (statement !== undefined) {
+    } else if (statement !== undefined && statement.wording !== undefined) {
+        // A statement with no wording (the Source row's link) states a source and records no attestation: nothing was shown.
         rows.push({
             mode: 'explicit',
             choice: CHOICE_OF_KIND[statement.kind],

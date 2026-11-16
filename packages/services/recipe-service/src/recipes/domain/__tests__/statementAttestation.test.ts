@@ -121,6 +121,24 @@ describe('attestationRowsOf — exactly which rows a write leaves', () => {
         },
     );
 
+    it('records NO statement row for a web statement that carries no wording (the Source row), and still the confirmation', () => {
+        const { wording: _none, ...wordless } = WEB;
+
+        for (const action of ['create', 'update', 'setVisibility'] as const) {
+            expect(
+                attestationRowsOf({
+                    action,
+                    statement: wordless,
+                    publicConfirmation: undefined,
+                    recordsConfirmation: false,
+                }),
+            ).toEqual([]);
+            expect(
+                attestationRowsOf({ action, statement: wordless, publicConfirmation: CONFIRM, recordsConfirmation: true }),
+            ).toEqual([CONFIRM_ROW(action)]);
+        }
+    });
+
     it('records a cleared statement (null) as an explicit row with no wording and no locale', () => {
         expect(
             attestationRowsOf({

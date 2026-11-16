@@ -449,6 +449,18 @@ describe('POST /api/v1/recipes', () => {
         expect(recorded()).toEqual([STATEMENT_ROW('publicWeb', 'statementPublicWeb.v1', 'create')]);
     });
 
+    it('a web statement with NO wording (the Source row) writes the source and its evidence, and no attestation row', async () => {
+        const { wording: _none, ...wordless } = WEB;
+        const response = await call('POST', '/api/v1/recipes', { ...CREATE_BODY, visibility: 'private', statement: wordless });
+
+        expect(response.status).toBe(201);
+        expect(insertEvidence).toHaveBeenCalledWith(
+            TX,
+            expect.objectContaining({ capture: 'editorLink', sourceKind: 'public_web' }),
+        );
+        expect(recorded()).toEqual([]);
+    });
+
     // Rewritten by ADR-0092: "from another person" used to store NO statement kind, so a stored recipe could not be told from
     // one the cook typed. It now stores `fromPerson`, which every route to Public refuses.
     it('records "from another person" with no source, the `fromPerson` statement kind, and the recipe private', async () => {

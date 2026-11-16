@@ -2702,8 +2702,7 @@
                             },
                             "required": [
                                 "kind",
-                                "citation",
-                                "wording"
+                                "citation"
                             ],
                             "type": "object"
                         },
@@ -12610,8 +12609,7 @@
                     },
                     "required": [
                         "kind",
-                        "citation",
-                        "wording"
+                        "citation"
                     ],
                     "type": "object"
                 },
@@ -14919,8 +14917,7 @@
                             },
                             "required": [
                                 "kind",
-                                "citation",
-                                "wording"
+                                "citation"
                             ],
                             "type": "object"
                         },
@@ -15408,8 +15405,7 @@
                                     },
                                     "required": [
                                         "kind",
-                                        "citation",
-                                        "wording"
+                                        "citation"
                                     ],
                                     "type": "object"
                                 },

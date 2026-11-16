@@ -382,12 +382,16 @@ const wordingOf = <const Versions extends readonly [string, ...string[]]>(versio
     });
 
 /**
- * "Copied from a public web page" as a recipe's OWN statement carries it: the web member, a wording, and the same refinement
- * as {@link recipeStatementSchema} (the one reading of "a usable source"). Extended BEFORE the refinement, because a refined
- * schema cannot be extended.
+ * "Copied from a public web page" as a recipe's OWN statement carries it: the web member, an OPTIONAL wording, and the same
+ * refinement as {@link recipeStatementSchema} (the one reading of "a usable source"). Extended BEFORE the refinement, because
+ * a refined schema cannot be extended.
+ *
+ * The wording is optional because the editor's Source row states this member without asking the cook anything: it shows no
+ * wording, so it sends none and no attestation is recorded (the source and its evidence still are). The sheet's "From a web
+ * page" answer shows its words and sends the wording, which is recorded.
  */
 const ownWebStatementSchema = publicWebStatementSchema
-    .extend({ wording: wordingOf(STATEMENT_WORDINGS_BY_CHOICE.publicWeb) })
+    .extend({ wording: wordingOf(STATEMENT_WORDINGS_BY_CHOICE.publicWeb).optional() })
     .strict()
     .refine(...USABLE_SOURCE_LINK);
 
@@ -400,9 +404,10 @@ const ownWebStatementSchema = publicWebStatementSchema
  * The two never travel together: a body carrying both is a `400` (the service answers it, because a refinement on the
  * create body would stop `importRecipeSchema` picking from it).
  *
- * ⚠️ A DISCRIMINATED UNION of strict members, so "I wrote this" with a citation is a state the wire cannot say. EVERY member
- * carries the `wording` the cook was shown (the attestation record). They are this union's own members, NOT the shared ones the
- * bulk import composes: the import states no wording yet (it is the paste team's), so its wire is unchanged.
+ * ⚠️ A DISCRIMINATED UNION of strict members, so "I wrote this" with a citation is a state the wire cannot say. Every member
+ * carries the `wording` the cook was shown (the attestation record), except that the web member may omit it: the editor's
+ * Source row shows no wording. They are this union's own members, NOT the shared ones the bulk import composes: the import
+ * states no wording yet (it is the paste team's), so its wire is unchanged.
  *
  * `fromPerson` ("another person's recipe") has no source kind and no label today: it records the cook's word and keeps the
  * recipe private. A cookbook (`book`) is `imported_physical`, which is private only.

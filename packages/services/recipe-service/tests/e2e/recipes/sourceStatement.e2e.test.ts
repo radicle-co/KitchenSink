@@ -396,6 +396,25 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             ]);
         });
 
+        it('a web statement with NO wording (the Source row) appends the evidence row and writes no attestation; with a wording it writes one', async () => {
+            const { wording: _none, ...wordless } = STATEMENT;
+            const attestationsOf = async (id: string): Promise<Array<{ choice: string; wording_version: string | null }>> =>
+                (
+                    await pool.query<{ choice: string; wording_version: string | null }>(
+                        `SELECT choice, wording_version FROM recipe_statement_attestations WHERE recipe_id = $1 ORDER BY recorded_at`,
+                        [id],
+                    )
+                ).rows;
+            const bare = await create({ status: 'draft', visibility: 'private', statement: wordless });
+            const worded = await create({ status: 'draft', visibility: 'private', statement: STATEMENT });
+
+            expect(await evidenceOf(bare.id)).toEqual([
+                { capture: 'editorLink', source_kind: 'public_web', source_domain: 'allrecipes.com' },
+            ]);
+            expect(await attestationsOf(bare.id)).toEqual([]);
+            expect(await attestationsOf(worded.id)).toEqual([{ choice: 'publicWeb', wording_version: 'statementPublicWeb.v1' }]);
+        });
+
         it('PATCH that applies a statement appends an editorLink evidence row', async () => {
             const { id, version } = await create({ status: 'draft', visibility: 'private' });
 

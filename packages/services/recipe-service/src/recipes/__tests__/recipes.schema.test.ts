@@ -833,8 +833,11 @@ describe('createRecipeRequestSchema — the optional `statement` (ADR-0089)', ()
         expect(performance.now() - started).toBeLessThan(50);
     });
 
-    it('REFUSES a statement with no wording, and the import statement still takes none (its wire is unchanged)', () => {
-        expect(createAccepts({ statement: WEB_BARE })).toBe(false);
+    // Rewritten for the Source row: the editor's link states a source and shows no wording, so a recipe's own web statement
+    // may omit it (no attestation is recorded). The sheet's answers still carry one, and the import wire is unchanged.
+    it('ACCEPTS a web statement with no wording, and the import statement still takes none (its wire is unchanged)', () => {
+        expect(createAccepts({ statement: WEB_BARE })).toBe(true);
+        expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, statement: WEB_BARE }).success).toBe(true);
         expect(importStatementSchema.safeParse({ kind: 'authored' }).success).toBe(true);
         expect(importStatementSchema.safeParse({ ...WEB_BARE, wording: WEB.wording }).success).toBe(false);
     });
@@ -1262,10 +1265,21 @@ describe('a recipe’s own statement — every member names the wording the cook
         expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, statement }).success).toBe(true);
     });
 
-    it.each(Object.entries(MEMBERS))('REFUSES a %s statement with no wording', (_kind, statement) => {
-        const { wording: _dropped, ...bare } = statement;
+    // Only the web member may omit its wording (the Source row shows none); every answer the sheet offers still names one.
+    it.each(Object.entries(MEMBERS).filter(([kind]) => kind !== 'public_web'))(
+        'REFUSES a %s statement with no wording',
+        (_kind, statement) => {
+            const { wording: _dropped, ...bare } = statement;
 
-        expect(createAccepts({ statement: bare })).toBe(false);
+            expect(createAccepts({ statement: bare })).toBe(false);
+        },
+    );
+
+    it('ACCEPTS a web statement with no wording, and still REFUSES a wording it was given that is not its own', () => {
+        const { wording: _dropped, ...bare } = MEMBERS.public_web;
+
+        expect(createAccepts({ statement: bare })).toBe(true);
+        expect(createAccepts({ statement: { ...bare, wording: MEMBERS.book.wording } })).toBe(false);
     });
 
     it.each(Object.entries(MEMBERS))('REFUSES a %s statement carrying another choice’s wording', (kind, statement) => {

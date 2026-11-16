@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { render } from '../../testing/tamaguiTesting.native.js';
-import { AccessibilityInfo } from 'react-native';
+import { AccessibilityInfo, Dimensions, Keyboard } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JSX } from 'react';
 import { Pressable, Text } from 'react-native';
@@ -163,6 +163,32 @@ describe('SnackbarHost (native)', () => {
         showFrom('Removed Pasta');
 
         expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('96px');
+    });
+
+    it('sits 16pt above the keyboard when it is up, however late it opens', () => {
+        vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 400, height: 2400, scale: 1, fontScale: 1 });
+        let onShow: ((event: unknown) => void) | undefined;
+        vi.spyOn(Keyboard, 'addListener').mockImplementation(((name: string, listener: (event: unknown) => void) => {
+            if (name === 'keyboardDidShow') {
+                onShow = listener;
+            }
+
+            return { remove: () => undefined };
+        }) as typeof Keyboard.addListener);
+        render(
+            <PopupInsetsContext value={() => ({ top: 0, bottom: 80 })}>
+                <SnackbarHost>
+                    <Screen input={{ message: 'Source removed.' }} />
+                </SnackbarHost>
+            </PopupInsetsContext>,
+        );
+
+        showFrom('Source removed.');
+        // The keyboard opens after the snackbar showed. It covers 948 of the 2400 screen, more than its reported height
+        // of 900 (Android's height leaves out the navigation bar), so the host must go by where the keyboard starts.
+        act(() => onShow?.({ endCoordinates: { screenY: 1452, height: 900 } }));
+
+        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('964px');
     });
 });
 

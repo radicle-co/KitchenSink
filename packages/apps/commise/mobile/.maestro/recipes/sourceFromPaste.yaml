@@ -93,3 +93,42 @@ appId: ${APP_ID}
           text: '^Private$'
       timeout: 40000
 - assertVisible: 'www.allrecipes.com'
+
+# Removing a SAVED source: Remove focuses the empty Source field, so the keyboard opens at once, and "Source removed." must
+# ride above it, in view (it was drawn under the keyboard, where no one saw it). The notice lasts 6 s, so the tap does not
+# wait for the keyboard to settle (maestroTransientNoticeWait.test.ts).
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: UP
+          TIMEOUT: 20000
+- tapOn: 'Edit recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 40000
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Photos & publish'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Remove source'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+# iOS counts the row visible while the pinned action bar covers it, so bring it to mid-page first (the page's end has
+# the visibility cards below it, so it can reach the middle).
+- scrollUntilVisible:
+      element:
+          text: 'Remove source'
+      direction: DOWN
+      centerElement: true
+      timeout: 8000
+      optional: true
+- tapOn:
+      text: 'Remove source'
+      waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+      visible: 'Source removed.'
+      timeout: 10000

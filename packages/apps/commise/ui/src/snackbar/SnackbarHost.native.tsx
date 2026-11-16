@@ -8,6 +8,9 @@
  * while a screen reader runs, the snackbar does not time out at all, and when it stops the snackbar runs out its own
  * remaining time.
  *
+ * With the keyboard up the snackbar rides 16 pt above it, whenever it opened (a Remove that focuses a field opens it
+ * at once), for every snackbar.
+ *
  * It also publishes the showing snackbar's measured height (`SnackbarClearanceContext`), so the floating create button
  * rises above the bar instead of sitting under it.
  *
@@ -15,8 +18,9 @@
  *     are the pure reducer's (State + Command)
  */
 import { useContext, useEffect, useState, type FC } from 'react';
-import { AccessibilityInfo, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Dimensions, StyleSheet, View } from 'react-native';
 
+import { useKeyboardFrame } from '../keyboardAvoider/useKeyboardFrame.native.js';
 import { PopupInsetsContext } from '../popupInsets/popupInsetsContext.js';
 import { nativeTokens } from '../tokens/native.js';
 import { SNACKBAR_GAP, type SnackbarHostProps } from './props.js';
@@ -29,7 +33,11 @@ import { useSnackbarQueue } from './useSnackbarQueue.js';
 export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
     const queue = useSnackbarQueue();
     const readInsets = useContext(PopupInsetsContext);
-    const [bottom, setBottom] = useState(SNACKBAR_GAP);
+    const [foot, setFoot] = useState(SNACKBAR_GAP);
+    const keyboard = useKeyboardFrame();
+    // The overlay is window-high and edge to edge, so what the keyboard covers is the screen's height below its top.
+    const bottom =
+        keyboard === null ? foot : Math.max(foot, Dimensions.get('screen').height - keyboard.top + SNACKBAR_GAP);
     const [screenReader, setScreenReader] = useState(false);
     const [regionHeight, setRegionHeight] = useState(0);
     const { current } = queue;
@@ -72,7 +80,7 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
         <SnackbarContext
             value={{
                 show: (input) => {
-                    setBottom(readInsets().bottom + SNACKBAR_GAP);
+                    setFoot(readInsets().bottom + SNACKBAR_GAP);
                     queue.show(input);
                 },
             }}

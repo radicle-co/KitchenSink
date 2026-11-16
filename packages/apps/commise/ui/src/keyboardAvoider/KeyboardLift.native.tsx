@@ -23,10 +23,10 @@
  * @pattern Adapter over React Native's `Keyboard` and `measureInWindow` — the overlap is the one rule, owned here
  */
 import { useEffect, useRef, useState, type FC, type ReactNode } from 'react';
-import { Keyboard, Platform } from 'react-native';
 import { YStack, type TamaguiElement } from 'tamagui';
 
 import { keyboardOverlap } from './keyboardOverlap.js';
+import { useKeyboardFrame } from './useKeyboardFrame.native.js';
 
 /** Props for {@link KeyboardLift}. */
 export interface KeyboardLiftProps {
@@ -43,42 +43,6 @@ export interface KeyboardLiftProps {
      * also the most the lift may ever rise past the keyboard's reported height, which bounds a bad measurement.
      */
     readonly bottomInset: number;
-}
-
-/** Where the keyboard is on the screen. */
-interface KeyboardFrame {
-    readonly top: number;
-    readonly height: number;
-}
-
-/** The keyboard's frame, or `null` while none is up. */
-function readKeyboardFrame(): KeyboardFrame | null {
-    const metrics = Keyboard.isVisible() ? Keyboard.metrics() : undefined;
-
-    return metrics === undefined ? null : { top: metrics.screenY, height: metrics.height };
-}
-
-/** Track the keyboard's frame. iOS reports its end position in the Will events, every other platform in the Did events. */
-function useKeyboardFrame(): KeyboardFrame | null {
-    const [top, setTop] = useState<KeyboardFrame | null>(readKeyboardFrame);
-
-    useEffect(() => {
-        const [show, hide] =
-            Platform.OS === 'ios'
-                ? (['keyboardWillShow', 'keyboardWillHide'] as const)
-                : (['keyboardDidShow', 'keyboardDidHide'] as const);
-        const shown = Keyboard.addListener(show, (event) =>
-            setTop({ top: event.endCoordinates.screenY, height: event.endCoordinates.height }),
-        );
-        const hidden = Keyboard.addListener(hide, () => setTop(null));
-
-        return () => {
-            shown.remove();
-            hidden.remove();
-        };
-    }, []);
-
-    return top;
 }
 
 export const KeyboardLift: FC<KeyboardLiftProps> = ({ children, topInset, bottomInset }) => {

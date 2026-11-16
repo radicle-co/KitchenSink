@@ -82,8 +82,9 @@ left above the keyboard. A layout that changes with the keyboard can remount the
 loses focus, the keyboard closes, and the layout changes back. The keyboard has its own input (`useKeyboardShown`).
 `useKeyboardShown` moves with the keyboard avoider's padding: on iOS it follows `keyboardWillShow` and
 `keyboardWillHide` and reads the height from the event (`Keyboard.isVisible()` and `Keyboard.metrics()` change only
-on `keyboardDidShow`), so the chrome collapses in the same moment the padding arrives. Android sends only the Did
-events and keeps them.
+on `keyboardDidShow`), so the chrome collapses in the same moment the padding arrives. iOS also follows the Did events,
+so a reader that mounted between Will and Did is corrected when the keyboard settles. Android sends only the Did
+events and keeps them. The keyboard's frame (`useKeyboardFrame`) reads the same subscription.
 ⚠️ A device check is owed (§13.3). Opening the keyboard on Android must leave `useWindowDimensions().height`
 unchanged.
 

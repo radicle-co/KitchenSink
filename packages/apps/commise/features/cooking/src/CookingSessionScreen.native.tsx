@@ -32,12 +32,21 @@ export interface CookingSessionScreenProps {
     readonly narrow: boolean;
     /** Under 700 tall, in text: the pinned Next preview shows one line. */
     readonly short: boolean;
+    /** Under 640 tall, in text: the Next preview is the last item of the scrolling step, not the foot's. */
+    readonly previewInBody: boolean;
     /** The window's width, for the swipe's far edge zone. */
     readonly width: number;
 }
 
 /** The native cooking session. */
-export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, onLeave, narrow, short, width }) => {
+export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
+    recipe,
+    onLeave,
+    narrow,
+    short,
+    previewInBody,
+    width,
+}) => {
     const model = useCookingSessionScreen({ recipe, onLeave });
     const { done, hasPrevious, hasNext, goForward, goBack } = model;
     const focus = useCookingFocusRecovery({
@@ -61,6 +70,8 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
     }
 
     const { nav, preview } = model;
+    const previewNode =
+        preview === undefined ? null : <CookingNextPreview preview={preview} short={short && !previewInBody} />;
 
     return (
         <CookingFrame
@@ -77,10 +88,11 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
                     <LiveRegion politeness="polite" visuallyHidden announceOnMount occurrence={model.moves}>
                         {model.announcement}
                     </LiveRegion>
+                    {previewInBody ? previewNode : null}
                 </>
             }
             foot={{
-                ...(preview === undefined ? {} : { preview: <CookingNextPreview preview={preview} short={short} /> }),
+                ...(previewInBody || previewNode === null ? {} : { preview: previewNode }),
                 actions: (
                     <CookingNav
                         disabled={false}

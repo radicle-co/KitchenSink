@@ -71,6 +71,11 @@ export type RootStackParamList = {
      */
     RecipeEdit: { readonly recipeId: string; readonly section?: EditorSectionId; readonly line?: LineAddress };
     /**
+     * Cooking mode: one step at a time, full screen, above the tabs. The edge-swipe back is off (a swipe is how a cook
+     * moves between steps) and Android Back leaves, so the only ways out are the screen's own controls.
+     */
+    CookingMode: { readonly recipeId: string };
+    /**
      * The author's food page (ADR-0056 item 2). It opens ABOVE the editor from a refused publish or a row's menu, so Back
      * returns to the editor exactly as it was; from Your foods Back returns there. `from` names where Back goes.
      */

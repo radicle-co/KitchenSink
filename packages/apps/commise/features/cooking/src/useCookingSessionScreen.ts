@@ -13,6 +13,7 @@ import { useState } from 'react';
 
 import { exitOf, navOf, type CookingNav } from './cookingCopy.js';
 import { cookingStepViewOf } from './cookingStepView.js';
+import { useDoneSettled } from './doneSettle.js';
 import type {
     CookingAction,
     CookingDoneActionsProps,
@@ -104,6 +105,8 @@ export function useCookingSessionScreen({
     const finished =
         cookingSessionStateOf({ sessionStatus: session.status, everyLineTicked: session.everyLineTicked }).kind ===
         'done';
+    // The tap on Finish must not also choose a Done action (S24, D15), so Done ignores a press until it has settled.
+    const settled = useDoneSettled(finished);
 
     return {
         session,
@@ -135,11 +138,22 @@ export function useCookingSessionScreen({
                   title: pluralOf(copy.done.title, where.total, locale),
                   enjoy: fillTemplate(copy.done.enjoy, { recipe: recipe.title }),
                   ...(keepAwakeAvailable ? { screenOff: copy.done.screenOff } : {}),
-                  backToRecipe: { label: copy.done.backToRecipe, onPress: onLeave },
+                  backToRecipe: {
+                      label: copy.done.backToRecipe,
+                      onPress: () => {
+                          if (settled) {
+                              onLeave();
+                          }
+                      },
+                  },
                   cookAgain: {
                       label: copy.done.cookAgain,
                       // Starting over lands on step 1 like a Next does, so it is announced like one.
                       onPress: () => {
+                          if (!settled) {
+                              return;
+                          }
+
                           session.cookAgain();
                           afterMove();
                       },

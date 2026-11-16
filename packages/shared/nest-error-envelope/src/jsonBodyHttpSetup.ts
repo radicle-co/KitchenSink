@@ -10,7 +10,7 @@
  *  - THE SERVICE PARSES ITS OWN JSON (`bodyParser: false`). Nest's parser sends a parse failure through
  *    `mapExternalException`, which rewrites the `SyntaxError` into a `BadRequestException` carrying the parser's
  *    message, and that message quotes the request. {@link stripBodyParserRefusal} hands Nest's handler the refusal
- *    without its text, and the filter's {@link normalizeBodyParserError} answers it with a constant message.
+ *    without its text, and the filter's `normalizeBodyParserError` answers it with a constant message.
  *  - ONLY JSON. Nest's default also parsed `application/x-www-form-urlencoded`. That is dropped on purpose: a service
  *    that adopts this has no route taking a form body, so such a body reaches its route unparsed and fails validation.
  *  - THE LIMIT IS NEST'S OWN DEFAULT (`100kb`), kept, so parsing the body here moves no limit.

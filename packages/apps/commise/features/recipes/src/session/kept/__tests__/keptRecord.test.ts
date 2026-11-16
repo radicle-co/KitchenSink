@@ -2,7 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import { KEPT_RECORD_VERSION, keptKeyFor, parseKeptDocument, serializeKeptDocument } from '../keptRecord.js';
 
-import { iso, makeCooking, makeDoc, makeEnded, makePage, makePaused, makeTimer, T0, timerId } from './keptFixtures.js';
+import {
+    iso,
+    makeCooking,
+    makeDoc,
+    makeEnded,
+    makePage,
+    makePaused,
+    makeTimer,
+    T0,
+    timerId,
+} from '../__fixtures__/keptFixtures.js';
 
 describe('keptKeyFor', () => {
     it('is the per-user key of ADR 0004 condition 3', () => {

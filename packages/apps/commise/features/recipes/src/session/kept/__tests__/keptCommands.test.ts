@@ -20,7 +20,7 @@ import {
     makeTimer,
     T0,
     timerId,
-} from './keptFixtures.js';
+} from '../__fixtures__/keptFixtures.js';
 
 const NOW = iso(T0 + HOUR);
 const digestOf = (n: string): string => `s1:${n.padStart(8, '0')}`;

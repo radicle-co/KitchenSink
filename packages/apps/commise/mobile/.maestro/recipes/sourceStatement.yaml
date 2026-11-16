@@ -69,6 +69,8 @@ appId: ${APP_ID}
 - tapOn:
       text: 'Publish'
       below: 'Where is this recipe from?'
+      # Publishing moves the screen for seconds, and the notice below lasts 6 s (maestroTransientNoticeWait.test.ts).
+      waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
       visible: 'Recipe published.'
       timeout: 40000

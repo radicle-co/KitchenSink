@@ -166,6 +166,30 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         expect(written.entries.r1.ticks).toEqual(expect.arrayContaining(['butter', 'salt']));
     });
 
+    it('a change made while reads fail is replayed with the instant the cook made it, not the replay instant', async () => {
+        const fake = makeFakePort({ [KEY_A]: stored });
+        let clock = T0;
+        const store = createKeptSessionStore({
+            port: fake.port,
+            exclusiveOf: () => makeFakeLocks(),
+            now: () => iso(clock),
+            report: vi.fn(),
+            warn: vi.fn(),
+        });
+
+        fake.state.failReads = true;
+        await store.scope('A');
+        await store.dispatch({ ...tick, recipeId: 'r2' });
+        clock = T0 + 2 * 60_000;
+        fake.state.failReads = false;
+        await store.dispatch(tick);
+
+        const written = JSON.parse(fake.data.get(KEY_A) ?? '{}');
+
+        expect(written.entries.r2.lastTouch).toBe(iso(T0));
+        expect(written.entries.r1.lastTouch).toBe(iso(T0 + 2 * 60_000));
+    });
+
     it('a change made while reads fail is dropped when the cook signs out, and never joins the next cook', async () => {
         const { store, data, state } = setup({ [KEY_A]: stored });
 

@@ -77,11 +77,12 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
     /** After a failed write only: the document memory holds, valid while storage still holds `fromRev` (KTD2). */
     let pending: { readonly fromRev: number; readonly doc: KeptDocument } | undefined;
     /**
-     * Commands applied in memory while storage could not be read (so nothing was written). The next successful locked
+     * Commands applied in memory while storage could not be read (so nothing was written), each with the instant the
+     * cook made it: a pause or a last-touch replayed later must keep the time the cook acted, not the replay time. The next successful locked
      * dispatch replays them on top of what storage then holds, so a change made during a transient failure is not lost
      * (KTD5). Dropped on sign-out and on a change of cook, so it never reaches another record.
      */
-    let unsaved: readonly KeptCommand[] = [];
+    let unsaved: readonly { readonly command: KeptCommand; readonly at: string }[] = [];
     /** The last raw string this store read or wrote, so a re-read can tell a different record from the same one. */
     let lastRaw: string | null | undefined;
 
@@ -221,9 +222,9 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
     };
 
     /** The document after each earlier unsaved command that still applies to it, in the order they were made. */
-    const replay = (doc: KeptDocument, commands: readonly KeptCommand[]): KeptDocument =>
-        commands.reduce((acc, command) => {
-            const next = applyKeptCommand(acc, command, deps.now());
+    const replay = (doc: KeptDocument, commands: typeof unsaved): KeptDocument =>
+        commands.reduce((acc, { command, at }) => {
+            const next = applyKeptCommand(acc, command, at);
 
             return next.kind === 'applied' ? next.doc : acc;
         }, doc);
@@ -314,7 +315,8 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
                 pending = undefined;
             }
 
-            const outcome = applyKeptCommand(base, command, deps.now());
+            const at = deps.now();
+            const outcome = applyKeptCommand(base, command, at);
 
             if (outcome.kind !== 'applied' || state.generation !== generation) {
                 return outcome.kind === 'applied' ? UNCHANGED : outcome;
@@ -324,7 +326,7 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
                 unsaved = [];
                 await persist(key, outcome.doc, storedDoc.rev);
             } else if (locked) {
-                unsaved = [...unsaved, command];
+                unsaved = [...unsaved, { command, at }];
             }
 
             if (state.generation === generation) {

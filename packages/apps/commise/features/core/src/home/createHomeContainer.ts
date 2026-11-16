@@ -6,7 +6,13 @@
  */
 import { createContainer, type Container } from 'ditox';
 
-import { errorReporterToken, type AddFeature, type ErrorReporter } from '../appShell.js';
+import {
+    analyticsToken,
+    errorReporterToken,
+    type AddFeature,
+    type AppShellAnalytics,
+    type ErrorReporter,
+} from '../appShell.js';
 
 /** What an app supplies to build its Home container. */
 export interface CreateHomeContainerInput {
@@ -17,6 +23,8 @@ export interface CreateHomeContainerInput {
     readonly features: readonly AddFeature[];
     /** The platform's real reporter (Sentry), bound as the ambient `errorReporterToken` (DA9). */
     readonly errorReporter: ErrorReporter;
+    /** Bound as the ambient `analyticsToken` when given. Web passes none: the store-review ask (S12) is native-only. */
+    readonly analytics?: AppShellAnalytics;
 }
 
 /**
@@ -26,14 +34,18 @@ export interface CreateHomeContainerInput {
  * The reporter is bound HERE so prod and test containers built through this factory share ONE binding path: the
  * widget boundaries resolve the same seam in production that tests bind a fake onto.
  *
- * @param input - The feature registrations and the platform's error reporter.
+ * @param input - The feature registrations, the platform's error reporter and, on a platform that sends one, its analytics.
  * @returns A ditox container with the reporter and each feature's Home widgets bound.
- * @sideEffect Mutates the freshly created container by binding the reporter and each feature's contributions.
+ * @sideEffect Mutates the freshly created container by binding the reporter, the analytics if given, and each feature's contributions.
  */
-export function createHomeContainer({ features, errorReporter }: CreateHomeContainerInput): Container {
+export function createHomeContainer({ features, errorReporter, analytics }: CreateHomeContainerInput): Container {
     const container = createContainer();
 
     container.bindValue(errorReporterToken, errorReporter);
+
+    if (analytics) {
+        container.bindValue(analyticsToken, analytics);
+    }
 
     for (const addFeature of features) {
         addFeature(container);

@@ -5,7 +5,13 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { errorReporterToken, registerHomeWidget, resolveErrorReporter, resolveHomeWidgets } from '../../appShell.js';
+import {
+    analyticsToken,
+    errorReporterToken,
+    registerHomeWidget,
+    resolveErrorReporter,
+    resolveHomeWidgets,
+} from '../../appShell.js';
 import type { AddFeature } from '../../appShell.js';
 import type { HomeWidgetDescriptor } from '../../contract.js';
 import { createHomeContainer } from '../createHomeContainer.js';
@@ -30,6 +36,19 @@ describe('createHomeContainer', () => {
 
         expect(container.get(errorReporterToken)).toBe(errorReporter);
         expect(resolveErrorReporter(container)).toBe(errorReporter);
+    });
+
+    it('leaves analyticsToken unbound when no analytics is given (web: S12 is native-only)', () => {
+        const container = createHomeContainer({ features: [], errorReporter: vi.fn() });
+
+        expect(container.get(analyticsToken)).toBeUndefined();
+    });
+
+    it('binds the supplied analytics under analyticsToken', () => {
+        const analytics = { track: vi.fn() };
+        const container = createHomeContainer({ features: [], errorReporter: vi.fn(), analytics });
+
+        expect(container.get(analyticsToken)).toBe(analytics);
     });
 
     it('applies every feature registration, in order', () => {

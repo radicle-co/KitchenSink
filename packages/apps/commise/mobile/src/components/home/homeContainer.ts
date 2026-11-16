@@ -6,6 +6,9 @@
  * Sentry reporter bound as the ambient `errorReporterToken` (DA9), so `HomeWidgetSurface`'s widget-boundary `onError`
  * resolves the SAME injected seam in production that tests bind a fake onto.
  *
+ * It also binds `sentryAnalytics` as the ambient `analyticsToken`, which carries only the store-review event (S12);
+ * web binds none.
+ *
  * In Home v1 the recipe feature registers a widget, plus the roadmap scaffolding that stands in for the features that
  * do not exist yet (FR-046 / R6 as amended by CR-001). A feature package (005–009) lights up its widget by adding its
  * `addFeature` to the list below when it ships — and its roadmap entry is deleted at the same time (leaving it is
@@ -16,6 +19,7 @@ import { createHomeContainer } from '@commise/features-core/home';
 import { addRecipeFeature } from '@commise/features-recipes';
 import type { Container } from 'ditox';
 
+import { sentryAnalytics } from '../../observability/sentryAnalytics.js';
 import { reportErrorToSentry } from '../../observability/sentryErrorReporter.js';
 import { addRoadmapPlaceholders } from './roadmapFeature.js';
 
@@ -23,4 +27,5 @@ import { addRoadmapPlaceholders } from './roadmapFeature.js';
 export const homeContainer: Container = createHomeContainer({
     features: [addRecipeFeature, addRoadmapPlaceholders],
     errorReporter: reportErrorToSentry,
+    analytics: sentryAnalytics,
 });

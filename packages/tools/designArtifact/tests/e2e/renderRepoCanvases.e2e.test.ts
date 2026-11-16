@@ -3,60 +3,29 @@
  * and dark. No build is involved: each board is the file in `docs/design/canvases/<folder>/project/`, which is what a
  * publish sends.
  *
- * Which canvases: the folders changed against the merge base with `origin/main` (committed, staged or not).
- * `CANVASES=all` renders every canvas (the check before a publish), and `CANVASES=id,id` the ones named.
+ * Which canvases: see `selectedRepoCanvases` (`CANVASES=all` is the check before a publish). Their LFS images are
+ * fetched by the set-up, and every `<img>` must have loaded.
  *
  * A board's size is the one its `canvas.json` places it at (`boards[file].w` and `.h`). Each board is one `it` per
  * theme, so a failure names the board. Nothing sleeps: the runtime's render (no `<x-import>` left) and
  * `document.fonts.ready` are awaited.
  */
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { chromium } from 'playwright-core';
 import type { Browser } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { z } from 'zod';
 
-import { parseRepoCanvases } from '../../src/publish/repoCanvases.js';
-import { changedRegistryIds, selectCanvases } from '../../src/publish/selectCanvases.js';
-
 import { openRecordedPage } from './pageProblems.js';
+import { CANVASES_DIR, selectedRepoCanvases } from './selectedRepoCanvases.js';
 
 const THEMES = ['light', 'dark'] as const;
 
-const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
-const CANVASES_DIR = join(REPO_ROOT, 'docs', 'design', 'canvases');
-
 const canvasJsonSchema = z.object({ boards: z.record(z.string(), z.object({ w: z.number(), h: z.number() })) });
 
-const git = (...args: string[]): string => execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8' }).trim();
-
-const mergeBase = (): string => git('merge-base', 'HEAD', 'origin/main');
-
-const changedPaths = (): readonly string[] =>
-    git('diff', '--name-only', mergeBase())
-        .split('\n')
-        .filter((line) => line !== '');
-
-/** The registry as the merge base had it, or `null` when the merge base has none. */
-const registryAtMergeBase = (): string | null => {
-    try {
-        return git('show', `${mergeBase()}:docs/design/canvases/registry.json`);
-    } catch {
-        return null;
-    }
-};
-
-const registryText = readFileSync(join(CANVASES_DIR, 'registry.json'), 'utf8');
-const selected = selectCanvases(
-    parseRepoCanvases(registryText),
-    changedPaths(),
-    process.env['CANVASES'],
-    new Set(changedRegistryIds(registryAtMergeBase(), registryText)),
-);
+const selected = selectedRepoCanvases(process.env['CANVASES']);
 
 const origin = inject('repoCanvasOrigin');
 
@@ -116,7 +85,14 @@ describe('repo canvases', () => {
                         };
                     });
 
+                    const brokenImages = await page.evaluate(() =>
+                        [...document.images]
+                            .filter((img) => !img.complete || img.naturalWidth === 0)
+                            .map((img) => img.src),
+                    );
+
                     expect(problems).toEqual([]);
+                    expect(brokenImages, 'images that did not load').toEqual([]);
                     expect(measured.theme).toBe(theme);
                     expect(measured.contentWidth, 'content overflows the board sideways').toBeLessThanOrEqual(w);
                     expect(

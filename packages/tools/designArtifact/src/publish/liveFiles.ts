@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { DesignArtifactError } from '../errors.js';
 import type { RunGit } from '../sources/gitHead.js';
 
+import { CANVASES_DIR } from './gitCanvasHistory.js';
 import { MARKER_PATH, parseMarker } from './publishPlan.js';
 
 /**
@@ -52,8 +53,10 @@ export async function readLiveList(file: string): Promise<string[]> {
     return parsed.data;
 }
 
+const HASH_CHUNK = 16;
+
 /**
- * Hashes downloaded files the way git stores blobs (no line-ending or filter conversion).
+ * Hashes downloaded files the way git stores blobs: an LFS image as its pointer, any other file byte for byte.
  *
  * @sideEffect Spawns `git`.
  * @param run - Runs git (its cwd is irrelevant to absolute paths).
@@ -85,9 +88,27 @@ export async function hashLive(
         return new Map();
     }
 
-    // shortcut: one git call with every path, so the argument list bounds the file count; chunk past ~10k boards.
-    const out = await run(['hash-object', '--no-filters', '--', ...present.map((p) => join(liveDir, folder, p))]);
-    const oids = out.trim().split('\n');
+    // `--path` makes git apply the repo's attributes for the file's repo path: an LFS image hashes to its pointer oid
+    // (what the tree records), and every other canvas file is `-text` there, so it still hashes byte for byte.
+    // shortcut: one git call per file, in chunks; the canvases hold tens of files.
+    const entries: [string, string][] = [];
 
-    return new Map(present.map((path, i) => [path, oids[i] ?? ''] as const));
+    for (let i = 0; i < present.length; i += HASH_CHUNK) {
+        const chunk = present.slice(i, i + HASH_CHUNK);
+        const oids = await Promise.all(
+            chunk.map(async (path) =>
+                (
+                    await run([
+                        'hash-object',
+                        `--path=${CANVASES_DIR}/${folder}/${path}`,
+                        '--',
+                        join(liveDir, folder, path),
+                    ])
+                ).trim(),
+            ),
+        );
+        entries.push(...chunk.map((path, j): [string, string] => [path, oids[j] ?? '']));
+    }
+
+    return new Map(entries);
 }

@@ -136,26 +136,78 @@ export async function showText(run: RunGit, main: string, path: string): Promise
     return run(['show', `${main}:${path}`]);
 }
 
+const LFS_POINTER_START = 'version https://git-lfs.github.com/spec/v1\n';
+
 /**
- * Reads one blob's exact bytes.
+ * Whether bytes are a Git LFS pointer file instead of the content it stands for.
  *
- * @sideEffect Spawns `git`.
+ * @param bytes - A blob read from git.
+ * @returns `true` when it starts with the LFS pointer header.
+ */
+export function isLfsPointer(bytes: Buffer): boolean {
+    return bytes.subarray(0, LFS_POINTER_START.length).toString('latin1') === LFS_POINTER_START;
+}
+
+/**
+ * The `git` arguments that fetch the LFS images of canvas folders (`.lfsconfig` excludes them from an ordinary fetch).
+ *
+ * @param folders - The canvas folder names.
+ * @returns The arguments, with one `--include` list for all the folders.
+ */
+export function lfsPullArgs(folders: readonly string[]): string[] {
+    const include = folders.map((folder) => `${CANVASES_DIR}/${folder}/project/assets/**`).join(',');
+
+    return ['-c', 'lfs.fetchexclude=', 'lfs', 'pull', `--include=${include}`];
+}
+
+/**
+ * {@link lfsPullArgs} as the shell command a person runs.
+ *
+ * @param folders - The canvas folder names.
+ * @returns The command, the include list quoted.
+ */
+export function lfsPullCommand(...folders: readonly string[]): string {
+    return `git ${lfsPullArgs(folders)
+        .join(' ')
+        .replace(/--include=(\S+)$/u, "--include='$1'")}`;
+}
+
+/**
+ * Reads one blob's exact bytes, through the repository's filters so an LFS path yields the real file.
+ *
+ * @sideEffect Spawns `git`; an LFS path may download its object.
  * @param cwd - The repository.
  * @param main - The commit.
  * @param folder - The canvas folder name.
  * @param path - Canvas-relative path.
  * @returns The bytes, never decoded as a string.
+ * @throws DesignArtifactError `lfs-object-missing` when the path is an LFS pointer whose object could not be fetched.
  */
 export async function blobBytes(cwd: string, main: string, folder: string, path: string): Promise<Buffer> {
-    const { stdout } = await promisify(execFile)(
-        'git',
-        ['cat-file', 'blob', `${main}:${CANVASES_DIR}/${folder}/${path}`],
-        {
-            cwd,
-            encoding: 'buffer',
-            maxBuffer: 256 * 1024 * 1024,
-        },
+    const missing = new DesignArtifactError(
+        'lfs-object-missing',
+        `${CANVASES_DIR}/${folder}/${path} is a Git LFS file whose content is not on this machine. Run: ${lfsPullCommand(folder)}`,
     );
+    let stdout: Buffer;
+
+    try {
+        ({ stdout } = await promisify(execFile)(
+            'git',
+            ['cat-file', '--filters', `${main}:${CANVASES_DIR}/${folder}/${path}`],
+            { cwd, encoding: 'buffer', maxBuffer: 256 * 1024 * 1024 },
+        ));
+    } catch (error) {
+        // A required LFS filter that cannot fetch its object fails the whole command.
+        if (path.startsWith('project/assets/')) {
+            throw missing;
+        }
+
+        throw error;
+    }
+
+    if (isLfsPointer(stdout)) {
+        throw missing;
+    }
 
     return stdout;
 }

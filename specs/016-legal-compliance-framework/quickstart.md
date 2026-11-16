@@ -186,8 +186,6 @@ npm run test --workspace=packages/services/recipe-service   # includes the media
 | A translator's term counts                 | A record whose author died long ago but whose translator died too late → not label 7. `FR-015k`                                                           |
 | CC BY is refused off label 1               | Ask for `cc-by-4.0` on labels 2 to 7, on an unchecked label 1, and from an under-age account → each refused. `FR-010`                                     |
 | The licence reaches the page               | A CC BY recipe's public page carries schema.org `license`. Commise-written text carries CC BY-SA 4.0, credited "Commise and contributors". `FR-078`       |
-| The cap counts over time                   | Make cards public from one site to the cap, withdraw one, add one more → the new one is cut back. `FR-030a`                                               |
-| Two writers cannot both take the last slot | Two concurrent publishes from one site at cap minus one → exactly one gets a full card. `FR-030a`                                                         |
 | robots.txt follows RFC 9309                | A robots.txt with only a `*` group that disallows the path → the fetch is refused and logged as `star`. `FR-024a`                                         |
 | An AI opt-out is honoured                  | A page with `tdm-reservation: 1`, or `ai-input=no` → refused, and the log names the signal. `FR-024a`                                                     |
 | "None found" is logged                     | A page with no signals → a log row with `none_found` in every signal column, never NULL. `FR-024a`                                                        |

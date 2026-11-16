@@ -909,8 +909,8 @@ predicted Commise result.
 - **Web sells through Stripe. The phone apps sell through the stores.** Stripe Checkout and the Stripe Customer Portal are web-only. iPhone sales use App Store in-app purchase and Android sales use Google Play Billing. RevenueCat joins the three into one entitlement record per cook ([O-9](#owner-inputs-still-needed), `FR-042i`, [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md)). _(Was: mobile users are deep-linked to web checkout and in-app purchase is out of scope for v1. Reversed 2026-10-27.)_
 - _(Amended 2026-11-15, owner ruling, ADR-0093.)_ A recipe copied from someone else's page, book or paid site is never
   public in its source's wording, whatever the tier, unless its source is on the copy-outright allowlist
-  (`004-FR-065`). Its public form is a Commise-written version. No tier changes this. Whether the cook's private copy
-  then uses a slot is an open owner question (`004` OQ-004-R2). _(Was: its public form was a facts card that used no
+  (`004-FR-065`). Its public form is a Commise-written version. No tier changes this. The cook's private copy uses a
+  slot even when a public version exists (product decision, 2026-11-15). _(Was: its public form was a facts card that used no
   slot. Facts cards are withdrawn.)_
 - **Marketplace payments are out of scope for v1 — but entitlement gating is NOT.** Keep these separate;
   conflating them over-blocks downstream work.

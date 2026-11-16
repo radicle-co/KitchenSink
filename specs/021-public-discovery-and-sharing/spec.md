@@ -681,14 +681,16 @@ Session 2026-11-15.)_
       CC BY-SA 4.0 credited "Commise and contributors" (`016`). A free-site version names and links the domain with
       "Not affiliated." A paid-site version names no site. "Report a problem" hides it until staff look (`020`).
     - **The private copy keeps the source's wording** and shows the source author's name. It is never public.
-- **Reading: a Commise-written version is an open recipe.** Its words are Commise's, so it follows FR-002 like any open
+- **Reading: a Commise-written version is an open recipe** (Owner ruling, 2026-11-15, confirmed)**.** Its words are Commise's, so it follows FR-002 like any open
   recipe and is indexable under FR-020. It is not a creator's own recipe, so a creator page does not list it (FR-015,
   O7).
+- **Decided 2026-11-15.** The linked card is retired, and creator pages and sale listings never show a
+  Commise-written version (Owner ruling, 2026-11-15). There are no caps on public versions, per site, per source or
+  per publisher, and aggregator sites follow the normal rules (Owner ruling, 2026-11-15, `016-FR-030a`). The cook's
+  private copy uses a slot even when a public version exists (product decision, 2026-11-15). A second import of the
+  same page is matched by its normalised source address (`sourceLinkKey`, product decision, 2026-11-15).
 - **Open, for the owner:**
-    - whether a recipe with a Commise-written public version uses a private slot (FR-014d's old answer was "no slot")
     - whether one source page can have more than one public version, and which one is canonical (FR-014d, FR-026a)
-    - whether a per-site cap applies to free-site versions. The rulings set a per-publisher cap only for paid sites,
-      counting only distinctive recipes
     - whether `Recipe` structured data on a version carries `isBasedOn` for a free site (FR-023)
 
 ## Requirements _(mandatory)_
@@ -893,8 +895,8 @@ Session 2026-11-15.)_
 - **FR-014a**: Withdrawn. Owner ruling, 2026-11-15: no facts cards.
 - **FR-014b**: Withdrawn. Owner ruling, 2026-11-15: no facts cards.
 - **FR-014c**: Withdrawn. Owner ruling, 2026-11-15: no facts cards. A clone of a Commise-written version follows FR-005.
-- **FR-014d**: Withdrawn. Owner ruling, 2026-11-15: no facts cards. Slot use and the canonical version per source page are open owner questions (Session
-  2026-11-15).
+- **FR-014d**: Withdrawn. Owner ruling, 2026-11-15: no facts cards. The private copy uses a slot even when a public version exists. The canonical version per source page is open
+  (Session 2026-11-15).
 - **FR-014e**: Withdrawn. Owner ruling, 2026-11-15: no facts cards. A site that opts out has its public versions withdrawn (`016`). Private imports are unaffected.
 - **FR-014f** _(amended 2026-11-15. Owner ruling, 2026-11-15, ADR-0093)_: A source page that states an open licence in
   its structured data (`016-FR-012b`) is on the copy-outright allowlist. Such a recipe can be shown in full, open to
@@ -1359,7 +1361,7 @@ Session 2026-11-15.)_
     - _(Added 2026-11-03, ADR-0082.)_ These 016 items follow the 2026-11-03 rulings and are applied in 016 itself:
       the public domain gate (`016-FR-015k`), rows 5 and 7 of the rights label table (`016-FR-015c`) and their draft
       words (`016-FR-015g`), `016-FR-012`'s licence rule for protected expression only, `016-FR-030`'s carve-out for
-      what a CC licence allows, and the per-site cap counted over time (`016-FR-030a`).
+      what a CC licence allows. _(Amended, Owner ruling, 2026-11-15: there are no caps, `016-FR-030a`.)_
 - **FR-093**: ADR-0064 MUST be amended before creator pages ship, so a public avatar address carries no user id
   (FR-071).
 - **FR-094**: If the plan picks Option A, ADR-0020 MUST be amended: the edge passthrough gains the public read path, and

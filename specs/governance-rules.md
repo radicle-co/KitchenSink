@@ -709,6 +709,8 @@ citing the modification requirement as a copyright defence.
 - **AC-014-f holds for the private copy.** It shows the source author's name, and stored credit and copyright notices
   are never stripped. A free-site Commise-written version names and links the source domain with "Not affiliated."; a
   paid-site version names no site (`021-FR-014`).
+- **The private copy uses a slot** even when the recipe also has a public Commise-written version (product decision,
+  2026-11-15, ADR-0073). There are no caps on public versions (owner ruling, 2026-11-15, `016-FR-030a`).
 
 ### Current State (2026-11-03): open library (ADR-0082)
 

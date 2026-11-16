@@ -600,9 +600,8 @@ under `016-FR-048c`. They are built as that market opens, and recorded in its re
       buyer's remedy in that market.
     - **Australia:** the under-16 social media self-assessment and the consumer-terms fairness test.
     - **Canada:** notice-and-notice, with records kept for six months.
-- **FR-090a**: **The URL-import switch is per market (D6).** Withdrawn. Owner ruling, 2026-11-15: the import never
-  fetches a page, so there is no per-market URL-import switch. A cook's private copy keeps the source's wording
-  (`016-FR-077`).
+- **FR-090a**: **The URL-import switch is per market (D6).** Withdrawn. Owner ruling, 2026-11-15: there is no per-market
+  URL-import switch. A cook's private copy keeps the source's wording in every market (`016-FR-077`).
 
 #### J. Support
 

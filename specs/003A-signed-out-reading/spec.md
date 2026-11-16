@@ -566,8 +566,7 @@ native public view shows the offline state with Try again. The web page is serve
 
 - 021 section C (search engines, sitemaps, IndexNow, the settle period), section E (licence moment, takedown, reports),
   creator pages, the chef directory, collections, the embed widget, the share action and share marks (021 US2).
-- The producers of the hold (020), the rights label and the licence acceptance (016), the per-source cap and the
-  aggregator list (`021-FR-014e`), and the public domain record (`021-FR-006`).
+- The producers of the hold (020), the rights label and the licence acceptance (016), and the public domain record (`021-FR-006`).
 - Any signed-out list, search, feed, bulk or export route (`021-FR-060`).
 
 ## Open questions for the owner

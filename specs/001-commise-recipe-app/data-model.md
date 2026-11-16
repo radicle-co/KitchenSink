@@ -782,8 +782,8 @@ Enforced in service layer (`RecipeService.setVisibility()`), NOT at DB constrain
 >    `privateOnly` rule (`privateRuleOf`) refuses `public` for `IMPORTED_PAID` and `IMPORTED_PHYSICAL` today. It
 >    must allow `public`. For label 4, the public form is the Commise-written version (spec 003B, planned),
 >    never the full copy.
-> 2. Whether a recipe with a Commise-written public version uses a private slot is an open owner question
->    (2026-11-15). The 2026-11-03 answer was for book cards, which are withdrawn.
+> 2. A recipe's private copy uses a private slot even when it also has a Commise-written public version (product
+>    decision, 2026-11-15). The 2026-11-03 answer was for book cards, which are withdrawn.
 > 3. Who reads what is no longer `visibility` alone. The read path must never serve a private copy's wording to
 >    anyone but its owner and, under `017`'s household rule, their household.
 

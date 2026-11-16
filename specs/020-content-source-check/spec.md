@@ -1631,7 +1631,7 @@ rule, written once, not a check per door. The door-by-door analysis that found t
     - a mode or an outcome value outside the closed sets (FR-019, FR-013)
     - for a public domain text, a missing or unreadable record (`016-FR-015k`): the text is not open
     - for a licence, an unreadable choice: the page shows the `commise` licence, never CC BY
-    - for an import headed public, an unreadable cap counter or opt-out list: Private only (`016-FR-030a`, `016-FR-081`)
+    - for an import headed public, an unreadable opt-out list: Private only (`016-FR-081`)
 
     The tests MUST set each input to NULL or to an unknown value, one at a time. Each test MUST see the recipe held.
 
@@ -1646,7 +1646,6 @@ rule, written once, not a check per door. The door-by-door analysis that found t
     | An import page fingerprint is missing or unreadable | That part is not green. A person decides                                                  |
     | The model, its budget or its spend counter          | FR-020, FR-021 and FR-022, as written                                                     |
     | The web search, its index, its budget or its switch | `unchecked` (`searchNotRun`), FR-012e. A person decides                                   |
-    | The per-site or per-source cap counter or its lock  | Private only (`016-FR-030a`)                                                              |
     | The public domain record store                      | The text is not open (`021-FR-006`)                                                       |
     | The licence grant store                             | The `commise` licence (FR-070)                                                            |
     | The reviewer queue                                  | Referrals wait. No timer publishes anything (FR-030)                                      |
@@ -1714,7 +1713,7 @@ rule, written once, not a check per door. The door-by-door analysis that found t
     - Clones of the removed content are actioned in the same decision (`016-FR-022`).
 - **FR-067**: **Some facts change after publication, and the read rule reads them live.** These MUST be read at read
   time, never stamped at publish, so a later change takes effect within 021's purge bound (`021-FR-061`):
-    - a site's opt-out, its cap, or its exclusion (`016-FR-024a`, `016-FR-030a`, `021-FR-014e`)
+    - a site's opt-out (`016-FR-081`). There are no caps (`016-FR-030a`, owner ruling, 2026-11-15)
     - a public domain record that stops passing (`016-FR-015k`, `021-FR-006`)
     - a chef's Home or a claim that fails (`021-FR-010a`, `026-FR-001`). _(amended 2026-11-03, owner ruling O16,
       ADR-0082)_ This live read moves the canonical address only. A failed claim never reopens a recipe it already
@@ -1729,7 +1728,7 @@ rule, written once, not a check per door. The door-by-door analysis that found t
 - **FR-069**: **A licensed page goes to a person.** A recipe shown in full under a licence the source page stated
   (`021-FR-014f`) will score high on its own import page by design. FR-012c's containment rule MUST NOT treat that as
   green or as evidence. Instead, every licensed page MUST go to a person. The person checks the licence
-  evidence the import detected in the page's structured data (`016-FR-073`; Commise never fetches the page): the
+  evidence the import detected in the page's structured data (`016-FR-073`): the
   licence named, that it allows commercial use, and the attribution it asks for.
     - A source page that later drops its licence is not an exit event. A notice from the rightsholder is still
       decided under 016.

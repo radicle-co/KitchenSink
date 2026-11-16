@@ -387,10 +387,10 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
     > per RFC 9309 and the data-mining opt-outs of `004-FR-023`, and MUST log what each signal said per fetch. The
     > result follows the per-market private-copy switch (`004-FR-008` ruling, D6): the EU and UK keep facts and a link
     > only.
-    > **Amended, Owner ruling, 2026-11-15.** The import never fetches pages, and extraction runs on the device
-    > (`004`). Whether a server call to a platform's official API for a social post survives that rule is an open
-    > owner question, so this section is on hold until it is answered. A cook's private copy keeps the source's
-    > wording (`016-FR-077`).
+    > **Amended, Owner ruling, 2026-11-15.** A link the cook imports, including a link shared from a social app, is
+    > fetched on the cook's device first, and by our server if the device cannot fetch it (`004-FR-064`). On web the
+    > server fetch usually runs. A paste is never fetched. The per-market private-copy switch is withdrawn: a cook's
+    > private copy keeps the source's wording in every market (`016-FR-077`).
 - **FR-001b** `→ 004 ADDED`: System MUST monitor extraction success **per source platform**, MUST surface a
   defined degradation path when one platform stops working, and MUST NOT let any single platform be
   load-bearing for the feature's success criteria. _(ReciMe took a staff-acknowledged import outage across
@@ -478,7 +478,7 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
     > **Amended 2026-11-03 (owner ruling, ADR-0082).** The extension runs in the cook's browser, with the cook's own
     > session, after the cook's action. It captures what the cook can already see, including a page behind the cook's own
     > subscription, so the server never fetches a paid site and never uses a cook's cookies. The captured page is a
-    > private copy under the per-market switch (D6, `004-FR-008` ruling), and its public form is a Commise-written version (`016-FR-077`, Owner ruling, 2026-11-15). The
+    > private copy that keeps the page's wording, and its public form is a Commise-written version (`016-FR-077`, Owner ruling, 2026-11-15). The
     > extension follows the same signal rules as `004-FR-023` for any fetch the server makes on its behalf.
 - **FR-015** `→ 004 ADDED`: Every capture surface — chooser, share sheet, extension, migration — MUST route
   through **one** import pipeline, so provenance, confidence, quota (`004-FR-022`), attestation

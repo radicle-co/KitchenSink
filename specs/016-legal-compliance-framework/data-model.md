@@ -269,33 +269,15 @@ carry CC BY-SA 4.0, credited "Commise and contributors" (spec `FR-078`), whereve
   Public pages carry the licence in schema.org `license`. That contract change belongs to recipe-service's schema
   package (ADR-0014), not to [contracts/legal-api.md](./contracts/legal-api.md).
 
-## 12. The per-source cap count (recipe-service, `FR-030a`) _(added 2026-11-03, ADR-0082)_
+## 12. The per-source cap count _(withdrawn)_
 
-`source_card_events`, append-only, one row each time a public form of a source's recipe is made public:
-
-| Column           | Type                   | Notes                                                                                                                                  |
-| ---------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`             | `uuid` PK              |                                                                                                                                        |
-| `source_key`     | `text` NOT NULL        | A site's registrable domain (from the Public Suffix List, by a library), a book's ISBN-13 or normalized title, or a paid site's domain |
-| `source_class`   | `text` NOT NULL        | Closed union: `site`, `aggregator`, `book`, `paid_site`                                                                                |
-| `recipe_id`      | `uuid` NOT NULL        |                                                                                                                                        |
-| `form`           | `text` NOT NULL        | Closed union: `commise_version` (facts cards retired, Owner ruling, 2026-11-15)                                                        |
-| `distinctive`    | `boolean` NOT NULL     | Only distinctive recipes count toward a per-publisher cap (spec `FR-080`). How it is judged is spec 003B work                          |
-| `made_public_at` | `timestamptz` NOT NULL |                                                                                                                                        |
-| `withdrawn_at`   | `timestamptz` NULL     |                                                                                                                                        |
-
-- The count is **over time**: a withdrawn row still counts, because the cap limits what is taken from a source
-  over time, not what is live today.
-- The count is taken live with `COUNT(*)` under a per-source advisory lock, in the same transaction as the write,
-  the shape ADR-0073 uses for private slots. There is no counter column.
-- The cap numbers are configuration per `source_class`, confirmed before launch (`spec FR-050`). _(Amended 2026-11-03, owner ruling O6, ADR-0082.)_ `aggregator` is fixed at zero: no card is ever made for it, so the policy denies before it counts.
-- _(Amended, Owner ruling, 2026-11-15.)_ What the import offers for a source past its cap is an open owner question
-  (spec `FR-030a`). A refused Public choice writes a restriction statement (section 14).
+Withdrawn. Owner ruling, 2026-11-15: there are no caps on public versions (spec `FR-030a`), so the
+`source_card_events` ledger is not built.
 
 ## 13. The fetch-signal log (the fetching service, `FR-024a`) _(added 2026-11-03, ADR-0082)_
 
-_(Withdrawn, Owner ruling, 2026-11-15.)_ The import never fetches a page (`004`), so this log has nothing to record and
-is not built. The table below is kept only as the record of what was withdrawn. Publisher opt-outs are spec `FR-081`.
+_(Withdrawn, Owner ruling, 2026-11-15.)_ This log is not built. How a link import's fetch treats a page is `004`'s
+(`004-FR-064`). The table below is kept only as the record of what was withdrawn. Publisher opt-outs are spec `FR-081`.
 
 `fetch_signal_records`, one row per server fetch of a page:
 
@@ -312,7 +294,6 @@ is not built. The table below is kept only as the record of what was withdrawn. 
 | `noai_tag`                | `text` NOT NULL        | Closed union: `noai`, `noimageai`, `both`, `none_found`         |
 | `ai_crawler_blocks`       | `text[]` NOT NULL      | The AI crawler groups found blocked. Empty means none found     |
 | `content_signal_ai_input` | `text` NOT NULL        | Closed union: `no`, `yes`, `none_found`                         |
-| `pirate_host`             | `boolean` NOT NULL     |                                                                 |
 | `outcome`                 | `text` NOT NULL        | Closed union: `fetched`, `refused`                              |
 
 - "None found" is a value, never NULL, because the log is our evidence that we looked.
@@ -326,22 +307,22 @@ A statement of reasons for a restriction that did not start from a notice. It ca
 which needs a notice. It reuses the same two-channel delivery (`FR-018a`, `FR-018b`). Recipe-service calls identity
 through the existing internal path when it places the restriction.
 
-| Column                 | Type                   | Notes                                                                                                                                                                              |
-| ---------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                   | `text` PK              |                                                                                                                                                                                    |
-| `account_id`           | `text` NOT NULL        | The cook                                                                                                                                                                           |
-| `content_ref`          | `text` NOT NULL        | An opaque recipe reference                                                                                                                                                         |
-| `idempotency_key`      | `text` NOT NULL UNIQUE | Set by recipe-service, so a retried call writes one row                                                                                                                            |
-| `kind`                 | `text` NOT NULL        | Closed union: `refused_to_publish`, `held_for_review`, `not_approved`, `demoted`, `visibility_limited`, `version_withdrawn_opt_out`, `public_refused_cap`, `version_hidden_report` |
-| `ground`               | `text` NOT NULL        | The provision or terms clause                                                                                                                                                      |
-| `facts`                | `text` NOT NULL        | Substantive                                                                                                                                                                        |
-| `automated`            | `boolean` NOT NULL     | 020's automated hold is `true`. A person's decision is `false`                                                                                                                     |
-| `redress`              | `text` NOT NULL        | The route to challenge it (`FR-019`)                                                                                                                                               |
-| `created_at`           | `timestamptz` NOT NULL |                                                                                                                                                                                    |
-| `statement_inapp_at`   | `timestamptz` NULL     |                                                                                                                                                                                    |
-| `statement_email_at`   | `timestamptz` NULL     | Email accepted by the provider                                                                                                                                                     |
-| `challenge_outcome`    | `text` NULL            | Closed union: `upheld`, `reversed`. NULL while open or never challenged                                                                                                            |
-| `challenge_decided_at` | `timestamptz` NULL     |                                                                                                                                                                                    |
+| Column                 | Type                   | Notes                                                                                                                                                        |
+| ---------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`                   | `text` PK              |                                                                                                                                                              |
+| `account_id`           | `text` NOT NULL        | The cook                                                                                                                                                     |
+| `content_ref`          | `text` NOT NULL        | An opaque recipe reference                                                                                                                                   |
+| `idempotency_key`      | `text` NOT NULL UNIQUE | Set by recipe-service, so a retried call writes one row                                                                                                      |
+| `kind`                 | `text` NOT NULL        | Closed union: `refused_to_publish`, `held_for_review`, `not_approved`, `demoted`, `visibility_limited`, `version_withdrawn_opt_out`, `version_hidden_report` |
+| `ground`               | `text` NOT NULL        | The provision or terms clause                                                                                                                                |
+| `facts`                | `text` NOT NULL        | Substantive                                                                                                                                                  |
+| `automated`            | `boolean` NOT NULL     | 020's automated hold is `true`. A person's decision is `false`                                                                                               |
+| `redress`              | `text` NOT NULL        | The route to challenge it (`FR-019`)                                                                                                                         |
+| `created_at`           | `timestamptz` NOT NULL |                                                                                                                                                              |
+| `statement_inapp_at`   | `timestamptz` NULL     |                                                                                                                                                              |
+| `statement_email_at`   | `timestamptz` NULL     | Email accepted by the provider                                                                                                                               |
+| `challenge_outcome`    | `text` NULL            | Closed union: `upheld`, `reversed`. NULL while open or never challenged                                                                                      |
+| `challenge_decided_at` | `timestamptz` NULL     |                                                                                                                                                              |
 
 It is evidence, so it follows the retention rules below like `notice_decisions`.
 

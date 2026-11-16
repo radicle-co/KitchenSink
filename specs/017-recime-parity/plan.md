@@ -155,8 +155,8 @@ Ordered by **risk and dependency**, not by story priority — per the spec's own
 No Commise-authored rewrite of a creator's recipe is built here (R6). _(Amended, Owner ruling, 2026-11-15.)_ Facts
 cards are retired. A captured recipe is a private copy that keeps the source's wording. Its public form is a
 Commise-written version, made by spec 003B (public versions of imported recipes, planned), and the cook can still
-publish their own Adapted version. The rows above that read a fetch (T-033, T-034) wait on the owner question about
-server retrieval, because the import never fetches pages (`004`).
+publish their own Adapted version. The rows above that read a fetch (T-033, T-034) stand: a shared link is
+fetched on the device first, then by our server (owner ruling, 2026-11-15, `004-FR-064`).
 
 Increments 0–3 are unblocked today. Increment 0 is design-first and blocks nothing but must not be retrofitted.
 Increment 7 is deliberately last and additive: the completion signal ships in-app in Increment 1, and push

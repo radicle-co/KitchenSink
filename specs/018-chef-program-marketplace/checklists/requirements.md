@@ -65,11 +65,11 @@ state, because the buyer guarantee creates one on every refund of an already-pai
 
 Two findings from that research are recorded in the clarification so they are not re-litigated: US
 marketplace-facilitator laws attach tax collection to the **platform** regardless of the seller of record (so
-the chef-as-seller choice buys distance from money transmission and seller-side content liability, and buys
-**nothing** on tax); and Amazon takes the buyer-facing refund anyway, which is why `FR-032a` departs from a
+the chef-as-seller choice keeps the platform out of money transmission and out of selling the content, and
+changes **nothing** on tax); and Amazon takes the buyer-facing refund anyway, which is why `FR-032a` departs from a
 pure agency model. The platform-as-seller counterpoint (Amazon KDP, App Store and Play all use it for
-**digital** goods) is recorded as a real argument that lost on a specific cost — it would put the platform in
-a seller's content-liability posture, which is not the framing `016` is built on.
+**digital** goods) is recorded as a real argument that lost on a specific cost — it would make the platform
+the seller of the content rather than its host, which is not the framing `016` is built on.
 
 **Iteration 4 (2026-08-26)** — `C-018-003` **widened on owner direction** ("I think this is too narrow"), and
 given the balance of specification effort. The research went from 10 options to **22 across six payer
@@ -112,9 +112,8 @@ from one question to **five**. Five things changed that were not lengthening:
   lower CAC, k-factor 0.2–0.4 → 0.5–0.8 — and it is **unowned**: `015` explicitly out-of-scopes rewarding
   "referring". `FR-058k` bounds it against `015`'s recognition layer.
 - ⚠️ **The FOMO half of the owner's question required a real line, not a hedge.** `015-FR-027` already forbids
-  artificial scarcity, countdown timers and false urgency, and **EU DSA Art. 25 prohibits manipulative
-  interface design outright** (UCPD alongside; CRD amendments from 19 June 2026; a Digital Fairness Act
-  expected). The enforcement guidance makes **truthfulness decisive** — a genuine time-limited offer is
+  artificial scarcity, countdown timers and false urgency, and manipulative interface design is never
+  allowed. The guidance makes **truthfulness decisive** — a genuine time-limited offer is
   legitimate; the same notice violates when the urgency is invented or **resets**. `FR-062d` states the test:
   _if the fact would still be true with the counter removed, the counter is honest; if the counter creates the
   fact, it is a dark pattern._ ⭐ And the answer is **not "no"** — the **reverse trial** is the best fit in the

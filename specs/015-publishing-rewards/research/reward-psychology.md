@@ -12,21 +12,19 @@
 
 ## 0. The question this research had to answer
 
-The owner's direction was to build something _"truly compelling and addictive"_ by leveraging _"human
-psychology we can leverage and manipulate."_ Taken at face value that names a specific class of mechanic —
+The brief asked for a compelling reward programme. The obvious candidates are a specific class of mechanic —
 streaks, loss-framed counters, leaderboards, variable reinforcement. So the research was pointed at those
 mechanics **first**, on their own terms: do they produce durable contribution?
 
 **They largely do not, for this activity** — and three of them are actively counter-indicated here. The
 mechanics with the strongest evidence for _sustained_ contribution are the quieter ones. That is the central
 finding, and it is convenient rather than inconvenient: the design that performs best is also the one that
-survives the inducement hazard and DSA Art. 25.
+rewards only the cook's own work and uses no manipulative design.
 
 **Why "addictive" is the wrong target specifically for this feature**, in one line: the engagement mechanics
 work by increasing _frequency of a repeatable low-cost action_. Authoring an original recipe is neither
 frequent nor low-cost. Pointing a frequency mechanic at it does not produce more recipes — it produces more
-**junk** recipes, which is the one outcome that damages the corpus, trips `FR-001`'s anti-inducement control,
-and hands a plaintiff the "we deliberately incentivised uploads" narrative described in §6.
+**junk** recipes, which is the one outcome that damages the corpus and pushes against `FR-001`'s own-work rule.
 
 ---
 
@@ -120,8 +118,7 @@ broken, users rage-quit rather than resume.
 
 **Verdict: exclude.** Two independent reasons. (1) Frequency mismatch — a streak demands a daily repeatable
 act, and nobody authors an original recipe daily, so the only way to satisfy a publishing streak is to publish
-filler. (2) It is loss-framed, which is the mechanic DSA Art. 25 and the Digital Fairness Act are aimed at
-(§6).
+filler. (2) It is loss-framed, which is manipulative design (§6).
 
 ### 2.2 Global leaderboards — motivate a few, demotivate the rest
 
@@ -276,75 +273,33 @@ Two additions close it, and both are cheap:
 - **A reciprocity signal** (`FR-007m`) — showing a user, privately, how much of the public corpus they have
   used. This is not a reward at all; it is true information, and it is the one lever with any purchase on
   someone who needs no benefit. The literature's caution applies sharply: reciprocity framed as **obligation**
-  is a guilt prompt — both the manipulation DSA Art. 25 targets and, per §2.5, exactly the kind of external
+  is a guilt prompt — manipulative design and, per §2.5, exactly the kind of external
   pressure that crowds out the intrinsic motive it is trying to recruit. Framed as gratitude, stated once,
   dismissible, never shown to anyone else, it recruits the motive instead of overriding it.
 
-| Candidate                                                 | Reaches   | Verdict                                    | Reason                                                                                                                                                 |
-| --------------------------------------------------------- | --------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Cook signal + milestones + standing (R1–R3)               | Both      | **Adopt — primary**                        | §1.1/§1.4; costs nothing; the only lever with durability evidence                                                                                      |
-| First-publication milestone (`FR-007l`)                   | Both      | **Adopt — the on-ramp**                    | Without it, impact-keyed recognition is unreachable for anyone who has never published                                                                 |
-| Reciprocity signal (`FR-007m`)                            | Both      | **Adopt — reaches users who need nothing** | Appeals to fairness, not benefit; must be gratitude, never debt                                                                                        |
-| Early access to new features                              | Both      | **Adopt — secondary**                      | No gaming value, no new public surface, no inducement pressure                                                                                         |
-| Contributor input channel (feature input, early feedback) | Both      | **Adopt — secondary**                      | SDT autonomy + relatedness; genuinely premium-relevant; unfarmable                                                                                     |
-| Additional import allowance                               | Both      | Defer                                      | Works, but it is quota-for-content — closest of the set to a transactional exchange                                                                    |
-| Discovery placement                                       | Both      | **Reject**                                 | Rewards volume, drives junk (§2.3), and is the mechanic most likely to read as "direct financial benefit" (§6)                                         |
-| Premium trial days                                        | Free only | **Reject**                                 | Converts contribution toward a monetary-equivalent; blurs reward and paywall; overjustification-adjacent                                               |
-| Tips / payouts                                            | Both      | **Reject**                                 | Blocked portfolio-wide (`012-FR-034`, `013-FR-010`); monetary rewards carry the inducement, tax and consumer-law risk this feature was scoped to avoid |
-| Household seats                                           | Both      | Not yet                                    | D18 unspecified                                                                                                                                        |
+| Candidate                                                 | Reaches   | Verdict                                    | Reason                                                                                                             |
+| --------------------------------------------------------- | --------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Cook signal + milestones + standing (R1–R3)               | Both      | **Adopt — primary**                        | §1.1/§1.4; costs nothing; the only lever with durability evidence                                                  |
+| First-publication milestone (`FR-007l`)                   | Both      | **Adopt — the on-ramp**                    | Without it, impact-keyed recognition is unreachable for anyone who has never published                             |
+| Reciprocity signal (`FR-007m`)                            | Both      | **Adopt — reaches users who need nothing** | Appeals to fairness, not benefit; must be gratitude, never debt                                                    |
+| Early access to new features                              | Both      | **Adopt — secondary**                      | No gaming value, no new public surface, no inducement pressure                                                     |
+| Contributor input channel (feature input, early feedback) | Both      | **Adopt — secondary**                      | SDT autonomy + relatedness; genuinely premium-relevant; unfarmable                                                 |
+| Additional import allowance                               | Both      | Defer                                      | Works, but it is quota-for-content — closest of the set to a transactional exchange                                |
+| Discovery placement                                       | Both      | **Reject**                                 | Rewards volume, drives junk (§2.3), and boosts the reach of rewarded uploads (§6)                                  |
+| Premium trial days                                        | Free only | **Reject**                                 | Converts contribution toward a monetary-equivalent; blurs reward and paywall; overjustification-adjacent           |
+| Tips / payouts                                            | Both      | **Reject**                                 | Blocked portfolio-wide (`012-FR-034`, `013-FR-010`); monetary rewards are out of scope for this feature (`FR-007`) |
+| Household seats                                           | Both      | Not yet                                    | D18 unspecified                                                                                                    |
 
 ---
 
-## 6. Legal — what a reward programme changes
+## 6. Product rules that follow
 
-### 6.1 Inducement (US copyright)
-
-The _Grokster_ rule: one who distributes a product **with the object of promoting its use to infringe**, shown
-by clear expression or other affirmative steps to foster infringement, is liable for the resulting
-infringement. Liability rests on **purposeful, culpable expression and conduct**.
-([Inducement rule](https://en.wikipedia.org/wiki/Inducement_rule))
-
-DMCA §512(c) requires, among other things, that the provider **not receive a financial benefit directly
-attributable to the infringing activity** where it has the right and ability to control that activity.
-([CRS R43436](https://www.congress.gov/crs_external_products/R/PDF/R43436/R43436.3.pdf))
-
-**Assessment.** The design decisions above are what keep this on the right side of both:
-
-- Rewards are restricted to **self-authored** recipes (`FR-001`) with a per-recipe **attestation**
-  (`FR-002`) — the opposite of "affirmative steps to foster infringement".
-- Rewards are **non-monetary and non-transferable** (`FR-007`), which keeps them away from the "direct
-  financial benefit" prong.
-- A takedown **reverses the specific grant** (`FR-016`) and repeat offenders lose eligibility (`FR-018`) —
-  affirmative steps _against_ infringement, on the record.
-- **This is why discovery placement is rejected** (§5): boosting the reach of rewarded uploads is the one
-  candidate that both rewards volume and looks like deriving benefit from the uploads themselves.
-
-**Not legal advice; counsel review is a prerequisite before launch.** The un-analysed exposure flagged in the
-brief is now analysed to the level a spec can carry, and the conclusion is that the _shape_ of the programme
-is defensible while the _rewarded set_ stays narrow.
-
-### 6.2 Manipulative design (EU)
-
-**DSA Art. 25 applies.** Providers of online platforms "shall not design, organise or operate their online
-interfaces in a way that deceives or manipulates the recipients of their service or in a way that otherwise
-materially distorts or impairs the ability of the recipients … to make free and informed decisions." Cited
-examples include **making it difficult to cancel** and **false-urgency/countdown** patterns.
-([DSA Library, Art. 25](https://dsa-library.com/article/25/))
-
-> Directly relevant: an unpublish flow made harder than the publish flow is close to the paradigm Art. 25
-> example. `FR-012` already requires one-action unpublish; `FR-029` below makes the symmetry explicit.
-
-**The Digital Fairness Act is coming and names this class of mechanic.** The Commission proposal is expected
-**Q4 2026**, covering dark patterns, **addictive design**, and unfair personalisation.
-([European Parliament Legislative Train](https://www.europarl.europa.eu/legislative-train/theme-protecting-our-democracy-upholding-our-values/file-digital-fairness-act))
-Mechanics deliberately built to be addictive today are the mechanics most likely to require removal within the
-lifetime of this feature.
-
-**EU AI Act Art. 5 does _not_ apply here — correcting an earlier assumption.** The prohibition on
-manipulative techniques is scoped to **AI systems**; a non-AI reward mechanic falls outside it.
-([Art. 5](https://artificialintelligenceact.eu/article/5/)) It would become live only if reward-driven ranking
-or personalisation were AI-driven. Recorded so nobody re-imports it as a constraint that binds today, or
-assumes it never could.
+- Rewards go only to **self-authored** recipes (`FR-001`), with a per-recipe **attestation** (`FR-002`).
+- Rewards are **non-monetary and non-transferable** (`FR-007`).
+- A takedown **reverses the specific grant** (`FR-016`), and repeat offenders lose eligibility (`FR-018`).
+- **Discovery placement is rejected** (§5): it rewards volume and boosts the reach of rewarded uploads.
+- Unpublishing takes one action, as easy as publishing (`FR-012`, `FR-029`). No mechanic uses false urgency or
+  countdowns, makes cancelling hard, or is designed to be addictive.
 
 ---
 

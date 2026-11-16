@@ -275,7 +275,7 @@ canonical addresses, a sitemap and Organization data. The pages are fast on a ph
 **Why this priority**: Brand search matters at launch, and these basics cost little. Broad search traffic comes from
 021's recipe pages, not from here. _(Note 2026-11-03, owner ruling, ADR-0082: those pages are the open recipes,
 including Commise-written versions of imports (`021-FR-003`, amended 2026-11-15). There are no facts cards. Public recipes and public collections are the core of discovery, and reading them is never paid for
-(owner ruling O5, amended 2026-11-03, O14). Creators can sell private recipes and collections, and the site must say so only as the creators' own offer (`012-FR-034a`). Nothing here can promise a search ranking. Counsel review is owed before launch (`016-FR-050`).)_
+(owner ruling O5, amended 2026-11-03, O14). Creators can sell private recipes and collections, and the site must say so only as the creators' own offer (`012-FR-034a`). Nothing here can promise a search ranking.)_
 
 **Independent Test**: Every page has a unique title and description and a canonical address on the site's one host.
 The sitemap lists every page. Preview hosts answer `noindex`.
@@ -491,7 +491,7 @@ training-only crawler.
 - **FR-049**: Email from the site MUST NOT track opens or clicks, unless the person agreed to measurement. The sending
   domain MUST pass SPF, DKIM and DMARC.
 - **FR-049a**: The plan MUST pick a list service that does double opt-in, suppression, per-purpose consent records and
-  deletion by API, with a data processing agreement and a region counsel approves. It MUST check Clerk's waitlist
+  deletion by API, with a data processing agreement and an approved data region. It MUST check Clerk's waitlist
   mode against these needs first. 016's statement-of-reasons email needs a sender too, so the plan MUST weigh one
   sender for both.
 
@@ -594,7 +594,7 @@ training-only crawler.
     - The privacy notice MUST cover the waitlist, the interviews and the suppression list.
 - **FR-092**: 010 MUST be amended: its plan register MUST have one machine-readable source that the pricing page and
   the in-app subscription page both read, held equal to the 010 table by a test (FR-030).
-- **FR-095**: Counsel MUST confirm, before launch:
+- **FR-095**: These are open owner decisions, confirmed before launch:
     - the waitlist's consent wording, the age of 16, and the retention periods (FR-040, FR-046, FR-047)
     - that a keyed hash on the suppression list is lawful to keep (FR-045)
     - the postal address rule for email (FR-044)

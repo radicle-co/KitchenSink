@@ -36,7 +36,7 @@ Implementation follows this decomposition:
 4. **Collections curation** (`SYS-006`): owner-managed ordered collections with public-only recipe membership constraints.
 5. **Embed delivery** (`SYS-007`): static HTML fragment endpoint with cache headers for CDN.
 6. **Analytics pipeline** (`SYS-008`): scheduled aggregation snapshots and owner-only read endpoint.
-7. **Moderation/compliance + security/privacy** (`SYS-009/011`): suspension, DMCA workflow hooks, blocked-user restrictions, and erasure propagation.
+7. **Moderation/compliance + security/privacy** (`SYS-009/011`): suspension, takedown workflow hooks, blocked-user restrictions, and erasure propagation.
 8. **Monetization delegation** (`SYS-010`): integration boundary only; billing and payment stay in feature 010.
 
 ---

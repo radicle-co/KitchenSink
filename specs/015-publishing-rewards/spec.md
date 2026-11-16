@@ -47,14 +47,10 @@ established two facts that pull against each other:
 **This feature resolves the tension by inverting the incentive: publishing is _rewarded_, never _compelled_.**
 The corpus fills with willing contributors — who are also the contributors whose content is worth having.
 
-### ⛔ The central hazard this specification is designed around
+### ⛔ The central rule this specification is designed around
 
-**A reward for publishing is an inducement to publish, and an inducement to publish content the user does not
-own could create contributory liability.** _(amended 2026-11-03, owner ruling, ADR-0082: the risk is restated as
-low.)_ [Law] Rewarding cooks for publishing their own recipes is not inducement to infringe. Inducement needs
-intent to promote infringement (MGM v. Grokster, 545 U.S. 913 (2005), Cox v. Sony, 2026). [House rule] We still
-reward only recipes the cook wrote, as cheap hygiene. Counsel review is owed before launch (`016-FR-050`). The
-eligibility rules below stay deliberately narrow. A version of this feature that rewarded _any_ publication
+**A reward goes only to a recipe the cook wrote.** A reward must never push a cook to publish something they did not
+write. The eligibility rules below stay deliberately narrow. A version of this feature that rewarded _any_ publication
 would be actively worse than no feature at all.
 
 ---
@@ -125,7 +121,7 @@ from it, plan with it and organise it. Where the provenance rules permit publica
 earns **nothing**. Where the provenance rules forbid publication, the option is not offered and the reason is
 stated.
 
-**Why this priority**: This is the anti-inducement control, and it is P1 because the feature is net-negative
+**Why this priority**: This is the own-work control, and it is P1 because the feature is net-negative
 without it. It must ship in the same release as User Story 1 — never after.
 
 **Independent Test**: Import a recipe from a URL, attempt to publish, and verify that no benefit is granted;
@@ -269,10 +265,10 @@ no difference in recognition from a free account doing the same.
 
 ### Functional Requirements
 
-**Eligibility — the anti-inducement core**
+**Eligibility — the own-work core**
 
 - **FR-001**: Only a recipe whose provenance records the publishing user as its **author** MAY earn a reward.
-  _(Labelled [House rule] 2026-11-03, owner ruling, ADR-0082. The law does not require it. A Commise version never earns a reward.)_
+  _(Owner ruling, 2026-11-03, ADR-0082. A Commise version never earns a reward.)_
   Recipes imported from a public web source, from a physical copy, from a paid source, or cloned from another
   user MUST NOT earn a reward under any circumstances. Publication itself is governed by the existing
   visibility policy and is **not** changed by this feature; only _earning_ is restricted here.
@@ -486,12 +482,10 @@ no difference in recognition from a free account doing the same.
 
 **Non-manipulation — the constraints that keep this compelling rather than coercive**
 
-> These are engineering constraints, not a values statement. The feature's central hazard is **inducement**
-> (`FR-001`): the harder a mechanic pushes toward publication, the more pressure it puts on the one control
-> that stops users publishing work they do not own. A mechanic that overrides judgment is precisely a mechanic
-> that produces infringing uploads. DSA Art. 25 additionally prohibits interface designs that materially
-> distort a user's ability to make free and informed decisions, and the Digital Fairness Act — proposal
-> expected Q4 2026 — names addictive design directly. Evidence and citations:
+> These are engineering constraints, not a values statement. The harder a mechanic pushes toward publication, the
+> more pressure it puts on the one control that stops users publishing work they do not own (`FR-001`). A mechanic
+> that overrides judgment produces uploads of other people's work. No interface design may distort a user's
+> ability to make a free and informed decision, and no mechanic may be designed to be addictive. Evidence:
 > [`research/reward-psychology.md`](./research/reward-psychology.md) §2 and §6.
 
 - **FR-025**: The system MUST NOT implement **streaks**, consecutive-period counters, or any mechanic whose
@@ -528,11 +522,11 @@ no difference in recognition from a free account doing the same.
 
 - **FR-015**: A published recipe MUST carry its attribution wherever it is displayed, per the existing
   attribution rules.
-- **FR-016**: When a publication is removed following a valid infringement notice, the recipe MUST be
+- **FR-016**: When a publication is removed following a valid takedown notice, the recipe MUST be
   unpublished and the grant made for **that recipe** MUST be reversed. Unrelated grants MUST be unaffected.
-- **FR-017**: A grant MUST be withheld while an unresolved infringement notice stands against the recipe, and
+- **FR-017**: A grant MUST be withheld while an unresolved takedown notice stands against the recipe, and
   released or cancelled when the notice is resolved.
-- **FR-018**: A user whose grants are reversed for infringement more than a stated number of times MUST lose
+- **FR-018**: A user whose grants are reversed after upheld takedown notices more than a stated number of times MUST lose
   eligibility to earn. They MUST retain the ability to publish, to keep existing content, and to appeal.
 - **FR-019**: The user MUST be notified of any reversal or loss of eligibility, with the reason and an appeal
   path.
@@ -627,7 +621,7 @@ no difference in recognition from a free account doing the same.
 - **Rewards are non-monetary.** Monetary rewards, revenue share and payouts are out of scope and remain blocked
   portfolio-wide: `012-FR-034` states 012 must not compute revenue splits, hold balances or initiate
   disbursement, and `013-FR-010` is blocked on marketplace payments. Non-monetary benefits are the only
-  currently buildable currency and also carry materially lower inducement, tax and consumer-law risk.
+  currently buildable currency, and they keep the programme simple.
 - **There are two reward currencies, doing different jobs** _(decided 2026-08-22)_: **private-recipe slots**
   for the free tier (direct, tangible, and something the contributor already wanted) and **status/recognition**
   for both tiers (the psychological lever, and the only one that reaches Pro). Import allowance and
@@ -641,7 +635,7 @@ no difference in recognition from a free account doing the same.
 - **Imported public recipes remain publishable but never rewardable.** This preserves attribution-carrying
   public content already permitted by the existing visibility policy while removing any incentive to import
   other people's work in order to earn.
-- **Infringement notices are actioned by a human.** This feature consumes the outcome of a takedown process; it
+- **Takedown notices are actioned by a human.** This feature consumes the outcome of a takedown process; it
   does not adjudicate claims.
 - **A registered takedown agent and repeat-infringer policy exist by the time User Story 4 ships.** These are
   prerequisites for the safe-harbour posture this feature depends on and are tracked outside this spec.
@@ -649,7 +643,7 @@ no difference in recognition from a free account doing the same.
 ## Out of Scope
 
 - Monetary rewards, tips, payouts, revenue share, or any withdrawable balance.
-- Adjudicating infringement claims, or any automated infringement detection.
+- Adjudicating takedown claims, or any automated detection of copied content.
 - Changing the recipe visibility policy itself — owned by 001 and its C-004 rules.
 - Changing subscription tiers or pricing — owned by 010.
 - Creator profiles, follower graphs and discovery ranking — owned by 012.
@@ -731,12 +725,9 @@ Evidence base: [`research/reward-psychology.md`](./research/reward-psychology.md
   manipulation prohibition is scoped to **AI systems**. **DSA Art. 25 does bind**, and the Digital Fairness
   Act (proposal expected Q4 2026) names addictive design directly. `FR-025`–`FR-031` are written against those
   two, not against the AI Act.
-- **C-015-016 — the inducement analysis flagged as missing is now done** to the level a spec can carry
-  ([`research/reward-psychology.md`](./research/reward-psychology.md) §6). Conclusion: the programme's shape is
-  defensible (restated 2026-11-03, ADR-0082: inducement risk is low, see Grokster and Cox v. Sony) while the rewarded set stays narrow and non-monetary — which is what `FR-001`, `FR-002`, `FR-007`,
-  `FR-016` and `FR-018` already enforce. It is **also the reason discovery placement is rejected**, since
-  boosting the reach of rewarded uploads is the candidate most likely to read as a financial benefit
-  attributable to them. Counsel review remains a launch prerequisite.
+- **C-015-016 — the rewarded set stays narrow and non-monetary**, which is what `FR-001`, `FR-002`, `FR-007`,
+  `FR-016` and `FR-018` already enforce. It is **also the reason discovery placement is rejected**: it would
+  boost the reach of rewarded uploads.
 
 ### Session 2026-08-22 (part 3) — the three research questions answered by owner
 
@@ -875,9 +866,8 @@ feature's `C-015-001` as the authority for doing so. Three consequences for 015:
   ships"); it now has a specification behind it — `016-FR-016`–`FR-026` — and `016-FR-023` explicitly
   propagates an actioned notice into this feature's reward ledger, which is the same coupling from the other
   side.
-- **The inducement gap this feature's research brief flagged is now recorded.** `016-FR-029a` forbids pricing
-  or gating a paid tier on access to imported third-party content, for exactly the §512(c)(1)(B)
-  direct-financial-benefit reason the brief raised.
+- **The gap this feature's research brief flagged is now recorded.** `016-FR-029a` forbids pricing or gating a
+  paid tier on access to imported third-party content.
 
 ---
 
@@ -911,11 +901,7 @@ cannot**, and the last one is the hardest:
 - **The ToS content licence** (`016-FR-010`–`FR-015`) — still missing portfolio-wide; `016`'s spec records that
   there is no terms acceptance, consent record or age floor today. ⚠️ **This is a PRE-EXISTING gap that this
   feature inherits, not one it creates**: `001-FR-004` (public read) and `001-FR-005` (clone) already ship, so
-  the missing licence blocks the current product. What 015 adds is a **low inducement risk** _(amended
-  2026-11-03, ADR-0082)_. [Law] Rewarding cooks for their own recipes is not inducement (Grokster, Cox v. Sony).
-  The reward rule keeps it low. 015 does not open the gap.
+  the missing licence blocks the current product. 015 rewards only recipes the cook wrote
+  (`FR-001`), so it does not open the gap.
 - **016's takedown process** — a genuine and narrow blocker: `FR-016`–`FR-019` consume it, which hard-blocks
   **User Story 4 only**. US1–US3 do not depend on it.
-- **Counsel review of the inducement posture** (`016-FR-050`) — the analysis in
-  [`research/reward-psychology.md`](./research/reward-psychology.md) §6 is as far as a specification can
-  responsibly go.

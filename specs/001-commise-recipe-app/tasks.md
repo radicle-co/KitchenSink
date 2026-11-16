@@ -751,7 +751,7 @@ MASTER PROGRAM ORDER there.
 ## Airtight path to public (added 2026-11-03, owner ruling, ADR-0082)
 
 These tasks carry 020 section K (`020-FR-057` to `020-FR-074`) into the code 001 owns. Each is test-first: the failing
-tests in every tier come before the code. Counsel review is owed before launch (`016-FR-050`).
+tests in every tier come before the code.
 
 - [ ] T191 Make 020's hold a REQUIRED input of the read rule. Files: `packages/services/recipe-service/src/recipes/domain/recipeVisibility.ts`, `recipes/dal/recipePredicates.ts`
     - **Implements**: `020-FR-057`, `020-FR-059`, the `020-FR-018` correction (four SQL predicates, not three)

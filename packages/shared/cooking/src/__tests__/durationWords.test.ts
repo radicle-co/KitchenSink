@@ -70,6 +70,16 @@ describe('readWordDuration', () => {
         });
     });
 
+    it.each([
+        ['Simmer ten minutes, or until thick.', 600],
+        ['Simmer ten minutes (or until thick).', 600],
+        ['Rest ten minutes, then slice', 600],
+        ['Rest an hour to cool', 3_600],
+        ['Simmer ten minutes, a half cup of stock added', 600],
+    ])('%s keeps its time: a bracket, a comma or "to" is not a hedge or a rate', (line, seconds) => {
+        expect(readWordDuration(line)).toStrictEqual({ kind: 'one', seconds });
+    });
+
     it('carries no high end on a span of two amounts', () => {
         expect(readWordDuration('An hour and twenty minutes')).toEqual({ kind: 'one', seconds: 4_800 });
     });
@@ -108,6 +118,15 @@ describe('readWordDuration', () => {
         'eight to ten minutes or according to the fruit',
         'Bake ten minutes each side, then five minutes more',
         'one-half hour longer',
+        'Boil one hour and a half.',
+        'Boil two hours and a half',
+        'Cook one hour and one-half.',
+        'Bake an hour and a quarter.',
+        'Cook a minute and a half.',
+        'Leave an hour (or overnight).',
+        'Bake an hour, or overnight.',
+        'Rest ten minutes per pound.',
+        'Roast twenty minutes to the pound',
         'Season to taste',
         '',
     ])('%j gives none: a wrong timer is worse than no timer', (line) => {

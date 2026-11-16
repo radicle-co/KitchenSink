@@ -70,6 +70,7 @@ export const POSITIVE_LINE_OFFERS: readonly LineOffer[] = [
     { line: 'Half an hour or until set', seconds: 1_800 },
     { line: 'An hour and twenty minutes', seconds: 4_800 },
     { line: 'Boil a minute then add the sugar', seconds: 60 },
+    { line: 'Simmer ten minutes, or until thick.', seconds: 600 },
     { line: 'Stir for thirty seconds', seconds: 30 },
     { line: 'Bake 20 minutes, then ten minutes more.', seconds: 1_200 },
 ];
@@ -96,5 +97,11 @@ export const NEGATIVE_LINES: readonly string[] = [
     'an hour glass',
     'a second',
     'an hour before serving',
+    'Boil one hour and a half.',
+    'Bake an hour and a quarter.',
+    'Leave an hour (or overnight).',
+    'Bake an hour, or overnight.',
+    'Rest ten minutes per pound.',
+    'Roast twenty minutes to the pound',
     'Bake ten minutes, then rest five minutes.',
 ];

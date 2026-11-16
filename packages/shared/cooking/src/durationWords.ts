@@ -9,7 +9,7 @@
  * not a regular expression, which keeps it readable and free of backtracking on hostile text. It reads English only.
  */
 
-import { readNumberWords } from '@kitchensink/recipe-core/parsing/number-words';
+import { FRACTION_WORD_DENOMINATORS, readNumberWords } from '@kitchensink/recipe-core/parsing/number-words';
 
 import type { DurationReading } from './duration.js';
 
@@ -53,6 +53,9 @@ const REPEAT_WORDS: ReadonlySet<string> = new Set(['every', 'once', 'twice']);
 const PART_PHRASES: readonly (readonly string[])[] = [
     ['before', 'the', 'end'],
     ['each', 'side'],
+    // A rate per weight ("ten minutes per pound", "twenty minutes to the pound") is not a wait.
+    ['per'],
+    ['to', 'the'],
 ];
 
 /** Words are lower-case letter runs. Punctuation and digit runs are their own tokens. Anything else is a separator. */
@@ -190,6 +193,13 @@ function spanAt(tokens: readonly string[], start: number): Span | 'many' | undef
         : { seconds, start, end };
 }
 
+/** Whether an article or number word at `index` is followed by a fraction word ("a half", "one-half", "a quarter"). */
+function isFractionAfterCount(tokens: readonly string[], index: number): boolean {
+    const next = isArticle(tokens[index]) ? index + 1 : readNumberWords(tokens, index)?.next;
+
+    return next !== undefined && FRACTION_WORD_DENOMINATORS.has(tokens[next] ?? '');
+}
+
 /** Whether the words around a span make its time a repeat, a part of the step, or a hedge. */
 function isUnreadable(tokens: readonly string[], span: Span): boolean {
     const before = tokens[span.start - 1];
@@ -203,8 +213,16 @@ function isUnreadable(tokens: readonly string[], span: Span): boolean {
         return true;
     }
 
-    // "or" after a span hedges it ("a minute or two", "an hour or so"), except "or until", which names the end.
-    return after[0] === 'or' && after[1] !== 'until';
+    // "and a half", "and one-half", "and a quarter": the span is cut short, and only the fixed phrase reads it whole.
+    if (after[0] === 'and' && isFractionAfterCount(after, 1)) {
+        return true;
+    }
+
+    // "or" after a span hedges it ("a minute or two", "an hour or so"), except "or until", which names the end. One
+    // opening bracket or comma may sit before it ("an hour (or overnight)", "ten minutes, or until thick").
+    const hedge = after[0] === '(' || after[0] === ',' ? 1 : 0;
+
+    return after[hedge] === 'or' && after[hedge + 1] !== 'until';
 }
 
 /**

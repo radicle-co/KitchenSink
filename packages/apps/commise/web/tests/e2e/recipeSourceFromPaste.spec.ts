@@ -152,7 +152,8 @@ test.describe('a pasted recipe asks where it is from before it goes public (ADR-
     }
 
     const sheetOf = (page: Page) => page.getByRole('dialog', { name: 'Where is this recipe from?' });
-    const published = (writes: readonly RecipeWrite[]) => writes.filter((write) => write.body?.['status'] === 'published');
+    const published = (writes: readonly RecipeWrite[]) =>
+        writes.filter((write) => write.body?.['status'] === 'published');
 
     test('⛔ Publish opens the sheet and publishes nothing; "I wrote this" then publishes it public with that statement', async ({
         page,
@@ -203,6 +204,29 @@ test.describe('a pasted recipe asks where it is from before it goes public (ADR-
         expect(writes.some((w) => w.body?.['visibility'] === 'private')).toBe(true);
     });
 
+    // At 320 px the pinned footer takes a third of the sheet, so the field's message sat partly under it.
+    test('at 320 px the field error is fully visible above the pinned footer', async ({ page }) => {
+        await page.setViewportSize({ width: 320, height: 640 });
+        await pastedRecipeReady(page);
+
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+        await sheetOf(page).getByRole('radio', { name: 'From a cookbook or magazine' }).click();
+        await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
+
+        const error = sheetOf(page).getByText('Add the book or magazine title.');
+        const footerNote = sheetOf(page).getByText(
+            'If your answer isn’t true, we can remove the recipe and limit your account.',
+        );
+
+        await expect(error).toBeInViewport({ ratio: 1 });
+        const errorBox = await error.boundingBox();
+        const footerBox = await footerNote.boundingBox();
+
+        expect(errorBox).not.toBeNull();
+        expect(footerBox).not.toBeNull();
+        expect(errorBox!.y + errorBox!.height).toBeLessThanOrEqual(footerBox!.y);
+    });
+
     test('Publish privately sends no statement; Keep as draft sends nothing and leaves the draft as it was', async ({
         page,
     }) => {
@@ -225,7 +249,9 @@ test.describe('a pasted recipe asks where it is from before it goes public (ADR-
         expect(write?.body).not.toHaveProperty('statement');
     });
 
-    test('a typed recipe is never asked: the passive line shows under Public and rides the publish', async ({ page }) => {
+    test('a typed recipe is never asked: the passive line shows under Public and rides the publish', async ({
+        page,
+    }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
@@ -242,7 +268,11 @@ test.describe('a pasted recipe asks where it is from before it goes public (ADR-
             .click();
         await addStep(page, 'Simmer the stock.');
 
-        await expect(page.getByText('By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.')).toBeVisible();
+        await expect(
+            page.getByText(
+                'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.',
+            ),
+        ).toBeVisible();
         await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page.getByText('Recipe published.')).toBeVisible();

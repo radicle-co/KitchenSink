@@ -5,6 +5,7 @@
  * status→error mapping, the identity-sync retry, and transport edge cases) live in `client.test.ts` and
  * `client.transport.test.ts`. Transport is a mocked `fetch`; no real network is touched.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { recipeSearchQuerySchema } from '@kitchensink/schema-recipe';
@@ -150,7 +151,18 @@ describe('RecipeServiceClient — recipes', () => {
         const req = requestAt(fetchMock);
         expect(req.method).toBe('PATCH');
         expect(req.url).toBe(`${BASE}/api/v1/recipes/rec_1/visibility`);
-        expect(jsonBody(fetchMock)).toEqual({ visibility: 'public' });
+        expect(jsonBody(fetchMock)).toEqual({
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
+    });
+
+    it('setRecipeVisibility sends no publicConfirmation when the recipe goes private', async () => {
+        const fetchMock = stubFetch(200, makeRecipeDetail({ visibility: 'private' }));
+
+        await makeClient(fetchMock).setRecipeVisibility('rec_1', 'private');
+
+        expect(jsonBody(fetchMock)).toEqual({ visibility: 'private' });
     });
 
     it('getPrivateSlots GETs /api/v1/recipes/private-slots and parses the limited arm (200)', async () => {

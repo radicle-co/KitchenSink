@@ -20,6 +20,7 @@ import {
     IDENTITY_SYNC_PENDING_CODE,
     ingredientSchema,
     paginatedResponseSchema,
+    PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     recipeDetailSchema,
     recipePhotoSchema,
     recipeSchema,
@@ -495,7 +496,8 @@ export class RecipeServiceClient {
      * `PATCH /api/v1/recipes/{id}/visibility` — set a recipe's visibility.
      *
      * @param id - The recipe id.
-     * @param visibility - The new visibility.
+     * @param visibility - The new visibility. Going public also sends the current public confirmation wording, which the
+     * service requires on a published recipe.
      * @returns The updated recipe.
      * @throws {ForbiddenError} when not the owner; {@link BadRequestError} on an invalid value.
      * @sideEffect Performs an authenticated HTTP request.
@@ -504,7 +506,13 @@ export class RecipeServiceClient {
         const res = await this.send(
             'PATCH',
             `/api/v1/recipes/${encodeURIComponent(id)}/visibility`,
-            this.request('setRecipeVisibility', setRecipeVisibilityRequestSchema, { visibility }),
+            this.request(
+                'setRecipeVisibility',
+                setRecipeVisibilityRequestSchema,
+                visibility === 'public'
+                    ? { visibility, publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS }
+                    : { visibility },
+            ),
         );
 
         return this.expect(res, 200, recipeDetailSchema);

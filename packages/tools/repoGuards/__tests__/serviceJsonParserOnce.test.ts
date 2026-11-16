@@ -25,6 +25,7 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 import { valueBindingsOf } from './moduleBindings.js';
+import { nestFactoryCreateCalls } from './nestFactoryCreateCalls.js';
 import {
     isTestFile,
     moduleSpecifiers,
@@ -185,44 +186,10 @@ function createCallsWithoutSharedOptions(
     files: ReadonlyMap<string, string>,
 ): { readonly seen: number; readonly offenders: readonly string[] } {
     const parsed = parse(source);
-    const factories = new Set(
-        valueBindingsOf(parsed, (specifier) => specifier === '@nestjs/core').locals.get('NestFactory'),
-    );
+    const calls = nestFactoryCreateCalls(parsed);
     const offenders: string[] = [];
-    let seen = 0;
 
-    // A local alias (`const F = NestFactory`) is the factory too. Declarations are visited in source order, so an alias
-    // of an alias is found.
-    visit(parsed, (node) => {
-        if (
-            ts.isVariableDeclaration(node) &&
-            ts.isIdentifier(node.name) &&
-            node.initializer !== undefined &&
-            ts.isIdentifier(node.initializer) &&
-            factories.has(node.initializer.text)
-        ) {
-            factories.add(node.name.text);
-        }
-    });
-
-    visit(parsed, (node) => {
-        if (!ts.isCallExpression(node)) {
-            return;
-        }
-
-        const callee = node.expression;
-        const target = ts.isPropertyAccessExpression(callee)
-            ? { object: callee.expression, member: callee.name.text }
-            : ts.isElementAccessExpression(callee) && ts.isStringLiteralLike(callee.argumentExpression)
-              ? { object: callee.expression, member: callee.argumentExpression.text }
-              : undefined;
-
-        if (target?.member !== 'create' || !ts.isIdentifier(target.object) || !factories.has(target.object.text)) {
-            return;
-        }
-
-        seen += 1;
-
+    calls.forEach((node) => {
         // The options must be the shared call's result, untouched: any literal around it could set `bodyParser` again,
         // by a plain or a computed key, so no literal is accepted at all.
         const options = node.arguments[1];
@@ -239,7 +206,7 @@ function createCallsWithoutSharedOptions(
         }
     });
 
-    return { seen, offenders };
+    return { seen: calls.length, offenders };
 }
 
 const at = (contents: string, file = 'packages/services/x/src/a.ts'): SourceFile => ({ file, contents });

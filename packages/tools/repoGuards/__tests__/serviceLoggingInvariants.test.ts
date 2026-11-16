@@ -54,6 +54,7 @@ import {
     repoRoot,
     visit,
 } from './serviceSources.js';
+import { nestFactoryCreateCalls } from './nestFactoryCreateCalls.js';
 
 /** The package whose adoption makes a service a subject of these gates. */
 const PACKAGE = '@kitchensink/service-logging';
@@ -151,16 +152,7 @@ function unroutedNestBootstraps(service: DiscoveredService): readonly string[] {
     return runtimeSources(service).flatMap((source) => {
         const findings: string[] = [];
 
-        visit(parse(source), (node) => {
-            if (
-                !ts.isCallExpression(node) ||
-                !ts.isPropertyAccessExpression(node.expression) ||
-                node.expression.name.text !== 'create' ||
-                referenceText(node.expression.expression) !== 'NestFactory'
-            ) {
-                return;
-            }
-
+        nestFactoryCreateCalls(parse(source)).forEach((node) => {
             // The shared HTTP setup's `nestOptions(…)` carries the service's own options as its argument
             // (serviceJsonParserOnce requires that form), so the logger is read from there.
             const given = node.arguments[1];
@@ -580,7 +572,7 @@ describe('every service that adopted the shared logger actually routes through i
 
         it('L1 finds real NestFactory.create calls to check', () => {
             const bootstraps = sinkUsers.flatMap((service) =>
-                runtimeSources(service).filter((source) => source.contents.includes('NestFactory.create')),
+                runtimeSources(service).flatMap((source) => nestFactoryCreateCalls(parse(source))),
             );
 
             expect(bootstraps.length).toBeGreaterThanOrEqual(3);
@@ -668,6 +660,46 @@ describe('every service that adopted the shared logger actually routes through i
             ['another member of the setup', 'X_SETUP.configure({ logger: new NestRoutedLogger() })'],
         ])('L1 reports nestOptions(…) with %s', (_label, options) => {
             expect(unroutedNestBootstraps(bootingWith(options))).toHaveLength(1);
+        });
+
+        /** VIOLATING_SERVICE with its main.ts passed through `rewrite`. */
+        const withMain = (rewrite: (contents: string) => string): DiscoveredService => ({
+            ...VIOLATING_SERVICE,
+            sources: VIOLATING_SERVICE.sources.map((source) =>
+                source.file.endsWith('/main.ts') ? { ...source, contents: rewrite(source.contents) } : source,
+            ),
+        });
+        const ROUTED = 'X_SETUP.nestOptions({ logger: new NestRoutedLogger() })';
+
+        // Every spelling of the call that serviceJsonParserOnce counts is checked here too (one shared finder).
+        it.each([
+            [
+                'a bracket access',
+                (contents: string) => contents.replace('NestFactory.create(', "NestFactory['create']("),
+            ],
+            [
+                'a renamed import',
+                (contents: string) =>
+                    contents
+                        .replace('{ NestFactory }', '{ NestFactory as Factory }')
+                        .replace('NestFactory.create(', 'Factory.create('),
+            ],
+            [
+                'a local alias',
+                (contents: string) =>
+                    contents.replace(
+                        'const app = await NestFactory.create(',
+                        'const F = NestFactory;\nconst app = await F.create(',
+                    ),
+            ],
+        ])('L1 checks a bootstrap written with %s', (_label, rewrite) => {
+            const unrouted = withMain(rewrite);
+            const routed = withMain((contents) =>
+                rewrite(contents.replace('NestFactory.create(AppModule)', `NestFactory.create(AppModule, ${ROUTED})`)),
+            );
+
+            expect(unroutedNestBootstraps(unrouted)).toHaveLength(1);
+            expect(unroutedNestBootstraps(routed)).toEqual([]);
         });
 
         it('L2 reports a direct Sentry.logger call', () => {

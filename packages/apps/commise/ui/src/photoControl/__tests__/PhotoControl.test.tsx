@@ -27,7 +27,7 @@ describe('PhotoControl (web)', () => {
         render(<PhotoControl icon="chevronLeft" label="Back" onPress={vi.fn()} />);
         const classes = screen.getByRole('button', { name: 'Back' }).className.split(' ');
 
-        expect(classes).toEqual(expect.arrayContaining(['size-11', 'rounded-full', 'bg-photo-chip']));
+        expect(classes).toEqual(expect.arrayContaining(['size-[44px]', 'rounded-full', 'bg-photo-chip']));
         expect(classes.some((name) => name.startsWith('backdrop-blur'))).toBe(false);
         expect(classes).toContain('focus-visible:ring-2');
     });

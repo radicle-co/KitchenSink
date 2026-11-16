@@ -113,8 +113,7 @@ describe('Popover (web)', () => {
     it('sizes the trigger to the 44 px web target (WCAG 2.5.8, spec §3)', () => {
         renderPopover();
 
-        expect(trigger().className).toContain('h-11');
-        expect(trigger().className).toContain('w-11');
+        expect(trigger().className).toContain('size-[44px]');
     });
 
     // Slice 2: the focus ring is the `focusRing` role every design-system control draws (3:1 on paper, canvas and
@@ -206,7 +205,7 @@ describe('Popover (web)', () => {
 
         expect(trigger().textContent).not.toContain('i');
         expect(trigger().querySelector('svg')).not.toBeNull();
-        expect(trigger().className).toContain('h-11');
+        expect(trigger().className).toContain('size-[44px]');
     });
 
     it('describes the trigger by the id it is given (the row\u2019s status word, V1 sign-off 1)', () => {

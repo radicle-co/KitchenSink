@@ -22,11 +22,11 @@ import { LiveRegion } from '../liveRegion/LiveRegion.js';
 import { stepFrom, type StepperProps } from './props.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 import { PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
-import { TOUCH_DISC_SIZE_CLASS } from '../touchTarget/touchTargetClass.js';
+import { TOUCH_TARGET_CLASS } from '../touchTarget/touchTargetClass.js';
 
 /** A step button: a fixed 44 CSS px circle on the neutral surface. */
 const STEP =
-    `inline-flex ${TOUCH_DISC_SIZE_CLASS} shrink-0 items-center justify-center rounded-full border border-line-control bg-paper text-ink ` +
+    `inline-flex ${TOUCH_TARGET_CLASS.fixed} shrink-0 items-center justify-center rounded-full border border-line-control bg-paper text-ink ` +
     `${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset} ` +
     'aria-disabled:cursor-not-allowed aria-disabled:opacity-40';
 

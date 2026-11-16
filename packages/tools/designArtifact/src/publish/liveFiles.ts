@@ -12,7 +12,7 @@ import { DesignArtifactError } from '../errors.js';
 import type { RunGit } from '../sources/gitHead.js';
 
 import { CANVASES_DIR } from './gitCanvasHistory.js';
-import { MARKER_PATH, parseMarker } from './publishPlan.js';
+import { MARKER_PATH, parseMarker, type LiveOids } from './publishPlan.js';
 
 /**
  * Reads the live marker.
@@ -56,7 +56,10 @@ export async function readLiveList(file: string): Promise<string[]> {
 const HASH_CHUNK = 16;
 
 /**
- * Hashes downloaded files the way git stores blobs: an LFS image as its pointer, any other file byte for byte.
+ * Hashes downloaded files the way git could have stored them. A canvas image is an LFS pointer today, but a canvas
+ * snapshotted before LFS took over `project/assets/` stored the same bytes raw, so such a file has two oids: the
+ * filtered one and the raw one. Pointer text downloaded as a live file needs no special case: its raw oid is the
+ * pointer blob, which is right, because that file is the pointer.
  *
  * @sideEffect Spawns `git`. `--path` runs the LFS clean filter, which writes the image's object into
  * `.git/lfs/objects`.
@@ -64,14 +67,14 @@ const HASH_CHUNK = 16;
  * @param liveDir - The download directory.
  * @param folder - The canvas folder name.
  * @param paths - Canvas-relative paths to hash.
- * @returns Blob oid by path, only for paths that exist on disk.
+ * @returns The oids by path (the filtered oid first, then the raw one when it differs), only for paths on disk.
  */
 export async function hashLive(
     run: RunGit,
     liveDir: string,
     folder: string,
     paths: readonly string[],
-): Promise<Map<string, string>> {
+): Promise<LiveOids> {
     const present: string[] = [];
 
     for (const path of paths) {
@@ -89,26 +92,25 @@ export async function hashLive(
         return new Map();
     }
 
-    // `--path` makes git apply the repo's attributes for the file's repo path: an LFS image hashes to its pointer oid
-    // (what the tree records), and every other canvas file is `-text` there, so it still hashes byte for byte.
+    // `--path` makes git apply the repo's attributes for the file's repo path: an LFS image hashes to its pointer oid,
+    // and every other canvas file is `-text` there, so it still hashes byte for byte. `--no-filters` is the raw oid.
     // shortcut: one git call per file, in chunks; the canvases hold tens of files.
-    const entries: [string, string][] = [];
+    const entries: [string, readonly string[]][] = [];
 
     for (let i = 0; i < present.length; i += HASH_CHUNK) {
         const chunk = present.slice(i, i + HASH_CHUNK);
         const oids = await Promise.all(
-            chunk.map(async (path) =>
-                (
-                    await run([
-                        'hash-object',
-                        `--path=${CANVASES_DIR}/${folder}/${path}`,
-                        '--',
-                        join(liveDir, folder, path),
-                    ])
-                ).trim(),
-            ),
+            chunk.map(async (path) => {
+                const file = join(liveDir, folder, path);
+                const filtered = (
+                    await run(['hash-object', `--path=${CANVASES_DIR}/${folder}/${path}`, '--', file])
+                ).trim();
+                const raw = (await run(['hash-object', '--no-filters', '--', file])).trim();
+
+                return [...new Set([filtered, raw])];
+            }),
         );
-        entries.push(...chunk.map((path, j): [string, string] => [path, oids[j] ?? '']));
+        entries.push(...chunk.map((path, j): [string, readonly string[]] => [path, oids[j] ?? []]));
     }
 
     return new Map(entries);

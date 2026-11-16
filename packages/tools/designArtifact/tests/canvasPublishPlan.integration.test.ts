@@ -540,6 +540,66 @@ describe('LFS images', () => {
     });
 });
 
+describe('an image stored raw before LFS took over project/assets', () => {
+    const ASSET = 'project/assets/0123456789abcdef.jpg';
+    const IMAGE = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x0d, 0x0a, 0x80, 0x00, 0xc3]);
+    const OTHER = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x01, 0x0d, 0x0a, 0x80, 0x00, 0xc3]);
+    const POINTER_START = 'version https://git-lfs.github.com/spec/v1';
+    let rawSha: string;
+    let lfsSha: string;
+
+    beforeEach(async () => {
+        await put(`${CANVAS}/${ASSET}`, IMAGE);
+        rawSha = commit('raw image');
+        git('lfs', 'install', '--local', '--skip-repo');
+        await put(
+            '.gitattributes',
+            'docs/design/canvases/*/** -text\ndocs/design/canvases/*/project/assets/** filter=lfs diff=lfs merge=lfs -text\n',
+        );
+        git('add', '--renormalize', '.');
+        lfsSha = commit('lfs takes over');
+    });
+
+    async function liveAfterRawPublish(image: Buffer): Promise<string> {
+        await writeLive({ 'project/published.json': `{"sha":"${rawSha}"}`, [ASSET]: image });
+
+        // main renamed b.html to c.html and the live canvas was published at the raw commit, so it holds main's paths.
+        return writeList([
+            'project/canvas.json',
+            'project/a.html',
+            'project/c.html',
+            'project/font.woff2',
+            ASSET,
+            'project/published.json',
+        ]);
+    }
+
+    it('keeps the fixture honest: the baseline blob is raw and main holds a pointer', () => {
+        expect(git('cat-file', 'blob', `${rawSha}:${CANVAS}/${ASSET}`)).not.toContain(POINTER_START);
+        expect(git('cat-file', 'blob', `${lfsSha}:${CANVAS}/${ASSET}`)).toContain(POINTER_START);
+    });
+
+    it('check is clean for a live image that equals the raw baseline blob byte for byte', async () => {
+        const list = await liveAfterRawPublish(IMAGE);
+        const result = run(['check', 'homeWeb', '--main', lfsSha, '--live', live, '--list', list]);
+
+        expect(result.code).toBe(0);
+        const check = parseCheck(result.stdout);
+        expect(check.verdict).toBe('clean');
+        expect(check.files.find((f) => f.path === ASSET)?.state).toBe('atBaseline');
+    });
+
+    it('check reports drift for a live image whose bytes differ from the raw baseline blob', async () => {
+        const list = await liveAfterRawPublish(OTHER);
+        const result = run(['check', 'homeWeb', '--main', lfsSha, '--live', live, '--list', list]);
+
+        expect(result.code).not.toBe(0);
+        const check = parseCheck(result.stdout);
+        expect(check.verdict).toBe('drift');
+        expect(check.files.find((f) => f.path === ASSET)?.state).toBe('drift');
+    });
+});
+
 describe('usage', () => {
     it.each([[[]], [['frobnicate']], [['plan']]])('exits 2 for bad arguments %j', (args) => {
         expect(run(args).code).toBe(2);

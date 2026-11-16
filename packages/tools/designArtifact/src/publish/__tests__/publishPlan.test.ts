@@ -9,6 +9,10 @@ const oid = (n: number): string => n.toString(16).padStart(40, '0');
 
 const tree = (entries: Record<string, string>): Map<string, string> => new Map(Object.entries(entries));
 
+/** A live file's oids: one oid, or the filtered and the raw oid git can give the same bytes. */
+const live = (entries: Record<string, string | string[]>): Map<string, string[]> =>
+    new Map(Object.entries(entries).map(([path, oids]) => [path, [oids].flat()]));
+
 describe('chooseBaseline', () => {
     it('uses the marker when the live canvas carries one', () => {
         expect(chooseBaseline(SHA_A, SHA_B)).toEqual({ sha: SHA_A, from: 'marker' });
@@ -124,7 +128,7 @@ describe('driftVerdict', () => {
     it('is clean when every downloaded file equals the baseline', () => {
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
+            liveOids: live({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
             livePaths: allLive,
         });
 
@@ -139,7 +143,7 @@ describe('driftVerdict', () => {
     it('accepts a live file that already equals main (a drift import that merged, or a retry)', () => {
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(9), 'project/b.html': oid(2), 'project/z.html': oid(4) }),
+            liveOids: live({ 'project/a.html': oid(9), 'project/b.html': oid(2), 'project/z.html': oid(4) }),
             livePaths: [...allLive, 'project/z.html'],
         });
 
@@ -148,10 +152,53 @@ describe('driftVerdict', () => {
         expect(verdict.files.find((f) => f.path === 'project/z.html')?.state).toBe('atMain');
     });
 
+    it('is at baseline when the live bytes match the baseline through their second oid (raw blob before LFS)', () => {
+        const verdict = driftVerdict({
+            plan,
+            // The first oid is the LFS pointer the clean filter gives; the second is the raw bytes the baseline stored.
+            liveOids: live({ 'project/a.html': [oid(50), oid(1)], 'project/b.html': oid(2) }),
+            livePaths: allLive,
+        });
+
+        expect(verdict.verdict).toBe('clean');
+        expect(verdict.files.find((f) => f.path === 'project/a.html')?.state).toBe('atBaseline');
+    });
+
+    it('is at main when the live bytes match main through their second oid', () => {
+        const verdict = driftVerdict({
+            plan,
+            liveOids: live({ 'project/a.html': [oid(50), oid(9)], 'project/b.html': oid(2) }),
+            livePaths: allLive,
+        });
+
+        expect(verdict.files.find((f) => f.path === 'project/a.html')?.state).toBe('atMain');
+    });
+
+    it("is drift when none of a live file's oids equals the baseline or main", () => {
+        const verdict = driftVerdict({
+            plan,
+            liveOids: live({ 'project/a.html': [oid(50), oid(51)], 'project/b.html': oid(2) }),
+            livePaths: allLive,
+        });
+
+        expect(verdict.verdict).toBe('drift');
+        expect(verdict.files.find((f) => f.path === 'project/a.html')?.state).toBe('drift');
+    });
+
+    it('is drift for a live file with no oids at all', () => {
+        const verdict = driftVerdict({
+            plan,
+            liveOids: live({ 'project/a.html': [], 'project/b.html': oid(2) }),
+            livePaths: allLive,
+        });
+
+        expect(verdict.files.find((f) => f.path === 'project/a.html')?.state).toBe('drift');
+    });
+
     it('is drift when a live file equals neither the baseline nor main', () => {
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(77), 'project/b.html': oid(2) }),
+            liveOids: live({ 'project/a.html': oid(77), 'project/b.html': oid(2) }),
             livePaths: allLive,
         });
 
@@ -160,7 +207,7 @@ describe('driftVerdict', () => {
     });
 
     it('fails closed when a file that is live was not downloaded', () => {
-        const verdict = driftVerdict({ plan, liveOids: tree({ 'project/a.html': oid(1) }), livePaths: allLive });
+        const verdict = driftVerdict({ plan, liveOids: live({ 'project/a.html': oid(1) }), livePaths: allLive });
 
         expect(verdict.verdict).toBe('drift');
         expect(verdict.files.find((f) => f.path === 'project/b.html')?.state).toBe('drift');
@@ -169,7 +216,7 @@ describe('driftVerdict', () => {
     it('is drift when a path the repo adds is already live with other content', () => {
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(1), 'project/b.html': oid(2), 'project/z.html': oid(66) }),
+            liveOids: live({ 'project/a.html': oid(1), 'project/b.html': oid(2), 'project/z.html': oid(66) }),
             livePaths: [...allLive, 'project/z.html'],
         });
 
@@ -181,7 +228,7 @@ describe('driftVerdict', () => {
         // b.html is deleted in main: absent live equals main, so it is accepted.
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(1) }),
+            liveOids: live({ 'project/a.html': oid(1) }),
             livePaths: ['project/a.html', 'project/keep.html'],
         });
 
@@ -192,7 +239,7 @@ describe('driftVerdict', () => {
     it('is drift when a live board the baseline holds and main keeps is missing', () => {
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
+            liveOids: live({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
             livePaths: ['project/a.html', 'project/b.html'],
         });
 
@@ -203,7 +250,7 @@ describe('driftVerdict', () => {
     it('is drift when the live canvas holds a path neither tree has', () => {
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
+            liveOids: live({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
             livePaths: [...allLive, 'project/stray.html'],
         });
 
@@ -214,7 +261,7 @@ describe('driftVerdict', () => {
     it('ignores the marker and files outside project/ in the live list', () => {
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
+            liveOids: live({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
             livePaths: [...allLive, 'project/published.json', 'index.html', 'artifact-type/x.js'],
         });
 

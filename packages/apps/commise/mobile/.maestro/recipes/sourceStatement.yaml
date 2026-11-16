@@ -56,6 +56,24 @@ appId: ${APP_ID}
 
 # A book answer with no title is refused at the field.
 - tapOn: 'From a cookbook or magazine'
+# Each answer tap is proved by the radio's own state, not by the next screen: a tap on a row clipped above the list (y < 0)
+# reads as "scroll to top" on iOS and checks nothing. Android reads `checked` from the radio. iOS publishes it only in the
+# radio's value ("radio button, checked"), so there the one checked radio is placed by the row beside it, which the tap
+# could not have changed.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'From a cookbook or magazine'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'radio button, checked'
+                above: 'From another person'
 - tapOn:
       text: 'Publish'
       below: 'Where is this recipe from?'
@@ -68,9 +86,37 @@ appId: ${APP_ID}
 # part of the list. Choose the answer in view (its first tap works with the keyboard up and removes the title field), and
 # "I wrote this" is back in view.
 - tapOn: 'From another person'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'From another person'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'radio button, checked'
+                below: 'From a cookbook or magazine'
 - assertNotVisible: 'Book or magazine title'
 - assertVisible: 'I wrote this'
 - tapOn: 'I wrote this'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'I wrote this'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'radio button, checked'
+                above: 'From a web page'
 - tapOn:
       text: 'Publish'
       below: 'Where is this recipe from?'

@@ -48,6 +48,7 @@ import { mayBePublic, recipeMakePublicConsequence } from '../actions/recipePriva
 import { useGatedPrivate } from '../actions/useGatedPrivate.js';
 import { useMakePublicConfirm } from '../actions/useMakePublicConfirm.js';
 import { useRecipePrivate } from '../actions/useRecipePrivate.js';
+import type { StatementSheetState } from '../actions/sourceStatement.js';
 import { useServerRefusedPrivate } from '../actions/useServerRefusedPrivate.js';
 import { useStatementSheet } from '../actions/useStatementSheet.js';
 import { visibilityNoticeOf } from '../actions/visibilityNotice.js';
@@ -144,21 +145,13 @@ export interface RecipeDetailController {
 }
 
 /**
- * The recipe page's controller.
- *
- * @param input - The recipe, the viewer's identity signals, the finish-refusal claim and the navigation port.
- * @returns The decided page: what to draw and the commands behind it.
- * @sideEffect Calls `onFinishRefusalSeen` once the body has mounted with a claim waiting; mutates through the recipe
- *     service hooks.
- */
-/**
  * The recipe-page sheet's write status: busy while the write is in flight, failed after a generic failure. Pure.
  *
  * @param pending - Whether the visibility write is in flight.
  * @param failed - Whether the last write failed for a reason the sheet shows as a generic error.
  * @returns The sheet's status.
  */
-function sheetStatusOf(pending: boolean, failed: boolean): 'busy' | 'failed' | 'idle' {
+function sheetStatusOf(pending: boolean, failed: boolean): StatementSheetState['status'] {
     if (pending) {
         return 'busy';
     }
@@ -166,6 +159,14 @@ function sheetStatusOf(pending: boolean, failed: boolean): 'busy' | 'failed' | '
     return failed ? 'failed' : 'idle';
 }
 
+/**
+ * The recipe page's controller.
+ *
+ * @param input - The recipe, the viewer's identity signals, the finish-refusal claim and the navigation port.
+ * @returns The decided page: what to draw and the commands behind it.
+ * @sideEffect Calls `onFinishRefusalSeen` once the body has mounted with a claim waiting; mutates through the recipe
+ *     service hooks.
+ */
 export function useRecipeDetailController(input: RecipeDetailControllerInput): RecipeDetailController {
     const {
         id,

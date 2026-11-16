@@ -95,19 +95,19 @@ describe('derivedVisibility', () => {
     });
 
     it('is Private for a draft with a source link, whatever the cook chose', () => {
-        expect(derivedVisibility(withLink(ALLRECIPES, { visibility: RecipeVisibility.PUBLIC }))).toBe(
+        expect(derivedVisibility(withLink(ALLRECIPES, { visibility: RecipeVisibility.PUBLIC }), undefined)).toBe(
             RecipeVisibility.PRIVATE,
         );
     });
 
     it('is the cook’s choice with no link, so removing the link restores it', () => {
-        expect(derivedVisibility(makeRecipeFormValues({ visibility: RecipeVisibility.PUBLIC }))).toBe(
+        expect(derivedVisibility(makeRecipeFormValues({ visibility: RecipeVisibility.PUBLIC }), undefined)).toBe(
             RecipeVisibility.PUBLIC,
         );
     });
 
     it('is the cook’s choice while the text is not yet a link', () => {
-        expect(derivedVisibility(withLink('https://', { visibility: RecipeVisibility.PUBLIC }))).toBe(
+        expect(derivedVisibility(withLink('https://', { visibility: RecipeVisibility.PUBLIC }), undefined)).toBe(
             RecipeVisibility.PUBLIC,
         );
     });

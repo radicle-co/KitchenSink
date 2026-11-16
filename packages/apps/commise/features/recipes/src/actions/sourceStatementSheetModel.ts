@@ -28,6 +28,10 @@ export interface StatementFieldView {
     readonly value: string;
     /** The error to say, when the cook has pressed Confirm over a field that cannot be used. */
     readonly error: string | undefined;
+    /** Take focus: a Confirm over this field just failed. */
+    readonly focusRequested: boolean;
+    readonly inputMode: 'url' | 'text';
+    readonly autoCapitalize: 'none' | 'sentences';
 }
 
 /**
@@ -42,7 +46,7 @@ export interface StatementSharedCopy {
 
 /** What the sheet draws. */
 export interface StatementSheetView {
-    readonly options: readonly RadioListOption[];
+    readonly options: readonly RadioListOption<StatementAnswer>[];
     readonly value: StatementAnswer | undefined;
     readonly field: StatementFieldView | undefined;
     readonly confirmLabel: string;
@@ -96,6 +100,50 @@ function fieldErrorTextOf(
 }
 
 /**
+ * The field the chosen answer reveals.
+ *
+ * @param state - What the cook has done.
+ * @param m - The sheet's copy.
+ * @param shared - The words the sheet reuses.
+ * @returns The field, or `undefined` for an answer that asks nothing more. Pure.
+ */
+function fieldViewOf(
+    state: StatementSheetState,
+    m: SourceStatementMessages,
+    shared: StatementSharedCopy,
+): StatementFieldView | undefined {
+    const error = visibleFieldErrorOf(state);
+    const shown = {
+        error: error === undefined ? undefined : fieldErrorTextOf(error, m, shared),
+        focusRequested: state.focusPending && error !== undefined,
+    };
+
+    if (state.answer === 'publicWeb') {
+        return {
+            kind: 'link',
+            label: shared.source.label,
+            value: state.link,
+            inputMode: 'url',
+            autoCapitalize: 'none',
+            ...shown,
+        };
+    }
+
+    if (state.answer === 'book') {
+        return {
+            kind: 'bookTitle',
+            label: m.bookTitleLabel,
+            value: state.bookTitle,
+            inputMode: 'text',
+            autoCapitalize: 'sentences',
+            ...shown,
+        };
+    }
+
+    return undefined;
+}
+
+/**
  * What the sheet draws for a state on a surface.
  *
  * @param input.surface - Where it is asked.
@@ -113,7 +161,6 @@ export function sheetViewOf(input: {
     const { surface, state, messages: m, shared } = input;
     const phase = phaseOf(state);
     const editor = surface === 'editor';
-    const error = visibleFieldErrorOf(state);
 
     return {
         options: answersFor(surface).map((answer) => ({
@@ -122,22 +169,7 @@ export function sheetViewOf(input: {
             ...(HINT_KEY[answer] === undefined ? {} : { hint: m[HINT_KEY[answer]] }),
         })),
         value: state.answer,
-        field:
-            state.answer === 'publicWeb'
-                ? {
-                      kind: 'link',
-                      label: shared.source.label,
-                      value: state.link,
-                      error: error === undefined ? undefined : fieldErrorTextOf(error, m, shared),
-                  }
-                : state.answer === 'book'
-                  ? {
-                        kind: 'bookTitle',
-                        label: m.bookTitleLabel,
-                        value: state.bookTitle,
-                        error: error === undefined ? undefined : fieldErrorTextOf(error, m, shared),
-                    }
-                  : undefined,
+        field: fieldViewOf(state, m, shared),
         confirmLabel: editor ? m.confirmEditor : m.confirmRecipePage,
         dismissLabel: editor ? m.dismissEditor : m.dismissRecipePage,
         confirmRefused: phase === 'choosing',

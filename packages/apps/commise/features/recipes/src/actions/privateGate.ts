@@ -171,9 +171,6 @@ export function serverRefusalOf(known: PaidFeatureState | undefined): PrivateRef
     return privateRefusalOf(known ?? 'loading') ?? 'final';
 }
 
-/** Why the server refused a visibility (`400 INVALID_VISIBILITY`, ADR-0095). */
-export type InvalidVisibilityReason = NonNullable<ReturnType<typeof invalidVisibilityReasonOf>>;
-
 /**
  * Why a `400 INVALID_VISIBILITY` was refused, as the client's typed error names it. Pure.
  *

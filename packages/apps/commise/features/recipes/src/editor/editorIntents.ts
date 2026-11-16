@@ -73,7 +73,7 @@ export function recipeWriteIntent(input: RecipeWriteInput): Intent {
                         input.publish ? input.privateRefusal : refusalWhileDrafting(input.privateRefusal),
                         RecipeVisibility.PUBLIC,
                         // ⛔ DERIVED (ADR-0089): a draft with a web link goes out Private, or the server refuses the create.
-                        derivedVisibility(draft),
+                        derivedVisibility(draft, undefined),
                     ),
                 },
             },
@@ -89,7 +89,10 @@ export function recipeWriteIntent(input: RecipeWriteInput): Intent {
         dependsOn: [],
         payload: {
             id,
-            input: { ...toUpdateRecipeInput(draft, status, server.recipe, input.shown), expectedVersion: server.baseVersion },
+            input: {
+                ...toUpdateRecipeInput(draft, status, server.recipe, input.shown),
+                expectedVersion: server.baseVersion,
+            },
         },
     };
 }

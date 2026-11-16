@@ -221,16 +221,31 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
     const refusedFoods = isPrivateFoodsOnPublicRecipeError(setVisibility.error) ? setVisibility.error.lines : undefined;
     // ADR-0095: WHY the server refused a visibility. Each reason is answered once, below.
     const refusalReason = invalidVisibilityReasonOf(setVisibility.error);
-    const askedStatement = refusalReason === 'STATEMENT_REQUIRED';
-    const heldByRefusal = refusalReason === 'SOURCE_CONFLICT';
     // A failure with its own answer (the sheet opens, the recipe is held) is not the generic failure.
     const genericFailure =
-        setVisibility.error !== null && refusedFoods === undefined && !askedStatement && !heldByRefusal;
+        setVisibility.error !== null &&
+        refusedFoods === undefined &&
+        refusalReason !== 'STATEMENT_REQUIRED' &&
+        refusalReason !== 'SOURCE_CONFLICT';
 
+    // The cook is asked what the recipe is, and the answer is ONE write: "I wrote this" with Public, a third-party answer with
+    // Private. It carries no separate confirmation: the statement is the confirmation.
+    const [statementOpen, setStatementOpen] = useState(false);
+
+    const openStatement = (): void => {
+        sheet.reset();
+        setStatementOpen(true);
+    };
+
+    // The refusal moves the state in the handler that met it; which dialog is open is never derived from the transient error.
     const afterRefusal = (error: unknown): void => {
         const reason = invalidVisibilityReasonOf(error);
 
-        if (reason === 'SOURCE_CONFLICT') {
+        if (reason === 'STATEMENT_REQUIRED') {
+            makePublic.dialog.onKeep();
+            openStatement();
+        } else if (reason === 'SOURCE_CONFLICT') {
+            makePublic.dialog.onKeep();
             // The recipe is held: read it again, so its own `publicNeedsCheck` says so and the menu stops offering Public.
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipe(id) });
         } else if (reason === 'PUBLIC_CONFIRMATION_REQUIRED' || reason === 'FROM_PERSON_PRIVATE_ONLY') {
@@ -238,9 +253,6 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
         }
     };
 
-    // The cook is asked what the recipe is, and the answer is ONE write: "I wrote this" with Public, a third-party answer with
-    // Private. It carries no separate confirmation: the statement is the confirmation.
-    const [statementOpen, setStatementOpen] = useState(false);
     const sheet = useStatementSheet({
         locale,
         onAnswer: (write) =>
@@ -253,12 +265,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
                 { onSuccess: () => setStatementOpen(false), onError: afterRefusal },
             ),
     });
-    const statementShown = (statementOpen && !heldByRefusal) || askedStatement;
-
-    const openStatement = (): void => {
-        sheet.reset();
-        setStatementOpen(true);
-    };
+    const statementShown = statementOpen;
 
     // Making a recipe public ALWAYS asks (ADR-0095): the passive line the confirmation records is on screen when the cook
     // confirms. With nothing to free, the dialog's body is that line.
@@ -281,8 +288,8 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             ),
     });
     // A refusal that opens the sheet or holds the recipe closes the confirm that met it.
-    const confirmOpen = makePublic.dialog.open && !askedStatement && !heldByRefusal;
-    const held = recipe.publicNeedsCheck === true || heldByRefusal;
+    const confirmOpen = makePublic.dialog.open;
+    const held = recipe.publicNeedsCheck === true || refusalReason === 'SOURCE_CONFLICT';
 
     // P4: ONE Viewer value object feeds every gate below through the shared policy predicates (D7).
     const viewer = makeViewer({ id: viewerId });
@@ -419,13 +426,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
                 // say (a client bug) is said inside it, as the generic failure.
                 state: {
                     ...sheet.state,
-                    status: !statementOpen
-                        ? 'idle'
-                        : setVisibility.isPending
-                          ? 'busy'
-                          : genericFailure
-                            ? 'failed'
-                            : 'idle',
+                    status: setVisibility.isPending ? 'busy' : genericFailure ? 'failed' : 'idle',
                 },
                 dispatch: sheet.dispatch,
                 onConfirm: sheet.confirm,

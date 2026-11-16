@@ -194,6 +194,15 @@ describe('the sheet state', () => {
         expect(phaseOf(sheetReducer(attempted, { type: 'bookTitle', text: 'Joy' }))).toBe('answered');
     });
 
+    it('raises the focus request on every attempt and lowers it when the field has taken it', () => {
+        const attempted = reduce({ type: 'choose', answer: 'book' }, { type: 'attempt' });
+        const handled = sheetReducer(attempted, { type: 'focusHandled' });
+
+        expect(attempted.focusPending).toBe(true);
+        expect(handled.focusPending).toBe(false);
+        expect(sheetReducer(handled, { type: 'attempt' }).focusPending).toBe(true);
+    });
+
     it('does not show a field error for a valid answer that was attempted', () => {
         expect(phaseOf(reduce({ type: 'choose', answer: 'authored' }, { type: 'attempt' }))).toBe('answered');
     });

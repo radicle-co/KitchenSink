@@ -23,7 +23,6 @@ import { styled, XStack, YStack } from 'tamagui';
 
 import { editorMessages } from '../editor/messages.js';
 import { recipeActionMessages } from './messages.js';
-import type { StatementAnswer } from './sourceStatement.js';
 import { sheetViewOf } from './sourceStatementSheetModel.js';
 import type { SourceStatementSheetProps } from './sourceStatementSheetProps.js';
 
@@ -98,7 +97,7 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
                     options={view.options}
                     value={view.value}
                     disabled={view.busy}
-                    onChange={(id) => dispatch({ type: 'choose', answer: id as StatementAnswer })}
+                    onChange={(answer) => dispatch({ type: 'choose', answer })}
                 />
                 {field === undefined ? null : (
                     <Field>
@@ -115,12 +114,12 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
                             value={field.value}
                             invalid={field.error !== undefined}
                             {...(field.error === undefined ? {} : { error: field.error })}
-                            inputMode={field.kind === 'link' ? 'url' : 'text'}
-                            autoCapitalize={field.kind === 'link' ? 'none' : 'sentences'}
+                            inputMode={field.inputMode}
+                            autoCapitalize={field.autoCapitalize}
                             {...(field.kind === 'link' ? { autoCorrect: false } : {})}
                             disabled={view.busy}
-                            focusRequested={field.error !== undefined}
-                            onFocusRequestHandled={() => undefined}
+                            focusRequested={field.focusRequested}
+                            onFocusRequestHandled={() => dispatch({ type: 'focusHandled' })}
                             onChangeText={(text) =>
                                 dispatch(field.kind === 'link' ? { type: 'link', text } : { type: 'bookTitle', text })
                             }

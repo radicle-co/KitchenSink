@@ -148,7 +148,7 @@ export function publicHeldOf(values: Pick<RecipeFormValues, 'sourceLink'>, recip
  */
 export function derivedVisibility(
     values: Pick<RecipeFormValues, 'sourceLink' | 'visibility'>,
-    recipe?: StoredRecipe,
+    recipe: StoredRecipe | undefined,
 ): RecipeVisibility {
     return draftSourceOf(values).kind === 'link' || publicHeldOf(values, recipe)
         ? RecipeVisibility.PRIVATE

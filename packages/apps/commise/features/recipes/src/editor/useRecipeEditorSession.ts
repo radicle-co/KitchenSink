@@ -307,13 +307,12 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
     // ADR-0095: a paste joined the draft, so Publish must ask where the recipe is from. The mark is the client's word that
     // content was pasted, and it is set where the paste lands, not where it was offered.
     const { setField } = editor;
-    const pasteDispatch = useCallback(
-        (action: DraftAction): void => {
-            dispatch(action);
-            setField('pasted', true);
-        },
-        [dispatch, setField],
-    );
+
+    const pasteDispatch = (action: DraftAction): void => {
+        dispatch(action);
+        setField('pasted', true);
+    };
+
     const paste = useIngredientsPaste({
         offered: editor.pasteAvailable,
         keepsSource: editor.pasteKeepsSource,

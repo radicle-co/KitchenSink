@@ -114,6 +114,7 @@ import {
     liveHeldRebinds,
     seedEditorCore,
     serverIdOf,
+    storedRecipeOf,
     serverValuesOf,
     type ConflictInfo,
     type ConflictView,
@@ -746,7 +747,7 @@ function statementPlanNow(ctx: EditorContext): StatementPlan {
 
     return statementPlanOf({
         draft,
-        recipe: server.kind === 'stored' ? server.recipe : undefined,
+        recipe: storedRecipeOf(server),
         answered: ctx.statement.get().answer !== undefined,
     });
 }
@@ -952,7 +953,7 @@ function checkGate(
     const needsSlot =
         trigger === 'publish' &&
         ctx.opts.privateRefusal === 'slots' &&
-        derivedVisibility(draft, server.kind === 'stored' ? server.recipe : undefined) === RecipeVisibility.PRIVATE;
+        derivedVisibility(draft, storedRecipeOf(server)) === RecipeVisibility.PRIVATE;
 
     ctx.setGate((gate) => ({
         refused: refusedFieldsOf(found),
@@ -2146,7 +2147,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         publishBlocked,
         statementAsk: statementState.asking,
         confirmLineShown: statementPlanNow(ctx).confirmLineShown,
-        publicHeld: publicHeldOf(core.draft, core.server.kind === 'stored' ? core.server.recipe : undefined),
+        publicHeld: publicHeldOf(core.draft, storedRecipeOf(core.server)),
         privateFoodRefusal,
         lifecycle: view.lifecycle,
         recipeId: view.serverId,

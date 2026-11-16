@@ -771,6 +771,54 @@ describe('useRecipeDetailController — where the recipe is from (ADR-0095)', ()
             expect(mounted.reportError).not.toHaveBeenCalled();
         });
 
+        /** A Make public the server refuses with STATEMENT_REQUIRED; the NEXT write is `next`. */
+        async function askedForStatement(next: () => Promise<RecipeDetail>) {
+            const mounted = mount({ ...owner, recipe: PRIVATE });
+            const write = vi
+                .spyOn(mounted.client, 'setRecipeVisibility')
+                .mockRejectedValueOnce(new InvalidVisibilityError('refused', 'STATEMENT_REQUIRED'))
+                .mockImplementation(next);
+
+            act(() => makePublicItem(mounted)?.onSelect());
+            await act(async () => mounted.result.current.dialogs.makePublic.onConfirm());
+            await waitFor(() => expect(mounted.result.current.dialogs.statement.open).toBe(true));
+
+            return { mounted, write };
+        }
+
+        it('dismissing the refusal-opened sheet leaves the confirm closed', async () => {
+            const { mounted } = await askedForStatement(() => new Promise(() => undefined));
+
+            act(() => mounted.result.current.dialogs.statement.onDismiss());
+
+            expect(mounted.result.current.dialogs.statement.open).toBe(false);
+            expect(mounted.result.current.dialogs.makePublic.open).toBe(false);
+        });
+
+        it('answering the refusal-opened sheet keeps it open and busy, with the confirm closed, while the write is in flight', async () => {
+            const { mounted, write } = await askedForStatement(() => new Promise(() => undefined));
+
+            act(() => mounted.result.current.dialogs.statement.dispatch({ type: 'choose', answer: 'authored' }));
+            await act(async () => mounted.result.current.dialogs.statement.onConfirm());
+
+            await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
+            expect(mounted.result.current.dialogs.statement.open).toBe(true);
+            expect(mounted.result.current.dialogs.statement.state.status).toBe('busy');
+            expect(mounted.result.current.dialogs.makePublic.open).toBe(false);
+        });
+
+        it('a successful answer closes both', async () => {
+            const { mounted } = await askedForStatement(() =>
+                Promise.resolve(makeRecipeDetail({ id: 'rec_1', visibility: RecipeVisibility.PUBLIC })),
+            );
+
+            act(() => mounted.result.current.dialogs.statement.dispatch({ type: 'choose', answer: 'authored' }));
+            await act(async () => mounted.result.current.dialogs.statement.onConfirm());
+
+            await waitFor(() => expect(mounted.result.current.dialogs.statement.open).toBe(false));
+            expect(mounted.result.current.dialogs.makePublic.open).toBe(false);
+        });
+
         it('SOURCE_CONFLICT closes the dialog, reads the recipe again, and says the recipe is held', async () => {
             const { mounted, invalidate } = await refusedWith('SOURCE_CONFLICT');
 

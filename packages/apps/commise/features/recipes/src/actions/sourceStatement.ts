@@ -193,6 +193,8 @@ export interface StatementSheetState {
     readonly bookTitle: string;
     /** Confirm was pressed with the fields as they were: an invalid field then shows its error. */
     readonly attempted: boolean;
+    /** Each Confirm over an unusable field raises it, so a second failed Confirm moves focus again; the field lowers it. */
+    readonly focusPending: boolean;
     readonly status: 'idle' | 'busy' | 'failed';
 }
 
@@ -201,7 +203,7 @@ export type StatementSheetPhase = 'choosing' | 'answered' | 'fieldError' | 'busy
 
 /** The sheet as it opens. */
 export function initialSheet(): StatementSheetState {
-    return { answer: undefined, link: '', bookTitle: '', attempted: false, status: 'idle' };
+    return { answer: undefined, link: '', bookTitle: '', attempted: false, focusPending: false, status: 'idle' };
 }
 
 /** What can happen to the sheet. */
@@ -210,6 +212,7 @@ export type StatementSheetAction =
     | { readonly type: 'link'; readonly text: string }
     | { readonly type: 'bookTitle'; readonly text: string }
     | { readonly type: 'attempt' }
+    | { readonly type: 'focusHandled' }
     | { readonly type: 'busy' }
     | { readonly type: 'failed' }
     | { readonly type: 'reset' };
@@ -230,7 +233,9 @@ export function sheetReducer(state: StatementSheetState, action: StatementSheetA
         case 'bookTitle':
             return { ...state, bookTitle: action.text };
         case 'attempt':
-            return { ...state, attempted: true };
+            return { ...state, attempted: true, focusPending: true };
+        case 'focusHandled':
+            return { ...state, focusPending: false };
         case 'busy':
             return { ...state, status: 'busy' };
         case 'failed':

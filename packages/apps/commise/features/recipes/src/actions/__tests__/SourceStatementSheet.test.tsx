@@ -12,6 +12,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { useStatementSheet } from '../useStatementSheet.js';
 import { initialSheet, type StatementSheetState, type StatementSurface } from '../sourceStatement.js';
 import { SourceStatementSheet } from '../SourceStatementSheet.js';
 
@@ -190,7 +191,8 @@ describe('SourceStatementSheet (web) — answered', () => {
 
 describe('SourceStatementSheet (web) — field error', () => {
     it('shows the book title error on the field: invalid, described by the error, and taking focus', () => {
-        renderSheet({ state: { answer: 'book', attempted: true } });
+        // A Confirm just failed, so the state carries the pending focus request (`focusPending`).
+        renderSheet({ state: { answer: 'book', attempted: true, focusPending: true } });
 
         const field = screen.getByLabelText('Book or magazine title');
 
@@ -282,5 +284,39 @@ describe('SourceStatementSheet (web) — dismiss', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
         expect(onDismiss).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('SourceStatementSheet (web) — focus on a failed Confirm', () => {
+    /** The sheet wired to its real state, as a host wires it. */
+    function Hosted() {
+        const sheet = useStatementSheet({ locale: 'en', onAnswer: vi.fn() });
+
+        return (
+            <SourceStatementSheet
+                open
+                surface="editor"
+                state={sheet.state}
+                dispatch={sheet.dispatch}
+                onConfirm={sheet.confirm}
+                onDismiss={vi.fn()}
+            />
+        );
+    }
+
+    it('moves focus back to the field on every failed Confirm, not only the first', async () => {
+        const user = userEvent.setup();
+
+        render(<Hosted />);
+        await user.click(screen.getByRole('radio', { name: /From a cookbook or magazine/u }));
+
+        const field = screen.getByLabelText('Book or magazine title');
+        const confirm = screen.getByRole('button', { name: 'Publish' });
+
+        await user.click(confirm);
+        expect(document.activeElement).toBe(field);
+
+        await user.click(confirm);
+        expect(document.activeElement).toBe(field);
     });
 });

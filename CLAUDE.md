@@ -310,6 +310,8 @@ work on a screen design, board, mockup or canvas, or a comment on one. ⛔ The s
 repository: edit the files under `docs/design/canvases/<folder>/` (the registry `folder`) on a branch, merge, then publish from `main` with the
 README's publish steps. Never edit a screen canvas live (the drift check stops the next publish), and never pass
 `force`. The `canvasPublishGuard` hook refuses a publish whose files differ from `origin/main`.
+Canvas images are canvas files in `project/assets/`, stored with Git LFS and referenced by relative path. A board never
+uses an upload (`/_blob/`). Read **`docs/architecture/decisions/0092-canvas-images-are-lfs-canvas-files.md`**.
 
 "Regenerate the design system" means: follow the "Regenerate the artifacts" section of
 `packages/tools/designArtifact/README.md` end to end, without asking. It publishes the Design System only. Only the

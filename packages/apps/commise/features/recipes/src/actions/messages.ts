@@ -52,6 +52,8 @@ interface RecipeMakePublicDialogMessages {
  */
 export interface SourceStatementMessages {
     readonly title: string;
+    /** The sheet's icon-only Close control. */
+    readonly close: string;
     readonly body: string;
     /** What the answer will do, pinned in the footer so it is read before confirming. */
     readonly effect: string;
@@ -225,6 +227,7 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
         },
         sourceStatement: {
             title: 'Where is this recipe from?',
+            close: 'Close this question',
             body: 'Tell us before it goes public.',
             effect: 'Only a recipe you wrote yourself can be public. Any other answer keeps it private.',
             confirmEditor: 'Publish',

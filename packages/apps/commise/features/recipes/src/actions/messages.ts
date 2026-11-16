@@ -104,6 +104,8 @@ export interface RecipeVisibilityToggleMessages {
     readonly privateLabel: string;
     /** Error shown when a visibility change fails and the toggle snaps back, so it never does so silently (B17). */
     readonly error: string;
+    /** Said under the visibility line when a recorded source holds the recipe out of Public (ADR-0092). */
+    readonly publicHeld: string;
     /**
      * In place of `error` when a Private is refused (`visibilityNoticeOf`): the server refused it as `INVALID_VISIBILITY`
      * (`useServerRefusedPrivate`), or the editor withheld it because the server would. Trying again cannot succeed, so it
@@ -196,6 +198,8 @@ export interface RecipeDetailActionMessages {
     readonly versionHistory: string;
     readonly makePrivate: string;
     readonly makePublic: string;
+    /** Why Make public cannot be used while the device is offline: the write needs the server (ADR-0092). */
+    readonly offline: string;
     /** Resets the cook's checks and current step; offered only while one is set. */
     readonly clearChecks: string;
     readonly deleteRecipe: string;
@@ -258,6 +262,7 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             publicLabel: 'Public',
             privateLabel: 'Private',
             error: 'We couldn’t change who can see this recipe. Try again.',
+            publicHeld: 'Not for this recipe. It was saved with a source, so it stays private.',
             privateRefused: {
                 final: 'This recipe is still public: it couldn’t be made private.',
                 // `recipe.visibility.slotsFull`: the editor board's words, now the recipe page's too. `{total}` is the SERVER's
@@ -286,6 +291,7 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             versionHistory: 'Version history',
             makePrivate: 'Make private',
             makePublic: 'Make public',
+            offline: 'You’re offline. Try again when you’re back online.',
             clearChecks: 'Clear checks',
             deleteRecipe: 'Delete recipe',
             recipeDeleted: 'Recipe deleted',

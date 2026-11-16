@@ -45,6 +45,9 @@ const cssRgb = (hex: string): string => {
     return `rgb(${r}, ${g}, ${b})`;
 };
 
+// The Sentry adapter imports the real React Native; the screen only hands it to the controller.
+vi.mock('../../src/observability/sentryErrorReporter.js', () => ({ reportErrorToSentry: vi.fn() }));
+
 // The READ goes through the real hooks over a network-guarded fake client (the recipe is SEEDED into the query cache,
 // so a settled suspense read renders synchronously); only the mutations are doubles.
 // react-native-web does not implement `sendAccessibilityEvent`; a cursor hand-off is asserted as the call it makes.
@@ -699,8 +702,12 @@ describe('RecipeDetailScreen — owner actions', () => {
         expect(screen.queryByText('Recipe deleted')).toBeNull();
     });
 
-    it('makes a granted owner’s private recipe public from the menu, at once', () => {
-        // A Pro cook has no private slots to free, so the server reports them unlimited and there is nothing to confirm.
+    /**
+     * REWRITTEN for ADR-0092: Make public always opens the confirm, which for a Pro cook carries only the passive
+     * "anyone can see it" line, and the confirm sends the public confirmation with the write.
+     */
+    it('makes a granted owner’s private recipe public from the menu, after the confirm', () => {
+        // A Pro cook has no private slots to free, so the server reports them unlimited.
         seedSlots('unlimited');
         useUserProfileMock.mockReturnValue(profile('usr_1', 'granted'));
         const mutate = vi.fn();
@@ -712,8 +719,19 @@ describe('RecipeDetailScreen — owner actions', () => {
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
         fireEvent.click(screen.getByRole('menuitem', { name: 'Make public' }));
 
-        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'public' }, expect.anything());
-        expect(screen.queryByRole('heading', { name: 'Make this recipe public?' })).toBeNull();
+        expect(screen.getByText('Anyone can see a public recipe and save a copy.')).toBeTruthy();
+        expect(mutate).not.toHaveBeenCalled();
+        const dialog = screen.getByRole('heading', { name: 'Make this recipe public?' }).closest('[role="alert"]');
+        fireEvent.click(within(dialog as HTMLElement).getByRole('button', { name: 'Make public' }));
+
+        expect(mutate).toHaveBeenCalledWith(
+            {
+                id: 'rec_1',
+                visibility: 'public',
+                extras: { publicConfirmation: { version: 'publicConfirm.v1', locale: 'en' } },
+            },
+            expect.anything(),
+        );
     });
 
     // Plan 2026-10-14-009 Q5 (UX SPECIFY 2026-10-15), REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26: public is
@@ -759,7 +777,14 @@ describe('RecipeDetailScreen — owner actions', () => {
             const dialog = screen.getByRole('heading', { name: 'Make this recipe public?' }).closest('[role="alert"]');
             fireEvent.click(within(dialog as HTMLElement).getByRole('button', { name: 'Make public' }));
 
-            expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'public' }, expect.anything());
+            expect(mutate).toHaveBeenCalledWith(
+                {
+                    id: 'rec_1',
+                    visibility: 'public',
+                    extras: { publicConfirmation: { version: 'publicConfirm.v1', locale: 'en' } },
+                },
+                expect.anything(),
+            );
         },
     );
 

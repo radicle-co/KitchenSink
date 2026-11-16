@@ -12,6 +12,9 @@
  * (`makePublicConsequence`). ⛔ Nothing here sells: no Premium button and no third choice (DSA Art. 25; the
  * deceptive-pattern rule) — under `upsell` the body states the fact and the ⋯ menu's Make private is where Premium is.
  *
+ * ADR-0092: the dialog always carries the passive line the confirmation records: as the body when there is nothing to free,
+ * else as a second paragraph under the cost.
+ *
  * Presentational: props → JSX, no data, no mutation, no effect of its own.
  *
  * @pattern Adapter over the design-system `ConfirmDialog` — the recipe's make-public copy on the house confirmation
@@ -26,19 +29,22 @@ import type { RecipeMakePublicDialogProps } from './model.js';
 /** "Make this recipe public?": the cost, said plainly, then Keep private or Make public. */
 export const RecipeMakePublicDialog: FC<RecipeMakePublicDialogProps> = ({
     open,
+    consequence,
     busy = false,
     error = false,
     onConfirm,
     onKeep,
 }) => {
-    const { makePublicDialog: m, visibility } = useMessages(recipeActionMessages);
-    const body = m.bodyFrees;
+    const { makePublicDialog: m, publicConfirm, visibility } = useMessages(recipeActionMessages);
+    // The passive line is what the confirm records, so it is on screen whichever consequence the dialog speaks.
+    const frees = consequence === 'frees';
 
     return (
         <ConfirmDialog
             open={open}
             title={m.title}
-            body={body}
+            body={frees ? m.bodyFrees : publicConfirm.line}
+            {...(frees ? { note: publicConfirm.line } : {})}
             confirm={{ label: m.confirm, icon: 'globe' }}
             keep={{ label: m.keep, icon: 'lock' }}
             busy={busy}

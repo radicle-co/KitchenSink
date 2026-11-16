@@ -46,6 +46,11 @@ export interface VisibilityNoticeInput {
      * generic failure is said instead.
      */
     readonly slotLimit: number | undefined;
+    /**
+     * A recorded source holds the recipe out of Public (ADR-0092): the server's `publicNeedsCheck`, or the server's refusal
+     * `SOURCE_CONFLICT` a moment ago. Said whatever else holds, because it is why Make public is not offered.
+     */
+    readonly held: boolean;
 }
 
 /**
@@ -61,10 +66,14 @@ export interface VisibilityNoticeInput {
  */
 export function visibilityNoticeOf(
     input: VisibilityNoticeInput,
-    messages: Pick<RecipeVisibilityToggleMessages, 'error' | 'privateRefused'>,
+    messages: Pick<RecipeVisibilityToggleMessages, 'error' | 'privateRefused' | 'publicHeld'>,
 ): string | undefined {
     if (!input.viewerIsOwner) {
         return undefined;
+    }
+
+    if (input.held) {
+        return messages.publicHeld;
     }
 
     const say = (reason: PrivateRefusal): string => {

@@ -45,6 +45,21 @@ describe('RecipeMakePublicDialog (native)', () => {
         expect(screen.getByText(m.bodyFrees)).toBeTruthy();
     });
 
+    // ADR-0092: the dialog carries the passive line the confirmation records.
+    it('under frees, the passive line is a second paragraph under the body', () => {
+        renderDialog({ consequence: 'frees' });
+
+        expect(screen.getByText(m.bodyFrees)).toBeTruthy();
+        expect(screen.getByText('Anyone can see a public recipe and save a copy.')).toBeTruthy();
+    });
+
+    it('under confirm (nothing to free), the passive line IS the body, said once', () => {
+        renderDialog({ consequence: 'confirm' });
+
+        expect(screen.getAllByText('Anyone can see a public recipe and save a copy.')).toHaveLength(1);
+        expect(screen.queryByText(m.bodyFrees)).toBeNull();
+    });
+
     it('⛔ offers exactly two verbs — Keep private and Make public — and nothing that sells', () => {
         renderDialog({ consequence: 'frees' });
 

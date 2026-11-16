@@ -52,6 +52,26 @@ describe('RecipeMakePublicDialog (web)', () => {
         expect(screen.getByText(body)).toBeTruthy();
     });
 
+    // ADR-0092: the dialog now carries the passive line the confirmation records, so the cook sees what they confirm.
+    it('under frees, the passive line is the dialog’s second paragraph and part of its description', () => {
+        renderDialog({ consequence: 'frees' });
+
+        expect(
+            screen.getByRole('alertdialog', {
+                name: 'Make this recipe public?',
+                description: `${m.bodyFrees} Anyone can see a public recipe and save a copy.`,
+            }),
+        ).toBeTruthy();
+    });
+
+    it('under confirm (nothing to free), the passive line IS the body, said once', () => {
+        renderDialog({ consequence: 'confirm' });
+
+        expect(screen.getAllByText('Anyone can see a public recipe and save a copy.')).toHaveLength(1);
+        expect(screen.queryByText(m.bodyFrees)).toBeNull();
+        expect(screen.getByRole('alertdialog', { name: 'Make this recipe public?' })).toBeTruthy();
+    });
+
     it('⛔ never claims public is final, in any consequence', () => {
         renderDialog({ consequence: 'frees' });
 

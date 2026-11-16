@@ -452,9 +452,9 @@ describe('classifyDependencyReachability — 401 proves reachability; unreachabl
  *
  * ## Why `--web-origin` had to become OPTIONAL (task #152)
  *
- * The preflight check asserts what a BROWSER can do. A service whose `main.ts` calls `app.enableCors(…)` must
+ * The preflight check asserts what a BROWSER can do. A service whose production source calls `app.enableCors(…)` must
  * ADMIT the web origin on its preflights; one with no `enableCors` must REFUSE it (`expectCors: 'deny'`, plan 002
- * S2). `prodDeploySmokeDepth.test.ts` derives which one each deploy leg owes from the service's `main.ts`. Omitting
+ * S2). `prodDeploySmokeDepth.test.ts` derives which one each deploy leg owes from the service's `src/`. Omitting
  * the web origin still skips every preflight.
  */
 describe('runSmoke composition', () => {

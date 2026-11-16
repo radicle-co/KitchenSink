@@ -48,6 +48,26 @@ describe('RadioList (native)', () => {
         expect(radios[2]?.textContent).toContain('No nutrition for this line');
     });
 
+    it('disabled: every radio reports it, and a press changes nothing', () => {
+        const { onChange, group } = renderList({ disabled: true });
+
+        const radios = within(group).getAllByRole('radio');
+
+        expect(radios.every((radio) => radio.getAttribute('aria-disabled') === 'true')).toBe(true);
+        fireEvent.click(radios[0] as HTMLElement);
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('is not disabled by default', () => {
+        const { group } = renderList();
+
+        expect(
+            within(group)
+                .getAllByRole('radio')
+                .some((radio) => radio.getAttribute('aria-disabled') === 'true'),
+        ).toBe(false);
+    });
+
     it('⛔ checks nothing with no value', () => {
         const { group } = renderList();
 

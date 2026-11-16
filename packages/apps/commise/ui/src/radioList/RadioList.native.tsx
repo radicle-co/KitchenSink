@@ -24,7 +24,7 @@ import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 const RADIO_SIZE = 18;
 
 /** The native design-system option list. */
-export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange }) => {
+export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange, disabled = false }) => {
     const { colors } = useTheme();
     const wash = usePressFill();
 
@@ -38,6 +38,8 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange 
                         key={option.id}
                         role="radio"
                         aria-checked={checked}
+                        aria-disabled={disabled}
+                        disabled={disabled}
                         accessibilityLabel={option.label}
                         accessibilityHint={option.hint}
                         onPress={() => {

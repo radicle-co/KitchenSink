@@ -33,4 +33,9 @@ export interface RadioListProps {
     readonly value: string | undefined;
     /** Called with a row's id when the person chooses it. The list holds no state: the host decides. */
     readonly onChange: (id: string) => void;
+    /**
+     * Every row is unavailable: it cannot be chosen, and a press reports nothing. The rows stay in the order and are still
+     * read, named and described. For a list whose host is busy with the choice it already made (a change in flight).
+     */
+    readonly disabled?: boolean;
 }

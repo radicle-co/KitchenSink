@@ -21,7 +21,7 @@ import type { RadioListProps } from './props.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /** The web design-system option list. */
-export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange }) => {
+export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange, disabled = false }) => {
     const baseId = useId();
 
     return (
@@ -31,6 +31,7 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange 
             // Radix treats `undefined` as UNCONTROLLED and would check a clicked row by itself; '' matches no row.
             value={value ?? ''}
             onValueChange={onChange}
+            disabled={disabled}
             className="flex flex-col gap-3"
         >
             {options.map((option, index) => {
@@ -44,7 +45,7 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange 
                         value={option.id}
                         aria-labelledby={labelId}
                         {...(option.hint === undefined ? {} : { 'aria-describedby': hintId })}
-                        className={`flex min-h-12 w-full items-center gap-3 rounded-lg border border-line-divider bg-paper px-4 py-3 text-left ${FOCUS_RING_CLASS.offset}`}
+                        className={`flex min-h-12 w-full items-center gap-3 rounded-lg border border-line-divider bg-paper px-4 py-3 text-left disabled:cursor-not-allowed disabled:opacity-60 ${FOCUS_RING_CLASS.offset}`}
                     >
                         <span
                             aria-hidden="true"

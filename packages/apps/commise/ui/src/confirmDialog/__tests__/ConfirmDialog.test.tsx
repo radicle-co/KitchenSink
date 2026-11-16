@@ -84,6 +84,28 @@ describe('ConfirmDialog (web)', () => {
         expect(screen.getByText('You have unsaved changes. Leaving now will discard them.')).toBeTruthy();
     });
 
+    it('draws a note as a second paragraph, and the dialog is described by the body AND the note', () => {
+        render(<ConfirmDialog {...baseProps({ note: 'Anyone can see a public recipe.' })} />);
+
+        expect(
+            screen.getByRole('alertdialog', {
+                name: 'Discard unsaved changes?',
+                description: 'You have unsaved changes. Leaving now will discard them. Anyone can see a public recipe.',
+            }),
+        ).toBeTruthy();
+        expect(screen.getByText('Anyone can see a public recipe.')).toBeTruthy();
+    });
+
+    it('with no note, the dialog is described by the body alone', () => {
+        render(<ConfirmDialog {...baseProps()} />);
+
+        expect(
+            screen.getByRole('alertdialog', {
+                description: 'You have unsaved changes. Leaving now will discard them.',
+            }),
+        ).toBeTruthy();
+    });
+
     it('confirming calls onConfirm', async () => {
         const user = userEvent.setup();
         const onConfirm = vi.fn();

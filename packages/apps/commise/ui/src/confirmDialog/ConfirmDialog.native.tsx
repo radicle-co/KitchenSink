@@ -36,8 +36,9 @@ import type { ConfirmDialogProps } from './props.js';
 const SIDE_BY_SIDE_FROM = 400;
 
 /** The copy of one opening: the body and the states, drawn no larger than the title. */
-const Copy: FC<Pick<ConfirmDialogProps, 'body' | 'busy' | 'busyLabel' | 'error' | 'unavailable'>> = ({
+const Copy: FC<Pick<ConfirmDialogProps, 'body' | 'note' | 'busy' | 'busyLabel' | 'error' | 'unavailable'>> = ({
     body,
+    note,
     busy = false,
     busyLabel,
     error,
@@ -51,6 +52,11 @@ const Copy: FC<Pick<ConfirmDialogProps, 'body' | 'busy' | 'busyLabel' | 'error' 
                 <Text typeRole="body" color="$inkMuted">
                     {body}
                 </Text>
+                {note === undefined ? null : (
+                    <Text typeRole="body" color="$inkMuted">
+                        {note}
+                    </Text>
+                )}
                 {error === undefined || busy ? null : (
                     <Text role="alert" typeRole="body" color="$dangerText">
                         {error}

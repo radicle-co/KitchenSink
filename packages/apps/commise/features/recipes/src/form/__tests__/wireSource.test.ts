@@ -27,7 +27,11 @@ describe('toCreateRecipeInput carries the Source', () => {
     it('sends the link as a public_web statement, and the body is one the server accepts', () => {
         const body = toCreateRecipeInput(makeFilledRecipeFormValues({ sourceLink: ` ${ALLRECIPES}. ` }));
 
-        expect(body.statement).toEqual({ kind: 'public_web', citation: ALLRECIPES });
+        expect(body.statement).toEqual({
+            kind: 'public_web',
+            citation: ALLRECIPES,
+            wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+        });
         expect(createRecipeRequestSchema.safeParse(body).success).toBe(true);
     });
 
@@ -50,7 +54,11 @@ describe('toUpdateRecipeInput carries only a change of Source', () => {
     it('sends a new link on a never-published recipe, and the body is one the server accepts', () => {
         const body = update(makeFilledRecipeFormValues({ sourceLink: ALLRECIPES }));
 
-        expect(body.statement).toEqual({ kind: 'public_web', citation: ALLRECIPES });
+        expect(body.statement).toEqual({
+            kind: 'public_web',
+            citation: ALLRECIPES,
+            wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+        });
         expect(updateRecipeRequestSchema.safeParse({ ...body, expectedVersion: 1 }).success).toBe(true);
     });
 

@@ -15,6 +15,7 @@
  */
 import {
     parseSourceLink,
+    STATEMENT_WORDINGS_BY_CHOICE,
     sourceIsCorrectable,
     RecipeSourceType,
     RecipeVisibility,
@@ -34,6 +35,9 @@ type StoredRecipe = Pick<
     RecipeDetail,
     'status' | 'firstPublishedAt' | 'sourceType' | 'sourceKind' | 'sourceUrl' | 'clonedFromId'
 >;
+
+/** The wording the editor's Source row shows for a pasted web link: what the attestation record stores beside the choice. */
+const PUBLIC_WEB_WORDING = { version: STATEMENT_WORDINGS_BY_CHOICE.publicWeb[0], locale: 'en' } as const;
 
 /** The Source field's text as the draft holds it, `''` when there is none. Pure. */
 const sourceTextOf = (values: Pick<RecipeFormValues, 'sourceLink'>): string => values.sourceLink ?? '';
@@ -151,7 +155,7 @@ export function sourceStatementOf(
 
             return stored?.ok === true && stored.link.url === source.link.url
                 ? undefined
-                : { kind: 'public_web', citation: source.link.url };
+                : { kind: 'public_web', citation: source.link.url, wording: PUBLIC_WEB_WORDING };
         }
 
         case 'none':

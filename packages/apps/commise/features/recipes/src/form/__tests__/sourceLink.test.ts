@@ -105,6 +105,7 @@ describe('sourceStatementOf: what the wire carries', () => {
         expect(sourceStatementOf(withLink(`  ${ALLRECIPES}.`), undefined)).toEqual({
             kind: 'public_web',
             citation: ALLRECIPES,
+            wording: { version: 'statementPublicWeb.v1', locale: 'en' },
         });
     });
 
@@ -121,6 +122,7 @@ describe('sourceStatementOf: what the wire carries', () => {
         expect(sourceStatementOf(withLink(ALLRECIPES), neverPublished())).toEqual({
             kind: 'public_web',
             citation: ALLRECIPES,
+            wording: { version: 'statementPublicWeb.v1', locale: 'en' },
         });
     });
 
@@ -254,7 +256,7 @@ describe('sourceRowOf: every state of the Source row', () => {
         ).toEqual({ kind: 'hidden' });
     });
 
-    it('hidden: a source the cook did not state through a link (the curator’s text, a book), even on a draft', () => {
+    it('hidden: the curator’s text, even on a draft; a book on a draft is correctable (migration 0088), so its row is not hidden', () => {
         const curator = makeRecipeDetail({
             status: RecipeStatus.DRAFT,
             sourceType: RecipeSourceType.IMPORTED_PUBLIC,
@@ -267,7 +269,7 @@ describe('sourceRowOf: every state of the Source row', () => {
         });
 
         expect(row(makeRecipeFormValues(), curator)).toEqual({ kind: 'hidden' });
-        expect(row(makeRecipeFormValues(), book)).toEqual({ kind: 'hidden' });
+        expect(row(makeRecipeFormValues(), book)).toEqual({ kind: 'empty', text: '' });
     });
 
     it('a never-published stored recipe still edits its source', () => {

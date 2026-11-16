@@ -30,17 +30,12 @@
 
 ## Context
 
-Earlier rules hid more than the law requires. A signed-out visitor saw only a source card with no ingredients. A
-family recipe and public-domain text were "never open". A recipe from a book was never public in any form.
-Several of those rules were written as law. They were product choices.
+Earlier rules hid more than the product needed to. A signed-out visitor saw only a source card with no ingredients.
+A family recipe and public-domain text were "never open". A recipe from a book was never public in any form.
 
-[Law] Nobody owns a recipe's facts: the dish, ingredients, amounts, times, temperatures, yield and the order of steps
-(17 U.S.C. §102(b), _Feist v. Rural_, 499 U.S. 340 (1991), Copyright Office Circular 33, _Publications International
-v. Meredith_, 88 F.3d 473 (7th Cir. 1996)). The words people write about a recipe, and their photos and video, are
-protected. Forty copies of a blog post online are forty infringements, not forty owners.
-
-[Law] The EU and UK database right protects the contents of a site's collection, even as bare facts (Directive 96/9/EC
-Art. 7(5), UK SI 1997/3032, _CV-Online Latvia v Melons_, C-762/19). Rewording does not cure it.
+Commise treats a recipe's facts (the dish, ingredients, amounts, times, temperatures, yield and the order of steps) as
+free to share. The words people write about a recipe, and their photos and video, belong to their authors, however
+many copies exist online. A site's collection of recipes is treated as its own, even as bare facts.
 
 The earlier public-domain test ("the author died more than 70 years ago") fails for US works published after 1930,
 for Spain's life plus 80, for Germany's treatment of US works, for French authors "mort pour la France", for
@@ -142,47 +137,42 @@ as held. A later change outside the recipe (an opt-out, a cap, a failed public-d
 read live. The door list and its failure modes live in `020` section K. Notice and takedown, counter-notice, repeat
 infringers and the DSA and UK OSA duties live in `016-FR-016` to `FR-066`.
 
-### 9. The founder's rulings on the remaining questions
+### 9. The owner's rulings on the remaining questions
 
-Owner rulings of 2026-11-03, each accepting the recommendation put to the founder:
+Owner rulings, 2026-11-03:
 
 - **Creator pages** list only recipes the cook wrote or adapted (`012-FR-008`, `021-FR-015`).
 - **Pages shown under their own stated open licence are indexable**, and so are public-domain pages (`021-FR-014f`,
   `021-FR-006`).
 - **At launch the app is listed only in US app stores.** The EU and UK duties (`016-FR-048c`) must be met before any
-  listing in those stores, and `025` gates that listing on them. [Law] A store listing is enough to serve a market
-  (DSA Recital 8, GDPR Art. 3(2)).
+  listing in those stores, and `025` gates that listing on them. A store listing counts as serving that market.
 - **While an edited public recipe is being checked, readers see the last approved version** (`020-FR-064`).
-- **Bios and avatars are not checked by the outside-copy check.** [House rule] Notice and takedown covers them
+- **Bios and avatars are not checked by the outside-copy check.** Notice and takedown covers them
   (`020-FR-071`).
 - **No public bulk download and no public API of the open layers for now.** A cook's export of their own recipes
   stays (`016-FR-033`, `016-FR-034`, `021-FR-060`).
-- **Creators choose public or private, and can sell private work.** The founder's words: "For creator recipes, a
-  creator can choose to make recipes public or private. Same for collections. They can also choose to list private
-  recipes and collections for sale." The creator sets the price (`012-FR-034a` to `FR-034c`, `018-FR-026`).
+- **Creators choose public or private, and can sell private work.** A creator chooses public or private for each
+  recipe and each collection, and can list private recipes and collections for sale. The creator sets the price (`012-FR-034a` to `FR-034c`, `018-FR-026`).
 - **A buyer PURCHASES the sold version, and can SUBSCRIBE for the creator's current versions** (owner rulings
-  2026-11-03, `018-FR-029`, `FR-029a`, `FR-029h`). The founder's words: "The purchase gives download ability of the
-  sold version." A purchase, at a base rate the creator sets, gives the version on sale at that moment. The buyer reads
+  2026-11-03, `018-FR-029`, `FR-029a`, `FR-029h`). A purchase, at a base rate the creator sets, gives the version on sale at that moment. The buyer reads
   it in the app and downloads it as a file, and keeps the file. A subscription gives the live view of the creator's
   current versions while it runs, and the subscriber keeps nothing after it ends. Neither writes a recipe, a clone or a
   paid visibility state. An edit re-runs the 020 hold, and subscribers see the last approved version meanwhile. A buyer
   can read, cook, plan and add to a grocery list, and keep their own private notes. Clone, publish, resale, share and
   every other export are refused. A subscription covers everything the creator sells while it is active, and `026`'s
-  chef club IS this subscription, one product (owner ruling 2026-11-03, FQ-018-4). [Law] The EU and UK digital-content rules (Directive 2019/770, UK Consumer Rights Act
-  2015 Part 1 Chapter 3) apply once we list in those stores (`025`). A buyer's erasure keeps the sale record
-  de-identified (GDPR Art. 17(3)(b)), and the creator sees aggregate sales only.
+  chef club IS this subscription, one product (owner ruling 2026-11-03, FQ-018-4). The EU and UK digital-content rules apply once we list in those
+  stores (`025`). A buyer's erasure keeps the sale record de-identified, and the creator sees aggregate sales only.
 - **Creator removal gives a 30-day download and no refund** (owner ruling 2026-11-03, `018-FR-029i`). When a creator
   takes a recipe down, stops selling it, or erases their account, the subscription ends. Every buyer and subscriber can
   download the last approved version for 30 days, and gets an email with the link. The download works after the
-  creator's account is gone. [Law] Keeping only the files buyers are owed, for 30 days, rests on legitimate interest
-  (GDPR Art. 6(1)(f)). Removing one item does not pro-rate a subscription. Removing everything, or closing or erasing the
+  creator's account is gone. Only the files buyers are owed are kept, for 30 days. Removing one item does not pro-rate a subscription. Removing everything, or closing or erasing the
   account, ends every subscription and refunds the unused part of the current period, pro-rated (owner ruling
   2026-11-03, FQ-018-5).
 - **A takedown gives a full refund and no download** (owner ruling 2026-11-03, `018-FR-029j`). When content is taken
-  down for infringement or found illegal, every buyer gets a full refund. Commise pays first and claws the amount back
-  from the seller's balance or payouts. When that fails, Commise refunds from its own funds and pursues the seller. The
-  seller terms grant the clawback and an indemnity. [Law] No download is offered. A host that keeps distributing
-  content after notice that it infringes loses the safe harbor (17 U.S.C. §512(c)(1)(A)(iii) and (C)). A takedown
+  down after a notice or found illegal, every buyer gets a full refund. Commise pays first and recovers the amount
+  from the seller's balance or payouts. When that fails, Commise refunds from its own funds and recovers it from the
+  seller. The seller terms grant the recovery and an indemnity. No download is offered, and Commise stops
+  distributing the content once it is taken down. A takedown
   closes an open 30-day window at once, and those buyers get the full refund like any buyer (owner ruling 2026-11-03,
   FQ-018-6). A subscriber gets a pro-rated refund of the current period for the removed item's share. When that share
   cannot be computed, the subscriber gets a full refund of the current month. Both are clawed back from the seller under
@@ -190,15 +180,13 @@ Owner rulings of 2026-11-03, each accepting the recommendation put to the founde
 - **Past downloaders are told** (owner ruling 2026-11-03, `018-FR-029k`). When content is taken down for legal
   reasons, everyone who downloaded it gets a notification and an email. It says the content was removed for legal
   reasons, says why in plain words, and asks them to delete their copies. It states what happened, not a judgement.
-  So it is accurate and not defamatory toward the seller. [House rule] The terms say users are told, agree to delete
-  such content, and accept responsibility if they knowingly keep or use it after notice (`016-FR-070`,
-  `018-FR-029m`). Counsel drafts the clause.
-- **One commerce transaction record** (owner ruling 2026-11-03, `018-FR-029l`). The founder's words: "The feature that
-  develops this will need to create a database or data lake of these transactions for all sorts of reasons beyond just
-  takedown." It is append-only and has one owning service. It records purchases, subscriptions, downloads by version,
+  The terms say users are told, agree to delete such content, and accept responsibility if they knowingly keep or
+  use it after notice (`016-FR-070`, `018-FR-029m`).
+- **One commerce transaction record** (owner ruling 2026-11-03, `018-FR-029l`). The feature keeps one store of these
+  transactions, for takedown and every other use below. It is append-only and has one owning service. It records purchases, subscriptions, downloads by version,
   refunds, clawbacks, payouts, takedowns, notices and creator removals. It serves notices, refunds, payouts, tax, fraud,
   disputes, legal holds, analytics and audit. It survives erasure through pseudonymous ids, with the identity mapping
-  removed. Retention and the legal basis are set per purpose, and counsel and the accountant set the exact periods.
+  removed. Retention is set per purpose, and the exact periods are set before launch.
   Tables or a data lake is open for the feature's plan. The privacy notice lists it (`016-FR-071`).
 - **Refunds, downloads and clubs** (owner rulings 2026-11-03). Public recipes involve no payment, so there is no refund.
   A creator can offer a PDF or EPUB with a cookbook or recipe, and the buyer keeps it. The file holds only content the
@@ -219,15 +207,15 @@ Owner rulings of 2026-11-03, each accepting the recommendation put to the founde
   never "Written by you" and cannot take CC BY (`016-FR-015i`, `020-FR-077`). Rewording a flagged recipe before any
   takedown is not a strike. An upheld takedown is (`016-FR-062`). A private bulk-imported recipe is usable at once.
   Only going public or on sale waits for review (`020-FR-003b`). Site owners get
-  a claim flow: a DMCA-element form, ADR-0078's live-site proof, a counter-notice, and a reword-to-restore path. Until
-  the check is built, launch needs a registered DMCA agent, working takedown and counter-notice, and a live
+  a claim flow: a notice form, ADR-0078's live-site proof, a counter-notice, and a reword-to-restore path. Until
+  the check is built, launch needs a registered designated agent, working takedown and counter-notice, and a live
   repeat-infringer policy.
 - **The check uses AI and searches the wider internet** as well as the source the cook named (owner ruling
   2026-11-03). HOW the search works (provider, method, terms) and the AI and search cost and budget are OPEN, decided
   when feature 020 starts. ADR-0077 §4's named search provider and per-recipe cost are therefore not settled. If the
   search or the model cannot run, the part is not green and a person decides.
 - **A cook can say "This is my recipe, from my site or account"** (owner ruling 2026-11-03, `004-FR-014a`,
-  `016-FR-069`, `020-FR-012g`). The bare statement is the cook's attestation, with the cook's own legal risk, and gives
+  `016-FR-069`, `020-FR-012g`). The bare statement is the cook's own attestation, and gives
   the "Written by you" label. It never clears a copy flag, because anyone can claim. Verified ownership of a site is
   026's live site claim and nothing else (ADR-0078). It clears only the hit on the recipe's own import page, persists
   per site, and is read as it stands. A claim that lapses clears nothing new, and does not reopen a recipe it cleared.
@@ -239,8 +227,7 @@ Owner rulings of 2026-11-03, each accepting the recommendation put to the founde
   and the "Save to Commise" screen offers the claim (`004-FR-055`). A verified owner can file 016's site-owner claim against copies on Commise, and a notice
   against the owner's recipe runs the normal notice and counter-notice flow with the claim as evidence. ADR-0078 §3
   still holds: a claim proves control of a site, not authorship of each post.
-- **The founder owns renewing the DMCA designated-agent registration every three years** (37 C.F.R. §201.38,
-  `016-FR-059`).
+- **The founder renews the designated-agent registration every three years** (`016-FR-059`).
 
 ## Consequences
 
@@ -256,9 +243,9 @@ Owner rulings of 2026-11-03, each accepting the recommendation put to the founde
 - **The statement kind values and the licence values.** They are stored and sent to clients.
 - **A CC BY grant.** Copies others make under it cannot be recalled.
 - **Opening a public-domain text.** Once indexed, a mistaken page is copied by others. The record and the annual
-  counsel check exist for this reason.
+  check exist for this reason.
 
-## Residual risks
+## Open items
 
 - **The cap numbers are not set** (`016-FR-030a`).
 - **Shipped code is behind this decision.** `visibilityPolicy.ts` still lets a full `imported_public` copy go public,
@@ -266,6 +253,6 @@ Owner rulings of 2026-11-03, each accepting the recommendation put to the founde
 
 ## Alternatives
 
-- **Keep the signed-out source card with no ingredients.** It hides what the founder wants open.
+- **Keep the signed-out source card with no ingredients.** It hides what the owner wants open.
 - **Open public domain under the 70-year test.** Fails in at least six common cases. Rejected.
 - **Facts cards and linked cards.** Retired by ADR-0093 (owner ruling, 2026-11-15).

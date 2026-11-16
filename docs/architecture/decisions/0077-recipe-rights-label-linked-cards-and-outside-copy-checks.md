@@ -32,18 +32,15 @@
   which this ADR does not widen. [ADR-0024](0024-llm-spend-ceiling-reserve-then-settle.md): the one LLM pool. The web
   search is not an LLM call, so it has its own budget. [ADR-0073](0073-free-tier-private-slots.md): private slots.
   [ADR-0045](0045-ingredient-lookup-and-unresolved-foods.md): lines with no food match.
-- **Drivers:** owner rulings of 2026-10-29, quoted below. Two research notes by the CLO agent of the same day,
-  "Recipe ownership: who owns what, what rivals say, and how to spot copies" and "The linked recipe card". They are
-  held outside the repository. Both are research, not legal advice. Every rule here that rests on them is subject
-  to counsel review before launch (`016-FR-050`).
+- **Drivers:** owner rulings, 2026-10-29.
 
 ## Context
 
-A recipe has two layers. The dish is the ingredient list and the bare steps. In the US nobody owns those (Copyright
-Office Circular 33, 37 CFR 202.1(a), _Publications International v. Meredith_). The expression is the words someone
-wrote, such as the method, the headnote and the tips, and the photos. Those have an owner.
+A recipe has two layers. The dish is the ingredient list and the bare steps, which Commise treats as facts. The
+expression is the words someone wrote, such as the method, the headnote and the tips, and the photos. Those have an
+owner.
 
-The research found eight gaps in our specs. Five of them drive this ADR.
+A review of our specs found eight gaps. Five of them drive this ADR.
 
 - **G1.** A word-for-word copy of a blog recipe goes public in full. C-004 says an `imported_public` recipe is "Always
   public with source attribution". `020-FR-013a` greens a public web citation. `020-FR-012` forbids any comparison with
@@ -53,16 +50,11 @@ The research found eight gaps in our specs. Five of them drive this ADR.
 - **G5 and G6.** There are only two statements, "I wrote this" and "From a source". A cook who adapted a recipe must
   claim sole authorship or call it a copy. A family card has no public web page, so `004-FR-014a` labels it
   `imported_paid`, and it can never be public.
-- **G8.** Nothing written limits what a staff reviewer judges. Under _Mavrix Photographs v. LiveJournal_ (9th Cir.
-  2017), review that selects posts on substance can make a post the host's own, which can cost the DMCA §512(c) safe
-  harbour. Screening for infringement does not.
+- **G8.** Nothing written limits what a staff reviewer judges.
 
-The owner ruled on 2026-10-29. On ownership, verbatim: "we'll need to make sure that we're very, very clear about what
-chefs own for public recipes and don't and who owns the recipes they don't to cover the cases where they copy a public
-recipe on another site without changes. The automated review process needs to check for this as well. Then we can make
-the messaging a little more precise and also make it very clear on if a chef actually owns a recipe. The same goes for
-a private recipe that a chef copied from a public source and either a public or private recipe copied verbatim from a
-copyrighted or private source." On detection, the owner chose "Allow, public recipes only".
+Owner ruling, 2026-10-29: the product states clearly what a cook owns in a public or a private recipe, and who owns
+a recipe the cook copied word for word from another site, a book or a private source. The automated review checks for
+such copies. On detection, the owner allowed outside checks for public recipes only.
 
 ## Decision
 
@@ -86,7 +78,7 @@ The label tells the cook who owns the writing and what Commise lets them do with
 - A recipe imported from a social video is "Copied from a public web page". The creator owns the video and its words.
 - Commise takes a licence, never ownership (`016-FR-010`, `FR-031`). The cook keeps copyright in what the cook wrote.
 - The label never makes a legal claim we cannot back. It says what the cook told us, and what Commise's own rule is.
-  The research names words to avoid: "copyright-free", "legally yours", "safe to publish", "we checked this".
+  Words to avoid: "copyright-free", "legally yours", "safe to publish", "we checked this".
 - The full table, with what a cook can do under each label and the draft words for each, is in `016-FR-015c`. That
   spec is the one authority for it.
 
@@ -160,12 +152,11 @@ This is the change to ADR-0074 and to `020-FR-012`. It applies only to a recipe 
 ### 5. Staff review is a rights check only
 
 A staff reviewer decides one question: is this someone else's work, shared without the right to share it? A reviewer
-never judges quality, taste, style, accuracy or fit, never edits a recipe, and never features or promotes one. This
-keeps review on the screening side of _Mavrix_, which that court called "accessibility-enhancing".
+never judges quality, taste, style, accuracy or fit, never edits a recipe, and never features or promotes one.
 
 ### 6. Any cook can keep a web import private, using a slot
 
-Owner ruling, 2026-10-29, on the question "Who can keep a web import private?": "Any cook, using a slot."
+Owner ruling, 2026-10-29: any cook can keep a web import private, using a slot.
 
 - **The rule.** An `imported_public` recipe can be made private, in full, by any cook. For a free cook it uses one of
   the 50 private slots like every other private recipe (ADR-0073 §2). Pro has no limit. No Pro plan and no
@@ -207,16 +198,14 @@ Owner ruling, 2026-10-29, on the question "Who can keep a web import private?": 
 - **The fingerprint's version.** A change of shingle size or normalisation makes every stored fingerprint stale. It
   carries a `v1:` prefix, as ADR-0074's digests do.
 
-## Residual risks
+## Open items
 
 - **Typed copies of private sources pass.** Nothing can see a family card or an offline book.
 - **Server-side fetching.** The import never fetches a page (spec 004, owner ruling 2026-11-15). The cook supplies
   the page's content. What replaces `004-FR-008`'s URL fetch and 017's tier 5 source-page lookup (`017-FR-005`) is
   an open owner question.
-- **A stored fingerprint could count as a copy.** Counsel confirms that word-shingle hashes are not a reproduction.
 - **Brave's API terms are unread.** Whether we can keep a search result as evidence is unconfirmed.
-- **Embedding.** The source's photo is still shown by reference to the saving cook (`016-FR-027a`). _Goldman v.
-  Breitbart_ (S.D.N.Y. 2018) rejected the server test, and no First Circuit ruling was found.
+- **Embedding.** The source's photo is still shown by reference to the saving cook (`016-FR-027a`).
 
 ## Alternatives
 

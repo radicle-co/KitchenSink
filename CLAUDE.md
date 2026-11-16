@@ -135,9 +135,8 @@ a source is the failure mode this architecture exists to prevent.
 2. ⛔ **Inspection is not user evidence.** The agent cannot observe a user. "Users prefer X" requires
    a cited study; without one the honest claim is "heuristic judgement, untested". Never let a
    heuristic review be reported as a user finding.
-3. ⛔ **Deceptive patterns are refused, not weighed.** EU DSA Article 25, EDPB Guidelines 03/2022,
-   and the FTC's 2022 report make this law in our markets, not a preference — and this product takes
-   payment (010) and handles GDPR erasure, so the exposure is real.
+3. ⛔ **Deceptive patterns are refused, not weighed** (EU DSA Article 25, EDPB Guidelines 03/2022, FTC 2022
+   report).
 4. ⛔ **Advocacy is graduated, and both failure modes are real.** The agent's §0 splits the conflict
    between a requirement and good UX into three: **raise it prominently** when the requirement is
    clearly wrong, **compromise and find the third option** when both sides are defensible, and
@@ -565,7 +564,7 @@ that are easy to get wrong:
 
 Before a recipe becomes publicly visible, an automated check reads its text, its uploaded photos and its cited source,
 and looks in our own database for the same recipe or source. A recipe skips review ONLY when every part is green;
-anything else waits for a staff reviewer (owner rulings, 2026-10-26). It is not a legal shield. The decision is
+anything else waits for a staff reviewer (owner rulings, 2026-10-26). The decision is
 ADR-0074. Six rules that are easy to get wrong:
 
 - **The hold is part of the READ rule, written once.** One exported Specification, used by `isRecipeViewableBy`, its
@@ -657,8 +656,7 @@ Four things that are easy to get wrong here:
 
 ⛔ Blocked on: ADR-0073's base of 50 shipping, for US1–US3 (D4a itself is decided); **016's takedown process** for
 US4 only; and **008/012** for the recognition half. ⚠️ 016's missing **content licence** is a **pre-existing** product gap,
-not a 015 blocker — `001-FR-004`/`FR-005` already ship public read and clone. The inducement risk of rewarding cooks
-for their OWN recipes is low (_Grokster_ needs intent to promote infringement, ADR-0082), so "only Written by you
-recipes earn rewards" is cheap hygiene, a house rule.
+not a 015 blocker — `001-FR-004`/`FR-005` already ship public read and clone. Only "Written by you" recipes earn
+rewards (house rule).
 
 <!-- SPECKIT END -->

@@ -151,7 +151,7 @@ extension has 30K users on its own. Capture must be one tap from inside the app 
 
 ---
 
-### 🔴 P2 — We charge for privacy. They give it away. This is a product, trust, AND legal problem.
+### 🔴 P2 — We charge for privacy. They give it away. This is a product and trust problem.
 
 **The rule as written:** `001-FR-003` — "System MUST default new user-created recipes to public visibility.
 Premium users MAY set their own original recipes to private. **Free-tier users' recipes are always public.**"
@@ -203,45 +203,8 @@ default — it is a **prohibition**; a free user cannot choose privacy at all. N
 strategy requires that. A thriving public corpus, a public default, and a free user's ability to flip the
 switch are fully compatible.
 
-**And the legal exposure — restated adversarially (2026-08-21), because the first version was both too
-breezy and missed the biggest item.**
-
-_Where the first version was too reassuring:_
-
-- **"Ingredient lists are largely uncopyrightable" is US-only and partial.** That is _Publications Int'l v.
-  Meredith_ (**7th Cir.** 1996) plus Copyright Office Circular 33 — not universal, and Meredith itself carves
-  out "substantial literary expression". **Photos are unambiguously protected, and `004-FR-008` extracts photo
-  URLs.** Step prose is a grey area. We ship in five-plus locales; Australia has no fair use at all, only fair
-  dealing.
-- **`NFR-008` sanitisation is NOT a copyright mitigation.** It is an XSS control. Stripping markup does nothing
-  about copying the text. Citing it here was a category error.
-- **`robots.txt` compliance is NOT a mitigation either — our own spec says so.** `004-FR-023` carries an
-  explicit finding, proven against gutenberg.org, that robots.txt compliance is not terms-of-use compliance.
-  The earlier draft cited the mitigation while ignoring our own refutation of it in the same requirement.
-- **The clone chain multiplies republication.** `001-FR-005`: a clone of a public-source import **stays
-  public**. One import becomes N public copies. ReciMe has zero of this.
-
-_The item the first version missed entirely, and it is the largest:_
-
-- ⚠️ **DMCA §512 safe harbour — we do not currently qualify.** Safe harbour requires a **registered agent**
-  with the Copyright Office, a **repeat-infringer policy**, notice-and-takedown, and no direct financial
-  benefit from infringing activity we control. Our specs place DMCA **only in `012` creator-profiles**. There
-  is no registered agent, no repeat-infringer policy, and no takedown flow specified for the main recipe
-  corpus. **Operating a public library of user-imported content without safe harbour is materially worse than
-  operating one with it** — and fixing it is cheap, requires no product decision, and does not wait on
-  D4a/D4b. This is **D24**, and it should be done regardless of what is decided about visibility.
-
-_And the counter-argument, in the other direction — the severity may be overstated:_
-
-- **Nobody has sued anyone here.** Copy Me That has run a public clipper for years; Paprika, Whisk/Samsung
-  Food and Pinterest all import. The realistic exposure is **DMCA notices and food-blogger PR damage**, not
-  litigation. The business risk is real; the litigation risk is speculative. The earlier draft presented them
-  as one thing.
-- **ReciMe's own posture is not the gold standard it was made out to be.** Their Terms take an _"irrevocable…
-  reproduce, distribute, publicly display… prepare derivative works"_ licence on User Content, which sits
-  badly against "we never republish"; and their privacy policy names no AI processor while Google's own page
-  confirms user content reaches Gemini, which sits badly against "visible only to the individual user." They
-  are better positioned **on the republication axis specifically**, and shakier elsewhere.
+**Imported content.** The rules for imported recipes are set by the owner's rulings in ADR-0082 and ADR-0093, and
+the notice, takedown and repeat-infringer process by spec 016 (D24 below).
 
 **Recommendation (revised — supersedes "flip everything to private"):**
 
@@ -249,10 +212,9 @@ _And the counter-argument, in the other direction — the severity may be overst
 2. **Un-gate privacy from the paywall.** Free users may set their own recipes private. Monetise volume, AI,
    nutrition depth and household seats — what ReciMe monetises.
 3. **Make `imported_public` private-to-the-importer by default**, public only by deliberate act (ideally with
-   creator participation). This is where the legal delta actually lives, and it is a targeted fix rather than
-   a wholesale retreat.
+   creator participation). It is a targeted fix rather than a wholesale retreat.
 
-This keeps the asset and removes the liability. It remains an owner decision — (2) removes the free tier's
+This keeps the public library. It remains an owner decision — (2) removes the free tier's
 only current paywall lever, which is why P4's re-pricing has to land alongside it.
 
 ---
@@ -359,7 +321,7 @@ ReciMe has **no version history**, and has at least one report of a user losing 
 `004`'s `sourceType` classification, attestation-plus-citation for non-public sources, admin-governed
 paywalled-domain blocklist, robots.txt handling, SSRF defence, sanitisation before persistence, per-field
 confidence on every draft. This is genuinely better engineering than theirs — **provided P2 is fixed**, it
-becomes a _creator-friendly_ story rather than a liability.
+becomes a _creator-friendly_ story rather than a problem.
 
 ### 4.5 🟢 Depth already specified where they are thin
 
@@ -447,18 +409,18 @@ What actually has to change in `specs/`. Each is a real edit, not a theme.
 
 ### Must, before any launch that claims to compete
 
-| #   | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Owner spec    |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------- |
-| D1  | **New FR: video import** — TikTok, Instagram Reels, YouTube (Shorts + long), Facebook. Five-tier waterfall: caption → audio transcript → **frame OCR** → **vision over sampled frames** → source-site fallback                                                                                                                                                                                                                                               | `004`         |
-| D2  | **New FR: share-sheet capture** on iOS and Android as a first-class channel of `004-FR-046`'s chooser                                                                                                                                                                                                                                                                                                                                                        | `004`         |
-| D3  | **New FR: browser extension** (Chrome first)                                                                                                                                                                                                                                                                                                                                                                                                                 | `004`         |
-| D4a | **Un-gate privacy from the paywall** — amend `001-FR-003` and the C-004 matrix in `visibilityPolicy.ts` so a free-tier user MAY set their own `user_created` recipe private. Keep public as the default.                                                                                                                                                                                                                                                     | `001` / `010` |
-| D4b | **Make `imported_public` private-to-the-importer by default**; public only by deliberate act. Leaves `001-FR-004`/`FR-005` intact for `user_created`, which is the flywheel worth keeping                                                                                                                                                                                                                                                                    | `001` / `004` |
-| D5  | **Amend `010-FR-040/041`**: privacy leaves the paywall; premium becomes import volume + AI depth + household seats. **Do NOT re-anchor to $39.99** — ReciMe's price is a tested $29.99–$99 range, and our pipeline costs more. Hold or raise price; buy the position with free-tier generosity. **Make per-recipe nutrition FREE** — it is the proof of the differentiator and gating it means free users never meet the reason to switch                    | `010`         |
-| D6  | **Payment rails: external web checkout for the US storefront (permitted, no entitlement, no commission — §3.1.1(a)); IAP for all other storefronts.** Amend the non-goal in `executive/04-product-plan.md` to say this rather than removing it wholesale                                                                                                                                                                                                     | `010`         |
-| D24 | **⚠️ Register a DMCA agent and adopt a repeat-infringer policy for the MAIN recipe corpus.** §512 safe harbour requires a registered agent, a repeat-infringer policy, and notice-and-takedown. Our specs put DMCA **only in `012` creator-profiles**. Running a public library of user-imported content _without_ safe harbour is materially worse than running one with it — and this is cheap, requires no product decision, and does not wait on D4a/D4b | `001` / `004` |
-| D7  | **Invert `005-FR-015/016`**: platform-managed inference (ADR-0024 / Bedrock) is default; BYOK is the optional escape hatch                                                                                                                                                                                                                                                                                                                                   | `005`         |
-| D8  | **Un-gate `004-FR-009` from Meta**: reach Instagram through user-initiated share-sheet capture rather than the Graph API                                                                                                                                                                                                                                                                                                                                     | `004`         |
+| #   | Change                                                                                                                                                                                                                                                                                                                                                                                                                                    | Owner spec    |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| D1  | **New FR: video import** — TikTok, Instagram Reels, YouTube (Shorts + long), Facebook. Five-tier waterfall: caption → audio transcript → **frame OCR** → **vision over sampled frames** → source-site fallback                                                                                                                                                                                                                            | `004`         |
+| D2  | **New FR: share-sheet capture** on iOS and Android as a first-class channel of `004-FR-046`'s chooser                                                                                                                                                                                                                                                                                                                                     | `004`         |
+| D3  | **New FR: browser extension** (Chrome first)                                                                                                                                                                                                                                                                                                                                                                                              | `004`         |
+| D4a | **Un-gate privacy from the paywall** — amend `001-FR-003` and the C-004 matrix in `visibilityPolicy.ts` so a free-tier user MAY set their own `user_created` recipe private. Keep public as the default.                                                                                                                                                                                                                                  | `001` / `010` |
+| D4b | **Make `imported_public` private-to-the-importer by default**; public only by deliberate act. Leaves `001-FR-004`/`FR-005` intact for `user_created`, which is the flywheel worth keeping                                                                                                                                                                                                                                                 | `001` / `004` |
+| D5  | **Amend `010-FR-040/041`**: privacy leaves the paywall; premium becomes import volume + AI depth + household seats. **Do NOT re-anchor to $39.99** — ReciMe's price is a tested $29.99–$99 range, and our pipeline costs more. Hold or raise price; buy the position with free-tier generosity. **Make per-recipe nutrition FREE** — it is the proof of the differentiator and gating it means free users never meet the reason to switch | `010`         |
+| D6  | **Payment rails: external web checkout for the US storefront (permitted, no entitlement, no commission — §3.1.1(a)); IAP for all other storefronts.** Amend the non-goal in `executive/04-product-plan.md` to say this rather than removing it wholesale                                                                                                                                                                                  | `010`         |
+| D24 | **Register a designated agent and adopt a repeat-infringer policy for the MAIN recipe corpus**, with notice-and-takedown. Spec 016 now carries all three.                                                                                                                                                                                                                                                                                 | `001` / `004` |
+| D7  | **Invert `005-FR-015/016`**: platform-managed inference (ADR-0024 / Bedrock) is default; BYOK is the optional escape hatch                                                                                                                                                                                                                                                                                                                | `005`         |
+| D8  | **Un-gate `004-FR-009` from Meta**: reach Instagram through user-initiated share-sheet capture rather than the Graph API                                                                                                                                                                                                                                                                                                                  | `004`         |
 
 ### Should, to reach parity
 
@@ -523,9 +485,8 @@ bets against a competitor we have not yet beaten at their own game.
 These change the work materially and are not mine to make.
 
 1. **Private by default?** (D4) — flips a core assumption of `executive/05-business-plan.md`'s recipe-graph
-   growth flywheel, and removes the free tier's only paywall lever. **My recommendation: yes.** The product,
-   trust, and legal arguments all point the same way, and the current rule loses on all three against this
-   competitor.
+   growth flywheel, and removes the free tier's only paywall lever. **My recommendation: yes.** The product and
+   trust arguments point the same way.
 2. **Platform-managed AI vs BYOK?** (D7) — real COGS exposure at a sub-$40/yr price, which ADR-0024 exists to
    bound. **Recommendation: platform-managed default, BYOK optional.**
 3. **Price re-anchor and IAP?** (D5/D6) — accepts Apple's 15–30% cut. **Recommendation: yes; there is no
@@ -534,8 +495,8 @@ These change the work materially and are not mine to make.
    inference cost sits. Needs a cost model against ADR-0024's ceiling before committing.
 5. **Household as a first-class entity, or per-feature sharing?** (D18) — a one-way-door data-model decision;
    retrofitting it later is what every competitor is currently doing badly.
-6. **Do we keep a public recipe library at all?** If yes, it needs an explicit legal position — ReciMe's
-   defence does not transfer to us. Verified first-hand: their recipes are _"automatically marked as Private…
+6. **Do we keep a public recipe library at all?** If yes, it needs explicit rules for imported content (now
+   ADR-0082 and ADR-0093). Verified first-hand: their recipes are _"automatically marked as Private…
    not shared publicly within the app or with other users."_
 7. **A one-time-purchase or lifetime tier?** (D23) — "subscription fatigue" is a _stated, quoted_ churn reason
    from ReciMe's own subreddit, and the destinations are one-time-purchase apps. It caps LTV and complicates

@@ -433,7 +433,7 @@ food-blogger forums could be swept directly.
 
 1. **The capture wedge itself.** Best-in-category at pulling a recipe out of a captioned or narrated social video, and they own the positioning in the App Store.
 2. **Distribution.** ~373K store ratings at 4.7–4.8★, TikTok-native growth with essentially no paid acquisition, 274K IG / 164K TikTok followers.
-3. **Trust posture.** Private-by-default, no public library, formal DMCA, explicit no-scraping claim. Simple to explain and legally defensible.
+3. **Trust posture.** Private-by-default, no public library, formal DMCA, explicit no-scraping claim. Simple to explain.
 4. **Surface coverage.** iOS, iPad, Mac, visionOS, Android, web, Chrome extension, 5 languages, near-weekly releases.
 5. **Price.** $39.99/yr undercuts most of the paid field.
 

@@ -68,7 +68,7 @@ Three things set the order [M]:
 - **Why it works.** 010-FR-041h requires "a clear notice before the first charge, with the date and the amount", sent early enough to cancel. Today no channel can carry it outside the app. Stripe can "Send a reminder email 7 days before a free trial ends" ([Stripe](https://docs.stripe.com/billing/subscriptions/trials/manage-trial-compliance)) [P]. That covers web trials only. Whether Apple and Google send their own pre-charge notice was not verified in this pass. Do not assume they do. On growth, Phiture's Headspace work with "push, in-app, and Email channels" reported "+109% uplift in week 1 retention" against a control group ([Phiture](https://phiture.com/success-stories/headspace-retention/)) [S, vendor case].
 - **Effort and cost.** M. Transport fees are a GAP (pricing pages not opened). Expected small next to AI spend.
 - **Expected effect and test.** No Commise uplift is claimed. Plan target: 100% of trials get the notice at least 2 days before the charge. Test: send it to every beta trial. Kill rule: none. This is a compliance floor, not an experiment.
-- **Legal risk.** Lowers risk. ROSCA requires "simple mechanisms for a consumer to stop recurring charges" ([15 U.S.C. 8403 via Cornell LII](https://www.law.cornell.edu/uscode/text/15/8403)) [S]. Marketing email needs its own consent, separate from the notice.
+- **Compliance.** It gives cooks a simple way to stop recurring charges, which US subscription rules require (section 8). Marketing email needs its own consent, separate from the notice.
 - **Spec.** Amend 014 (A-005) and 010-FR-041h. Or a new lifecycle-messaging spec.
 
 #### Idea 2. Show the trial as a timeline on the paywall, and keep the promise
@@ -77,7 +77,7 @@ Three things set the order [M]:
 - **Why it works.** In the Blinkist case, "this simple demonstration of transparency led to a 23% lift in trial signups" and "reduced customer complaints by 55%" ([Growth.Design](https://growth.design/case-studies/trial-paywall-challenge)) [S, one company]. It targets the biggest drop in the funnel. RevenueCat also finds that 35.7% of 14-day trial cancellations happen on day 0 ([RevenueCat SOSA 2026](https://www.revenuecat.com/state-of-subscription-apps/)) [P]. A trusted reminder removes the reason to cancel at once.
 - **Effort and cost.** S once idea 1 exists. $0 cash.
 - **Expected effect and test.** Plan target: trial starts per paywall view at or above 8.9%, RevenueCat's median for above-average prices (`conversionStudy.md`) [P]. Read at day 30 of the soft launch. Ship it to everyone, because an A/B test is too slow at this volume. Kill rule: if trial-to-paid falls below 30% by day 45, review the reminder copy, not the timeline.
-- **Legal risk.** Lowers risk. It discloses the terms before billing, which ROSCA requires.
+- **Compliance.** It discloses the terms before billing, which ROSCA requires.
 - **Spec.** 010-FR-042b (add the timeline as a required state).
 
 #### Idea 3. Ask for push permission in context: "Remind me before my trial ends?"
@@ -86,7 +86,7 @@ Three things set the order [M]:
 - **Why it works.** Headspace asked free trialists "to opt-in to remind them of their free trial ending" and saw "+118.35% uplift in push opt-ins in the German language segment of free trialists" ([Phiture](https://phiture.com/success-stories/headspace-inapps/)) [S]. Blinkist saw push opt-in go "from 6%" to "74%" with the same framing ([Growth.Design](https://growth.design/case-studies/trial-paywall-challenge)) [S]. The Food and Drink baseline is 40% on iOS and 32.8% on Android ([OneSignal](https://onesignal.com/mobile-app-benchmarks-2024)) [S].
 - **Effort and cost.** S. $0 cash.
 - **Expected effect and test.** Plan target: iOS opt-in among trial starters at or above 40%. Read after 200 prompts. Kill rule: under 30% after 200 prompts, change the copy and the moment.
-- **Legal risk.** Low. The system dialog is the consent. No pre-ticked choices.
+- **Compliance.** The system dialog is the consent. No pre-ticked choices.
 - **Spec.** 014 amendment (idea 1). New onboarding copy for `staff-ux-engineer`.
 
 #### Idea 4. Recover failed payments before they become churn
@@ -99,7 +99,7 @@ Three things set the order [M]:
 - **A spec defect this finds.** 010-FR-043 sets a 7-day grace period. Apple offers only "3, 16, or 28 days" [P]. Google's account hold is "60 days minus any grace period duration" ([Android](https://developer.android.com/google/play/billing/lifecycle/subscriptions)) [P]. So 010-FR-043 cannot hold on every rail. It should state the grace per rail.
 - **Effort and cost.** S. Store settings plus one banner on web and mobile. $0 cash.
 - **Expected effect and test.** Plan target: at least half of payments in billing retry recovered. Read monthly from RevenueCat from month 2. Kill rule: none. The tools have no downside except a few days of access during retry.
-- **Legal risk.** Low. The banner must not threaten data loss. 010-FR-043a keeps every recipe on a lapse.
+- **Compliance.** The banner must not threaten data loss. 010-FR-043a keeps every recipe on a lapse.
 - **Spec.** 010-FR-043 (amend the grace period per rail).
 
 #### Idea 5. Offer monthly payers a switch to yearly after their second renewal
@@ -108,7 +108,7 @@ Three things set the order [M]:
 - **Why it works.** Yearly plans keep 28% of payers at 12 months, monthly plans keep 8% (RevenueCat 2026, via `conversionStudy.md`) [P]. Monthly payers who survive two renewals have shown intent.
 - **Effort and cost.** S. $0 cash.
 - **Expected effect and test.** Plan target: 10% of prompted monthly payers switch within 30 days. Read after 100 prompts. Kill rule: under 3% after 100 prompts, stop the card and keep the option on the page.
-- **Legal risk.** Low if both prices and the effect date are shown (010-FR-042h). Shown once, with an equal "Not now".
+- **Compliance.** Both prices and the effect date are shown (010-FR-042h). Shown once, with an equal "Not now".
 - **Spec.** 010 (new FR under FR-041i).
 
 #### Idea 6. A second-chance offer at real value moments
@@ -121,7 +121,7 @@ Three things set the order [M]:
 - **Why it works.** 23% of freemium conversions come after week 6 (RevenueCat 2026, via `conversionStudy.md`) [P]. A RevenueCat guest author warns: "If a paywall appears before context is established, it feels jarring" ([RevenueCat SOSA 2026](https://www.revenuecat.com/state-of-subscription-apps/)) [P].
 - **Effort and cost.** S to M. $0 cash.
 - **Expected effect and test.** Plan target: trials started at value moments reach 20% of all trial starts by month 3. Read monthly. Kill rule: under 5% by month 3, keep only the cap moment.
-- **Legal risk.** Medium if overdone. DSA Article 25(3)(b) names "repeatedly requesting that the recipient of the service make a choice where that choice has already been made" ([DSA Art. 25, secondary text](https://www.eu-digital-services-act.com/Digital_Services_Act_Article_25.html)) [S]. So: once per moment, never in the same session after "Not now".
+- **Compliance.** Ask once only. DSA Article 25(3)(b) names "repeatedly requesting that the recipient of the service make a choice where that choice has already been made" ([DSA Art. 25, secondary text](https://www.eu-digital-services-act.com/Digital_Services_Act_Article_25.html)) [S]. So: once per moment, never in the same session after "Not now".
 - **Spec.** 010-FR-042 (the prompt hierarchy).
 
 #### Idea 7. Ask for a store rating at a success moment, and reply to reviews
@@ -130,7 +130,7 @@ Three things set the order [M]:
 - **Why it works.** Apple: "Individual ratings inform your app's summary rating, which is displayed on your product page and in search results." Apple allows "up to three times in a 365-day period" and advises asking "when they've completed an action, level, or task" ([Apple](https://developer.apple.com/app-store/ratings-and-reviews/)) [P]. On Google, a reviewer gets "a push notification and an email notification" when you reply ([Google](https://support.google.com/googleplay/android-developer/answer/138230)) [P].
 - **Effort and cost.** S. $0 cash.
 - **Expected effect and test.** Plan target: store rating of 4.5 or more on both stores by month 3. Read monthly. Kill rule: if the rating falls after a prompt change, move the moment.
-- **Legal risk.** Low if done plainly. Google says the app "shouldn't ask the user any questions before or while presenting the rating button" and should not use a button to trigger it ([Android](https://developer.android.com/guide/playcore/in-app-review)) [P]. The FTC bans "incentives conditioned on the writing of consumer reviews expressing a particular sentiment" ([FTC](https://www.ftc.gov/news-events/news/press-releases/2024/08/federal-trade-commission-announces-final-rule-banning-fake-reviews-testimonials)) [P]. No "Do you like Commise?" gate.
+- **Compliance.** Keep it plain. Google says the app "shouldn't ask the user any questions before or while presenting the rating button" and should not use a button to trigger it ([Android](https://developer.android.com/guide/playcore/in-app-review)) [P]. The FTC bans "incentives conditioned on the writing of consumer reviews expressing a particular sentiment" ([FTC](https://www.ftc.gov/news-events/news/press-releases/2024/08/federal-trade-commission-announces-final-rule-banning-fake-reviews-testimonials)) [P]. No "Do you like Commise?" gate.
 - **Spec.** 008 (cooking mode end) and 006. New FR.
 
 #### Idea 8. A trial checklist that walks the cook through Pro's value
@@ -142,7 +142,7 @@ Three things set the order [M]:
 - **Why it works.** No evidence: target plus test. The median trial-to-paid for 10 to 16 day trials is 35.4% (RevenueCat 2026, via `conversionStudy.md`) [P]. Pro's own additions are the pantry, household and AI plans, so a cook who never tries them sees only the cap.
 - **Effort and cost.** M. $0 cash. AI plan uses come from the trial allowance.
 - **Expected effect and test.** Plan target: trialists who finish 2 of 3 steps convert above 35.4%. Read at day 45 of the soft launch. Kill rule: no gap between finishers and others after 100 trials, remove the card.
-- **Legal risk.** Low. Dismissible, no pressure copy.
+- **Compliance.** Dismissible, no pressure copy.
 - **Spec.** 010 (trial state, FR-042g). Touches 007 and 017.
 
 #### Idea 9. Ask "who do you cook for?" and invite the household during the trial. Rule free household lists
@@ -151,7 +151,7 @@ Three things set the order [M]:
 - **Why it works.** Family plans were 18% of Duolingo's paid subscribers, and Duolingo wrote that promoting its Family Plan "we believe will further increase subscriber retention" (Duolingo shareholder letter, cited in the business plan, not published) [P, a belief]. 017-FR-034k says "each invite is a free growth loop". No evidence on conversion: target plus test.
 - **Effort and cost.** S to M. Household is already specified. $0 cash.
 - **Expected effect and test.** Plan target: 25% of trials add a member (the plan's month-6 target for payers, moved earlier). Read at day 45. Kill rule: under 10%, stop asking in onboarding.
-- **Legal risk.** Low. An invite is sent by the cook. 023-FR-030 already blocks household referral rewards.
+- **Compliance.** An invite is sent by the cook. 023-FR-030 already blocks household referral rewards.
 - **Spec.** 017-FR-034k (owner ruling needed). Onboarding copy is new.
 
 #### Idea 10. A weekly plan ritual: a reminder on the cook's chosen day, with one-tap "repeat last week"
@@ -160,7 +160,7 @@ Three things set the order [M]:
 - **Why it works.** Spec 006 states that "Re-planning from scratch every week is the main reason users abandon meal planners" (006 User Story 3) [spec claim, not market data]. Duolingo found that "learners who reach a streak of just 7 days are 3.6 times more likely to complete their course" ([Duolingo](https://blog.duolingo.com/how-duolingo-streak-builds-habit/)) [P, correlation]. No recipe-app evidence.
 - **Effort and cost.** M. Needs idea 1. $0 cash.
 - **Expected effect and test.** Plan target: monthly payers still paying at month 3 of 31% or better (the RevenueCat median, gate G9). Leading signal: weeks with a planned meal per active household, read weekly from week 4. Kill rule: under 1 planned week a month among reminder users after 8 weeks, change the day default and copy.
-- **Legal risk.** Low. Opt-in, easy to turn off, no guilt copy.
+- **Compliance.** Opt-in, easy to turn off, no guilt copy.
 - **Spec.** 006 (new FR) and 014.
 
 #### Idea 11. "Your year in Commise" 30 days before the yearly renewal
@@ -169,7 +169,7 @@ Three things set the order [M]:
 - **Why it works.** No evidence: target plus test. Spotify's Wrapped pages give reach, not conversion ([Spotify](https://newsroom.spotify.com/2025-wrapped/)) [P]. It is ranked because the first yearly renewal is the second-biggest drop: about 72% of yearly payers leave (RevenueCat 2026: 28% of yearly payers stay at 12 months, via `conversionStudy.md`) [P].
 - **Effort and cost.** M. $0 cash.
 - **Expected effect and test.** Plan target: first yearly renewal at or above 28% (gate G8). The real read is month 13, which is too slow. Leading signal: recap opens and "manage plan" taps in months 1 to 3 with beta and test accounts. Kill rule: if cancel taps from the recap exceed renewals in the first 50 recaps, rewrite it.
-- **Legal risk.** Lowers risk. A renewal notice with the amount and a cancel path fits ROSCA. California's own reminder rules were not confirmed at a primary page in this pass. Counsel confirms (016-FR-050).
+- **Compliance.** A renewal notice with the amount and a cancel path meets the US rules in section 8. California's own reminder rules were not confirmed at a primary page in this pass; they are confirmed before launch (016-FR-050).
 - **Spec.** 010 (new FR) and 014.
 
 #### Idea 12. After a cancel is confirmed, keep the door open and ask one question
@@ -183,7 +183,7 @@ Three things set the order [M]:
 - **Why it works.** 010-FR-042e forbids an offer between the cook and Cancel. DSA Article 25(3)(c) names "making the procedure for terminating a service more difficult than subscribing to it" [S]. A screen after the cancel respects both. Blinkist found "33% of cancellations are done right after users start their trial" ([Growth.Design](https://growth.design/case-studies/trial-paywall-challenge)) [S]. The reasons are product data we do not have.
 - **Effort and cost.** S. $0 cash. Store purchases cancel in the store (016-FR-042), so this screen shows on return to the app.
 - **Expected effect and test.** Plan target: a reason from 30% of cancels. Read after 50 cancels. Kill rule: none. It is a learning tool.
-- **Legal risk.** Low if it comes only after the cancel is confirmed and nothing is pre-selected.
+- **Compliance.** It comes only after the cancel is confirmed, and nothing is pre-selected.
 - **Spec.** 010-FR-042e and FR-042g (add a "just cancelled" state).
 
 #### Idea 13. Win-back offers for lapsed payers
@@ -192,7 +192,7 @@ Three things set the order [M]:
 - **Why it works.** Apple shows win-back offers to "lapsed subscribers" in their Manage Subscription page, and "within your app on the win-back offer sheet on iOS 18". The developer sets "Time Since Last Subscribed" and "Wait Between Offers" ([Apple](https://developer.apple.com/help/app-store-connect/manage-subscriptions/set-up-win-back-offers)) [P]. Google lets you "limit an offer to past subscribers who have previously canceled" ([Google](https://support.google.com/googleplay/android-developer/answer/12154973)) [P]. RevenueCat's calculator shows a default benchmark of "Monthly reactivation: 15.8%, Annual: 7.0%" for Media and Entertainment, not food ([RevenueCat](https://www.revenuecat.com/reactivation-calculator)) [P, wrong category].
 - **Effort and cost.** S to M. Revenue forgone: one month of list price per redeemed offer.
 - **Expected effect and test.** Plan target: 5% of lapsed payers come back within 60 days of an offer. Read from month 4. Kill rule: under 2% after 100 offers, stop.
-- **Legal risk.** Low on format. Needs a ruling: is a free win-back month a second trial under 010-FR-041h? It can follow 023-FR-025's "not a trial" model. A discount instead of a free month needs a price ruling.
+- **Compliance.** Needs a ruling: is a free win-back month a second trial under 010-FR-041h? It can follow 023-FR-025's "not a trial" model. A discount instead of a free month needs a price ruling.
 - **Spec.** 010 (new FR). Owner ruling needed.
 
 #### Idea 14. Put the cook's own counted numbers on the paywall
@@ -201,7 +201,7 @@ Three things set the order [M]:
 - **Why it works.** No evidence: target plus test. The cap is the real paywall (business plan, not published), so showing where the cook stands makes the value concrete.
 - **Effort and cost.** S. $0 cash.
 - **Expected effect and test.** Plan target: trial starts per cap-moment view above the onboarding rate. Read after 200 cap views. Kill rule: no difference, drop it.
-- **Legal risk.** Low if every number is a real count. No "you will lose" framing, because nothing is lost on a lapse (010-FR-043a).
+- **Compliance.** Every number is a real count. No "you will lose" framing, because nothing is lost on a lapse (010-FR-043a).
 - **Spec.** 010-FR-042b.
 
 #### Idea 15. Test the display inside the ruled prices
@@ -213,7 +213,7 @@ Three things set the order [M]:
 - **Why it works.** RevenueCat Experiments can test "The number and mix of products offered" and "Paywall imagery, copy, layout, and more", with "up to 4 variants" ([RevenueCat](https://www.revenuecat.com/docs/tools/experiments-v1)) [P]. No published effect for these changes in recipe apps.
 - **Effort and cost.** S. RevenueCat Experiments is on its Pro plan, free up to $2,500 a month of tracked revenue ([RevenueCat pricing](https://www.revenuecat.com/pricing/)) [P].
 - **Expected effect and test.** Read trial starts per paywall view, the fastest signal. Two arms only. Kill rule: no arm ahead after 1,000 views per arm, keep the simpler one.
-- **Legal risk.** Low. 010-FR-042c: no plan pre-selected. The per-person figure must say it assumes 6 members.
+- **Compliance.** 010-FR-042c: no plan pre-selected. The per-person figure must say it assumes 6 members.
 - **Spec.** 010 and 022-FR-037.
 
 #### Idea 16. A founding-member offer to the waitlist at launch
@@ -222,7 +222,7 @@ Three things set the order [M]:
 - **Why it works.** No evidence: target plus test. The business plan sets a waitlist target (not published). They are the warmest audience the business will have.
 - **Effort and cost.** S to M. Uses 023's reward ledger. Revenue forgone: the extra months.
 - **Expected effect and test.** Plan target: 5% of verified waitlist entries pay in launch month. Read at day 30 after launch. Kill rule: under 2%, do not repeat the offer for later cohorts.
-- **Legal risk.** Medium. A real end date is allowed. A timer or "today only" is not (010-FR-042d). Needs a ruling on extra free time against 010-FR-041h.
+- **Compliance.** A real end date is allowed. A timer or "today only" is not (010-FR-042d). Needs a ruling on extra free time against 010-FR-041h.
 - **Spec.** 023 and 010. Owner ruling needed.
 
 #### Idea 17. Gift subscriptions sold on the web
@@ -231,7 +231,7 @@ Three things set the order [M]:
 - **Why it works.** A direct competitor sells this: "A gift subscription is a full year of Plan to Eat for $49" ([Plan to Eat](https://www.plantoeat.com/pricing/)) [P]. Stripe Checkout supports one-time payments ("Accept one-time payments") ([Stripe](https://docs.stripe.com/api/checkout/sessions/create)) [P]. Effect on revenue: GAP.
 - **Effort and cost.** M. Stripe fees only.
 - **Expected effect and test.** Plan target: gifts equal to 5% of December new payers. Read in January. Kill rule: under 1%, drop the seasonal push and keep the page.
-- **Legal risk.** Low. A one-time payment with no renewal is not a negative option. State that it does not renew. Gift-card laws may apply. Counsel confirms.
+- **Compliance.** A one-time payment does not renew; state that it does not renew. Gift-card rules are checked before launch (016-FR-050).
 - **Spec.** New spec, or 010 plus 022.
 
 #### Idea 18. A pantry "used in time" counter
@@ -240,7 +240,7 @@ Three things set the order [M]:
 - **Why it works.** The cost of waste is real. ReFED: "In 2024, the average American spent over $760 on food that went uneaten" ([ReFED](https://refed.org/food-waste/consumer-food-waste)) [S]. That figure is context only. Commise must not claim it saves a dollar amount without its own data. Effect on retention: no evidence, target plus test.
 - **Effort and cost.** S to M, after the 007 pantry. $0 cash.
 - **Expected effect and test.** Plan target: pantry users open the pantry at least weekly. Read at month 3. Kill rule: under 10% of pantry users see the recap, fold it into idea 11.
-- **Legal risk.** Medium for any savings claim. Counted facts only.
+- **Compliance.** A savings claim uses counted facts only.
 - **Spec.** 007 (FR-034 to FR-040).
 
 #### Idea 19. A written "your library is yours" guarantee
@@ -252,7 +252,7 @@ Three things set the order [M]:
 - **Why it works.** No evidence on conversion: target plus test. The business plan's thesis is that cooks switch for trust after apps close. Yummly closed on 20 Dec 2024 (`conversionStudy.md`) [S].
 - **Effort and cost.** S. Copy and a policy page.
 - **Expected effect and test.** Test it on the Paprika switcher page before launch, as the plan's waitlist test already runs. Kill rule: no gain in sign-ups per visit after 500 visits, keep it only in the FAQ.
-- **Legal risk.** The promise binds. Breaking it later would be a deceptive claim. Counsel reviews the wording.
+- **Compliance.** The promise binds, so it is kept. The wording is reviewed before launch (016-FR-050).
 - **Spec.** 022 and 016.
 
 #### Idea 20. A cooking log with a weekly "cooked at home" streak and built-in freezes
@@ -261,7 +261,7 @@ Three things set the order [M]:
 - **Why it works.** Duolingo: streak animations "increased the likelihood a brand new learner was still using Duolingo 7 days later by +1.7%", and two freezes "increased the relative number of active learners on Duolingo every day by +0.38%" ([Duolingo](https://blog.duolingo.com/how-duolingo-streak-builds-habit/)) [P]. A weekly rhythm fits cooking better than a daily one [Inference].
 - **Effort and cost.** M. $0 cash.
 - **Expected effect and test.** Plan target: day-30 activity above the Food and Drink 7.9% baseline ([OneSignal](https://onesignal.com/mobile-app-benchmarks-2024)) [S]. Read at day 45. Kill rule: no gap between log users and others, keep the log and drop the streak.
-- **Legal risk.** Medium. Loss-framed streak pressure can "materially distort" choices under DSA Article 25(1) [S]. Keep it positive and never tie it to the paywall.
+- **Compliance.** Loss-framed streak pressure can "materially distort" choices under DSA Article 25(1) [S]. Keep it positive and never tie it to the paywall.
 - **Spec.** 008 (new FR).
 
 #### Idea 21. Social proof on the paywall, from real data only
@@ -270,7 +270,7 @@ Three things set the order [M]:
 - **Why it works.** No evidence opened: target plus test.
 - **Effort and cost.** S. $0 cash.
 - **Expected effect and test.** Two arms with idea 15. Kill rule: same as idea 15.
-- **Legal risk.** High if faked. The FTC bans reviews "by someone who does not exist, such as AI-generated fake reviews" [P]. Consent and real names or initials only.
+- **Compliance.** Never fake one. The FTC bans reviews "by someone who does not exist, such as AI-generated fake reviews" [P]. Consent and real names or initials only.
 - **Spec.** 010 and 022.
 
 #### Idea 22. A web onboarding funnel that starts on commise.app
@@ -279,7 +279,7 @@ Three things set the order [M]:
 - **Why it works.** Revenue per install rises because Stripe's fee is far below the 15% store fee. RevenueCat: "Web revenue accounts for 3.2% globally, but 4.9% in North America", and "41% of top-performing apps (Tier 5) generate web revenue vs. just 1.3% of hobby apps" ([RevenueCat SOSA 2026](https://www.revenuecat.com/state-of-subscription-apps/)) [P, correlation].
 - **Effort and cost.** L. Stripe and RevenueCat fees.
 - **Expected effect and test.** Plan target: web payers reach 10% of new payers by month 6. Read monthly. Kill rule: under 3% by month 6, keep only the plain pricing page.
-- **Legal risk.** Medium. It must start on the web, not inside the iPhone app (010-FR-042i). The same ROSCA disclosures apply.
+- **Compliance.** It must start on the web, not inside the iPhone app (010-FR-042i). The same ROSCA disclosures apply.
 - **Spec.** 022 and 010.
 
 #### Idea 23. Pause as an equal choice on the subscription page
@@ -288,7 +288,7 @@ Three things set the order [M]:
 - **Why it works.** Google: "users can choose to pause their subscription for a period of time between one week and three months" ([Android](https://developer.android.com/google/play/billing/lifecycle/subscriptions)) [P]. Google's help page says "annual subscriptions and free trials cannot be paused" ([Google](https://support.google.com/googleplay/android-developer/answer/12154973)) [P], which conflicts with the developer page. No effect data.
 - **Effort and cost.** S on Play, M for web. No iPhone equivalent, so it breaks parity.
 - **Expected effect and test.** Plan target: 10% of Android monthly cancels choose pause instead. Read after 50 Android cancels. Kill rule: under 3%, remove it.
-- **Legal risk.** Medium. It must not stand between the cook and Cancel (010-FR-042e).
+- **Compliance.** It must not stand between the cook and Cancel (010-FR-042e).
 - **Spec.** 010. Ruling needed on parity (CODING_STANDARDS section 14).
 
 #### Idea 24. Three onboarding questions that pick the first action
@@ -297,7 +297,7 @@ Three things set the order [M]:
 - **Why it works.** No evidence for recipe apps. OneSignal reports "24% higher install-to-purchase conversion rates" from onboarding messages, without saying against what ([OneSignal](https://onesignal.com/mobile-app-benchmarks-2024)) [S, weak].
 - **Effort and cost.** M. $0 cash.
 - **Expected effect and test.** Plan target: day-7 activation of 35% (the plan's target). Read at day 30. Kill rule: questions skipped by more than half, cut to one.
-- **Legal risk.** Low. Answers are personal data, so the privacy notice must name them.
+- **Compliance.** Answers are personal data, so the privacy notice must name them.
 - **Spec.** New onboarding spec (none exists today).
 
 #### Idea 25. Seasonal planners
@@ -306,7 +306,7 @@ Three things set the order [M]:
 - **Why it works.** No evidence opened: target plus test.
 - **Effort and cost.** S per season, mostly content. Templates exist in 006.
 - **Expected effect and test.** Plan target: 10% of active cooks apply a seasonal template in its season. Read 2 weeks after the date. Kill rule: under 3%, stop making them.
-- **Legal risk.** Low. Dates are real, so no fake urgency.
+- **Compliance.** Dates are real, so no fake urgency.
 - **Spec.** 006 (templates).
 
 #### Idea 26. A client pack and a referral fee for dietitians and trainers
@@ -315,7 +315,7 @@ Three things set the order [M]:
 - **Why it works.** Trainer meal-plan tools cost $240 to $720 a year (`priceEvaluation.md`) [P, D]. Apple offer codes allow "a maximum of 1 million redemptions per app, per quarter" and can go to "new, active, and expired" subscribers ([Apple](https://developer.apple.com/help/app-store-connect/manage-subscriptions/set-up-subscription-offer-codes)) [P]. Effect: GAP.
 - **Effort and cost.** M to L. The fee is cash, which 023-FR-035 forbids for consumer referrals. A professional fee needs its own ruling.
 - **Expected effect and test.** Plan target: 3 paying clients per professional in 60 days, the plan's trainer rule. Kill rule: the same as the plan's.
-- **Legal risk.** Medium. Paid endorsements need disclosure.
+- **Compliance.** Paid endorsements need disclosure.
 - **Spec.** 009 (trainer plans) and 023. Owner ruling needed.
 
 #### Idea 27. A lifetime "Library" plan with no platform AI
@@ -324,7 +324,7 @@ Three things set the order [M]:
 - **Why it works.** RevenueCat: "One in four apps offer a lifetime plan" ([RevenueCat SOSA 2026](https://www.revenuecat.com/state-of-subscription-apps/)) [P]. Pestle sells lifetime at $39.99 to $49.99 (`conversionStudy.md`) [S].
 - **Effort and cost.** M. The risk is that it eats yearly plans and carries server cost forever.
 - **Expected effect and test.** Needs a price ruling first. Then read the share of lifetime among first 200 payers. Kill rule: if yearly share falls below 53%, remove it.
-- **Legal risk.** Low. "Lifetime" must be defined, for example the life of the service.
+- **Compliance.** "Lifetime" must be defined, for example the life of the service.
 - **Spec.** 010. Price ruling needed.
 
 #### Idea 28. Apple's Retention Messaging in the App Store cancel sheet
@@ -333,7 +333,7 @@ Three things set the order [M]:
 - **Why it works, and why it ranks low.** RevenueCat measured "22 million recorded messages across 309 apps". The median save rate was 17%, but "Early data shows no clear effect on cancellation rates", and cooks "accepted only about 1.1% of promotional offers" ([RevenueCat](https://www.revenuecat.com/blog/growth/apple-retention-messaging-benchmarks)) [P].
 - **Effort and cost.** S. Access is by request to Apple.
 - **Expected effect and test.** Not recommended now. Revisit if Apple's own data shows an effect.
-- **Legal risk.** Needs a ruling. It appears inside Apple's cancel flow, which may conflict with 010-FR-042e.
+- **Compliance.** Needs a ruling. It appears inside Apple's cancel flow, which may conflict with 010-FR-042e.
 - **Spec.** 010.
 
 #### Idea 29. An introductory price instead of the trial, for some channels
@@ -342,7 +342,7 @@ Three things set the order [M]:
 - **Why it ranks low.** Apple: "each person is only eligible to redeem one introductory offer per subscription group" ([Apple](https://developer.apple.com/help/app-store-connect/manage-subscriptions/set-up-introductory-offers-for-auto-renewable-subscriptions)) [P]. The free trial already uses that slot, so this replaces the trial. It also shows a price that is not ruled.
 - **Effort and cost.** S to build. High in rulings.
 - **Expected effect and test.** Not recommended unless trial starts fall below 4.4% of downloads, `priceEvaluation.md`'s flip signal.
-- **Legal risk.** Low on format. The renewal price must be shown.
+- **Compliance.** The renewal price must be shown.
 - **Spec.** 010. Price ruling needed.
 
 #### Idea 30. Student or educator pricing
@@ -351,7 +351,7 @@ Three things set the order [M]:
 - **Why it ranks low.** No evidence opened. Neither store verifies students, so a paid verification service would be needed. It needs a price ruling.
 - **Effort and cost.** M plus a verification fee (GAP).
 - **Expected effect and test.** Not recommended at v1.
-- **Legal risk.** Low.
+- **Compliance.** Nothing beyond the rules above.
 - **Spec.** 010 and 013. Price ruling needed.
 
 #### Idea 31. Home-screen widgets for the grocery list and tonight's meal
@@ -360,7 +360,7 @@ Three things set the order [M]:
 - **Why it ranks low.** No evidence opened. Web has no widget, so it strains the cross-platform rule.
 - **Effort and cost.** M to L.
 - **Expected effect and test.** Plan target: widget users keep day-30 activity above non-users. Read at day 45 after launch.
-- **Legal risk.** Low.
+- **Compliance.** Nothing beyond the rules above.
 - **Spec.** 006 and 007. Parity ruling needed.
 
 #### Idea 32. Regional pricing
@@ -369,7 +369,7 @@ Three things set the order [M]:
 - **Why it ranks last.** v1 serves the US only (016-FR-048). Revisit when a market opens.
 - **Effort and cost.** S in the stores.
 - **Expected effect and test.** None at v1.
-- **Legal risk.** Each market's consumer law applies (016-FR-048b).
+- **Compliance.** Each market's consumer law applies (016-FR-048b).
 - **Spec.** 010 and 016. Price ruling needed.
 
 ### 6. The top 12, ranked by expected revenue per install per founder-hour
@@ -408,14 +408,14 @@ These were weighed and left out.
 | Weekly plans                                             | Adapty says "Weekly plans convert 1.7 to 7.4x better than annual", but weekly trial plans keep 5.5% at day 380 ([Adapty](https://adapty.io/state-of-in-app-subscriptions/)) [S]. Not a ruled price, and it would hurt trust |
 | A rating prompt behind a "Do you like Commise?" question | Google forbids asking questions before the dialog [P]                                                                                                                                                                       |
 
-### 8. Legal status checked, and what was not confirmed
+### 8. Subscription rules checked, and what was not confirmed
 
 - **ROSCA.** Three duties: disclose all material terms before taking billing details, get express informed consent, and provide simple mechanisms to stop charges ([Cornell LII](https://www.law.cornell.edu/uscode/text/15/8403)) [S, host of official text].
 - **FTC negative option rule.** The FTC's own pages confirm the 2024 rule was vacated. On 11 March 2026 the FTC asked for comment on an advance notice that lists options including "adopting provisions of the vacated 2024 Rule" ([FTC](https://www.ftc.gov/news-events/news/press-releases/2026/03/ftc-seeks-public-comment-response-advance-notice-proposed-rulemaking-regarding-negative-option)) [P]. The court and date of the vacatur were not confirmed on an opened page.
 - **FTC fake reviews rule.** In force since August 2024 [P]. It bans fake reviews and incentives tied to sentiment.
 - **EU DSA Article 25.** Bans interfaces that deceive or manipulate. It names more prominence for one choice, repeated requests, and harder cancel than subscribe [S]. v1 is US only, but 010 adopts it as a house rule.
-- **California automatic renewal law.** The Attorney General's page says "California law requires companies to clearly explain and get your approval before signing you up for something that automatically renews" ([California OAG](https://oag.ca.gov/consumers/general/free-trial-offers)) [P]. The details of the 2024 amendments (AB 2863) were not confirmed: the official site refused the fetch. Counsel confirms them under 016-FR-050.
-- **New state rules.** A law firm lists "NYC and Louisiana Enact New Regulatory Requirements" for auto-renewals in July 2026 ([Kelley Drye](https://www.kelleydrye.com/viewpoints/blogs/ad-law-access/automatic-renewals)) [S, title only]. Counsel should add them to 016-FR-050.
+- **California automatic renewal law.** The Attorney General's page says "California law requires companies to clearly explain and get your approval before signing you up for something that automatically renews" ([California OAG](https://oag.ca.gov/consumers/general/free-trial-offers)) [P]. The details of the 2024 amendments (AB 2863) were not confirmed: the official site refused the fetch. They are confirmed before launch under 016-FR-050.
+- **New state rules.** A law firm lists "NYC and Louisiana Enact New Regulatory Requirements" for auto-renewals in July 2026 ([Kelley Drye](https://www.kelleydrye.com/viewpoints/blogs/ad-law-access/automatic-renewals)) [S, title only]. They belong on the 016-FR-050 list.
 
 ### 9. Gaps
 
@@ -429,14 +429,14 @@ The fastest way to close most gaps is Commise's own first three cohorts, read on
 
 ### Next steps
 
-| Action                                                                                   | Owner                              | When                    |
-| ---------------------------------------------------------------------------------------- | ---------------------------------- | ----------------------- |
-| Rule on 017-FR-034k (free household lists) and on "a free win-back month is not a trial" | Owner                              | By 26 Nov 2026          |
-| Draft the 014 amendment for email and push, with the trial notice as its first message   | Founder with `staff-architect`     | Before billing is built |
-| Amend 010-FR-043 to state the grace period per rail                                      | Founder                            | With the 010 plan       |
-| Design the trial timeline, the push ask and the after-cancel screen                      | `staff-ux-engineer` (SPECIFY)      | Before billing is built |
-| Price the reward time in ideas 13 and 16                                                 | `cfo-1`                            | Before launch           |
-| Confirm California, NYC and Louisiana renewal rules                                      | Counsel via 016-FR-050, with `clo` | Before launch           |
+| Action                                                                                   | Owner                          | When                    |
+| ---------------------------------------------------------------------------------------- | ------------------------------ | ----------------------- |
+| Rule on 017-FR-034k (free household lists) and on "a free win-back month is not a trial" | Owner                          | By 26 Nov 2026          |
+| Draft the 014 amendment for email and push, with the trial notice as its first message   | Founder with `staff-architect` | Before billing is built |
+| Amend 010-FR-043 to state the grace period per rail                                      | Founder                        | With the 010 plan       |
+| Design the trial timeline, the push ask and the after-cancel screen                      | `staff-ux-engineer` (SPECIFY)  | Before billing is built |
+| Price the reward time in ideas 13 and 16                                                 | `cfo-1`                        | Before launch           |
+| Confirm California, NYC and Louisiana renewal rules                                      | Pre-launch review (016-FR-050) | Before launch           |
 
 Confidence: Medium on the platform facts (vendor docs opened). Low on effect sizes, which come from single-company cases outside recipes. Commise's first three cohorts would raise it.
 
@@ -471,7 +471,7 @@ Pages opened for this brainstorm:
 - [ReFED: consumer food waste](https://refed.org/food-waste/consumer-food-waste)
 - [Plan to Eat: pricing and gifts](https://www.plantoeat.com/pricing/)
 - [Spotify: 2025 Wrapped](https://newsroom.spotify.com/2025-wrapped/)
-- [Cornell LII: 15 U.S.C. 8403](https://www.law.cornell.edu/uscode/text/15/8403)
+- [Cornell LII: ROSCA](https://www.law.cornell.edu/uscode/text/15/8403)
 - [FTC: negative option advance notice, March 2026](https://www.ftc.gov/news-events/news/press-releases/2026/03/ftc-seeks-public-comment-response-advance-notice-proposed-rulemaking-regarding-negative-option)
 - [FTC: final rule banning fake reviews](https://www.ftc.gov/news-events/news/press-releases/2024/08/federal-trade-commission-announces-final-rule-banning-fake-reviews-testimonials)
 - [DSA Article 25, secondary text](https://www.eu-digital-services-act.com/Digital_Services_Act_Article_25.html)

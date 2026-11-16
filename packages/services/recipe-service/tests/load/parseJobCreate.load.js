@@ -26,8 +26,8 @@
 // Each VU stops creating once it has used its share of `PASTES_PER_USER` (default 60, so three runs inside a day still fit
 // under 200).
 //
-// A fourth scenario, `quotaRefusal`, asserts the refusal itself, so its throwaway user MUST be a REAL (not test) principal,
-// because a test principal is never refused: `429`, the code `IMPORT_QUOTA_EXCEEDED`, and a
+// A fourth scenario, `quotaRefusal`, asserts the refusal itself, so its throwaway user MUST be a REAL principal on Free
+// (a test principal is never refused, and a paid cook's limit is 1,000, past this scenario's 201 creates): `429`, the code `IMPORT_QUOTA_EXCEEDED`, and a
 // `details.resetsAt` that is a future ISO instant within 24 hours. It drains one user's allowance ON PURPOSE, so it never
 // borrows a pool user: it runs only for a throwaway user NOBODY ELSE USES (not a pool member), named by
 // `RECIPE_QUOTA_HANDLES_FILE` (a sign-in handle, so the bearer is re-minted like the pool's) or, on the substrate profile,

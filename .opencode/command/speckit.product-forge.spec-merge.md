@@ -48,7 +48,7 @@ features/
 
 `specs/` is the living source of truth; `features/{slug}/` is the working area for
 one change. Deltas key on `FR-*` ids (minted by `bridge`/`change-request`).
-`REQ-*` is the V-Model-pack / `backfill` canonical id only — the forward flow does
+`REQ-*` is the `backfill` canonical id only — the forward flow does
 not mint `REQ-*`.
 
 ---

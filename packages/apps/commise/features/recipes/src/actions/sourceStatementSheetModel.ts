@@ -22,7 +22,7 @@ import {
 } from './sourceStatement.js';
 
 /** The field an answer reveals. */
-export interface StatementFieldView {
+interface StatementFieldView {
     readonly kind: 'link' | 'bookTitle';
     readonly label: string;
     readonly value: string;

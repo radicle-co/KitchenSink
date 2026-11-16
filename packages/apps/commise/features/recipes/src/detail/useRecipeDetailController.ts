@@ -151,6 +151,21 @@ export interface RecipeDetailController {
  * @sideEffect Calls `onFinishRefusalSeen` once the body has mounted with a claim waiting; mutates through the recipe
  *     service hooks.
  */
+/**
+ * The recipe-page sheet's write status: busy while the write is in flight, failed after a generic failure. Pure.
+ *
+ * @param pending - Whether the visibility write is in flight.
+ * @param failed - Whether the last write failed for a reason the sheet shows as a generic error.
+ * @returns The sheet's status.
+ */
+function sheetStatusOf(pending: boolean, failed: boolean): 'busy' | 'failed' | 'idle' {
+    if (pending) {
+        return 'busy';
+    }
+
+    return failed ? 'failed' : 'idle';
+}
+
 export function useRecipeDetailController(input: RecipeDetailControllerInput): RecipeDetailController {
     const {
         id,
@@ -265,7 +280,6 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
                 { onSuccess: () => setStatementOpen(false), onError: afterRefusal },
             ),
     });
-    const statementShown = statementOpen;
 
     // Making a recipe public ALWAYS asks (ADR-0095): the passive line the confirmation records is on screen when the cook
     // confirms. With nothing to free, the dialog's body is that line.
@@ -304,7 +318,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             serverRefusal: serverRefusedPrivate?.reason,
             finishRefused,
             knownRefusal: recipePrivate.refusal,
-            writeFailed: genericFailure && !confirmOpen && !statementShown,
+            writeFailed: genericFailure && !confirmOpen && !statementOpen,
             held,
             // The number is the SERVER's: the 403's own `limit`, else the standing it last answered.
             slotLimit:
@@ -420,13 +434,13 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
                 error: genericFailure,
             },
             statement: {
-                open: statementShown,
+                open: statementOpen,
                 surface: 'recipePage',
                 // Busy and failed are the write's own status, never stored beside it. A refusal that is not this sheet's to
                 // say (a client bug) is said inside it, as the generic failure.
                 state: {
                     ...sheet.state,
-                    status: setVisibility.isPending ? 'busy' : genericFailure ? 'failed' : 'idle',
+                    status: sheetStatusOf(setVisibility.isPending, genericFailure),
                 },
                 dispatch: sheet.dispatch,
                 onConfirm: sheet.confirm,

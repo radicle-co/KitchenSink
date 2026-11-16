@@ -42,20 +42,20 @@ describe('useStatementSheet', () => {
             statement: {
                 kind: 'book',
                 citation: 'Joy of Cooking',
-                wording: { version: 'statementBook.v1', locale: 'fr' },
+                wording: { version: 'statementBook.v1', locale: 'en' },
             },
             visibility: RecipeVisibility.PRIVATE,
         });
     });
 
-    it('sends "I wrote this" as public with the wording in the cook’s locale', () => {
+    it('sends "I wrote this" as public with the wording in the locale of the catalog that served it (the screen asked for fr, English was shown)', () => {
         const { result, onAnswer } = mount();
 
         act(() => result.current.dispatch({ type: 'choose', answer: 'authored' }));
         act(() => result.current.confirm());
 
         expect(onAnswer).toHaveBeenCalledWith({
-            statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'fr' } },
+            statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } },
             visibility: RecipeVisibility.PUBLIC,
         });
     });

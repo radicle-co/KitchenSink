@@ -12,7 +12,7 @@
  * (`makePublicConsequence`). ⛔ Nothing here sells: no Premium button and no third choice (DSA Art. 25; the
  * deceptive-pattern rule) — under `upsell` the body states the fact and the ⋯ menu's Make private is where Premium is.
  *
- * ADR-0092: the dialog always carries the passive line the confirmation records: as the body when there is nothing to free,
+ * ADR-0095: the dialog always carries the passive line the confirmation records: as the body when there is nothing to free,
  * else as a second paragraph under the cost.
  *
  * Presentational: props → JSX, no data, no mutation, no effect of its own.

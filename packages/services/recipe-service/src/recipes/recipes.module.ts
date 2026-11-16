@@ -129,7 +129,7 @@ import { CURATION_DISAGREEMENT_SINK, emitCurationDisagreement, ParseJobMatchView
         // The append-only record of every statement and Public confirmation (migration 0088). INSERT only, always in the
         // write's own transaction, so it holds no client of its own.
         RecipeStatementAttestationsDal,
-        // Judges and records every write that can leave a recipe public (ADR-0092): the one owner of both tables above.
+        // Judges and records every write that can leave a recipe public (ADR-0095): the one owner of both tables above.
         PublicStatementGate,
         {
             // Plan 2026-10-15-010 D8 — the byline read model a write resolves its author from. Its OWN instance over

@@ -1,5 +1,5 @@
 /**
- * Component tests for the native `SourceStatementSheet` (ADR-0092), rendered through react-native-web: the same states and
+ * Component tests for the native `SourceStatementSheet` (ADR-0095), rendered through react-native-web: the same states and
  * words as the web leaf, from the same view model. Choosing, answered (each answer), the revealed field, the field error,
  * busy, error, and every dismiss route.
  *

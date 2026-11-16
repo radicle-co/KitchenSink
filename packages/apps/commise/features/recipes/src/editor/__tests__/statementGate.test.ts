@@ -1,5 +1,5 @@
 /**
- * The editor's source question (ADR-0092): the ONE derivation behind both the sheet that opens on Publish and the passive
+ * The editor's source question (ADR-0095): the ONE derivation behind both the sheet that opens on Publish and the passive
  * line under the Public card. Exactly one of the two covers a public Publish, so the wire never sends a confirmation the
  * cook did not see and never leaves a public Publish with neither.
  */

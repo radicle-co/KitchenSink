@@ -47,7 +47,7 @@ export interface VisibilityNoticeInput {
      */
     readonly slotLimit: number | undefined;
     /**
-     * A recorded source holds the recipe out of Public (ADR-0092): the server's `publicNeedsCheck`, or the server's refusal
+     * A recorded source holds the recipe out of Public (ADR-0095): the server's `publicNeedsCheck`, or the server's refusal
      * `SOURCE_CONFLICT` a moment ago. Said whatever else holds, because it is why Make public is not offered.
      */
     readonly held: boolean;

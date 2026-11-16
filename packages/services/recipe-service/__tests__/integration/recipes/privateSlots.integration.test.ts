@@ -415,7 +415,7 @@ describe('PATCH /api/v1/recipes/{id} - publishing a private draft takes a slot',
 });
 
 /**
- * ADR-0092: a published recipe with no statement takes a third-party statement, and the statement forces Private in the same
+ * ADR-0095: a published recipe with no statement takes a third-party statement, and the statement forces Private in the same
  * write. That is a published recipe becoming private, so it takes a slot like any other move to private.
  */
 describe('a first statement after the first publish takes a slot, because it forces Private', () => {

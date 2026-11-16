@@ -128,7 +128,7 @@ describe('visibilityNoticeOf — the slots sentence', () => {
     });
 });
 
-/** ADR-0092: a recorded source holds the recipe out of Public, and the page says so. */
+/** ADR-0095: a recorded source holds the recipe out of Public, and the page says so. */
 describe('visibilityNoticeOf — a recipe held out of Public by a recorded source', () => {
     const HELD = 'This recipe was saved with a source, so it stays private.';
 

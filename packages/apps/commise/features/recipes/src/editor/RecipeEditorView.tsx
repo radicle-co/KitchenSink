@@ -135,7 +135,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
             <div
                 className="flex min-h-dvh flex-col bg-canvas [--top-chrome:3.5rem]"
                 style={frameStyle}
-                // ADR-0092: a paste into any field of the page is content the cook did not write here.
+                // ADR-0095: a paste into any field of the page is content the cook did not write here.
                 onPasteCapture={() => editor.setField('pasted', true)}
             >
                 <EditorHeader

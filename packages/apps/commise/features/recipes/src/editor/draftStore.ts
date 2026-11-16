@@ -158,7 +158,7 @@ export const draftValuesSchema = z
         // ADR-0089: absent in every draft written before the Source existed, so those still parse and the format version
         // does not move. LAST, because the form's key order is.
         sourceLink: z.string().optional(),
-        // ADR-0092: absent in every draft written before the sheet existed, so those still parse, as `sourceLink` above does.
+        // ADR-0095: absent in every draft written before the sheet existed, so those still parse, as `sourceLink` above does.
         pasted: z.literal(true).optional(),
     })
     .readonly();

@@ -536,7 +536,7 @@ describe('PATCH /api/v1/recipes/{id} — the statement rule on update and publis
         expect(update).not.toHaveBeenCalled();
     });
 
-    // Rewritten by ADR-0092: this case used to assert that a web statement was refused after the first publish, even over a recipe
+    // Rewritten by ADR-0095: this case used to assert that a web statement was refused after the first publish, even over a recipe
     // with no statement. A first statement is now allowed; changing a held one stays locked (the next case).
     it('takes ANY first statement after the first publish, and a third-party one forces Private and writes its evidence', async () => {
         stored = pasted({ visibility: 'public' });
@@ -938,7 +938,7 @@ describe('the owner-only response — what a stranger must never learn', () => {
     });
 });
 
-// "From another person" is a STORED statement (ADR-0092), so the refusal does not depend on the request that made it: every route
+// "From another person" is a STORED statement (ADR-0095), so the refusal does not depend on the request that made it: every route
 // to Public meets it, whichever write is asked and whatever it carries.
 describe('a recipe stored as "from another person" is never public', () => {
     const FROM_PERSON_ONLY = {

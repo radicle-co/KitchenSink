@@ -1,6 +1,6 @@
 /**
  * The public-statement gate: the ONE place a write is judged for the state it leaves, and the ONE place the records of that
- * write are appended (ADR-0092).
+ * write are appended (ADR-0095).
  *
  * DESIGN PATTERN: **Facade over the two append-only tables** (`recipe_source_evidence`, `recipe_statement_attestations`) with a
  * **Specification** order in front of them. Create, update and set-visibility used to carry three copies of the same

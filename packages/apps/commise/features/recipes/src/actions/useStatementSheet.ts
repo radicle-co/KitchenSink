@@ -2,7 +2,7 @@
 
 /**
  * @module @commise/features-recipes/actions — `useStatementSheet`: the source-statement sheet's state and its Confirm
- * (ADR-0092). The sheet is a pure render of `state`; this holds it, so the editor and the recipe page ask in one way.
+ * (ADR-0095). The sheet is a pure render of `state`; this holds it, so the editor and the recipe page ask in one way.
  *
  * Confirm does what the state says it may: nothing with no answer, a marked field with an unusable one, and otherwise it
  * hands the HOST exactly what `statementWriteOf` decided. What the host does with it differs on purpose (the editor queues

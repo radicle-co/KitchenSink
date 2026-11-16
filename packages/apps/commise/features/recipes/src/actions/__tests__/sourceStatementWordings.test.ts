@@ -1,5 +1,5 @@
 /**
- * The key-to-wording map (ADR-0092 section 4). A statement's wording version is the client's word that it showed THAT text,
+ * The key-to-wording map (ADR-0095 section 4). A statement's wording version is the client's word that it showed THAT text,
  * so the text each version stands for is pinned here: editing a string without moving its version fails this test, and a
  * new version in `recipe-core` fails it until the text is chosen on purpose.
  */

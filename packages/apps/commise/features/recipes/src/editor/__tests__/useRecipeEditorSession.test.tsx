@@ -806,9 +806,9 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
 });
 
 /**
- * ADR-0092: a paste that joins the draft marks it, so Publish asks where the recipe is from. Typing marks nothing.
+ * ADR-0095: a paste that joins the draft marks it, so Publish asks where the recipe is from. Typing marks nothing.
  */
-describe('useRecipeEditorSession — what marks a draft as pasted (ADR-0092)', () => {
+describe('useRecipeEditorSession — what marks a draft as pasted (ADR-0095)', () => {
     it('pasted steps mark the draft', () => {
         const view = mount();
 
@@ -831,10 +831,10 @@ describe('useRecipeEditorSession — what marks a draft as pasted (ADR-0092)', (
 });
 
 /**
- * ADR-0092: taking off a source the server records is said once, in the snackbar's polite live region. A source the draft
+ * ADR-0095: taking off a source the server records is said once, in the snackbar's polite live region. A source the draft
  * only holds, or one the server records without a link to empty, is not.
  */
-describe('useRecipeEditorSession — "Source removed." (ADR-0092)', () => {
+describe('useRecipeEditorSession — "Source removed." (ADR-0095)', () => {
     const recorded = () =>
         makeRecipeDetail({
             id: 'rec_9',

@@ -209,7 +209,7 @@ describe('serverRefusalOf — why a Private the server DID refuse was refused', 
     });
 });
 
-/** ADR-0092: the four reasons a `400 INVALID_VISIBILITY` names, read off the typed error and nothing else. */
+/** ADR-0095: the four reasons a `400 INVALID_VISIBILITY` names, read off the typed error and nothing else. */
 describe('invalidVisibilityReasonOf', () => {
     it.each([
         'SOURCE_CONFLICT',

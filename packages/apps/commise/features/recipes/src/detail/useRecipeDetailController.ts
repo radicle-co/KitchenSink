@@ -219,7 +219,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
     // F3: a Make public the server refused because a line uses a food only the cook can see. It is its own sheet with the lines
     // named, never the confirm's generic "try again".
     const refusedFoods = isPrivateFoodsOnPublicRecipeError(setVisibility.error) ? setVisibility.error.lines : undefined;
-    // ADR-0092: WHY the server refused a visibility. Each reason is answered once, below.
+    // ADR-0095: WHY the server refused a visibility. Each reason is answered once, below.
     const refusalReason = invalidVisibilityReasonOf(setVisibility.error);
     const askedStatement = refusalReason === 'STATEMENT_REQUIRED';
     const heldByRefusal = refusalReason === 'SOURCE_CONFLICT';
@@ -260,7 +260,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
         setStatementOpen(true);
     };
 
-    // Making a recipe public ALWAYS asks (ADR-0092): the passive line the confirmation records is on screen when the cook
+    // Making a recipe public ALWAYS asks (ADR-0095): the passive line the confirmation records is on screen when the cook
     // confirms. With nothing to free, the dialog's body is that line.
     const freesASlot =
         recipeMakePublicConsequence(

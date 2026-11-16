@@ -32,7 +32,7 @@ export interface RecipeWriteInput {
      * create is the one queued write that carries visibility, so every caller has to say whether a Private may go out.
      */
     readonly privateRefusal: PrivateRefusal | undefined;
-    /** What the screen showed the cook (ADR-0092): sent exactly as given, and only by a write that publishes. */
+    /** What the screen showed the cook (ADR-0095): sent exactly as given, and only by a write that publishes. */
     readonly shown?: ShownWordings;
 }
 

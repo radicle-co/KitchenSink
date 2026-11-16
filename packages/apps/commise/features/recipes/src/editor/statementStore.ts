@@ -1,5 +1,5 @@
 /**
- * @module @commise/features-recipes/editor — the editor's source-question state (ADR-0092): whether the sheet is open and the
+ * @module @commise/features-recipes/editor — the editor's source-question state (ADR-0095): whether the sheet is open and the
  * answer the cook gave this session.
  *
  * A store, like the lane and the core: a command (Publish, the sheet's Confirm) reads it when it runs, before React has

@@ -124,10 +124,10 @@ test.describe('a pasted web link sets the recipe’s Source (ADR-0089)', () => {
 });
 
 /**
- * ADR-0092: a recipe whose steps were pasted asks where it is from before it goes public, and the answer decides what is
+ * ADR-0095: a recipe whose steps were pasted asks where it is from before it goes public, and the answer decides what is
  * sent. The recipe-service HTTP contract is intercepted; the service's own rule is covered by its e2e suite.
  */
-test.describe('a pasted recipe asks where it is from before it goes public (ADR-0092)', () => {
+test.describe('a pasted recipe asks where it is from before it goes public (ADR-0095)', () => {
     /** A new recipe with one pasted step, ready to publish public. */
     async function pastedRecipeReady(page: Page): Promise<RecipeWrite[]> {
         await signInWithTicket(page);

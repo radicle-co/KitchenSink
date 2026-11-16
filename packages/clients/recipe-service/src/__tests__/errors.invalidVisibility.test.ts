@@ -1,5 +1,5 @@
 /**
- * The typed form of `400 INVALID_VISIBILITY` (ADR-0092): the refusal names WHY in `details.reason`, and a surface answers each
+ * The typed form of `400 INVALID_VISIBILITY` (ADR-0095): the refusal names WHY in `details.reason`, and a surface answers each
  * reason differently (a statement is owed, a held source, a client bug). Written before the class existed.
  *
  *  - it is still a `BadRequestError`, so every caller that knows only that class (the outbox's terminal 400, the retry policy)

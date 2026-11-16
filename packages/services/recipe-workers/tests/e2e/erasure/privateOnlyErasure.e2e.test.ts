@@ -109,7 +109,7 @@ const PROBES: readonly Probe[] = [
         pasted: true,
         donated: false,
     },
-    // "From another person" (0087, ADR-0092): the cook said the recipe is not theirs to publish, and a donation would publish it.
+    // "From another person" (0087, ADR-0095): the cook said the recipe is not theirs to publish, and a donation would publish it.
     {
         name: 'fromPerson',
         sourceType: 'user_created',

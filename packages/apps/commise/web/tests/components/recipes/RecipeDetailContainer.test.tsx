@@ -1220,7 +1220,7 @@ describe('RecipeDetailContainer', () => {
         });
 
         /**
-         * REWRITTEN for ADR-0092: Make public from the menu always opens the confirm first (it carries the passive
+         * REWRITTEN for ADR-0095: Make public from the menu always opens the confirm first (it carries the passive
          * "anyone can see it" line), and the confirm sends the public confirmation with the write. It no longer goes
          * straight through.
          */
@@ -1248,7 +1248,7 @@ describe('RecipeDetailContainer', () => {
         });
 
         /**
-         * REWRITTEN for ADR-0092: Make public always runs through the confirm, so a failed change is said inside the
+         * REWRITTEN for ADR-0095: Make public always runs through the confirm, so a failed change is said inside the
          * confirm, which stays up to try again (the header slot is for a failure with no dialog open).
          */
         it('surfaces a failed visibility change rather than snapping back silently (B17)', async () => {
@@ -1327,7 +1327,7 @@ describe('RecipeDetailContainer', () => {
         // DELETED with ADR-0077 section 6: "an imported public-web recipe goes public at once because Private costs Pro" tested the
         // removed Pro rule. Its replacement is the third row of the table above (the slots words for that recipe).
 
-        /** REWRITTEN for ADR-0092: Pro has no slot to free, so the confirm carries only the passive line, then sends. */
+        /** REWRITTEN for ADR-0095: Pro has no slot to free, so the confirm carries only the passive line, then sends. */
         it('Pro (no slots to free) is asked with the passive line, then makes the recipe public', async () => {
             const user = userEvent.setup();
             useUserProfileMock.mockReturnValue(profileWith('granted'));

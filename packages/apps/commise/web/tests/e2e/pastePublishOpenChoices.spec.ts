@@ -105,7 +105,7 @@ for (const colorScheme of SCHEMES) {
                 .getByRole('button', { name: 'Publish anyway' })
                 .click();
 
-            // ADR-0092: the list was pasted, so after the open choices the cook is asked where the recipe is from, and
+            // ADR-0095: the list was pasted, so after the open choices the cook is asked where the recipe is from, and
             // nothing is published until they answer.
             const source = page.getByRole('dialog', { name: 'Where is this recipe from?' });
 

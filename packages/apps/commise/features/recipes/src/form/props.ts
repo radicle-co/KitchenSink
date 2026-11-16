@@ -121,7 +121,7 @@ export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps,
      * so, instead of the book and paid-site reason.
      */
     readonly webSource?: boolean;
-    /** Whether a recorded source holds the recipe out of Public (ADR-0092): Public is refused with the held note. */
+    /** Whether a recorded source holds the recipe out of Public (ADR-0095): Public is refused with the held note. */
     readonly publicHeld?: boolean;
     /** The passive line under the Public card, when this screen draws it: what was sent is what was shown. */
     readonly confirmLine?: string;
@@ -200,7 +200,7 @@ export function visibilityFieldOf(input: {
      */
     readonly webSource?: boolean;
     /**
-     * Whether a recorded source holds the recipe out of Public though the draft states none (`publicHeldOf`, ADR-0092): Public
+     * Whether a recorded source holds the recipe out of Public though the draft states none (`publicHeldOf`, ADR-0095): Public
      * is refused with the held note, and stays refused after the cook removes a source the server holds.
      */
     readonly publicHeld?: boolean;

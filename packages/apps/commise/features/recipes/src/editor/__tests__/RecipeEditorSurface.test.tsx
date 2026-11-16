@@ -960,10 +960,10 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
 });
 
 /**
- * ADR-0092: the editor's source question. The sheet is a render of what the editor stands (`statementAsk`), its answers go
+ * ADR-0095: the editor's source question. The sheet is a render of what the editor stands (`statementAsk`), its answers go
  * back through the editor, and the passive line is drawn exactly when the editor says it is (`confirmLineShown`).
  */
-describe('RecipeEditorSurface — the source question (ADR-0092)', () => {
+describe('RecipeEditorSurface — the source question (ADR-0095)', () => {
     const LINE = 'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.';
 
     it('shows no sheet while no ask stands', () => {

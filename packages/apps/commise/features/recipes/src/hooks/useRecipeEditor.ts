@@ -172,7 +172,7 @@ export type EditorWriteAnswer =
     | { readonly kind: 'recipeSlotsFull'; readonly used: number; readonly limit: number }
     /** The server refused a public recipe that holds foods only its author can see (`400 PRIVATE_FOODS_ON_PUBLIC_RECIPE`): the lines. */
     | { readonly kind: 'recipePrivateFoods'; readonly lines: readonly PrivateFoodLine[] }
-    /** The server refused a write until the cook says where the recipe is from (`400 STATEMENT_REQUIRED`, ADR-0092). */
+    /** The server refused a write until the cook says where the recipe is from (`400 STATEMENT_REQUIRED`, ADR-0095). */
     | { readonly kind: 'recipeStatementRequired' };
 
 /** The server's refusal of a private food in a public recipe, as the editor holds it for its sheet. */
@@ -343,7 +343,7 @@ export interface UseRecipeEditorResult {
      */
     readonly publishBlocked: PublishBlocked | undefined;
     /**
-     * The Publish asked where the recipe is from instead of going out (ADR-0092): the source-statement sheet is open. It comes
+     * The Publish asked where the recipe is from instead of going out (ADR-0095): the source-statement sheet is open. It comes
      * after validation and before the slots question, and is asked once per session.
      */
     readonly statementAsk: boolean;
@@ -505,7 +505,7 @@ interface EditorContext {
     readonly publishBlocked: PublishBlocked | undefined;
     readonly setPublishBlocked: Dispatch<SetStateAction<PublishBlocked | undefined>>;
     readonly setPrivateFoodRefusal: Dispatch<SetStateAction<PrivateFoodRefusal | undefined>>;
-    /** The source question (ADR-0092): whether the sheet is open, and the answer the cook gave. */
+    /** The source question (ADR-0095): whether the sheet is open, and the answer the cook gave. */
     readonly statement: StatementStore;
     readonly clearResume: () => void;
 }
@@ -740,7 +740,7 @@ function handOffSaved(ctx: EditorContext, detail: RecipeDetail): void {
     ctx.opts.onExit({ kind: 'changesSaved', recipe: detail });
 }
 
-/** What the editor does about the source question for the draft as it is now (ADR-0092). */
+/** What the editor does about the source question for the draft as it is now (ADR-0095). */
 function statementPlanNow(ctx: EditorContext): StatementPlan {
     const { draft, server } = ctx.core.get();
 
@@ -752,7 +752,7 @@ function statementPlanNow(ctx: EditorContext): StatementPlan {
 }
 
 /**
- * The wording this screen showed, for a write that publishes (ADR-0092): the passive line exactly when it is drawn under
+ * The wording this screen showed, for a write that publishes (ADR-0095): the passive line exactly when it is drawn under
  * the Public card, and the sheet's answer. The Source row shows no wording of its own, so none is sent for its link. A client
  * sends only what it showed.
  */
@@ -960,7 +960,7 @@ function checkGate(
         entryText,
     }));
 
-    // ADR-0092: a Publish that ends public asks where the recipe is from, once. It comes after validation (a refused
+    // ADR-0095: a Publish that ends public asks where the recipe is from, once. It comes after validation (a refused
     // Publish is not asked) and before the slots question, so the cook answers in the order the gates are met.
     if (outcome.kind === 'send' && trigger === 'publish' && statementPlanNow(ctx).asks) {
         ctx.statement.ask(true);

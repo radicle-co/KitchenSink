@@ -45,7 +45,7 @@ describe('RecipeMakePublicDialog (native)', () => {
         expect(screen.getByText(m.bodyFrees)).toBeTruthy();
     });
 
-    // ADR-0092: the dialog carries the passive line the confirmation records.
+    // ADR-0095: the dialog carries the passive line the confirmation records.
     it('under frees, the passive line is a second paragraph under the body', () => {
         renderDialog({ consequence: 'frees' });
 

@@ -1,5 +1,5 @@
 /**
- * Whether the cook said a recipe is another person's (ADR-0092).
+ * Whether the cook said a recipe is another person's (ADR-0095).
  *
  * DESIGN PATTERN: **Specification**, the sibling of `statementRequiredOf` and `sourceConflictOf` and a separate rule for a
  * separate reason: the evidence rule is the seam the feature-020 hold replaces, and the statement rule asks whether the cook

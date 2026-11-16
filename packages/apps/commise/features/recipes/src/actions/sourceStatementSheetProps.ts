@@ -1,5 +1,5 @@
 /**
- * @module @commise/features-recipes/actions — the contract `SourceStatementSheet`'s web and native leaves share (ADR-0092).
+ * @module @commise/features-recipes/actions — the contract `SourceStatementSheet`'s web and native leaves share (ADR-0095).
  */
 import type { StatementSheetAction, StatementSheetState, StatementSurface } from './sourceStatement.js';
 

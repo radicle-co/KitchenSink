@@ -461,7 +461,7 @@ describe('POST /api/v1/recipes', () => {
         expect(recorded()).toEqual([]);
     });
 
-    // Rewritten by ADR-0092: "from another person" used to store NO statement kind, so a stored recipe could not be told from
+    // Rewritten by ADR-0095: "from another person" used to store NO statement kind, so a stored recipe could not be told from
     // one the cook typed. It now stores `fromPerson`, which every route to Public refuses.
     it('records "from another person" with no source, the `fromPerson` statement kind, and the recipe private', async () => {
         const response = await call('POST', '/api/v1/recipes', {

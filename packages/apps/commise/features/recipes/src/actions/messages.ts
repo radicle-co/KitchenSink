@@ -44,7 +44,7 @@ interface RecipeMakePublicDialogMessages {
 }
 
 /**
- * Copy for the source-statement sheet (ADR-0092): "where is this recipe from?", asked before a pasted recipe goes public.
+ * Copy for the source-statement sheet (ADR-0095): "where is this recipe from?", asked before a pasted recipe goes public.
  *
  * Each statement key is the wording version the answer records (`STATEMENT_WORDINGS_BY_CHOICE`): the version is the client's
  * word that it showed THAT text, so a change to one of these strings is a new version in `recipe-core`, never an edit. A unit
@@ -189,7 +189,7 @@ export interface RecipeDetailActionMessages {
     readonly versionHistory: string;
     readonly makePrivate: string;
     readonly makePublic: string;
-    /** Why Make public cannot be used while the device is offline: the write needs the server (ADR-0092). */
+    /** Why Make public cannot be used while the device is offline: the write needs the server (ADR-0095). */
     readonly offline: string;
     /** Resets the cook's checks and current step; offered only while one is set. */
     readonly clearChecks: string;

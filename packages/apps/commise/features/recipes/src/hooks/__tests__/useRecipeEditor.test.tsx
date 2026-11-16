@@ -4486,10 +4486,10 @@ describe('a row editor holds the draft’s server checkpoints', () => {
 });
 
 /**
- * ADR-0092: a Publish that ends public asks where the recipe is from, once, after validation and before the slots question;
+ * ADR-0095: a Publish that ends public asks where the recipe is from, once, after validation and before the slots question;
  * the answer rides the publishing write; and the passive line is sent only where it is drawn.
  */
-describe('the source question on Publish (ADR-0092)', () => {
+describe('the source question on Publish (ADR-0095)', () => {
     const pasted = () => ({ ...complete(), visibility: RecipeVisibility.PUBLIC, pasted: true as const });
     const authored = {
         statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } },
@@ -4691,8 +4691,8 @@ describe('the source question on Publish (ADR-0092)', () => {
     });
 });
 
-/** ADR-0092: a wording is the client's word that it showed it, and the Source row shows none. */
-describe('the Source row’s link sends no wording (ADR-0092)', () => {
+/** ADR-0095: a wording is the client's word that it showed it, and the Source row shows none. */
+describe('the Source row’s link sends no wording (ADR-0095)', () => {
     it('⛔ a publishing write for a pasted link states the citation and nothing it did not show', async () => {
         const { result, port } = mount();
 

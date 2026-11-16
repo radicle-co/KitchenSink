@@ -1,6 +1,6 @@
 appId: ${APP_ID}
 ---
-# A pasted recipe asks where it is from before it goes public (ADR-0092). Mobile mirror of the web Playwright
+# A pasted recipe asks where it is from before it goes public (ADR-0095). Mobile mirror of the web Playwright
 # `recipeSourceFromPaste.spec.ts` "asks where it is from" cases: Publish opens the source sheet and sends nothing, a book
 # answer with no title shows the field error, and "I wrote this" then publishes the recipe public.
 #

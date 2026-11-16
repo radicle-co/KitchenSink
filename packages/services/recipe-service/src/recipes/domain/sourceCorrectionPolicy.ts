@@ -87,7 +87,7 @@ function holdsAlready(provenance: ResolvedProvenance, stored: StoredSource): boo
 /**
  * Decide what a PATCH's `statement` does. Pure.
  *
- * ## The one move the lock lets through (Option B, widened by ADR-0092)
+ * ## The one move the lock lets through (Option B, widened by ADR-0095)
  *
  * After the first publish the source stays frozen, with one exception: the cook's FIRST statement, from NO statement, whatever
  * it says (I wrote this, a web page, a cookbook, another person). Without it a recipe published private (or one whose paste

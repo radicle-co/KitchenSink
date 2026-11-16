@@ -24,7 +24,7 @@ export interface RecipeDetailDialogsProps {
     readonly recipeTitle: string;
     readonly upsell: RecipeUpsellSheetProps;
     readonly makePublic: RecipeMakePublicDialogProps;
-    /** "Where is this recipe from?", asked before a recipe that owes a statement goes public (ADR-0092). */
+    /** "Where is this recipe from?", asked before a recipe that owes a statement goes public (ADR-0095). */
     readonly statement: SourceStatementSheetProps;
     readonly delete: Omit<RecipeDeleteDialogProps, 'recipeTitle'>;
     /**

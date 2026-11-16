@@ -151,7 +151,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeMakePublicDialog.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes — \"Make this recipe public?\", the confirm a downgraded owner sees before a private\nrecipe goes public (UX SPECIFY 2026-10-15; plan 2026-10-14-009 Q5). One component for both platforms: the design\nsystem's `ConfirmDialog` resolves to its Radix leaf on web and its `DialogFrame` leaf on native.\n\nMaking a private recipe public is destructive in the design system's sense — anyone may save a copy of a public\nrecipe — so the primitive is used as it is (public is NOT final, owner ruling 2026-10-26, and the body never says it\nis): the danger-filled\n\"Make public\" against \"Keep private\", where focus opens. The body says the cost plainly, per reason\n(`makePublicConsequence`). ⛔ Nothing here sells: no Premium button and no third choice (DSA Art. 25; the\ndeceptive-pattern rule) — under `upsell` the body states the fact and the ⋯ menu's Make private is where Premium is.\n\nADR-0092: the dialog always carries the passive line the confirmation records: as the body when there is nothing to free,\nelse as a second paragraph under the cost.\n\nPresentational: props → JSX, no data, no mutation, no effect of its own.",
+                    "moduleDoc": "@commise/features-recipes — \"Make this recipe public?\", the confirm a downgraded owner sees before a private\nrecipe goes public (UX SPECIFY 2026-10-15; plan 2026-10-14-009 Q5). One component for both platforms: the design\nsystem's `ConfirmDialog` resolves to its Radix leaf on web and its `DialogFrame` leaf on native.\n\nMaking a private recipe public is destructive in the design system's sense — anyone may save a copy of a public\nrecipe — so the primitive is used as it is (public is NOT final, owner ruling 2026-10-26, and the body never says it\nis): the danger-filled\n\"Make public\" against \"Keep private\", where focus opens. The body says the cost plainly, per reason\n(`makePublicConsequence`). ⛔ Nothing here sells: no Premium button and no third choice (DSA Art. 25; the\ndeceptive-pattern rule) — under `upsell` the body states the fact and the ⋯ menu's Make private is where Premium is.\n\nADR-0095: the dialog always carries the passive line the confirmation records: as the body when there is nothing to free,\nelse as a second paragraph under the cost.\n\nPresentational: props → JSX, no data, no mutation, no effect of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -185,7 +185,7 @@
                             ],
                             "required": true,
                             "defaultValue": null,
-                            "description": "What the body says. `frees`: going public frees a private slot (`recipeMakePublicConsequence`), said first, then the\npassive line as a second paragraph. `confirm`: there is nothing to free, so the passive line itself is the body. The\ndialog always opens, because the line is what the cook confirms (ADR-0092).",
+                            "description": "What the body says. `frees`: going public frees a private slot (`recipeMakePublicConsequence`), said first, then the\npassive line as a second paragraph. `confirm`: there is nothing to free, so the passive line itself is the body. The\ndialog always opens, because the line is what the cook confirms (ADR-0095).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
                         },
                         {
@@ -410,7 +410,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/actions/SourceStatementSheet.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes/actions — `SourceStatementSheet` (web): \"Where is this recipe from?\", asked before a\npasted recipe goes public (ADR-0092). A centred dialog (a bottom sheet on a narrow screen) on the design-system `Sheet`,\nwith the answers as a `RadioList`, the one field the chosen answer reveals, and a pinned footer saying what the answer does\nbefore the cook confirms.\n\nClose, Escape and the scrim all mean the dismiss (Keep as draft, or Cancel): nothing is sent. While the change is in flight\n(the recipe page) none of them does, and the list and the dismiss are disabled. The confirm is drawn as unavailable, and\nstays focusable, until an answer is chosen.\n\nPresentational: props in, markup out. What it draws is `sheetViewOf`'s, shared with the native leaf\n(`./SourceStatementSheet.native.tsx`); the state is `useStatementSheet`'s.",
+                    "moduleDoc": "@commise/features-recipes/actions — `SourceStatementSheet` (web): \"Where is this recipe from?\", asked before a\npasted recipe goes public (ADR-0095). A centred dialog (a bottom sheet on a narrow screen) on the design-system `Sheet`,\nwith the answers as a `RadioList`, the one field the chosen answer reveals, and a pinned footer saying what the answer does\nbefore the cook confirms.\n\nClose, Escape and the scrim all mean the dismiss (Keep as draft, or Cancel): nothing is sent. While the change is in flight\n(the recipe page) none of them does, and the list and the dismiss are disabled. The confirm is drawn as unavailable, and\nstays focusable, until an answer is chosen.\n\nPresentational: props in, markup out. What it draws is `sheetViewOf`'s, shared with the native leaf\n(`./SourceStatementSheet.native.tsx`); the state is `useStatementSheet`'s.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -9007,7 +9007,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "\"Where is this recipe from?\", asked before a recipe that owes a statement goes public (ADR-0092).",
+                            "description": "\"Where is this recipe from?\", asked before a recipe that owes a statement goes public (ADR-0095).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx"
                         },
                         {
@@ -23597,7 +23597,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Whether a recorded source holds the recipe out of Public (ADR-0092): Public is refused with the held note.",
+                            "description": "Whether a recorded source holds the recipe out of Public (ADR-0095): Public is refused with the held note.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -23733,7 +23733,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Whether a recorded source holds the recipe out of Public (ADR-0092): Public is refused with the held note.",
+                            "description": "Whether a recorded source holds the recipe out of Public (ADR-0095): Public is refused with the held note.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {

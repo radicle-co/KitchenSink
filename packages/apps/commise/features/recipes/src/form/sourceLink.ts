@@ -118,7 +118,7 @@ export function draftPrivateRule(
 }
 
 /**
- * Whether a recorded source holds the recipe out of Public although the draft states none (ADR-0092): the server says so
+ * Whether a recorded source holds the recipe out of Public although the draft states none (ADR-0095): the server says so
  * (`publicNeedsCheck`), or it stores a web or book source the cook has since taken off the draft. A source the server
  * recorded stays on record, so taking it off does not give Public back; the draft's own link is `draftPrivateRule`'s.
  *

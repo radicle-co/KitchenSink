@@ -158,7 +158,7 @@ export const recipeSourceKindViewSchema = z.preprocess(
 );
 
 /**
- * What the cook stated about a recipe, stored as `recipes.statement_kind` (ADR-0072 section 9, ADR-0092): `authored` is "I wrote
+ * What the cook stated about a recipe, stored as `recipes.statement_kind` (ADR-0072 section 9, ADR-0095): `authored` is "I wrote
  * this", `source` is any stated source (a web page, a book, a paid site; `source_kind` says which), and `fromPerson` is "from
  * another person" (no source kind: the recipe is the cook's own label and may not be public). `NULL` is no statement. The ONE
  * statement of the vocabulary: the database CHECK mirrors it.

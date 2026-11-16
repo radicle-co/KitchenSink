@@ -1,5 +1,5 @@
 /**
- * `useStatementSheet`: the sheet's state and its Confirm (ADR-0092). Confirm with no answer does nothing; with an unusable
+ * `useStatementSheet`: the sheet's state and its Confirm (ADR-0095). Confirm with no answer does nothing; with an unusable
  * field it marks the field and sends nothing; with a usable answer it hands the host exactly what `statementWriteOf` says.
  */
 import { RecipeVisibility } from '@kitchensink/recipe-core';

@@ -703,7 +703,7 @@ describe('RecipeDetailScreen — owner actions', () => {
     });
 
     /**
-     * REWRITTEN for ADR-0092: Make public always opens the confirm, which for a Pro cook carries only the passive
+     * REWRITTEN for ADR-0095: Make public always opens the confirm, which for a Pro cook carries only the passive
      * "anyone can see it" line, and the confirm sends the public confirmation with the write.
      */
     it('makes a granted owner’s private recipe public from the menu, after the confirm', () => {

@@ -1223,7 +1223,7 @@ describe('× asks before it leaves', () => {
 });
 
 /**
- * ADR-0092 (web): a paste into ANY field of the editor, by the keyboard or the context menu, marks the draft as pasted: the
+ * ADR-0095 (web): a paste into ANY field of the editor, by the keyboard or the context menu, marks the draft as pasted: the
  * cook's own words in a field they typed into are not, and a paste is not asked about where it landed.
  */
 describe('a paste into the page', () => {

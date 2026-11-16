@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the web `SourceStatementSheet` (ADR-0092): "where is this recipe from?", asked before a pasted recipe
+ * Component tests for the web `SourceStatementSheet` (ADR-0095): "where is this recipe from?", asked before a pasted recipe
  * goes public. Written from the spec's state table: choosing, answered (each answer), the revealed field, the field error,
  * busy, error, and every dismiss route. The sheet is a pure render of its state, so each case hands it a state.
  *

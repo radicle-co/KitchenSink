@@ -48,7 +48,7 @@ export interface ShownWordings {
     /** The wording shown beside a pasted web link. */
     readonly statementWording?: PublicWebWording;
     /**
-     * The statement the cook gave in the source-statement sheet (ADR-0092), with the wording it showed. It beats the Source
+     * The statement the cook gave in the source-statement sheet (ADR-0095), with the wording it showed. It beats the Source
      * field's own, and rides only a write that publishes: a draft checkpoint carries none, so a statement is stated and
      * recorded once and a server that holds "I wrote this" is never owed its confirmation by a second one.
      */
@@ -126,7 +126,7 @@ export const toCreateRecipeInput = (
     visibility: values.visibility,
     ...(status === undefined ? {} : { status }),
     ...publicConfirmationOf(values, status, shown.publicConfirmation),
-    // ADR-0092: the client's word that content was pasted, never `false`: an absent key is "nothing seen".
+    // ADR-0095: the client's word that content was pasted, never `false`: an absent key is "nothing seen".
     ...(values.pasted === true ? { contentPasted: true as const } : {}),
     // The sheet's answer when it rides this write, else (ADR-0089) the link the cook pasted, when it parses. Never the raw
     // text, and never the curator's `source`.

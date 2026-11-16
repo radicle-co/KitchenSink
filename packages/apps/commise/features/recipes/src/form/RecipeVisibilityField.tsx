@@ -125,7 +125,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                 })}
             </div>
             {confirmLine === undefined ? null : (
-                // ADR-0092: said before the cook chooses Public (WCAG 3.2.2); it describes the Public radio.
+                // ADR-0095: said before the cook chooses Public (WCAG 3.2.2); it describes the Public radio.
                 <p id={confirmLineId} className="text-meta text-ink-muted">
                     {confirmLine}
                 </p>

@@ -226,7 +226,7 @@ describe('evaluateSourceCorrection — "I wrote this" (Option B)', () => {
         });
     });
 
-    // Rewritten by ADR-0092: it used to say `apply`, which wrote the same columns again and recorded a second attestation for
+    // Rewritten by ADR-0095: it used to say `apply`, which wrote the same columns again and recorded a second attestation for
     // an act that changed nothing. The record is built from what a write did, so saying it again is `unchanged` in the window too.
     it('before the first publish, says it again: nothing to write, so it is `unchanged`', () => {
         expect(evaluateSourceCorrection({ statement: AUTHORED, stored: AUTHORED_STORED })).toEqual({
@@ -421,7 +421,7 @@ describe('evaluateSourceCorrection — a cookbook, or another person, before the
         ).toMatchObject({ kind: 'apply', makePrivate: false });
     });
 
-    // Rewritten by ADR-0092: after the first publish a recipe with NO statement takes any first statement; one that holds a
+    // Rewritten by ADR-0095: after the first publish a recipe with NO statement takes any first statement; one that holds a
     // statement keeps it locked.
     it.each([BOOK, FROM_PERSON])('after the first publish, changes a held statement: locked (%j)', (statement) => {
         expect(

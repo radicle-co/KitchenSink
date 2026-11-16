@@ -1,5 +1,5 @@
 /**
- * @module @commise/features-recipes/editor — what the editor does about the source question (ADR-0092), derived once.
+ * @module @commise/features-recipes/editor — what the editor does about the source question (ADR-0095), derived once.
  *
  * Exactly one of two things covers a Publish that ends public: the source-statement sheet, when the recipe must say where it
  * is from, or the passive line under the Public card, when it need not. Both the Publish gate and the visibility field read

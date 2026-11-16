@@ -1362,7 +1362,7 @@ describe('visibilityFieldOf', () => {
     const privateCard = (model: ReturnType<typeof visibilityFieldOf>) => model.options[1];
     const publicCard = (model: ReturnType<typeof visibilityFieldOf>) => model.options[0];
 
-    describe('a recorded source holds Public out (ADR-0092)', () => {
+    describe('a recorded source holds Public out (ADR-0095)', () => {
         it('refuses Public with the held note, shows Private, and says the note only in this case', () => {
             const model = visibilityFieldOf({ ...base, facts: slots(OPEN), publicHeld: true });
 

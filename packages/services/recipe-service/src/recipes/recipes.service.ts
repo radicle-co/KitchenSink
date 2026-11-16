@@ -632,7 +632,7 @@ export class RecipesService {
         // Plan 2026-10-15-010 D8 — the read model a write's byline is resolved from. Required like the others.
         // ⚠️ Token-injected with a VALUE import: the `Pick` type emits `Object` into design:paramtypes.
         @Inject(AuthorHandlesDal) private readonly authorHandles: Pick<AuthorHandlesDal, 'findByline'>,
-        // The ONE gate every write that can leave a recipe public is judged and recorded through (ADR-0092): it owns the
+        // The ONE gate every write that can leave a recipe public is judged and recorded through (ADR-0095): it owns the
         // append-only evidence and attestation tables. Value import: the `Pick` type emits `Object` into design:paramtypes.
         @Inject(PublicStatementGate) private readonly gate: PublicStatementGate,
     ) {}

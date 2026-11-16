@@ -393,7 +393,7 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
 
         // The database's own statement rule (migration 0087), not a copy of it, like the evidence rule beside it.
         expect(flip?.text).toMatch(/and not recipe_needs_statement\(id\)/i);
-        // …and "from another person" (migration 0087, ADR-0092): a donation would publish a recipe the cook said is not theirs.
+        // …and "from another person" (migration 0087, ADR-0095): a donation would publish a recipe the cook said is not theirs.
         expect(flip?.text).toMatch(/and not recipe_is_from_person\(id\)/i);
         expect(flip?.text).toMatch(/and not recipe_holds_third_party_source\(id\)/i);
         // …and it adds no parameter: the election, the owner and the private-only keys are still the whole list.

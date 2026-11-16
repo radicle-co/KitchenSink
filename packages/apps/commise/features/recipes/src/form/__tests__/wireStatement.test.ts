@@ -1,5 +1,5 @@
 /**
- * What the source-statement sheet puts on the wire (ADR-0092): the cook's answer, the paste fact and the Public confirmation.
+ * What the source-statement sheet puts on the wire (ADR-0095): the cook's answer, the paste fact and the Public confirmation.
  * The bodies are parsed through the published request schemas, so a body the server would refuse fails here.
  *
  * The rows a mutant must not survive:

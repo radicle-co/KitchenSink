@@ -1,5 +1,5 @@
 /**
- * @module @commise/features-recipes/actions — the source-statement sheet's pure core (ADR-0092): WHEN the cook is asked where a
+ * @module @commise/features-recipes/actions — the source-statement sheet's pure core (ADR-0095): WHEN the cook is asked where a
  * recipe is from, which answers a surface offers, WHAT each answer writes, and the sheet's own state.
  *
  * One authority for each: the ask is `recipe-core`'s `statementRequiredOf` (the rule the server judges the write by), the

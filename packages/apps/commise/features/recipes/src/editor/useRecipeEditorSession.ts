@@ -304,7 +304,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         recipe: seed.recipe,
         refused: editor.refusedFields.has('source'),
     });
-    // ADR-0092: a paste joined the draft, so Publish must ask where the recipe is from. The mark is the client's word that
+    // ADR-0095: a paste joined the draft, so Publish must ask where the recipe is from. The mark is the client's word that
     // content was pasted, and it is set where the paste lands, not where it was offered.
     const { setField } = editor;
     const pasteDispatch = useCallback(

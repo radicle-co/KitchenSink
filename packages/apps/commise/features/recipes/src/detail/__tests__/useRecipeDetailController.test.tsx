@@ -304,7 +304,7 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
         },
     );
 
-    // REWRITTEN for ADR-0092: Make public used to go straight through when there was nothing to free. It now always opens a
+    // REWRITTEN for ADR-0095: Make public used to go straight through when there was nothing to free. It now always opens a
     // dialog, because the passive line the confirmation records must be on screen when the cook confirms. The dialog's body
     // is the line itself (`confirm`), and the write carries the confirmation.
     it('Pro (nothing to free) still asks first: the dialog says the passive line, and confirming sends it', async () => {
@@ -650,10 +650,10 @@ describe('useRecipeDetailController — Make public refused for a private food (
 });
 
 /**
- * ADR-0092: Make public on a recipe that owes a statement asks where it is from, in a sheet; a held recipe offers no Make
+ * ADR-0095: Make public on a recipe that owes a statement asks where it is from, in a sheet; a held recipe offers no Make
  * public at all; offline is a reason, not a dead row; and each reason a `400 INVALID_VISIBILITY` names is answered once.
  */
-describe('useRecipeDetailController — where the recipe is from (ADR-0092)', () => {
+describe('useRecipeDetailController — where the recipe is from (ADR-0095)', () => {
     const owner = {
         sessionClaims: { external_id: OWNER },
         profile: settledProfile(OWNER, 'upsell'),

@@ -1,6 +1,6 @@
 /**
  * @module @commise/features-recipes/actions — what the source-statement sheet draws, decided once for both platform leaves
- * (ADR-0092): its answers with their words, the field the chosen answer reveals and its error, the confirm and dismiss labels,
+ * (ADR-0095): its answers with their words, the field the chosen answer reveals and its error, the confirm and dismiss labels,
  * and whether the confirm can be pressed.
  *
  * Pure and platform-agnostic: the web and native leaves render this and hold no decision of their own, so they cannot differ

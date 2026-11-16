@@ -41,7 +41,7 @@ export interface RecipeMakePublicDialogProps {
     /**
      * What the body says. `frees`: going public frees a private slot (`recipeMakePublicConsequence`), said first, then the
      * passive line as a second paragraph. `confirm`: there is nothing to free, so the passive line itself is the body. The
-     * dialog always opens, because the line is what the cook confirms (ADR-0092).
+     * dialog always opens, because the line is what the cook confirms (ADR-0095).
      */
     readonly consequence: 'frees' | 'confirm';
     /** The change is in flight: the confirm spins and cannot fire again. */

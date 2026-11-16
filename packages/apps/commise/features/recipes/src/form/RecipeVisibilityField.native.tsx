@@ -106,7 +106,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                 })}
             </View>
             {confirmLine === undefined ? null : (
-                // ADR-0092: said before the cook chooses Public.
+                // ADR-0095: said before the cook chooses Public.
                 <UiText typeRole="meta" color="$inkMuted">
                     {confirmLine}
                 </UiText>

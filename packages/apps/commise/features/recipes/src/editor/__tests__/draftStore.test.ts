@@ -140,7 +140,7 @@ describe('createDraftStore', () => {
     });
 
     /**
-     * ADR-0092: `pasted` is an OPTIONAL key and the format version does not move, so a v1 draft written before it still parses
+     * ADR-0095: `pasted` is an OPTIONAL key and the format version does not move, so a v1 draft written before it still parses
      * and one that has it keeps it. It is `true` or absent: a draft that says `false` is not one this app wrote.
      */
     it('round-trips a draft that was pasted into, and still parses a v1 draft without the key', async () => {

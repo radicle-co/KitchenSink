@@ -1,5 +1,5 @@
 /**
- * The editor's source-question state (ADR-0092): whether the sheet is open, and the answer the cook gave. A command reads it
+ * The editor's source-question state (ADR-0095): whether the sheet is open, and the answer the cook gave. A command reads it
  * when it runs, a render reads it live, so it is a store and not render state.
  */
 import { RecipeVisibility } from '@kitchensink/recipe-core';

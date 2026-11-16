@@ -141,7 +141,7 @@ describe('recipeWriteIntent — a create never carries a refused Private', () =>
 });
 
 /**
- * ADR-0092: what the screen showed (`shown`) rides only the write it was shown for. The sheet's statement and the passive
+ * ADR-0095: what the screen showed (`shown`) rides only the write it was shown for. The sheet's statement and the passive
  * line go out with a Publish, never with a draft save, on a create and on an update alike.
  */
 describe('recipeWriteIntent — what the screen showed', () => {

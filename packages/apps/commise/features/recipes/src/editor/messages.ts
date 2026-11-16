@@ -307,7 +307,7 @@ export interface EditorMessages {
         /** `{site}` is the Source that was kept. */
         readonly keptExisting: string;
         readonly remove: string;
-        /** Said politely when a source the server holds is taken off (ADR-0092). */
+        /** Said politely when a source the server holds is taken off (ADR-0095). */
         readonly removed: string;
         readonly locked: string;
         /** The paste note when the source is locked and a pasted link was left out. */
@@ -353,7 +353,7 @@ export interface EditorMessages {
         readonly publicRefusedWebSource: string;
         /**
          * Under the Public card of a recipe a recorded source holds out of Public, though the draft states none, and on the
-         * recipe page when the server holds it so (ADR-0092): the ONE key for both screens.
+         * recipe page when the server holds it so (ADR-0095): the ONE key for both screens.
          */
         readonly publicHeldBySource: string;
         /** A downgraded cook holds more private recipes than slots (`{count}`, `{total}` are the server's numbers). */

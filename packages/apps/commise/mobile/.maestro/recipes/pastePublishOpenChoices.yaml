@@ -68,7 +68,7 @@ appId: ${APP_ID}
 - assertVisible: 'Close editor'
 - assertVisible: 'Search for a food for 2 cups milk'
 
-# ADR-0092: the list was pasted, so after the open choices the cook is asked where the recipe is from. Keep as draft sends
+# ADR-0095: the list was pasted, so after the open choices the cook is asked where the recipe is from. Keep as draft sends
 # nothing, and the editor is still open.
 - runFlow:
       file: common/scrollIntoTapView.yaml

@@ -193,7 +193,7 @@ export interface RecipeFormValues {
      */
     readonly sourceLink?: string;
     /**
-     * A paste sheet or a paste into an editor field was used on this draft (ADR-0092 section 3): the client's word that content
+     * A paste sheet or a paste into an editor field was used on this draft (ADR-0095 section 3): the client's word that content
      * was pasted, sent as `contentPasted`. Never cleared, and absent for a draft that was typed. LAST, like `sourceLink`, because
      * the form's key order is read, and optional so every draft written before it still parses.
      */

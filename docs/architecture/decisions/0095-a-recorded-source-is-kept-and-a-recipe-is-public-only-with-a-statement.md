@@ -1,4 +1,4 @@
-# 0092: A recorded source is kept, and a recipe is public only with a statement the cook made
+# 0095: A recorded source is kept, and a recipe is public only with a statement the cook made
 
 - **Status:** Accepted
 - **Date:** 2026-11-15
@@ -8,6 +8,9 @@
   this". Spec 004 `004-FR-024` says "existing behaviour is unchanged". That is no longer true for publishing. The spec
   text is amended separately.
 - **Relates to:**
+  - [ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md): a copied recipe stays private
+    until its Commise-written version ships, and source evidence is locked and append-only (§8). The evidence here is
+    that record.
     - [ADR-0072](0072-bulk-recipe-import.md) §9: a recipe without a statement stays out of the library.
     - [ADR-0074](0074-content-source-check.md): the public hold. It is not built yet. It replaces one rule here.
     - [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md) §8: a missing input

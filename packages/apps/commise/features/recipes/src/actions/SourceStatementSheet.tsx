@@ -2,7 +2,7 @@
 
 /**
  * @module @commise/features-recipes/actions — `SourceStatementSheet` (web): "Where is this recipe from?", asked before a
- * pasted recipe goes public (ADR-0092). A centred dialog (a bottom sheet on a narrow screen) on the design-system `Sheet`,
+ * pasted recipe goes public (ADR-0095). A centred dialog (a bottom sheet on a narrow screen) on the design-system `Sheet`,
  * with the answers as a `RadioList`, the one field the chosen answer reveals, and a pinned footer saying what the answer does
  * before the cook confirms.
  *

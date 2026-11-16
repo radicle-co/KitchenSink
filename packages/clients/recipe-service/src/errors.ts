@@ -71,7 +71,7 @@ export function isBadRequestError(error: unknown): error is BadRequestError {
 }
 
 /**
- * `400 INVALID_VISIBILITY` (ADR-0092): the write would leave the recipe in a visibility the rules refuse. `reason` is the rule
+ * `400 INVALID_VISIBILITY` (ADR-0095): the write would leave the recipe in a visibility the rules refuse. `reason` is the rule
  * that refused (a statement is owed, a recorded source holds the recipe out of Public, or a client bug), `undefined` when the
  * server named none or one this client does not know. A {@link BadRequestError}, so every caller that knows only that class
  * (the outbox's terminal 400, the retry policy) treats it as before.

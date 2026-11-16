@@ -27,7 +27,7 @@ export async function readMarker(liveDir: string, folder: string): Promise<strin
     try {
         return parseMarker(await readFile(join(liveDir, folder, MARKER_PATH), 'utf8'));
     } catch (error) {
-        if ((error as { code?: unknown }).code === 'ENOENT') {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
             return null;
         }
 
@@ -79,7 +79,7 @@ export async function hashLive(
             await stat(join(liveDir, folder, path));
             present.push(path);
         } catch (error) {
-            if ((error as { code?: unknown }).code !== 'ENOENT') {
+            if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
                 throw error;
             }
         }

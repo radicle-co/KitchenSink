@@ -535,6 +535,7 @@ describe('LFS images', () => {
         expect(result.stderr).toContain(
             "git -c lfs.fetchexclude= lfs pull --include='docs/design/canvases/Home/project/assets/**'",
         );
+        expect(result.stderr).toContain('git said:');
         expect(await readdir(join(out, 'Home/project/assets')).catch(() => [])).toEqual([]);
     });
 });

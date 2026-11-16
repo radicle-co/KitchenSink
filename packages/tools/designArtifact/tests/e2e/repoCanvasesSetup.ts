@@ -41,7 +41,7 @@ async function ensureImages(folders: readonly string[]): Promise<void> {
     for (const folder of folders) {
         const dir = join(CANVASES_ABS_DIR, folder, 'project', CANVAS_ASSETS_DIR);
         const names = await readdir(dir).catch((error: unknown) => {
-            if ((error as { code?: unknown }).code === 'ENOENT') {
+            if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
                 return [];
             }
 

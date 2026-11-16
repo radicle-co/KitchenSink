@@ -272,6 +272,29 @@ describe('useIngredientsPaste — what it hands the field group', () => {
             });
             expect(new Date(nowOf() ?? '').getDate()).toBe(27);
         });
+
+        it('⛔ clears the midnight timer on unmount, so the clock is not read again', () => {
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+            vi.setSystemTime(new Date(2026, 9, 26, 23, 59, 0));
+            const clock = vi.fn(() => new Date());
+            const { unmount } = render(
+                { quota: { resetsAt: '2026-10-28T08:00:00.000Z' } },
+                2,
+                false,
+                createHold(),
+                {},
+                clock,
+            );
+            const readsWhileMounted = clock.mock.calls.length;
+
+            unmount();
+            act(() => {
+                vi.advanceTimersByTime(2 * 60_000);
+            });
+
+            expect(vi.getTimerCount()).toBe(0);
+            expect(clock).toHaveBeenCalledTimes(readsWhileMounted);
+        });
     });
 
     it('offline with lines on the list shows the offline notice naming where the draft is kept', () => {

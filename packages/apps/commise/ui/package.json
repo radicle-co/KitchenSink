@@ -29,6 +29,7 @@
             "import": "./dist/tokens/*.js",
             "default": "./dist/tokens/*.js"
         },
+        "./touch-target": "./src/touchTarget/touchTargetClass.ts",
         "./action-menu": "./src/actionMenu/index.ts",
         "./back-intercept": "./src/backIntercept/index.ts",
         "./testing/hardware-back": "./src/testing/hardwareBack.native.ts",

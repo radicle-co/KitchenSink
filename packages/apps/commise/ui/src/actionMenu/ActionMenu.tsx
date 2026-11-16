@@ -37,13 +37,14 @@ import { PopupInsetsContext, type PopupInsets } from '../popupInsets/popupInsets
 import { actionNamed, type ActionMenuItem, type ActionMenuProps, type ActionMenuSnapshot } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { TOUCH_TARGET_CLASS } from '../touchTarget/touchTargetClass.js';
 import { surfaceToneClass, PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
 
 /** The space the menu keeps from the viewport's edge, and from the page's chrome. */
 const EDGE = 8;
 
 /** The bare ⋯ of a row: 44 px, with a hover wash. */
-const PLAIN_TRIGGER_CLASS = `inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`;
+const PLAIN_TRIGGER_CLASS = `inline-flex ${TOUCH_TARGET_CLASS.fixed} shrink-0 items-center justify-center rounded-full text-ink transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`;
 
 /** An item: a 44 px row, highlighted in `pearl`. */
 const ITEM = `flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body outline-none ${PRESS_FILL_CLASS.highlighted} data-[disabled]:cursor-default data-[disabled]:opacity-60`;

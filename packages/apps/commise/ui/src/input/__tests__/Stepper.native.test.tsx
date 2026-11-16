@@ -127,10 +127,8 @@ describe('Stepper (native)', () => {
         }
     });
 
-    // The same widths as the web Stepper: the row's gap is spacing 2 (8), the count's minimum width is 24, and the buttons
-    // keep the touch floor. The count sets no fixed width and no cap of any size, which is the width defect: jsdom reads
-    // the inline style, so this catches one. That the count widens for a three-digit number is proven by the native
-    // shots at the largest text, not here.
+    // Pins the row's 8 gap and the count's 24 minimum width, as inline styles that jsdom reads. It does not check the
+    // three-digit widening.
     it('keeps its row narrow enough for 320 at the largest text: an 8 gap and a 24 minimum count width', () => {
         render(<Servings />);
 

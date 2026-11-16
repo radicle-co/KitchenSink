@@ -58,7 +58,7 @@ describe('ActionMenu (web)', () => {
 
         expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
         expect(trigger.getAttribute('aria-expanded')).toBe('false');
-        expect(trigger.className).toContain('h-11');
+        expect(trigger.className).toContain('size-[44px]');
     });
 
     it.each(['{Enter}', ' ', '{ArrowDown}'])(
@@ -392,7 +392,7 @@ describe('ActionMenu (web) — the overhaul contract', () => {
         it('is the plain ⋯ by default', () => {
             const classes = renderAppearance().className.split(' ');
 
-            expect(classes).toContain('h-11');
+            expect(classes).toContain('size-[44px]');
             expect(classes).not.toContain('bg-photo-chip');
         });
 

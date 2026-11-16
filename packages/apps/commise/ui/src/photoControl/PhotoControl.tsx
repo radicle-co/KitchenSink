@@ -10,16 +10,11 @@ import type { FC } from 'react';
 
 import { Icon } from '../icon/Icon.js';
 import type { PhotoControlProps } from './props.js';
-import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { HERO_DISC_CLASS } from '../heroButton/HeroButton.js';
 
 /** The web control over a photo. */
 export const PhotoControl: FC<PhotoControlProps> = ({ icon, label, onPress }) => (
-    <button
-        type="button"
-        aria-label={label}
-        onClick={onPress}
-        className={`inline-flex size-11 items-center justify-center rounded-full bg-photo-chip text-ink shadow-sm ${FOCUS_RING_CLASS.floating} `}
-    >
+    <button type="button" aria-label={label} onClick={onPress} className={HERO_DISC_CLASS}>
         <Icon name={icon} size={24} tone="ink" />
     </button>
 );

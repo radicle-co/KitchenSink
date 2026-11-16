@@ -12,22 +12,15 @@
 import path from 'node:path';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
+import { laneCosts } from '@kitchensink/e2e-plan/laneCosts';
 import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
 import { createLocalAndroidHost, type AndroidHost } from './androidHost.js';
 import { ANDROID_LANE_SERIALS } from './androidSerials.js';
 import type { CommandPort, DeviceAdapter, LaneSpec, RunContext } from './laneTypes.js';
 
-const GIB = 1024 ** 3;
-
-/**
- * What one Android lane costs the host at its PEAK, measured, as ADR-0088 §2 states: an x86_64 API 34 emulator under
- * `swiftshader_indirect` plus its runner and Maestro JVMs. On 2026-11-07 four lanes averaged 2.7 CPUs each, yet load
- * peaked at 58.5 on the 20-CPU host and 9 of 70 flows ran out of their scroll budgets. One lane alone held the host at
- * load p95 4.9, max 5.7, so a lane costs 5.5 CPUs. At that cost the host planned 3 lanes, and 69 of 70 flows passed.
- * Memory: 4.9-5.5 GiB peak per lane.
- */
-export const ANDROID_LANE_COST: LaneCost = { cpus: 5.5, memBytes: 5.5 * GIB };
+/** What one Android lane costs the host at its peak; the measurement is recorded beside the figure in `laneCosts.ts`. */
+export const ANDROID_LANE_COST: LaneCost = laneCosts.android;
 
 const BOOT_POLL_MS = 2_000;
 

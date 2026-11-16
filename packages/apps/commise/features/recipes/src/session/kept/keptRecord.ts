@@ -11,6 +11,8 @@ export const KEPT_RECORD_VERSION = 1;
 export const KEPT_KEY_PREFIX = 'cook.v2.';
 
 /**
+ * The storage key of one cook's record.
+ *
  * @param clerkUserId - The signed-in cook's id.
  * @returns The storage key of that cook's record (ADR 0004 condition 3).
  */
@@ -46,20 +48,33 @@ const cookingEntrySchema = z.strictObject({
 
 const keptEntrySchema = z.discriminatedUnion('kind', [pageEntrySchema, cookingEntrySchema]);
 
-/** No label field: a strict object refuses one (R8a). */
-const keptTimerSchema = z.strictObject({
+const timerBase = {
     id: z.uuid({ version: 'v7' }),
     recipeId: z.string().min(1),
     stepIndex: z.int().nonnegative(),
     stepDigest: z.string().min(1),
-    state: z.enum(['running', 'paused', 'ringing', 'endedAway']),
-    endsAt: isoInstant.optional(),
-    remainingMs: z.number().nonnegative().optional(),
-    endedAt: isoInstant.optional(),
-    pausedAt: isoInstant.optional(),
-    announcedAt: isoInstant.optional(),
     ordinal: z.int().positive().optional(),
-});
+};
+
+/** `ringing` and `endedAway` both carry when the timer was due and when it ended. */
+const endedShape = { ...timerBase, endsAt: isoInstant, endedAt: isoInstant };
+
+/**
+ * A timer is a union on `state`, each state with exactly the instants it needs, so a running timer with no end cannot
+ * be written. No label field: a strict object refuses one (R8a).
+ */
+const keptTimerSchema = z.discriminatedUnion('state', [
+    z.strictObject({ ...timerBase, state: z.literal('running'), endsAt: isoInstant }),
+    z.strictObject({
+        ...timerBase,
+        state: z.literal('paused'),
+        remainingMs: z.number().nonnegative(),
+        pausedAt: isoInstant,
+    }),
+    z.strictObject({ ...endedShape, state: z.literal('ringing') }),
+    /** `announcedAt` is S4b's, written only for the ended-away announcement (plan 0004 KTD7). */
+    z.strictObject({ ...endedShape, state: z.literal('endedAway'), announcedAt: isoInstant.optional() }),
+]);
 
 /** Timers are parsed one by one afterwards, so one bad timer does not cost every session. */
 const keptDocumentSchema = z.strictObject({
@@ -74,6 +89,9 @@ export type LineTickRef = z.infer<typeof lineTickSchema>;
 export type KeptEntry = z.infer<typeof keptEntrySchema>;
 export type KeptTimer = z.infer<typeof keptTimerSchema>;
 export type KeptTimerState = KeptTimer['state'];
+export type CookingEntry = Extract<KeptEntry, { kind: 'cooking' }>;
+export type PausedTimer = Extract<KeptTimer, { state: 'paused' }>;
+export type RunningTimer = Extract<KeptTimer, { state: 'running' }>;
 
 export interface KeptDocument {
     readonly v: 1;
@@ -99,6 +117,8 @@ function readableId(raw: unknown): string | undefined {
 }
 
 /**
+ * Reads the stored record.
+ *
  * @param raw - The stored string, or null when the key is absent.
  * @returns `absent`; `invalid` for unparseable JSON or a document that fails the schema; else the document with every
  * bad timer dropped and a duplicate id kept once (the first), and the dropped ids listed so the store can report once.
@@ -145,6 +165,8 @@ export function parseKeptDocument(raw: string | null): ParsedKept {
 }
 
 /**
+ * Writes a document to the string the store saves.
+ *
  * @param doc - A document.
  * @returns The string the store writes.
  */

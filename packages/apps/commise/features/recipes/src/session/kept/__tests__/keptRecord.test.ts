@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { KEPT_RECORD_VERSION, keptKeyFor, parseKeptDocument, serializeKeptDocument } from '../keptRecord.js';
 
-import { iso, makeCooking, makeDoc, makePage, makeTimer, T0, timerId } from './keptFixtures.js';
+import { iso, makeCooking, makeDoc, makeEnded, makePage, makePaused, makeTimer, T0, timerId } from './keptFixtures.js';
 
 describe('keptKeyFor', () => {
     it('is the per-user key of ADR 0004 condition 3', () => {
@@ -48,7 +48,9 @@ describe('parseKeptDocument', () => {
             [makeTimer()],
             [
                 makeTimer({ ordinal: 1 }),
-                makeTimer({ id: timerId(2), state: 'endedAway', endedAt: iso(T0), announcedAt: iso(T0), ordinal: 3 }),
+                makePaused({ id: timerId(3) }),
+                makeEnded('ringing', { id: timerId(4) }),
+                makeEnded('endedAway', { id: timerId(2), announcedAt: iso(T0), ordinal: 3 }),
             ],
         ]) {
             const doc = makeDoc({ entries: { r1: makeCooking(), r2: makePage({ servings: 4 }) }, timers });
@@ -71,6 +73,28 @@ describe('parseKeptDocument', () => {
         const parsed = ok(JSON.stringify(makeDoc({ timers: [bad as never, good] })));
 
         expect(parsed.doc.timers).toEqual([good]);
+        expect(parsed.droppedTimerIds).toEqual([timerId(1)]);
+    });
+
+    it.each([
+        ['a running timer with no endsAt', { ...makeTimer(), endsAt: undefined }],
+        ['a paused timer with no remainingMs', { ...makePaused(), remainingMs: undefined }],
+        ['a paused timer with no pausedAt', { ...makePaused(), pausedAt: undefined }],
+        ['a paused timer that still has endsAt', { ...makePaused(), endsAt: iso(T0) }],
+        ['a running timer that carries pausedAt', { ...makeTimer(), pausedAt: iso(T0) }],
+        ['a ringing timer with no endedAt', { ...makeEnded('ringing'), endedAt: undefined }],
+        ['an endedAway timer with no endsAt', { ...makeEnded('endedAway'), endsAt: undefined }],
+        [
+            'a ringing timer with announcedAt (S4b writes it only on endedAway)',
+            { ...makeEnded('ringing'), announcedAt: iso(T0) },
+        ],
+        ['a timer of an unknown state', { ...makeTimer(), state: 'frozen' }],
+    ])('drops %s, beside one good timer', (_name, bad) => {
+        const good = makeTimer({ id: timerId(2) });
+        const parsed = ok(JSON.stringify(makeDoc({ entries: { r1: makeCooking() }, timers: [bad as never, good] })));
+
+        expect(parsed.doc.timers).toEqual([good]);
+        expect(parsed.doc.entries['r1']).toEqual(makeCooking());
         expect(parsed.droppedTimerIds).toEqual([timerId(1)]);
     });
 

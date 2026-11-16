@@ -9,7 +9,18 @@ import {
 } from '../keptCommands.js';
 import type { KeptDocument } from '../keptRecord.js';
 
-import { HOUR, iso, makeCooking, makeDoc, makePage, makeTimer, T0, timerId } from './keptFixtures.js';
+import {
+    HOUR,
+    iso,
+    makeCooking,
+    makeDoc,
+    makeEnded,
+    makePage,
+    makePaused,
+    makeTimer,
+    T0,
+    timerId,
+} from './keptFixtures.js';
 
 const NOW = iso(T0 + HOUR);
 const digestOf = (n: string): string => `s1:${n.padStart(8, '0')}`;
@@ -177,7 +188,7 @@ describe('session commands', () => {
 });
 
 describe('timer commands', () => {
-    const running = makeTimer({ state: 'running', endsAt: iso(T0 + 2 * HOUR) });
+    const running = makeTimer({ endsAt: iso(T0 + 2 * HOUR) });
     const doc = makeDoc({ timers: [running] });
 
     it('startTimer on an empty record adds the timer with ordinal 1', () => {
@@ -220,17 +231,16 @@ describe('timer commands', () => {
             run(doc, { type: 'pauseTimer', id: running.id, expect: { state: 'running', endsAt: running.endsAt } }),
         );
 
-        expect(paused.timers[0]).toMatchObject({ state: 'paused', remainingMs: HOUR, pausedAt: NOW });
-        expect(paused.timers[0]?.endsAt).toBeUndefined();
+        const { endsAt: _endsAt, ...kept } = running;
+
+        expect(paused.timers[0]).toEqual({ ...kept, state: 'paused', remainingMs: HOUR, pausedAt: NOW });
 
         const later = iso(T0 + 10 * HOUR);
         const resumed = applied(
             run(paused, { type: 'resumeTimer', id: running.id, expect: { state: 'paused' } }, later),
         );
 
-        expect(resumed.timers[0]).toMatchObject({ state: 'running', endsAt: iso(T0 + 11 * HOUR) });
-        expect(resumed.timers[0]?.pausedAt).toBeUndefined();
-        expect(resumed.timers[0]?.remainingMs).toBeUndefined();
+        expect(resumed.timers[0]).toEqual({ ...running, endsAt: iso(T0 + 11 * HOUR) });
     });
 
     it('drops a command whose expectation no longer holds, or that names an unknown id', () => {
@@ -260,8 +270,11 @@ describe('timer commands', () => {
 });
 
 describe('lowestFreeOrdinal (S6 R2, B2)', () => {
-    const held = (stepIndex: number, ordinal: number | undefined, state: 'running' | 'endedAway' = 'running') =>
-        makeTimer({ id: timerId(ordinal ?? 9), recipeId: 'r1', stepIndex, ordinal, state });
+    const held = (stepIndex: number, ordinal: number | undefined, ended = false) => {
+        const over = { id: timerId(ordinal ?? 9), recipeId: 'r1', stepIndex, ordinal };
+
+        return ended ? makeEnded('endedAway', over) : makeTimer(over);
+    };
 
     it('gives 2 when 1 and 3 are held on the step, and 1 on another step (mutant: from id order)', () => {
         const timers = [held(3, 1), held(3, 3)];
@@ -272,7 +285,7 @@ describe('lowestFreeOrdinal (S6 R2, B2)', () => {
     });
 
     it('counts a timer in any state, and reads a missing ordinal as 1 (B2)', () => {
-        expect(lowestFreeOrdinal([held(3, 1, 'endedAway'), held(3, 2)], 'r1', 3)).toBe(3);
+        expect(lowestFreeOrdinal([held(3, 1, true), held(3, 2)], 'r1', 3)).toBe(3);
         expect(lowestFreeOrdinal([held(3, undefined)], 'r1', 3)).toBe(2);
     });
 });
@@ -351,6 +364,7 @@ describe('End then Undo (KTD13, r3-undo)', () => {
     it('snapshotForEnd captures the entry and its timers, or nothing', () => {
         expect(snapshotForEnd(before, 'r1')).toEqual({ recipeId: 'r1', entry, timers: [timer] });
         expect(snapshotForEnd(before, 'nope')).toBeUndefined();
+        expect(snapshotForEnd(makeDoc({ entries: { r1: makePage() } }), 'r1')).toBeUndefined();
     });
 
     it('brings the entry and its timers back unchanged in one write', () => {
@@ -432,14 +446,7 @@ describe('prune (RT4)', () => {
                 stalePage: makePage({ lastTouch: old }),
             },
             timers: [
-                makeTimer({
-                    id: timerId(1),
-                    recipeId: 'ended',
-                    state: 'paused',
-                    endsAt: undefined,
-                    remainingMs: 1,
-                    pausedAt: old,
-                }),
+                makePaused({ id: timerId(1), recipeId: 'ended', remainingMs: 1, pausedAt: old }),
                 makeTimer({ id: timerId(2), recipeId: 'live', endsAt: iso(T0 + 5 * HOUR) }),
             ],
         });

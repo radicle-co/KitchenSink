@@ -1,4 +1,4 @@
-import type { KeptDocument, KeptEntry, KeptTimer } from '../keptRecord.js';
+import type { KeptDocument, KeptEntry, KeptTimer, PausedTimer, RunningTimer } from '../keptRecord.js';
 
 /** One base instant every case counts from. */
 export const T0 = Date.parse('2026-06-01T12:00:00.000Z');
@@ -25,16 +25,35 @@ export const makePage = (over: Partial<Extract<KeptEntry, { kind: 'page' }>> = {
     ...over,
 });
 
-export const makeTimer = (over: Partial<KeptTimer> = {}): KeptTimer => ({
-    id: timerId(1),
-    recipeId: 'r1',
-    stepIndex: 3,
-    stepDigest: 's1:0000000d',
+const timerBase = { id: timerId(1), recipeId: 'r1', stepIndex: 3, stepDigest: 's1:0000000d', ordinal: 1 };
+
+type Over<T> = Partial<Omit<T, 'state'>>;
+
+export const makeTimer = (over: Over<RunningTimer> = {}): RunningTimer => ({
+    ...timerBase,
     state: 'running',
     endsAt: iso(T0 + HOUR),
-    ordinal: 1,
     ...over,
 });
+
+export const makePaused = (over: Over<PausedTimer> = {}): PausedTimer => ({
+    ...timerBase,
+    state: 'paused',
+    remainingMs: HOUR,
+    pausedAt: iso(T0),
+    ...over,
+});
+
+export const makeEnded = (
+    state: 'ringing' | 'endedAway',
+    { announcedAt, ...over }: Over<RunningTimer> & { readonly endedAt?: string; readonly announcedAt?: string } = {},
+): KeptTimer => {
+    const base = { ...timerBase, endsAt: iso(T0), endedAt: iso(T0), ...over };
+
+    return state === 'ringing'
+        ? { ...base, state }
+        : { ...base, state, ...(announcedAt === undefined ? {} : { announcedAt }) };
+};
 
 export const makeDoc = (over: Partial<KeptDocument> = {}): KeptDocument => ({
     v: 1,

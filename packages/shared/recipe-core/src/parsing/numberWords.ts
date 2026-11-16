@@ -111,3 +111,56 @@ export const FRACTION_WORD_DENOMINATORS: ReadonlyMap<string, number> = new Map([
  * `"a sprig"` 10, `"a stalk"` 2). Nothing speculative belongs here; add a word only with a count.
  */
 export const INDEFINITE_QUALIFIERS: ReadonlySet<string> = new Set(['little', 'few']);
+
+/** Tens a unit word may follow to form a compound number (`"forty-five"` = 45). */
+const TENS_VALUES: ReadonlySet<number> = new Set([20, 30, 40, 50, 60, 70, 80, 90]);
+
+/** `a` and `an`, which state a count of one and are never the unit half of a compound. */
+const INDEFINITE_ARTICLES: ReadonlySet<string> = new Set(['a', 'an']);
+
+/**
+ * Reads a whole-number word at `index`, compounds included (`"forty-five"`), as a plain integer.
+ *
+ * `a`/`an` read as one unless a qualifier follows (`"a little"`, `"a few"`), and they are excluded from the unit half of
+ * a compound, so `"twenty a"` reads as 20. Matching is case-insensitive. Whole numbers are exact as numbers, so no
+ * fraction type is needed here. Pure.
+ *
+ * @param words - The words of a line, one per entry, with no punctuation.
+ * @param index - Where to read.
+ * @returns The value and the index of the first word not used, or `undefined` when no number word is at `index`.
+ */
+export function readNumberWords(
+    words: readonly string[],
+    index: number,
+): { readonly value: number; readonly next: number } | undefined {
+    const word = words[index]?.toLowerCase();
+    const base = word === undefined ? undefined : WHOLE_NUMBER_WORDS.get(word);
+
+    if (word === undefined || base === undefined) {
+        return undefined;
+    }
+
+    if (INDEFINITE_ARTICLES.has(word)) {
+        const following = words[index + 1]?.toLowerCase();
+
+        return following !== undefined && INDEFINITE_QUALIFIERS.has(following)
+            ? undefined
+            : { value: base, next: index + 1 };
+    }
+
+    const nextWord = words[index + 1]?.toLowerCase();
+    const nextValue = nextWord === undefined ? undefined : WHOLE_NUMBER_WORDS.get(nextWord);
+
+    if (
+        TENS_VALUES.has(base) &&
+        nextWord !== undefined &&
+        nextValue !== undefined &&
+        nextValue >= 1 &&
+        nextValue <= 9 &&
+        !INDEFINITE_ARTICLES.has(nextWord)
+    ) {
+        return { value: base + nextValue, next: index + 2 };
+    }
+
+    return { value: base, next: index + 1 };
+}

@@ -14,7 +14,7 @@ export default defineConfig({
     ...baseConfig,
     test: {
         ...baseConfig.test,
-        include: ['tests/e2e/renderRepoCanvases.e2e.test.ts'],
+        include: ['tests/e2e/renderRepoCanvases.e2e.test.ts', 'tests/e2e/googleFontsRouting.e2e.test.ts'],
         globalSetup: ['tests/e2e/repoCanvasesSetup.ts'],
         testTimeout: 60_000,
         hookTimeout: 120_000,

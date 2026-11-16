@@ -1,8 +1,11 @@
 /**
  * @module pageProblems — opens a page that records everything a user of a canvas would call broken: an uncaught page
- * error, a `console.error`, a failed request, an HTTP status of 400 or more.
+ * error, a `console.error`, a failed request, an HTTP status of 400 or more. Google Fonts requests are answered from
+ * local files (`localGoogleFonts.ts`), so the page never needs the network and one that cannot be served is a problem.
  */
 import type { Browser, Page } from 'playwright-core';
+
+import { routeGoogleFonts } from './localGoogleFonts.js';
 
 /** A page and the problems it has recorded so far (the array grows as the page runs). */
 export interface RecordedPage {
@@ -27,6 +30,8 @@ export async function openRecordedPage(
     height: number,
 ): Promise<RecordedPage> {
     const context = await browser.newContext({ viewport: { width, height }, colorScheme: theme });
+    await routeGoogleFonts(context);
+
     const page = await context.newPage();
     const problems: string[] = [];
 

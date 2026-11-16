@@ -61,6 +61,7 @@ import {
     ImportItemAlreadySavedError,
     ImportItemLockedError,
     ImportQuotaExceededError,
+    InvalidVisibilityError,
     PrivateSlotsFullError,
     ParseJobExpiredError,
     VersionLineUnrestorableError,
@@ -143,6 +144,7 @@ import {
     rebindIngredientLineRequestSchema,
     restoreVersionResponseSchema,
     setRatingRequestSchema,
+    invalidVisibilityReasonSchema,
     setRecipeVisibilityRequestSchema,
     updateCollectionRequestSchema,
     updateRecipeRequestSchema,
@@ -1771,8 +1773,13 @@ export class RecipeServiceClient {
                 return new PrivateFoodsOnPublicRecipeError(body.details.lines, body.message);
             case 'PUBLISH_REQUIREMENTS_UNMET':
                 return new PublishRequirementsUnmetError(body.details.missing, body.message);
-            case 'VALIDATION_FAILED':
+            // The reason is parsed, not cast: a reason this client does not know reads as none, never as a throw.
             case 'INVALID_VISIBILITY':
+                return new InvalidVisibilityError(
+                    body.message,
+                    invalidVisibilityReasonSchema.safeParse(body.details?.reason).data,
+                );
+            case 'VALIDATION_FAILED':
             case 'COLLECTION_NOT_CLONED':
             case 'UNKNOWN_INGREDIENT':
                 return new BadRequestError(body.message, body.code);

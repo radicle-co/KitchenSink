@@ -234,7 +234,7 @@
 #   **1** naming the file. It is a no-op on the current tree (exit 0), and it is on BOTH invocations.
 #
 # SCOPED TO `.github/` DELIBERATELY, not the repo root. A root-scoped run also audits the vendored
-# third-party workflows under `.specify/extensions/**` (36 extra findings in code we do not own and
+# third-party workflows under `.specify/extensions/**` (findings in code we do not own and
 # cannot fix), which is noise that would bury our own findings.
 #
 # ⚠️ WHAT PROVES THIS STEP DID ITS JOB — read before changing the run block. In `--format sarif` zizmor

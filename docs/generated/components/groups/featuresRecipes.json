@@ -395,8 +395,7 @@
             "kind": "presentational",
             "patterns": [
                 "Adapter over the design-system `Sheet` — the ask's words and its one dismiss path on the house sheet",
-                "Adapter over the design-system `Sheet` — the platform expression of the web leaf",
-                "Adapter over the field reveal host — the one ref is the field's native node, which the host measures to keep the\n    field and its message above the pinned footer (a native node has no declarative form)"
+                "Adapter over the design-system `Sheet` — the platform expression of the web leaf"
             ],
             "platforms": [
                 "web",
@@ -506,10 +505,6 @@
                         {
                             "name": "pattern",
                             "text": "Adapter over the design-system `Sheet` — the platform expression of the web leaf"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Adapter over the field reveal host — the one ref is the field's native node, which the host measures to keep the\n    field and its message above the pinned footer (a native node has no declarative form)"
                         }
                     ],
                     "description": "The source-statement sheet.",
@@ -575,9 +570,7 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
                         }
                     ],
-                    "usesRefApi": [
-                        "useRef"
-                    ],
+                    "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,

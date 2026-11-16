@@ -14,7 +14,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { initialSheet, type StatementSheetState, type StatementSurface } from '../sourceStatement.js';
 import { SourceStatementSheet } from '../SourceStatementSheet.native.js';
-import { FieldRevealContext, type RevealRequest } from '@commise/ui/field-reveal';
 import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
@@ -227,35 +226,22 @@ describe('SourceStatementSheet (native) — dismiss', () => {
     });
 });
 
-// A focused field is held above the pinned footer, but its message sits under it: the request names the field and its message
-// as one span, so the message is never left under the footer (on a phone the footer takes a third of the sheet).
-describe('SourceStatementSheet (native) — the field and its message are revealed together', () => {
-    it('asks the scroller to show the field with its message: the focus request carries an end', () => {
-        const requests: RevealRequest[] = [];
+// On a phone the keyboard and the pinned footer leave the field's last line at the foot of a short scroll region, so a message
+// BELOW the field was not on screen (Android Maestro: "Add the book or magazine title." was not visible). The sheet has no
+// field reveal host to carry the message with the field, so the message is said between the label and the field.
+describe('SourceStatementSheet (native) — the field message is said above the field', () => {
+    it.each([
+        ['book', 'Book or magazine title', 'Add the book or magazine title.'],
+        ['publicWeb', 'Source', 'That isn’t a web link. Paste the page address, like https://example.com/recipe.'],
+    ] as const)(
+        'says the %s field error before the field, where the keyboard cannot hide it',
+        (answer, label, message) => {
+            renderSheet({ state: { answer, attempted: true } });
 
-        const reveal = (request: RevealRequest) => {
-            requests.push(request);
+            const error = screen.getByText(message);
+            const field = screen.getByLabelText(label);
 
-            return () => undefined;
-        };
-
-        render(
-            <FieldRevealContext.Provider value={reveal}>
-                <SourceStatementSheet
-                    open
-                    surface="editor"
-                    state={{ ...initialSheet(), answer: 'book', attempted: true }}
-                    dispatch={vi.fn()}
-                    onConfirm={vi.fn()}
-                    onDismiss={vi.fn()}
-                />
-            </FieldRevealContext.Provider>,
-        );
-        fireEvent.focus(screen.getByLabelText('Book or magazine title'));
-
-        const focus = requests.find((request) => request.kind === 'focus');
-
-        expect(focus).toBeDefined();
-        expect(focus?.kind === 'focus' && focus.end !== undefined).toBe(true);
-    });
+            expect(error.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        },
+    );
 });

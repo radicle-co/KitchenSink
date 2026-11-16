@@ -188,10 +188,6 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: "One node handle, the read row's open control (\"Edit {amount} {food}\"), for a host focus request: after a Remove the next row's open control takes focus, and after Done or a cancelled food search the row's own does (build spec §7.5.1, §7.5.2). `.focus()` on web and `moveScreenReaderFocus` on native have no declarative form; the request is a level the row view clears on acknowledgement. On native the same row also holds its node for `measureLayout`, which the field reveal host uses to put the row's top at the top of the visible area when a deep link names it (`useFieldStartReveal`).",
     },
-    'featuresRecipes/actions/SourceStatementSheet': {
-        verdict: 'sanctioned',
-        why: "One node handle, the revealed field with its message under it, for `measureLayout`: the field reveal host keeps a focused field in view above the sheet's pinned footer, and the message below the field is part of what must show (`useRevealEnd`, as the row editor does for its Done and Cancel). A native node's place has no declarative form, and the host reads it only when it measures.",
-    },
     'featuresRecipes/form/IngredientLineEditor': {
         verdict: 'sanctioned',
         why: "One node handle, the review notice that heads the row editor, for a host focus request: an arrival at a line under review lands on the notice, so a screen reader reads what is wrong first and no text field takes the keyboard. `.focus({ preventScroll: true })` has no declarative form, the page's own jump has already placed the row, and the request is the house level (`useFocusRequest`) the row view clears on acknowledgement.",

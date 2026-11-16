@@ -6,11 +6,11 @@
     "coverage": {
         "components": 94,
         "implementations": 152,
-        "props": 976,
+        "props": 980,
         "documentedComponents": 94,
         "implementationsWithModuleDoc": 152,
         "implementationsWithComponentDoc": 138,
-        "documentedProps": 879,
+        "documentedProps": 883,
         "classifiedComponents": 87,
         "componentsWithPatternTag": 94,
         "crossPlatformComponents": 58
@@ -3046,6 +3046,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
                         },
                         {
+                            "name": "note",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A second muted paragraph under the body, already localised, that the dialog is described by too. A caller whose second\nsentence is its own piece of copy passes it here rather than joining two localised sentences into one string.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
                             "name": "onConfirm",
                             "type": "() => void",
                             "typeDetail": null,
@@ -3171,6 +3180,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The safe action (\"Keep recipe\"); focus opens on it.",
+                            "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
+                        },
+                        {
+                            "name": "note",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A second muted paragraph under the body, already localised, that the dialog is described by too. A caller whose second\nsentence is its own piece of copy passes it here rather than joining two localised sentences into one string.",
                             "declaredIn": "packages/apps/commise/ui/src/confirmDialog/props.ts"
                         },
                         {
@@ -12036,6 +12054,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Every row is unavailable: it cannot be chosen, and a press reports nothing. The rows stay in the order and are still\nread, named and described. For a list whose host is busy with the choice it already made (a change in flight).",
+                            "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
+                        },
+                        {
                             "name": "label",
                             "type": "string",
                             "typeDetail": null,
@@ -12096,6 +12123,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Every row is unavailable: it cannot be chosen, and a press reports nothing. The rows stay in the order and are still\nread, named and described. For a list whose host is busy with the choice it already made (a change in flight).",
+                            "declaredIn": "packages/apps/commise/ui/src/radioList/props.ts"
+                        },
                         {
                             "name": "label",
                             "type": "string",

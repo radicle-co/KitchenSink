@@ -104,11 +104,15 @@ describe('recipe_statement_attestations (migration 0088)', () => {
         const { rows } = await pool.query<{ comment: string | null; triggers: string[] }>(
             `SELECT obj_description('recipe_statement_attestations'::regclass) AS comment,
                     ARRAY(SELECT tgname::text FROM pg_trigger
-                           WHERE NOT tgisinternal AND tgrelid = 'recipe_statement_attestations'::regclass) AS triggers`,
+                           WHERE NOT tgisinternal AND tgrelid = 'recipe_statement_attestations'::regclass
+                           ORDER BY tgname) AS triggers`,
         );
 
         expect(rows[0]?.comment).toBeTruthy();
-        expect(rows[0]?.triggers).toEqual(['trg_recipe_statement_attestations_append_only']);
+        expect(rows[0]?.triggers).toEqual([
+            'trg_recipe_statement_attestations_append_only',
+            'trg_recipe_statement_attestations_no_truncate',
+        ]);
     });
 
     it('lets the service role append and read one row per act, in every shape the service writes', async () => {
@@ -375,6 +379,43 @@ describe('recipe_statement_attestations (migration 0088)', () => {
             ),
         ).rejects.toMatchObject({ code: CHECK_VIOLATION });
         expect(await attestationCount(RECIPE_ID)).toBe(1);
+    });
+
+    // `TRUNCATE` fires no row trigger, so a statement trigger refuses it, for the owner and for a cascade from `recipes`.
+    it('refuses TRUNCATE of the table as the database owner, with the guard’s own message, and keeps the rows', async () => {
+        await insertRecipe();
+        await attest(AUTHORED);
+
+        await expect(
+            roleDb.asOwner((client) => client.query(`TRUNCATE TABLE recipe_statement_attestations`)),
+        ).rejects.toMatchObject({ code: CHECK_VIOLATION, message: 'recipe_statement_attestations is append-only' });
+        expect(await attestationCount(RECIPE_ID)).toBe(1);
+    });
+
+    it('refuses a TRUNCATE of recipes that would CASCADE into it, and keeps the recipe too', async () => {
+        await insertRecipe();
+        await attest(AUTHORED);
+
+        await expect(roleDb.asOwner((client) => client.query(`TRUNCATE TABLE recipes CASCADE`))).rejects.toMatchObject({
+            code: CHECK_VIOLATION,
+            message: expect.stringContaining('append-only') as unknown,
+        });
+        expect(await attestationCount(RECIPE_ID)).toBe(1);
+    });
+
+    it('lets the test harness empty the database all the same, and leaves the guard switched ON afterwards', async () => {
+        await insertRecipe();
+        await attest(AUTHORED);
+
+        await roleDb.truncate();
+
+        expect(await attestationCount(RECIPE_ID)).toBe(0);
+
+        const { rows } = await pool.query<{ tgenabled: string }>(
+            `SELECT tgenabled FROM pg_trigger WHERE tgname = 'trg_recipe_statement_attestations_no_truncate'`,
+        );
+
+        expect(rows).toEqual([{ tgenabled: 'O' }]);
     });
 
     it('removes the rows when the recipe is hard-deleted: the guard lets the ON DELETE CASCADE through', async () => {

@@ -6,12 +6,14 @@
  * with the TypeScript rule it twins. What is asserted:
  *
  *  1. Both columns exist, are nullable, and carry no default (NULL is "no statement" and "no paste seen").
- *  2. `recipes_statement_kind_check`: a value outside `authored | source` is refused.
+ *  2. `recipes_statement_kind_check`: a value outside `authored | source | fromPerson` is refused.
  *  3. `recipes_statement_authored_is_own`: `authored` is refused on any recipe that has a source label or a kind.
  *  4. `recipes_statement_kind_pairs_source_kind`: a stated source kind needs `statement_kind = 'source'`, and `source` needs
  *     a kind, so a row cannot say "a web copy" and "no statement" at once; the curator's text (no kind) takes NULL only.
+ *  4b. `recipes_statement_from_person_is_own`: `fromPerson` belongs only to a cook-written recipe with no source kind.
  *  5. `recipe_needs_statement` answers exactly what `statementRequiredOf` answers over the cross product of label,
  *     statement, paste and evidence, and both answers occur.
+ *  6. `recipe_is_from_person` answers exactly what `fromPersonOf` answers over the same cross product, and both occur.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
@@ -19,6 +21,7 @@ import pg from 'pg';
 import {
     RECIPE_STATEMENT_KINDS,
     RecipeSourceType,
+    fromPersonOf,
     statementRequiredOf,
     type RecipeSourceKind,
     type RecipeStatementKind,
@@ -157,6 +160,38 @@ describe('recipes.statement_kind and content_pasted_at (migration 0087)', () => 
         expect(rows[0]).toEqual({ statement_kind: 'authored' });
     });
 
+    it('accepts fromPerson on a cook-written recipe with no kind, and records it', async () => {
+        await insert({ statementKind: 'fromPerson' });
+
+        const { rows } = await pool.query(`SELECT statement_kind FROM recipes WHERE id = $1`, [RECIPE_ID]);
+
+        expect(rows[0]).toEqual({ statement_kind: 'fromPerson' });
+    });
+
+    // The label is `imported_*` with NO source kind (the curator's text shape), so the pairing CHECK passes and only
+    // `recipes_statement_from_person_is_own` can refuse it.
+    it.each([
+        ['an imported_public label', { sourceType: 'imported_public' }],
+        ['an imported_physical label', { sourceType: 'imported_physical' }],
+        ['an imported_paid label', { sourceType: 'imported_paid' }],
+    ])('refuses fromPerson on %s', async (_label, over) => {
+        await expect(insert({ ...over, statementKind: 'fromPerson' })).rejects.toMatchObject({
+            code: CHECK_VIOLATION,
+            constraint: 'recipes_statement_from_person_is_own',
+        });
+    });
+
+    it('refuses fromPerson on a recipe that states a source kind', async () => {
+        await expect(
+            insert({
+                sourceType: 'imported_public',
+                sourceKind: 'public_web',
+                sourceUrl: 'https://example.com/r',
+                statementKind: 'fromPerson',
+            }),
+        ).rejects.toMatchObject({ code: CHECK_VIOLATION });
+    });
+
     it.each([
         ['an imported_public label', { sourceType: 'imported_public' }],
         ['an imported_physical label', { sourceType: 'imported_physical' }],
@@ -209,6 +244,7 @@ describe('recipes.statement_kind and content_pasted_at (migration 0087)', () => 
 
         it('agrees over label × statement × paste × evidence, and both answers occur', async () => {
             const seen = new Set<boolean>();
+            const seenPerson = new Set<boolean>();
             let index = 0;
 
             for (const sourceType of Object.values(RecipeSourceType)) {
@@ -263,6 +299,15 @@ describe('recipes.statement_kind and content_pasted_at (migration 0087)', () => 
                                     })),
                                 });
 
+                                const person = await pool.query<{ person: boolean }>(
+                                    `SELECT recipe_is_from_person($1) AS person`,
+                                    [id],
+                                );
+
+                                expect(person.rows[0]?.person, `recipe_is_from_person ${String(statementKind)}`).toBe(
+                                    fromPersonOf(statementKind),
+                                );
+                                seenPerson.add(fromPersonOf(statementKind));
                                 expect(
                                     rows[0]?.needs,
                                     `${sourceType}/${String(kind)} statement=${String(statementKind)} pasted=${String(pasted)} evidence=${rows[0]?.evidence ?? '?'}`,
@@ -275,15 +320,17 @@ describe('recipes.statement_kind and content_pasted_at (migration 0087)', () => 
             }
 
             expect(seen).toEqual(new Set([true, false]));
+            expect(seenPerson).toEqual(new Set([true, false]));
             expect(index).toBeGreaterThan(20);
         });
 
         it('answers false for a recipe that does not exist', async () => {
-            const { rows } = await pool.query<{ needs: boolean }>(
-                `SELECT recipe_needs_statement('88888888-8888-4888-8888-0000000000ff') AS needs`,
+            const { rows } = await pool.query<{ needs: boolean; person: boolean }>(
+                `SELECT recipe_needs_statement('88888888-8888-4888-8888-0000000000ff') AS needs,
+                        recipe_is_from_person('88888888-8888-4888-8888-0000000000ff') AS person`,
             );
 
-            expect(rows[0]?.needs).toBe(false);
+            expect(rows[0]).toEqual({ needs: false, person: false });
         });
     });
 });

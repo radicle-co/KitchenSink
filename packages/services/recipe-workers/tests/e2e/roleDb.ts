@@ -109,6 +109,8 @@ export const EXPECTED_TABLES = [
     'recipe_ratings',
     // The evidence rule (0086): erasure's donate step reads the database function over it, and the e2e writes its rows.
     'recipe_source_evidence',
+    // The attestation record (0088): erasure replaces `account_id` on the rows of a recipe it keeps, and the e2e reads them.
+    'recipe_statement_attestations',
     'recipe_verification_attempts',
     'recipe_steps',
     'recipe_version_pending_archives',

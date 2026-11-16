@@ -13,7 +13,8 @@
 -- ⛔ APPEND-ONLY BY TRIGGER, NOT BY REVOKE. The grant setup re-runs `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES` inside
 -- every migration and again after the last one, so a REVOKE here would be undone before this file commits. A trigger binds
 -- every role: the service, the migrator, the owner and raw SQL. The one DELETE it admits is the `ON DELETE CASCADE` of a
--- recipe that is already gone, so account erasure and the test purge still remove a recipe's evidence with it.
+-- recipe that is already gone, so account erasure and the test purge still remove a recipe's evidence with it. `TRUNCATE` has
+-- a statement trigger of its own, below.
 --
 -- ⛔ A STATED SOURCE WITHOUT EVIDENCE CANNOT COMMIT. A deferred constraint trigger on `recipes` raises when a row with a
 -- `source_kind` has no evidence row of the same kind and address, so a writer that forgot the evidence (or a raw INSERT) fails
@@ -87,6 +88,21 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_recipe_source_evidence_append_only
     BEFORE UPDATE OR DELETE ON recipe_source_evidence
     FOR EACH ROW EXECUTE FUNCTION recipe_source_evidence_append_only();
+
+-- `TRUNCATE` fires no row trigger, so the guard above never sees it, and `TRUNCATE recipes CASCADE` reaches this table too. A
+-- statement trigger refuses it. It is a function of its own that reads no `OLD`: a statement trigger has no row. The owner is
+-- the only role that holds the right, and it can drop a trigger; this stops the slip (a TRUNCATE typed against the wrong
+-- table, or a cascade nobody read), not a decision. The test harness switches it off for one transaction to empty a test
+-- database (`RoleDatabase.truncate`), and a LOCAL e2e test proves both.
+CREATE FUNCTION recipe_source_evidence_no_truncate() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'recipe_source_evidence is append-only' USING ERRCODE = 'check_violation';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_recipe_source_evidence_no_truncate
+    BEFORE TRUNCATE ON recipe_source_evidence
+    FOR EACH STATEMENT EXECUTE FUNCTION recipe_source_evidence_no_truncate();
 
 CREATE FUNCTION recipes_clone_inherits_source_evidence() RETURNS trigger AS $$
 BEGIN

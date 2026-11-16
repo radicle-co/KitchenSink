@@ -734,6 +734,9 @@ export const eraseRecipeRows = async (
         //    ⛔ AND ONLY a recipe whose cook owes no statement (`statementRequiredOf`, recipe-core): pasted content the
         //    cook never said was theirs would be published as theirs by a donation, so it is removed with the owner-only
         //    set. The database function is `recipe_needs_statement` (migration 0087); it adds no SQL parameter.
+        //    ⛔ AND ONLY a recipe the cook did not say is another person's (`fromPersonOf`, recipe-core): a donation publishes
+        //    it, and "from another person" is private at every route. The database function is `recipe_is_from_person`
+        //    (migration 0087), a separate rule from the statement rule on purpose, and it adds no SQL parameter either.
         await tx.execute(sql`
             UPDATE recipes
             SET visibility = 'public', status = 'published', updated_at = now()
@@ -744,6 +747,7 @@ export const eraseRecipeRows = async (
                   NOT IN (SELECT jsonb_array_elements_text(${privateOnlyKeysJson}::jsonb))
               AND NOT recipe_holds_third_party_source(id)
               AND NOT recipe_needs_statement(id)
+              AND NOT recipe_is_from_person(id)
         `);
 
         // 2. The removed set = the owner's rows that are NOT truly-public (owner-only, non-donated). Captured

@@ -28,6 +28,10 @@
 --
 -- `account_id` equals `recipes.owner_id` at the time of the act.
 --
+-- ⚠️ ON A DONATED RECIPE THE ACCOUNT ID STAYS REACHABLE for now. The token above replaces `account_id` on these rows only.
+-- `recipes.owner_id` and `recipe_versions.created_by` still hold the erased account's id on a donated recipe until the next PR
+-- gives them the same token, so a person who reads the recipe's row can still tell whose account it was.
+--
 -- ALSO IN THIS FILE: the editor may now state a BOOK ("from a cookbook or magazine"), which writes evidence with a new capture,
 -- `editorCitation`. 0086 named neither CHECK, so PostgreSQL named the inline one `recipe_source_evidence_capture_check`
 -- (confirmed against a migrated database); both are dropped and re-added widened.
@@ -87,6 +91,19 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_recipe_statement_attestations_append_only
     BEFORE UPDATE OR DELETE ON recipe_statement_attestations
     FOR EACH ROW EXECUTE FUNCTION recipe_statement_attestations_append_only();
+
+-- `TRUNCATE` fires no row trigger, and `TRUNCATE recipes CASCADE` reaches this table. A statement trigger refuses it, with a
+-- function of its own that reads no `OLD` (see 0086). The owner can drop it; this stops the slip, not a decision. The test
+-- harness switches it off for one transaction to empty a test database, and a LOCAL e2e test proves both.
+CREATE FUNCTION recipe_statement_attestations_no_truncate() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'recipe_statement_attestations is append-only' USING ERRCODE = 'check_violation';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_recipe_statement_attestations_no_truncate
+    BEFORE TRUNCATE ON recipe_statement_attestations
+    FOR EACH STATEMENT EXECUTE FUNCTION recipe_statement_attestations_no_truncate();
 
 ALTER TABLE recipe_source_evidence
     DROP CONSTRAINT recipe_source_evidence_capture_check,

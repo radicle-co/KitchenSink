@@ -241,6 +241,11 @@ export const recipes = pgTable(
             'recipes_statement_authored_is_own',
             sql`${table.statementKind} IS DISTINCT FROM 'authored' OR (${table.sourceType} = 'user_created' AND ${table.sourceKind} IS NULL)`,
         ),
+        // "From another person" is the same: it states no source, so it belongs to a cook-written recipe with no kind (0087).
+        check(
+            'recipes_statement_from_person_is_own',
+            sql`${table.statementKind} IS DISTINCT FROM 'fromPerson' OR (${table.sourceType} = 'user_created' AND ${table.sourceKind} IS NULL)`,
+        ),
         // A stated source kind is paired with the `source` statement, and only it (0087).
         check(
             'recipes_statement_kind_pairs_source_kind',

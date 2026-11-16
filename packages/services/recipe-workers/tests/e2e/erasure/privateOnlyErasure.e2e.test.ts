@@ -33,7 +33,7 @@ interface Probe {
     readonly sourceUrl: string | null;
     readonly donated: boolean;
     /** What the cook stated (0087). Omitted: a stated kind reads as `source`, none as no statement. */
-    readonly statementKind?: 'authored';
+    readonly statementKind?: 'authored' | 'fromPerson';
     /** Whether the cook's client reported content pasted into the recipe (0087). */
     readonly pasted?: boolean;
     /** The evidence the recipe carries, if any: a stated source, or one the cook cleared. */
@@ -101,7 +101,23 @@ const PROBES: readonly Probe[] = [
         },
     },
     // The statement rule (0087): pasted and never said to be theirs is not donated, because a donation would publish it as theirs.
-    { name: 'pastedNoStatement', sourceType: 'user_created', sourceKind: null, sourceUrl: null, pasted: true, donated: false },
+    {
+        name: 'pastedNoStatement',
+        sourceType: 'user_created',
+        sourceKind: null,
+        sourceUrl: null,
+        pasted: true,
+        donated: false,
+    },
+    // "From another person" (0087, ADR-0092): the cook said the recipe is not theirs to publish, and a donation would publish it.
+    {
+        name: 'fromPerson',
+        sourceType: 'user_created',
+        sourceKind: null,
+        sourceUrl: null,
+        statementKind: 'fromPerson',
+        donated: false,
+    },
     // …and once the cook has said so it may be donated like any recipe they wrote.
     {
         name: 'pastedAuthored',

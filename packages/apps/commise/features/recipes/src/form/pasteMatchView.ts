@@ -104,11 +104,14 @@ const calendarDaysBetween = (from: Date, to: Date, timeZone: string): number => 
 
     // The numeric parts, read back with `Date.UTC`, are a plain calendar day with no zone or DST in it. No formatted date
     // string is parsed, so the count does not depend on how a device's date library writes a date.
+    // ⛔ An engine whose Intl cannot read the parts in a zone (Hermes without full ICU) yields no numbers. The device's own
+    // calendar is then the fallback: the zone passed in is the device's, so it is the cook's day too.
     const dayStartOf = (instant: Date): number => {
         const part = (type: Intl.DateTimeFormatPartTypes): number =>
             Number(parts.formatToParts(instant).find((entry) => entry.type === type)?.value);
+        const zoned = Date.UTC(part('year'), part('month') - 1, part('day'));
 
-        return Date.UTC(part('year'), part('month') - 1, part('day'));
+        return Number.isFinite(zoned) ? zoned : Date.UTC(instant.getFullYear(), instant.getMonth(), instant.getDate());
     };
 
     return Math.round((dayStartOf(to) - dayStartOf(from)) / MS_PER_DAY);

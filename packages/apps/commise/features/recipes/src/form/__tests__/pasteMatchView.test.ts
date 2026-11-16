@@ -16,7 +16,7 @@
  * - M4: the pane counts over ALL the recipe's lines ("Line 3 of 5") and steps to the previous and next OPEN line, so a
  *   line it shows keeps its place once chosen; it counted only the open lines.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { recipeMessages } from '../../messages.js';
 import {
@@ -170,6 +170,21 @@ describe('quotaBodyOf', () => {
             if (descriptor !== undefined) {
                 Object.defineProperty(prototype, 'format', descriptor);
             }
+        }
+    });
+
+    // ⛔ A device whose Intl cannot read date parts in a zone (Hermes without full ICU) yields no numbers. The day count
+    // then falls back to the device's own calendar, which is the cook's, and never defaults to "tomorrow".
+    it('⛔ with no readable date parts, counts days on the device calendar instead of saying "tomorrow"', () => {
+        // 12:00 and 12:30 UTC fall on one calendar day in every device time zone a test machine uses.
+        const resetsAt = '2026-10-26T12:30:00.000Z';
+        const at = new Intl.DateTimeFormat('en', { timeStyle: 'short', timeZone: NY }).format(new Date(resetsAt));
+        const partless = vi.spyOn(Intl.DateTimeFormat.prototype, 'formatToParts').mockReturnValue([]);
+
+        try {
+            expect(quotaBodyOf(resetsAt, '2026-10-26T12:00:00.000Z', m, 'en', NY)).toBe(sentence(`at ${at}`));
+        } finally {
+            partless.mockRestore();
         }
     });
 

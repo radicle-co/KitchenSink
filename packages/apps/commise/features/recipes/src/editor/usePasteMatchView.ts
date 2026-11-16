@@ -53,6 +53,8 @@ export interface UsePasteMatchViewOptions {
     readonly quota: PasteQuota | undefined;
     /** Work is waiting for a connection. */
     readonly offline: boolean;
+    /** The instant the notice is read at, ISO 8601, held by the orchestrator's clock (`useDayClock`). */
+    readonly now: string;
 }
 
 /** What the section and the publish action read. */
@@ -271,7 +273,7 @@ export function usePasteMatchView(options: UsePasteMatchViewOptions): PasteMatch
         offline: options.offline,
         keep: options.keep,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        now: new Date().toISOString(),
+        now: options.now,
         lines: matching.lines,
     });
 

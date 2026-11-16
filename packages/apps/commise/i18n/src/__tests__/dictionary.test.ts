@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveMessages, type LocalizedMessages } from '../dictionary.js';
+import { resolveMessages, servedLocaleOf, type LocalizedMessages } from '../dictionary.js';
 
 interface Copy {
     readonly title: string;
@@ -31,5 +31,24 @@ describe('resolveMessages', () => {
         const enOnly: LocalizedMessages<Copy> = { en: { title: 'Only English' } };
 
         expect(resolveMessages(enOnly, 'es').title).toBe('Only English');
+    });
+});
+
+describe('servedLocaleOf', () => {
+    it('is the requested locale when the catalog has its own set', () => {
+        expect(servedLocaleOf(messages, 'es')).toBe('es');
+    });
+
+    it('is en when the request fell back to the required en set, whatever was asked', () => {
+        expect(servedLocaleOf(messages, 'fr-CA')).toBe('en');
+        expect(servedLocaleOf({ en: { title: 'Only English' } }, 'es')).toBe('en');
+    });
+
+    it('names the locale of the set resolveMessages returns', () => {
+        for (const asked of ['en', 'es', 'fr']) {
+            const served = servedLocaleOf(messages, asked);
+
+            expect(resolveMessages(messages, asked)).toBe(messages[served]);
+        }
     });
 });

@@ -13,15 +13,19 @@
  * @pattern Statechart — {@link sheetReducer} and {@link phaseOf}: the sheet's phase is DERIVED from the answer, the fields and
  *     what was attempted, never stored beside them
  */
+import { servedLocaleOf } from '@commise/i18n';
 import {
     parseSourceLink,
+    PUBLIC_CONFIRM_WORDINGS,
     RecipeSourceType,
     RecipeVisibility,
     statementRequiredOf,
     STATEMENT_WORDINGS_BY_CHOICE,
     type RecipeDetail,
 } from '@kitchensink/recipe-core';
-import type { RecipeStatementInput } from '@kitchensink/schema-recipe';
+import type { PublicConfirmationInput, RecipeStatementInput } from '@kitchensink/schema-recipe';
+
+import { recipeActionMessages } from './messages.js';
 
 /** The surface that asks: the editor's Publish, or the recipe page's Make public. */
 export type StatementSurface = 'editor' | 'recipePage';
@@ -102,6 +106,16 @@ export interface StatementWrite {
 }
 
 /**
+ * The wording the passive Public line records: its version, and the locale of the catalog that served its words (a request the
+ * catalog does not hold is shown, and so recorded, in English). Pure.
+ *
+ * @param locale - The locale the screen asked for.
+ */
+export function publicWordingOf(locale: string): PublicConfirmationInput {
+    return { version: PUBLIC_CONFIRM_WORDINGS[0], locale: servedLocaleOf(recipeActionMessages, locale) };
+}
+
+/**
  * What an answer writes, with the wording the registry lists for it. The wording is the client's word that it showed that
  * version, so only the answer the cook gave sends one.
  *
@@ -110,10 +124,12 @@ export interface StatementWrite {
  *
  * @param answer - What the cook chose.
  * @param fields - The revealed fields, valid for the answer ({@link statementFieldErrorOf} is `undefined`).
- * @param locale - The locale the wording was shown in.
+ * @param asked - The locale the screen asked for; the wording records the locale of the catalog that served it.
  * @returns The statement and visibility. Pure.
  */
-export function statementWriteOf(answer: StatementAnswer, fields: StatementFields, locale: string): StatementWrite {
+export function statementWriteOf(answer: StatementAnswer, fields: StatementFields, asked: string): StatementWrite {
+    const locale = servedLocaleOf(recipeActionMessages, asked);
+
     switch (answer) {
         case 'authored':
             return {

@@ -7,7 +7,7 @@
 export { DEFAULT_LOCALE, PSEUDO_LOCALE, SUPPORTED_LOCALES, isSupportedLocale } from './locales.js';
 export type { Locale } from './locales.js';
 export { matchLocale, localesFromAcceptLanguage } from './matcher.js';
-export { resolveMessages } from './dictionary.js';
+export { resolveMessages, servedLocaleOf } from './dictionary.js';
 export type { LocalizedMessages } from './dictionary.js';
 export { PSEUDO_EXPANSION, pseudoExpand, pseudoString } from './pseudo.js';
 export { fillTemplate } from './fillTemplate.js';

@@ -47,3 +47,12 @@ export function resolveMessages<T>(messages: LocalizedMessages<T>, locale: Local
 
     return locale === PSEUDO_LOCALE ? pseudoOf(messages[DEFAULT_LOCALE]) : messages[DEFAULT_LOCALE];
 }
+
+/**
+ * The locale of the set {@link resolveMessages} returns for `locale`: `locale` when the catalog holds its own set, else the
+ * required {@link DEFAULT_LOCALE}. What a record of "the words the cook was shown" must name, because a fallback shows English
+ * whatever was asked (the pseudo-locale is English, accented). Pure.
+ */
+export function servedLocaleOf<T>(messages: LocalizedMessages<T>, locale: Locale): Locale {
+    return (messages as Partial<Record<Locale, T>>)[locale] === undefined ? DEFAULT_LOCALE : locale;
+}

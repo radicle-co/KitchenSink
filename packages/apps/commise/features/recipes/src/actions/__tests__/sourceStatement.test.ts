@@ -18,6 +18,7 @@ import {
     initialSheet,
     phaseOf,
     sheetReducer,
+    publicWordingOf,
     statementFieldErrorOf,
     statementWriteOf,
     type StatementSheetState,
@@ -86,6 +87,16 @@ describe('answersFor', () => {
     });
 });
 
+describe('publicWordingOf', () => {
+    it('names the passive line and the locale it was shown in', () => {
+        expect(publicWordingOf('en')).toEqual({ version: 'publicConfirm.v1', locale: 'en' });
+    });
+
+    it('records en for a locale the line fell back from', () => {
+        expect(publicWordingOf('fr-CA')).toEqual({ version: 'publicConfirm.v1', locale: 'en' });
+    });
+});
+
 describe('statementWriteOf', () => {
     const FIELDS = { link: 'https://www.allrecipes.com/recipe/1/soup/', bookTitle: ' Joy of Cooking, p. 12 ' };
 
@@ -99,12 +110,14 @@ describe('statementWriteOf', () => {
         });
     });
 
-    it('a web page states its link and forces Private', () => {
+    // The wording's locale is the catalog that served the words, so a request the catalog does not hold falls back to English
+    // and records English (review item 10).
+    it('a web page states its link and forces Private, and a locale the words fell back from is recorded as en', () => {
         expect(statementWriteOf('publicWeb', FIELDS, 'fr-CA')).toEqual({
             statement: {
                 kind: 'public_web',
                 citation: 'https://www.allrecipes.com/recipe/1/soup/',
-                wording: { version: STATEMENT_WORDINGS_BY_CHOICE.publicWeb[0], locale: 'fr-CA' },
+                wording: { version: STATEMENT_WORDINGS_BY_CHOICE.publicWeb[0], locale: 'en' },
             },
             visibility: RecipeVisibility.PRIVATE,
         });

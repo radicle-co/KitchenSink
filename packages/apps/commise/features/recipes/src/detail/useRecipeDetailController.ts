@@ -22,14 +22,7 @@ import type { ErrorReporter } from '@commise/features-core';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { ActionMenuItem, ActionMenuProps } from '@commise/ui/action-menu';
 import { countCookableSteps, isCookable } from '@kitchensink/cooking-core';
-import {
-    PUBLIC_CONFIRM_WORDINGS,
-    RecipeVisibility,
-    canClone,
-    isOwner,
-    makeViewer,
-    type RecipeDetail,
-} from '@kitchensink/recipe-core';
+import { RecipeVisibility, canClone, isOwner, makeViewer, type RecipeDetail } from '@kitchensink/recipe-core';
 import { isPrivateFoodsOnPublicRecipeError, recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
@@ -48,7 +41,7 @@ import { mayBePublic, recipeMakePublicConsequence } from '../actions/recipePriva
 import { useGatedPrivate } from '../actions/useGatedPrivate.js';
 import { useMakePublicConfirm } from '../actions/useMakePublicConfirm.js';
 import { useRecipePrivate } from '../actions/useRecipePrivate.js';
-import type { StatementSheetState } from '../actions/sourceStatement.js';
+import { publicWordingOf, type StatementSheetState } from '../actions/sourceStatement.js';
 import { useServerRefusedPrivate } from '../actions/useServerRefusedPrivate.js';
 import { useStatementSheet } from '../actions/useStatementSheet.js';
 import { visibilityNoticeOf } from '../actions/visibilityNotice.js';
@@ -297,7 +290,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
                 {
                     id,
                     visibility: RecipeVisibility.PUBLIC,
-                    extras: { publicConfirmation: { version: PUBLIC_CONFIRM_WORDINGS[0], locale } },
+                    extras: { publicConfirmation: publicWordingOf(locale) },
                 },
                 { onSuccess: done, onError: afterRefusal },
             ),

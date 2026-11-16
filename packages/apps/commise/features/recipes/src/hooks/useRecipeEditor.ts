@@ -62,7 +62,6 @@ import type { ErrorReporter } from '@commise/features-core';
 import type { Locale } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import {
-    PUBLIC_CONFIRM_WORDINGS,
     RecipeVisibility,
     type PrivateFoodLine,
     type RecipeDetail,
@@ -102,7 +101,7 @@ import {
     type RecipeLifecycle,
 } from '../editor/checkpointPolicy.js';
 import type { PrivateRefusal } from '../actions/privateGate.js';
-import type { StatementWrite } from '../actions/sourceStatement.js';
+import { publicWordingOf, type StatementWrite } from '../actions/sourceStatement.js';
 import { statementPlanOf, type StatementPlan } from '../editor/statementGate.js';
 import { createStatementStore, type StatementStore } from '../editor/statementStore.js';
 import type { ShownWordings } from '../form/wire.js';
@@ -762,9 +761,7 @@ function shownWordingsOf(ctx: EditorContext): ShownWordings {
     const statement = ctx.statement.get().answer?.statement;
 
     return {
-        ...(statementPlanNow(ctx).confirmLineShown
-            ? { publicConfirmation: { version: PUBLIC_CONFIRM_WORDINGS[0], locale } }
-            : {}),
+        ...(statementPlanNow(ctx).confirmLineShown ? { publicConfirmation: publicWordingOf(locale) } : {}),
         ...(statement === undefined ? {} : { statement }),
     };
 }

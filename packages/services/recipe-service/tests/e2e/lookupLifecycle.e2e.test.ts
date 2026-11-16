@@ -7,6 +7,7 @@
  * but never on one declared name; a settled failure moves every line and deletes nothing; one cook's pick never
  * moves another cook's line; and removing a line never removes a binding someone else uses.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -62,6 +63,7 @@ async function recipeOn(
     visibility: 'public' | 'private' = 'public',
 ): Promise<RecipeBody> {
     return json<RecipeBody>(userId, 'POST', '/api/v1/recipes', 201, {
+        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
         title: `${SCOPE} ${label}`,
         visibility,
         servings: 2,
@@ -294,6 +296,7 @@ describe('the life of a line binding (e2e, assembled app + food fake)', () => {
         );
 
         const response = await call(COOK_A, 'POST', '/api/v1/recipes', {
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
             title: `${SCOPE} vanished`,
             servings: 2,
             prepTimeMinutes: 5,

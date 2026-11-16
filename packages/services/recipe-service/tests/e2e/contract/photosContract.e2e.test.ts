@@ -18,7 +18,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
-import { recipePhotoSchema } from '@kitchensink/recipe-core';
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS, recipePhotoSchema } from '@kitchensink/recipe-core';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
@@ -47,6 +47,7 @@ describe('photos vertical — client ↔ server contract conformance', () => {
 
         // Seed the parent recipe through the typed client end to end (create now fully conforms — #5 + #8).
         const recipe = await client.createRecipe({
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
             title: 'Photo Contract Recipe',
             servings: 2,
             prepTimeMinutes: 5,

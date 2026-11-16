@@ -20,6 +20,7 @@
  * the writes cannot observe that. This is a real insert, failing for a real database reason, on the real
  * path — and the trigger is dropped again in `afterAll` whatever happens.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 
@@ -36,6 +37,7 @@ const OWNER = '01JVERSIONS0ATOMIC000000CC';
 const TITLE = 'Atomicity Probe Recipe';
 
 const CREATE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: TITLE,
     servings: 2,
     prepTimeMinutes: 5,
@@ -182,7 +184,11 @@ describe('a recipe save and its version row are atomic (integration)', () => {
         const publishRes = await fetch(`${baseUrl}/api/v1/recipes/${clone.id}`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ expectedVersion: clone.currentVersion, status: 'published' }),
+            body: JSON.stringify({
+                expectedVersion: clone.currentVersion,
+                status: 'published',
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            }),
         });
 
         expect(

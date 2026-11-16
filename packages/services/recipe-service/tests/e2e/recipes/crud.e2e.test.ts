@@ -10,6 +10,7 @@
  * send one, which means they passed on the `name` rejection whatever their own field did. Each now asserts that
  * its OWN field is the ONLY one rejected, so it can pass for no other reason.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
@@ -41,6 +42,7 @@ interface PaginatedBody {
 }
 
 const CREATE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Integration CRUD Recipe',
     description: 'Created by the CRUD lifecycle integration spec.',
     servings: 4,

@@ -18,6 +18,7 @@
  * answers `200` with a terminal `unaccounted` state per recipe, rather than failing the read. That is the
  * behaviour a card grid depends on, and it is the one a stub can never demonstrate.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, type BootedRecipeApp } from './harness.js';
@@ -60,6 +61,7 @@ describe('POST /api/v1/recipes/nutrition-batch (e2e, assembled app)', () => {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 title,
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
                 servings: 2,
                 prepTimeMinutes: 5,
                 cookTimeMinutes: 10,

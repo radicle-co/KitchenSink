@@ -10,6 +10,7 @@
  *
  * It also proves the forwardRef RecipesModule <-> VersionsModule cycle boots.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
@@ -31,6 +32,7 @@ interface RecipeBody {
 }
 
 const CREATE_BODY = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Original Title',
     servings: 2,
     prepTimeMinutes: 5,

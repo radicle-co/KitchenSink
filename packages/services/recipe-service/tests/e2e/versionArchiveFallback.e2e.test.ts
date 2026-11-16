@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
-import { recipeVersionArchiveKey } from '@kitchensink/recipe-core';
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS, recipeVersionArchiveKey } from '@kitchensink/recipe-core';
 import { bootRecipeApp, type BootedRecipeApp } from './harness.js';
 import { recipeDb } from '../support/roleDb.js';
 
@@ -51,6 +51,7 @@ describe('transparent S3 version fallback (e2e, assembled app)', () => {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
                 title: 'Archive Fallback E2E',
                 servings: 2,
                 prepTimeMinutes: 5,

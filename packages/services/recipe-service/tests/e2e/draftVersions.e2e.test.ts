@@ -14,6 +14,7 @@
  * - that a rebind, which saves through the same update path (ADR-0045), records no version on a draft and one on a
  *   published recipe.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -71,6 +72,7 @@ async function json<T>(method: string, path: string, expected: number, body?: un
 /** A draft with one line and one step, so it can be published without resending them. */
 async function createDraft(title: string): Promise<RecipeBody> {
     return json<RecipeBody>('POST', '/api/v1/recipes', 201, {
+        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
         title: `${SCOPE} ${title}`,
         status: 'draft',
         servings: 2,
@@ -162,7 +164,10 @@ describe('a never-published draft records no version (ADR-0058, e2e)', () => {
     it('⛔ the first publish writes exactly one row, numbered at the version it produced, and later saves version', async () => {
         const created = await createDraft('publish');
         const edited = await save(created, { title: `${SCOPE} publish, edited` });
-        const published = await save(edited, { status: 'published' });
+        const published = await save(edited, {
+            status: 'published',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(published.currentVersion).toBe(3);
         expect((await versionsOf(created.id)).map((row) => row.version_number)).toStrictEqual([3]);
@@ -175,7 +180,10 @@ describe('a never-published draft records no version (ADR-0058, e2e)', () => {
     });
 
     it('⛔ a published recipe set back to draft keeps versioning, and keeps its first-publish instant', async () => {
-        const published = await save(await createDraft('redraft'), { status: 'published' });
+        const published = await save(await createDraft('redraft'), {
+            status: 'published',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
         const publishedAt = await firstPublishedAt(published.id);
         const redrafted = await save(published, { status: 'draft' });
         const savedAsDraft = await save(redrafted, { title: `${SCOPE} redraft, edited` });
@@ -206,6 +214,7 @@ describe('a never-published draft records no version (ADR-0058, e2e)', () => {
 
     it('a published create records its first version, as before', async () => {
         const created = await json<RecipeBody>('POST', '/api/v1/recipes', 201, {
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
             title: `${SCOPE} published create`,
             servings: 2,
             prepTimeMinutes: 5,
@@ -229,7 +238,10 @@ describe('a never-published draft records no version (ADR-0058, e2e)', () => {
         expect(reboundDraft.currentVersion).toBe(draft.currentVersion + 1);
         expect(await versionsOf(draft.id)).toStrictEqual([]);
 
-        const published = await save(reboundDraft, { status: 'published' });
+        const published = await save(reboundDraft, {
+            status: 'published',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
         const reboundPublished = await json<RecipeBody>(
             'POST',
             `/api/v1/recipes/${published.id}/ingredients/0/rebind`,

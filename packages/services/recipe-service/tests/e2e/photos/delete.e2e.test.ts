@@ -21,7 +21,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { HeadObjectCommand, NotFound, S3Client } from '@aws-sdk/client-s3';
-import { recipePhotoThumbnailKey } from '@kitchensink/recipe-core';
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS, recipePhotoThumbnailKey } from '@kitchensink/recipe-core';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { PHOTOS_CDN, type CdnInvalidationPort } from '../../../src/photos/photos.service.js';
@@ -39,6 +39,7 @@ const REAL_PNG_BYTES = new Uint8Array(
 );
 
 const RECIPE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Photo Delete Integration Recipe',
     servings: 2,
     prepTimeMinutes: 5,

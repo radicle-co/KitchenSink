@@ -9,11 +9,21 @@
 import { bootServiceApp, type BootedServiceApp, type ProviderDouble } from '@kitchensink/service-test-harness';
 
 import { RECIPE_HTTP_SETUP } from '../../src/config/httpSetup.js';
-
+import { RecipeStatementAttestationsDal } from '../../src/recipes/dal/recipeStatementAttestations.dal.js';
 import { RECIPE_APP_ENV_DEFAULTS } from './recipeAppEnv.js';
 
 /** An address nothing listens on. */
 const CLOSED = 'http://127.0.0.1:9';
+
+/**
+ * The attestation record's double every suite gets: an append that is accepted and forgotten. A suite that asserts on the rows
+ * supplies its own for the same token (a later double for a token replaces an earlier one), so a suite about something else
+ * never has to know the record exists.
+ */
+const DEFAULT_ATTESTATIONS_DOUBLE = {
+    provide: RecipeStatementAttestationsDal,
+    useValue: { insertMany: async (): Promise<void> => undefined },
+};
 
 /** Options for {@link bootMockedRecipeApp}. */
 export interface MockedRecipeAppOptions {
@@ -46,7 +56,7 @@ export async function bootMockedRecipeApp(options: MockedRecipeAppOptions): Prom
             FOOD_SERVICE_URL: options.foodServiceUrl ?? CLOSED,
         },
         envDefaults: RECIPE_APP_ENV_DEFAULTS,
-        doubles: options.doubles,
+        doubles: [DEFAULT_ATTESTATIONS_DOUBLE, ...options.doubles],
         httpSetup: RECIPE_HTTP_SETUP,
     });
 }

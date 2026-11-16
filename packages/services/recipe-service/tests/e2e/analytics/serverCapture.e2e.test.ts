@@ -16,6 +16,7 @@
  *    count 015 consumes. The version reads now authorize through the row-only `findReadableRecipe` and never
  *    reach `getById`; they stay as the guard against capture being added to THAT door instead.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import pg from 'pg';
@@ -86,6 +87,7 @@ describe('U3 server-door capture (integration, booted app)', () => {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
                 title: 'Capture probe soup',
                 servings: 2,
                 prepTimeMinutes: 5,

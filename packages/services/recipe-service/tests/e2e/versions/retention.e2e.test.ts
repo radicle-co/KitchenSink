@@ -14,6 +14,7 @@
  * real {@link VersionsService} from the Nest container and calls `createSnapshot` directly (12 times) on
  * a recipe it creates over HTTP.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 
@@ -35,6 +36,7 @@ interface RecipeBody {
 }
 
 const CREATE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Retention Recipe',
     servings: 2,
     prepTimeMinutes: 5,

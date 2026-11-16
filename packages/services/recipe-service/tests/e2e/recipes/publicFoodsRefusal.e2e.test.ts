@@ -7,6 +7,7 @@
  * owner is cleared in the write's own transaction), that the cook's own list says which recipes hold a private food, and
  * that the detail read states each line's food visibility from food's live answer.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -70,6 +71,7 @@ async function json<T>(method: string, path: string, expected: number, body?: un
 }
 
 const recipeBody = (title: string, lookupIds: readonly string[], visibility: 'public' | 'private') => ({
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: `${SCOPE} ${title}`,
     visibility,
     servings: 2,
@@ -173,7 +175,10 @@ describe('a public recipe holds no private food (e2e, assembled app + food fake)
             201,
             recipeBody('stays private', [privateLookup], 'private'),
         );
-        const response = await call('PATCH', `/api/v1/recipes/${created.id}/visibility`, { visibility: 'public' });
+        const response = await call('PATCH', `/api/v1/recipes/${created.id}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(response.status).toBe(400);
         expect(((await response.json()) as RefusalBody).code).toBe('PRIVATE_FOODS_ON_PUBLIC_RECIPE');
@@ -188,6 +193,7 @@ describe('a public recipe holds no private food (e2e, assembled app + food fake)
         const publish = await call('PATCH', `/api/v1/recipes/${draft.id}`, {
             expectedVersion: draft.currentVersion,
             status: 'published',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
         });
 
         expect(publish.status).toBe(400);
@@ -239,6 +245,7 @@ describe('a public recipe holds no private food (e2e, assembled app + food fake)
         const publish = await call('PATCH', `/api/v1/recipes/${draft.id}`, {
             expectedVersion: saved.currentVersion,
             status: 'published',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
             ingredients: [editedLine],
         });
         const { rows: stored } = await pool.query<{ status: string; visibility: string }>(
@@ -265,6 +272,7 @@ describe('a public recipe holds no private food (e2e, assembled app + food fake)
             {
                 expectedVersion: draft.currentVersion,
                 status: 'published',
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
                 ingredients: [{ ingredientId: sharedLookup, quantity: { kind: 'exact', value: 1 }, unit: 'cup' }],
             },
         );
@@ -288,7 +296,10 @@ describe('a public recipe holds no private food (e2e, assembled app + food fake)
                     expectedVersion: created.currentVersion,
                     ingredients: [{ ingredientId: privateLookup, quantity: { kind: 'exact', value: 1 }, unit: 'cup' }],
                 }),
-                call('PATCH', `/api/v1/recipes/${created.id}/visibility`, { visibility: 'public' }),
+                call('PATCH', `/api/v1/recipes/${created.id}/visibility`, {
+                    visibility: 'public',
+                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                }),
             ]);
 
             outcomes.push(patch.status, visibility.status);

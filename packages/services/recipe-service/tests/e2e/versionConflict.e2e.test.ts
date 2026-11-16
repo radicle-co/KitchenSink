@@ -8,6 +8,7 @@
  *
  * The booted app authenticates as the OWNER (dev bypass). Skips when no test database is configured.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -44,6 +45,7 @@ describe('enriched version conflict (e2e, assembled app)', () => {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
                 title: 'Conflict E2E',
                 servings: 2,
                 prepTimeMinutes: 5,

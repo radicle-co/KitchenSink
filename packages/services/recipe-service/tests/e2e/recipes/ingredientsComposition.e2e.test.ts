@@ -13,6 +13,7 @@
  * `unresolvedReason: 'author_declared'` (plan 002 R1/R6: an unresolved line carries its machine-readable reason),
  * so the exact-shape expectations include it.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
@@ -40,6 +41,7 @@ interface RecipeBody {
 }
 
 const BASE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Composition Recipe',
     servings: 2,
     prepTimeMinutes: 5,

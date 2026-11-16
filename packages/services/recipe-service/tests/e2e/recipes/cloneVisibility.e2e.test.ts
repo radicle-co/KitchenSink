@@ -24,6 +24,7 @@
  * from food's `refs/resolve`, asked with the caller's own bearer, and food shows a private food to its author
  * only. Every request therefore forwards the bearer of the same user the dev-auth bypass authenticates.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import pg from 'pg';
@@ -153,7 +154,11 @@ async function publishCloneAndReadFirstVersionLines(
     const res = await fetch(`${baseUrl}/api/v1/recipes/${clone.id}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json', authorization: bearer },
-        body: JSON.stringify({ expectedVersion: clone.currentVersion, status: 'published' }),
+        body: JSON.stringify({
+            expectedVersion: clone.currentVersion,
+            status: 'published',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        }),
     });
     expect(res.status).toBe(200);
 
@@ -389,6 +394,7 @@ describe('Clone + visibility US2 (integration)', () => {
     it('free-tier CREATE with visibility:private and NO slot left is DENIED (403 PRIVATE_SLOTS_FULL); no row is written', async () => {
         await seedPrivateRows(db, CLONER, 50);
         const createBody = {
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
             title: 'Sneaky Private Create',
             servings: 1,
             prepTimeMinutes: 1,

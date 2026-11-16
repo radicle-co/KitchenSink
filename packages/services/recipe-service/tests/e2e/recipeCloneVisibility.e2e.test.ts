@@ -31,6 +31,7 @@
  * is the same story as the clone that precedes it, and splitting it would put a proof and its premise in two
  * places.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -180,6 +181,7 @@ describe('recipe clone + visibility (e2e, assembled app)', () => {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
                 title: 'Default Visibility E2E',
                 servings: 2,
                 prepTimeMinutes: 5,

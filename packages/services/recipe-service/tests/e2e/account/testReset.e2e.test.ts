@@ -23,6 +23,7 @@
  * food's `refs/resolve`, and the verification producer asks the gate only about a line it could NAME, so the
  * gate case's real-user control needs a food that answers.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import pg from 'pg';
@@ -48,6 +49,7 @@ const REAL_USER = '01JZRESETINTEGRATIONREAL01';
 const VERIFIABLE_FOOD_ID = '01JCONTAINMENTVERIFYF00D01';
 
 const RECIPE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Containment Probe',
     servings: 2,
     prepTimeMinutes: 5,

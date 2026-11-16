@@ -24,7 +24,7 @@ import { RecipesService } from '../../../src/recipes/recipes.service.js';
 import { RECIPES_DAL } from '../../../src/recipes/recipes.tokens.js';
 import { CURATOR_IMPORT_SCOPE, createRecipeRequestSchema } from '../../../src/recipes/recipes.schema.js';
 import { resolveStatementProvenance } from '../../../src/recipes/domain/provenancePolicy.js';
-import { privateRuleOf } from '@kitchensink/recipe-core';
+import { privateRuleOf, PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import type { Principal } from '../../../src/auth/principal.js';
 import { recipeDb } from '../../support/roleDb.js';
 
@@ -34,11 +34,16 @@ const COOK = '01JSRCSTATEMENTCOOKAAAAAA1';
 /** A seeded catalog ingredient (Flour) from the baseline global setup. */
 const FLOUR_ID = '00000000-0000-4000-8000-0000000000aa';
 const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
-const STATEMENT = { kind: 'public_web', citation: LINK } as const;
+const STATEMENT = {
+    kind: 'public_web',
+    citation: LINK,
+    wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+} as const;
 
 /** A minimal-but-publishable create body; `over` layers the field under test on top. */
 function body(over: Record<string, unknown> = {}): Record<string, unknown> {
     return {
+        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
         title: 'Tomato Soup',
         servings: 2,
         prepTimeMinutes: 5,
@@ -228,7 +233,10 @@ describe('a pasted web link as the recipe source (e2e)', () => {
     it('set-visibility public on a web copy is refused, and it stays private', async () => {
         const { id } = await create({ visibility: 'private', statement: STATEMENT });
 
-        const { status, json } = await send('PATCH', `/api/v1/recipes/${id}/visibility`, { visibility: 'public' });
+        const { status, json } = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(status).toBe(400);
         expect(json['code']).toBe('INVALID_VISIBILITY');
@@ -251,6 +259,9 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             // 0087: the statement facts the rule judges under the same lock. A stated web copy is `source`; nothing was pasted.
             statementKind: 'source',
             contentPastedAt: null,
+            // Never published, never a clone: the two facts the lock now reads for the source-correction rule.
+            firstPublishedAt: null,
+            clonedFromId: null,
         });
     });
 
@@ -406,14 +417,24 @@ describe('a pasted web link as the recipe source (e2e)', () => {
 
             expect(published.status).toBe(200);
 
-            expectSourceConflict(await send('PATCH', `/api/v1/recipes/${id}/visibility`, { visibility: 'public' }));
+            expectSourceConflict(
+                await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
+                    visibility: 'public',
+                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                }),
+            );
             expect(await readRow(id)).toMatchObject({ visibility: 'private', status: 'published' });
         });
 
         it('refuses Public on the DRAFT too: the same set-visibility, before any publish', async () => {
             const { id } = await clearedDraft();
 
-            expectSourceConflict(await send('PATCH', `/api/v1/recipes/${id}/visibility`, { visibility: 'public' }));
+            expectSourceConflict(
+                await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
+                    visibility: 'public',
+                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                }),
+            );
         });
 
         it('refuses to PUBLISH a draft that raced to public, and leaves it a draft', async () => {
@@ -424,7 +445,11 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             );
 
             expectSourceConflict(
-                await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, status: 'published' }),
+                await send('PATCH', `/api/v1/recipes/${id}`, {
+                    expectedVersion: version,
+                    status: 'published',
+                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                }),
             );
             expect(await readRow(id)).toMatchObject({ status: 'draft' });
         });
@@ -443,7 +468,11 @@ describe('a pasted web link as the recipe source (e2e)', () => {
 
         it('the CLONE of such a recipe inherits the evidence, lands private, and cannot be made public either', async () => {
             const { id, version } = await clearedDraft();
-            await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, status: 'published' });
+            await send('PATCH', `/api/v1/recipes/${id}`, {
+                expectedVersion: version,
+                status: 'published',
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            });
 
             const cloned = await send('POST', `/api/v1/recipes/${id}/clone`, {});
             const cloneId = cloned.json['id'] as string;
@@ -454,14 +483,20 @@ describe('a pasted web link as the recipe source (e2e)', () => {
                 { capture: 'editorLink', source_kind: 'public_web', source_domain: 'allrecipes.com' },
             ]);
             expectSourceConflict(
-                await send('PATCH', `/api/v1/recipes/${cloneId}/visibility`, { visibility: 'public' }),
+                await send('PATCH', `/api/v1/recipes/${cloneId}/visibility`, {
+                    visibility: 'public',
+                    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+                }),
             );
         });
 
         it('CONTROL: a recipe that never had a source can be made Public, and its clone defaults Public', async () => {
             const { id } = await create({ status: 'published', visibility: 'private' });
 
-            const asked = await send('PATCH', `/api/v1/recipes/${id}/visibility`, { visibility: 'public' });
+            const asked = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
+                visibility: 'public',
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            });
             const cloned = await send('POST', `/api/v1/recipes/${id}/clone`, {});
 
             expect(asked.status).toBe(200);

@@ -41,6 +41,7 @@
  * carries `name` (the strict line schema answers one with 400). The PATCH refusal therefore now asserts that the
  * stated measure is the ONLY field refused, since the `name` key alone would have produced its 400 before.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -73,6 +74,7 @@ interface StatedRow {
 
 /** A create body carrying one RESTATED line: the row holds cups, the source printed a gill. */
 const createBody = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: `U7 stated measure ${Date.now()}-${Math.random()}`,
     description: 'Created by the U7 stated-measure spec.',
     servings: 4,

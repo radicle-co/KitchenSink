@@ -17,6 +17,7 @@
  * the restore will target. No mock, no stubbed DAL — a real constraint on the real path, which is the only
  * way to observe whether two writes share a transaction.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 
@@ -36,6 +37,7 @@ interface RecipeBody {
 }
 
 const CREATE_BODY = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Original Title',
     servings: 2,
     prepTimeMinutes: 5,

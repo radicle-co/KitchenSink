@@ -35,6 +35,7 @@
  * `food_lookups` row (`tests/support/lineChain.ts`), the line table is `ingredients`, and request lines carry
  * no `name`. The assertions are unchanged: the message still names the FOOD-service id and FOOD's name.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import {
@@ -165,6 +166,7 @@ describe('the verification gate’s producer (U11 integration)', () => {
 
     /** A create body with one food-backed line, optionally transcribed from a source. */
     const createBody = (sourceLine?: string): Record<string, unknown> => ({
+        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
         title: `U11 producer ${Date.now()}-${Math.random()}`,
         description: 'Created by the U11 producer spec.',
         servings: 4,

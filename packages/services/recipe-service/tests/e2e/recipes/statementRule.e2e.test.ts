@@ -9,6 +9,7 @@
  * facts are READ from the database under the row lock, that `content_pasted_at` keeps its first instant across a PATCH, or
  * that a clone carries both columns. The columns are not on the wire, so the rows are read back through Drizzle.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import pg from 'pg';
@@ -24,11 +25,16 @@ const COOK = '01JSTATEMENTRULECOOK00001';
 /** A seeded catalog ingredient (Flour) from the baseline global setup. */
 const FLOUR_ID = '00000000-0000-4000-8000-0000000000aa';
 const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
-const WEB = { kind: 'public_web', citation: LINK } as const;
-const AUTHORED = { kind: 'authored' } as const;
+const WEB = {
+    kind: 'public_web',
+    citation: LINK,
+    wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+} as const;
+const AUTHORED = { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } } as const;
 
 function body(over: Record<string, unknown> = {}): Record<string, unknown> {
     return {
+        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
         title: 'Tomato Soup',
         servings: 2,
         prepTimeMinutes: 5,
@@ -140,7 +146,10 @@ describe('the statement rule (e2e)', () => {
         expect(patched.status).toBe(200);
         expect(await readRow(id)).toMatchObject({ statementKind: 'authored', visibility: 'private' });
 
-        const opened = await send('PATCH', `/api/v1/recipes/${id}/visibility`, { visibility: 'public' });
+        const opened = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(opened.status).toBe(200);
         expect(await readRow(id)).toMatchObject({ visibility: 'public' });
@@ -149,7 +158,10 @@ describe('the statement rule (e2e)', () => {
     it('a published private pasted recipe with no statement: set-visibility Public is 400 STATEMENT_REQUIRED', async () => {
         const { id } = await create({ contentPasted: true, visibility: 'private' });
 
-        const opened = await send('PATCH', `/api/v1/recipes/${id}/visibility`, { visibility: 'public' });
+        const opened = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(opened.status).toBe(400);
         expect(reasonOf(opened.json)).toBe('STATEMENT_REQUIRED');
@@ -189,7 +201,10 @@ describe('the statement rule (e2e)', () => {
 
         expect(published.status).toBe(200);
 
-        const opened = await send('PATCH', `/api/v1/recipes/${id}/visibility`, { visibility: 'public' });
+        const opened = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+        });
 
         expect(opened.status).toBe(400);
         expect(reasonOf(opened.json)).toBe('SOURCE_CONFLICT');

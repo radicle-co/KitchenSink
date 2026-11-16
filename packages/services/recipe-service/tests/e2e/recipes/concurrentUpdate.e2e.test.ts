@@ -9,6 +9,7 @@
  * (200/200, versions 2 then 3) — this test then fails on the "exactly one 409" and "winner persisted"
  * assertions. Runs against the real booted app + Docker Postgres.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
@@ -17,6 +18,7 @@ import { recipeDb } from '../../support/roleDb.js';
 const OWNER = '01JCONCURRENT0OWNER0000AAA';
 
 const CREATE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Concurrent Base',
     servings: 2,
     prepTimeMinutes: 5,

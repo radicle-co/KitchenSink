@@ -5,6 +5,7 @@
  * `VERSION_CONFLICT` carrying `details.currentVersion`. Booted against the harness with a dev-auth
  * owner; skipped when the harness DB is not configured.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
@@ -25,6 +26,7 @@ interface ErrorBody {
 }
 
 const CREATE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Conflict Recipe',
     servings: 1,
     prepTimeMinutes: 1,

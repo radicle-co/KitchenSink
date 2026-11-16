@@ -23,6 +23,7 @@
  *
  * Runs only when the harness DB is configured — otherwise skipped in lockstep with the global setup.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
 
@@ -42,6 +43,7 @@ const OTHER_OWNER = '01JERASURELOCKOWNERBBBBBBB';
 
 /** A minimal, valid `CreateRecipeRequest` body — the seeded flour ingredient keeps it self-contained. */
 const RECIPE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Erasure Lock Probe',
     servings: 2,
     prepTimeMinutes: 5,

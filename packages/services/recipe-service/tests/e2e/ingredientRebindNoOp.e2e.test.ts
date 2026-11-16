@@ -18,7 +18,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { versionConflictDetailsSchema } from '@kitchensink/recipe-core';
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS, versionConflictDetailsSchema } from '@kitchensink/recipe-core';
 
 import { bootRecipeApp, type BootedRecipeApp } from './harness.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../support/foodFake.js';
@@ -65,6 +65,7 @@ async function json<T>(method: string, path: string, expected: number, body?: un
 /** A recipe whose one line holds the brisket and carries `phrase`, an imported phrase a correction could teach. */
 async function brisketRecipe(phrase: string): Promise<RecipeBody> {
     return json<RecipeBody>('POST', '/api/v1/recipes', 201, {
+        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
         title: `${SCOPE} braise`,
         servings: 2,
         prepTimeMinutes: 5,

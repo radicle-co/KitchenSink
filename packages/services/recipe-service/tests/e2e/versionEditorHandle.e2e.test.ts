@@ -13,6 +13,7 @@
  *
  * Skips when no test database is configured (guarded by `hasDatabaseUrl`).
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -44,6 +45,7 @@ const EDITOR: Principal = {
 };
 
 const CREATE_DTO: CreateRecipeDto = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Editor-Handle E2E',
     servings: 2,
     prepTimeMinutes: 5,
@@ -119,7 +121,11 @@ describe('version editor_handle provenance (e2e, real DB)', () => {
         const published = await recipes.update(
             EDITOR,
             clone.id,
-            { expectedVersion: clone.currentVersion, status: 'published' },
+            {
+                expectedVersion: clone.currentVersion,
+                status: 'published',
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+            },
             undefined,
         );
 

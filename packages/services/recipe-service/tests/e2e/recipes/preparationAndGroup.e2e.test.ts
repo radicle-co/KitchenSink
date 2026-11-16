@@ -35,6 +35,7 @@
  * The blank-value case now asserts that the blank field is the ONLY one refused, since before the repair its 400
  * could have come from the `name` key alone.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
@@ -66,6 +67,7 @@ interface RecipeBody {
 
 /** A create body carrying the given ingredient lines. */
 const createBody = (lines: readonly Record<string, unknown>[]): Record<string, unknown> => ({
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: `U26/U27 preparation + section ${Date.now()}-${Math.random()}`,
     description: 'Created by the U26/U27 spec.',
     servings: 4,

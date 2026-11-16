@@ -25,6 +25,7 @@
  *
  * Runs only when the harness DB is configured — otherwise skipped in lockstep with the global setup.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
@@ -46,6 +47,7 @@ const REAL_PNG_BYTES = new Uint8Array(
 
 /** A CreateRecipeRequest body satisfying the Glossary "complete recipe" content bar (minus the photo, attached separately): >=1 ingredient, >=1 instruction. */
 const COMPLETE_RECIPE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'ATP-NF-003 Complete Recipe',
     description: 'Created by the REQ-NF-003 timed backend-leg integration spec.',
     servings: 4,

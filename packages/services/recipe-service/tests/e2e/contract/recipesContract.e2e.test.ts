@@ -13,7 +13,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
-import { recipeDetailSchema, recipeSchema } from '@kitchensink/recipe-core';
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS, recipeDetailSchema, recipeSchema } from '@kitchensink/recipe-core';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
@@ -36,6 +36,7 @@ describe('recipe read shape — client ↔ server contract conformance', () => {
         client = new RecipeServiceClient({ baseUrl: booted.baseUrl });
 
         const recipe = await client.createRecipe({
+            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
             title: 'Recipe Contract Dish',
             servings: 4,
             prepTimeMinutes: 15,

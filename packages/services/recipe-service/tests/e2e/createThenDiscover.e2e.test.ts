@@ -30,6 +30,7 @@
  *
  * The app is booted as AUTHOR; the seeker's reads run under {@link asPrincipal}. Skips without a database.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -101,6 +102,7 @@ describe('create → public discovery (e2e, assembled app)', () => {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 title,
+                publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
                 description: 'Created through the API by the discovery round-trip spec.',
                 visibility,
                 status,

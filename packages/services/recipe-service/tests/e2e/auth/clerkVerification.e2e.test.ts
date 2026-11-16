@@ -23,6 +23,7 @@
  *
  * Runs only when the harness DB is configured — otherwise skipped in lockstep with the global setup.
  */
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import pg from 'pg';
@@ -41,6 +42,7 @@ const UNAUTHORIZED_AZP = 'https://evil.example.com';
 const VALID_OWNER_ULID = '01JCLERKVERIFYOWNER00001AA';
 
 const MINIMAL_RECIPE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     title: 'Clerk Verification Integration Recipe',
     servings: 2,
     prepTimeMinutes: 5,

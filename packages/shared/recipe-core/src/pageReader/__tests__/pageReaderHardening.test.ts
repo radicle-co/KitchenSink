@@ -298,8 +298,8 @@ describe('G-CORR on a card shaped like a recipe plugin’s', () => {
     });
 
     // ⚠️ PINNED, NOT RULED: the card's equipment, nutrition and jump-link lists are list items the schema does not hold,
-    // so the per-card rule refuses the page. Most JSON-LD refusals on the corpus are this shape. Round 8 decides how
-    // such lists count; when it does, this test changes with the rule.
+    // so the per-card rule refuses the page. Round 8 decides how such lists count; when it does, this test changes with
+    // the rule.
     it.each([
         ['an equipment list', { equipment: true, nutrition: false, jumps: false }],
         ['a nutrition list', { equipment: false, nutrition: true, jumps: false }],

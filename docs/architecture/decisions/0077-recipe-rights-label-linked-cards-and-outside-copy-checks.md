@@ -201,9 +201,8 @@ Owner ruling, 2026-10-29: any cook can keep a web import private, using a slot.
 ## Open items
 
 - **Typed copies of private sources pass.** Nothing can see a family card or an offline book.
-- **Server-side fetching.** The import never fetches a page (spec 004, owner ruling 2026-11-15). The cook supplies
-  the page's content. What replaces `004-FR-008`'s URL fetch and 017's tier 5 source-page lookup (`017-FR-005`) is
-  an open owner question.
+- **Server-side fetching.** A link import fetches the page on the cook's device first and on the server if that fails
+  (spec 004, ADR-0093 §2, owner ruling 2026-11-15). Detection on a paste never fetches.
 - **Brave's API terms are unread.** Whether we can keep a search result as evidence is unconfirmed.
 - **Embedding.** The source's photo is still shown by reference to the saving cook (`016-FR-027a`).
 

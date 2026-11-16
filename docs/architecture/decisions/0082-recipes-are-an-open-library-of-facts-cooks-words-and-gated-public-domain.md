@@ -4,8 +4,8 @@
 - **Date:** 2026-11-03
 - **Amended by:** [ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md): §2, §3, §5's
   licence for Commise's own text, §6 and §7 (owner ruling, 2026-11-15). There are no facts cards and no linked cards.
-  The public form of an import is a Commise-written version, and the import never fetches a page. Every other part
-  stands.
+  The public form of an import is a Commise-written version. A paste never fetches a page, and a link import fetches on
+  the device first and on the server if that fails. Every other part stands.
 - **Amends:** [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md) §2. A family recipe and
   gated public-domain text are open to the web. Its §4 "never blocking" wording means "never rejected automatically".
   Every other part of ADR-0077 stands.
@@ -66,21 +66,14 @@ ADR-0093 replaces the facts card and the linked card that stood here (owner ruli
 - **No paywall on reading a public recipe** (owner ruling 2026-11-03). No Pro gate or other charge ever applies to
   reading a PUBLIC recipe or collection, signed in or out. Pro sells private capacity and tools, never access. A
   creator's sale of a private recipe or collection (§9) is the creator's own offer, not a Commise paywall.
-- **Slots.** Whether the cook's private copy uses a slot when its public version is Commise-written is an open owner
-  question (ADR-0093 §8). Until the owner rules, ADR-0073 applies: every private recipe a free cook holds uses a slot.
+- **Slots.** The cook's private copy uses a slot (ADR-0073), even when a public Commise-written version of it exists
+  (ADR-0093 §8).
 
-### 3. Caps are counted over time, per site and per publisher
+### 3. There are no caps
 
-- A cap is counted over time, across every public version from one site, never per import.
-- User-recipe aggregator sites get no public version (owner ruling 2026-11-03). A cook's import from one stays
-  private, or the cook publishes it in their own words as "Adapted by you". Whether a Commise-written version changes
-  this is an open owner question (ADR-0093 §8).
-- A paid site's per-publisher cap counts only its distinctive recipes (ADR-0093 §5). Bulk import has a per-source public
-  cap (`004-FR-026`).
-- No surface lists, browses or filters public recipes by source site or by book.
-- A site or book past its cap gets no further public versions.
-
-The numbers are set in `016-FR-030a`.
+Owner ruling, 2026-11-15: there are no caps of any kind on public recipes, per site, per publisher or per source.
+User-recipe aggregator sites follow the same rules as any other site. No surface lists, browses or filters public
+recipes by source site or by book.
 
 ### 4. Public domain opens under one rolling global gate
 
@@ -118,12 +111,13 @@ ADR-0093 replaces the launch ban and the pilot gate that stood here (owner rulin
 Commise version of every public-facing recipe from a source outside ADR-0093's allowlist, under the rules in
 ADR-0093 §4 and §5. Spec 003B (public versions of imported recipes, planned) builds it.
 
-### 7. The import never fetches a page
+### 7. How an import reaches the page
 
 ADR-0093 replaces the fetch rules and the per-market URL-import switch that stood here (owner ruling, 2026-11-15).
-Every import goes through one pipeline, with source detection first, and never fetches a page (spec 004). The cook
-supplies the page's content. Publisher opt-outs are honoured through a form and a staff list (`016`). What replaces a
-link-only import is an open owner question (ADR-0093 §8).
+Every import goes through one pipeline, with source detection first (spec 004). Detection on a paste never fetches a
+page. A link import, including a link shared from a social app, fetches the page on the cook's device first, and on
+the server if that fails; on web the server fetch usually runs. Publisher opt-outs are honoured through a form and a
+staff list (`016`).
 
 ### 8. One gate covers every door to public, and it fails closed
 
@@ -133,7 +127,7 @@ non-green recipe. "Never blocking" in ADR-0077 §4 and ADR-0078 means "never rej
 Every door that makes content public or more visible goes through the one hold in the read rule: publish, a toggle,
 an edit to any checked field or photo, a version restore, a clone, a public collection, bulk import, a
 licensed page, a CC BY switch, a re-publish after takedown, a donation at erasure and a Commise-written version. A missing or unknown input reads
-as held. A later change outside the recipe (an opt-out, a cap, a failed public-domain record, a lost site claim) is
+as held. A later change outside the recipe (an opt-out, a failed public-domain record, a lost site claim) is
 read live. The door list and its failure modes live in `020` section K. Notice and takedown, counter-notice, repeat
 infringers and the DSA and UK OSA duties live in `016-FR-016` to `FR-066`.
 
@@ -235,7 +229,7 @@ Owner rulings, 2026-11-03:
 - Family recipes and public-domain cookbooks join the open web.
 - A cook can publish a cookbook recipe in their own words, with credit.
 - Cooks can open their own recipes under CC BY 4.0.
-- The rights label Policy, the public-domain record, the licence fields and the cap ledger are new work. None of them
+- The rights label Policy, the public-domain record, the licence fields are new work. None of them
   exists in code yet.
 
 ## One-way doors
@@ -247,7 +241,6 @@ Owner rulings, 2026-11-03:
 
 ## Open items
 
-- **The cap numbers are not set** (`016-FR-030a`).
 - **Shipped code is behind this decision.** `visibilityPolicy.ts` still lets a full `imported_public` copy go public,
   and the read rule carries no hold yet.
 

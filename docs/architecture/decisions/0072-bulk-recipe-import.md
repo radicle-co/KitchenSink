@@ -3,9 +3,9 @@
 - **Status:** Accepted
 - **Date:** 2026-10-26
 - **Amended by:** [ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md): §8, §9 and the
-  Related work (owner ruling, 2026-11-15). Every user-facing import draws on one import allowance, and test principals
-  have no limit. The cook chooses Private, Public (a Commise-written version) or Both at import. The import never
-  fetches a page. Every other part stands.
+  Related work (owner ruling, 2026-11-15). Every user-facing import draws on one import allowance (200 a day on Free,
+  1,000 on a paid plan), and test principals have no limit. The cook chooses Private, Public (a Commise-written
+  version) or Both at import. A paste never fetches a page. Every other part stands.
 - **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): §9 and
   its Related work. A recipe whose source is not a public web page can be public as the cook's own "Adapted" version.
   The server looks for a stated licence, never for a missing notice. Two statement kinds are added. Every other part
@@ -268,9 +268,8 @@ The builder made three choices where the blueprint was silent. They are recorded
 ### 8. Bulk import draws on the one import allowance
 
 Owner ruling, 2026-11-15: every user-facing import, paste included, uses one import allowance. Test principals have
-no limit. This replaces the separate paste and bulk allowances that stood here. The single allowance's limit on each
-plan is an open owner question. Until the owner rules, the figures stated before stay in force: 200 recipes a rolling
-day on Free and 1,000 on a paid plan, where superusers and VIPs count as paid.
+no limit. This replaces the separate paste and bulk allowances that stood here. The one allowance is 200 a rolling day on Free
+and 1,000 on a paid plan, where superusers and VIPs count as paid (owner ruling, 2026-11-15).
 
 - Every import is counted in the one ledger, `import_allowance_events` (migration 0058), under the per-user advisory
   lock. The ledger still records the channel (`bulk`, `paste`) on each row. All channels count against the one limit.
@@ -426,8 +425,7 @@ is reached, this path does not wait for the budget to return.
   it. This follows the owner's ruling literally, and it is open for the owner. To keep those lines findable, the purge
   needs a rule that spares an import with open lines.
 - **A free cook out of slots is paused on a book or paid-site item.** The import pauses every private item when no slot
-  is free (ADR-0073 §8). Whether a Commise-written public version frees the private copy from its slot is an open
-  owner question (ADR-0093 §8).
+  is free (ADR-0073 §8). A Commise-written public version does not free the private copy from its slot (ADR-0093 §8).
 - **One very large import can outlast a purge statement.** The purge deletes 3 imports per statement, and each one
   takes its items and lines with it by cascade. A file of any size is accepted. So one import that holds tens of
   thousands of recipes can make a single statement run past the tick's time. The tick then fails, and the next tick
@@ -449,9 +447,9 @@ is reached, this path does not wait for the budget to return.
 
 ## Related work
 
-- **URL import.** The import never fetches a page (spec 004, ADR-0093, owner ruling 2026-11-15). The cook supplies
-  the page's content, and every import goes through one pipeline with source detection first. What replaces a
-  link-only import is an open owner question (ADR-0093 §8).
+- **URL import.** A link import fetches the page on the cook's device first and on the server if that fails (spec
+  004, ADR-0093 §2, owner ruling 2026-11-15). Detection on a paste never fetches. Every import goes through one
+  pipeline with source detection first.
 
 ## Alternatives
 

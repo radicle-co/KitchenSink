@@ -112,6 +112,39 @@ describe('scope and hydrate', () => {
     });
 });
 
+describe('clear', () => {
+    it('clearing another cook removes only their key and leaves the scoped cook ready (mutant: resets the store)', async () => {
+        const stored = serializeKeptDocument(makeDoc({ entries: { r1: makeCooking() } }));
+        const { store, data } = setup({ [KEY_A]: stored });
+
+        await store.scope('A');
+        data.set(keptKeyFor('B'), stored);
+        await store.clear('B');
+
+        expect(data.has(keptKeyFor('B'))).toBe(false);
+        expect(data.has(KEY_A)).toBe(true);
+        expect(store.getSnapshot().status).toBe('ready');
+    });
+
+    it('clearing the scoped cook removes their key and holds readers until the next scope', async () => {
+        const { store, data } = setup({ [KEY_A]: serializeKeptDocument(makeDoc()) });
+
+        await store.scope('A');
+        await store.clear('A');
+
+        expect(data.has(KEY_A)).toBe(false);
+        expect(store.getSnapshot()).toEqual({ status: 'loading' });
+    });
+
+    it('clearing nobody (undefined) leaves readers signed out', async () => {
+        const { store } = setup();
+
+        await store.clear(undefined);
+
+        expect(store.getSnapshot()).toEqual({ status: 'signedOut' });
+    });
+});
+
 describe('dispatch', () => {
     it('signed out: a dispatch makes zero writes', async () => {
         const { store, calls } = setup();

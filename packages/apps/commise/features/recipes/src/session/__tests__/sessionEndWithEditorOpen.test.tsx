@@ -31,6 +31,7 @@ import { draftQuarantineKeyFor, draftStoreFor, draftStoreKeyFor } from '../../ed
 import { useRecipeEditorSession, type RecipeEditorSession } from '../../editor/useRecipeEditorSession.js';
 import type { EditorWritePort } from '../../hooks/useRecipeEditor.js';
 import { useDeviceSessionScope } from '../deviceSession.js';
+import { makeKeptStub } from '../kept/__fixtures__/keptStoreStub.js';
 
 /** The session end also reaches the recent searches; this suite is about the editor, so they hold nothing. */
 const recentSearches: RecentSearchStore = {
@@ -107,7 +108,7 @@ function App(props: {
 }) {
     const { store, subject, onSession } = props;
 
-    useDeviceSessionScope(store, subject, recentSearches);
+    useDeviceSessionScope(store, subject, recentSearches, makeKeptStub());
 
     return subject === null ? null : <Editor store={store} subject={subject} onSession={onSession} />;
 }

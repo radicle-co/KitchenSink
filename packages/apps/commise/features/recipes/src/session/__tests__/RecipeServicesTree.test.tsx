@@ -56,6 +56,7 @@ vi.mock('../../detail/CookMarksProvider.js', async (importOriginal) => {
 });
 
 const { RecipeServicesTree } = await import('../RecipeServicesTree.js');
+const { makeKeptStub } = await import('../kept/__fixtures__/keptStoreStub.js');
 
 const clients = { recipe: {}, food: {} } as unknown as RecipeServiceClients;
 
@@ -88,6 +89,7 @@ describe('RecipeServicesTree', () => {
             <RecipeServicesTree
                 clients={clients}
                 store={createMemoryOutboxStore()}
+                kept={makeKeptStub()}
                 subject="user_a"
                 useQueue={queue().useQueue}
             >
@@ -107,6 +109,7 @@ describe('RecipeServicesTree', () => {
             <RecipeServicesTree
                 clients={clients}
                 store={createMemoryOutboxStore()}
+                kept={makeKeptStub()}
                 subject="user_a"
                 useQueue={queue().useQueue}
             >
@@ -123,7 +126,13 @@ describe('RecipeServicesTree', () => {
         const bus = queue();
 
         render(
-            <RecipeServicesTree clients={clients} store={device} subject="user_a" useQueue={bus.useQueue}>
+            <RecipeServicesTree
+                clients={clients}
+                store={device}
+                kept={makeKeptStub()}
+                subject="user_a"
+                useQueue={bus.useQueue}
+            >
                 <span>child</span>
             </RecipeServicesTree>,
         );
@@ -141,12 +150,34 @@ describe('RecipeServicesTree', () => {
         expect(adopt).toHaveBeenCalledWith('local:recipe:a', { serverId: 'rec_9', version: 1 });
     });
 
+    it.each([undefined, null, 'user_a'])(
+        'hands the kept store the raw cook %s (KTD4), not a collapsed one',
+        (subject) => {
+            const kept = makeKeptStub();
+
+            render(
+                <RecipeServicesTree
+                    clients={clients}
+                    store={createMemoryOutboxStore()}
+                    kept={kept}
+                    subject={subject}
+                    useQueue={queue().useQueue}
+                >
+                    <span>child</span>
+                </RecipeServicesTree>,
+            );
+
+            expect(kept.scope).toHaveBeenCalledWith(subject);
+        },
+    );
+
     it('records nothing while nobody is signed in, and unsubscribes on unmount', () => {
         const bus = queue();
         const { unmount } = render(
             <RecipeServicesTree
                 clients={clients}
                 store={createMemoryOutboxStore()}
+                kept={makeKeptStub()}
                 subject={undefined}
                 useQueue={bus.useQueue}
             >

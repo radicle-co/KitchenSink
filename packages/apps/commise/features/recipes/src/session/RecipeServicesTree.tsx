@@ -27,6 +27,8 @@ import type { FC, ReactNode } from 'react';
 
 import { CookMarksProvider } from '../detail/CookMarksProvider.js';
 import { editorDraftsFor } from '../editor/cookDrafts.js';
+import { useKeptSessionScope } from './kept/useKeptSessionScope.js';
+import type { KeptSessionStore } from './kept/keptSessionStore.js';
 import { useDraftAnswers, type DraftAnswerSource } from '../editor/useDraftAnswers.js';
 import type { RecipeServiceClients } from './useRecipeServiceClients.js';
 
@@ -36,25 +38,41 @@ export interface RecipeServicesTreeProps {
     readonly clients: RecipeServiceClients;
     /** The app's one device key/value store: the same object its `SyncProvider` and session end use. */
     readonly store: OutboxStore;
-    /** The signed-in cook (Clerk `userId`), or `undefined` while nobody is. Never a placeholder. */
-    readonly subject: string | undefined;
+    /** The app's one kept cooking-session store (plan 0003 KTD0), scoped here to the cook. */
+    readonly kept: KeptSessionStore;
+    /**
+     * Clerk's raw `userId`: `undefined` while it loads, `null` once nobody is signed in, else the cook. Never a
+     * placeholder. The kept store needs all three (KTD4); everything else here takes it collapsed with `?? undefined`.
+     */
+    readonly subject: string | null | undefined;
     /** Reads the outbox's settlement bus (`@commise/query/sync`'s `useSyncQueue`). A stable module-level hook. */
     readonly useQueue: () => DraftAnswerSource;
     readonly children: ReactNode;
 }
 
 /** The recipe, food and cook-marks providers, with the outbox's recipe answers recorded in the cook's drafts. */
-export const RecipeServicesTree: FC<RecipeServicesTreeProps> = ({ clients, store, subject, useQueue, children }) => {
+export const RecipeServicesTree: FC<RecipeServicesTreeProps> = ({
+    clients,
+    store,
+    kept,
+    subject,
+    useQueue,
+    children,
+}) => {
+    // R7b: another cook's record is removed only once auth has resolved, and a sign-out removes them all.
+    useKeptSessionScope(kept, subject);
+    const cook = subject ?? undefined;
+
     // Records the outbox's recipe answers in the device draft whether or not an editor is open (slice 7): a cook can
     // leave the editor while its write is still queued.
-    useDraftAnswers(useQueue(), editorDraftsFor(store, subject));
+    useDraftAnswers(useQueue(), editorDraftsFor(store, cook));
 
     return (
         <RecipeServiceProvider client={clients.recipe}>
-            <FoodServiceProvider client={clients.food} subject={subject}>
+            <FoodServiceProvider client={clients.food} subject={cook}>
                 {/* Blueprint A13: the cook's checks and current step, kept for the cook who made them and removed at
                     the end of their session — the ADR-0054 rule, applied to marks. */}
-                <CookMarksProvider subject={subject}>{children}</CookMarksProvider>
+                <CookMarksProvider subject={cook}>{children}</CookMarksProvider>
             </FoodServiceProvider>
         </RecipeServiceProvider>
     );

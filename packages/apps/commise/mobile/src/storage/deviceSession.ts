@@ -17,9 +17,14 @@
  * from other tabs and its draft lives only as long as the tab (ADR-0057, ADR-0054 §4). Do not add the web's scope here
  * to "match" it. A cook who never signs in again leaves their keys on the phone until the app's data is cleared; that
  * residue is accepted.
+ *
+ * ⛔ THE ONE EXCEPTION IS THE KEPT COOKING SESSION (`keptSessionStore.ts`, ADR-0094): it IS cleared when the cook's
+ * `userId` goes to `null`, by decision, because it is the cook's place in a recipe and not unsent work. The store scopes
+ * itself in `RecipeServicesTree`, not here.
  */
 import { endDeviceSession as endStoredDeviceSession } from '@commise/features-recipes';
 
+import { nativeKeptSessionStore } from './keptSessionStore.js';
 import { nativeRecentSearchStore } from './recentSearchStore.js';
 import { createNativeOutboxStore } from './outboxStore.js';
 
@@ -27,11 +32,11 @@ import { createNativeOutboxStore } from './outboxStore.js';
 export const nativeDeviceStore = createNativeOutboxStore();
 
 /**
- * End a cook's device session: their drafts, their outbox, both quarantines and their recent searches.
+ * End a cook's device session: their drafts, their outbox, both quarantines and their recent searches and their kept cooking session.
  *
  * @param subject - The cook who was signed in (Clerk `userId`), or `undefined` when nobody was.
  * @sideEffect Removes keys from AsyncStorage, through each store's own writer (the recent searches through theirs).
  */
 export function endDeviceSession(subject: string | undefined): Promise<void> {
-    return endStoredDeviceSession(nativeDeviceStore, subject, nativeRecentSearchStore);
+    return endStoredDeviceSession(nativeDeviceStore, subject, nativeRecentSearchStore, nativeKeptSessionStore);
 }

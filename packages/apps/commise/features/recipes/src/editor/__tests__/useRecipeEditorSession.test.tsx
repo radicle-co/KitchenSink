@@ -145,7 +145,7 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
 
         // E8: the hand-off names how the editor finished, for the snackbar the next page shows.
         expect(nav.finished).toHaveBeenCalledWith('rec_9', { outcome: 'firstPublish', privateRefused: undefined });
-        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE));
+        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE, undefined));
     });
 
     /**
@@ -168,7 +168,7 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
         });
 
         expect(port.submitted).toHaveLength(0);
-        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE));
+        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE, undefined));
         await waitFor(() => expect(port.submitted).toHaveLength(1));
         expect(port.submitted[0]).toMatchObject({ intentKind: 'update', payload: { input: { status: 'published' } } });
     });
@@ -254,7 +254,7 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
             outcome: 'changesSaved',
             privateRefused: undefined,
         });
-        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE));
+        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE, undefined));
     });
 
     it('⛔ a new recipe`s create never carries a Private the server refuses: it goes out public', async () => {

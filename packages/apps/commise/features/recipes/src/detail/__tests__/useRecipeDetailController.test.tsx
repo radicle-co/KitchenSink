@@ -307,7 +307,7 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
         await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
         await waitFor(() => {
             act(() => result.current.menu?.items.find((item) => item.id === 'makePublic')?.onSelect());
-            expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
+            expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC, undefined);
         });
         expect(result.current.dialogs.makePublic.open).toBe(false);
     });

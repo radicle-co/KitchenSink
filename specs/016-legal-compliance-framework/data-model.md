@@ -284,13 +284,13 @@ carry CC BY-SA 4.0, credited "Commise and contributors" (spec `FR-078`), whereve
 | `made_public_at` | `timestamptz` NOT NULL |                                                                                                                                        |
 | `withdrawn_at`   | `timestamptz` NULL     |                                                                                                                                        |
 
-- The count is **over time**: a withdrawn row still counts, because the cap guards repeated and systematic taking
-  (Art. 7(5)), not what is live today. Counsel confirms this reading (`spec FR-050`).
+- The count is **over time**: a withdrawn row still counts, because the cap limits what is taken from a source
+  over time, not what is live today.
 - The count is taken live with `COUNT(*)` under a per-source advisory lock, in the same transaction as the write,
   the shape ADR-0073 uses for private slots. There is no counter column.
-- The cap numbers are configuration per `source_class`, set by counsel. _(Amended 2026-11-03, owner ruling O6, ADR-0082.)_ `aggregator` is fixed at zero: no card is ever made for it, so the policy denies before it counts.
-- _(Amended, Owner ruling, 2026-11-15.)_ Past the cap, the import offers only Private for a recipe from that source,
-  and a restriction statement is written (section 14).
+- The cap numbers are configuration per `source_class`, confirmed before launch (`spec FR-050`). _(Amended 2026-11-03, owner ruling O6, ADR-0082.)_ `aggregator` is fixed at zero: no card is ever made for it, so the policy denies before it counts.
+- _(Amended, Owner ruling, 2026-11-15.)_ What the import offers for a source past its cap is an open owner question
+  (spec `FR-030a`). A refused Public choice writes a restriction statement (section 14).
 
 ## 13. The fetch-signal log (the fetching service, `FR-024a`) _(added 2026-11-03, ADR-0082)_
 
@@ -388,8 +388,7 @@ leaves public, and on its attestations, is replaced with a random token that lin
 publish (spec `FR-072`). An account with only a `13` record uses the app privately.
 
 **Retention period** (`FR-052a`–`FR-052c`). Surviving records are purged **3 years after the decision they
-evidence** — the US copyright limitation period, and the outer bound of the GDPR Art. 17(3)(e) basis that let
-them survive erasure in the first place. `notices.reporter_name` and `notices.reporter_email` are pseudonymised
+evidence** — the period in which a claim about the decision can still be brought. `notices.reporter_name` and `notices.reporter_email` are pseudonymised
 much earlier, once the counter-notice window on that notice closes, since a third-party reporter's contact
 details serve no purpose past the dispute. A purge is suspended only by an explicit, recorded legal hold. This
 implies one scheduled sweep and a `legal_hold` marker on the records it can skip — the sweep is a task, and

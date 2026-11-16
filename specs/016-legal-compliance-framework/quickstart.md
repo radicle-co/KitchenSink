@@ -213,8 +213,7 @@ tier was never written is a false status, and false status is worse than a known
 ## What this quickstart cannot prove
 
 - **The registered designated agent exists** (`FR-025`) — not software. Its three-yearly renewal is a
-  monitored obligation with a named owner, and a lapse is a lapse in safe harbour.
-- **The documents say the right thing** — counsel's work product. Slice 1 ships the machinery with placeholder
+  monitored obligation with a named owner, and the registration must never lapse.
+- **The documents say the right thing** — drafted outside the product. Slice 1 ships the machinery with placeholder
   content, and the machinery is fully testable without the words.
-- **That our legal position is correct** — `FR-050` lists what counsel must confirm and what breaks if each
-  assumption is wrong.
+- **That every confirmed item was confirmed** — `FR-050` requires each item to be confirmed before launch.

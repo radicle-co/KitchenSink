@@ -2,16 +2,21 @@
  * THE BODY PARSER'S REFUSALS ARE THE CALLER'S `4xx`, not a server fault.
  *
  * `body-parser` refuses a request body with an `http-errors` object (`type: 'entity.too.large'`, `'entity.parse.failed'`,
- * `'encoding.unsupported'`, `'charset.unsupported'`), which is NOT a Nest `HttpException`, so `normalizeHttpException`
- * never sees it and a filter's `500` fallback answered it. A client that shrinks a chunk on `413` never saw the status it
- * branches on, and a malformed JSON body was reported to Sentry and logged as a server fault.
+ * `'encoding.unsupported'`, `'charset.unsupported'`, and raw-body's `'request.size.invalid'`), which is NOT a Nest
+ * `HttpException`, so `normalizeHttpException` never sees it and a filter's `500` fallback answered it.
  *
- * ⛔ THE THROWN OBJECT CARRIES THE REQUEST TEXT: `entity.parse.failed` has the raw body as its `body` property. A filter
- * must therefore neither log nor capture it. Every published message here is a CONSTANT, and a filter that gets a
- * failure from this link answers at `warn` with the code only (a `4xx` is never a Sentry issue).
+ * ⛔ THE THROWN OBJECT CARRIES THE REQUEST TEXT: `entity.parse.failed` has the raw body as its `body` property, and its
+ * `message` (a `SyntaxError`'s) quotes the characters around the error. Every published message here is a CONSTANT,
+ * and a filter that gets a failure from this link answers at `warn` with the code only (a `4xx` is never a Sentry issue).
+ *
+ * ⛔ THIS LINK ONLY SEES WHAT NEST HANDS ON UNCHANGED. Nest's own body parser routes a parse failure through
+ * `mapExternalException`, which rewrites any `SyntaxError` into a `BadRequestException` carrying the parser's message,
+ * so this link never sees it and that message is published. A service that serves a JSON body therefore registers its
+ * own parser (`bodyParser: false`) and strips each refusal to `{ type, status, expose }` before Nest's handler; see
+ * recipe-service's `config/bodyParsing.ts`.
  *
  * A filter that serves a body-parsing route consults this before its `500` fallback, so the rule lives once rather than
- * once per filter. (Food's and identity's filters do not consult it yet; they serve no large JSON body.)
+ * once per filter. (Food's and identity's filters do not consult it yet.)
  *
  * @pattern Chain of Responsibility — one link of a service filter's resolve chain, consulted before its 500 fallback
  * @module
@@ -27,6 +32,9 @@ export const BODY_NOT_PARSEABLE_MESSAGE = 'The request body is not valid JSON.';
 /** The published `message` for a body in an encoding or charset the parser does not read: a CONSTANT. */
 export const BODY_ENCODING_UNSUPPORTED_MESSAGE = 'The request body uses an encoding that is not supported.';
 
+/** The published `message` for a body whose length does not match its `content-length`: a CONSTANT. */
+export const BODY_LENGTH_MISMATCH_MESSAGE = 'The request body does not match its declared length.';
+
 /** What each parser `type` this link claims answers with. Read through `Object.hasOwn`: a `type` of `constructor` is not one. */
 const PARSER_FAILURES: Readonly<
     Record<string, { readonly status: number; readonly message: string; readonly validation: boolean }>
@@ -41,6 +49,11 @@ const PARSER_FAILURES: Readonly<
     'charset.unsupported': {
         status: HttpStatus.UNSUPPORTED_MEDIA_TYPE,
         message: BODY_ENCODING_UNSUPPORTED_MESSAGE,
+        validation: false,
+    },
+    'request.size.invalid': {
+        status: HttpStatus.BAD_REQUEST,
+        message: BODY_LENGTH_MISMATCH_MESSAGE,
         validation: false,
     },
 };

@@ -93,6 +93,9 @@ export class ImportService {
      * @returns The view.
      * @throws `IMPORT_NOT_FOUND` for an id another cook holds, `IMPORT_ID_IN_USE` for the caller's own id with other choices,
      *   `IMPORT_ITEM_LOCKED` / `IMPORT_ITEM_ALREADY_SAVED` for an item that cannot change, `IMPORT_STORAGE_FULL` when the cook holds the most unpaid bytes one cook may.
+     *   A `IMPORT_STORAGE_FULL` on create keeps the header it just wrote, on purpose: it holds no bytes, the client's replay
+     *   of the same id resumes it, and the 30-day purge removes it if nothing does. Deleting it here could race that
+     *   replay and delete the items the replay stored.
      * @sideEffect Writes the header and the items.
      */
     public async create(principal: Principal, body: CreateImportRequest): Promise<ImportView> {

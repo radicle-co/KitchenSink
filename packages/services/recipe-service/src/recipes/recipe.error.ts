@@ -212,7 +212,7 @@ export function importIdInUse(): RecipeDomainError {
 }
 
 /**
- * `IMPORT_STORAGE_FULL` (→ 409) — the cook already holds as many unpaid import bytes as one cook may (ADR-0072 §2). Not a
+ * `IMPORT_STORAGE_FULL` (→ 409) — the cook already holds as many unpaid import bytes as one cook may (ADR-0072 §8). Not a
  * `413`: a client halves its chunk on `413`, and a smaller chunk does not help. Paying (an `advance`) or deleting an import does.
  *
  * @returns The error.

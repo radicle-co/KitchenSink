@@ -647,6 +647,17 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
             expect(await store(header.id, 0, 'a')).toEqual({ kind: 'ok' });
         });
 
+        it('an item read back carries no payload_bytes: it is the cap’s measure, not part of the item', async () => {
+            const header = await newImport(1);
+
+            expect(await store(header.id, 0, 'a')).toEqual({ kind: 'ok' });
+
+            const item = await capped.findItem(header.id, 0);
+
+            expect(item).toBeDefined();
+            expect(Object.keys(item ?? {})).not.toContain('payloadBytes');
+        });
+
         it('⛔ measures the cap from payload_bytes: no statement of the request serialises a payload to text', async () => {
             const header = await newImport(3);
             const issued: string[] = [];

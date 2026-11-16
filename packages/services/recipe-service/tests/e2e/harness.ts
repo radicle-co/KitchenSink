@@ -22,6 +22,7 @@
  */
 import { bootServiceApp, type BootedServiceApp } from '@kitchensink/service-test-harness';
 
+import { RECIPE_HTTP_SETUP } from '../../src/config/bodyParsing.js';
 import { SEED_ERASURE_QUEUE_URL, SEED_PARSE_QUEUE_URL, SEED_VERIFICATION_QUEUE_URL } from '../support/localHarness.js';
 import { RECIPE_APP_ENV_DEFAULTS } from '../support/recipeAppEnv.js';
 
@@ -68,6 +69,7 @@ export async function bootRecipeApp(options: BootRecipeAppOptions): Promise<Boot
     return bootServiceApp({
         loadAppModule: () => import('../../src/app.module.js'),
         forcedEnv,
+        httpSetup: RECIPE_HTTP_SETUP,
         envDefaults: {
             ...RECIPE_APP_ENV_DEFAULTS,
             // The queue the global setup actually provisions — one definition, so the booted app and the

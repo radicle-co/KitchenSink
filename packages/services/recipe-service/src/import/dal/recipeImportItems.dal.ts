@@ -119,8 +119,14 @@ export type PayOutcome =
     /** The allowance is spent: nothing was paid, and more room opens at `resetsAt`. */
     | { readonly kind: 'refused'; readonly resetsAt: Date };
 
-/** The item row, narrowed. A value the CHECK should have kept out is a defect and is thrown. */
-function toItem(row: Omit<RecipeImportItemRow, 'payloadBytes'>): ImportItem {
+/**
+ * The item row, narrowed. A value the CHECK should have kept out is a defect and is thrown. `payloadBytes` is the cap's
+ * measure, not part of an item: a full row passes it in, and it is dropped here so no caller carries it on.
+ */
+function toItem(
+    input: Omit<RecipeImportItemRow, 'payloadBytes'> & { readonly payloadBytes?: RecipeImportItemRow['payloadBytes'] },
+): ImportItem {
+    const { payloadBytes: _measure, ...row } = input;
     const stage = IMPORT_STAGES.find((value) => value === row.stage);
     const review = ITEM_REVIEWS.find((value) => value === row.review);
     const visibility = row.visibility === null ? null : IMPORT_VISIBILITIES.find((value) => value === row.visibility);

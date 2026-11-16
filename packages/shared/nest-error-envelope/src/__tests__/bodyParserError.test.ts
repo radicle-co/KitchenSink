@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     BODY_ENCODING_UNSUPPORTED_MESSAGE,
+    BODY_LENGTH_MISMATCH_MESSAGE,
     BODY_NOT_PARSEABLE_MESSAGE,
     BODY_TOO_LARGE_MESSAGE,
     normalizeBodyParserError,
@@ -55,6 +56,8 @@ describe('normalizeBodyParserError', () => {
             'WRONG_MEDIA',
             BODY_ENCODING_UNSUPPORTED_MESSAGE,
         ],
+        // raw-body: the bytes read do not match the declared `content-length`.
+        ['request.size.invalid', 400, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', BODY_LENGTH_MISMATCH_MESSAGE],
     ])(
         'answers %s as %i with the vocabulary’s own code and a constant message',
         (type, status, answer, code, message) => {

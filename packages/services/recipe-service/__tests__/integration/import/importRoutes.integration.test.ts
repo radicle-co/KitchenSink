@@ -19,6 +19,7 @@
 import 'reflect-metadata';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Logger } from '@nestjs/common';
 
 import {
     apiErrorSchema,
@@ -425,13 +426,30 @@ describe('the body parser refuses with the published envelope', () => {
         expect(imports.insertHeader).not.toHaveBeenCalled();
     });
 
-    // Nest maps the parser's `SyntaxError` to its own 400, so malformed JSON never reaches the parser link: it is the
-    // envelope's `BAD_REQUEST`. What reaches the link is the parser's http-errors that are not a SyntaxError.
-    it('answers malformed JSON with 400 in the published envelope', async () => {
-        const { status, json } = await call(COOK, 'POST', '', 'not json {');
+    // ⛔ THE COOK'S TEXT NEVER LEAVES. The parser's `SyntaxError` message quotes the body, and Nest's own body parser
+    // hands it to Nest's `mapExternalException`, which rewrites it into a `BadRequestException` carrying that message.
+    // The service parses JSON itself and strips a refusal down to its type, so the envelope and the log carry the
+    // constant only.
+    it('⛔ answers malformed JSON with 400 VALIDATION_FAILED, and neither the response nor the log carries its text', async () => {
+        const warn = vi.spyOn(Logger.prototype, 'warn');
+        const response = await asPrincipal(COOK, () =>
+            fetch(`${booted.baseUrl}${BASE}`, {
+                method: 'POST',
+                headers: { authorization: bearerFor(COOK), 'content-type': 'application/json' },
+                // V8 quotes about ten characters around the error, so the cook's text sits inside that window.
+                body: '{"t": MARKER}',
+            }),
+        );
+        const text = await response.text();
+        const logged = warn.mock.calls.flat().map(String);
 
-        expect(status).toBe(400);
-        expect(apiErrorSchema.parse(json).code).toBe('BAD_REQUEST');
+        warn.mockRestore();
+
+        expect(response.status).toBe(400);
+        expect(apiErrorSchema.parse(JSON.parse(text)).code).toBe('VALIDATION_FAILED');
+        expect(text).not.toContain('MARKER');
+        expect(logged.length).toBeGreaterThan(0);
+        expect(logged.filter((line) => line.includes('MARKER'))).toEqual([]);
         expect(imports.insertHeader).not.toHaveBeenCalled();
     });
 

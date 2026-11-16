@@ -217,7 +217,10 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
         // An absent key is a cleared record; an unreadable one is left for the next locked write to replace.
         if (parsed.kind !== 'invalid') {
             lastRaw = raw;
-            set({ snapshot: { status: 'ready', doc: parsed.kind === 'ok' ? parsed.doc : EMPTY_KEPT_DOCUMENT } });
+            // What the cook did while reads failed stays on screen. It writes nothing: the next locked dispatch does.
+            const stored = parsed.kind === 'ok' ? parsed.doc : EMPTY_KEPT_DOCUMENT;
+
+            set({ snapshot: { status: 'ready', doc: replay(stored, unsaved) } });
         }
     };
 

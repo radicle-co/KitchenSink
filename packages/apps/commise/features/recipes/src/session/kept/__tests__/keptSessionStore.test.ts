@@ -166,6 +166,25 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         expect(written.entries.r1.ticks).toEqual(expect.arrayContaining(['butter', 'salt']));
     });
 
+    it('a re-read after reads recover keeps the unsaved change on screen, and the next write sends it', async () => {
+        const { store, data, state } = setup({ [KEY_A]: stored });
+
+        state.failReads = true;
+        await store.scope('A');
+        await store.dispatch(tick);
+        state.failReads = false;
+        data.set(KEY_A, serializeKeptDocument(makeDoc({ rev: 2, entries: { r1: makeCooking() } })));
+        await store.reread();
+
+        expect(docOf(store.getSnapshot()).entries['r1']?.ticks).toContain('butter');
+
+        await store.dispatch({ ...tick, ingredientId: 'salt' });
+
+        expect(JSON.parse(data.get(KEY_A) ?? '{}').entries.r1.ticks).toEqual(
+            expect.arrayContaining(['butter', 'salt']),
+        );
+    });
+
     it('a change made while reads fail is replayed with the instant the cook made it, not the replay instant', async () => {
         const fake = makeFakePort({ [KEY_A]: stored });
         let clock = T0;

@@ -4652,3 +4652,22 @@ describe('the source question on Publish (ADR-0092)', () => {
         expect(input).toMatchObject({ visibility: RecipeVisibility.PRIVATE });
     });
 });
+
+/** ADR-0092: a wording is the client's word that it showed it, and the Source row shows none. */
+describe('the Source row’s link sends no wording (ADR-0092)', () => {
+    it('⛔ a publishing write for a pasted link states the citation and nothing it did not show', async () => {
+        const { result, port } = mount();
+
+        act(() => {
+            result.current.setValues({ ...complete(), sourceLink: 'https://www.allrecipes.com/recipe/1/soup/' });
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+
+        const { input } = port.submitted[0]?.payload as { input: { statement?: Record<string, unknown> } };
+
+        expect(input.statement).toEqual({ kind: 'public_web', citation: 'https://www.allrecipes.com/recipe/1/soup/' });
+    });
+});

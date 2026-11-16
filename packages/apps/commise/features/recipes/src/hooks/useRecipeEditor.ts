@@ -64,7 +64,6 @@ import { useMessages } from '@commise/i18n/react';
 import {
     PUBLIC_CONFIRM_WORDINGS,
     RecipeVisibility,
-    STATEMENT_WORDINGS_BY_CHOICE,
     type PrivateFoodLine,
     type RecipeDetail,
     type VersionConflictSide,
@@ -751,15 +750,15 @@ function statementPlanNow(ctx: EditorContext): StatementPlan {
 }
 
 /**
- * The wording this screen showed, for a write that publishes (ADR-0092): the Source row's web-link wording, the passive line
- * exactly when it is drawn under the Public card, and the sheet's answer. A client sends only what it showed.
+ * The wording this screen showed, for a write that publishes (ADR-0092): the passive line exactly when it is drawn under
+ * the Public card, and the sheet's answer. The Source row shows no wording of its own, so none is sent for its link. A client
+ * sends only what it showed.
  */
 function shownWordingsOf(ctx: EditorContext): ShownWordings {
     const { locale } = ctx.opts;
     const statement = ctx.statement.get().answer?.statement;
 
     return {
-        statementWording: { version: STATEMENT_WORDINGS_BY_CHOICE.publicWeb[0], locale },
         ...(statementPlanNow(ctx).confirmLineShown
             ? { publicConfirmation: { version: PUBLIC_CONFIRM_WORDINGS[0], locale } }
             : {}),

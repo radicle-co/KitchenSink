@@ -76,7 +76,10 @@ export type HeldTimer = RunningTimer | PausedTimer;
 /** Any timer in the list. */
 export type ActiveTimer = HeldTimer | RingingTimer | EndedAwayTimer;
 
-/** The whole state: the timers, and the one a cancel left for Undo. Only `cancel`, `restore` and `discardUndo` change it. */
+/**
+ * The whole state: the timers, and the one a cancel left for Undo. Only `cancel`, `restore` and `discardUndo` change
+ * `undo`, and `rematch` may rehome it to the step its timer moved to.
+ */
 export interface TimerState {
     readonly timers: readonly ActiveTimer[];
     readonly undo: HeldTimer | undefined;
@@ -206,7 +209,7 @@ const byCodeUnits = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 
 const alarmOrder = (a: { readonly at: number; readonly id: string }, b: { readonly at: number; readonly id: string }) =>
     a.at - b.at || byCodeUnits(a.id, b.id);
 
-/** Ringing as an edge: the one place `ended` is born. Returns the ringing timer. */
+/** The ringing form of a timer at `endedAt`. Only `ring` and `restore` call it, and each raises one `ended` per timer. */
 function toRinging(timer: HeldTimer, endedAt: number): RingingTimer {
     return { ...baseOf(timer), kind: 'ringing', endedAt };
 }

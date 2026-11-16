@@ -6,6 +6,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
+import { laneCosts } from '@kitchensink/local-sandbox/laneCosts';
 import { processEnv, type Env } from '@kitchensink/e2e-plan/stampRun';
 
 import { BLOB_DIR, LANE_LOG_DIR } from './e2ePaths';
@@ -13,18 +14,10 @@ import { run, sleep, waitForExit } from './e2eProcess';
 import { parseReport, type PlaywrightReport } from './e2eReport';
 import { deadOrigins } from './e2eServer';
 
-const GIB = 1024 ** 3;
+/** What one lane and the one shared `next start` cost; the measurements are recorded beside the figures in `laneCosts.ts`. */
+export const LANE_COST: LaneCost = laneCosts.web;
 
-/**
- * What one lane costs, from the full-suite run of 2026-11-08 (8 lanes on one shared server, 20 CPUs, sampled every 2 s
- * over each lane's process tree: Playwright and its browsers). A lane's CPU averaged 0.34 cores (p95 0.67, p99 0.87)
- * and its resident memory 1.17 GiB (p95 1.30, peak 1.88; summed RSS counts shared pages twice). The figures are rounded
- * up from the p95 so the planner does not oversubscribe. The earlier 1.5 CPUs and 2 GiB paid for a Next server per lane.
- */
-export const LANE_COST: LaneCost = { cpus: 0.75, memBytes: 1.5 * GIB };
-
-/** What the one shared `next start` costs, whatever the lane count: CPU mean 0.54 (peak 0.90), memory mean 0.57 GiB (peak 0.62). */
-export const SERVER_COST: LaneCost = { cpus: 1, memBytes: 0.75 * GIB };
+export const SERVER_COST: LaneCost = laneCosts.webServer;
 
 /**
  * The most lanes tried against Clerk's dev instance at once (8, the size of the `web` pool slots). It served all 8 with

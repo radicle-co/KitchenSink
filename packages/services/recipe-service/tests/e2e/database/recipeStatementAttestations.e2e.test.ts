@@ -21,6 +21,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
+import { SEED_INGREDIENTS, seed } from '../../../src/database/seed.js';
 import { recipeDb } from '../../support/roleDb.js';
 
 const roleDb = recipeDb();
@@ -408,6 +409,8 @@ describe('recipe_statement_attestations (migration 0088)', () => {
         await attest(AUTHORED);
 
         await roleDb.truncate();
+        // Empties the seeded catalog too; the suites that run after this file read it.
+        await seed(pool);
 
         expect(await attestationCount(RECIPE_ID)).toBe(0);
 
@@ -416,6 +419,16 @@ describe('recipe_statement_attestations (migration 0088)', () => {
         );
 
         expect(rows).toEqual([{ tgenabled: 'O' }]);
+    });
+
+    /**
+     * The harness's `truncate()` above empties EVERY table, the seeded ingredient catalog included, and the suites that run
+     * after this file read that catalog. A file that empties the database owes the next file its seeded world back.
+     */
+    it('leaves the seeded ingredient catalog in place for the suites that run after it', async () => {
+        const { rows } = await pool.query(`SELECT 1 FROM food_lookups WHERE id = $1`, [SEED_INGREDIENTS[0]?.id]);
+
+        expect(rows).toHaveLength(1);
     });
 
     it('removes the rows when the recipe is hard-deleted: the guard lets the ON DELETE CASCADE through', async () => {

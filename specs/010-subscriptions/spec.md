@@ -24,7 +24,7 @@ keep" screen. [O-13](#o-13) and [O-14](#o-14) were resolved on 2026-10-29.
 | [001-commise-recipe-app](../001-commise-recipe-app/spec.md)                                             | **Referenced** — gates private recipe visibility (001-FR-003)                                                                                                         |
 | [004-recipe-importing](../004-recipe-importing/spec.md)                                                 | **Referenced** — gates clone-to-private for imported recipes (004-FR-011)                                                                                             |
 | [005-ai-integration](../005-ai-integration/spec.md)                                                     | **Referenced** — gates AI generation and instruction optimization (005-FR-016, 005-FR-019); AI credits by plan (005-FR-015a to FR-015f)                               |
-| [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md)                             | **Required**: subscription disclosures and cancellation (016-FR-040–FR-044); counsel items (016-FR-050)                                                               |
+| [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md)                             | **Required**: subscription disclosures and cancellation (016-FR-040–FR-044); open decisions (016-FR-050)                                                              |
 | [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)                           | **Required**: free cooks hold 50 private recipes; a downgrade never makes a private recipe public                                                                     |
 | [ADR-0024](../../docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md)             | **Referenced**: the platform's monthly AI spend ceiling, which is not a cook's credits (`FR-041d`)                                                                    |
 | [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md) | **Required**: store billing, RevenueCat and Stripe sell the plans (`FR-042i`)                                                                                         |
@@ -40,7 +40,7 @@ keep" screen. [O-13](#o-13) and [O-14](#o-14) were resolved on 2026-10-29.
 
 ### User Story 1 - Free and Pro Subscription Tiers (Priority: P3)
 
-New users start on a free tier that provides core functionality: creating, viewing, editing, and deleting their own recipes (public by default, with up to 50 private, ADR-0073); sharing and cloning recipes; basic recipe importing; basic meal planning (manual assignment only); grocery list generation (without online ordering); and cooking mode. Pro features (private recipe visibility, AI recipe generation, AI meal plan optimization, food waste optimization, online grocery ordering, nutrition planning for clients, and AI instruction optimization) require a paid subscription. _(Added 2026-11-03, owner ruling O5, ADR-0082.)_ **Pro sells private capacity and tools, never access.** No Pro plan or other paywall ever applies to reading a PUBLIC recipe or collection, signed in or signed out. _(Amended 2026-11-03, owner ruling O14, ADR-0082.)_ The owner, verbatim: "Our competitors rely on making users pay to access any recipe. I want to undercut them and I believe recipes are like a library and so I want people to find public and creator recipes on our app over all others." A creator can also list their own PRIVATE recipes and PRIVATE collections for sale at a price the creator sets (O14c). 010 takes the payment and grants the buyer access, through 018's seller model. It is not a Commise paywall. Only content the creator owns can be sold, and every sold recipe passes 020's hold (see `012-FR-034a`). It is not a public recipe. Counsel review is owed before launch (`016-FR-050`).
+New users start on a free tier that provides core functionality: creating, viewing, editing, and deleting their own recipes (public by default, with up to 50 private, ADR-0073); sharing and cloning recipes; basic recipe importing; basic meal planning (manual assignment only); grocery list generation (without online ordering); and cooking mode. Pro features (private recipe visibility, AI recipe generation, AI meal plan optimization, food waste optimization, online grocery ordering, nutrition planning for clients, and AI instruction optimization) require a paid subscription. _(Added 2026-11-03, owner ruling O5, ADR-0082.)_ **Pro sells private capacity and tools, never access.** No Pro plan or other paywall ever applies to reading a PUBLIC recipe or collection, signed in or signed out. _(Amended 2026-11-03, owner ruling O14, ADR-0082.)_ The owner, verbatim: "Our competitors rely on making users pay to access any recipe. I want to undercut them and I believe recipes are like a library and so I want people to find public and creator recipes on our app over all others." A creator can also list their own PRIVATE recipes and PRIVATE collections for sale at a price the creator sets (O14c). 010 takes the payment and grants the buyer access, through 018's seller model. It is not a Commise paywall. Only content the creator owns can be sold, and every sold recipe passes 020's hold (see `012-FR-034a`). It is not a public recipe.
 
 **Why this priority**: The monetization model must be designed early but can be built incrementally. The free tier must deliver enough value to hook users without giving away the Pro differentiators.
 
@@ -260,8 +260,8 @@ the paid plans are called "Pro" everywhere.)_
     - **A card is required** to start a trial. The trial renews into the paid plan unless the cook cancels first.
       (The owner chose this over a no-card trial.)
     - The cook MUST get a clear notice before the first charge, with the date and the amount. The notice goes out
-      early enough to cancel in time. The exact lead time goes to counsel with `016-FR-050`. _(Amended 2026-10-28.)_
-      Until counsel answers, the lead time is **3 days before the first charge**, on day 11 of a 14-day trial.
+      early enough to cancel in time. The exact lead time is an open decision under `016-FR-050`. _(Amended 2026-10-28.)_
+      Until it is decided, the lead time is **3 days before the first charge**, on day 11 of a 14-day trial.
       Commise sends it on every rail, by email, push where allowed and in-app (`014-FR-052`). Why Commise sends its
       own:
         - No Apple or Google page we opened says the store warns a cook before a trial converts. Apple's
@@ -273,15 +273,11 @@ the paid plans are called "Pro" everywhere.)_
         - On the web, Stripe also sends its own reminder: "we send a reminder 7 days before a trial ends", with a
           cancel link ([Stripe](https://docs.stripe.com/billing/subscriptions/trials/manage-trial-compliance)).
           It stays on, because Stripe ties it to card network rules for trials. So a web cook gets both.
-        - California's own trial notice applies only to a trial "lasting for more than 31 days", sent "at least 3
-          days before and at most 21 days before" it ends ([Bus. & Prof. Code §17602](https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=BPC&sectionNum=17602), as amended by AB 2863). A 14-day
-          trial is not in it. The 3-day lead time matches that law's floor, so a longer trial (a 30-day creator code
-          is still under 31 days) would not need a second rule.
         - The lead time is one constant. The paywall timeline and the scheduler read the same value.
     - Cancelling MUST be as easy as subscribing (`FR-042e`).
-    - The terms MUST meet the US Restore Online Shoppers' Confidence Act (ROSCA) and the California automatic
-      renewal law. The EU withdrawal button applies where the cook has a withdrawal right (`FR-042f`). Counsel
-      confirms the wording (`016-FR-050`).
+    - The renewal terms MUST meet the automatic-renewal rules of every market Commise serves. The EU withdrawal
+      button applies where the cook has a withdrawal right (`FR-042f`). The wording is confirmed before launch
+      (`016-FR-050`).
     - A Pro with AI trial gives 100 uses (`005-FR-015c`).
 - **FR-041i** _(owner, 2026-10-27, answers O-10)_: Plan changes take effect as follows:
     - An upgrade takes effect at once, and the price difference is pro-rated.
@@ -405,17 +401,15 @@ the page's UX and legal requirements)_
 - **FR-042d**: The page MUST NOT use deceptive patterns. "Not now" and the close control are visible at all times and
   look as strong as the buy buttons. Decline copy is neutral, with no confirmshaming. There is no fake urgency: no
   timers, no "today only" and no false scarcity. After "Not now", the same prompt does not come back in the same
-  session. Basis: EU DSA Article 25, EDPB Guidelines 03/2022, and the FTC's 2022 staff report "Bringing Dark Patterns
-  to Light". The `staff-ux-engineer` agent refuses these patterns, it does not weigh them.
+  session. The `staff-ux-engineer` agent refuses these patterns, it does not weigh them.
 - **FR-042e**: Cancelling MUST be as easy as subscribing. The Cancel control is on the same page, it takes no more
   steps than subscribing took, and the result is confirmed in writing (`016-FR-041`). No retention offer MUST stand between the
   cook and the cancel action. A store purchase routes the cook to the store's own
   cancel flow (`016-FR-042`).
 - **FR-042f**: Where a market gives a withdrawal right, the page MUST state it at purchase (`016-FR-043`). In the EU
-  and UK a consumer has 14 days to withdraw from a distance contract. How that right applies to an app subscription
-  is a question for counsel: whether it counts as digital content or a digital service, and what consent and
-  acknowledgement end the right early. v1 serves the US only (`016-FR-048`). So this is
-  built as a seam under `016-FR-048b`, and the wording goes to counsel (`016-FR-050`).
+  and UK a consumer has 14 days to withdraw from a distance contract. How that right applies to an app subscription,
+  and what consent and acknowledgement end it early, is an open decision. v1 serves the US only (`016-FR-048`). So this is
+  built as a seam under `016-FR-048b`, and the wording is confirmed before launch (`016-FR-050`).
 - **FR-042g**: The page MUST design and build every state, each with its copy and its localization key:
     - loading, and an error that offers a retry.
     - offline: says so and offers no purchase. A plan list that already loaded stays on screen.
@@ -439,9 +433,9 @@ the page's UX and legal requirements)_
   pays. The rule is `FR-041i`: an upgrade takes effect at once with the difference pro-rated, and a downgrade takes
   effect at the end of the paid period ([plan §7](./plan.md#7-key-decisions)). A downgrade also states what changes. Private recipes stay private
   (`FR-043a`). AI credits follow `FR-041f`.
-- **FR-042i**: On mobile, the purchase follows the store rules for the market. Status checked 2026-10-26, for counsel
-  to confirm (`016-FR-050`):
-    - Apple: since the court order of 30 April 2025, App Review Guideline 3.1.1(a) lets an app on the US storefront
+- **FR-042i**: On mobile, the purchase follows the store rules for the market. Status checked 2026-10-26, to be confirmed
+  before launch (`016-FR-050`):
+    - Apple: since 30 April 2025, App Review Guideline 3.1.1(a) lets an app on the US storefront
       link to an outside purchase with no entitlement. Outside the US, a digital subscription still uses in-app
       purchase (Guideline 3.1.1).
     - Google Play: the US external links and alternative billing programs are open, and Google charges service fees
@@ -540,12 +534,8 @@ the page's UX and legal requirements)_
     - **No offer.** No discount, no "are you sure", no plan switch prompt and no resubscribe button. Closing the
       screen does nothing to the cancellation. The written confirmation goes out by email as well (`016-FR-041`,
       `014-FR-052`).
-    - **Why it is lawful.** It comes after the cancel, so nothing stands between the cook and Cancel (`FR-042e`).
-      California allows a save offer in an online cancel only beside a "click to cancel" button
-      ([Bus. & Prof. Code §17602](https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=BPC&sectionNum=17602), as amended by AB 2863), and this screen makes no offer at all. ROSCA requires
-      "simple mechanisms for a consumer to stop recurring charges"
-      ([15 U.S.C. 8403](https://www.law.cornell.edu/uscode/text/15/8403)). EU DSA Article 25 names "making the
-      procedure for terminating a service more difficult than subscribing to it". Counsel confirms (`016-FR-050`).
+    - **Why it comes after the cancel.** Nothing stands between the cook and Cancel (`FR-042e`), and this screen makes
+      no offer at all.
     - **The reason is personal data.** It is stored with the account, erased with it, and reported only in
       aggregate.
     - Every state is designed: the facts with and without a household, over and under 50 private recipes, a trial

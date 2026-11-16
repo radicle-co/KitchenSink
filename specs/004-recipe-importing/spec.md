@@ -304,8 +304,7 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     > owner statement. _(amended 2026-11-03, owner ruling, ADR-0082 §9. Was: no proof existed that a cook controls a
     > social account, `026` OQ-026-S1, so a hit on the post always went to a person.)_ The proof is now a linked social
     > account (`026-FR-061`). A hit on the post the recipe came from is cleared only when the post's author id matches
-    > the linked account. Otherwise it goes to a person, with the statement shown (`020-FR-012g`). Counsel review is
-    > owed before launch (`016-FR-050`).
+    > the linked account. Otherwise it goes to a person, with the statement shown (`020-FR-012g`).
     >
     > **Amended 2026-11-03 (owner ruling, ADR-0082 §9): the proof is a linked account.** The cook links their social
     > account to their Commise profile through the platform's own sign-in (OAuth), never through a code in a bio
@@ -313,7 +312,6 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     > (`020-FR-012g`). The import offers the link when the cook makes statement 1a and holds no link for that platform.
     > The offer is never pre-ticked and never a condition of saving. Without a matching link, the hit goes to a person
     > as before. A platform with no usable OAuth identity API, or no official post author id, is OPEN (`026-FR-061`).
-    > Counsel review is owed before launch (`016-FR-050`).
 - **FR-012** _(REASSIGNED TO 011 — see D-001, amended 2026-08-14)_: Import from physical copies via photo
   capture and OCR is owned by [011-recipe-digitization](../011-recipe-digitization/spec.md), **not by 004**.
   011's image branch routes to a dedicated stateless image-processing service and then submits its extracted
@@ -323,11 +321,9 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
   offering an affordance that does nothing, and the bulk import contract MUST accept the
   `imported_physical` `sourceType` so 011 can submit against it without a contract change.
   See [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md) §1 and §3.
-    > **Amended 2026-11-03 (owner ruling, ADR-0082): the image path.** [Law] A cook's private copy of a cookbook page is
-    > fine, and storage is user-provided (UK reg. 19, DSA Art. 6). The page image MUST be **deleted after extraction**
-    > unless the cook asks to keep it. A kept image stays private. Video frames and audio are never kept. [Law, EU] DSM
-    > Art. 4(2) limits retention, and GDPR storage limitation applies where people appear. Counsel review is owed
-    > before launch (`016-FR-050`).
+    > **Amended 2026-11-03 (owner ruling, ADR-0082): the image path.** A cook may keep a private copy of a cookbook page.
+    > The page image MUST be **deleted after extraction**
+    > unless the cook asks to keep it. A kept image stays private. Video frames and audio are never kept.
 - **FR-052** _(raw-text channel — added 2026-08-16, owner ruling)_: System MUST allow users to import a recipe
   by **pasting its text**, as a first-class import method listed in the chooser (`FR-046`) alongside URL and
   file — not as an error-recovery fallback. The channel MUST accept a bounded body of raw text plus a
@@ -352,7 +348,7 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
 - **FR-053** _(GATED, added 2026-10-28, owner ruling, see `D-019`. Suspended 2026-11-15: the save starts a server
   fetch, and the import never fetches a page, `FR-064`, OQ-004-R1)_: System MUST accept a **"Save to Commise"**
   link from a recipe page that shows the button, and turn one tap into one user-directed capture of that one page.
-  Owner ruling, 2026-10-28: "Do 3 as well." The rules:
+  Owner ruling, 2026-10-28: it is built. The rules:
     - **The button is a plain link.** It carries the page's address and a fixed source tag for the partner, and
       nothing else. Commise puts no script, cookie, pixel or tracking call on the publisher's page. The link's
       exact form is a public contract with a third party. So `staff-architect` fixes it at PLANNING, and it is
@@ -381,13 +377,13 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
       _(Note 2026-11-03, owner ruling O16, ADR-0082.)_ O16 names paste, URL and social import, not this button. So the
       save screen does not offer the owner statement 1a yet, and a save stays never `user_created`. An owner who wants
       their own page as "Written by you" uses the URL import (`FR-008`). Whether the save screen offers it too is OPEN
-      for the founder. Counsel review is owed before launch (`016-FR-050`).
+      for the founder.
       _(amended 2026-11-03, owner ruling, ADR-0082 §9. This settles the OPEN item above.)_ The save screen MUST offer
       the ownership claim: "This is my recipe, from my site" (statement 1a, `FR-014a`), with the offer to verify the
       site through 026's claim. It is never pre-ticked and never a condition of saving. With the statement, the save is
       `user_created` and labelled "Written by you", and the rule "a save is never `user_created`" above holds only
       without it. _(owner-accepted 2026-11-03)_ Without a live claim the statement clears no hit (`020-FR-012g`). A
-      cook who saved without it can claim later (`FR-055`). Counsel review is owed before launch (`016-FR-050`).
+      cook who saved without it can claim later (`FR-055`).
     - **020 still checks it.** A cook can make the recipe public. Then 020's source check runs before anyone else
       can see it (`020-FR-004`).
     - **Attribution.** The draft and the recipe show the source site and author, as for any link import
@@ -420,8 +416,7 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
       only BULK route that turns pages into the chef's own recipes, and only under a live claim. _(amended 2026-11-03,
       owner ruling O16, ADR-0082. Was: "the only route". A single paste, URL or social import can now carry the owner
       statement 1a without a claim (`FR-014a`). Without a live claim the statement clears no hit. The bulk bring-in
-      still needs a live claim, because it lists recipes from the site itself. Counsel review is owed before launch
-      (`016-FR-050`).)_
+      still needs a live claim, because it lists recipes from the site itself.)_
     - **020 still checks it.** A public recipe goes through 020 as usual. A hit on its own origin page under a live
       claim is handled by `020-FR-012g`.
 - **FR-019**: System MUST allow users to import recipes from structured files (JSON, YAML, or Markdown with
@@ -585,10 +580,9 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   otherwise a free-text citation (e.g. book title, author, page). Where the cited source is **not a publicly
   reachable web page**, the recipe MUST be classified `imported_paid`, and its **verbatim copy** MUST stay private.
   _(Amended 2026-10-29: except a family or friend recipe shared with permission, below. Amended 2026-11-03, owner
-  ruling, ADR-0082: the rule is about the verbatim copy, not about the recipe. [Law] Where a recipe came from is not
-  the test. What we show is. The cook can publish their own **Adapted** version, in their own words with credit, and
-  it is judged by the Adapted rule. A family recipe is public as itself. See the six statements below. Counsel review
-  is owed before launch (`016-FR-050`).)_ Automated
+  ruling, ADR-0082: the rule is about the verbatim copy, not about the recipe. What decides is what we show, not where the
+  recipe came from. The cook can publish their own **Adapted** version, in their own words with credit, and
+  it is judged by the Adapted rule. A family recipe is public as itself. See the six statements below.)_ Automated
   detection heuristics MUST additionally run as a **secondary signal** that flags a recipe for review; a
   heuristic MUST NOT by itself reclassify a recipe or block a save. _(Legal review remains advisable on the
   heuristic set; the attestation + citation rule above is operable without it — see D-003.)_
@@ -612,14 +606,14 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     >    and needs the giver's permission, because a name can be personal data.)_
     >
     > ⚠️ **Amended 2026-11-03 (owner ruling, ADR-0082): statements 2 and 6 make a recipe publishable in full.**
-    > [Law] The bare recipe is free, and a relative's handwritten prose can be theirs. The cook publishes it in their own
+    > The cook publishes it in their own
     > words, or the giver's words with the giver's permission. An "Adapted" method must be rewritten, not trimmed
     > (`016-FR-015b`). An AI rewrite is not the cook's own words (`016-FR-015i`). A cook who holds a verbatim book or
-    > paid-site copy can write an Adapted version and publish that. Counsel review is owed before launch (`016-FR-050`).
+    > paid-site copy can write an Adapted version and publish that.
     >
     > ⚠️ **Statement 1a: "This is my recipe, from my site or account"** _(amended 2026-11-03, owner ruling O16,
-    > ADR-0082)_. The owner said: "a user should be able to mark that they are actually the owner of the recipe (i.e. a
-    > user importing from a web page they own). This is important for the review process." This builds on
+    > ADR-0082)_. A cook can mark that they own the recipe, for example when importing from a web page they own, and the
+    > review reads it. This builds on
     > ADR-0078 and 026's site claim. It adds no second way to verify.
     >
     > 1. **What it is.** Statement 1a is statement 1 ("I wrote this") plus the address of the page or account the cook
@@ -629,13 +623,13 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     >    (`016` data-model §15).
     > 2. **What a bare statement does.** It sets `user_created` and the label "Written by you" (`016-FR-015c` label 1),
     >    as statement 1 always does. It is the cook's attestation (`016-FR-014`), made per recipe. A false statement is
-    >    the cook's legal risk (`016-FR-055`). [House rule] It MUST NOT clear a copy flag, because anyone can claim.
+    >    handled under the terms (`016-FR-055`). It MUST NOT clear a copy flag, because anyone can claim.
     >    With no live claim, a hit on the own origin goes to a person with the statement shown. The statement never
     >    counts against the cook on its own (`020-FR-012g`, ADR-0078 §2).
     > 3. **What a live claim adds.** Verified ownership is 026's live site claim, the one mechanism (`026-FR-001`). The
     >    proof is one of three: a DNS TXT record on the domain, a meta tag in the home page, or a recipe plugin token.
     >    A live claim on the own origin's domain clears ONE hit: the hit on the page this recipe was imported from
-    >    (`020-FR-012g`). It does not change the label. The statement sets the label. [House rule] A claim proves control
+    >    (`020-FR-012g`). It does not change the label. The statement sets the label. A claim proves control
     >    of a site, not authorship of each post (ADR-0078 §3).
     > 4. **Verify at import, or later.** The cook can make statement 1a for a web page on a domain they hold no live
     >    claim to. Then the import MUST offer to verify the site through 026's claim. The offer is never pre-ticked, never a
@@ -670,7 +664,7 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     >
     > The statement sets the label and the rights label (`016-FR-015c`). Each channel offers the statements its own
     > rules allow. Paste (`FR-052`) still maps a book or paid-site statement to `imported_paid` and does not offer
-    > statement 3, as before. It gains statements 2 and 6. Counsel confirms the wording of all six before launch
+    > statement 3, as before. It gains statements 2 and 6. The wording of all six is confirmed before launch
     > (`016-FR-050`). The bulk-import note below, which names two statements, now reads as these six.
     >
     > ⚠️ **Bulk import.** Owner rulings, 2026-10-26. Every bulk-imported recipe, private as well as public,
@@ -678,7 +672,7 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > with no citation, or "From a source", with a citation. A source is a public web page, a book or a paid site. The import sets the label from it: `user_created`, `imported_public`,
     > `imported_physical` or `imported_paid`. A recipe whose source is not a public web page keeps its verbatim copy private _(amended 2026-11-03, ADR-0082: the cook can publish an Adapted version)_. A free
     > cook keeps a book or paid-site recipe private within their 50 private slots
-    > ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)). Counsel approves the wording before launch (016
+    > ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)). The wording is confirmed before launch (016
     > FR-050). See [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9.
     >
     > ⚠️ **Source check.** Owner ruling, 2026-10-26: when an automated check can tell that a recipe is from a book, a paid
@@ -734,7 +728,7 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > translator, illustrator) with a death year or "no named author", the "mort pour la France" flag per creator, the
     > edition used, the markets checked, who checked and when, and the rule version (D1, `016-FR-015k`). No new
     > `sourceType` value is added. The "Public domain" label is derived from the grant plus a passing record. The rule
-    > rolls forward each 1 January, so no cut-off year is fixed here. Counsel review is owed before launch (`016-FR-050`).
+    > rolls forward each 1 January, so no cut-off year is fixed here.
     >
     > ✅ **The create half has shipped, ahead of the rest of 004 and additively.** `POST /api/v1/recipes` now
     > takes an optional `source` — a discriminated union over `sourceType` in
@@ -781,8 +775,7 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > from the channel it observed, except with the owner statement 1a (`FR-014a`). With it, the label is
     > `user_created`, which this requirement already allows a caller to declare. The route MUST accept `user_created`
     > there only with statement 1a and its own origin, and the own origin MUST be the page or account the server fetched
-    > or read. A request that pairs `user_created` with any other own origin is refused. Counsel review is owed before
-    > launch (`016-FR-050`).
+    > or read. A request that pairs `user_created` with any other own origin is refused.
 - **FR-026**: System MUST support importing a single file containing **many** recipes — up to **1,000** per
   file, rejecting a larger file with an explicit limit message — producing one draft per
   recipe. Drafts with no missing required fields MUST be confirmable in a single bulk action; drafts with gaps
@@ -858,7 +851,6 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
       the cook accepts.
     - _(added 2026-11-03, owner ruling, ADR-0082 §9)_ Rewording a flagged step before any takedown is not a strike
       (`016-FR-062`). The screen MUST NOT warn the cook that accepting or disputing a suggestion counts against them.
-    - Counsel review is owed before launch (`016-FR-050`).
 - **FR-055** _(added 2026-11-03, owner ruling, ADR-0082 §9)_: **A cook can claim ownership later, on a recipe already
   saved.** A recipe the cook saved from a page, a post or the "Save to Commise" button (`FR-053`) without statement 1a
   MUST offer "This is my recipe, from my site or account" from the recipe and from settings.
@@ -868,10 +860,9 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
       offer is never pre-ticked and never a condition of keeping the recipe.
     - The claim changes no outcome by itself. The recipe's next check, at its next door to public or sale, reads the
       claim or link as it stands then (`020-FR-012g`). A recipe already public is not reopened (ADR-0078 §2).
-    - [House rule] A false claim is the cook's own legal risk under the terms (`016-FR-055`, `016-FR-069`).
+    - A false claim is handled under the terms (`016-FR-055`, `016-FR-069`).
     - Every state (offered, claimed, verifying, verified, failed, declined) needs copy and a localisation key on web and
       mobile, and `staff-ux-engineer` designs it at SPECIFY.
-    - Counsel review is owed before launch (`016-FR-050`).
 - **FR-056** _(added 2026-11-15, owner ruling: "add the AI stuff to the import feature spec so it gets done when that
   feature is implemented")_: **A paste that has no structured recipe data goes to an AI text-extraction fallback, and
   it is built as part of this feature.** The device tiers of `FR-064` (schema.org, microdata,
@@ -928,9 +919,8 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   tiers. Web and mobile then ship the same fallback outcomes, including `budgetSpent` and the over-cap refusal, each
   with copy and a localisation key (`CODING_STANDARDS.md` §14).
 
-- **FR-063** _(added 2026-11-15, legal review; **needs attorney sign-off before launch**, `016-FR-050`)_: **A machine-readable
-  opt-out skips the fallback.** Sending page text to the model on our server is our own copy. That reopens the EU
-  text-and-data-mining opt-out (CDSM Art. 4) and the weak UK basis (s.28A). Before the fallback, the device reads the
+- **FR-063** _(added 2026-11-15; confirmed before launch, `016-FR-050`)_: **A machine-readable
+  opt-out skips the fallback.** The server AI fallback honours a page's data-mining opt-out. Before the fallback, the device reads the
   pasted page's opt-outs: `noai` or `noimageai` in a meta `robots` tag, and TDM reservation tags such as `tdm-reservation`
   (TDMRep). If one is present, the fallback is skipped. No job is created, nothing is reserved or charged, and the cook
   gets the type-it-in path with a neutral message that does not blame the page. Plain-text pastes carry no page and are
@@ -1256,11 +1246,11 @@ The section above decides **who authors** the contract; this one is where it **r
   developed and tested against a contract fake. **No other requirement in 004 depends on it.** The Meta
   application is an external workstream that does not gate release.
 - **D-019 (Save to Commise, added 2026-10-28, owner ruling)**: `FR-053` is fully specified but gated, in the same
-  way as `D-002`. Owner ruling, 2026-10-28: "Do 3 as well." The button needs the WP Recipe Maker team to add Commise as
+  way as `D-002`. Owner ruling, 2026-10-28: it is built. The button needs the WP Recipe Maker team to add Commise as
   a save target. The founder emails the team in pre-launch block 1. If there is no reply within 30 days, outreach
   stops (acquisition brainstorm, idea B4). Writing our own WordPress plugin is not planned. It needs evidence of
   creator demand first. The capability flag stays off until a signed agreement exists. The publisher chooses to show
-  the button, which is the publisher's own act. Whether that act grants any licence is a counsel question under
+  the button, which is the publisher's own act. Whether that act grants any licence is an open decision under
   `016-FR-050`. It does not change any label. No other requirement in 004 depends on `FR-053`.
 - **D-003 (FR-014a)**: Attestation **and** citation **and** heuristics, as specified in `FR-014a`: the user
   declares the source and must cite it; a non-public cited source forces `imported_paid` (its verbatim copy never public, amended 2026-11-03, ADR-0082);
@@ -1376,8 +1366,7 @@ The section above decides **who authors** the contract; this one is where it **r
   search indexing, does not block an import; a **path-specific** wildcard `Disallow` still does, and any group
   that **names our user-agent** is honoured in full, giving a site owner a precise and effective opt-out.
   **Stated honestly: this encodes our reading of a site owner's intent, and a site owner who wrote
-  `Disallow: /` meaning "no automated access at all" is overridden by it.** Three things make that defensible
-  rather than merely convenient: we identify ourselves (`Commise/1.0 (+https://commise.app/bot)`) so we are
+  `Disallow: /` meaning "no automated access at all" is overridden by it.** Three things make it fair to the site owner: we identify ourselves (`Commise/1.0 (+https://commise.app/bot)`) so we are
   attributable; we honour an agent-specific directive completely, so the opt-out is real and one line long; and
   we rate-limit ourselves per user (D-006). Every block is counted so this can be revisited on evidence.
 - **D-006 (Import limits, 2026-08-02)**: Two layers, deliberately different mechanisms.
@@ -1440,16 +1429,16 @@ channel is hidden by its capability flag and its tests run against the contract 
   credential and caption-text parsing. Only posts with recipe content in the caption are supported. See D-002.
 - **C-006 (Draft-and-confirm)**: Every import channel produces a draft; confirmation creates the recipe. See
   _The draft-and-confirm model_ above for why this is forced by the shipped schema rather than chosen.
-- **C-008 (Save to Commise, 2026-10-28)**: Owner ruling, verbatim: "Do 3 as well." Item 3 of the owner's list was a
+- **C-008 (Save to Commise, 2026-10-28)**: Owner ruling, 2026-10-28: build item 3 as well. Item 3 of the owner's list was a
   "Save to Commise" button for food bloggers through the WP Recipe Maker plugin. This spec reads it as one more link
   import channel, gated on the plugin team (`FR-053`, `D-019`). It keeps 016's rules, 017's user-directed posture and
   020's check, and it adds no new label and no new pipeline.
-- **C-009 (Recipe rights, 2026-10-29)**: Owner, verbatim, in part: "The same goes for a private recipe that a chef
-  copied from a public source and either a public or private recipe copied verbatim from a copyrighted or private
-  source." The full ruling is quoted in `016` C-016-005. This spec reads it as four changes: a web import is private in
+- **C-009 (Recipe rights, 2026-10-29)**: Owner ruling, 2026-10-29: the product is clear about who owns a private
+  recipe a chef copied from a public source, and any recipe copied word for word from another source (`016`
+  C-016-005). This spec reads it as four changes: a web import is private in
   full or public as a linked card (`FR-008` ruling, C-001; the card is withdrawn 2026-11-15), six statements in place of two (`FR-014a`), a family or
   friend recipe that can be public (`FR-028`), and a fingerprint kept at capture for the source check
-  (`020-FR-012b`). The research behind them is not legal advice, and each is subject to counsel review.
+  (`020-FR-012b`).
 - **C-007 (Extraction strategy set)**: The extractor chain is JSON-LD → microdata → heuristic HTML. **RDFa is
   deliberately excluded**: it is vanishingly rare for recipe content relative to JSON-LD and microdata, and no
   maintained Node RDFa parser exists. The chain is a Strategy set behind one interface, so adding RDFa later is

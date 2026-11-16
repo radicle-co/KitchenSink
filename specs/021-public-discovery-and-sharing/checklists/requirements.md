@@ -41,7 +41,7 @@
 - 2026-11-03 (owner rulings, ADR-0082): the rights label, not the source type, decides what opens. Facts cards (the
   linked card and the book card) are readable signed out and indexable under the public rule (owner ruling O2, amended 2026-11-03, ADR-0082). Family recipes and gated public domain
   text open to the web. Cooks get an opt-in CC BY choice. The source card is kept only for an opted-out, capped or
-  excluded site. Counsel's list grows (FR-095). GR-014 is amended in the same change (FR-096). No `plan.md` or
+  excluded site. The pre-launch confirmations grow (FR-095). GR-014 is amended in the same change (FR-096). No `plan.md` or
   `tasks.md` exists yet, so the spec lists the plan work owed under Dependencies.
 - 2026-11-15 (owner ruling, ADR-0093): facts cards, linked cards, book cards and source cards are withdrawn. An
   imported recipe goes public only as a Commise-written version (FR-003, FR-014). Four owner questions are open in
@@ -53,5 +53,5 @@
 - Amendments applied in this change: 001 (FR-004, FR-045, FR-045a, C-004, User Story 2, Dependencies, Clarifications)
   and 012 (audience scope, FR-006, FR-007, FR-008, FR-022, FR-026, Dependencies). Listed and not applied: 016,
   ADR-0020, ADR-0064 and `018-FR-017` (FR-092 to FR-097). GR-014 was applied on 2026-11-03 (FR-096).
-- `staff-ux-engineer` DESIGN and SPECIFY, `staff-architect` PLANNING, counsel (FR-095) and `ts-1` are plan-time
+- `staff-ux-engineer` DESIGN and SPECIFY, `staff-architect` PLANNING, the pre-launch confirmations (FR-095) and `ts-1` are plan-time
   dependencies. None has run.

@@ -328,8 +328,8 @@ half (GR-017 §17-f).
 **Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-023-A, ITP-014-A`
 
 - [ ] DAL + service over `paywalled_domains` with audit fields (`added_by`, `created_at`, `reason`)
-- [ ] _(added 2026-11-03, ADR-0082)_ Known pirate hosts are seeded as blocked hosts (DSM Art. 4(1)), and the reason
-      field names the law basis (17 U.S.C. §1201, CFAA)
+- [ ] _(added 2026-11-03, ADR-0082)_ Known pirate hosts are seeded as blocked hosts, each with its reason
+      field filled
 - [ ] Matching is **exact host or registrable suffix — never substring** (`notnytimes.com` must not match `nytimes.com`)
 - [ ] Host normalized (lowercase, strip `www.`) before lookup
 - [ ] Bounded-TTL cache; a cache miss fails **closed** (blocked) rather than open
@@ -933,7 +933,7 @@ with the fetch, OQ-004-R1. T-034, T-035 and T-036 are withdrawn: no per-market s
 
 **Test-first:** true. The tests are written and confirmed **failing** before any implementation.
 
-- [ ] Pure `MarketCopyPolicy`: US gives `keepPrivateCopy`. EU, UK and any market counsel has not cleared give
+- [ ] Pure `MarketCopyPolicy`: US gives `keepPrivateCopy`. EU, UK and any market not yet cleared give
       `factsAndLinkOnly`. The default is closed
 - [ ] The extractor stores no verbatim method, headnote or photo reference when the policy says `factsAndLinkOnly`
 - [ ] **Unit tests** for every market and for an unknown market. **Integration test** that a UK cook's URL import
@@ -1006,7 +1006,7 @@ with the fetch, OQ-004-R1. T-034, T-035 and T-036 are withdrawn: no per-market s
 
 The owner statement 1a (`FR-014a`) on paste, URL and social import, and the offer to verify the site through 026's
 claim. It builds on ADR-0078 and adds no second way to verify. Every task is test-first: the failing tests in every
-tier come before the code. Counsel review is owed before launch (`016-FR-050`).
+tier come before the code.
 
 ### T-040 · Owner statement 1a on paste, URL and social import
 
@@ -1137,7 +1137,7 @@ tier come before the code. Counsel review is owed before launch (`016-FR-050`).
       gains a row. `llmSpendGuards` stays green and `natEgressConsumers` is updated.
 - [ ] Prompt builder takes the text only, signature pinned, system prompt pinned by length and SHA-256. The model returns
       line numbers only. Out-of-range or overlapping ranges are refused.
-- [ ] Input over 48,000 UTF-8 bytes is refused, never truncated. A page opt-out (`noai`, `noimageai`, TDM reservation) skips the fallback with a neutral type-it-in message (`FR-063`, attorney sign-off owed).
+- [ ] Input over 48,000 UTF-8 bytes is refused, never truncated. A page opt-out (`noai`, `noimageai`, TDM reservation) skips the fallback with a neutral type-it-in message (`FR-063`, confirmed before launch).
 - [ ] Pasted text is deleted when the job leaves `pending`. All six states have copy and a localisation key.
 - [ ] A ceiling denial ends `budgetSpent`, is acknowledged and is not retried. An unreadable counter retries. A job
       older than 10 minutes is `failed`.

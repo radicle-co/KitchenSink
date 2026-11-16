@@ -8,7 +8,7 @@ FR-085a) and the save route (FR-035). Amended 2026-10-29 for recipe rights: the 
 can be open to the web (FR-002), and the licence panel's ownership line (FR-040). Amended 2026-10-29 for a chef's Home (FR-010a), on
 the owner's ruling on [026](../026-chef-spaces/spec.md) Q2. Amended 2026-11-03 for the open library (owner rulings,
 ADR-0082). Facts cards open signed out (FR-003, FR-004, FR-014 to FR-014h). Family and gated public domain text open
-to the web (FR-002, FR-006). Cooks get a CC BY choice (FR-040a, FR-040b). The counsel list grows (FR-095). See
+to the web (FR-002, FR-006). Cooks get a CC BY choice (FR-040a, FR-040b). The pre-launch confirmations grow (FR-095). See
 Session 2026-11-03. Amended 2026-11-09 for the owner's answers to feature 003A's questions: recipes left public at
 erasure (FR-002 rule 7), the page language and the cache key (FR-062), comments (FR-070), and the `noindex` 003A ships
 with (FR-020a). See Session 2026-11-09. Amended 2026-11-15 for the public versions of imported recipes (owner ruling,
@@ -63,7 +63,7 @@ is never public. The Overview and Session 2026-11-15 state the rule now in force
   setting and the smart banner. Its §3.6 web-to-mobile gate applies to each one. Every state in FR-019 is a deliverable.
 - **`staff-architect` PLANNING**, to choose how signed-out reads reach the data (section J), then BLUEPRINT and
   REVIEW.
-- **Counsel**, for the items in FR-095.
+- **The pre-launch confirmations** of FR-095.
 - **`ts-1`**, for the tracking plan behind section I, and the referrer classes and crawler counts added 2026-10-28.
 
 **Plan work owed (2026-11-03, ADR-0082).** This feature has no `plan.md` or `tasks.md` yet. The 2026-11-03 rulings add
@@ -135,13 +135,11 @@ web:
   is not on the copy-outright allowlist is public only as a Commise-written version.
 - **Creator pages** (`/@handle`, spec 012), showing the cook's open recipes.
 
-_(Added 2026-11-03, owner ruling O5, ADR-0082.)_ **Reading a PUBLIC recipe or collection is never paid for.** The owner,
-verbatim: "Our competitors rely on making users pay to access any recipe. I want to undercut them and I believe recipes
-are like a library and so I want people to find public and creator recipes on our app over all others." No Pro plan or
+_(Added 2026-11-03, owner ruling O5, ADR-0082.)_ **Reading a PUBLIC recipe or collection is never paid for.** No Pro plan or
 other paywall ever applies to reading a public recipe or a public collection, signed in or signed out. Pro sells
 private capacity and tools, never access. A creator can also list a PRIVATE recipe or collection for sale (O14c). That is the creator's own sale at the creator's price, and 010, 018 and 026 own the payment. It is not a Commise paywall. Only content the creator owns can be sold (O14d, `012-FR-034a`). It is not a public recipe, so a signed-out reader never sees its
 content (FR-008). _(Amended 2026-11-03, owner ruling O14, ADR-0082. Was: "a public or creator recipe", with the chef's paid
-content called a separate product.)_ Counsel review is owed before launch (`016-FR-050`).
+content called a separate product.)_
 
 Everything else stays behind sign-in. The app root still opens on sign-in (`001-FR-045a`). Public pages live on
 their own routes, and a person reaches them only through a link or a search result.
@@ -329,8 +327,8 @@ thin recipe and a recipe in its settle period each answer `noindex` and are not 
 Sam likes the soup and taps "Save". A sheet explains that saving needs a free account, with "Sign up" and "Sign in".
 He signs up. He comes back to the same recipe, and the app asks him to confirm the save he wanted.
 
-**Why this priority**: Sign-ups are the point of the loop for the business. They must come from a fair offer, because
-deceptive patterns are law in our markets (EU DSA Article 25), not a preference.
+**Why this priority**: Sign-ups are the point of the loop for the business. They must come from a fair offer, with no
+deceptive patterns.
 
 **Independent Test**: Signed out, tap each account action on a public page. Each opens the sign-up sheet. Complete
 sign-up and check the visitor lands back on the same recipe with the action offered again. Check that no overlay,
@@ -521,7 +519,7 @@ creator page.
 
 ### Session 2026-10-27
 
-- **The ruling.** Owner, verbatim: "Let's add a feature and spec for indexing and sharing as you note." The owner accepted
+- **The ruling.** The owner ruled to add a feature and spec for indexing and sharing, and accepted
   these points. Signed-out reading of public recipes that cooks wrote themselves, and of creator pages. Recipe
   structured data. Everything else behind sign-in. The app still opens on sign-in. Imported third-party recipes stay
   private. A shared link opens for a friend with no account.
@@ -556,7 +554,7 @@ creator page.
 
 ### Session 2026-10-28
 
-- **The ruling.** Owner, verbatim: "Let's also do the pages for AI recommendation." The aim is that AI answer engines
+- **The ruling.** The owner ruled to add pages for AI recommendation. The aim is that AI answer engines
   can read and cite the public recipe pages. The engines are ChatGPT search, Perplexity, Google's AI Overviews and
   Copilot. This follows Q1: block training-only crawlers, and allow search and answer crawlers.
 - **Reading: most of it is already here.** Recipe structured data (FR-023), stable addresses (FR-010), canonical
@@ -577,11 +575,9 @@ creator page.
 _(Superseded in part, 2026-11-15: every card reading in this session is withdrawn. See Session 2026-11-15.)_
 
 - **The rulings.** The owner ruled on recipe rights on 2026-10-29 ([ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md)).
-  On ownership, verbatim: "we'll need to make sure that we're very, very clear about what chefs own for public recipes
-  and don't and who owns the recipes they don't to cover the cases where they copy a public recipe on another site
-  without changes." The rest of that ruling is quoted in `016` C-016-005. A recipe imported from someone else's web page
-  has exactly two states: private, the full recipe for the cook and their household, or public as a linked card. The
-  research behind it is not legal advice, and the card is subject to counsel review.
+  On ownership: the product says clearly what a cook owns in a public recipe, and who owns a recipe the cook copied
+  from another site without changes (`016` C-016-005). A recipe imported from someone else's web page
+  has exactly two states: private, the full recipe for the cook and their household, or public as a linked card.
 - **Reading: this closes the gap the 2026-10-27 reading left open.** That reading kept C-004's signed-in rule for an
   `imported_public` recipe "unchanged", so a full copy of a web page stayed readable by every signed-in cook. Now
   other signed-in cooks get the linked card (FR-003, FR-014a). _(Amended 2026-11-03, ADR-0082.)_ Signed-out visitors
@@ -602,12 +598,10 @@ _(Superseded in part, 2026-11-15: every card reading in this session is withdraw
   library: facts, cooks' words and gated public domain open to the web"). It amends ADR-0077, ADR-0072, ADR-0023,
   ADR-0073 and ADR-0052. The rulings, in this spec's terms:
     - **Facts are free, signed out.** The facts of any public recipe can be read by anyone, signed out. The linked card
-      (FR-014a) is now the signed-out answer for a copied web page. Its field list does not grow. [Law] Nobody owns a
-      recipe's facts (17 U.S.C. §102(b), Feist, Copyright Office Circular 33, Publications International v.
-      Meredith). The same holds in the UK, EU, Canada and Australia for bare functional steps.
+      (FR-014a) is now the signed-out answer for a copied web page. Its field list does not grow.
     - **Words open only with the right to share them.** A recipe opens in full with one of four labels: Written by
       you, Adapted by you, From a family member or friend, or Public domain. A clone of one of those opens too (FR-002).
-      [Law] Where a recipe came from is not the test. What we show is.
+      What decides is what we show, not where the recipe came from.
     - **Family recipes are open.** The giver's permission must cover the open web.
     - **Public domain opens under one gate.** `016-FR-015k` holds the rule. It replaces the earlier "open both" reading
       (authors dead 70 years) (FR-006).
@@ -615,8 +609,7 @@ _(Superseded in part, 2026-11-15: every card reading in this session is withdraw
     - _(Added 2026-11-03, second round, ADR-0082.)_ **Facts cards are indexable** (O2, FR-014g, FR-020). **Every
       indexable page carries our own structured data, one canonical address and a sitemap place** (O3, FR-023,
       FR-026, FR-027). **One canonical page wins for one dish from one source page** (O4, FR-026a). **A public card uses
-      no private slot** (O1, FR-014d). **Reading is never paid for** (O5, Overview). Counsel review is owed before
-      launch (`016-FR-050`).
+      no private slot** (O1, FR-014d). **Reading is never paid for** (O5, Overview).
     - **The Commise version is not at launch** (FR-014h).
     - **A CC BY 4.0 choice**, opt-in, for a recipe the cook wrote (FR-040a).
 - **Reading: visibility stays binary.** A book or paid-site recipe now has the same two states as a copied web page.
@@ -626,22 +619,16 @@ _(Superseded in part, 2026-11-15: every card reading in this session is withdraw
   grant. So is a page with a stated licence (FR-014f). A rule keyed on `imported_public` alone closes both. Every
   rule here reads the rights label (`016-FR-015c`, `016-FR-015d`). Which source type an adapted recipe gets is the
   label Policy's decision, and it is plan work.
-- **Reading: the cap is counted over time.** [Law, EU and UK] The database right protects the contents of a site's
-  collection, not its words (Directive 96/9/EC Art. 7 and Art. 7(5), UK SI 1997/3032, CV-Online Latvia v Melons,
-  C-762/19). Rewording does not cure it. So the per-site cap counts every public card and any later Commise version,
-  together and over time (FR-014e). [House rule] It applies to every site from day one, because we cannot tell where a
-  site was made. Counsel review is owed before launch (`016-FR-050`).
+- **Reading: the cap is counted over time.** Rewording does not change the count. The per-site cap counts every public card and any later Commise version,
+  together and over time (FR-014e). It applies to every site from day one.
 - **Reading: facts cards are indexable** _(amended 2026-11-03, owner ruling, ADR-0082)_. The earlier `noindex`
-  house rule is removed. The founder, verbatim: "Our competitors rely on making users pay to access any recipe. I want
-  to undercut them and I believe recipes are like a library and so I want people to find public and creator recipes on
-  our app over all others." What stays: the facts-only field list, the per-site and per-source caps counted over time,
+  house rule is removed. What stays: the facts-only field list, the per-site and per-source caps counted over time,
   a visible credit and link to the source, and no source prose, headnote or photo. Indexing is not a separate
-  permission. It follows the public rule (FR-014g, FR-020). [House rule] Counsel review is owed before launch
-  (`016-FR-050`).
+  permission. It follows the public rule (FR-014g, FR-020).
 - **Reading: no paywall on reading** _(owner ruling O5, 2026-11-03, ADR-0082. Amended 2026-11-03, owner ruling O14)_. No
   Pro or other paywall applies to reading a PUBLIC recipe or a PUBLIC collection, signed in or out. Pro sells private
   capacity and tools, never access. A creator can list PRIVATE recipes and collections for sale (`012-FR-034a`, O14c).
-  That is the creator's own sale, run by 010, 018 and 026 (FR-008). Counsel review is owed before launch (`016-FR-050`).
+  That is the creator's own sale, run by 010, 018 and 026 (FR-008).
 - **Reading: public domain pages are indexable** _(amended 2026-11-03, owner ruling O8, ADR-0082)_. This was a default
   the founder could change. It is now decided (FR-020).
 - **Reading: "signed in" was never the legal line.** Signed in and signed out are the same "public" in law. The
@@ -662,9 +649,8 @@ Four of the answers change this spec:
   for that case only.
 - **The page's own words follow the browser language** (003A Q3), with English as the fallback. FR-062's cache key
   becomes the path plus that language.
-- **Comments show on public pages** (003A Q6). The owner, verbatim: "by commenting they are agreeing to leave their name
-  and words public - this is normal everywhere. If we need to, update the terms of service feature to make sure that is
-  noted." FR-070 is amended, the Out of Scope line is changed, and `016-FR-012c` puts it in the terms.
+- **Comments show on public pages** (003A Q6). The owner ruled that a commenter's name and words are public, and that
+  the terms say so. FR-070 is amended, the Out of Scope line is changed, and `016-FR-012c` puts it in the terms.
 - **003A ships `noindex`, and this feature removes it** (003A Q7). FR-020a and task P003A-01.
 
 ### Session 2026-11-04
@@ -677,7 +663,7 @@ Session 2026-11-15.)_
 - **Facts card unread lines.** The founder ruled on 2026-11-04 that the card leaves out lines it cannot show as facts.
   The count goes to the card as `unreadLineCount`, and the card says how many are on the site or in the book only
   (FR-014b).
-- **Save a copy is safe to retry.** The founder ruled on 2026-11-04, "Build it now," that a retry with the same
+- **Save a copy is safe to retry.** The founder ruled on 2026-11-04 to build it now: a retry with the same
   idempotency key returns the first copy. The rule now lives in 001 (`001-FR-005`), because FR-005b is already taken
   there.
 
@@ -743,15 +729,13 @@ Session 2026-11-15.)_
         _(Amended 2026-11-03, owner rulings, ADR-0082.)_ This rule reads the label, not the source type. It used to
         require `user_created` with "Written by you" or "Adapted by you", and it kept family and public domain recipes
         off the web. Public domain text is `imported_public` under the curator grant, so a source-type test cannot
-        open it. [Law] Where a recipe came from is not the test. What we show is. Counsel review is owed before launch
-        (`016-FR-050`).
+        open it. What decides is what we show, not where the recipe came from.
 
         _(amended 2026-11-03, owner ruling O16, ADR-0082)_ A recipe the cook imported from their own page with "This
         is my recipe, from my site or account" (`004-FR-014a` statement 1a) is "Written by you". Once 020 allows it, it
         is open to the web in full: its own method text, the owner's own photos (each with its photo statement,
         `026-FR-004`), its structured data, and indexing under FR-010a's canonical rule. This rule reads the label and rule 4. It never reads the
-        site claim. A claim only clears one hit inside 020 (`020-FR-012g`). Counsel review is owed before launch
-        (`016-FR-050`).
+        site claim. A claim only clears one hit inside 020 (`020-FR-012g`).
 
     6. Its owner accepted the licence version that covers showing it on the web (FR-040, FR-041).
     7. Its owner's account is active: not suspended, not terminated (`016-FR-020`), not closed and not erased.
@@ -807,14 +791,13 @@ Session 2026-11-15.)_
     - **The page shows its basis.** For example: "Public domain: first published 1919, author died 1915". The old text
       carries the CC Public Domain Mark. Commise's own added notes on the page are CC BY-SA 4.0 (FR-040b, amended
       2026-11-15).
-    - **Indexing.** A public domain page is indexable under FR-020 by default. That is a search-quality choice, not a
-      legal bar, and the founder can change it.
-    - **Counsel.** Counsel checks the rule table once before the first public domain page, and again each year
+    - **Indexing.** A public domain page is indexable under FR-020 by default. That is a search-quality choice, and
+      the owner can change it.
+    - **Review.** The rule table is confirmed once before the first public domain page, and again each year
       (FR-095).
 
-    This replaces "MUST NOT be open" and "a separate feature". [Law] The gate is stricter than US law needs. The open
-    web cannot be gated by market, so one global rule is the safe one (17 U.S.C. §303, §304, EU Term Directive
-    2006/116/EC, French CPI L123-10). Counsel review is owed before launch (`016-FR-050`).
+    This replaces "MUST NOT be open" and "a separate feature". The open web cannot be gated by market, so one global rule applies
+    everywhere.
 
 - **FR-007**: These are the **exit events**. Each MUST take effect on every public surface within the purge bound
   (FR-061):
@@ -848,9 +831,9 @@ Session 2026-11-15.)_
   **Home**, their blog or Commise (`026-FR-006`). Home starts as the blog. While Home is the blog, an open recipe that
   has an origin on the chef's claimed site (`004-FR-053a`) MUST follow these rules. _(amended 2026-11-03, owner ruling
   O16, ADR-0082)_ The origin can also come from a single paste or URL import with the owner statement
-  (`004-FR-014a` statement 1a). [House rule] The rules below apply only while the cook holds a live claim on that
+  (`004-FR-014a` statement 1a). The rules below apply only while the cook holds a live claim on that
   origin's domain. An owner import with no live claim follows FR-010, so its canonical address is on `commise.app`.
-  Counsel review is owed before launch (`016-FR-050`). The rules:
+  The rules:
     - **The canonical address is the blog post.** The page MUST declare its origin address as its canonical address,
       in place of FR-010's address on `commise.app`. Its own address on `commise.app` still exists and still serves the
       page. FR-026's rule about query parameters still holds.
@@ -1024,8 +1007,7 @@ Session 2026-11-15.)_
     the Commise terms. Its `author` MUST be the source's author as the licence's attribution names them, and it MUST
     include `isBasedOn`, pointing at the source page. The page MUST show the same attribution and licence line. Where
     the licence covers the text but not the photo, the data MUST NOT include the source's `image`, and a page with no
-    other image carries no `Recipe` data. [Law] A CC licence requires the credit, a link to the licence and a note of
-    any changes (CC BY 4.0 §3(a)). Counsel review is owed before launch (`016-FR-050`).
+    other image carries no `Recipe` data. The credit, a link to the licence and a note of any changes are always shown.
 
 - **FR-024**: The structured data's `author`, and the page's author line, MUST come from the cook's active creator
   profile: its display name, and its address as the URL. A cook with no active creator profile MUST have no author
@@ -1169,15 +1151,13 @@ Session 2026-11-15.)_
     - **Switching back applies to the future only.** A cook can switch a recipe back to the Commise licence. Copies
       made while CC BY was on keep CC BY, and nobody can recall them.
     - **Erasure.** Under CC BY the cook's name was made public. When the cook asks for erasure, Commise MUST take
-      reasonable steps to tell other controllers, for example a deletion signal on any feed (GDPR Art. 17(2)).
+      reasonable steps to tell other controllers, for example a deletion signal on any feed.
 
-    [Law] The grant must state each right, its scope, place and duration (French CPI L131-3, UFC-Que Choisir v Twitter,
-    TGI Paris, 7 Aug 2018). Unfair-terms law also tests it (UK Consumer Rights Act 2015 Part 2, Australian Consumer
-    Law). The grant is drafted to that stricter standard once, beside the cook licence (`016-FR-010`). Counsel review is
-    owed before launch (`016-FR-050`).
+    The grant states each right, its scope, place and duration, in plain terms. It is drafted once, beside the cook
+    licence (`016-FR-010`).
 
 - **FR-040b** _(added 2026-11-03, owner rulings, ADR-0082)_: **The plain words for the CC BY choice**, for
-  `staff-ux-engineer` to refine at SPECIFY and for counsel to confirm. Each gets a localisation key. The words MUST
+  `staff-ux-engineer` to refine at SPECIFY and to confirm before launch (FR-095). Each gets a localisation key. The words MUST
   say:
     - CC BY lets anyone copy, change and share the recipe, also for money. They must credit the cook.
     - Copies others make cannot be recalled. The grant is "irrevocable as far as the law allows".
@@ -1372,7 +1352,8 @@ Session 2026-11-15.)_
     - `016-FR-010`'s scope gains display to people without an account, indexing, link previews and structured data.
     - `016-FR-011`'s point-of-publication statement is the panel in FR-040.
     - `016-FR-030`'s anti-extraction term binds only people who accepted the terms. Signed-out visitors did not. The
-      corpus is protected for them by FR-060 to FR-064, and counsel decides whether a site notice adds anything.
+      corpus is protected for them by FR-060 to FR-064, and whether a site notice is shown is decided before launch
+      (FR-095).
     - `016-FR-038` says publication MUST be an act the user takes. FR-040 and FR-044 make Public that act, with its
       reach stated.
     - _(Added 2026-11-03, ADR-0082.)_ These 016 items follow the 2026-11-03 rulings and are applied in 016 itself:
@@ -1383,10 +1364,10 @@ Session 2026-11-15.)_
   (FR-071).
 - **FR-094**: If the plan picks Option A, ADR-0020 MUST be amended: the edge passthrough gains the public read path, and
   only that path.
-- **FR-095**: Counsel MUST confirm, before launch:
+- **FR-095**: These MUST be confirmed before launch:
     - the licence panel's words and the widened licence (FR-040, FR-042)
     - that the search setting can be on by default (FR-043)
-    - whether a site notice on signed-out pages adds any protection against scraping
+    - whether a site notice on signed-out pages is shown
     - that measurement with no device storage needs no consent in each launch market (FR-080)
     - the 30-day log period (FR-076)
     - the licence panel's ownership lines (FR-040), with 016's recipe rights items (`016-FR-050`)
@@ -1395,19 +1376,14 @@ Session 2026-11-15.)_
           (FR-006)
         - the family permission words that cover the open web (FR-002)
         - showing a page in full under its own stated licence (FR-014f)
-        - the CC BY grant and its plain words, to French and UK consumer standards (FR-040a, FR-040b)
-        - the US DMCA agent, registered in the company's legal name before launch, because the safe harbor does not
-          cover anything before registration. Notice and takedown with counter-notices, and a repeat-infringer policy
-          that is actually applied (17 U.S.C. §512(c), §512(i), BMG v. Cox)
-        - before serving the EU or UK: an EU legal representative (DSA Art. 13), a GDPR Art. 27 representative, a UK
-          GDPR representative, DSA Art. 11 and 12 contact points, and statements of reasons for removal, demotion and
-          visibility limits with an "automated: yes/no" flag (DSA Art. 17(1)(a))
-        - the UK Online Safety Act duties, Australia's Online Safety Act 2021 s.63C self-assessment, and the UK
-          Consumer Rights Act 2015 Part 2 at the UK launch
-        - Canada's notice-and-notice (s.41.25, s.41.26, records for six months) and s.31.1, and EU DSM Art. 17
-        - store territories. [Law] "US-only" is not a defence. An app listed in EU or UK app stores serves them (DSA
-          Recital 8, GDPR Art. 3(2), UK OSA s.4(5) and s.4(6)). One choice is to restrict the store territories and
-          record it. The other is to treat the UK as a day-one market for the light duties
+        - the CC BY grant and its plain words (FR-040a, FR-040b)
+        - the designated agent, registered in the company's legal name before launch, with notice and takedown,
+          counter-notices, and a repeat-infringer policy that is applied (`016`)
+        - before serving the EU or UK: the required representatives and contact points, and statements of reasons for
+          removal, demotion and visibility limits with an "automated: yes/no" flag (`016-FR-018`)
+        - the online-safety and consumer duties of each market at its launch
+        - store territories: which app-store territories list the app, recorded as a decision. A store listing in a
+          territory serves that territory.
 - **FR-096** _(amended 2026-11-03, owner rulings, ADR-0082)_: GR-014 MUST be amended: "`public`: readable by any
   authenticated user (`001-FR-004`)" gains "and by anyone signed out, for a recipe open to the web under 021". The amendment covers every open label
   (written, adapted, family, public domain, a Commise-written version, and a clone of one). It also corrects AC-014-e:

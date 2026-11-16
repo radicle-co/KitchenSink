@@ -384,7 +384,7 @@ describe('RecipeEditorScreen (native)', () => {
                 privateRefused: undefined,
             }),
         );
-        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE));
+        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE, undefined));
     });
 
     // DELETED with ADR-0077 section 6: the Pro-refusal version of the stale-Private hand-off (an imported public-web recipe,
@@ -499,7 +499,9 @@ describe('RecipeEditorScreen (native)', () => {
                 privateRefused: undefined,
             }),
         );
-        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_failed_read', RecipeVisibility.PRIVATE));
+        await waitFor(() =>
+            expect(setVisibility).toHaveBeenCalledWith('rec_failed_read', RecipeVisibility.PRIVATE, undefined),
+        );
     });
 });
 

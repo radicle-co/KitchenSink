@@ -348,7 +348,9 @@ describe('RecipeEditorContainer (web)', () => {
         });
 
         await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_failed_read?done=changesSaved'));
-        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_failed_read', RecipeVisibility.PRIVATE));
+        await waitFor(() =>
+            expect(setVisibility).toHaveBeenCalledWith('rec_failed_read', RecipeVisibility.PRIVATE, undefined),
+        );
     });
 
     it('a new recipe published private, that the server holds public, is made private', async () => {
@@ -399,7 +401,7 @@ describe('RecipeEditorContainer (web)', () => {
         });
 
         await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_new?done=firstPublish'));
-        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_new', RecipeVisibility.PRIVATE));
+        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_new', RecipeVisibility.PRIVATE, undefined));
     });
 
     it('× leaves for the recipe it was editing, without asking', async () => {

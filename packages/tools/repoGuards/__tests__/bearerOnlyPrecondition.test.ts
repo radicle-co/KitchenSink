@@ -46,7 +46,16 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 import { lineOf } from './appSources.js';
-import { isTestFile, parse, presentFiles, repoRoot, visit, type SourceFile } from './serviceSources.js';
+import {
+    enablesCors,
+    isTestFile,
+    moduleNamedBy,
+    parse,
+    presentFiles,
+    repoRoot,
+    visit,
+    type SourceFile,
+} from './serviceSources.js';
 
 // ───────────────────────────── the vocabulary ─────────────────────────────
 
@@ -128,29 +137,6 @@ function literalText(node: ts.Node | undefined): string | undefined {
     return node !== undefined && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
         ? node.text
         : undefined;
-}
-
-/**
- * The module a node names, for every way a module is pulled in: `import … from`, `export … from`, `require(…)`
- * and `import(…)`. Pure.
- *
- * @param node - Any node.
- * @returns The specifier, or `undefined` when the node pulls in no module.
- */
-function moduleNamedBy(node: ts.Node): string | undefined {
-    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier !== undefined) {
-        return literalText(node.moduleSpecifier);
-    }
-
-    if (
-        ts.isCallExpression(node) &&
-        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-            (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
-    ) {
-        return literalText(node.arguments[0]);
-    }
-
-    return undefined;
 }
 
 /** Whether an expression's text ends in `headers`, i.e. it is a request's header bag. */
@@ -329,50 +315,6 @@ function adoptsSharedPolicy(source: SourceFile): boolean {
     });
 
     return adopts;
-}
-
-/**
- * Whether a source turns CORS on by any route Nest or Express offers: `app.enableCors(…)`,
- * `NestFactory.create(…, { cors: … })`, or an import of the `cors` middleware. Pure.
- *
- * @param source - The file to read.
- * @returns `true` when the file enables CORS.
- */
-function enablesCors(source: SourceFile): boolean {
-    let enables = false;
-
-    visit(parse(source), (node) => {
-        if (moduleNamedBy(node) === 'cors') {
-            enables = true;
-        }
-
-        if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) {
-            return;
-        }
-
-        if (node.expression.name.text === 'enableCors') {
-            enables = true;
-        }
-
-        // `create`'s options object, and only there: `{ cors: true }` anywhere else is just an object.
-        if (node.expression.name.text === 'create') {
-            for (const argument of node.arguments) {
-                if (
-                    ts.isObjectLiteralExpression(argument) &&
-                    argument.properties.some(
-                        (property) =>
-                            property.name !== undefined &&
-                            ts.isIdentifier(property.name) &&
-                            property.name.text === 'cors',
-                    )
-                ) {
-                    enables = true;
-                }
-            }
-        }
-    });
-
-    return enables;
 }
 
 /**

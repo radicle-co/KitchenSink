@@ -60,18 +60,10 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { minimatch } from 'minimatch';
-import ts from 'typescript';
 import { parse } from 'yaml';
 import { afterAll, describe, expect, it } from 'vitest';
 import { EDGE_POLICY } from '../lib/platform/EdgeStack.js';
-import {
-    isServiceDirectoryOf,
-    isTestFile,
-    objectProperties,
-    parse as parseSource,
-    presentFiles,
-    visit,
-} from '@kitchensink/repo-guards/serviceSources';
+import { enablesCors, isServiceDirectoryOf, isTestFile, presentFiles } from '@kitchensink/repo-guards/serviceSources';
 import { scalarText } from '@kitchensink/repo-guards/workflowScalar';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -363,42 +355,14 @@ function builtPackage(step: WorkflowStep): string | undefined {
 }
 
 /**
- * Whether a source turns CORS on: an `x.enableCors(…)` call, or a `NestFactory.create(…)` whose options carry `cors`.
- * Read through the TypeScript parser, so a comment or a string that names `enableCors` is not a call. Pure.
- *
- * @param source - The parsed file.
- * @returns `true` when the file turns CORS on.
- */
-function turnsCorsOn(source: ts.SourceFile): boolean {
-    let found = false;
-
-    visit(source, (node) => {
-        if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) {
-            return;
-        }
-
-        const called = node.expression.name.text;
-        const options = node.arguments[1];
-
-        found ||=
-            called === 'enableCors' ||
-            (called === 'create' &&
-                options !== undefined &&
-                ts.isObjectLiteralExpression(options) &&
-                objectProperties(options).has('cors'));
-    });
-
-    return found;
-}
-
-/**
  * Whether a service is reachable from a BROWSER, decided by whether its production source enables CORS.
  *
  * DERIVED, not listed, and that distinction is the whole point. A service that calls `app.enableCors(…)` must have its
  * smoke see a preflight ADMIT the web origin; one that does not must have its smoke see a preflight REFUSE it
  * (`--expect-cors deny`, plan 002 S2). All three image-pushing services enable CORS since plan 002 S4.
  *
- * Every production source under the service's `src/` is read, not only `main.ts`: a service may register CORS inside
+ * Every production source under the service's `src/` is read, not only `main.ts`, through the repo's one CORS
+ * detector (`enablesCors`): a service may register CORS inside
  * a setup helper its bootstrap and its test tiers share (recipe-service's `config/httpSetup.ts` does, because CORS must
  * come before its own body parser). Reading `main.ts` alone made such a service read as not browser-facing, the
  * PERMISSIVE answer. Reading all of `src/` errs the strict way: a CORS call anywhere in production code owes the admit
@@ -415,7 +379,7 @@ function turnsCorsOn(source: ts.SourceFile): boolean {
 function isBrowserFacing(servicePackage: string, root: string = REPO_ROOT): boolean {
     return presentFiles([`${servicePackage}/src`], root)
         .filter((file) => file.endsWith('.ts') && !isTestFile(file))
-        .some((file) => turnsCorsOn(parseSource({ file, contents: readFileSync(join(root, file), 'utf8') })));
+        .some((file) => enablesCors({ file, contents: readFileSync(join(root, file), 'utf8') }));
 }
 
 /**
@@ -1070,6 +1034,14 @@ describe('isBrowserFacing reads CORS wherever the service turns it on', () => {
         });
 
         expect(isBrowserFacing(option, root)).toBe(true);
+    });
+
+    it('sees the Express cors middleware', () => {
+        const middleware = service('middleware', {
+            'src/main.ts': "import cors from 'cors';\napp.use(cors(policy));\n",
+        });
+
+        expect(isBrowserFacing(middleware, root)).toBe(true);
     });
 
     it('does not count a test file or a comment that names enableCors', () => {

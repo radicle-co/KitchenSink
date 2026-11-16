@@ -368,6 +368,75 @@ export function literalText(node: ts.Expression | undefined): string | undefined
 }
 
 /**
+ * The module a node names, for every way a module is pulled in: `import … from`, `export … from`, `require(…)`
+ * and `import(…)`. Pure.
+ *
+ * @param node - Any node.
+ * @returns The specifier, or `undefined` when the node pulls in no module.
+ */
+export function moduleNamedBy(node: ts.Node): string | undefined {
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier !== undefined) {
+        return literalText(node.moduleSpecifier);
+    }
+
+    if (
+        ts.isCallExpression(node) &&
+        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+            (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+    ) {
+        return literalText(node.arguments[0]);
+    }
+
+    return undefined;
+}
+
+/**
+ * Whether a source turns CORS on by any route Nest or Express offers: `app.enableCors(…)`,
+ * `NestFactory.create(…, { cors: … })`, or an import of the `cors` middleware. Read through the parser, so a comment
+ * or a string that names `enableCors` is not a call. The one authority for this question: the bearer-only guard and
+ * the deploy smoke-depth guard (`packages/infra/global`) both ask it. Pure.
+ *
+ * @param source - The file to read.
+ * @returns `true` when the file enables CORS.
+ */
+export function enablesCors(source: SourceFile): boolean {
+    let enables = false;
+
+    visit(parse(source), (node) => {
+        if (moduleNamedBy(node) === 'cors') {
+            enables = true;
+        }
+
+        if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) {
+            return;
+        }
+
+        if (node.expression.name.text === 'enableCors') {
+            enables = true;
+        }
+
+        // `create`'s options object, and only there: `{ cors: true }` anywhere else is just an object.
+        if (node.expression.name.text === 'create') {
+            for (const argument of node.arguments) {
+                if (
+                    ts.isObjectLiteralExpression(argument) &&
+                    argument.properties.some(
+                        (property) =>
+                            property.name !== undefined &&
+                            ts.isIdentifier(property.name) &&
+                            property.name.text === 'cors',
+                    )
+                ) {
+                    enables = true;
+                }
+            }
+        }
+    });
+
+    return enables;
+}
+
+/**
  * A dotted source-text rendering of a reference expression (`deletionQueue`, `this.archiveQueue`,
  * `lambda.Function`).
  *

@@ -22,6 +22,8 @@ export interface StepRef {
 }
 
 /**
+ * Normalizes a step's text before it is hashed.
+ *
  * @param text - A step's text.
  * @returns NFC, every run of Unicode whitespace collapsed to one space, trimmed. Nothing else is folded: case, digits
  * and punctuation count ("2 cups" and "3 cups" differ).
@@ -31,6 +33,8 @@ export function normalizeStepText(text: string): string {
 }
 
 /**
+ * Hashes a step's text to a short change detector.
+ *
  * @param text - A step's text.
  * @returns `s1:` and 8 lowercase hex chars of FNV-1a 32 over the UTF-8 bytes of the normalized text.
  */
@@ -57,6 +61,8 @@ function matchesOf(saved: StepRef, stepDigests: readonly string[]): number[] {
 }
 
 /**
+ * Finds where a saved step is now.
+ *
  * @param saved - The saved position.
  * @param stepDigests - The digest of each current step, in order.
  * @returns The one step whose digest matches. None or several give the saved index clamped to the last step. With no
@@ -73,6 +79,8 @@ export function matchStep(saved: StepRef, stepDigests: readonly string[]): numbe
 }
 
 /**
+ * Finds where a saved mark or line tick is now, or drops it.
+ *
  * @param saved - A mark or line tick.
  * @param stepDigests - The digest of each current step, in order.
  * @returns The single matching step, else `undefined`: a mark with no single match is dropped, with no index fallback.

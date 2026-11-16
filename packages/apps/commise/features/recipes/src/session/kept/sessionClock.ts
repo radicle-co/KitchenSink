@@ -11,15 +11,16 @@ export const END_AFTER_MS = 24 * 60 * 60 * 1000;
 
 export type SessionClockVerdict = 'resumeStraight' | 'askFirst' | 'ended';
 
-const ms = (instant: string | undefined): number =>
-    instant === undefined ? Number.NEGATIVE_INFINITY : Date.parse(instant);
+const ms = (instant: string): number => Date.parse(instant);
 
-/** A timer's end: `endsAt`, or the later of it and `endedAt` once it rang. Not defined for a paused timer. */
-function endOf(timer: KeptTimer): number {
+/** The instant a timer that is not paused ends (or ended): `endsAt`, or the later of it and `endedAt` once it rang. */
+function endOf(timer: Exclude<KeptTimer, { state: 'paused' }>): number {
     return timer.state === 'running' ? ms(timer.endsAt) : Math.max(ms(timer.endsAt), ms(timer.endedAt));
 }
 
 /**
+ * Classifies a kept entry as resume straight, ask first or ended.
+ *
  * @param entry - The recipe's kept entry.
  * @param recipeTimers - That recipe's timers (with several, the latest instant counts).
  * @param now - ISO instant.
@@ -31,7 +32,7 @@ export function sessionClock(entry: KeptEntry, recipeTimers: readonly KeptTimer[
     const anchor =
         entry.kind === 'page'
             ? ms(entry.lastTouch)
-            : Math.max(ms(entry.lastTouch), ...recipeTimers.filter((t) => t.state !== 'paused').map(endOf));
+            : Math.max(ms(entry.lastTouch), ...recipeTimers.flatMap((t) => (t.state === 'paused' ? [] : [endOf(t)])));
     const idle = Math.max(0, ms(now) - anchor);
 
     if (idle >= END_AFTER_MS) {
@@ -42,12 +43,13 @@ export function sessionClock(entry: KeptEntry, recipeTimers: readonly KeptTimer[
 }
 
 /**
+ * Decides whether a timer is kept or removed.
+ *
  * @param timer - A timer.
  * @param hasSession - Whether its recipe has a `cooking` entry.
  * @param now - ISO instant.
  * @returns `removed` for a session-less timer 24 h (at or after) past its end, or past `pausedAt` if paused. A timer
- * whose recipe has a session ends with that entry, never here. A timer with no readable end stays.
- * shortcut: a timer missing its end instant is kept, not removed; add a schema refinement if one ever appears.
+ * whose recipe has a session ends with that entry, never here.
  */
 export function timerClock(timer: KeptTimer, hasSession: boolean, now: string): 'kept' | 'removed' {
     if (hasSession) {
@@ -56,5 +58,5 @@ export function timerClock(timer: KeptTimer, hasSession: boolean, now: string): 
 
     const base = timer.state === 'paused' ? ms(timer.pausedAt) : endOf(timer);
 
-    return Number.isFinite(base) && ms(now) - base >= END_AFTER_MS ? 'removed' : 'kept';
+    return ms(now) - base >= END_AFTER_MS ? 'removed' : 'kept';
 }

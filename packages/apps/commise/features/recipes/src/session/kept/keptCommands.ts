@@ -7,7 +7,7 @@
 import { matchStep, matchStepStrict } from '@kitchensink/cooking-core';
 
 import { sessionClock, timerClock } from './sessionClock.js';
-import type { KeptDocument, KeptEntry, KeptTimer, LineTickRef, StepMark } from './keptRecord.js';
+import type { CookingEntry, KeptDocument, KeptEntry, KeptTimer, LineTickRef, StepMark } from './keptRecord.js';
 
 /** S4a keeps S3's one-timer rule in the command, not in the format (plan 0003 KTD1). */
 const TIMER_LIMIT = 1;
@@ -30,7 +30,7 @@ export interface TimerExpectation {
 /** The snapshot End keeps in memory for Undo (KTD13). */
 export interface EndedSnapshot {
     readonly recipeId: string;
-    readonly entry: KeptEntry;
+    readonly entry: CookingEntry;
     readonly timers: readonly KeptTimer[];
 }
 
@@ -85,6 +85,9 @@ function withoutEntry(entries: KeptDocument['entries'], recipeId: string): KeptD
 }
 
 /**
+ * Picks the number a new timer takes. S6 (several timers) is the caller that makes a clash reachable, so this is not
+ * test-only.
+ *
  * @param timers - Timers held.
  * @param recipeId - The recipe.
  * @param stepIndex - The matched step.
@@ -212,7 +215,7 @@ function resetSession(doc: KeptDocument, recipeId: string, step: StepMark, now: 
 function onCooking(
     doc: KeptDocument,
     recipeId: string,
-    change: (entry: Extract<KeptEntry, { kind: 'cooking' }>) => KeptEntry | undefined,
+    change: (entry: CookingEntry) => CookingEntry | undefined,
 ): KeptOutcome {
     const entry = doc.entries[recipeId];
     const next = entry?.kind === 'cooking' ? change(entry) : undefined;
@@ -232,7 +235,7 @@ function restoreSession(doc: KeptDocument, c: Extract<KeptCommand, { type: 'rest
         return { kind: 'refused', reason: 'timerLimit' };
     }
 
-    let entry = snapshot.entry;
+    let entry: CookingEntry = snapshot.entry;
 
     if (existing !== undefined) {
         const existingLater = Date.parse(existing.lastTouch) > Date.parse(entry.lastTouch);
@@ -244,7 +247,7 @@ function restoreSession(doc: KeptDocument, c: Extract<KeptCommand, { type: 'rest
             ticks: [...new Set([...entry.ticks, ...existing.ticks])],
             ...(servings === undefined ? {} : { servings }),
             lastTouch: existingLater ? existing.lastTouch : entry.lastTouch,
-        } as KeptEntry;
+        };
     }
 
     const timers = [...doc.timers, ...snapshot.timers];
@@ -276,7 +279,7 @@ function timerCommand(doc: KeptDocument, c: Extract<KeptCommand, { id: string }>
     if (
         timer === undefined ||
         timer.state !== c.expect.state ||
-        (c.expect.endsAt !== undefined && timer.endsAt !== c.expect.endsAt)
+        (c.expect.endsAt !== undefined && !('endsAt' in timer && timer.endsAt === c.expect.endsAt))
     ) {
         return UNCHANGED;
     }
@@ -288,18 +291,24 @@ function timerCommand(doc: KeptDocument, c: Extract<KeptCommand, { id: string }>
         return replace(undefined);
     }
 
-    const { endsAt, remainingMs, pausedAt: _pausedAt, ...rest } = timer;
+    if (c.type === 'pauseTimer' && timer.state === 'running') {
+        const { endsAt, state: _state, ...rest } = timer;
 
-    if (c.type === 'pauseTimer') {
         return replace({
             ...rest,
             state: 'paused',
-            remainingMs: Math.max(0, Date.parse(endsAt ?? now) - Date.parse(now)),
+            remainingMs: Math.max(0, Date.parse(endsAt) - Date.parse(now)),
             pausedAt: now,
         });
     }
 
-    return replace({ ...rest, state: 'running', endsAt: new Date(Date.parse(now) + (remainingMs ?? 0)).toISOString() });
+    if (c.type === 'resumeTimer' && timer.state === 'paused') {
+        const { remainingMs, pausedAt: _pausedAt, state: _state, ...rest } = timer;
+
+        return replace({ ...rest, state: 'running', endsAt: new Date(Date.parse(now) + remainingMs).toISOString() });
+    }
+
+    return UNCHANGED;
 }
 
 function prune(doc: KeptDocument, now: string): KeptOutcome {
@@ -332,12 +341,15 @@ function rebind(doc: KeptDocument, c: Extract<KeptCommand, { type: 'rebind' }>):
     const entries = entry === undefined ? doc.entries : withEntry(doc, c.recipeId, rebindEntry(entry, c.stepDigests));
     const timers = rebindTimerList(doc.timers, c.recipeId, c.stepDigests);
 
+    // Both sides are built in the same key order, so string equality means no change.
     return JSON.stringify([entries, timers]) === JSON.stringify([doc.entries, doc.timers])
         ? UNCHANGED
         : applied(doc, { entries, timers });
 }
 
 /**
+ * Applies one change to the document as just re-read.
+ *
  * @param doc - The document as just re-read.
  * @param command - The change.
  * @param now - ISO instant from the injected clock.
@@ -395,14 +407,19 @@ export function applyKeptCommand(doc: KeptDocument, command: KeptCommand, now: s
 }
 
 /**
+ * Captures what End removes, for Undo.
+ *
  * @param doc - The document.
  * @param recipeId - The recipe being ended.
- * @returns What Undo needs to bring the entry and its timers back, or `undefined` when there is no entry.
+ * @returns What Undo needs to bring the entry and its timers back, or `undefined` unless the recipe has a `cooking`
+ * entry (End only ever ends a session).
  */
 export function snapshotForEnd(doc: KeptDocument, recipeId: string): EndedSnapshot | undefined {
     const entry = doc.entries[recipeId];
 
-    return entry === undefined
-        ? undefined
-        : { recipeId, entry, timers: doc.timers.filter((t) => t.recipeId === recipeId) };
+    if (entry?.kind !== 'cooking') {
+        return undefined;
+    }
+
+    return { recipeId, entry, timers: doc.timers.filter((t) => t.recipeId === recipeId) };
 }

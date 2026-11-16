@@ -9,7 +9,7 @@
  * non-React consumer of the plain client never pulls React in.
  */
 export { DEFAULT_REQUEST_TIMEOUT_MS, RecipeServiceClient } from './client.js';
-export type { RecipeServiceClientOptions } from './client.js';
+export type { RecipeServiceClientOptions, SetRecipeVisibilityExtras } from './client.js';
 export type { TokenSource } from '@kitchensink/retry-after/bearer-replay';
 
 // P5 (W9) — the `queryOptions` repository-read-seam factories + the recipe-write invalidation registry.

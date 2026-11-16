@@ -5,7 +5,6 @@
  * status→error mapping, the identity-sync retry, and transport edge cases) live in `client.test.ts` and
  * `client.transport.test.ts`. Transport is a mocked `fetch`; no real network is touched.
  */
-import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { recipeSearchQuerySchema } from '@kitchensink/schema-recipe';
@@ -151,10 +150,31 @@ describe('RecipeServiceClient — recipes', () => {
         const req = requestAt(fetchMock);
         expect(req.method).toBe('PATCH');
         expect(req.url).toBe(`${BASE}/api/v1/recipes/rec_1/visibility`);
-        expect(jsonBody(fetchMock)).toEqual({
-            visibility: 'public',
-            publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
-        });
+        expect(jsonBody(fetchMock)).toEqual({ visibility: 'public' });
+    });
+
+    /**
+     * Rewrites the earlier test that asserted the client ADDED the API writers' confirmation when it made a recipe public.
+     * A wording may be sent only when a screen showed it, so the client passes through what its caller gives and adds none.
+     */
+    it('setRecipeVisibility to public with no extras sends no publicConfirmation and no statement', async () => {
+        const fetchMock = stubFetch(200, makeRecipeDetail({ visibility: 'public' }));
+
+        await makeClient(fetchMock).setRecipeVisibility('rec_1', 'public');
+
+        const body = jsonBody(fetchMock);
+        expect(body).not.toHaveProperty('publicConfirmation');
+        expect(body).not.toHaveProperty('statement');
+    });
+
+    it('setRecipeVisibility sends exactly the extras its caller gives', async () => {
+        const fetchMock = stubFetch(200, makeRecipeDetail({ visibility: 'public' }));
+        const publicConfirmation = { version: 'publicConfirm.v1', locale: 'fr' } as const;
+        const statement = { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'fr' } } as const;
+
+        await makeClient(fetchMock).setRecipeVisibility('rec_1', 'public', { publicConfirmation, statement });
+
+        expect(jsonBody(fetchMock)).toEqual({ visibility: 'public', publicConfirmation, statement });
     });
 
     it('setRecipeVisibility sends no publicConfirmation when the recipe goes private', async () => {

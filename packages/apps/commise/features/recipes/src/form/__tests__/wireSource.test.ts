@@ -2,6 +2,9 @@
  * The Source on the wire and in the seed (ADR-0089): the create carries a `statement`, an update carries only a change, and
  * a stored web source seeds the field. The bodies are parsed through the published request schemas, so a body the server
  * would refuse fails here.
+ *
+ * The statement wording is the caller's input (the screen that shows the line): the builders send none of their own. The
+ * tests that asserted a built-in English wording are rewritten to prove that.
  */
 import { RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { createRecipeRequestSchema, updateRecipeRequestSchema } from '@kitchensink/schema-recipe';
@@ -12,6 +15,7 @@ import { applyDraftAction } from '../props.js';
 import { recipeFormValuesEqual } from '../values.js';
 import { toCreateRecipeInput, toRecipeFormValues, toUpdateRecipeInput } from '../wire.js';
 
+const WORDING = { version: 'statementPublicWeb.v1', locale: 'fr' } as const;
 const ALLRECIPES = 'https://www.allrecipes.com/recipe/1/soup/';
 const webCopy = (over = {}) =>
     makeRecipeDetail({
@@ -24,15 +28,21 @@ const webCopy = (over = {}) =>
     });
 
 describe('toCreateRecipeInput carries the Source', () => {
-    it('sends the link as a public_web statement, and the body is one the server accepts', () => {
-        const body = toCreateRecipeInput(makeFilledRecipeFormValues({ sourceLink: ` ${ALLRECIPES}. ` }));
-
-        expect(body.statement).toEqual({
-            kind: 'public_web',
-            citation: ALLRECIPES,
-            wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+    it('sends the link with the wording the caller gives, and the body is one the server accepts', () => {
+        const body = toCreateRecipeInput(makeFilledRecipeFormValues({ sourceLink: ` ${ALLRECIPES}. ` }), undefined, {
+            statementWording: WORDING,
         });
+
+        expect(body.statement).toEqual({ kind: 'public_web', citation: ALLRECIPES, wording: WORDING });
         expect(createRecipeRequestSchema.safeParse(body).success).toBe(true);
+    });
+
+    it('sends the link with NO wording when the caller gives none, and never one of its own', () => {
+        const body = toCreateRecipeInput(makeFilledRecipeFormValues({ sourceLink: ALLRECIPES }));
+
+        expect(body.statement).toEqual({ kind: 'public_web', citation: ALLRECIPES });
+        // The server's contract requires the wording, so this body is refused until a screen supplies it.
+        expect(createRecipeRequestSchema.safeParse(body).success).toBe(false);
     });
 
     it('sends no statement for no link, or for text that is not a link', () => {
@@ -51,15 +61,23 @@ describe('toUpdateRecipeInput carries only a change of Source', () => {
     const update = (values = makeFilledRecipeFormValues(), recipe = makeRecipeDetail({ status: RecipeStatus.DRAFT })) =>
         toUpdateRecipeInput(values, undefined, recipe);
 
-    it('sends a new link on a never-published recipe, and the body is one the server accepts', () => {
-        const body = update(makeFilledRecipeFormValues({ sourceLink: ALLRECIPES }));
+    it('sends a new link on a never-published recipe with the caller wording, and the body is one the server accepts', () => {
+        const body = toUpdateRecipeInput(
+            makeFilledRecipeFormValues({ sourceLink: ALLRECIPES }),
+            undefined,
+            makeRecipeDetail({ status: RecipeStatus.DRAFT }),
+            { statementWording: WORDING },
+        );
 
-        expect(body.statement).toEqual({
+        expect(body.statement).toEqual({ kind: 'public_web', citation: ALLRECIPES, wording: WORDING });
+        expect(updateRecipeRequestSchema.safeParse({ ...body, expectedVersion: 1 }).success).toBe(true);
+    });
+
+    it('sends a new link with no wording when the caller gives none', () => {
+        expect(update(makeFilledRecipeFormValues({ sourceLink: ALLRECIPES })).statement).toEqual({
             kind: 'public_web',
             citation: ALLRECIPES,
-            wording: { version: 'statementPublicWeb.v1', locale: 'en' },
         });
-        expect(updateRecipeRequestSchema.safeParse({ ...body, expectedVersion: 1 }).success).toBe(true);
     });
 
     it('sends nothing when the server already holds that source', () => {

@@ -1,5 +1,4 @@
 import { expect, test, type Page, type Request } from '@playwright/test';
-import { STATEMENT_WORDINGS_BY_CHOICE } from '@kitchensink/recipe-core';
 
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
@@ -44,6 +43,11 @@ function recordRecipeWrites(page: Page): RecipeWrite[] {
  * (Clerk-authed).
  */
 test.describe('a pasted web link sets the recipe’s Source (ADR-0089)', () => {
+    /**
+     * The statement the editor sends carries NO wording for now: a wording is sent only when a screen showed it, and the
+     * Source row does not show that line yet. This expectation changed from the one that asserted an English wording sent
+     * without a screen. The step that shows the line restores the wording here.
+     */
     test('paste steps with a link → Source shown, Public unavailable → publish → a private recipe with its source', async ({
         page,
     }) => {
@@ -107,7 +111,6 @@ test.describe('a pasted web link sets the recipe’s Source (ADR-0089)', () => {
             expect(write.body?.['statement']).toEqual({
                 kind: 'public_web',
                 citation: LINK,
-                wording: { version: STATEMENT_WORDINGS_BY_CHOICE.publicWeb[0], locale: 'en' },
             });
             // The server refuses a public web copy: the editor never sends Public with a statement.
             expect(write.body?.['visibility']).not.toBe('public');

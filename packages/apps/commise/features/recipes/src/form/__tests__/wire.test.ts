@@ -790,31 +790,50 @@ describe('a line bound to a private food, renamed in the row editor', () => {
 });
 
 /**
- * The attestation record (migration 0088): a write that makes a recipe published and public carries the passive Public
- * confirmation, and the server refuses one that does not. Sent only where it can matter, so a private save carries none.
+ * The attestation record (migration 0088): a Public confirmation is sent only when a screen showed the line, so the wire
+ * builders send none unless the caller gives one. When it is given, it rides only a write that can go live as public.
+ *
+ * Rewrites the earlier block that asserted the builders added the API writers' confirmation themselves. That stood in for a
+ * screen that does not show the line yet; the screen's step restores the confirmation by passing it in.
  */
-describe('the Public confirmation rides every write that goes live as public', () => {
-    const CONFIRMATION = { version: 'publicConfirm.v1', locale: 'en' };
+describe('the Public confirmation is sent only when the caller shows one', () => {
+    const CONFIRMATION = { version: 'publicConfirm.v1', locale: 'fr' } as const;
+    const SHOWN = { publicConfirmation: CONFIRMATION };
 
-    it('a public create carries it, and its contract accepts the body', () => {
+    it('a public create given none sends none', () => {
         const body = toCreateRecipeInput(makeFilledRecipeFormValues({ visibility: RecipeVisibility.PUBLIC }));
+
+        expect(body).not.toHaveProperty('publicConfirmation');
+    });
+
+    it('a public create given one carries exactly it, and its contract accepts the body', () => {
+        const body = toCreateRecipeInput(
+            makeFilledRecipeFormValues({ visibility: RecipeVisibility.PUBLIC }),
+            undefined,
+            SHOWN,
+        );
 
         expect(body.publicConfirmation).toEqual(CONFIRMATION);
         expect(createRecipeRequestSchema.safeParse(body).success).toBe(true);
     });
 
-    it('a private create carries none', () => {
-        const body = toCreateRecipeInput(makeFilledRecipeFormValues({ visibility: RecipeVisibility.PRIVATE }));
+    it('a private create carries none even when one is given', () => {
+        const body = toCreateRecipeInput(
+            makeFilledRecipeFormValues({ visibility: RecipeVisibility.PRIVATE }),
+            undefined,
+            SHOWN,
+        );
 
         expect(body).not.toHaveProperty('publicConfirmation');
     });
 
-    it('an update that publishes a public recipe carries it, and its STRICT contract accepts the body', () => {
+    it('an update that publishes a public recipe sends none unless given one', () => {
+        const values = makeFilledRecipeFormValues({ visibility: RecipeVisibility.PUBLIC });
+
+        expect(toUpdateRecipeInput(values, RecipeStatus.PUBLISHED)).not.toHaveProperty('publicConfirmation');
+
         const body = {
-            ...toUpdateRecipeInput(
-                makeFilledRecipeFormValues({ visibility: RecipeVisibility.PUBLIC }),
-                RecipeStatus.PUBLISHED,
-            ),
+            ...toUpdateRecipeInput(values, RecipeStatus.PUBLISHED, undefined, SHOWN),
             expectedVersion: 1,
         };
 
@@ -822,15 +841,19 @@ describe('the Public confirmation rides every write that goes live as public', (
         expect(updateRecipeRequestSchema.safeParse(body).success).toBe(true);
     });
 
-    it('an update that stays a draft, or is private, carries none', () => {
+    it('an update that stays a draft, or is private, carries none even when one is given', () => {
         const values = makeFilledRecipeFormValues({ visibility: RecipeVisibility.PUBLIC });
 
-        expect(toUpdateRecipeInput(values, RecipeStatus.DRAFT)).not.toHaveProperty('publicConfirmation');
-        expect(toUpdateRecipeInput(values)).not.toHaveProperty('publicConfirmation');
+        expect(toUpdateRecipeInput(values, RecipeStatus.DRAFT, undefined, SHOWN)).not.toHaveProperty(
+            'publicConfirmation',
+        );
+        expect(toUpdateRecipeInput(values, undefined, undefined, SHOWN)).not.toHaveProperty('publicConfirmation');
         expect(
             toUpdateRecipeInput(
                 makeFilledRecipeFormValues({ visibility: RecipeVisibility.PRIVATE }),
                 RecipeStatus.PUBLISHED,
+                undefined,
+                SHOWN,
             ),
         ).not.toHaveProperty('publicConfirmation');
     });

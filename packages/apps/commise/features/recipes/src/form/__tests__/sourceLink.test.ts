@@ -105,7 +105,17 @@ describe('sourceStatementOf: what the wire carries', () => {
         expect(sourceStatementOf(withLink(`  ${ALLRECIPES}.`), undefined)).toEqual({
             kind: 'public_web',
             citation: ALLRECIPES,
-            wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+        });
+    });
+
+    /** Rewrites the earlier tests that asserted a built-in English wording: the wording is the caller's input. */
+    it('create: the wording the caller gives is sent as given, in any locale', () => {
+        const wording = { version: 'statementPublicWeb.v1', locale: 'fr' } as const;
+
+        expect(sourceStatementOf(withLink(ALLRECIPES), undefined, wording)).toEqual({
+            kind: 'public_web',
+            citation: ALLRECIPES,
+            wording,
         });
     });
 
@@ -122,7 +132,6 @@ describe('sourceStatementOf: what the wire carries', () => {
         expect(sourceStatementOf(withLink(ALLRECIPES), neverPublished())).toEqual({
             kind: 'public_web',
             citation: ALLRECIPES,
-            wording: { version: 'statementPublicWeb.v1', locale: 'en' },
         });
     });
 

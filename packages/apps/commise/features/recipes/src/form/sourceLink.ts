@@ -15,7 +15,6 @@
  */
 import {
     parseSourceLink,
-    STATEMENT_WORDINGS_BY_CHOICE,
     sourceIsCorrectable,
     RecipeSourceType,
     RecipeVisibility,
@@ -36,8 +35,16 @@ type StoredRecipe = Pick<
     'status' | 'firstPublishedAt' | 'sourceType' | 'sourceKind' | 'sourceUrl' | 'clonedFromId'
 >;
 
-/** The wording the editor's Source row shows for a pasted web link: what the attestation record stores beside the choice. */
-const PUBLIC_WEB_WORDING = { version: STATEMENT_WORDINGS_BY_CHOICE.publicWeb[0], locale: 'en' } as const;
+type PublicWebStatement = Extract<RecipeStatementInput, { kind: 'public_web' }>;
+
+/** The wording the Source row showed for a pasted web link: what the attestation record stores beside the choice. */
+export type PublicWebWording = PublicWebStatement['wording'];
+
+/**
+ * A pasted web link as the editor states it. The wording is the one the cook was shown, so it is present only when the
+ * screen that showed it gave it. The server's contract requires it and refuses a statement without one.
+ */
+export type DraftWebStatement = Omit<PublicWebStatement, 'wording'> & { readonly wording?: PublicWebWording };
 
 /** The Source field's text as the draft holds it, `''` when there is none. Pure. */
 const sourceTextOf = (values: Pick<RecipeFormValues, 'sourceLink'>): string => values.sourceLink ?? '';
@@ -137,12 +144,14 @@ export function derivedVisibility(values: Pick<RecipeFormValues, 'sourceLink' | 
  *
  * @param values - The draft.
  * @param recipe - The server's recipe, or `undefined` for a create.
+ * @param wording - The wording the screen showed beside the link. Without it the statement carries none.
  * @returns The statement, `null` to remove the stored one, or `undefined` to leave the source alone. Pure.
  */
 export function sourceStatementOf(
     values: Pick<RecipeFormValues, 'sourceLink'>,
     recipe: StoredRecipe | undefined,
-): RecipeStatementInput | null | undefined {
+    wording?: PublicWebWording,
+): DraftWebStatement | null | undefined {
     if (recipe !== undefined && sourceIsLocked(recipe)) {
         return undefined;
     }
@@ -155,7 +164,7 @@ export function sourceStatementOf(
 
             return stored?.ok === true && stored.link.url === source.link.url
                 ? undefined
-                : { kind: 'public_web', citation: source.link.url, wording: PUBLIC_WEB_WORDING };
+                : { kind: 'public_web', citation: source.link.url, ...(wording === undefined ? {} : { wording }) };
         }
 
         case 'none':

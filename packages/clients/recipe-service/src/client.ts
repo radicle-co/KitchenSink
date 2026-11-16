@@ -20,7 +20,6 @@ import {
     IDENTITY_SYNC_PENDING_CODE,
     ingredientSchema,
     paginatedResponseSchema,
-    PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     recipeDetailSchema,
     recipePhotoSchema,
     recipeSchema,
@@ -165,6 +164,7 @@ import type {
     RecipeSearchQuery,
     RestoreVersionResponse,
     SetRatingRequest,
+    SetRecipeVisibilityRequest,
     TestResetAcceptedResponse,
     TestResetJobResponse,
     UpdateRecipeRequest,
@@ -198,6 +198,12 @@ function withoutTrailingSlashes(url: string): string {
  * p99, so it only ever fires on a genuine hang.
  */
 export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+
+/**
+ * The wording a screen showed the cook when it made a recipe public: the Public confirmation and the statement. A caller
+ * passes only what its screen showed. The client never supplies a wording of its own.
+ */
+export type SetRecipeVisibilityExtras = Pick<SetRecipeVisibilityRequest, 'publicConfirmation' | 'statement'>;
 
 /** Construction options, the back-off of a refused bearer's replay among them. */
 export interface RecipeServiceClientOptions extends IdentitySyncBackoffOptions {
@@ -496,23 +502,23 @@ export class RecipeServiceClient {
      * `PATCH /api/v1/recipes/{id}/visibility` — set a recipe's visibility.
      *
      * @param id - The recipe id.
-     * @param visibility - The new visibility. Going public also sends the current public confirmation wording, which the
-     * service requires on a published recipe.
+     * @param visibility - The new visibility.
+     * @param extras - The wording the cook was shown on the screen that made this write: the Public confirmation and the
+     * statement. Sent exactly as given. Making a published recipe public without a confirmation is refused by the service
+     * (`400 INVALID_VISIBILITY`, `PUBLIC_CONFIRMATION_REQUIRED`), because a wording is sent only when a screen showed it.
      * @returns The updated recipe.
      * @throws {ForbiddenError} when not the owner; {@link BadRequestError} on an invalid value.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async setRecipeVisibility(id: string, visibility: RecipeVisibility): Promise<RecipeDetail> {
+    public async setRecipeVisibility(
+        id: string,
+        visibility: RecipeVisibility,
+        extras: SetRecipeVisibilityExtras = {},
+    ): Promise<RecipeDetail> {
         const res = await this.send(
             'PATCH',
             `/api/v1/recipes/${encodeURIComponent(id)}/visibility`,
-            this.request(
-                'setRecipeVisibility',
-                setRecipeVisibilityRequestSchema,
-                visibility === 'public'
-                    ? { visibility, publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS }
-                    : { visibility },
-            ),
+            this.request('setRecipeVisibility', setRecipeVisibilityRequestSchema, { visibility, ...extras }),
         );
 
         return this.expect(res, 200, recipeDetailSchema);

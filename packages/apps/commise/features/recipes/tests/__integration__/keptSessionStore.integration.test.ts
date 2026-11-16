@@ -118,6 +118,29 @@ describe('two tabs over one record (R12, AE13, RT1)', () => {
     });
 });
 
+describe('a write never brings back a cleared or newer record (KTD2, KTD3)', () => {
+    it('B clears, then A, still holding the old session in memory, ticks: nothing from before the clear returns (mutant: base is memory when the key is absent)', async () => {
+        const { a, b, stored } = await twoTabs({ [KEY]: withSession });
+
+        await b.clear('A');
+        await a.dispatch(tickButter);
+
+        expect(stored().entries['r1']).toEqual({ kind: 'page', ticks: ['butter'], lastTouch: NOW });
+    });
+
+    it("A's write fails, then B writes, then A dispatches: A builds on B's stored document (mutant: base is A's memory)", async () => {
+        const { a, b, stored, state } = await twoTabs({ [KEY]: withSession });
+
+        state.failWrites = true;
+        await a.dispatch(tickButter);
+        state.failWrites = false;
+        await b.dispatch({ ...tickButter, ingredientId: 'salt' });
+        await a.dispatch({ ...tickButter, ingredientId: 'pepper' });
+
+        expect(stored().entries['r1']).toMatchObject({ ticks: ['salt', 'pepper'] });
+    });
+});
+
 describe('sign-out while a write waits (AE10, KTD3)', () => {
     it('leaves no cook.v2.* key (mutant: the clear outside the lock, or no generation check)', async () => {
         const base = makeFakeLocks();

@@ -22,7 +22,7 @@ import { useTheme } from '../theme/useTheme.native.js';
 import { Text } from '../text/Text.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { FAB_HEIGHT_PX, fabHeightAt } from './createFabPolicy.js';
-import { useFabTextScale } from './useFabTextScale.native.js';
+import { useTextScale } from '../text/useTextScale.native.js';
 import type { FabFaceProps } from './props.js';
 
 /** The native face of a floating create control. */
@@ -30,7 +30,7 @@ export const FabFace: FC<FabFaceProps> = ({ label, icon, presentation, onLabelWi
     const { colors } = useTheme();
     const glass = hasLiquidGlass();
     // The pill grows with its label up to the 1.5x chrome cap; the collapsed disc stays 56 (designer, 2026-11-02).
-    const pillHeight = fabHeightAt(useFabTextScale());
+    const pillHeight = fabHeightAt(useTextScale());
     const shape = presentation === 'icon' ? styles.disc : [styles.pill, { height: pillHeight }];
 
     const content: ReactNode = (

@@ -152,6 +152,32 @@ describe('the recipe page at a system text scale of 3.1 (native)', () => {
         expect(resolvedStyle(alone, 'lineHeight')).toBe(resolvedStyle(typed, 'lineHeight'));
     });
 
+    // The box beside body text grows to its 2x cap (18 → 36), so the text starts further right. The hairline between two
+    // rows starts where that text starts, not at the 1x offset: gutter 16 + box 36 + gap 12.
+    it('starts the hairline between rows past the grown check box, where the text starts', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({ ingredientId: 'a', name: 'Butter', unit: 'tbsp' }),
+                        makeIngredientView({ ingredientId: 'b', name: 'Thyme', unit: 'tbsp' }),
+                    ],
+                })}
+            />,
+        );
+        const divider = document.querySelector<HTMLElement>('[name="IngredientRowDivider"]');
+        // The drawn box is the row's one hidden element (the row itself is the checkbox).
+        const box = screen
+            .getByRole('checkbox', { name: '2 tbsp Thyme' })
+            .querySelector<HTMLElement>('[aria-hidden="true"]');
+
+        expect(box && resolvedStyle(box, 'width')).toBe('36px');
+        expect(divider && resolvedStyle(divider, 'marginLeft')).toBe(
+            `${String(nativeTokens.spacing[4] + 36 + nativeTokens.spacing[3])}px`,
+        );
+    });
+
     it('caps the scaled-from caveat at 2x', () => {
         render(view());
         fireEvent.click(screen.getByRole('button', { name: detail.servingsIncrease }));

@@ -29,8 +29,9 @@ import { CARDS_DIR } from '../../src/buildArtifact.js';
 import { BOARDS, boardWidth } from '../../src/canvas/boards.js';
 import { loadCardSpec } from '../../src/cards/loadCardSpec.js';
 
+import { openRecordedPage } from './pageProblems.js';
+
 const THEMES = ['light', 'dark'] as const;
-type Theme = (typeof THEMES)[number];
 
 const origin = inject('artifactOrigin');
 
@@ -43,32 +44,6 @@ beforeAll(async () => {
 afterAll(async () => {
     await browser.close();
 });
-
-/** Opens a page in its own context that records everything a user of the artifact would call broken. */
-async function openPage(
-    theme: Theme,
-    width: number,
-    height: number,
-): Promise<{ readonly page: Page; readonly problems: string[] }> {
-    const context = await browser.newContext({ viewport: { width, height }, colorScheme: theme });
-    const page = await context.newPage();
-    const problems: string[] = [];
-
-    page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
-    page.on('console', (message) => {
-        if (message.type() === 'error') {
-            problems.push(`console.error: ${message.text()}`);
-        }
-    });
-    page.on('requestfailed', (request) => problems.push(`request failed: ${request.url()}`));
-    page.on('response', (response) => {
-        if (response.status() >= 400) {
-            problems.push(`HTTP ${String(response.status())}: ${response.url()}`);
-        }
-    });
-
-    return { page, problems };
-}
 
 /** The declared height in a card's marker line. */
 function declaredHeight(html: string): number {
@@ -160,7 +135,7 @@ describe('component cards', () => {
             const height = declaredHeight(await (await fetch(url)).text());
             const spec = await loadCardSpec(join(CARDS_DIR, name, `${name}.card.tsx`));
             const scrolls = spec.staging?.scrollsDocument === true;
-            const { page, problems } = await openPage(theme, 960, height);
+            const { page, problems } = await openRecordedPage(browser, theme, 960, height);
 
             try {
                 await page.goto(url);
@@ -236,7 +211,7 @@ describe('canvas boards', () => {
     describe.each(BOARDS)('$file', (board) => {
         it.each(THEMES)('renders in %s', async (theme) => {
             const width = boardWidth(board);
-            const { page, problems } = await openPage(theme, width, board.height);
+            const { page, problems } = await openRecordedPage(browser, theme, width, board.height);
 
             try {
                 await page.goto(`${origin}/canvas/${board.file}?theme=${theme}`);

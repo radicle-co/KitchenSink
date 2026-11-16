@@ -4,12 +4,14 @@
 **Regenerated**: 2026-08-02
 **Source**: `spec.md`, `plan.md`
 
-> ⚠️ **Owner rulings, 2026-11-15 (spec `FR-064` to `FR-067`).** The import never fetches a page, so the URL fetch tasks
-> are suspended with spec `FR-008` (OQ-004-R1). There are no facts cards, no linked card and no per-market switch:
-> T-034, T-035 and T-036 are withdrawn, and so are the facts-card and `MarketCopyPolicy` items in T-014. Every
-> user-facing import spends one import allowance, with no limit for test principals (`FR-067`). New tasks for
-> `FR-064` to `FR-067` are owed: the device extraction tiers with a strict yes or no, the Private, Public or Both
-> choice, the private copy's wording and author name, and the one allowance.
+> ⚠️ **Owner rulings, 2026-11-15 (spec `FR-064` to `FR-067`).** A link is fetched on the cook's device first and by
+> the server if that fails, so the URL fetch tasks apply to that server fetch (`FR-008`, `FR-023`). A paste is never
+> fetched. There are no facts cards, no linked card, no per-market switch and no per-source caps: T-034, T-035 and
+> T-036 are withdrawn, and so are the facts-card and `MarketCopyPolicy` items in T-014. Every user-facing import
+> spends one import allowance, 200 a day on Free and 1,000 on a paid plan, with no limit for test principals
+> (`FR-067`). New tasks for `FR-064` to `FR-067` are owed: the device fetch of a link with the server fallback, the
+> device extraction tiers with a strict yes or no, the on-device AI tier and its account setting, the Private, Public
+> or Both choice, the private copy's wording and author name, and the one allowance.
 
 > **Regeneration note.** Every file path in the previous revision was wrong: it targeted
 > `packages/api/recipe/` (a directory containing only `.gitkeep`) and `packages/shared/db/` (does not exist),
@@ -441,7 +443,7 @@ The previous task list specified **none** of this. Security tests are written fi
 
 - [ ] `POST /api/v1/import/url` → `202 { jobId }`; `GET /import/jobs/{id}` → status
 - [ ] Duplicate canonical URL resolves to the existing recipe with `cloneAvailable: true` — **200, not an error**
-- [ ] _(withdrawn 2026-11-15: no facts cards; OQ-004-R4)_ The existing public item is the page's one **facts card**, readable signed out.
+- [ ] _(withdrawn 2026-11-15: no facts cards; a second import is matched by `sourceLinkKey`, spec C-001)_ The existing public item is the page's one **facts card**, readable signed out.
       URL-only matching misses the same recipe at another address and pasted copies. That is a recorded product gap
       (C-001), not a legal bar
 - [ ] _(withdrawn 2026-11-15: no per-market switch, spec `FR-066`)_ The stored copy follows `MarketCopyPolicy` (T-034): EU and UK keep facts and a
@@ -625,7 +627,7 @@ is entirely about it — while `spec.md`, `plan.md` and this file shipped no end
 That is a hole, not a new feature. It is also what the OCR transfer makes load-bearing: with photo owned by
 011, paste is how a user gets a cookbook recipe in **today**.
 
-- [ ] A paste is a one-recipe import on `POST /api/v1/import`. A page with JSON-LD or microdata is read on the device with no AI and no vendor call. `POST /api/v1/import/text` answers **`202`** and `GET /api/v1/import/text/{id}` is polled, only for text with no structured data (the AI fallback, T-048, `FR-056`)
+- [ ] A paste is a one-recipe import on `POST /api/v1/import`. A page with JSON-LD or microdata is read on the device with no vendor call. `POST /api/v1/import/text` answers **`202`** and `GET /api/v1/import/text/{id}` is polled, only for text with no structured data (the AI fallback, T-048, `FR-056`)
 - [ ] Body is `{ text, declaredSource, sourceCitation? }`. `text` is bounded (48,000 UTF-8 bytes, `FR-058`) and rejected empty;
       the bound is asserted, because an unbounded body is the memory-exhaustion vector this repo has already
       been bitten by
@@ -910,10 +912,10 @@ together.
 
 ## Phase 7 — Open recipe library (added 2026-11-03, owner ruling, ADR-0082)
 
-Each task is test-first and needs no UI change except T-036. _(Amended 2026-11-15, owner rulings: T-033 is suspended
-with the fetch, OQ-004-R1. T-034, T-035 and T-036 are withdrawn: no per-market switch and no facts cards. T-037 stays.)_
+Each task is test-first and needs no UI change except T-036. _(Amended 2026-11-15, owner rulings: T-033 applies to the
+server fetch of a link. T-034, T-035 and T-036 are withdrawn: no per-market switch and no facts cards. T-037 stays.)_
 
-### T-033 · _(Suspended 2026-11-15)_ FetchSignalPolicy and the per-fetch signal log
+### T-033 · FetchSignalPolicy and the per-fetch signal log
 
 **Priority** P1 · **Effort** M · **Depends on** T-010 · **Implements** FR-023
 
@@ -1043,7 +1045,7 @@ tier come before the code.
 
 **Test-first:** true. The tests are written and confirmed **failing** before any implementation.
 
-- [ ] _(withdrawn 2026-11-15 with the facts card; OQ-004-R4)_ A URL import with statement 1a of a page that already has a public facts card by another cook creates the
+- [ ] _(withdrawn 2026-11-15 with the facts card)_ A URL import with statement 1a of a page that already has a public facts card by another cook creates the
       cook's own recipe and leaves the card as it is.
 - [ ] **Unit test** on the dedup branch, and an **integration test** against the C-001 constraint: the owner import
       succeeds, and an import of the same page without the statement still surfaces the card.

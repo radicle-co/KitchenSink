@@ -9,16 +9,19 @@
 > [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)).**
 > They change this plan in five places, and the spec wins where they differ:
 >
-> 1. **The import never fetches a page.** The URL fetch edge (`SourceFetcher`, the outbound fetch budget, robots and
->    data-mining checks before a fetch, `import_jobs` for the fetch channel) is suspended with spec `FR-008`, `FR-023`,
->    `FR-053` and `FR-053a`, pending OQ-004-R1. Extraction runs on the cook's device in tiers: schema.org, microdata,
->    then a rule-based reader, each a strict yes or no, with no cook review of the extraction. A "no" from every tier
->    goes to the server AI fallback (§12a).
+> 1. **A link is fetched on the device first, then by the server.** The cook's device fetches a link's page. If that
+>    fails, the server URL fetch edge (`SourceFetcher`, the outbound fetch budget, robots and data-mining checks before
+>    a fetch, `import_jobs` for the fetch channel) runs, under spec `FR-008`, `FR-023`, `FR-053` and `FR-053a`. On web
+>    it usually runs. A paste is never fetched. Extraction runs on the cook's device in tiers: schema.org, microdata,
+>    a rule-based reader, then an on-device AI tier when the cook's account setting allows it (on by default on mobile,
+>    off on web), each a strict yes or no, with no cook review of the extraction. A "no" from every tier goes to the
+>    server AI fallback (§12a).
 > 2. **The paywall blocklist becomes the paid list.** It classifies a source as a paid site (`FR-014`), it does not
 >    block one.
 > 3. **No facts cards, no linked card, no per-market switch.** `MarketCopyPolicy`, the facts-card cap counter and the
 >    linked-card read are withdrawn. The public path is a Commise-written version (`FR-065`, spec 003B, planned).
-> 4. **One import allowance** for every user-facing channel, with no limit for test principals (`FR-067`).
+> 4. **One import allowance** for every user-facing channel, 200 a day on Free and 1,000 on a paid plan, with no
+>    limit for test principals (`FR-067`). There are no per-source caps.
 > 5. **The private copy keeps the source wording** and the source author's name (`FR-066`).
 
 ---
@@ -453,7 +456,7 @@ Catastrophic. Required, non-negotiable:
 `robots.txt` is fetched once per host and cached with a TTL. Group selection follows RFC 9309: the group that names
 our agent binds the fetch, and if no group names us the `*` group binds it. _(Amended 2026-11-03, owner ruling,
 ADR-0082: the earlier asymmetric table, which let a bare wildcard `Disallow: /` through for a user-chosen page, is
-withdrawn.)_ _(Suspended 2026-11-15 with the fetch, spec `FR-023`.)_
+withdrawn.)_ _(Amended 2026-11-15: applies to the server fetch of a link, spec `FR-023`.)_
 
 | Directive applies to                      | Bare `Disallow: /`   | Path-specific `Disallow` |
 | ----------------------------------------- | -------------------- | ------------------------ |
@@ -554,7 +557,7 @@ Ordered by dependency. Each step is test-first (§7.1) and ships web **and** mob
     10a. **Open-library policies** _(added 2026-11-03, ADR-0082)_: `FetchSignalPolicy` and its signal log, `MarketCopyPolicy`
     (D6), the per-source cap counter for facts cards (`FR-014b`, `FR-026`), and the image-deletion step after
     extraction. See tasks T-033 to T-037. _(Amended 2026-11-15: `MarketCopyPolicy` and the facts-card counter are
-    withdrawn. `FetchSignalPolicy` is suspended with the fetch. The image-deletion step stays.)_
+    withdrawn. `FetchSignalPolicy` applies to the server fetch. The image-deletion step stays.)_
 11. **UI — web and mobile in lockstep**: import entry, draft review/complete, attribution display, error states.
 12. **Load and soak** (k6) against the §7 SLOs.
     12a. **AI text-extraction fallback** _(added 2026-11-15, `FR-056` to `FR-063`)_: built in this feature, after the page reader and the paste channel. See tasks T-048.

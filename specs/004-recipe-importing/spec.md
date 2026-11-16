@@ -2,7 +2,7 @@
 
 **Feature Branch**: `004-recipe-importing`
 **Created**: 2026-04-14
-**Amended**: 2026-11-15 (owner rulings, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md): one import pipeline that never fetches a page, device extraction tiers with a strict yes or no, one import allowance, the Private, Public or Both choice, the private copy keeps the source wording, no facts cards. New `FR-064` to `FR-067`. `FR-014b` withdrawn. `FR-008`, `FR-009`, `FR-010`, `FR-011`, `FR-013`, `FR-014`, `FR-014a`, `FR-022`, `FR-023`, `FR-026`, `FR-028`, `FR-053`, `FR-053a`, `FR-056`, `FR-061`, User Story 1, SC-004, SC-005, C-001, C-007 and C-009 amended. Open owner questions: OQ-004-R1 to OQ-004-R5.) 2026-11-03 (open recipe library, owner rulings, ADR-0082: `FR-008` ruling, `FR-011`, `FR-013`, `FR-014`, `FR-014a`, new `FR-014b`, `FR-009`, `FR-012`, `FR-023`, `FR-026` and C-001). 2026-11-03 (owner ruling O16, ADR-0082: the owner statement 1a in `FR-014a`, with
+**Amended**: 2026-11-15 (owner rulings, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md): one import pipeline, link import fetched on the device first and then by the server, device extraction tiers with a strict yes or no, one import allowance, the Private, Public or Both choice, the private copy keeps the source wording, no facts cards. New `FR-064` to `FR-067`. `FR-014b` withdrawn. `FR-008`, `FR-009`, `FR-010`, `FR-011`, `FR-013`, `FR-014`, `FR-014a`, `FR-022`, `FR-023`, `FR-026`, `FR-028`, `FR-053`, `FR-053a`, `FR-056`, `FR-061`, User Story 1, SC-004, SC-005, C-001, C-007 and C-009 amended. Open owner questions: OQ-004-R1 to OQ-004-R5.) 2026-11-03 (open recipe library, owner rulings, ADR-0082: `FR-008` ruling, `FR-011`, `FR-013`, `FR-014`, `FR-014a`, new `FR-014b`, `FR-009`, `FR-012`, `FR-023`, `FR-026` and C-001). 2026-11-03 (owner ruling O16, ADR-0082: the owner statement 1a in `FR-014a`, with
 notes on `FR-008`, `FR-009`, `FR-025`, `FR-052`, `FR-053` and `FR-053a`). 2026-10-28 (`FR-053` added: the "Save to Commise" button for food blogs, gated on the WP Recipe Maker
 team, owner ruling). 2026-10-29 (recipe rights, owner rulings,
 [ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md): a web
@@ -129,8 +129,9 @@ page's wording and shows the source author's name. Then clone it and verify the 
 6. **Given** content from a paid site (`FR-014`), **When** the user imports it, **Then** it is kept privately, and
    Public is offered only as a page Commise writes in full that names no site (`FR-065`). _(Amended 2026-11-15, owner
    ruling. Was: rejected before any outbound request.)_
-7. _(Withdrawn 2026-11-15 with the linked card, `FR-008`. How a second import of the same page is matched is
-   OQ-004-R4.)_
+7. **Given** a cook imports a page they imported before, **When** the import runs, **Then** it is matched to the earlier
+   import by the page's normalised source address (`sourceLinkKey`, C-001). _(Amended 2026-11-15. Was: the second
+   import surfaced the public linked card, withdrawn with the card.)_
 8. **Given** a user pastes recipe content manually, **When** they attest that it came from a non-public source
    (cookbook, subscription site), **Then** the recipe is created as `imported_paid`, its verbatim copy is never public, and its only public form is a
    Commise-written version (`FR-065`).
@@ -144,8 +145,8 @@ page's wording and shows the source author's name. Then clone it and verify the 
 
 ### User Story 2 - Save a recipe from a food blog with one tap (Priority: P3)
 
-_(Added 2026-10-28, owner ruling. Gated on the WP Recipe Maker team, `D-019`. Suspended 2026-11-15 with `FR-053`: the
-save starts a server fetch, and the import never fetches a page, `FR-064`, OQ-004-R1.)_
+_(Added 2026-10-28, owner ruling. Gated on the WP Recipe Maker team, `D-019`. The page is fetched by the link-import
+rule of `FR-064`: the cook's device first, then the server.)_
 
 Ana reads a recipe on a food blog that runs WP Recipe Maker. Under the recipe card she sees a "Save to Commise"
 button. She taps it. Her phone has the Commise app, and she is signed in, so the app opens. It names the blog and asks
@@ -190,7 +191,7 @@ shown, through the same pipeline as a pasted link.
 - **Ingredient line unparseable**: the raw line is retained verbatim on the draft with a null quantity and is
   surfaced for the user to correct; it does not fail the import.
 - **Two users import the same new URL simultaneously**: exactly one recipe is created; the loser of the race
-  receives the winner's recipe (`FR-008`, enforced by a unique constraint, not a read-then-write check). _(Suspended 2026-11-15 with the linked card, OQ-004-R4. Each cook's import is their own private copy, `FR-066`.)_
+  receives the winner's recipe (`FR-008`, enforced by a unique constraint, not a read-then-write check). _(Amended 2026-11-15: there is no shared public card. Each cook's import is their own private copy, `FR-066`, and a second import of the same page is matched by its normalised source address, `sourceLinkKey`, C-001.)_
 - **Redirect to a blocked or private-network host**: the blocklist and SSRF guard are re-evaluated on **every**
   redirect hop, not only the original URL.
 
@@ -240,14 +241,20 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
 
 - **FR-064** _(added 2026-11-15, owner ruling)_: **Every import goes through one pipeline, and source detection is its
   first stage.** Every user-facing import channel (paste, file, bulk, and any later share or link channel) enters the
-  same import pipeline (`FR-047`, ADR-0072). Its first stage reads the source from the content the cook supplies. The
-  import never fetches a page: Commise reads only what the cook pastes, shares or uploads.
+  same import pipeline (`FR-047`, ADR-0072). Its first stage reads the source from the content the cook supplies.
+    - **A paste is never fetched.** Source detection on a pasted page reads only what was pasted.
+    - **A link is fetched on the device first** (owner ruling, 2026-11-15). For an import from a link, including a link
+      shared from a social app, the cook's device fetches the page. If that fails, the server fetches it (`FR-008`,
+      `FR-023`). A web browser usually cannot fetch another site's page, so on web the server fetch usually runs.
     - **Extraction runs on the cook's device, in tiers:** schema.org `Recipe` data first, then microdata, then a
       rule-based reader. Each tier gives a strict yes or no, and any doubt is a no.
-    - **No cook review of the extraction.** A yes becomes the draft. When every device tier says no, the import goes to
+    - **On-device AI is a tier after the deterministic ones** (owner ruling, 2026-11-15). When schema.org, microdata and
+      the rule-based reader all say no, an on-device AI tier tries next, before the server AI fallback. An account
+      setting turns it on or off. It is on by default on mobile and off by default on web. The operating system's
+      built-in text recognition (OCR) is always allowed and is not this tier.
+    - **No cook review of the extraction.** A yes becomes the draft. When every device tier says no (or is off), the import goes to
       the server AI fallback (`FR-056`) or tells the cook the page cannot be read and offers the type-it-in path. This
       rule covers extraction only. The ingredient food-match review (ADR-0071) stays.
-    - **No on-device AI.** The only AI extraction is the server fallback of `FR-056`.
     - When part of a recipe was pasted and the cook gave no statement, the import asks where the recipe is from. The
       question, its choices and its record are spec 016's.
 - **FR-065** _(added 2026-11-15, owner ruling, ADR-0093)_: **At import the cook chooses Private, Public or Both.**
@@ -264,10 +271,13 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
       a localisation key on web and mobile. `staff-ux-engineer` designs it at SPECIFY.
 - **FR-066** _(added 2026-11-15, owner ruling, ADR-0093)_: **The cook's private copy keeps the source's wording.** The
   private copy of an imported recipe keeps the source site's wording, with food matching (ADR-0071), and shows the
-  source author's name. A recipe made in the manual single-recipe editor is never rewritten automatically. A paid-site
-  private copy has no export of the site's wording and no household sharing of it (ADR-0093, OQ-004-R5).
+  source author's name. A recipe made in the manual single-recipe editor is never rewritten automatically. The private
+  copy uses a private slot like any private recipe, even when the recipe also has a public version (`FR-028`). A
+  paid-site private copy has no share or export feature for the site's wording beyond the account data export, which
+  includes it because it is the cook's own data, and no household sharing of it (ADR-0093).
 - **FR-067** _(added 2026-11-15, owner ruling)_: **One import allowance.** Every user-facing import, on every channel,
-  spends the one import allowance. No channel has a counter of its own. Test principals (ADR-0040) have no limit. This
+  spends the one import allowance: 200 a rolling day on Free and 1,000 a rolling day on a paid plan. No channel has a
+  counter of its own. Test principals (ADR-0040) have no limit. This
   replaces the per-channel counts in the `FR-022` note, D-006 and D-013.
 
 **Ingestion**
@@ -276,13 +286,12 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
   ingredient lines, instruction steps, times, servings, and photo URLs into an import draft. Extraction MUST attempt
   structured markup first, in `FR-064`'s tiers. Uniqueness of a canonicalized source URL MUST be enforced by a database
   constraint, not by a read-then-write check (C-001).
-    > ⚠️ **Amended 2026-11-15 (owner ruling, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)): the import never fetches a page.** The
-    > server-side fetch of a URL is withdrawn, and with it every rule built on it: the server rights check of
-    > 2026-10-26, the linked card of 2026-10-29 (ADR-0077 §3), and the facts card, per-market private-copy switch and
-    > server-fetch rules of 2026-11-03 (ADR-0082). The page's content comes from the cook (`FR-052`). The public path is
-    > `FR-065`, and the private copy is `FR-066`. The rule that a second import of the same page surfaces the existing
-    > public recipe and offers a clone is withdrawn with the card. What replaces an import from a link alone is
-    > OQ-004-R1.
+    > ⚠️ **Amended 2026-11-15 (owner rulings, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)): a link is fetched on the device first, then by the server.**
+    > The cook's device fetches the page. If that fails, the server fetches it, under `FR-023`. On web the server fetch
+    > usually runs. Links shared from social apps follow the same rule. The rules built on the earlier server fetch are
+    > withdrawn: the server rights check of 2026-10-26, the linked card of 2026-10-29 (ADR-0077 §3), and the facts card
+    > and per-market private-copy switch of 2026-11-03 (ADR-0082). The public path is `FR-065`, and the private copy is
+    > `FR-066`. A second import of the same page is matched by its normalised source address (`sourceLinkKey`, C-001).
     >
     > **Statement 1a stays.** A cook importing a page they own can make statement 1a ("This is my recipe, from my site
     > or account", `FR-014a`). It sets `user_created` and "Written by you". With a live site claim, the cook's own
@@ -296,8 +305,7 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     > when added) uses official APIs under their terms only. It never downloads a video, keeps no video frames or audio,
     > and runs no face recognition on frames. Where no API allows the import, the fallback is the cook's own paste,
     > share sheet or screenshot (`FR-052`, `011`). The result is the cook's private copy (`FR-066`) and the public choice
-    > of `FR-065`, never a facts card. Whether an API read of a post counts as fetching a page under `FR-064` is part of
-    > OQ-004-R1.
+    > of `FR-065`, never a facts card. A link shared from a social app is a link import under `FR-064`.
     >
     > **Amended 2026-11-03 (owner ruling O16, ADR-0082): "This is my recipe, from my account".** A social import MUST
     > offer the owner statement of `FR-014a` (statement 1a), with the account it names. It sets "Written by you" like any
@@ -337,7 +345,7 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
   family member or friend, with their permission", per `FR-014a`'s six statements.)_ _(amended 2026-11-03, owner
   ruling O16, ADR-0082: paste also takes the owner statement 1a, "This is my recipe, from my site or account", with the
   page or account address the cook names. Paste fetches no page, so a claim cannot clear a hit on a pasted recipe. See
-  `FR-014a`.)_ _(amended 2026-11-15, owner ruling, ADR-0092 and ADR-0089 §7: a paste is no longer always synchronous with no vendor call. The page reader runs on the cook's device, in `FR-064`'s tiers, with no AI and no vendor call. Plain text, or a page every device tier says no to, goes to the AI text-extraction fallback (`FR-056` to `FR-063`), which is asynchronous. The rule that `imported_public` and `imported_physical` are never representable on a paste stands unchanged. The declared source stays the cook's statement. An address found inside a pasted page is a suggestion the cook confirms (`FR-060`).)_ The pasted body is user input at an untrusted boundary and MUST
+  `FR-014a`.)_ _(amended 2026-11-15, owner ruling, ADR-0092 and ADR-0089 §7: a paste is no longer always synchronous with no vendor call. The page reader runs on the cook's device, in `FR-064`'s tiers, with no vendor call; its only AI is the on-device tier, where the cook's setting allows it. Plain text, or a page every device tier says no to, goes to the AI text-extraction fallback (`FR-056` to `FR-063`), which is asynchronous. The rule that `imported_public` and `imported_physical` are never representable on a paste stands unchanged. The declared source stays the cook's statement. An address found inside a pasted page is a suggestion the cook confirms (`FR-060`).)_ The pasted body is user input at an untrusted boundary and MUST
   NOT be logged (`NFR-008`).
     > **Why this is a hole being closed, not a feature being added.** Every failure state in this feature's
     > own wireframes already offers "paste manually", and the product spec's J3 journey is entirely about
@@ -345,8 +353,8 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     > **attestation** for pasted content but attached it to ordinary recipe creation, so the promise the UI
     > makes had no channel behind it. It is also what the photo transfer makes load-bearing: with OCR owned by
     > 011, paste is how a user gets a physical-copy recipe in **today**.
-- **FR-053** _(GATED, added 2026-10-28, owner ruling, see `D-019`. Suspended 2026-11-15: the save starts a server
-  fetch, and the import never fetches a page, `FR-064`, OQ-004-R1)_: System MUST accept a **"Save to Commise"**
+- **FR-053** _(GATED, added 2026-10-28, owner ruling, see `D-019`. Amended 2026-11-15: the page is fetched under
+  `FR-064`'s link rule, the device first and then the server)_: System MUST accept a **"Save to Commise"**
   link from a recipe page that shows the button, and turn one tap into one user-directed capture of that one page.
   Owner ruling, 2026-10-28: it is built. The rules:
     - **The button is a plain link.** It carries the page's address and a fixed source tag for the partner, and
@@ -396,8 +404,8 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     - **Every state is a deliverable.** The saving, saved, not available yet, blocked, private-only, quota reached,
       offline and error states each need a design, copy and a localisation key, on web and mobile.
       `staff-ux-engineer` DESIGN and SPECIFY run at plan time.
-- **FR-053a** _(added 2026-10-29, owner rulings on [026](../026-chef-spaces/spec.md). Suspended 2026-11-15: it fetches
-  pages from the claimed site, and the import never fetches a page, `FR-064`, OQ-004-R1)_: A chef with a live site claim
+- **FR-053a** _(added 2026-10-29, owner rulings on [026](../026-chef-spaces/spec.md). Amended 2026-11-15: pages are
+  fetched under `FR-064`'s link rule)_: A chef with a live site claim
   (`026-FR-001`) MUST be able to bring in recipes from their own claimed site in bulk, through ADR-0072's import route
   and its daily allowance. The rules:
     - **The list comes from the site itself.** The recipes offered MUST come from the claimed site's own sitemap or its
@@ -572,9 +580,9 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   metered paywall. The paid list MUST be stored as data with an admin-managed lifecycle (D-004), not as a code constant.
   A paid-site recipe is kept privately (`FR-066`) and goes public only as a page Commise writes in full that names no
   site (`FR-065`). The import never passes a paywall, login or meter, and never uses a cook's password or cookies.
-  _(Was: reject a known paywalled source before any outbound request. The import no longer fetches, so the list now
-  classifies the source instead of refusing it. The old list also refused hosts of unauthorised copies; whether an
-  import detected from such a host is still refused is OQ-004-R6.)_
+  _(Was: reject a known paywalled source before any outbound request. The list now classifies the source instead of
+  refusing it. Owner ruling, 2026-11-15: there is no list of hosts of unauthorised copies and no special handling for
+  them.)_
 - **FR-014a**: System MUST require, for any manually pasted or typed recipe the user attests originates from an
   external source, both (a) an explicit source attestation and (b) a source citation — a URL where one exists,
   otherwise a free-text citation (e.g. book title, author, page). Where the cited source is **not a publicly
@@ -712,9 +720,8 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   recipe shared with permission is not "non-public by policy". It can be public, so this FR's refusals do not apply to
   it. Its private copy uses a slot like any private recipe. _(Amended 2026-11-15, owner ruling: no facts cards.)_ The
   2026-11-03 rule that a public facts card frees the slot of the cook's full copy is withdrawn with the card. A book or
-  paid-site recipe can go public only as a Commise-written version (`FR-065`). Whether a recipe with a public
-  Commise-written version uses a private slot for the cook's private copy is OQ-004-R2. Until it is answered, this FR's
-  refusal applies to every private copy.
+  paid-site recipe can go public only as a Commise-written version (`FR-065`). The cook's private copy uses a private
+  slot even when the recipe also has a public version, so this FR's refusal applies to every private copy.
 - **FR-014b**: Withdrawn. Owner ruling, 2026-11-15: no facts cards. A book or paid-site recipe's public form is a
   Commise-written version (`FR-065`).
 
@@ -780,12 +787,11 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   file, rejecting a larger file with an explicit limit message — producing one draft per
   recipe. Drafts with no missing required fields MUST be confirmable in a single bulk action; drafts with gaps
   MUST be surfaced individually for completion. A failure affecting one recipe MUST NOT discard the others.
-  _(Amended 2026-11-15, owner ruling, ADR-0093: the 2026-11-03 per-source cap counted public facts cards and is
-  withdrawn with them. A paid site's per-publisher cap counts only its distinctive recipes, under ADR-0093.)_
+  _(Amended 2026-11-15, owner ruling: there are no per-site, per-source or per-publisher caps on public recipes.)_
 - **FR-027**: Bulk confirmation MUST report a **per-recipe outcome** (created, already existed, or failed with
   a reason) rather than a single aggregate result, and MUST apply deduplication per recipe so that a recipe
   already present resolves to the existing one rather than counting as a failure.
-- **FR-023** _(suspended 2026-11-15 with the fetch, `FR-008`, OQ-004-R1)_: System MUST consult the source site's
+- **FR-023** _(amended 2026-11-15: applies to the server fetch of `FR-064`'s link rule)_: System MUST consult the source site's
   `robots.txt` before fetching, and MUST apply it as follows RFC 9309: the group that names the import user-agent binds
   the fetch, and if no group names it, the `*` group binds it. A blocked fetch MUST be reported as
   `IMPORT_SOURCE_BLOCKED` and MUST be counted. The fetch MUST also read and honour the machine-readable data-mining
@@ -830,7 +836,7 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > the rule. The OCR sub-quota is unchanged and stays with 011.
     >
     > ⚠️ **One allowance.** Owner ruling, 2026-11-15: the per-channel counts above are replaced by the one import
-    > allowance of `FR-067`. Test principals have no limit.
+    > allowance of `FR-067`: 200 a rolling day on Free and 1,000 on a paid plan. Test principals have no limit.
 - **FR-018**: System MUST expire unconfirmed import drafts **7 days** after creation, and MUST delete any OCR
   source image on confirm, discard, or expiry — whichever occurs first. The draft and its image share one
   lifetime: there is no state in which an image outlives the draft that references it. The retention period is
@@ -863,10 +869,10 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     - A false claim is handled under the terms (`016-FR-055`, `016-FR-069`).
     - Every state (offered, claimed, verifying, verified, failed, declined) needs copy and a localisation key on web and
       mobile, and `staff-ux-engineer` designs it at SPECIFY.
-- **FR-056** _(added 2026-11-15, owner ruling: "add the AI stuff to the import feature spec so it gets done when that
-  feature is implemented")_: **A paste that has no structured recipe data goes to an AI text-extraction fallback, and
+- **FR-056** _(added 2026-11-15, owner ruling: the AI fallback is built as part of this feature)_: **A paste that has no structured recipe data goes to an AI text-extraction fallback, and
   it is built as part of this feature.** The device tiers of `FR-064` (schema.org, microdata,
-  then a rule-based reader) run first, with no AI. Plain text, or a page every device tier says no to, goes to the
+  then a rule-based reader) run first, with no AI. Then the on-device AI tier runs where the cook's account setting
+  allows it (`FR-064`; owner ruling, 2026-11-15). Plain text, or a page every device tier says no to, goes to the
   fallback. _(Amended 2026-11-15, owner ruling: the rule-based reader is a device tier ahead of the fallback.)_ The fallback MUST run only when the reduced text has at
   least 3 lines.
     - It is a separate **asynchronous** job in recipe-workers, under the existing single Bedrock role (ADR-0024 §4c).
@@ -1206,10 +1212,10 @@ The section above decides **who authors** the contract; this one is where it **r
   hand-verified expected values. The corpus, its size, and the measurement method are fixed at PLANNING; the metric is meaningless without them.
 - **SC-003**: At least **95%** of imports from sources carrying valid schema.org `Recipe` JSON-LD MUST produce
   a draft with zero missing required fields other than `servings`.
-- **SC-004** _(suspended 2026-11-15 with the URL fetch, OQ-004-R1)_: p95 end-to-end latency for a URL import job MUST be ≤ 15s; p99 ≤ 30s (the outbound fetch budget
+- **SC-004** _(amended 2026-11-15: measured on the server fetch path of `FR-064`'s link rule)_: p95 end-to-end latency for a URL import job MUST be ≤ 15s; p99 ≤ 30s (the outbound fetch budget
   dominates). Draft confirmation is a local write: p95 ≤ 400ms.
-- **SC-005** _(suspended 2026-11-15 with the linked card, OQ-004-R4)_: Duplicate public recipes for the same canonicalized source URL MUST be **zero**, including under
-  concurrent import of the same URL.
+- **SC-005** _(amended 2026-11-15)_: A second import of the same page MUST be matched to the earlier import by its
+  normalised source address (`sourceLinkKey`, C-001), including under concurrent import of the same URL.
 
 ---
 
@@ -1423,8 +1429,8 @@ channel is hidden by its capability flag and its tests run against the contract 
   (`016-FR-030a`).
     > **Amended 2026-11-15 (owner ruling, ADR-0093).** The linked card and the facts card are withdrawn, so the public
     > card this key protected no longer exists. Each cook's import is their own private copy (`FR-066`), and a public
-    > version is Commise-written (`FR-065`). How a second import of the same page is matched, and what the unique index
-    > keys now, is OQ-004-R4.
+    > version is Commise-written (`FR-065`). A second import of the same page is matched by its normalised source
+    > address (`sourceLinkKey`), and that address is what the unique index keys.
 - **C-003 (Instagram import method)**: Instagram import uses the Meta-hosted oEmbed endpoint with an app
   credential and caption-text parsing. Only posts with recipe content in the caption are supported. See D-002.
 - **C-006 (Draft-and-confirm)**: Every import channel produces a draft; confirmation creates the recipe. See
@@ -1447,25 +1453,25 @@ channel is hidden by its capability flag and its tests run against the contract 
   microdata, and any plain-text paste, goes to the AI text-extraction fallback (`FR-056`). That fallback returns line
   numbers only and never writes recipe text. JSON-LD and microdata are still read first, with no AI. The fallback is a step after the chain, for paste only. A URL import (`FR-008`) whose page has no structured data gets no AI fallback and ends as before, with the paste path offered.
   _(amended again 2026-11-15, owner ruling, `FR-064`.)_ The chain runs on the cook's device: schema.org data, then
-  microdata, then a rule-based reader, each with a strict yes or no. The AI fallback runs only after all three say no.
+  microdata, then a rule-based reader, each with a strict yes or no, then the on-device AI tier where the cook's setting
+  allows it. The server AI fallback runs only after all of them say no.
 
 ---
 
-## Open owner questions from the 2026-11-15 rulings
+## Owner questions from the 2026-11-15 rulings, answered
 
-- **OQ-004-R1**: The import never fetches a page (`FR-064`). What replaces an import from a link alone (`FR-008`), the
-  "Save to Commise" button (`FR-053`), a chef's bulk bring-in from their claimed site (`FR-053a`) and the social API read
-  (`FR-009`)? Until it is answered, those are suspended and the cook pastes or shares the page.
-- **OQ-004-R2**: Does the cook's private copy use a private slot when the recipe also has a public Commise-written
-  version (`FR-028`)? The 2026-11-03 rule that a public facts card frees the slot went with the card.
-- **OQ-004-R3**: The cook's statement stays editable (spec 016), but ADR-0089 §6 locks the source after the first
-  publish. Which governs a statement after a recipe is first published?
-- **OQ-004-R4**: With the linked card gone, how is a second import of the same page matched, and what does C-001's
-  unique index key (SC-005)?
-- **OQ-004-R5**: A paid-site private copy has no export of the site's wording (`FR-066`). How does that fit the account
-  data export (spec 016)?
-- **OQ-004-R6**: The old blocklist (`FR-014`) also refused hosts of unauthorised copies. With no fetch, is an import
-  whose detected source is such a host still refused, or only classified?
+- **OQ-004-R1** (answered, owner ruling, 2026-11-15): a link is fetched on the cook's device first and by the server
+  if that fails (`FR-064`, `FR-008`). `FR-053`, `FR-053a`, `FR-009`'s shared links, `FR-023` and SC-004 apply again.
+- **OQ-004-R2** (answered): the cook's private copy uses a private slot even when a public version exists (`FR-028`,
+  `FR-066`).
+- **OQ-004-R3** (answered): the cook's statement stays editable, and detected source evidence stays locked (spec 016,
+  ADR-0089 §6).
+- **OQ-004-R4** (answered): a second import of the same page is matched by its normalised source address
+  (`sourceLinkKey`, C-001, SC-005).
+- **OQ-004-R5** (answered): the account data export includes the private copy's wording, paid sites included. "No
+  export" means no share or export feature beyond the account data export (`FR-066`).
+- **OQ-004-R6** (answered, owner ruling, 2026-11-15): there is no list of hosts of unauthorised copies and no special
+  handling for them (`FR-014`).
 
 ---
 

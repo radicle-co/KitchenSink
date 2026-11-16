@@ -647,7 +647,8 @@ feature promises a user, not merely how it is built.
 011's OCR was specified cloud-only: upload to S3, enqueue, Textract, poll. That is now the **second** tier.
 The first is the platform's own text recognizer — Vision on iOS, ML Kit on Android — run on the captured
 image **before any upload**. When it produces a usable parse, the photograph **never leaves the device**, and
-no OCR is billed.
+no OCR is billed. _(Owner ruling, 2026-11-15: the platform's built-in text recognition is always allowed. It is not
+the on-device AI tier of `004-FR-064`, which the cook's account setting controls.)_
 
 **Escalation to the cloud is by CAPABILITY, not by score**: no recognizer available, an unsupported script, a
 device-side failure, or the user asking for it (§A-2). A confidence threshold MAY route a low-confidence

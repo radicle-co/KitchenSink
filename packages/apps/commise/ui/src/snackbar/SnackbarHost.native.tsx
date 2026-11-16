@@ -19,7 +19,9 @@
  */
 import { useContext, useEffect, useState, type FC } from 'react';
 import { AccessibilityInfo, Dimensions, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { keyboardOverlap } from '../keyboardAvoider/keyboardOverlap.js';
 import { useKeyboardFrame } from '../keyboardAvoider/useKeyboardFrame.native.js';
 import { PopupInsetsContext } from '../popupInsets/popupInsetsContext.js';
 import { nativeTokens } from '../tokens/native.js';
@@ -35,9 +37,15 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
     const readInsets = useContext(PopupInsetsContext);
     const [foot, setFoot] = useState(SNACKBAR_GAP);
     const keyboard = useKeyboardFrame();
-    // The overlay is window-high and edge to edge, so what the keyboard covers is the screen's height below its top.
-    const bottom =
-        keyboard === null ? foot : Math.max(foot, Dimensions.get('screen').height - keyboard.top + SNACKBAR_GAP);
+    const navigationBar = useSafeAreaInsets().bottom;
+    // The overlay is window-high and edge to edge, so its foot is the screen's, and the keyboard covers what the one lift rule
+    // says (`KeyboardLift`): the keyboard's height plus the navigation bar at most, because Android's height leaves that bar out.
+    const lift = keyboardOverlap(
+        Dimensions.get('screen').height,
+        keyboard?.top ?? null,
+        (keyboard?.height ?? 0) + navigationBar,
+    );
+    const bottom = keyboard === null ? foot : Math.max(foot, lift + SNACKBAR_GAP);
     const [screenReader, setScreenReader] = useState(false);
     const [regionHeight, setRegionHeight] = useState(0);
     const { current } = queue;

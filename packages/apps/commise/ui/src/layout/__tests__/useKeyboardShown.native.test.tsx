@@ -1,50 +1,34 @@
 /**
  * The native sheet's keyboard reading: shown only while React Native reports a visible keyboard at least 150 dp
- * tall, so an iPad shortcut bar does not collapse the sheet (§S8.1).
+ * tall, so an iPad shortcut bar does not collapse the sheet (§S8.1). Also the ONE subscription that the keyboard's frame
+ * is read from.
  */
 import { act, renderHook } from '@testing-library/react';
-import { Keyboard } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useKeyboardFrame } from '../../keyboardAvoider/useKeyboardFrame.native.js';
+import { installFakeKeyboard, type FakeKeyboard } from '../../testing/fakeKeyboard.native.js';
 import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { useKeyboardShown } from '../useKeyboardShown.native.js';
 
-type Listener = (event?: { endCoordinates: { height: number } }) => void;
-
 describe('useKeyboardShown', () => {
-    const listeners = new Map<string, Listener>();
-    const remove = vi.fn();
-    let visible = false;
-    let height = 0;
+    let fake: FakeKeyboard;
 
     beforeEach(() => {
-        listeners.clear();
-        remove.mockClear();
-        visible = false;
-        height = 0;
-        vi.spyOn(Keyboard, 'addListener').mockImplementation(((event: string, listener: Listener) => {
-            listeners.set(event, listener);
-
-            return { remove };
-        }) as unknown as typeof Keyboard.addListener);
-        vi.spyOn(Keyboard, 'isVisible').mockImplementation(() => visible);
-        // react-native-web's `Keyboard` has no `metrics`; the device API does.
-        Object.defineProperty(Keyboard, 'metrics', {
-            value: () => (visible ? { height, width: 390, screenX: 0, screenY: 844 - height } : undefined),
-            configurable: true,
-        });
+        fake = installFakeKeyboard();
     });
 
     afterEach(() => {
         vi.restoreAllMocks();
-        Reflect.deleteProperty(Keyboard, 'metrics');
+        fake.restore();
     });
 
-    /** Report a keyboard change the way the platform does: move the state, then fire the event. */
-    function keyboard(event: 'keyboardDidShow' | 'keyboardDidHide', nextHeight: number): void {
-        visible = event === 'keyboardDidShow';
-        height = nextHeight;
-        act(() => listeners.get(event)?.());
+    /** Report a keyboard change the way Android does: move the state, then fire the Did event. */
+    function keyboard(event: 'keyboardDidShow' | 'keyboardDidHide', height: number): void {
+        const frame = event === 'keyboardDidShow' ? { screenY: 844 - height, height } : null;
+
+        fake.settle(frame);
+        act(() => fake.emit(event, frame ?? undefined));
     }
 
     it('reads shown for a full keyboard and hidden again after it closes', () => {
@@ -59,6 +43,14 @@ describe('useKeyboardShown', () => {
         expect(result.current).toBe(false);
     });
 
+    it('reads a keyboard that was already up before it mounted', () => {
+        fake.settle({ screenY: 508, height: 336 });
+
+        const { result } = renderHook(() => useKeyboardShown());
+
+        expect(result.current).toBe(true);
+    });
+
     it('reads a 55 dp shortcut bar as no keyboard', () => {
         const { result } = renderHook(() => useKeyboardShown());
 
@@ -70,24 +62,19 @@ describe('useKeyboardShown', () => {
     it('removes both listeners when it unmounts', () => {
         renderHook(() => useKeyboardShown()).unmount();
 
-        expect([...listeners.keys()].sort()).toStrictEqual(['keyboardDidHide', 'keyboardDidShow']);
-        expect(remove).toHaveBeenCalledTimes(2);
+        expect([...fake.added].sort()).toStrictEqual(['keyboardDidHide', 'keyboardDidShow']);
+        expect(fake.removed()).toBe(2);
     });
 
     describe('with the keyboard reported by its own event', () => {
-        /** Fire an event the way the platform does: React Native's own `isVisible`/`metrics` stay as they were. */
-        function fire(event: string, endHeight: number): void {
-            act(() => listeners.get(event)?.({ endCoordinates: { height: endHeight } }));
-        }
-
         it('iOS: reads shown on keyboardWillShow, before any Did event, and hidden on keyboardWillHide', () => {
             withPlatformOs('ios', () => {
                 const { result } = renderHook(() => useKeyboardShown());
 
-                fire('keyboardWillShow', 300);
+                act(() => fake.emit('keyboardWillShow', { screenY: 544, height: 300 }));
                 expect(result.current).toBe(true);
 
-                fire('keyboardWillHide', 0);
+                act(() => fake.emit('keyboardWillHide'));
                 expect(result.current).toBe(false);
             });
         });
@@ -96,20 +83,40 @@ describe('useKeyboardShown', () => {
             withPlatformOs('ios', () => {
                 const { result } = renderHook(() => useKeyboardShown());
 
-                fire('keyboardWillShow', 300);
+                act(() => fake.emit('keyboardWillShow', { screenY: 544, height: 300 }));
                 expect(result.current).toBe(true);
 
-                fire('keyboardWillShow', 40);
+                act(() => fake.emit('keyboardWillShow', { screenY: 804, height: 40 }));
                 expect(result.current).toBe(false);
             });
         });
 
-        it('iOS: removes both Will listeners when it unmounts', () => {
+        it('iOS: listens for the Will and the Did events and removes all four when it unmounts', () => {
             withPlatformOs('ios', () => {
                 renderHook(() => useKeyboardShown()).unmount();
 
-                expect([...listeners.keys()].sort()).toStrictEqual(['keyboardWillHide', 'keyboardWillShow']);
-                expect(remove).toHaveBeenCalledTimes(2);
+                expect([...fake.added].sort()).toStrictEqual([
+                    'keyboardDidHide',
+                    'keyboardDidShow',
+                    'keyboardWillHide',
+                    'keyboardWillShow',
+                ]);
+                expect(fake.removed()).toBe(4);
+            });
+        });
+
+        it('iOS: a reader that mounted between Will and Did, and read the old keyboard, is corrected by the Did event', () => {
+            withPlatformOs('ios', () => {
+                // The Will event fired with nobody listening: React Native's own state still says "no keyboard".
+                const { result } = renderHook(() => useKeyboardShown());
+
+                expect(result.current).toBe(false);
+
+                // The keyboard settles: React Native's state has caught up, and the Did event says so.
+                fake.settle({ screenY: 544, height: 300 });
+                act(() => fake.emit('keyboardDidShow', { screenY: 544, height: 300 }));
+
+                expect(result.current).toBe(true);
             });
         });
 
@@ -117,7 +124,7 @@ describe('useKeyboardShown', () => {
             withPlatformOs('android', () => {
                 const { result } = renderHook(() => useKeyboardShown());
 
-                expect(listeners.has('keyboardWillShow')).toBe(false);
+                expect(fake.added).not.toContain('keyboardWillShow');
 
                 keyboard('keyboardDidShow', 300);
                 expect(result.current).toBe(true);
@@ -125,6 +132,35 @@ describe('useKeyboardShown', () => {
                 keyboard('keyboardDidHide', 0);
                 expect(result.current).toBe(false);
             });
+        });
+    });
+
+    describe('with the frame read beside it', () => {
+        it('serves the shown flag and the frame from ONE pair of listeners, and removes them with the last reader', () => {
+            const shown = renderHook(() => useKeyboardShown());
+            const frame = renderHook(() => useKeyboardFrame());
+
+            expect(fake.added).toHaveLength(2);
+
+            keyboard('keyboardDidShow', 336);
+            expect(shown.result.current).toBe(true);
+            expect(frame.result.current).toStrictEqual({ top: 508, height: 336 });
+
+            shown.unmount();
+            expect(fake.removed()).toBe(0);
+
+            frame.unmount();
+            expect(fake.removed()).toBe(2);
+        });
+
+        it('hands back the same frame object until the keyboard moves', () => {
+            fake.settle({ screenY: 508, height: 336 });
+            const { result, rerender } = renderHook(() => useKeyboardFrame());
+            const first = result.current;
+
+            rerender();
+
+            expect(result.current).toBe(first);
         });
     });
 });

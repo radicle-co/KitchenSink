@@ -3,37 +3,22 @@
  * (`docs/design/rowEditorOpenDecisions.md` item 4, the native column of "Focus leaves the row").
  */
 import { act, renderHook } from '@testing-library/react';
-import { Keyboard } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { installFakeKeyboard, type FakeKeyboard } from '../../testing/fakeKeyboard.native.js';
 import { useKeyboardHidden } from '../useKeyboardHidden.native.js';
 
-type Listener = () => void;
-
 describe('useKeyboardHidden', () => {
-    const listeners = new Map<string, Listener>();
-    const remove = vi.fn();
-    const addListener = vi.fn();
+    let fake: FakeKeyboard;
 
     beforeEach(() => {
-        listeners.clear();
-        remove.mockClear();
-        addListener.mockClear();
-        vi.spyOn(Keyboard, 'addListener').mockImplementation(((event: string, listener: Listener) => {
-            addListener(event);
-            listeners.set(event, listener);
-
-            return { remove };
-        }) as unknown as typeof Keyboard.addListener);
+        fake = installFakeKeyboard();
     });
 
     afterEach(() => {
         vi.restoreAllMocks();
+        fake.restore();
     });
-
-    function keyboard(event: 'keyboardDidShow' | 'keyboardDidHide'): void {
-        act(() => listeners.get(event)?.());
-    }
 
     it('reports the keyboard closing, and not the keyboard opening', () => {
         const onHidden = vi.fn();
@@ -41,10 +26,10 @@ describe('useKeyboardHidden', () => {
             useKeyboardHidden(onHidden);
         });
 
-        keyboard('keyboardDidShow');
+        act(() => fake.emit('keyboardDidShow', { screenY: 500, height: 300 }));
         expect(onHidden).not.toHaveBeenCalled();
 
-        keyboard('keyboardDidHide');
+        act(() => fake.emit('keyboardDidHide'));
         expect(onHidden).toHaveBeenCalledTimes(1);
     });
 
@@ -59,11 +44,11 @@ describe('useKeyboardHidden', () => {
         );
 
         rerender({ onHidden: second });
-        keyboard('keyboardDidHide');
+        act(() => fake.emit('keyboardDidHide'));
 
         expect(first).not.toHaveBeenCalled();
         expect(second).toHaveBeenCalledTimes(1);
-        expect(addListener).toHaveBeenCalledTimes(1);
+        expect(fake.added).toHaveLength(1);
     });
 
     it('stops listening when it unmounts', () => {
@@ -73,6 +58,6 @@ describe('useKeyboardHidden', () => {
 
         unmount();
 
-        expect(remove).toHaveBeenCalledTimes(1);
+        expect(fake.removed()).toBe(1);
     });
 });

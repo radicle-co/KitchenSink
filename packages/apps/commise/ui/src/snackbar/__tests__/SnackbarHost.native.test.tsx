@@ -1,11 +1,12 @@
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { render } from '../../testing/tamaguiTesting.native.js';
-import { AccessibilityInfo, Dimensions, Keyboard } from 'react-native';
+import { AccessibilityInfo, Dimensions } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JSX } from 'react';
 import { Pressable, Text } from 'react-native';
 
 import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
+import { installFakeKeyboard, type FakeKeyboard } from '../../testing/fakeKeyboard.native.js';
 import { role } from '../../tokens/colors.js';
 import { SnackbarHost } from '../SnackbarHost.native.js';
 import type { SnackbarInput } from '../props.js';
@@ -18,10 +19,18 @@ import { useSnackbar } from '../useSnackbar.js';
  * the snackbar does not time out at all (it stays until its action is taken or a newer one replaces it).
  */
 
+// The navigation bar: Android's keyboard height leaves it out, and the lift may rise by it past the reported height.
+vi.mock('react-native-safe-area-context', () => ({
+    useSafeAreaInsets: () => ({ top: 24, right: 0, bottom: 48, left: 0 }),
+}));
+
 /** The screen reader as the test sets it, and the listener the host registered. */
 const reader = vi.hoisted(() => ({ on: false, listener: undefined as ((on: boolean) => void) | undefined }));
 
+let keyboard: FakeKeyboard;
+
 beforeEach(() => {
+    keyboard = installFakeKeyboard();
     vi.useFakeTimers();
     vi.setSystemTime(0);
     reader.on = false;
@@ -43,6 +52,7 @@ afterEach(() => {
     cleanup();
     vi.useRealTimers();
     vi.restoreAllMocks();
+    keyboard.restore();
 });
 
 function Screen({ input }: { readonly input: SnackbarInput }): JSX.Element {
@@ -167,14 +177,6 @@ describe('SnackbarHost (native)', () => {
 
     it('sits 16pt above the keyboard when it is up, however late it opens', () => {
         vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 400, height: 2400, scale: 1, fontScale: 1 });
-        let onShow: ((event: unknown) => void) | undefined;
-        vi.spyOn(Keyboard, 'addListener').mockImplementation(((name: string, listener: (event: unknown) => void) => {
-            if (name === 'keyboardDidShow') {
-                onShow = listener;
-            }
-
-            return { remove: () => undefined };
-        }) as typeof Keyboard.addListener);
         render(
             <PopupInsetsContext value={() => ({ top: 0, bottom: 80 })}>
                 <SnackbarHost>
@@ -186,9 +188,44 @@ describe('SnackbarHost (native)', () => {
         showFrom('Source removed.');
         // The keyboard opens after the snackbar showed. It covers 948 of the 2400 screen, more than its reported height
         // of 900 (Android's height leaves out the navigation bar), so the host must go by where the keyboard starts.
-        act(() => onShow?.({ endCoordinates: { screenY: 1452, height: 900 } }));
+        act(() => keyboard.emit('keyboardDidShow', { screenY: 1452, height: 900 }));
 
         expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('964px');
+    });
+
+    it('never rises past the keyboard’s height plus the navigation bar, whatever the frame says', () => {
+        vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 400, height: 2400, scale: 1, fontScale: 1 });
+        render(
+            <PopupInsetsContext value={() => ({ top: 0, bottom: 80 })}>
+                <SnackbarHost>
+                    <Screen input={{ message: 'Source removed.' }} />
+                </SnackbarHost>
+            </PopupInsetsContext>,
+        );
+
+        showFrom('Source removed.');
+        // A keyboard that claims to start at 1000 on a 2400 screen, with a 900 height: 1400 covered. Only 900 plus the
+        // 48 navigation bar can be, so the snackbar rises 948, and 16 above it.
+        act(() => keyboard.emit('keyboardDidShow', { screenY: 1000, height: 900 }));
+
+        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('964px');
+    });
+
+    it('drops back to the chrome when the keyboard closes', () => {
+        vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 400, height: 2400, scale: 1, fontScale: 1 });
+        render(
+            <PopupInsetsContext value={() => ({ top: 0, bottom: 80 })}>
+                <SnackbarHost>
+                    <Screen input={{ message: 'Source removed.' }} />
+                </SnackbarHost>
+            </PopupInsetsContext>,
+        );
+
+        showFrom('Source removed.');
+        act(() => keyboard.emit('keyboardDidShow', { screenY: 1452, height: 900 }));
+        act(() => keyboard.emit('keyboardDidHide'));
+
+        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('96px');
     });
 });
 

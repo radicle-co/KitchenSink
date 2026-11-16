@@ -17,46 +17,12 @@
  *
  * @pattern Specification — one pure predicate, one SQL twin
  */
-import { z } from 'zod';
-
-import type { RecipeSourceType } from './recipe.types.js';
+import {
+    RecipeSourceType,
+    UNRECOGNISED_STATEMENT_KIND,
+    type RecipeStatementKindView,
+} from './recipe.types.js';
 import type { SourceEvidenceFacts } from './sourceConflict.js';
-
-/**
- * What the cook stated about a recipe, stored as `recipes.statement_kind` (ADR-0072 section 9): `authored` is "I wrote this",
- * `source` is any stated source (a web page, a book, a paid site; `source_kind` says which). `NULL` is no statement. The ONE
- * statement of the vocabulary: the database CHECK mirrors it.
- */
-export const RECIPE_STATEMENT_KINDS = ['authored', 'source'] as const;
-
-/** One statement kind. */
-export type RecipeStatementKind = (typeof RECIPE_STATEMENT_KINDS)[number];
-
-/** Runtime validator for {@link RecipeStatementKind}. Closed: every request and the database use it. */
-export const recipeStatementKindSchema = z.enum(RECIPE_STATEMENT_KINDS);
-
-/** What a reader makes of a statement kind it does not know (a newer server's). The server never sends it. */
-export const UNRECOGNISED_STATEMENT_KIND = 'unrecognised';
-
-/** A statement kind as a reader holds it: a known kind, or {@link UNRECOGNISED_STATEMENT_KIND}. */
-export type RecipeStatementKindView = RecipeStatementKind | typeof UNRECOGNISED_STATEMENT_KIND;
-
-/**
- * The tolerant wire read of a statement kind: a known kind is itself, any other STRING is {@link UNRECOGNISED_STATEMENT_KIND},
- * and a value that is not a string still fails. A preprocess, not a transform, because the contract fingerprint describes the
- * output side and records a transform as unrepresentable (the same shape as `recipeSourceKindViewSchema`).
- */
-export const recipeStatementKindViewSchema = z.preprocess(
-    (value) =>
-        typeof value === 'string' && !(RECIPE_STATEMENT_KINDS as readonly string[]).includes(value)
-            ? UNRECOGNISED_STATEMENT_KIND
-            : value,
-    z
-        .enum([...RECIPE_STATEMENT_KINDS, UNRECOGNISED_STATEMENT_KIND])
-        .describe(
-            `${UNRECOGNISED_STATEMENT_KIND} is client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.`,
-        ),
-);
 
 /** The input to {@link statementRequiredOf}. Every member is REQUIRED, so a caller states each. */
 export interface StatementRequiredInput {
@@ -80,8 +46,7 @@ export interface StatementRequiredInput {
  * @returns `true` when Public must be refused for want of a statement. Pure.
  */
 export function statementRequiredOf(input: StatementRequiredInput): boolean {
-    // A literal, not `RecipeSourceType.USER_CREATED`: `recipe.types` composes this module's view schema into the detail response.
-    if (input.sourceType !== 'user_created') {
+    if (input.sourceType !== RecipeSourceType.USER_CREATED) {
         return false;
     }
 

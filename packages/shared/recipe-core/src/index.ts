@@ -29,6 +29,10 @@ export {
     RecipeSearchSortBy,
     RECIPE_SOURCE_KINDS,
     UNRECOGNISED_SOURCE_KIND,
+    RECIPE_STATEMENT_KINDS,
+    UNRECOGNISED_STATEMENT_KIND,
+    recipeStatementKindSchema,
+    recipeStatementKindViewSchema,
     RecipeSourceType,
     RecipeStatus,
     RecipeVersionArchiveStatus,
@@ -103,6 +107,8 @@ export type {
     RecipeSnapshot,
     RecipeSourceKind,
     RecipeSourceKindView,
+    RecipeStatementKind,
+    RecipeStatementKindView,
     RecipeStep,
     RecipeStepView,
     RecipeVersion,
@@ -215,14 +221,8 @@ export type { Viewer } from './viewer.js';
 export { canClone, canRate, isOwner } from './recipeAccessPolicy.js';
 export { sourceConflictOf } from './sourceConflict.js';
 export type { SourceConflictInput, SourceEvidenceFacts } from './sourceConflict.js';
-export {
-    RECIPE_STATEMENT_KINDS,
-    UNRECOGNISED_STATEMENT_KIND,
-    recipeStatementKindSchema,
-    recipeStatementKindViewSchema,
-    statementRequiredOf,
-} from './statementRequired.js';
-export type { RecipeStatementKind, RecipeStatementKindView, StatementRequiredInput } from './statementRequired.js';
+export { statementRequiredOf } from './statementRequired.js';
+export type { StatementRequiredInput } from './statementRequired.js';
 export {
     PUBLIC_CONFIRM_WORDINGS,
     PUBLIC_CONFIRMATION_FOR_API_WRITERS,

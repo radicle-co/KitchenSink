@@ -10,7 +10,6 @@ import {
     type CatalogFoodResolutionStatus,
     type LineResolutionStatus,
 } from './foodResolutionStatus.js';
-import { recipeStatementKindViewSchema, type RecipeStatementKindView } from './statementRequired.js';
 import { unresolvedFoodReasonSchema, type UnresolvedFoodReasonCode } from './unresolvedFood.js';
 
 const idSchema = z.string().min(1);
@@ -155,6 +154,42 @@ export const recipeSourceKindViewSchema = z.preprocess(
         .enum([...RECIPE_SOURCE_KINDS, UNRECOGNISED_SOURCE_KIND])
         .describe(
             `${UNRECOGNISED_SOURCE_KIND} is client-side only: what a client reads for a kind newer than it knows. The server never sends it.`,
+        ),
+);
+
+/**
+ * What the cook stated about a recipe, stored as `recipes.statement_kind` (ADR-0072 section 9): `authored` is "I wrote this",
+ * `source` is any stated source (a web page, a book, a paid site; `source_kind` says which). `NULL` is no statement. The ONE
+ * statement of the vocabulary: the database CHECK mirrors it.
+ */
+export const RECIPE_STATEMENT_KINDS = ['authored', 'source'] as const;
+
+/** One statement kind. */
+export type RecipeStatementKind = (typeof RECIPE_STATEMENT_KINDS)[number];
+
+/** Runtime validator for {@link RecipeStatementKind}. Closed: every request and the database use it. */
+export const recipeStatementKindSchema = z.enum(RECIPE_STATEMENT_KINDS);
+
+/** What a reader makes of a statement kind it does not know (a newer server's). The server never sends it. */
+export const UNRECOGNISED_STATEMENT_KIND = 'unrecognised';
+
+/** A statement kind as a reader holds it: a known kind, or {@link UNRECOGNISED_STATEMENT_KIND}. */
+export type RecipeStatementKindView = RecipeStatementKind | typeof UNRECOGNISED_STATEMENT_KIND;
+
+/**
+ * The tolerant wire read of a statement kind: a known kind is itself, any other STRING is {@link UNRECOGNISED_STATEMENT_KIND},
+ * and a value that is not a string still fails. A preprocess, not a transform, because the contract fingerprint describes the
+ * output side and records a transform as unrepresentable (the same shape as `recipeSourceKindViewSchema`).
+ */
+export const recipeStatementKindViewSchema = z.preprocess(
+    (value) =>
+        typeof value === 'string' && !(RECIPE_STATEMENT_KINDS as readonly string[]).includes(value)
+            ? UNRECOGNISED_STATEMENT_KIND
+            : value,
+    z
+        .enum([...RECIPE_STATEMENT_KINDS, UNRECOGNISED_STATEMENT_KIND])
+        .describe(
+            `${UNRECOGNISED_STATEMENT_KIND} is client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.`,
         ),
 );
 

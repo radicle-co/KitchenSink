@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { RecipeSourceType } from '../recipe.types.js';
-import type { SourceEvidenceFacts } from '../sourceConflict.js';
 import {
     RECIPE_STATEMENT_KINDS,
+    RecipeSourceType,
     UNRECOGNISED_STATEMENT_KIND,
     recipeStatementKindViewSchema,
-    statementRequiredOf,
-} from '../statementRequired.js';
+} from '../recipe.types.js';
+import type { SourceEvidenceFacts } from '../sourceConflict.js';
+import { statementRequiredOf } from '../statementRequired.js';
 
 /**
  * The statement rule (Option B): a cook-written recipe with no statement whose content was pasted, or that has any source

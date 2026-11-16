@@ -31,7 +31,7 @@ function walk(roots: readonly Tree[], startDepth?: number) {
 
             return node.kids;
         },
-        startDepth,
+        { startDepth },
     );
 
     return { visited, ...outcome };
@@ -65,6 +65,21 @@ describe('boundedWalk', () => {
         expect(visited).toHaveLength(MAX_WALK_NODES);
         expect(visited[MAX_WALK_NODES - 1]).toBe(`r${MAX_WALK_NODES - 1}@0`);
         expect(truncated).toBe(true);
+    });
+
+    it('stops at a raised node cap, not the default', () => {
+        const roots = Array.from({ length: MAX_WALK_NODES + 1 }, (_, index) => leaf(`r${index}`));
+        let visited = 0;
+
+        const count = (): readonly Tree[] => {
+            visited += 1;
+
+            return [];
+        };
+
+        expect(boundedWalk(roots, count, { maxNodes: MAX_WALK_NODES + 1 }).truncated).toBe(false);
+        expect(visited).toBe(MAX_WALK_NODES + 1);
+        expect(boundedWalk(roots, () => [], { maxNodes: MAX_WALK_NODES }).truncated).toBe(true);
     });
 
     it('is not truncated by a chain that reaches exactly the depth cap', () => {

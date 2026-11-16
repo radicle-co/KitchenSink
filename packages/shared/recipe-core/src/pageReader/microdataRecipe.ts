@@ -117,7 +117,7 @@ function itemOf(root: PageElement): ItemRead {
             visitElement(frame, () => {
                 textCut = true;
             }),
-        1,
+        { startDepth: 1 },
     );
 
     return { item, truncated: truncated || textCut };

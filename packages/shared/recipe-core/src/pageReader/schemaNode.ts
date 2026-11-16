@@ -21,6 +21,15 @@ export function isSchemaNode(value: unknown): value is SchemaNode {
     return typeof value === 'object' && value !== null && !isList(value);
 }
 
+/** The nodes below one value, in order: the items of a list, the values of an object. */
+export function childrenOf(value: unknown): readonly unknown[] {
+    if (isList(value)) {
+        return value;
+    }
+
+    return isSchemaNode(value) ? Object.values(value) : [];
+}
+
 /** The own property `key` of `node`, or `undefined`. */
 export function field(node: SchemaNode, key: string): unknown {
     return Object.hasOwn(node, key) ? node[key] : undefined;

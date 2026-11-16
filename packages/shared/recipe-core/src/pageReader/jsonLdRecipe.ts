@@ -4,7 +4,7 @@
  * DESIGN PATTERN: **Strategy** (one of the extractors in `recipeExtractors.ts`). It sees only the {@link PageDocument}.
  * The node is read by `pageRecipeCandidate.ts`, whose zod schemas are the Parser at the boundary.
  *
- * ⛔ Hostile-input bounds (blueprint §4): at most {@link MAX_JSON_LD_BLOCKS} blocks, each at most
+ * ⛔ Hostile-input bounds (blueprint §4): at most {@link MAX_JSON_LD_BLOCKS} blocks (more make the page `tooComplex`), each at most
  * {@link MAX_JSON_LD_BLOCK_BYTES} bytes before `JSON.parse`; the walk is `boundedWalk`, {@link MAX_WALK_DEPTH} deep and
  * `MAX_WALK_NODES` nodes, and a block over the byte limit, a block nested deeper or a walk that hits the node cap makes the page `tooComplex`; a block that does not parse is skipped. Parsed objects are never spread or merged.
  */
@@ -13,7 +13,7 @@ import { MAX_JSON_LD_BLOCK_BYTES, MAX_JSON_LD_BLOCKS, MAX_WALK_DEPTH, fitsInByte
 import type { PageDocument, PageElement } from './pageDocument.js';
 import { TOO_COMPLEX, extractionOf } from './pageRecipeCandidate.js';
 import type { RecipeExtraction } from './pageRecipeCandidate.js';
-import { isList, isSchemaNode, typeNames } from './schemaNode.js';
+import { childrenOf, isSchemaNode, typeNames } from './schemaNode.js';
 import type { SchemaNode } from './schemaNode.js';
 
 const JSON_LD_TYPE = 'application/ld+json';
@@ -25,15 +25,6 @@ const isJsonLdScript = (script: PageElement): boolean =>
 interface BlockWalk {
     readonly nodes: readonly SchemaNode[];
     readonly truncated: boolean;
-}
-
-/** The nodes below one node, in order: the items of a list, the values of an object. */
-function childrenOf(value: unknown): readonly unknown[] {
-    if (isList(value)) {
-        return value;
-    }
-
-    return isSchemaNode(value) ? Object.values(value) : [];
 }
 
 /** The Recipe nodes of one parsed block, in order. It does not descend into a Recipe. */
@@ -108,13 +99,15 @@ function parsedBlock(script: PageElement): ParsedBlock {
  * Find the recipe in a page's JSON-LD.
  *
  * @param page - The parsed paste.
- * @returns What the JSON-LD holds: `none` when no block has a recipe, and `tooComplex` when a block is over the byte limit or nests past the depth cap
+ * @returns What the JSON-LD holds: `none` when no block has a recipe, and `tooComplex` when there are more blocks than the cap, a block is over the byte limit or nests past the depth cap
  *   or a walk hit the node cap, because a recipe (or a second one) may lie in what was not read. Pure.
  */
 export function jsonLdRecipe(page: PageDocument): RecipeExtraction {
-    const blocks = page.byTag('script').filter(isJsonLdScript).slice(0, MAX_JSON_LD_BLOCKS).map(parsedBlock);
+    const scripts = page.byTag('script').filter(isJsonLdScript);
+    const blocks = scripts.slice(0, MAX_JSON_LD_BLOCKS).map(parsedBlock);
 
-    if (blocks.some((block) => block.kind === 'unread')) {
+    // A block past the cap, or one too big or too deep to read, may hold the page's own recipe.
+    if (scripts.length > MAX_JSON_LD_BLOCKS || blocks.some((block) => block.kind === 'unread')) {
         return TOO_COMPLEX;
     }
 

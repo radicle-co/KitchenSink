@@ -295,10 +295,11 @@ describe('jsonLdRecipe: blocks', () => {
         expect(read(fits).kind).toBe('tooComplex');
     });
 
-    it('reads at most 16 blocks', () => {
+    /** Rewritten: blocks past the 16th were ignored (`none`); they may hold the page's real recipe, so it is `tooComplex`. */
+    it('reads 16 blocks and refuses a page with more', () => {
         const filler = Array.from({ length: MAX_JSON_LD_BLOCKS }, () => ({ '@type': 'Thing' }));
 
-        expect(read(...filler, makeRecipeNode()).kind).toBe('none');
+        expect(read(...filler, makeRecipeNode()).kind).toBe('tooComplex');
         expect(read(...filler.slice(1), makeRecipeNode()).kind).toBe('candidates');
     });
 });

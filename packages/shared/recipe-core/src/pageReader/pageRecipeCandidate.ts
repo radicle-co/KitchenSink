@@ -14,16 +14,18 @@
  * a recipe's size and step limits hold.
  */
 import { recipeCuisineSchema, recipeDescriptionSchema } from '../recipeRequestBounds.js';
-import { MAX_RECIPES_PER_PAGE } from './pageCaps.js';
+import { MAX_JSON_LD_BLOCK_BYTES, MAX_RECIPES_PER_PAGE } from './pageCaps.js';
 import { collapseBracketGroups } from './collapseBracketGroups.js';
+import { boundedWalk } from './boundedWalk.js';
 import { instructionOf, instructionSteps } from './instructionSteps.js';
 import type { SchemaStep } from './instructionSteps.js';
+import { isTextCut } from './pageDocument.js';
 import { creditOf, imageRefsOf } from './pageEvidence.js';
 import type { PageCredit } from './pageEvidence.js';
 import { durationMinutes } from './isoDuration.js';
 import { servingsOf } from './recipeYield.js';
 import { readCooksMeasure } from '../parsing/measureReader.js';
-import { asList, field, isList, isSchemaNode, scalar, textOf } from './schemaNode.js';
+import { asList, childrenOf, field, isList, isSchemaNode, scalar, textOf } from './schemaNode.js';
 import type { SchemaNode } from './schemaNode.js';
 
 /** One step of a read recipe. */
@@ -156,11 +158,32 @@ interface CandidateRead {
 
 const NOT_A_RECIPE: CandidateRead = { candidate: undefined, truncated: false };
 
+/** Whether any string in `node` is markup a text read would cut short, or `node` is too big to check them all. */
+function hasCutText(node: SchemaNode): boolean {
+    let cut = false;
+    // A JSON-LD block is at most MAX_JSON_LD_BLOCK_BYTES bytes and a node is at least one, so that many nodes cover it whole.
+    const { truncated } = boundedWalk<unknown>(
+        [node],
+        (value) => {
+            cut = cut || (typeof value === 'string' && isTextCut(value));
+
+            return childrenOf(value);
+        },
+        { maxNodes: MAX_JSON_LD_BLOCK_BYTES },
+    );
+
+    return cut || truncated;
+}
+
 function candidateOf(node: SchemaNode): CandidateRead {
     const name = textOf(field(node, 'name'));
 
     if (name === undefined) {
         return NOT_A_RECIPE;
+    }
+
+    if (hasCutText(node)) {
+        return { candidate: undefined, truncated: true };
     }
 
     const ingredientLines = linesOf(field(node, 'recipeIngredient') ?? field(node, 'ingredients'));

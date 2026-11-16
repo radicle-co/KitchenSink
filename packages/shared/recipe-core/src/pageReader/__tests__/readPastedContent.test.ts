@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { MAX_JSON_LD_BLOCK_BYTES, MAX_PASTE_BYTES, MAX_WALK_NODES } from '../pageCaps.js';
+import { MAX_JSON_LD_BLOCK_BYTES, MAX_JSON_LD_BLOCKS, MAX_PASTE_BYTES, MAX_WALK_NODES } from '../pageCaps.js';
 import { readPastedContent } from '../readPastedContent.js';
 import {
     makeLinkHead,
@@ -240,6 +240,24 @@ describe('readPastedContent', () => {
             expect(
                 readPastedContent(makePage({ jsonLd: [big, makeRecipeNode({ name: 'Small Pancakes' })] })),
             ).toMatchObject(tooComplex);
+        });
+
+        it('JSON-LD: more blocks than the block cap', () => {
+            const filler = Array.from({ length: MAX_JSON_LD_BLOCKS - 1 }, () => ({ '@type': 'Thing' }));
+            const first = makeRecipeNode();
+
+            expect(readPastedContent(makePage({ jsonLd: [first, ...filler] }))).toMatchObject({ kind: 'extracted' });
+            expect(
+                readPastedContent(makePage({ jsonLd: [first, ...filler, makeRecipeNode({ name: 'Last Pancakes' })] })),
+            ).toMatchObject(tooComplex);
+        });
+
+        it('JSON-LD: a string field whose markup runs past the node budget', () => {
+            const step = (comments: number) => `Simmer.${'<!---->'.repeat(comments)} Serve.`;
+            const node = (comments: number) => makeRecipeNode({ recipeInstructions: ['Mix.', step(comments)] });
+
+            expect(readPastedContent(makePage({ jsonLd: [node(5)] }))).toMatchObject({ kind: 'extracted' });
+            expect(readPastedContent(makePage({ jsonLd: [node(MAX_WALK_NODES + 5)] }))).toMatchObject(tooComplex);
         });
 
         it('microdata: a property whose text runs past the node budget', () => {

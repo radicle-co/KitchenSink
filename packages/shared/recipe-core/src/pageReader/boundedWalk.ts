@@ -22,20 +22,21 @@ interface Frame<T> {
 /**
  * Walk `roots` depth first, in order.
  *
- * ⛔ At most {@link MAX_WALK_NODES} nodes are visited. A node deeper than {@link MAX_WALK_DEPTH} is not visited and its
+ * ⛔ At most `maxNodes` nodes are visited. A node deeper than {@link MAX_WALK_DEPTH} is not visited and its
  * children are never read; the walk goes on with the nodes that remain.
  *
  * @param roots - The first nodes, in order.
  * @param visit - Called once per node with its depth. It returns the children to walk next, in order (none to stop
  *   descending). It may keep its own state.
- * @param startDepth - The depth of `roots`.
+ * @param options - `startDepth`, the depth of `roots` (default 0); and `maxNodes`, the node cap (default
+ *   {@link MAX_WALK_NODES}), raised only where the input is already bounded in bytes.
  * @returns Whether a cap cut the walk short.
  * @sideEffect Calls `visit`, which may mutate what it closes over.
  */
 export function boundedWalk<T>(
     roots: readonly T[],
     visit: (item: T, depth: number) => readonly T[],
-    startDepth = 0,
+    { startDepth = 0, maxNodes = MAX_WALK_NODES }: { readonly startDepth?: number; readonly maxNodes?: number } = {},
 ): WalkOutcome {
     const stack: Frame<T>[] = [];
 
@@ -53,7 +54,7 @@ export function boundedWalk<T>(
     for (let frame = stack.pop(); frame !== undefined; frame = stack.pop()) {
         visited += 1;
 
-        if (visited > MAX_WALK_NODES) {
+        if (visited > maxNodes) {
             return { truncated: true };
         }
 

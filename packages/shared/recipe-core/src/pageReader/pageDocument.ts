@@ -235,6 +235,23 @@ export function textBlocks(html: string): readonly string[] {
 }
 
 /**
+ * Whether reading `html` as text would stop early: its markup nests past the parse depth cap, or holds more than
+ * {@link MAX_WALK_NODES} nodes. Text with no `<` has one node and is never cut.
+ *
+ * @param html - A value taken from a page.
+ * @returns `true` when {@link textBlocks} and {@link plainText} would lose part of it. Pure.
+ */
+export function isTextCut(html: string): boolean {
+    if (!html.includes('<')) {
+        return false;
+    }
+
+    const { root, truncated } = parseDocument(html);
+
+    return truncated || blocksOf(root.children, true).truncated;
+}
+
+/**
  * A value's text on ONE line: its blocks joined by a space. Entities are decoded and tags removed by the parser, and a
  * value that was encoded twice (`&amp;amp;`, `&lt;b&gt;`) is read once more, so the cook never sees markup.
  *

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { MAX_VISIBLE_NODES, MAX_WALK_NODES } from '../pageCaps.js';
-import { MAX_ELEMENT_DEPTH, parsePage, plainText, textBlocks } from '../pageDocument.js';
+import { MAX_ELEMENT_DEPTH, isTextCut, parsePage, plainText, textBlocks } from '../pageDocument.js';
 
 describe('textBlocks', () => {
     it('splits on block elements, line breaks and newlines', () => {
@@ -29,6 +29,22 @@ describe('textBlocks', () => {
     it('returns nothing for blank input', () => {
         expect(textBlocks('')).toEqual([]);
         expect(textBlocks('   \n  ')).toEqual([]);
+    });
+});
+
+describe('isTextCut', () => {
+    it('is false for text, markup and entities within the budget', () => {
+        expect(isTextCut('Bake 20 min.')).toBe(false);
+        expect(isTextCut('a &amp; b')).toBe(false);
+        expect(isTextCut('<p>Mix.</p><b>well</b>')).toBe(false);
+    });
+
+    it('is true when the markup runs past the node budget', () => {
+        expect(isTextCut(`Mix.${'<!---->'.repeat(MAX_WALK_NODES + 5)}Bake.`)).toBe(true);
+    });
+
+    it('is true when the markup nests past the parse depth cap', () => {
+        expect(isTextCut(`${'<div>'.repeat(MAX_ELEMENT_DEPTH + 5)}x`)).toBe(true);
     });
 });
 

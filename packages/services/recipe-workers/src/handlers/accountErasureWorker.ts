@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import type { SQSHandler, SQSRecord } from 'aws-lambda';
 
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
@@ -596,6 +598,9 @@ export interface EraseRecipeRowsResult {
  *     `created_by` — the predicate `handleSyncWorker` itself uses to write this column.
  *     Steps 9 and 10 also CLEAR the username copies (`author_username`, `editor_username`, migration 0055) to
  *     NULL — never the pseudonym, which is a legal Clerk username (plan 2026-10-15-010 D10).
+ *     Step 10a, right after it: **statement attestations (migration 0088).** The rows of a KEPT recipe stay, with
+ *     `account_id` replaced by ONE random `erased_` token for this erasure; the removed recipes' rows went with step 6's
+ *     cascade. Only the account moves, which is the one UPDATE the table's append-only trigger admits.
  * 11. **`author_handles` read-model root — now step 0, a TOMBSTONE rather than a delete (migration 0056).**
  *     The row used to be deleted here. But `handleSyncWorker`'s stale-snapshot guard is a comparison against that
  *     row, and a guard cannot refuse against a row that is gone: a late, redelivered or DLQ'd snapshot took the
@@ -681,6 +686,9 @@ export const eraseRecipeRows = async (
     publishRecipeIds: readonly string[],
 ): Promise<EraseRecipeRowsResult> => {
     const pseudonym = pseudonymizedAuthorHandle(ownerId);
+    // ONE random token for this erasure (migration 0088): every kept attestation row of the account gets the same one, it is
+    // derived from nothing, and it is stored nowhere else, so it links the rows to each other and to no one.
+    const attestationAccountToken = `erased_${randomBytes(16).toString('hex')}`;
     // The election is bound as a single jsonb parameter (NOT `= ANY($1::uuid[])` over a JS array, which
     // drizzle list-EXPANDS into `ANY($1, $2, …)` — invalid for ANY). `jsonb_array_elements_text` turns the
     // one bound json string back into a set of ids the flip matches with `id IN (…)`; an empty election
@@ -806,6 +814,16 @@ export const eraseRecipeRows = async (
             SET editor_handle = CASE WHEN editor_handle IS NULL THEN NULL ELSE ${pseudonym} END,
                 editor_username = NULL
             WHERE created_by = ${ownerId} AND (editor_handle IS NOT NULL OR editor_username IS NOT NULL)
+        `);
+
+        // 10a. Statement attestations (migration 0088) — the rows of the recipes KEPT (donated) stay, with `account_id`
+        //     replaced by this erasure's one token; the rows of the removed recipes went with step 6's cascade. Only the
+        //     account moves (the append-only trigger admits exactly that UPDATE), so what was chosen, in which wording and
+        //     locale, and when, is kept. `account_id = ownerId` makes a replay a no-op: swapped rows no longer match.
+        await tx.execute(sql`
+            UPDATE recipe_statement_attestations
+            SET account_id = ${attestationAccountToken}
+            WHERE account_id = ${ownerId}
         `);
 
         // 11. (author_handles — moved to step 0 as a tombstone; see the docstring.)

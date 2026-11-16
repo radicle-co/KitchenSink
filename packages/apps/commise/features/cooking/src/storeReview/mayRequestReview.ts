@@ -34,6 +34,8 @@ const MIN_REQUEST_GAP_MS = 120 * DAY_MS;
 const TIMER_BLOCK_MS = 30_000;
 
 /**
+ * Decides whether the app may call the store-review API now.
+ *
  * @param input - The record, the account date, the interruption flag, the timer distance and the clock.
  * @returns True only when every FR-036 limit is met. Elapsed milliseconds are used, so no calendar or DST rule applies.
  */

@@ -21,6 +21,8 @@ export type InterruptionKind = (typeof INTERRUPTION_KINDS)[number];
 const shown = new Set<InterruptionKind>();
 
 /**
+ * Records that an interruption was shown in this app process.
+ *
  * @param kind - The interruption that was shown.
  * @sideEffect Writes the process-wide ledger.
  */
@@ -29,6 +31,8 @@ export function markShown(kind: InterruptionKind): void {
 }
 
 /**
+ * Tells whether any interruption was shown in this app process.
+ *
  * @returns True when any interruption was shown in this app process.
  */
 export function anyShown(): boolean {

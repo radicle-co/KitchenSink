@@ -510,8 +510,12 @@ describe('the cache key per route class (ADR-0020 trap 1 — the P0 data leak)',
         // `Origin` in the key. Without it, a response cached for one origin (or for a mobile request with no
         // `Origin` at all) is served to a browser on another: one origin's allow-origin to the next, or none to
         // the web app. Both facts are read here, so neither can change without the other.
+        //
+        // REWRITTEN when the `enableCors` call moved out of `main.ts` into `src/config/httpSetup.ts` (CORS must sit
+        // before the service's own JSON parser): the entry point now only applies that setup, so the premise is read
+        // from the file that holds the call.
         const main = readFileSync(
-            fileURLToPath(new URL('../../../services/food-service/src/main.ts', import.meta.url)),
+            fileURLToPath(new URL('../../../services/food-service/src/config/httpSetup.ts', import.meta.url)),
             'utf8',
         );
         const template = Template.fromStack(synthesize());

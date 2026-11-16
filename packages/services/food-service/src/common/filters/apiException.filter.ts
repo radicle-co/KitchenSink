@@ -1,6 +1,10 @@
 import * as Sentry from '@sentry/nestjs';
 import { Catch, HttpException, HttpStatus, Optional, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
-import { normalizeHttpException, normalizeUnstorableText } from '@kitchensink/nest-error-envelope';
+import {
+    normalizeBodyParserError,
+    normalizeHttpException,
+    normalizeUnstorableText,
+} from '@kitchensink/nest-error-envelope';
 import type { ApiErrorEnvelope, EnvelopeVocabulary, NormalizedFailure } from '@kitchensink/nest-error-envelope';
 import type { Request, Response } from 'express';
 
@@ -199,7 +203,7 @@ function retryAfterSecondsFor(body: ApiErrorEnvelope): number | undefined {
  * put THREE error shapes on this service's wire: the envelope, Nest's `{ statusCode, message, error }`, and the
  * controller's `{ error, …extras }`. Because the guarantee now lives here rather than at each throw site, it also
  * covers exceptions this service does not raise — the auth guard's string-bodied `401`s, Nest's `404` for an
- * unrouted path, the body parser's `413` — none of which any amount of controller discipline would have reached.
+ * unrouted path, the body parser's refusals (answered by `normalizeBodyParserError`, since they are not `HttpException`s) — none of which any amount of controller discipline would have reached.
  * Do not reintroduce a "pass it through if it looks fine" shortcut: "looks fine" is what the three shapes were.
  *
  * @param exception - The thrown value.
@@ -217,6 +221,7 @@ function resolve(exception: unknown): NormalizedFailure {
     }
 
     return (
+        normalizeBodyParserError(exception, VOCABULARY) ??
         normalizeUnstorableText(exception, VOCABULARY) ?? {
             status: HttpStatus.INTERNAL_SERVER_ERROR,
             body: { code: CODE.INTERNAL_ERROR, message: 'Internal server error' },

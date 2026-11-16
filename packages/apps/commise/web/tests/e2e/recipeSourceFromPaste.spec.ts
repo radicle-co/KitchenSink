@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Request } from '@playwright/test';
+import { STATEMENT_WORDINGS_BY_CHOICE } from '@kitchensink/recipe-core';
 
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
@@ -103,7 +104,11 @@ test.describe('a pasted web link sets the recipe’s Source (ADR-0089)', () => {
         expect(withStatement.length).toBeGreaterThan(0);
 
         for (const write of withStatement) {
-            expect(write.body?.['statement']).toEqual({ kind: 'public_web', citation: LINK });
+            expect(write.body?.['statement']).toEqual({
+                kind: 'public_web',
+                citation: LINK,
+                wording: { version: STATEMENT_WORDINGS_BY_CHOICE.publicWeb[0], locale: 'en' },
+            });
             // The server refuses a public web copy: the editor never sends Public with a statement.
             expect(write.body?.['visibility']).not.toBe('public');
         }

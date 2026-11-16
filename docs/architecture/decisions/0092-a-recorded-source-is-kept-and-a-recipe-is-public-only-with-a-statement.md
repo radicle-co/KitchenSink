@@ -32,7 +32,7 @@ recipe write.
 
 - `capture` is `editorLink`, `editorCitation` or `importFile`. The value `pastedPage` is for the paste import.
 - The columns for page credits, an image address and a paste digest are for the paste import. They are empty today.
-- **Append-only.** A trigger refuses UPDATE and DELETE for every role. A DELETE passes only for the recipe's
+- **Append-only.** A trigger refuses UPDATE and DELETE for every role, and a statement trigger refuses TRUNCATE. A DELETE passes only for the recipe's
   `ON DELETE CASCADE`. At that point the recipe row is already gone. A `REVOKE` does not hold here, because the migrator grants
   table rights again after each migration.
 - **No stated source without evidence.** A deferred constraint trigger on `recipes` refuses a commit that stores a
@@ -64,7 +64,7 @@ copy it to other places.
 
 Migration `0087` adds two columns to `recipes`:
 
-- `statement_kind`: `authored` or `source`. `NULL` means no statement.
+- `statement_kind`: `authored`, `source` or `fromPerson`. `NULL` means no statement.
 - `content_pasted_at`: set when the cook pasted content.
 
 CHECKs pair `authored` with `user_created` and no source kind. They pair a source kind with `source`.
@@ -76,11 +76,12 @@ CHECKs pair `authored` with `user_created` and no source kind. They pair a sourc
 - `evaluatePublishedState` takes `statementRequired` as a REQUIRED input. It refuses only a write that LEAVES the
   recipe published and public: `400 INVALID_VISIBILITY`, `details.reason: 'STATEMENT_REQUIRED'`.
 - Drafts are public by default, so this rule never refuses a draft.
-- The order of refusals is: containment, private-only, `sourceConflict`, `statementRequired`.
+- The order of refusals is: containment, private-only, `sourceConflict`, `fromPerson`, `statementRequired`.
 - After the ADR-0074 hold ships, `statementRequired` stays. A pasted recipe with "I wrote this" and evidence still meets
   `sourceConflict`. The two rules stay separate.
-- After the first publish, PATCH can move a recipe from no statement to `authored`. No other source change opens after
-  the first publish.
+- After the first publish, a recipe with no statement can take any statement, through PATCH or set-visibility. A
+  third-party statement still forces Private in the same write, writes its evidence and takes a private slot under the
+  lock. Changing a statement that is already stored stays closed after the first publish.
 
 **"Typed" means we saw no paste.** This is the owner's ruling of 2026-11-15, quoted:
 "we only ask if we aren't absolutely sure". The client sends `contentPasted: true` in two cases:
@@ -128,9 +129,14 @@ copies no attestations.
 - **"From a cookbook or magazine"** is a `book` statement with a required citation. It forces Private. It writes
   evidence with `capture = 'editorCitation'`. A book source that was never published can be corrected
   (`sourceIsCorrectable`).
-- **"From another person"** is a `fromPerson` attestation with no source kind. It forces Private. Spec 016 §15 adds
+- **"From another person"** is stored as `statement_kind = 'fromPerson'`, with no source kind. A stored `fromPerson`
+  refuses Public at every route (`FROM_PERSON_PRIVATE_ONLY`), and erasure never donates it (`recipe_is_from_person`). Spec 016 §15 adds
   the `family` and `adapted` kinds later. Then this choice sets one of them.
 - Set-visibility takes a `statement`. Make public with an answer is one write.
+- **An explicit "I wrote this" in the same write meets the Public-confirmation duty.** Its own attestation row records
+  the stronger act, so that write needs no `publicConfirmation`.
+- On the recipe page, Make public always opens a dialog: the statement sheet, or a confirm dialog that shows the
+  confirmation line. A confirmation is sent only from a screen that showed it.
 - **The Source row's web link states a source with no wording.** The editor's Source row shows the cook no wording, so
   its `public_web` statement may omit one. The service then writes the source and its `editorLink` evidence, and no
   attestation row, because nothing was shown to attest. The sheet's "From a web page" sends the wording and is recorded

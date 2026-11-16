@@ -16,7 +16,12 @@ import type { ReactNode } from 'react';
 /** The states the notice can be in. Mutually exclusive, so a union rather than booleans. */
 export type SyncNoticeState =
     | { readonly kind: 'hidden' }
-    | { readonly kind: 'offline'; readonly title: string; readonly body: string }
+    | {
+          readonly kind: 'offline';
+          readonly title: string;
+          /** Absent in cooking mode: title only, no blank row (D60, plan 0010 KTD3). */
+          readonly body?: string;
+      }
     | { readonly kind: 'syncing'; readonly title: string; readonly body: string };
 
 /** Props for the sync notice. */

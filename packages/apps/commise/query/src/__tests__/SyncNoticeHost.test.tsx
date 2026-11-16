@@ -173,3 +173,63 @@ describe('SyncNoticeHost — unreadable work', () => {
         expect(document.activeElement).toBe(document.body);
     });
 });
+
+/** Plan 0010 KTD2 and decisions/0025: the cooking form shows the title alone while offline, and never a count or "Back online". */
+describe('SyncNoticeHost — cooking form', () => {
+    const cooking = () => <SyncNoticeHost copy={copy} form="cooking" />;
+
+    it('⛔ shows the title and no count while offline with writes waiting', () => {
+        world.offline = true;
+        world.pendingCount = 3;
+        render(cooking());
+
+        expect(screen.getByText('You’re offline')).toBeTruthy();
+        expect(screen.queryByText(/saved here/u)).toBeNull();
+        expect(screen.getByRole('status', { name: 'Sync status' }).querySelectorAll('p')).toHaveLength(1);
+    });
+
+    it('⛔ draws nothing while syncing after an offline spell', () => {
+        world.offline = true;
+        world.pendingCount = 2;
+        const view = render(cooking());
+
+        world.offline = false;
+        view.rerender(cooking());
+
+        expect(screen.queryByText('Back online')).toBeNull();
+        expect(screen.queryByText(/Syncing/u)).toBeNull();
+        expect(screen.getByRole('status', { name: 'Sync status' }).textContent).toBe('');
+    });
+
+    it('⛔ never says "Back online" at any point of a reconnect', () => {
+        world.offline = true;
+        world.pendingCount = 1;
+        const view = render(cooking());
+        expect(screen.getByText('You’re offline')).toBeTruthy();
+
+        world.offline = false;
+        view.rerender(cooking());
+
+        expect(screen.queryByText('Back online')).toBeNull();
+        expect(screen.getByRole('status', { name: 'Sync status' }).textContent).toBe('');
+    });
+
+    it('⛔ draws no unreadable-work card while cooking, and the app form shows it again afterwards', () => {
+        world.unreadableCount = 1;
+        const view = render(cooking());
+
+        expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull();
+
+        view.rerender(<SyncNoticeHost copy={copy} />);
+
+        expect(screen.getByRole('button', { name: 'Dismiss' })).toBeTruthy();
+    });
+
+    it('defaults to the app form: the count shows without a form prop', () => {
+        world.offline = true;
+        world.pendingCount = 3;
+        show();
+
+        expect(screen.getByText('3 changes are saved here.')).toBeTruthy();
+    });
+});

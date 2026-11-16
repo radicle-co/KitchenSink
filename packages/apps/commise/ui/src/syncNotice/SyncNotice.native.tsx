@@ -36,7 +36,9 @@ export const SyncNotice: FC<SyncNoticeProps> = ({ state, regionLabel }) => {
                 style={[styles.card, { backgroundColor: surfaceFill(theme, 'muted') }]}
             >
                 <Text style={[styles.title, { color: colors.ink }]}>{state.title}</Text>
-                <Text style={[styles.body, { color: colors.inkMuted }]}>{state.body}</Text>
+                {state.body !== undefined && (
+                    <Text style={[styles.body, { color: colors.inkMuted }]}>{state.body}</Text>
+                )}
             </View>
         </ToneScope>
     );

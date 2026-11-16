@@ -13,8 +13,8 @@
 --   2. The erasure swap of 0088: `account_id` from a real id to an `erased_` token, every other column unchanged, and now ONLY
 --      while an erasure job is queued or running for that account. Before this, any role with UPDATE could move any live
 --      account's rows to a token at any time, which destroys the record of who acted.
---   3. A DELETE of a row of a TEST PRINCIPAL's account, and only while a test reset is running for that account
---      (`test_reset_jobs`, 0045, status `running`). A test principal keeps nothing (ADR-0040), and its rows would otherwise stay
+--   3. A DELETE of a row of a TEST PRINCIPAL's account (registered in `test_principals`, 0044), and only while a test reset
+--      is running for that account (`test_reset_jobs`, 0045, status `running`). A test principal keeps nothing (ADR-0040), and its rows would otherwise stay
 --      for good: the recipe delete of the reset empties `recipe_id`, so the cascade no longer takes them. A queued reset has not
 --      begun, and a reset of one account never frees another account's rows.
 -- A purge of rows past their retention gets its own exception when the purge job is built.
@@ -50,7 +50,7 @@ ALTER TABLE recipe_statement_attestations
 CREATE INDEX recipe_statement_attestations_ref_idx ON recipe_statement_attestations (recipe_ref, recorded_at);
 
 COMMENT ON TABLE recipe_statement_attestations IS
-    'Append-only record of every statement a cook made about a recipe and every Public confirmation, one row per act. UPDATE raises, except the foreign key emptying recipe_id of a recipe that is gone, and the erasure swap of account_id to an erased_ token while an erasure job is queued or running for that account. DELETE raises, except while a test reset is running for the row''s account. recipe_ref keeps the recipe id after the recipe is deleted.';
+    'Append-only record of every statement a cook made about a recipe and every Public confirmation, one row per act. UPDATE raises, except the foreign key emptying recipe_id of a recipe that is gone, and the erasure swap of account_id to an erased_ token while an erasure job is queued or running for that account. DELETE raises, except for a registered test principal while a test reset is running for the row''s account. recipe_ref keeps the recipe id after the recipe is deleted.';
 
 -- ── 0088: the attestation guard ─────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -98,7 +98,8 @@ BEGIN
        AND EXISTS (
            SELECT 1 FROM test_reset_jobs j
             WHERE j.user_id = OLD.account_id AND j.status = 'running'
-       ) THEN
+       )
+       AND EXISTS (SELECT 1 FROM test_principals p WHERE p.user_id = OLD.account_id) THEN
         RETURN OLD;
     END IF;
 

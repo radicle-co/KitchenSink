@@ -8,7 +8,7 @@
  * ⛔ A unit test over the emitted SQL cannot prove this: whether the trigger admits the delete only while the reset runs,
  * and whether a bystander's rows survive, are decided by the database.
  */
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
@@ -30,14 +30,26 @@ describe('a test-principal reset deletes the principal’s statement records (mi
         db = drizzle(pool);
     });
 
+    beforeEach(async () => {
+        // Only the principal is registered: the bystander is an ordinary account.
+        await db.execute(sql`INSERT INTO test_principals (user_id) VALUES (${PRINCIPAL}) ON CONFLICT DO NOTHING`);
+    });
+
     afterEach(async () => {
         await db.execute(sql`DELETE FROM test_reset_jobs WHERE user_id IN (${PRINCIPAL}, ${BYSTANDER})`);
-        // The rows are append-only: a running reset is the only way to clear them, so each account gets one for the sweep.
+        // The rows are append-only: a registered principal with a running reset is the only way to clear them, so the
+        // sweep borrows that for both accounts.
+        await db.execute(sql`
+            INSERT INTO test_principals (user_id) VALUES (${BYSTANDER}) ON CONFLICT DO NOTHING
+        `);
         await db.execute(sql`
             INSERT INTO test_reset_jobs (user_id, status) VALUES (${PRINCIPAL}, 'running'), (${BYSTANDER}, 'running')
         `);
-        await db.execute(sql`DELETE FROM recipe_statement_attestations WHERE account_id IN (${PRINCIPAL}, ${BYSTANDER})`);
+        await db.execute(
+            sql`DELETE FROM recipe_statement_attestations WHERE account_id IN (${PRINCIPAL}, ${BYSTANDER})`,
+        );
         await db.execute(sql`DELETE FROM test_reset_jobs WHERE user_id IN (${PRINCIPAL}, ${BYSTANDER})`);
+        await db.execute(sql`DELETE FROM test_principals WHERE user_id IN (${PRINCIPAL}, ${BYSTANDER})`);
         await db.execute(sql`DELETE FROM recipes WHERE owner_id IN (${PRINCIPAL}, ${BYSTANDER})`);
     });
 
@@ -118,5 +130,17 @@ describe('a test-principal reset deletes the principal’s statement records (mi
         await expect(
             db.execute(sql`DELETE FROM recipe_statement_attestations WHERE account_id = ${BYSTANDER}`),
         ).rejects.toMatchObject({ cause: { message: expect.stringMatching(/append-only/) } });
+    });
+
+    it('refuses the delete for an account that is not a registered test principal, even while a reset job runs for it', async () => {
+        const theirs = await insertRecipe(BYSTANDER);
+
+        await attest(theirs, BYSTANDER);
+        await db.execute(sql`INSERT INTO test_reset_jobs (user_id, status) VALUES (${BYSTANDER}, 'running')`);
+
+        await expect(
+            db.execute(sql`DELETE FROM recipe_statement_attestations WHERE account_id = ${BYSTANDER}`),
+        ).rejects.toMatchObject({ cause: { message: expect.stringMatching(/append-only/) } });
+        expect(await countFor(BYSTANDER)).toBe(1);
     });
 });

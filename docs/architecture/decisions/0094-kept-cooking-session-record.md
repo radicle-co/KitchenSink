@@ -30,6 +30,8 @@ servings) is not a session and never reads as one; a `cooking` entry is a sessio
 each state carries exactly the instants it needs: `running` has `endsAt`; `paused` has `remainingMs` and `pausedAt`;
 `ringing` and `endedAway` have `endsAt` and `endedAt`, and only `endedAway` may carry `announcedAt`. A timer has no
 label field, so a typed label can never be stored. The record holds ids, positions, digests, servings and instants only.
+Every schema is strict and an unparseable document is removed, so any change to the shape, an added optional field
+included, is a new version (v2) and never an edit to v1: an older tab or app would delete a record it cannot read.
 
 A document that fails to parse counts as no record and is removed. One bad timer is dropped and reported once, and the
 rest of the document stays. A duplicate timer id keeps the first. The schema takes any number of timers, so several
@@ -102,6 +104,9 @@ that runs on Hermes and in browsers.
   next write succeeds, then only this tab's own changes since the failed write can come back. The cleared record never
   does. Refusing the held document when storage is empty would make a storage that always fails lose every change but
   the last, so the risk is kept.
+- Storage can throw on read, remove or keys (blocked cookies). The store reports it once, treats the record as
+  unreadable, keeps the session in memory and writes nothing over what it could not read, so a blocked storage costs
+  the session its persistence and never wedges it.
 - Two devices keep separate records.
 
 ## Alternatives

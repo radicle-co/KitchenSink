@@ -123,6 +123,57 @@ describe('scope and hydrate', () => {
     });
 });
 
+describe('a storage that throws on read, remove or keys (blocked storage)', () => {
+    const stored = serializeKeptDocument(makeDoc({ rev: 3, entries: { r1: makeCooking() } }));
+
+    it('scope still ends ready with an empty record, reports once, and writes and removes nothing', async () => {
+        const { store, data, calls, state, report } = setup({ [KEY_A]: stored });
+
+        state.failReads = true;
+        await store.scope('A');
+
+        expect(docOf(store.getSnapshot()).entries).toEqual({});
+        expect(report).toHaveBeenCalledTimes(1);
+        expect(calls.write).toBe(0);
+        expect(data.get(KEY_A)).toBe(stored);
+    });
+
+    it('a dispatch after it applies in memory, writes nothing over the unreadable record, and reports no second time', async () => {
+        const { store, data, calls, state, report } = setup({ [KEY_A]: stored });
+
+        state.failReads = true;
+        await store.scope('A');
+
+        expect((await store.dispatch(tick)).kind).toBe('applied');
+        expect(docOf(store.getSnapshot()).entries['r1']).toMatchObject({ ticks: ['butter'] });
+        expect(calls.write).toBe(0);
+        expect(data.get(KEY_A)).toBe(stored);
+        expect(report).toHaveBeenCalledTimes(1);
+    });
+
+    it('a re-read that throws leaves the session as it was', async () => {
+        const { store, state } = setup({ [KEY_A]: stored });
+
+        await store.scope('A');
+        const before = store.getSnapshot();
+
+        state.failReads = true;
+        await store.reread();
+
+        expect(store.getSnapshot()).toBe(before);
+    });
+
+    it('sign-out with a throwing remove and keys still ends signed out', async () => {
+        const { store, state } = setup({ [KEY_A]: stored });
+
+        await store.scope('A');
+        state.failReads = true;
+        await store.scope(null);
+
+        expect(store.getSnapshot()).toEqual({ status: 'signedOut' });
+    });
+});
+
 describe('clear', () => {
     it('clearing another cook removes only their key and leaves the scoped cook ready (mutant: resets the store)', async () => {
         const stored = serializeKeptDocument(makeDoc({ entries: { r1: makeCooking() } }));

@@ -72,6 +72,7 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
     let hydrating: Promise<void> | undefined;
     let warnedNoLocks = false;
     let reportedWriteFailure = false;
+    let reportedPortFailure = false;
     let subscribedExternal = false;
     /** After a failed write only: the document memory holds, valid while storage still holds `fromRev` (KTD2). */
     let pending: { readonly fromRev: number; readonly doc: KeptDocument } | undefined;
@@ -81,6 +82,24 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
     const set = (next: Partial<StoreState>): void => {
         state = { ...state, ...next };
         listeners.forEach((listener) => listener());
+    };
+
+    /**
+     * Runs one read, remove or keys call. Storage can throw (blocked cookies make `localStorage` throw a
+     * SecurityError; AsyncStorage can reject): that is reported once and answered as `ok: false`, so the caller treats
+     * the record as unreadable and never writes over it. Nothing here wedges `hydrating`.
+     */
+    const attempt = async <T>(work: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false }> => {
+        try {
+            return { ok: true, value: await work() };
+        } catch (error) {
+            if (!reportedPortFailure) {
+                reportedPortFailure = true;
+                deps.report(error);
+            }
+
+            return { ok: false };
+        }
     };
 
     /** Runs `work` in the exclusive section for `name`; with no locks it runs bare and warns once. */
@@ -122,19 +141,21 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
         const key = keptKeyFor(subject);
 
         return exclusive(key, async (locked) => {
-            const raw = await port.read(key);
+            const read = await attempt(() => port.read(key));
+            const raw = read.ok ? read.value : null;
+            const writable = locked && read.ok;
             const parsed = parseKeptDocument(raw);
 
             if (state.generation !== generation) {
                 return;
             }
 
-            lastRaw = raw;
+            lastRaw = read.ok ? raw : undefined;
 
             let doc = EMPTY_KEPT_DOCUMENT;
 
-            if (parsed.kind === 'invalid' && locked) {
-                await port.remove(key);
+            if (parsed.kind === 'invalid' && writable) {
+                await attempt(() => port.remove(key));
             } else if (parsed.kind === 'ok') {
                 doc = parsed.doc;
 
@@ -148,7 +169,7 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
             if (pruned.kind === 'applied') {
                 doc = pruned.doc;
 
-                if (locked && state.generation === generation) {
+                if (writable && state.generation === generation) {
                     await persist(key, doc, parsed.kind === 'ok' ? parsed.doc.rev : 0);
                 }
             }
@@ -160,9 +181,11 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
     };
 
     const removeKeys = async (keep: string | undefined): Promise<void> => {
-        for (const key of await port.keys(KEPT_KEY_PREFIX)) {
+        const listed = await attempt(() => port.keys(KEPT_KEY_PREFIX));
+
+        for (const key of listed.ok ? listed.value : []) {
             if (key !== keep) {
-                await exclusive(key, () => port.remove(key));
+                await exclusive(key, () => attempt(() => port.remove(key)));
             }
         }
     };
@@ -174,11 +197,13 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
             return;
         }
 
-        const raw = await port.read(keptKeyFor(subject));
+        const read = await attempt(() => port.read(keptKeyFor(subject)));
 
-        if (state.generation !== generation || raw === lastRaw) {
+        if (!read.ok || state.generation !== generation || read.value === lastRaw) {
             return;
         }
+
+        const raw = read.value;
 
         const parsed = parseKeptDocument(raw);
 
@@ -205,7 +230,7 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
         if (subject !== undefined) {
             const key = keptKeyFor(subject);
 
-            await exclusive(key, () => port.remove(key));
+            await exclusive(key, () => attempt(() => port.remove(key)));
         }
     };
 
@@ -259,7 +284,9 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
             // still holds the rev it held then (an absent or unreadable key is rev 0, and every real record is 1 or
             // more). Otherwise an absent key means empty, never memory, or a record another tab cleared would come back
             // (KTD3).
-            const stored = locked ? parseKeptDocument(await port.read(key)) : undefined;
+            const read = locked ? await attempt(() => port.read(key)) : undefined;
+            const writable = read?.ok === true;
+            const stored = read?.ok === true ? parseKeptDocument(read.value) : undefined;
             const storedDoc = stored?.kind === 'ok' ? stored.doc : EMPTY_KEPT_DOCUMENT;
             const held = pending;
             const useHeld = held !== undefined && storedDoc.rev === held.fromRev;
@@ -276,7 +303,7 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
                 return outcome.kind === 'applied' ? UNCHANGED : outcome;
             }
 
-            if (locked) {
+            if (writable) {
                 await persist(key, outcome.doc, storedDoc.rev);
             }
 

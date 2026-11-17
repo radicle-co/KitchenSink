@@ -2,7 +2,6 @@
 
 Recipe database. One migration plus its `_validate` twin (next free numbers at build time). Expand-only (ADR-0035).
 Owner, migrator and service roles per ADR-0039. Every one-way door below goes in the feature ADR before code.
-The column names in this file are final.
 
 ## `recipe_source_records` (append-only, never shown)
 

@@ -25,7 +25,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
   ADR-0095, and "imports save private only". Tasks marked `(needs #301)` touch those interfaces and wait for it.
 - **Paths**: `RS` is `packages/services/recipe-service/src`, `RW` is `packages/services/recipe-workers/src`, `RC` is
   `packages/shared/recipe-core/src`, `FR` is `packages/apps/commise/features/recipes/src`. File names follow
-  `docs/CODING_STANDARDS.md` §1. the paths in this file are final.
+  `docs/CODING_STANDARDS.md` §1.
 
 ## User stories
 

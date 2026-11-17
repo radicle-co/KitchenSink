@@ -4,8 +4,7 @@
 `specs/003B-public-rewrite`. The owner asked for "003A", but `specs/003A-signed-out-reading` already exists, so this
 feature takes 003B. It is not part of `003-usda-food-data` or `003A`.)
 **Created**: 2026-11-15
-**Status**: Draft. Planned, not built. Each clarification is ruled where marked, and the rest are assumed and wait for the owner (see Clarifications,
-C-1 to C-29). It sits behind one per-market switch (FR-090).
+**Status**: Draft. Planned, not built. Each clarification is ruled where marked, and the rest are assumed and wait for the owner (see Clarifications). It sits behind one per-market switch (FR-090).
 **Input**: Owner rulings, 2026-11-15. A cook's private copy of an imported recipe keeps the site's wording. The import
 process writes new steps for every public-facing recipe from a source that Commise cannot show as it is. The cook
 chooses Private, Public or Both at import. A paid site's recipe can go public only as a page Commise writes in full, under the paid-site rules. Facts cards are

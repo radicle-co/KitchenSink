@@ -203,4 +203,4 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 - **Shared pool.** The first operating-cost consumer that a cook's choice triggers. It competes with parse and match
   until ADR-0024 §6's split lands.
 - **Unmerged dependencies.** The evidence record of ADR-0089 §6 is not built. The source record shape can still move.
-- **Open owner rulings.** the spec Clarifications, and the conflicts list in the spec.
+- **Open owner rulings.** The spec Clarifications, and the conflicts list in the spec.

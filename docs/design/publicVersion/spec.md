@@ -319,10 +319,10 @@ One line, the slot line on Free, "Save my copy".
 | Reason                                                                                   | Key                      | Copy                                                                                                           |
 | ---------------------------------------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------- |
 | `paidRecent` with `{date}`                                                               | `privateOnly.paidRecent` | "This one is saved just for you. You can share a public version after {date}."                                 |
-| `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, `paidRecent` without a date | `privateOnly.line`       | `This one is saved just for you. We can't write a public version of it.`                                       |
+| `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, `paidRecent` without a date | `privateOnly.line`       | `This one is saved just for you. We can’t write a public version of it.`                                       |
 | `noSteps`                                                                                | `privateOnly.noSteps`    | "There are no steps to write from yet. Save it, add steps in the editor, then share a public version."         |
 | `noSourceAddress`                                                                        | `privateOnly.noSource`   | "We need the page's link to share this one. Save it, add the link as its source, then share a public version." |
-| `budget`                                                                                 | reuse `budget.line`      | `We can't write public versions right now. Save it just for you.`                                              |
+| `budget`                                                                                 | reuse `budget.line`      | `We can’t write public versions right now. Save it just for you.`                                              |
 
 Slot line on Free: `private.hint`. Pro: none.
 

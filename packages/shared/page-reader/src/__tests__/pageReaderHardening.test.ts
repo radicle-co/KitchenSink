@@ -359,6 +359,10 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         ['a text label holding an amount and a unit', ['Category: Flour 200 g']],
         ['a count label holding an ingredient', ['Calories: 2 eggs']],
         ['a Russian count label holding an ingredient', ['Выход: 2 яйца']],
+        ['a count label holding a count word and an ingredient', ['Yield: 6 slices bacon']],
+        ['a count label holding two ingredients', ['Servings: 2 slices bread, 1 egg']],
+        ['a count label holding two counts', ['Yield: 6 slices 2 pieces']],
+        ['a count label with a count word and no number', ['Yield: slices']],
         ['a text label holding a leading amount', ['Keywords: 2 eggs, 1 onion']],
         ['a time label holding an ingredient', ['Prep Time: 2 eggs']],
         ['a time label holding a duration and an ingredient', ['Prep Time: 10 minutes, 2 eggs']],
@@ -374,10 +378,12 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
 
     it.each([
         ['English', ['Prep Time: 10 minutes', 'Category: Dessert', 'Diet: Gluten-Free, Vegetarian']],
-        ['English time and count', ['Total Time: 1 hour and 10 minutes', 'Servings: 4-6 people', 'Calories: 350 kcal']],
+        ['English time and count', ['Total Time: 1 hour and 10 minutes', 'Servings: 4-6 people', 'Calories: 350']],
+        ['yield in slices', ['Yield: 6 slices']],
+        ['Italian count', ['Dosi per: 4 persone']],
         ['Italian', ['Tempo totale: 3h e 20 min', 'Calorie: 778']],
         ['Russian', ['Сложность: сложно']],
-        ['Russian time and count', ['Время приготовления: 1 час 30 минут', 'Выход: 4 порции']],
+        ['Russian time and count', ['Время приготовления: 1 час 30 минут', 'Выход: 4 шт']],
         ['Japanese, with a full-width colon', ['調理時間：30分']],
     ])('reads a card with a %s meta list of labelled facts before the lines', (_name, lines) => {
         const page = makePage({

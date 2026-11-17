@@ -33,11 +33,12 @@
  */
 import { readCooksMeasure } from '@kitchensink/recipe-core/parsing/measure-reader';
 
-import { CARD_META_LABELS, type CardMetaKind, COUNT_WORDS, DURATION_JOINS, DURATION_WORDS } from './cardMetaLabels.js';
+import { CARD_META_LABELS, type CardMetaKind, DURATION_JOINS, DURATION_WORDS } from './cardMetaLabels.js';
 import { instructionOf } from './instructionSteps.js';
 import type { ExtractionTier, PageCandidate, PageRecipe } from './pageRecipeCandidate.js';
 import { namesAMeasure, tokensOf } from './pageTokens.js';
 import type { CardItem, VisibleText, VisibleTextResult } from './visiblePageText.js';
+import { YIELD_COUNT_WORDS } from './yieldCountWords.js';
 
 /** Why the page and its structured data are not taken together as one recipe. */
 export type CorroborationReason =
@@ -64,6 +65,15 @@ const isNumberPart = (token: string): boolean => /^\d/u.test(token) || ['.', ','
 const isNumbersWith = (tokens: readonly string[], words: ReadonlySet<string>): boolean =>
     tokens.some((token) => /^\d/u.test(token)) && tokens.every((token) => isNumberPart(token) || words.has(token));
 
+/** Whether `value` is a number with at most one yield count word after it: "6", "4-6 people", "6 slices". */
+function isCount(value: string): boolean {
+    const tokens = tokensOf(value);
+    const last = tokens.at(-1);
+    const number = last !== undefined && YIELD_COUNT_WORDS.has(last) ? tokens.slice(0, -1) : tokens;
+
+    return number.length > 0 && number.every(isNumberPart);
+}
+
 const DURATION_TOKENS: ReadonlySet<string> = new Set([...DURATION_WORDS, ...DURATION_JOINS]);
 
 /** The value shape each label kind takes: a duration with one unit at least, a count, or text with no amount or measure. */
@@ -73,7 +83,7 @@ const VALUE_SHAPES: Readonly<Record<CardMetaKind, (value: string) => boolean>> =
 
         return isNumbersWith(tokens, DURATION_TOKENS) && tokens.some((token) => DURATION_WORDS.has(token));
     },
-    count: (value) => isNumbersWith(tokensOf(value), COUNT_WORDS),
+    count: isCount,
     text: (value) => readCooksMeasure(value).quantity.kind === 'absent' && !namesAMeasure(value),
 };
 

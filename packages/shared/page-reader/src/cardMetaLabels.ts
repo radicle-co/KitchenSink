@@ -1,5 +1,5 @@
 /**
- * The shape a meta label's value must have: a duration ("10 minutes"), a count ("4 servings", "350 kcal"), or text that
+ * The shape a meta label's value must have: a duration ("10 minutes"), a count ("4 servings", "6 slices"), or text that
  * holds no amount and no measure ("Dessert").
  */
 export type CardMetaKind = 'time' | 'count' | 'text';
@@ -96,41 +96,3 @@ export const DURATION_WORDS: ReadonlySet<string> = new Set([
 
 /** The words that join the parts of a time value: "1 hour and 10 minutes", "1 ora e 30 min", "1 час и 10 минут". */
 export const DURATION_JOINS: ReadonlySet<string> = new Set(['and', 'e', 'и']);
-
-/**
- * The words a count value may hold beside its numbers ("4 servings", "8 persone", "350 kcal", "4 порции"), lower case,
- * as `tokensOf` splits them. A word not here refuses the value: "Calories: 2 eggs" is no count.
- */
-export const COUNT_WORDS: ReadonlySet<string> = new Set([
-    // English.
-    'serving',
-    'servings',
-    'serves',
-    'people',
-    'person',
-    'persons',
-    'portion',
-    'portions',
-    'x',
-    'kcal',
-    'cal',
-    'calorie',
-    'calories',
-    // Italian.
-    'persona',
-    'persone',
-    'porzione',
-    'porzioni',
-    // Russian.
-    'порция',
-    'порции',
-    'порций',
-    'человек',
-    'персоны',
-    'персон',
-    'ккал',
-    // Japanese.
-    '人',
-    '人分',
-    '人前',
-]);

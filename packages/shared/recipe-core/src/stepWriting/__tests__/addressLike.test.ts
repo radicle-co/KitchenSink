@@ -23,6 +23,8 @@ describe('looksLikeAddress', () => {
         ['an ideographic full stop between ASCII letters', 'evil\u3002com/x'],
         ['a full-width full stop between ASCII letters', 'evil\uFF0Ecom'],
         ['a half-width ideographic full stop', 'evil\uFF61com'],
+        ['full-width letters and an ideographic full stop', 'ｅｖｉｌ。ｃｏｍ'],
+        ['mixed-width letters and an ideographic full stop', 'evil。ｃom'],
         ['a full-width colon and slashes', 'http\uFF1A\uFF0F\uFF0Fevil'],
     ])('flags %s', (_what, text) => {
         expect(looksLikeAddress(text)).toBe(true);

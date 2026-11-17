@@ -116,6 +116,8 @@ describe('parseStepAnswer, text that is not plain', () => {
         ['a digit in the domain', 'Open evil.c0m/x now.'],
         ['an ideographic full stop used as a dot', 'Open evil\u3002com/x now.'],
         ['a full-width full stop used as a dot', 'Open evil\uFF0Ecom now.'],
+        ['full-width letters and an ideographic full stop', 'Open ｅｖｉｌ。ｃｏｍ now.'],
+        ['mixed-width letters and an ideographic full stop', 'Open evil。ｃom now.'],
         ['a template placeholder', 'Stir {{name}} well.'],
         ['a backslash escape', 'Stir\\nwell.'],
         ['a line break', 'Stir.\nThen serve.'],

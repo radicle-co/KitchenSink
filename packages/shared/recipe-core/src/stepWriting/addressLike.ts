@@ -12,8 +12,11 @@
  * are removed before the check.
  */
 
-/** A full stop in the ideographic and half-width forms, between two ASCII letters or digits: a dot in disguise. */
-const DISGUISED_DOT = /(?<=[A-Za-z0-9])[。．｡](?=[A-Za-z0-9])/gu;
+/**
+ * An ideographic full stop between two ASCII letters or digits: a dot in disguise. It runs after NFKC, which folds the
+ * full-width and half-width forms to ASCII and leaves this one alone.
+ */
+const DISGUISED_DOT = /(?<=[A-Za-z0-9])\u3002(?=[A-Za-z0-9])/gu;
 
 /** Abbreviations whose dots are not a domain. */
 const ABBREVIATION = /\b(?:e\.g|i\.e|a\.m|p\.m)\./giu;
@@ -27,5 +30,5 @@ const ADDRESS = /\/\/|\p{L}:\d|\b\d{1,3}(?:\.\d{1,3}){3}\b|[\p{L}\p{N}]\.\p{L}|\
  * @returns True when it does. Pure.
  */
 export function looksLikeAddress(text: string): boolean {
-    return ADDRESS.test(text.replace(DISGUISED_DOT, '.').normalize('NFKC').replace(ABBREVIATION, ' '));
+    return ADDRESS.test(text.normalize('NFKC').replace(DISGUISED_DOT, '.').replace(ABBREVIATION, ' '));
 }

@@ -911,8 +911,9 @@ export const eraseRecipeRows = async (
 
 /**
  * Purge EVERYTHING a registered test principal owns in the recipe database, atomically (ADR-0040). No public
- * carve-out, no donate election, no pseudonymization: a test-pool slot must start its next run from an empty world,
- * so every user-keyed row is DELETED. The caller has already claimed the `test_reset_jobs` row and re-checked the
+ * carve-out, no donate election: a test-pool slot must start its next run from an empty world, so every user-keyed row
+ * is DELETED, except the statement records (migration 0090), which the database refuses to delete and which are
+ * relabelled to one `erased_` token instead. The caller has already claimed the `test_reset_jobs` row and re-checked the
  * `test_principals` registry; this function only removes rows.
  *
  * ⛔ Keep this a `const` bound to an arrow function. `testResetSweepCoverage.test.ts` reads the purge's statement set
@@ -929,6 +930,9 @@ export const eraseRecipeRows = async (
  *     user's clone pointing at one of the principal's recipes makes step 3 throw. Every one of the principal's
  *     recipes is deleted, so the survivors are exactly `owner_id <> principal` — unlike erasure, which has to guard
  *     on the removed SET because it keeps some of the owner's own recipes.
+ *  2b. **Statement records** — `UPDATE recipe_statement_attestations SET account_id` to one random `erased_` token. The
+ *     append-only trigger refuses every DELETE and admits this swap for a registered test principal while its reset
+ *     is running. The record stays, and who made it does not. Before step 3, while the rows still name their recipes.
  *  3. **Every recipe** — `DELETE FROM recipes WHERE owner_id`: public and private, published and draft, tombstoned
  *     and live. Cascades (0001/0004/0010) to steps, ingredient lines, photos, versions (so `recipe_versions.created_by`
  *     goes with them — mutations are owner-only), collection memberships — including in OTHER users' collections —
@@ -1006,6 +1010,9 @@ export const purgeTestPrincipalRows = async (
         )
     `;
 
+    // ONE random token for this reset: every statement record of the principal moves to it (step 2b).
+    const resetAccountToken = `erased_${randomBytes(16).toString('hex')}`;
+
     await db.transaction(async (tx) => {
         // 1. Ratings on anyone's recipes; the statement trigger re-derives every survivor's aggregate.
         await tx.execute(sql`DELETE FROM recipe_ratings WHERE user_id = ${ownerId}`);
@@ -1018,10 +1025,15 @@ export const purgeTestPrincipalRows = async (
               AND owner_id <> ${ownerId}
         `);
 
-        // 2b. The principal's statement records. A test principal keeps nothing; the append-only trigger (0090) admits this
-        //     delete only while the principal's reset job is running, which the caller's claim guarantees. Before step 3,
-        //     while the rows still name their recipes.
-        await tx.execute(sql`DELETE FROM recipe_statement_attestations WHERE account_id = ${ownerId}`);
+        // 2b. The principal's statement records are relabelled, never deleted: the append-only trigger (0090) refuses every
+        //     DELETE and admits this swap only while the principal's reset job is running, which the caller's claim guarantees.
+        //     The account moves to ONE random token, so the record of what was chosen stays and who chose it does not. Before
+        //     step 3, while the rows still name their recipes. `account_id = ownerId` makes a replay a no-op.
+        await tx.execute(sql`
+            UPDATE recipe_statement_attestations
+            SET account_id = ${resetAccountToken}
+            WHERE account_id = ${ownerId}
+        `);
 
         // 3. Every recipe — no visibility/status carve-out, no tombstone filter. Cascades the recipe graph.
         await tx.execute(sql`DELETE FROM recipes WHERE owner_id = ${ownerId}`);

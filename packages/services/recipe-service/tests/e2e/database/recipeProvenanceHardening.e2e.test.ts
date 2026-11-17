@@ -354,6 +354,78 @@ describe('recipe provenance hardening (migration 0090)', () => {
         });
     });
 
+    describe('a registered test principal\u2019s reset swaps the account, and nothing ever deletes (ADR-0095 section 6)', () => {
+        const swap = (): Promise<unknown> =>
+            pool.query(`UPDATE recipe_statement_attestations SET account_id = $2 WHERE account_id = $1`, [
+                OWNER_ID,
+                TOKEN,
+            ]);
+
+        afterEach(async () => {
+            await pool.query(`DELETE FROM test_reset_jobs WHERE user_id = ANY($1::text[])`, [
+                [OWNER_ID, 'someone-else'],
+            ]);
+            await pool.query(`DELETE FROM test_principals WHERE user_id = ANY($1::text[])`, [
+                [OWNER_ID, 'someone-else'],
+            ]);
+        });
+
+        const register = (id: string = OWNER_ID): Promise<unknown> =>
+            pool.query(`INSERT INTO test_principals (user_id) VALUES ($1)`, [id]);
+        const resetJob = (status: string, id: string = OWNER_ID): Promise<unknown> =>
+            pool.query(`INSERT INTO test_reset_jobs (user_id, status) VALUES ($1, $2)`, [id, status]);
+
+        it('lets the swap through for a registered test principal while its reset is running, and keeps the row', async () => {
+            await insertRecipe();
+            await attest(AUTHORED);
+            await register();
+            await resetJob('running');
+
+            await swap();
+            await pool.query(`DELETE FROM recipes WHERE id = $1`, [RECIPE_ID]);
+
+            expect(await rowsOf()).toEqual([{ recipe_id: null, recipe_ref: RECIPE_ID, account_id: TOKEN }]);
+        });
+
+        it.each([
+            ['the reset is only queued', async () => (await register(), await resetJob('queued'))],
+            ['the reset is completed', async () => (await register(), await resetJob('completed'))],
+            ['the principal has no reset', async () => register()],
+            ['the account is not registered, though a reset runs', async () => resetJob('running')],
+            [
+                'only another principal is registered and resetting',
+                async () => (await register('someone-else'), await resetJob('running', 'someone-else')),
+            ],
+        ])('refuses the swap when %s', async (_name, arrange) => {
+            await insertRecipe();
+            await attest(AUTHORED);
+            await arrange();
+
+            await expect(swap()).rejects.toMatchObject({ code: CHECK_VIOLATION });
+            expect((await rowsOf())[0]?.account_id).toBe(OWNER_ID);
+        });
+
+        it('refuses DELETE for the service role and the owner, even for a registered principal with a running reset and a running erasure', async () => {
+            await insertRecipe();
+            await attest(AUTHORED);
+            await register();
+            await resetJob('running');
+            await pool.query(`INSERT INTO account_erasure_jobs (owner_id, status) VALUES ($1, 'running')`, [OWNER_ID]);
+
+            for (const run of [
+                () => pool.query(`DELETE FROM recipe_statement_attestations WHERE account_id = $1`, [OWNER_ID]),
+                () =>
+                    roleDb.asOwner((client) =>
+                        client.query(`DELETE FROM recipe_statement_attestations WHERE account_id = $1`, [OWNER_ID]),
+                    ),
+            ]) {
+                await expect(run()).rejects.toMatchObject({ code: CHECK_VIOLATION });
+            }
+
+            expect(await rowsOf()).toHaveLength(1);
+        });
+    });
+
     describe('recipe_is_from_person counts a past fromPerson attestation when the statement is NULL', () => {
         const personOf = async (): Promise<boolean | undefined> =>
             (await pool.query<{ person: boolean }>(`SELECT recipe_is_from_person($1) AS person`, [RECIPE_ID])).rows[0]
@@ -385,6 +457,90 @@ describe('recipe provenance hardening (migration 0090)', () => {
             await insertRecipe('fromPerson');
 
             expect(await personOf()).toBe(true);
+        });
+    });
+
+    describe('a clone keeps the "from another person" fact of its source (ADR-0095 section 4)', () => {
+        let CLONE_ID: string;
+
+        beforeEach(() => {
+            CLONE_ID = randomUUID();
+        });
+
+        afterEach(async () => {
+            await pool.query(`DELETE FROM recipes WHERE id = $1`, [CLONE_ID]);
+        });
+
+        async function cloneRecipe(statementKind: string | null = null): Promise<void> {
+            await pool.query(
+                `INSERT INTO recipes (id, owner_id, title, description, prep_time_minutes, cook_time_minutes,
+                                      total_time_minutes, servings, visibility, status, cloned_from_id, statement_kind)
+                 VALUES ($1, $2, 'Hardening clone', '', 1, 1, 2, 4, 'private', 'draft', $3, $4)`,
+                [CLONE_ID, OWNER_ID, RECIPE_ID, statementKind],
+            );
+        }
+
+        const cloneRows = async () =>
+            (
+                await pool.query<{ recipe_id: string; recipe_ref: string; account_id: string; choice: string }>(
+                    `SELECT recipe_id, recipe_ref, account_id, choice FROM recipe_statement_attestations
+                      WHERE recipe_ref = $1 ORDER BY recorded_at, id`,
+                    [CLONE_ID],
+                )
+            ).rows;
+        const heldOf = async (id: string): Promise<boolean | undefined> =>
+            (await pool.query<{ held: boolean }>(`SELECT recipe_is_from_person($1) AS held`, [id])).rows[0]?.held;
+
+        it('copies the fact to the clone of a recipe with no statement and a past fromPerson, keeping account and choice', async () => {
+            await insertRecipe(null);
+            await attest(FROM_PERSON);
+            await attest(CLEARED);
+
+            await cloneRecipe(null);
+
+            expect(await cloneRows()).toEqual([
+                { recipe_id: CLONE_ID, recipe_ref: CLONE_ID, account_id: OWNER_ID, choice: 'fromPerson' },
+            ]);
+            expect(await heldOf(CLONE_ID)).toBe(true);
+        });
+
+        it('keeps the copy held after the source recipe is hard-deleted', async () => {
+            await insertRecipe(null);
+            await attest(FROM_PERSON);
+            await cloneRecipe(null);
+            await pool.query(`UPDATE recipes SET cloned_from_id = NULL WHERE id = $1`, [CLONE_ID]);
+            await pool.query(`DELETE FROM recipes WHERE id = $1`, [RECIPE_ID]);
+
+            expect(await heldOf(CLONE_ID)).toBe(true);
+        });
+
+        it('copies nothing when the cook replaced "from another person" with "I wrote this"', async () => {
+            await insertRecipe('authored');
+            await attest(FROM_PERSON);
+            await attest(AUTHORED);
+
+            await cloneRecipe('authored');
+
+            expect(await cloneRows()).toEqual([]);
+            expect(await heldOf(CLONE_ID)).toBe(false);
+        });
+
+        it('copies nothing when the source has no fromPerson attestation', async () => {
+            await insertRecipe(null);
+            await attest(CLEARED);
+
+            await cloneRecipe(null);
+
+            expect(await cloneRows()).toEqual([]);
+        });
+
+        it('copies the fact when the source statement is fromPerson and the clone starts with none', async () => {
+            await insertRecipe('fromPerson');
+            await attest(FROM_PERSON);
+
+            await cloneRecipe(null);
+
+            expect(await heldOf(CLONE_ID)).toBe(true);
         });
     });
 });

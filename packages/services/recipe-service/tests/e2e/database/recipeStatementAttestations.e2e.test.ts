@@ -15,7 +15,8 @@
  *     unchanged, WHILE an erasure job is queued or running for that account (0090). Any other change, a second swap and a
  *     non-token value are refused.
  *  5. Hard-deleting the recipe KEEPS its rows (migration 0090: `recipe_id` becomes NULL, `recipe_ref` stays); so does a soft delete.
- *  6. A clone has NO attestation rows: they are the acts of the cook who made them.
+ *  6. A clone has NO attestation rows: they are the acts of the cook who made them. The one exception, the "from another person"
+ *     fact of a held source, is asserted in `recipeProvenanceHardening.e2e.test.ts`.
  *  7. The widened capture CHECK accepts `editorCitation` with a book citation, and refuses it without a citation or on a
  *     web source.
  */
@@ -471,7 +472,7 @@ describe('recipe_statement_attestations (migrations 0088 and 0090)', () => {
         expect(await attestationCount(RECIPE_ID)).toBe(1);
     });
 
-    it('copies nothing onto a clone: an attestation is the act of the cook who made it', async () => {
+    it('copies nothing onto a clone of a source that is not from another person: an attestation is the act of the cook who made it', async () => {
         await insertRecipe();
         await attest(AUTHORED);
         await attest(CONFIRM);

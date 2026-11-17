@@ -199,4 +199,36 @@ describe('erasure keeps and pseudonymises every attestation of the erased accoun
         expect(Number(rows[0]?.n)).toBe(0);
         expect(await rowsOf(cleared)).toHaveLength(1);
     });
+
+    // A clone carries the "from another person" fact of its source (migration 0090), so erasure does not donate the clone
+    // either: the cook asked for it to be donated, and the clone has its own id.
+    it('does not donate a clone of a recipe whose statement was cleared after "from another person"', async () => {
+        const source = await insertRecipe(USER_ERASED, 'private');
+
+        await db.execute(sql`
+            INSERT INTO recipe_statement_attestations (recipe_id, recipe_ref, account_id, mode, choice, wording_version, locale, action)
+            VALUES (${source}, ${source}, ${USER_ERASED}, 'explicit', 'fromPerson', 'statementFromPerson.v1', 'en', 'update')
+        `);
+
+        const { rows: made } = await db.execute<{ id: string }>(sql`
+            INSERT INTO recipes (owner_id, title, description, servings, prep_time_minutes, cook_time_minutes,
+                                 total_time_minutes, visibility, status, cloned_from_id)
+            VALUES (${USER_ERASED}, 'attestation erasure clone', 'probe', 2, 5, 5, 10, 'private', 'published', ${source})
+            RETURNING id
+        `);
+        const clone = made[0]?.id;
+
+        if (clone === undefined) {
+            throw new Error('test setup: the clone insert returned no id');
+        }
+
+        await startJob(USER_ERASED);
+
+        await eraseRecipeRows(db, USER_ERASED, [clone]);
+
+        const { rows } = await db.execute<{ n: string }>(sql`SELECT count(*) AS n FROM recipes WHERE id = ${clone}`);
+
+        expect(Number(rows[0]?.n)).toBe(0);
+        expect(await rowsOf(clone)).toHaveLength(1);
+    });
 });

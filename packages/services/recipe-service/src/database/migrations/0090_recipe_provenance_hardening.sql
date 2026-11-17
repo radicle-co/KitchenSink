@@ -7,17 +7,17 @@
 -- `recipe_ref` is written by the service on insert and is NOT NULL; the CHECK keeps it equal to `recipe_id` for as long as the
 -- recipe exists, so the two can never name different recipes.
 --
--- The append-only guard now admits exactly two UPDATEs and one DELETE:
+-- The append-only guard now admits exactly two kinds of UPDATE and NO DELETE:
 --   1. `recipe_id` going to NULL with every other column unchanged, when the recipe row no longer exists. That is the foreign
 --      key's own action, and it is the only way a row loses its recipe.
---   2. The erasure swap of 0088: `account_id` from a real id to an `erased_` token, every other column unchanged, and now ONLY
---      while an erasure job is queued or running for that account. Before this, any role with UPDATE could move any live
---      account's rows to a token at any time, which destroys the record of who acted.
---   3. A DELETE of a row of a TEST PRINCIPAL's account (registered in `test_principals`, 0044), and only while a test reset
---      is running for that account (`test_reset_jobs`, 0045, status `running`). A test principal keeps nothing (ADR-0040), and its rows would otherwise stay
---      for good: the recipe delete of the reset empties `recipe_id`, so the cascade no longer takes them. A queued reset has not
---      begun, and a reset of one account never frees another account's rows.
--- A purge of rows past their retention gets its own exception when the purge job is built.
+--   2. The account swap of 0088: `account_id` from a real id to an `erased_` token, every other column unchanged, and only
+--      while one of these is true for that account: an erasure job is queued or running (`account_erasure_jobs`), or the account
+--      is a registered test principal (`test_principals`, 0044) whose reset is running (`test_reset_jobs`, 0045, status
+--      `running`). Before this, any role with UPDATE could move any live account's rows to a token at any time, which destroys
+--      the record of who acted.
+-- A DELETE is always refused, for every role. A test principal keeps nothing (ADR-0040), but its records are only relabelled: the
+-- reset swaps them to a token, so the worst a taken-over role can do is lose who made a record, never the record. A purge of rows
+-- past their retention gets its own exception when the purge job is built.
 --
 -- TWO: SEARCH PATH. A trigger or SQL function that names `recipes` with no schema is resolved through the session's search
 -- path, and a session's own temporary schema comes FIRST unless `pg_temp` is listed. `CREATE TEMP TABLE recipes (id uuid)` in a
@@ -27,7 +27,10 @@
 -- THREE: `recipe_is_from_person` also counts a PAST `fromPerson` attestation when the stored statement is NULL, the SQL twin of
 -- `fromPersonOf` (recipe-core). Without it a cook could say "from another person", clear the statement, and publish.
 --
--- Expand-only: a nullable-to-be column backfilled in this file, a foreign key action, and `CREATE OR REPLACE` of functions.
+-- FOUR: A CLONE keeps the "from another person" fact of its source (see the trigger at the end).
+--
+-- Deploy safety: `recipe_ref` is added, backfilled and set NOT NULL in this one file, which is safe because the attestations table
+-- is created by 0088 in this same change and no older code writes to it. It would NOT be safe on a table older code writes to.
 
 SET LOCAL lock_timeout = '5s';
 
@@ -50,7 +53,7 @@ ALTER TABLE recipe_statement_attestations
 CREATE INDEX recipe_statement_attestations_ref_idx ON recipe_statement_attestations (recipe_ref, recorded_at);
 
 COMMENT ON TABLE recipe_statement_attestations IS
-    'Append-only record of every statement a cook made about a recipe and every Public confirmation, one row per act. UPDATE raises, except the foreign key emptying recipe_id of a recipe that is gone, and the erasure swap of account_id to an erased_ token while an erasure job is queued or running for that account. DELETE raises, except for a registered test principal while a test reset is running for the row''s account. recipe_ref keeps the recipe id after the recipe is deleted.';
+    'Append-only record of every statement a cook made about a recipe and every Public confirmation, one row per act. UPDATE raises, except the foreign key emptying recipe_id of a recipe that is gone, and the swap of account_id to an erased_ token while an erasure job is queued or running for that account, or while a reset is running for an account that is a registered test principal. DELETE always raises. recipe_ref keeps the recipe id after the recipe is deleted.';
 
 -- ── 0088: the attestation guard ─────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -73,7 +76,8 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    -- The erasure swap: account_id alone, from a real id to an erased token, while the account's erasure is in flight.
+    -- The account swap: account_id alone, from a real id to an erased token, while the account's erasure is in flight or the
+    -- account is a registered test principal whose reset is running. There is no DELETE exception.
     IF TG_OP = 'UPDATE'
        AND OLD.account_id !~ '^erased_'
        AND NEW.account_id ~ '^erased_[0-9a-f]{32}$'
@@ -86,21 +90,20 @@ BEGIN
        AND NEW.locale IS NOT DISTINCT FROM OLD.locale
        AND NEW.action IS NOT DISTINCT FROM OLD.action
        AND NEW.recorded_at IS NOT DISTINCT FROM OLD.recorded_at
-       AND EXISTS (
-           SELECT 1 FROM account_erasure_jobs j
-            WHERE j.owner_id = OLD.account_id AND j.status IN ('queued', 'running')
+       AND (
+           EXISTS (
+               SELECT 1 FROM account_erasure_jobs j
+                WHERE j.owner_id = OLD.account_id AND j.status IN ('queued', 'running')
+           )
+           OR (
+               EXISTS (SELECT 1 FROM test_principals p WHERE p.user_id = OLD.account_id)
+               AND EXISTS (
+                   SELECT 1 FROM test_reset_jobs j
+                    WHERE j.user_id = OLD.account_id AND j.status = 'running'
+               )
+           )
        ) THEN
         RETURN NEW;
-    END IF;
-
-    -- A test principal's reset: its own rows, while its reset is running.
-    IF TG_OP = 'DELETE'
-       AND EXISTS (
-           SELECT 1 FROM test_reset_jobs j
-            WHERE j.user_id = OLD.account_id AND j.status = 'running'
-       )
-       AND EXISTS (SELECT 1 FROM test_principals p WHERE p.user_id = OLD.account_id) THEN
-        RETURN OLD;
     END IF;
 
     RAISE EXCEPTION 'recipe_statement_attestations is append-only' USING ERRCODE = 'check_violation';
@@ -193,3 +196,33 @@ CREATE OR REPLACE FUNCTION recipe_is_from_person(p_recipe_id uuid) RETURNS boole
                                  WHERE a.recipe_id = r.id AND a.choice = 'fromPerson')))
     );
 $$ LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp;
+
+-- ── A clone keeps the "from another person" fact ───────────────────────────────────────────────────────────────────────────────
+
+-- A clone has its own id, so a fact read by the recipe's id is lost on it. When the source is held as "from another person"
+-- (`recipe_is_from_person`: its statement says so, or it has none and the cook once attested it) and the clone starts with no
+-- statement of its own, the source's latest `fromPerson` row is copied to the clone: the account, mode, choice, wording, locale,
+-- action and time are kept, and the row's recipe is the clone. The clone is then held at every route to Public, and erasure
+-- never donates it, with no reading across `cloned_from_id`, so deleting the source later changes nothing. No other
+-- attestation is copied: an "I wrote this" or a Public confirmation is the act of the cook who made it. A clone that starts
+-- with a statement of its own needs no copy.
+CREATE FUNCTION recipes_clone_inherits_from_person() RETURNS trigger AS $$
+BEGIN
+    IF NEW.statement_kind IS NULL AND recipe_is_from_person(NEW.cloned_from_id) THEN
+        INSERT INTO recipe_statement_attestations (recipe_id, recipe_ref, account_id, mode, choice, wording_version, locale,
+            action, recorded_at)
+        SELECT NEW.id, NEW.id, a.account_id, a.mode, a.choice, a.wording_version, a.locale, a.action, a.recorded_at
+          FROM recipe_statement_attestations a
+         WHERE a.recipe_ref = NEW.cloned_from_id AND a.choice = 'fromPerson'
+         ORDER BY a.recorded_at DESC, a.id DESC
+         LIMIT 1;
+    END IF;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp;
+
+CREATE TRIGGER trg_recipes_clone_inherits_from_person
+    AFTER INSERT ON recipes
+    FOR EACH ROW WHEN (NEW.cloned_from_id IS NOT NULL)
+    EXECUTE FUNCTION recipes_clone_inherits_from_person();

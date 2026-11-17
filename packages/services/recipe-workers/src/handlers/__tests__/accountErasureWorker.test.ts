@@ -1592,6 +1592,21 @@ describe('purgeTestPrincipalRows (ADR-0040 — TOTAL, repeatable purge of a regi
         expect(control.txStatements()).toHaveLength(control.statements().length);
     });
 
+    // 0090: a test principal's statement records are relabelled, never deleted: the trigger refuses every DELETE.
+    it('swaps the account of every statement record to one erased token BEFORE the recipe delete, and never deletes a record', async () => {
+        const control = await purge();
+        const statements = control.statements();
+        const swapIndex = statements.findIndex((s) =>
+            /^update recipe_statement_attestations\s+set account_id/i.test(s.text),
+        );
+
+        expect(swapIndex).toBeGreaterThanOrEqual(0);
+        expect(swapIndex).toBeLessThan(indexOf(control, /^delete from recipes\b/i));
+        expect(statements[swapIndex]?.text).toMatch(/where account_id = \$\d$/i);
+        expect(statements[swapIndex]?.params).toEqual([expect.stringMatching(/^erased_[0-9a-f]{32}$/), OWNER]);
+        expect(statements.some((s) => /delete from recipe_statement_attestations/i.test(s.text))).toBe(false);
+    });
+
     it('deletes EVERY recipe the principal owns — no public carve-out, no status axis, no tombstone filter', async () => {
         const control = await purge();
         const deletes = control.statements().filter((s) => /^delete from recipes\b/i.test(s.text));

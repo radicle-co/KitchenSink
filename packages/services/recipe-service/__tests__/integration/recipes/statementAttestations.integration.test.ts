@@ -127,6 +127,7 @@ const setVisibility = vi.fn(
     },
 );
 const insertMany = vi.fn(async (_tx: unknown, _rows: readonly unknown[]) => undefined);
+const hasFromPerson = vi.fn(async (_tx: unknown, _recipeId: string) => false);
 
 let evidence: RecipeSourceEvidenceRow[] = [];
 const insertEvidence = vi.fn(async (_tx: unknown, row: NewRecipeSourceEvidenceRow) => {
@@ -251,7 +252,7 @@ beforeAll(async () => {
                     readConflict: async () => ({ current: aggregateOf(stored) }),
                 },
             },
-            { provide: RecipeStatementAttestationsDal, useValue: { insertMany, hasFromPerson: async () => false } },
+            { provide: RecipeStatementAttestationsDal, useValue: { insertMany, hasFromPerson } },
             {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {
@@ -1088,6 +1089,23 @@ describe('POST /api/v1/recipes/{id}/clone', () => {
         const response = await call('POST', `/api/v1/recipes/${RECIPE_ID}/clone`, {});
 
         expect(response.status).toBe(201);
+        expect(insertMany).not.toHaveBeenCalled();
+    });
+
+    it('starts PRIVATE when the source has no statement but the cook once said it is from another person, and asks about the SOURCE', async () => {
+        stored = rowOf({ visibility: 'public', statementKind: null });
+        hasFromPerson.mockResolvedValueOnce(true);
+
+        const response = await call('POST', `/api/v1/recipes/${RECIPE_ID}/clone`, {});
+
+        expect(response.status).toBe(201);
+        expect(hasFromPerson).toHaveBeenCalledWith(TX, RECIPE_ID);
+        // The clone carries no statement of its own: the database copies the source's "from another person" record to it
+        // (migration 0090), which the LOCAL e2e tier proves, so the service writes no attestation for it.
+        expect(create).toHaveBeenCalledWith(
+            expect.objectContaining({ visibility: 'private', statementKind: null }),
+            TX,
+        );
         expect(insertMany).not.toHaveBeenCalled();
     });
 

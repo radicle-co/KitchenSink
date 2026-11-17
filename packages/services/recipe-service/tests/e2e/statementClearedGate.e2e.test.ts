@@ -123,4 +123,74 @@ describe('Public after "from another person", "I wrote this" and a clear (e2e)',
         expect(rows.map((row) => row.choice)).toEqual(['fromPerson', 'authored', 'cleared']);
         expect(cleared.visibility).toBe('private');
     });
+
+    it('refuses Public on a CLONE of a recipe whose "from another person" was cleared, and the clone keeps the record', async () => {
+        const created = await json<RecipeBody>('POST', '/api/v1/recipes', 201, {
+            title: `${SCOPE} cloned pesto`,
+            cuisine: 'Thai',
+            servings: 2,
+            prepTimeMinutes: 5,
+            cookTimeMinutes: 0,
+            totalTimeMinutes: 5,
+            ingredients: [{ ingredientId: basilLookup, quantity: { kind: 'exact', value: 1 }, unit: 'cup' }],
+            steps: [{ instruction: 'Blend.' }],
+            visibility: 'private',
+            statement: { kind: 'fromPerson', wording: FROM_PERSON_AS_SHOWN },
+        });
+
+        // "From another person" cannot be cleared directly (SOURCE_LOCKED): the cook replaces it, then clears.
+        const authored = await json<RecipeBody>('PATCH', `/api/v1/recipes/${created.id}`, 200, {
+            expectedVersion: created.currentVersion,
+            statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } },
+        });
+
+        await json<RecipeBody>('PATCH', `/api/v1/recipes/${created.id}`, 200, {
+            expectedVersion: authored.currentVersion,
+            statement: null,
+        });
+
+        const clone = await json<RecipeBody>('POST', `/api/v1/recipes/${created.id}/clone`, 201, {});
+
+        expect(clone.visibility).toBe('private');
+
+        const refused = await call('PATCH', `/api/v1/recipes/${clone.id}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
+
+        expect(refused.status).toBe(400);
+        expect(await refused.json()).toMatchObject({
+            code: 'INVALID_VISIBILITY',
+            details: { reason: 'FROM_PERSON_PRIVATE_ONLY' },
+        });
+
+        const { rows } = await pool.query<{ held: boolean }>('SELECT recipe_is_from_person($1) AS held', [clone.id]);
+
+        expect(rows[0]?.held).toBe(true);
+    });
+
+    it('lets a clone go Public when the cook had replaced "from another person" with "I wrote this"', async () => {
+        const created = await json<RecipeBody>('POST', '/api/v1/recipes', 201, {
+            title: `${SCOPE} cloned authored`,
+            cuisine: 'Thai',
+            servings: 2,
+            prepTimeMinutes: 5,
+            cookTimeMinutes: 0,
+            totalTimeMinutes: 5,
+            ingredients: [{ ingredientId: basilLookup, quantity: { kind: 'exact', value: 1 }, unit: 'cup' }],
+            steps: [{ instruction: 'Blend.' }],
+            visibility: 'private',
+            statement: { kind: 'fromPerson', wording: FROM_PERSON_AS_SHOWN },
+        });
+
+        await json<RecipeBody>('PATCH', `/api/v1/recipes/${created.id}`, 200, {
+            expectedVersion: created.currentVersion,
+            statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } },
+        });
+
+        const clone = await json<RecipeBody>('POST', `/api/v1/recipes/${created.id}/clone`, 201, {});
+        const { rows } = await pool.query<{ held: boolean }>('SELECT recipe_is_from_person($1) AS held', [clone.id]);
+
+        expect(rows[0]?.held).toBe(false);
+    });
 });

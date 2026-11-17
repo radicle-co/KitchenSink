@@ -62,6 +62,12 @@ const PARSER_FAILURES: Readonly<
     'request.aborted': { status: HttpStatus.BAD_REQUEST, message: BODY_INCOMPLETE_MESSAGE, validation: false },
 };
 
+/**
+ * The `details.fields` entry a malformed body carries. `VALIDATION_FAILED` promises `details.fields` in every service's
+ * published schema, so the answer carries one constant field instead of the parser's text.
+ */
+const BODY_NOT_PARSEABLE_FIELD = 'body: not valid JSON';
+
 /** Whether `type` is one this module claims. `Object.hasOwn`: a `type` of `constructor` is not one. Pure. */
 function isClaimedType(type: unknown): type is string {
     return typeof type === 'string' && Object.hasOwn(PARSER_FAILURES, type);
@@ -137,6 +143,7 @@ export function normalizeBodyParserError(
                 ? vocabulary.validationFailedCode
                 : codeForStatus(failure.status, vocabulary.statusCode),
             message: failure.message,
+            ...(failure.validation ? { details: { fields: [BODY_NOT_PARSEABLE_FIELD] } } : {}),
         },
     };
 }

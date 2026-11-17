@@ -1028,6 +1028,16 @@ describe('isBrowserFacing reads CORS wherever the service turns it on', () => {
         expect(isBrowserFacing(hidden, root)).toBe(true);
     });
 
+    it('⛔ sees CORS a service turns on through the shared JSON-body setup, which holds the enableCors call', () => {
+        const shared = service('shared', {
+            'src/main.ts': "import { SETUP } from './config/httpSetup.js';\nSETUP.configure(app);\n",
+            'src/config/httpSetup.ts':
+                "import { jsonBodyHttpSetup } from '@kitchensink/nest-http-setup';\nexport const SETUP = jsonBodyHttpSetup(() => buildCorsPolicy(input));\n",
+        });
+
+        expect(isBrowserFacing(shared, root)).toBe(true);
+    });
+
     it('sees the NestFactory cors option', () => {
         const option = service('option', {
             'src/main.ts': 'const app = await NestFactory.create(AppModule, { cors: policy });\n',

@@ -16,7 +16,12 @@ import type { ReactNode } from 'react';
 /** The states the notice can be in. Mutually exclusive, so a union rather than booleans. */
 export type SyncNoticeState =
     | { readonly kind: 'hidden' }
-    | { readonly kind: 'offline'; readonly title: string; readonly body: string }
+    | {
+          readonly kind: 'offline';
+          readonly title: string;
+          /** When absent, the card shows the title alone, with no body row (`offlineNotice.md` §9). */
+          readonly body?: string;
+      }
     | { readonly kind: 'syncing'; readonly title: string; readonly body: string };
 
 /** Props for the sync notice. */

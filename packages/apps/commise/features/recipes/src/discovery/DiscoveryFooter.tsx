@@ -17,6 +17,7 @@ import { initialsPxOf } from '@commise/ui/avatar-initials';
 import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { TOUCH_TARGET_CLASS } from '@commise/ui/touch-target';
 import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
@@ -29,7 +30,7 @@ import type { DiscoveryFooterProps } from './model.js';
 
 /** The 44 px icon button. A busy or finished copy keeps the focus ring: the control is inert, not gone. */
 const BUTTON =
-    `inline-flex size-11 shrink-0 items-center justify-center rounded-full ${PRESS_FILL_CLASS.pointer} focus-visible:outline-none ` +
+    `inline-flex ${TOUCH_TARGET_CLASS.fixed} shrink-0 items-center justify-center rounded-full ${PRESS_FILL_CLASS.pointer} focus-visible:outline-none ` +
     FOCUS_RING_CLASS.offset;
 
 export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({

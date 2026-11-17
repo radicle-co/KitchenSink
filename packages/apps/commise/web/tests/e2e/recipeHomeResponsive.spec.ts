@@ -42,7 +42,7 @@ import { signInWithTicket } from './utils/auth';
  */
 const RECIPE_ID = 'ec000000-0000-4000-8000-000000000019';
 
-/** The mobile touch-target floor (`min-h-11` / `size-11`). */
+/** The mobile touch-target floor (`TOUCH_TARGET_CLASS` in `@commise/ui/touch-target`). */
 const TOUCH_TARGET_PX = 44;
 
 /**

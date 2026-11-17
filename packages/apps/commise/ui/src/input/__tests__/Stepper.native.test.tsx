@@ -127,6 +127,20 @@ describe('Stepper (native)', () => {
         }
     });
 
+    // Pins the row's 8 gap and the count's 24 minimum width, as inline styles that jsdom reads. It does not check the
+    // three-digit widening.
+    it('keeps its row narrow enough for 320 at the largest text: an 8 gap and a 24 minimum count width', () => {
+        render(<Servings />);
+
+        const group = screen.getByRole('group', { name: 'Servings' });
+        const count = within(group).getByText('2');
+
+        expect(getComputedStyle(group).gap).toBe('8px');
+        expect(getComputedStyle(count).minWidth).toBe('24px');
+        expect(getComputedStyle(count).width).toBe('auto');
+        expect(getComputedStyle(count).maxWidth).toBe('none');
+    });
+
     // The recipe page puts the Stepper in the Ingredients heading row beside "for {n}" (`buildSpec.md` §6.1), where a
     // visible label would say the same thing twice. Hidden from sight, the label still names the group.
     it('can hide its label from sight while it still names the group', () => {

@@ -31,6 +31,9 @@
 # The shared Nest error-envelope mechanism, imported by all three services' ApiExceptionFilter.
 !packages/shared/nest-error-envelope/dist
 !packages/shared/nest-error-envelope/prod.package.json
+# The shared ordered JSON-body setup, imported by all three services' `config/httpSetup.ts`.
+!packages/shared/nest-http-setup/dist
+!packages/shared/nest-http-setup/prod.package.json
 !packages/shared/rds-iam-auth/dist
 !packages/shared/rds-iam-auth/prod.package.json
 # The shared schema guard, imported by all three services' `main.ts` for the boot-time schema-currency

@@ -97,11 +97,17 @@ export const RemovedFoodNotice = styled(Text, {
     paddingVertical: '$2',
 });
 
-/** The list's first row: "Servings" and the stepper at the end (board `.sheetServe`). */
+/**
+ * The list's first row: "Servings" and the stepper at the end (board `.sheetServe`); the stepper wraps under the label
+ * when the line is too narrow.
+ */
 export const PinnedServingsRow = styled(XStack, {
     name: 'PinnedServingsRow',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    columnGap: '$3',
+    rowGap: '$2',
     paddingTop: '$3',
     paddingBottom: '$1',
     paddingLeft: '$4',

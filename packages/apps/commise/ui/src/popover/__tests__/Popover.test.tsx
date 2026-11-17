@@ -4,7 +4,7 @@
  *
  * Covers: closed at rest with the trigger named and collapsed; open by click, by Enter and by Space; the panel is a
  * dialog named by its title; Escape and the Close control return focus to the trigger (APG), and an outside press
- * leaves it where the cook put it; the trigger meets the 44 px target the spec sets for web; and two popovers are
+ * leaves it where the cook put it; and two popovers are
  * independent.
  */
 import { cleanup, render, screen } from '@testing-library/react';
@@ -24,6 +24,7 @@ const renderPopover = (overrides: Partial<PopoverProps> = {}): void => {
             <Popover
                 triggerLabel="About Kale"
                 triggerIcon="info"
+                triggerText="About"
                 title="Kale"
                 closeLabel="Close details for Kale"
                 {...overrides}
@@ -110,21 +111,14 @@ describe('Popover (web)', () => {
         expect(screen.getByRole('button', { name: 'Close details for Kale' }).getAttribute('type')).toBe('button');
     });
 
-    it('sizes the trigger to the 44 px web target (WCAG 2.5.8, spec §3)', () => {
-        renderPopover();
-
-        expect(trigger().className).toContain('h-11');
-        expect(trigger().className).toContain('w-11');
-    });
-
     // Slice 2: the focus ring is the `focusRing` role every design-system control draws (3:1 on paper, canvas and
     // pearl, measured in `surfaceClass.test.ts`), not the steel ring it predates; the glyph is `ink`.
-    it('draws the focusRing role on its trigger and its Close, and an ink trigger glyph', async () => {
+    it('draws the focusRing role on its trigger and its Close, and its words in the attention role', async () => {
         const user = userEvent.setup();
         renderPopover();
 
         expect(trigger().className.split(/\s+/u)).toEqual(
-            expect.arrayContaining(['text-ink', 'focus-visible:ring-focus-ring']),
+            expect.arrayContaining(['text-attention', 'focus-visible:ring-focus-ring']),
         );
 
         await user.click(trigger());
@@ -132,13 +126,6 @@ describe('Popover (web)', () => {
         expect(screen.getByRole('button', { name: 'Close details for Kale' }).className.split(/\s+/u)).toContain(
             'focus-visible:ring-focus-ring',
         );
-    });
-
-    it('hides the glyph from assistive tech: the label alone names the control', () => {
-        renderPopover({ triggerIcon: 'info' });
-
-        expect(trigger().textContent).toBe('');
-        expect(trigger().querySelector('[aria-hidden="true"]')).not.toBeNull();
     });
 
     // UI-overhaul slice 2: the glyph is a meaning from the icon Registry, so no host draws its own.
@@ -154,7 +141,13 @@ describe('Popover (web)', () => {
         const readInsets = vi.fn(() => ({ top: 0, bottom: 64 }));
         render(
             <PopupInsetsContext value={readInsets}>
-                <Popover triggerLabel="About Kale" triggerIcon="info" title="Kale" closeLabel="Close Kale">
+                <Popover
+                    triggerLabel="About Kale"
+                    triggerIcon="info"
+                    triggerText="About"
+                    title="Kale"
+                    closeLabel="Close Kale"
+                >
                     Body
                 </Popover>
             </PopupInsetsContext>,
@@ -171,7 +164,13 @@ describe('Popover (web)', () => {
         const user = userEvent.setup();
         const act = vi.fn();
         render(
-            <Popover triggerLabel="About Kale" triggerIcon="info" title="Kale" closeLabel="Close Kale">
+            <Popover
+                triggerLabel="About Kale"
+                triggerIcon="info"
+                triggerText="About"
+                title="Kale"
+                closeLabel="Close Kale"
+            >
                 {(close) => (
                     <button
                         type="button"
@@ -201,12 +200,11 @@ describe('Popover (web)', () => {
         expect(trigger().hasAttribute('disabled')).toBe(false);
     });
 
-    it('shows busy to the EYE too: the glyph gives way to a spinner in the same box (V1 sign-off 3b)', () => {
+    it('shows busy to the EYE too: the glyph gives way to a spinner (V1 sign-off 3b)', () => {
         renderPopover({ triggerIcon: 'info', busy: true });
 
-        expect(trigger().textContent).not.toContain('i');
         expect(trigger().querySelector('svg')).not.toBeNull();
-        expect(trigger().className).toContain('h-11');
+        expect(trigger().querySelector('svg.lucide-info')).toBeNull();
     });
 
     it('describes the trigger by the id it is given (the row\u2019s status word, V1 sign-off 1)', () => {
@@ -216,6 +214,7 @@ describe('Popover (web)', () => {
                 <Popover
                     triggerLabel="About Kale"
                     triggerIcon="info"
+                    triggerText="About"
                     title="Kale"
                     closeLabel="Close Kale"
                     describedBy="status-word"
@@ -232,10 +231,22 @@ describe('Popover (web)', () => {
         const user = userEvent.setup();
         render(
             <div>
-                <Popover triggerLabel="About Kale" triggerIcon="info" title="Kale" closeLabel="Close Kale">
+                <Popover
+                    triggerLabel="About Kale"
+                    triggerIcon="info"
+                    triggerText="About"
+                    title="Kale"
+                    closeLabel="Close Kale"
+                >
                     <p>Kale body</p>
                 </Popover>
-                <Popover triggerLabel="About Leek" triggerIcon="info" title="Leek" closeLabel="Close Leek">
+                <Popover
+                    triggerLabel="About Leek"
+                    triggerIcon="info"
+                    triggerText="About"
+                    title="Leek"
+                    closeLabel="Close Leek"
+                >
                     <p>Leek body</p>
                 </Popover>
             </div>,
@@ -258,6 +269,7 @@ describe('Popover (web) — a focus request', () => {
             <Popover
                 triggerLabel="About Kale"
                 triggerIcon="info"
+                triggerText="About"
                 title="Kale"
                 closeLabel="Close Kale"
                 focusRequested={focusRequested}
@@ -310,6 +322,7 @@ const DismissingHost: FC<{ readonly onDismissed: () => void }> = ({ onDismissed 
             <Popover
                 triggerLabel="About Kale"
                 triggerIcon="info"
+                triggerText="About"
                 title="Kale"
                 closeLabel="Close details for Kale"
                 onDismissed={() => {
@@ -322,6 +335,7 @@ const DismissingHost: FC<{ readonly onDismissed: () => void }> = ({ onDismissed 
             <Popover
                 triggerLabel="About Garlic"
                 triggerIcon="info"
+                triggerText="About"
                 title="Garlic"
                 closeLabel="Close details for Garlic"
                 focusRequested={requested}
@@ -386,18 +400,20 @@ describe('Popover (web) — a text trigger', () => {
         expect(button.getAttribute('aria-haspopup')).toBe('dialog');
     });
 
-    it('opens the same panel as the glyph trigger', async () => {
+    it('is at least 32 px tall, so a short word is still a target', () => {
+        renderPopover({ triggerLabel: 'Choose a match for Kale', triggerText: 'Choose a match' });
+
+        expect(screen.getByRole('button', { name: 'Choose a match for Kale' }).classList.contains('min-h-8')).toBe(
+            true,
+        );
+    });
+
+    it('opens the same panel as any trigger', async () => {
         const user = userEvent.setup();
         renderPopover({ triggerLabel: 'Choose a match for Kale', triggerText: 'Choose a match' });
 
         await user.click(screen.getByRole('button', { name: 'Choose a match for Kale' }));
 
         expect(screen.getByRole('dialog', { name: 'Kale' }).textContent).toContain('No match for this.');
-    });
-
-    it('a glyph trigger draws no words', () => {
-        renderPopover();
-
-        expect(trigger().textContent).toBe('');
     });
 });

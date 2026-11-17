@@ -12,6 +12,7 @@
  */
 import { bootServiceApp, type BootedServiceApp } from '@kitchensink/service-test-harness';
 
+import { FOOD_HTTP_SETUP } from '../../src/config/httpSetup.js';
 import { foodDb } from '../support/roleDb.js';
 
 /** Options for {@link bootFoodApp}. */
@@ -41,6 +42,7 @@ export async function bootFoodApp(options: BootFoodAppOptions): Promise<BootedSe
             CLERK_JWT_KEY: options.clerkJwtKey,
             CLERK_AUTHORIZED_PARTIES: options.authorizedParties.join(','),
         },
+        httpSetup: FOOD_HTTP_SETUP,
     });
 }
 

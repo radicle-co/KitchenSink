@@ -2,7 +2,7 @@
 
 Rules that are easy to get wrong. Read before working on this feature.
 
-- **Planned, not built. Every clarification is assumed** (spec C-1 to C-21). The name "Flow Steps" waits for the
+- **Planned, not built. Every clarification is assumed, except C-6, C-7 and C-12, which are ruled 2026-11-17** (spec C-1 to C-21). The name "Flow Steps" waits for the
   owner. A rename touches copy and `recipes.flowSteps.*` keys only. Tables (`recipe_rewritten_steps`) and the route (`/rewritten-steps`) are neutral on purpose.
 - **The writer sees the facts sheet and the source step text, for every recipe.** `buildStepPrompt(sheet, sourceSteps)`
   is arity-pinned at those two parameters and its system prompt is pinned by SHA-256. It never sees the address, the

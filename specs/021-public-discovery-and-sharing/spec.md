@@ -30,7 +30,7 @@ to the web in full. What stays private is the full copy of words the cook did no
 paid site. The paragraph above is the 2026-10-27 ruling as given.
 
 _(Amended 2026-11-15. Owner ruling, 2026-11-15, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md).)_ There are no facts cards. An imported recipe from a
-source the cook did not write goes public only as a Commise-written version: Commise rewrites the steps from the facts,
+source the cook did not write goes public only as a Commise-written version: Commise rewrites the steps from the facts and the source steps (`027-FR-035`),
 and the cook confirms it before it publishes (FR-003, FR-014). The cook's private copy keeps the source's wording and
 is never public. The Overview and Session 2026-11-15 state the rule now in force.
 
@@ -750,7 +750,7 @@ Session 2026-11-15.)_
     8. No decision under 016 removed or restricted it.
 - **FR-003** _(amended 2026-11-15. Owner ruling, 2026-11-15, ADR-0093)_: A public recipe imported from a source the
   cook did not write (a web page, a cookbook, a magazine or a paid site) MUST NOT be open to the web in the source's
-  wording. Its only public form is a **Commise-written version**: Commise rewrites the steps from the facts, and the
+  wording. Its only public form is a **Commise-written version**: Commise rewrites the steps from the facts and the source steps (`027-FR-035`), and the
   cook confirms the version before it publishes. FR-014 says what a reader sees. The version is an open recipe under
   FR-002 rule 5 and follows this spec's page, indexing and share rules. These rules hold:
     - The cook chooses Private, Public or Both at import (`004`). Both keeps the private copy and adds the version.

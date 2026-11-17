@@ -22,7 +22,7 @@ Rules that are easy to get wrong. Read before working on this feature.
 - **The page key is released** on delete, 020 rejection and opt-out (FR-034a). Hold it while a version is hidden by a report.
 - **The fingerprint key** is a Secrets Manager secret, rotation keeps old versions readable (FR-050a).
 - **The wording check runs on every save of a public version**, inside the recipe write, against the hashed fingerprint
-  in the append-only source record. The source text is never kept for it.
+  in the append-only source record. The source text is never kept for it. The job holds the source step text in `source_steps` only until it ends, so a retry sends the same text (FR-033).
 - **Publish is one transaction**: server fact check, wording check, recipe insert under the unique
   source page key. Monitoring counts public versions per source from the source records. The 020 hold still applies.
 - **Spend is operating cost** under call site `import-public-rewrite`. A ceiling denial is terminal and never

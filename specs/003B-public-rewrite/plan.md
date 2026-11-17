@@ -13,11 +13,11 @@ are to be recorded in the paste and link import ADR, owed (T004), and the featur
 At the end of an import, recipe-service classifies the source with one pure Specification: open, third-party or paid.
 An aggregator follows the third-party rules. A third-party item offers Private, Public or Both. A paid item gets the same offer under the paid-site rules
 (spec FR-017), and stays private only where they hold it back. Public and Both create one public-version job.
-A recipe-workers Lambda runs 027's step-writing engine on a facts snapshot, under its own ADR-0024 call site, and
+A recipe-workers Lambda runs 027's step-writing engine on a facts snapshot and the source step text, under its own ADR-0024 call site, and
 stores the result on the job. The cook reviews it. "Publish" is one Command. In one transaction it re-runs the fact check and the wording
 check on the server. It then writes the public recipe through the hold.
 There are no caps (owner ruling 2026-11-15). Every later save of a public version runs the wording check inside the recipe
-write, against a hashed fingerprint of the source taken at import. The source text itself is never kept for this.
+write, against a hashed fingerprint of the source taken at import. The source text itself is never kept for this check. The job keeps the source step text in `source_steps` only until it ends, so a retry sends the writer the same text.
 
 ## Technical Context
 
@@ -76,8 +76,8 @@ cost and needs no ledger.
 3. `027-FR-032`: no gate. A 027 replace never changes the rights label, and an imported recipe goes public only through 003B-FR-015's two doors. Otherwise "private copy, replace, set public" is a back door.
 4. `027-FR-044`: the banned-word list is one module both guards import (003B FR-064).
 5. `027-FR-043`: no credit key of its own for a public version of an imported recipe. 027 uses 003B's.
-6. 027's "Not stored: the facts sheet" stays true for 027. 003B stores a facts snapshot on its job until the flow
-   ends (FR-042). This is a deliberate difference, recorded in both plans.
+6. 027's "Not stored: the facts sheet" stays true for 027. 003B stores a facts snapshot and the source step text (`source_steps`) on its job until the flow
+   ends (FR-033, FR-042). This is a deliberate difference, recorded in both plans.
 
 **The title is not in the engine.** 027 never changes a title, so a title field only 003B reads is a mode flag.
 003B builds the title in code from the facts sheet (C-8). If the bake-off shows those titles read badly, 003B adds its

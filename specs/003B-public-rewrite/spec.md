@@ -55,7 +55,7 @@ ADR-0093 records, and the owed amendments in "Amendments".
 
 - **Private copy**: the recipe as imported, with the source's wording. Only its owner sees it.
 - **Public version**: a separate recipe, owned by the cook, whose steps Commise wrote from the facts of the private
-  copy. It carries the credit line (FR-060). It is what other people see.
+  copy and its source steps (`027-FR-035`). It carries the credit line (FR-060). It is what other people see.
 - **Third-party source**: a source the import detects (from structured data, a link in the paste, a file's
   `source_url`, or the cook's statement) that is not the cook's own confirmed site.
 - **Open source**: a source on the allowlist of FR-010. Its recipe can be public as it is, with its credit.
@@ -88,7 +88,7 @@ with no source photo, a new title and every amount, time and temperature from th
 3. **Given** the review step, **When** the cook taps "Show my copy", **Then** the pasted steps show beside the written
    ones, and "Hide my copy" hides them.
 4. **Given** the cook taps "Publish", **Then** the public version is saved as a public recipe, it reads "Checking"
-   (ADR-0074), and the pasted copy is not kept (FR-033).
+   (ADR-0074), and the pasted step text is cleared when the job ends (FR-033).
 5. **Given** the cook chose "Both", **Then** the private copy is saved first with the site's wording, and the public
    version is published after the review. The copy shows "See the public version". The public version shows the owner
    only "See my copy".
@@ -131,7 +131,8 @@ The cook can still keep the recipe and make a public version later.
 2. **Given** the page carries a stated AI opt-out signal, **Then** only "Save my copy" is offered, with `privateOnly.line` and no
    promise of a later public version (FR-084).
 3. **Given** the writer fails after its retry (FR-031), **Then** `failed.title` and `failed.body` show with "Try again"
-   and "Save my copy". On the Both path the private copy is already saved and the screen shows `failed.bodyBoth`.
+   and "Save my copy". On the Both path the private copy is already saved and the screen shows `failed.bodyBoth`. At
+   3 attempts "Try again" is hidden and only `failed.done` is offered.
 4. **Given** a saved private copy whose public version did not get written, **When** the cook picks "Share a public
    version" from the recipe's menu (shown to the owner of a private recipe with a source record, FR-092), **Then** the
    offer is read from the server and the review flow of User Story 1 runs from the saved copy.
@@ -174,7 +175,8 @@ refused with `blocked.bodyBoth`. A reader of the public page sees the credit, th
 1. **Given** any save of a public version's steps or title, **Then** the wording check of FR-050 runs before the save
    is accepted.
 2. **Given** the check refuses, **Then** nothing is saved, and the cook sees `blocked.body` (public path) or
-   `blocked.bodyBoth` (Both path) with "Write it again" and the path's not-now key.
+   `blocked.bodyBoth` (Both path) with "Write it again" and the path's not-now key. At 3 attempts "Write it again" is
+   hidden, and `blocked.bodyFinal` (`blocked.bodyFinalBoth` on the Both path) shows with the not-now key only.
 3. **Given** a reader, signed in or out, **Then** the page shows `credit.written`, `credit.basedOn` (free site), `review.licence` and
    `publicPage.report`, and never `editor.source.rightsLabel`.
 4. **Given** "Report a problem", **Then** the version is hidden from every reader at once and stays hidden until staff
@@ -281,16 +283,18 @@ later from its own menu. (C-6)
   decided with confidence. The server finds the language in this order:
     1. It takes the steps text and removes the ingredient-name spans, digits and units.
     2. It detects the language of each sentence and skips a sentence too short to judge.
-    3. A sentence is confidently detected when the detector's confidence is at least a stated threshold. The
-       language of the confidently detected sentences, weighted by letter count, wins when its share of those letters
-       clears a second stated threshold. A recipe that mixes languages keeps the leading language of its steps, and a
-       mix is never a refusal and never unsure. A recipe is unsure only when no language clears the threshold. Both
-       values are calibrated on the golden fixtures, mixed-language ones included (T183).
-    4. Otherwise it uses the page's declared language (the page `lang` or JSON-LD `inLanguage`, carried on the import
-       evidence as `evidence.page.language`), but only when that tag equals the detector's top candidate.
-    5. Otherwise the language is uncertain and the recipe stays Private only (`languageUncertain`).
-    6. When the language is decided, the server checks that the platform can handle it: a language profile can be
-       derived for it (027). If not, the recipe stays Private only (`languageUnsupported`).
+    3. A sentence is confidently detected when the detector's confidence is at least a stated threshold. Among the
+       confidently detected sentences, the language with the most letters wins. There is no share threshold, so a recipe
+       that mixes languages keeps its leading language, and a mix is never a refusal and never unsure. A tie in letters
+       goes to the declared tag (step 4) when it is among the tied languages, and otherwise to the language of the first
+       confident sentence. The one threshold is calibrated on the golden fixtures, mixed-language ones included (T183).
+    4. With no confidently detected sentence, it uses the page's declared language (the page `lang` or JSON-LD
+       `inLanguage`, carried on the import evidence as `evidence.page.language`), but only when that tag equals the
+       detector's top candidate for the whole text.
+    5. Otherwise the language is uncertain and the recipe stays Private only (`languageUncertain`). A recipe is
+       **unsure** when it has no confidently detected sentence and its declared tag does not equal the top candidate.
+    6. When the language is decided, the server stores it, then checks that the platform can handle it: a language
+       profile can be derived for it (027). If not, the recipe stays Private only (`languageUnsupported`).
 
     A declared tag is cut to its lower-case primary subtag, and a tag with no primary subtag of 2 or 3 letters, and
     `und`, read as no language. The result is stored on the source record (`recipe_source_records.language`, a BCP 47
@@ -369,12 +373,19 @@ later from its own menu. (C-6)
   tier sits between the deterministic tiers and server AI, and it stays optional. Built-in OCR is allowed. (C-22)
 - **FR-030b**: The writer writes each public version in the source recipe's own language. There is no translation. The
   worker gives the source record's language to the one prompt template as a parameter, and reads the language profile
-  (027) derived from it (FR-012c).
+  (027) derived from it (FR-012c). The engine also checks the output's language (`027-FR-040`): an output sentence the
+  detector confidently reads as another language refuses the result (log category `wrongLanguage`, wire `unreadable`).
+  A Spanish recipe whose steps hold a few English sentences passes. A writer that answers in English is refused.
 - **FR-031**: A model result that fails 027's checks MUST NOT be shown, stored or published. The job retries once
   automatically. A second refusal moves the job to `checkRefused` and the cook sees the failed screen. `checkRefused`
   is a resting state while fewer than 3 attempts are used: "Try again" calls the retry route and makes a third
   attempt. After the third attempt a refusal is final. A resting `checkRefused` expires to `cancelled` after 24
-  hours. (C-7)
+  hours. A job that ends `failed` (FR-082) rests the same way: "Try again" while fewer than 3 attempts are used, then
+  `cancelled` after 24 hours, and final at 3 attempts. Cancel (`failed.done`, "Save my copy") is accepted from
+  `checkRefused` and `failed`. Attempts carry over a retry and no allowance unit is spent. At 3 attempts the client
+  hides `wizard.retry` and `flag.rewrite`: the failed screen shows `failed.title`, `failed.body` and `failed.done`
+  only, and the blocked state shows `blocked.bodyFinal` (`blocked.bodyFinalBoth` on the Both path) with the path's
+  not-now key only. On `409 attemptsUsed` the client refetches the job. (C-7)
 - **FR-032**: The public version MUST hold these parts, and no photo from the source:
     - the written steps.
     - a descriptive title built by code from the facts sheet (the main foods), with no model call. It
@@ -385,8 +396,11 @@ later from its own menu. (C-6)
     It MUST NOT carry the
     source's notes, tips or description. (C-8)
 
-- **FR-033**: On the "For everyone" path the pasted text MUST NOT be kept once the public version is published or the
-  flow ends. Only the source record of FR-080 stays.
+- **FR-033**: On the "For everyone" path the pasted step text MUST be kept only in the job's `source_steps`, so a
+  retry sends the writer the same text. It MUST be cleared in the same UPDATE as `facts_snapshot` and `output` at every
+  terminal state and on cancel, and the import item's draft step text MUST be cleared in the transaction that fills
+  `source_steps` at Start. A job lives about 73 hours at most, inside ADR-0072's 30 days. Only the source record of
+  FR-080 stays.
 - **FR-034**: A source page MUST have at most one Commise-written public version at a time (ADR-0093 §2). The page is
   its normalised source address (`sourceLinkKey`, `004`). A retry or a second device of the same cook MUST return the
   same version. A later cook who chooses "For everyone" or "Both" while one holds the page is shown it (`publicExists.published`,
@@ -534,14 +548,20 @@ later from its own menu. (C-6)
     - the source's language (FR-012c).
     - the fingerprint's format version and key version. The engine version sits on the job and on the public version.
 
+    A paste with no detectable page address writes no record: `page_key` and `source_key` are NOT NULL, and that
+    recipe is Private only (FR-012a).
+
     The record is never updated. The public version points to it (one public version per record), not the other way
     round. It is the source of truth for this feature. (C-14)
 
 - **FR-081**: The writer call MUST reserve and settle against the one ADR-0024 pool under its own call site. It is
   operating cost (ADR-0024 §6 item 1), never a cook's AI use. (C-15)
 - **FR-082**: A ceiling denial MUST end the job `budgetSpent` at once, refund the reservation and never redeliver
-  (`004-FR-059` pattern). An unreadable counter or a transport failure retries. A job in `pending` or `writing` for more than 10 minutes ends
-  `failed`. (C-25)
+  (`004-FR-059` pattern). An unreadable counter or a transport failure retries: the message is not acked, and the worker re-claims the job
+  (`writing` to `writing`, no attempt spent, `state_changed_at` unchanged, `claimed_at` updated). The claim is one
+  conditional UPDATE: state `pending`, or state `writing` with `claimed_at` older than the visibility timeout, and only a
+  claim from `pending` adds an attempt. A job in `pending` or `writing` for more than 10 minutes ends `failed`, which
+  rests while fewer than 3 attempts are used (FR-031). (C-25)
 - **FR-083**: Writer calls are bounded by the site-wide spend ceiling (FR-082), one public version per source page
   (FR-034) and at most 3 attempts per job (C-7). Making a public version spends no import unit (FR-016a). There is no
   separate daily cap (C-15).
@@ -586,10 +606,10 @@ owner-approved v3 draft over v2 (staff-ux-engineer). `staff-ux-engineer` SPECIFY
 | Writing (loading)                                                                                    | `writing.title`, `writing.body`, `writing.bothSaved`, `writing.stop`, `writing.announce`                                                                                                                                                                                                                                                                                   |
 | Review                                                                                               | `review.title`, `review.body`, `review.titleLabel`, `review.titleNote`, `review.stepsHeading`, `review.compare`, `review.compareHide`, `review.oursHeading`, `review.yourCopyHeading`, `review.photoNote`, `credit.written`, `credit.basedOn` (free site only), `review.licence`, `review.publish`, `review.edit`, `review.notNow`, `review.notNowBoth` (Both path)        |
 | Flags after an edit                                                                                  | `flag.title` (ICU), `flag.step`, `flag.allergen`, `flag.added`, `flag.fix`, `flag.rewrite`                                                                                                                                                                                                                                                                                 |
-| Wording refused                                                                                      | `blocked.body` (public path) or `blocked.bodyBoth` (Both path), actions `flag.rewrite` ("Write it again"), the path's not-now key                                                                                                                                                                                                                                          |
+| Wording refused                                                                                      | `blocked.body` (public path) or `blocked.bodyBoth` (Both path), actions `flag.rewrite` ("Write it again"), the path's not-now key. At 3 attempts: `blocked.bodyFinal` (`blocked.bodyFinalBoth` on the Both path) and the not-now key only, with no `flag.rewrite`                                                                                                          |
 | Check unavailable (Publish)                                                                          | `checkUnavailable.body` (`checkUnavailable.bodyBoth` on the Both path), Publish enabled to try again, and the path's not-now key. The job stays ready.                                                                                                                                                                                                                     |
 | Check unavailable (later edit)                                                                       | The editor's ordinary retryable save error, with no new key. The edit stays in the device draft. "Keep it just for me" stays available.                                                                                                                                                                                                                                    |
-| Writer failed                                                                                        | `failed.title`, `failed.body`, `failed.bodyBoth`, `failed.done`, **reuse** `wizard.retry`                                                                                                                                                                                                                                                                                  |
+| Writer failed                                                                                        | `failed.title`, `failed.body`, `failed.bodyBoth`, `failed.done`, **reuse** `wizard.retry` (hidden at 3 attempts, when only `failed.done` is offered)                                                                                                                                                                                                                       |
 | Budget spent                                                                                         | `budget.line`, and `failed.done` on the Both path                                                                                                                                                                                                                                                                                                                          |
 | The offer changed                                                                                    | `offerChanged.line`, then the area re-renders from the new offer with nothing selected                                                                                                                                                                                                                                                                                     |
 | Private only, by reason                                                                              | One line per reason: `privateOnly.paidRecent` (with `{date}`), `privateOnly.noSteps`, `privateOnly.noSource`, `privateOnly.language`, `privateOnly.languageUnsure`, `budget.line`; `privateOnly.line` for `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, and for `paidRecent` with no date. On Free the slot line `private.hint` follows. No "later" promise |
@@ -622,7 +642,8 @@ is never charged to a cook's uses (FR-081).
 ### Measurable Outcomes
 
 - **SC-001**: In a human audit of 200 public versions, 0 drop or change an amount, time, temperature or ingredient
-  from the cook's copy.
+  from the cook's copy. The audit also counts the safety lines (`027-FR-041` categories 2 to 7) in each version and finds
+  each one kept.
 - **SC-002**: 0 public versions are published whose wording check against their source exceeds the threshold, at any
   save (measured from the source records).
 - **SC-003**: 0 public versions exist from an opted-out publisher, paid content
@@ -635,7 +656,7 @@ is never charged to a cook's uses (FR-081).
 
 ## Assumptions
 
-- The engine of 027 is good enough on facts alone. 027's bake-off measures it.
+- The engine of 027 is good enough on the facts sheet and the source step text (027-FR-035). 027's bake-off measures it.
 - The evidence record of ADR-0089 §6 is built before this feature.
 - Prices come from the store for the cook's country, formatted by `Intl`.
 - The terms of service text for the credit, the licence and "Not affiliated." is settled before the switch opens. The
@@ -691,8 +712,8 @@ Still owed:
 ### Session 2026-11-15 (speckit-clarify, no owner questions asked: each answer is the best default, "Assumed, owner to confirm")
 
 - **C-1. Facts cards?** Ruled 2026-11-15: no facts cards anywhere. Paid sources go public only as a Commise-written
-  page (FR-017). How a metered paywall is detected is assumed: page paywall markup, or a paid-list entry marked
-  metered. Owner to confirm.
+  page (FR-017). How a metered paywall is detected is assumed: page paywall markup. A paid-list entry marked
+  metered is not a clear signal on its own (FR-012, FR-012b). Owner to confirm.
 - **C-2. How is a US government work detected?** Assumed: a list of federal publisher domains kept as data. State and
   local `.gov` sites are not on it. Owner to confirm.
 - **C-3. Does a cook's "I wrote this" lift the rewrite on a detected source?** Assumed: only with a live confirmed site

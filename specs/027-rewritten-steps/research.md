@@ -37,7 +37,7 @@ Phase 0 for `plan.md`. Each item: decision, rationale, alternatives rejected.
   sentence. Refuse when either exceeds a
   threshold set from the evaluation set (start point for the bake-off: whole 0.10, per sentence 0.30. To be measured,
   not shipped as guessed). This feature fingerprints the saved steps in memory. Spec 003B stores the fingerprint of
-  an import's steps, because it keeps no source text, and runs the same functions on every save.
+  an import's steps, because it keeps no source text once its job ends, and runs the same functions on every save.
 - **Rationale**: FR-042. Same measure ADR-0074 §6 uses to confirm a 020 match, so one function serves 027's check,
   003B's stored check and 020's copy check (`wordShingles.ts`), while each feature owns its threshold
   (staff-architect). A hash cannot be recomputed later, so the format version and the key version are stored with it.

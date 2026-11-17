@@ -3,7 +3,7 @@
 **Feature Branch**: single-branch directive. The spec directory is `specs/027-rewritten-steps`. The slug is neutral on purpose, because the name below waits for the owner.
 `.specify/feature.json` is not pointed here: another session uses it.
 **Created**: 2026-11-15
-**Status**: Draft. Clarified with assumed answers (see Clarifications, C-1 to C-21, each marked "Assumed, owner to confirm" unless it says it was ruled). Planned
+**Status**: Draft. Clarified with assumed answers (see Clarifications, C-1 to C-21, each marked "Assumed, owner to confirm" unless it says it was ruled; C-6, C-7 and C-12 are ruled 2026-11-17). Planned
 (`plan.md`). Not built. Every user-facing surface needs `staff-ux-engineer` DISCOVER, DESIGN and SPECIFY before build.
 None has run.
 **Input**: Owner, 2026-11-15, verbatim: "we have a feature in the future that allows users to elect to have the
@@ -268,7 +268,10 @@ can always cook from the original steps.
       ingredients fail. A quantity ties to an ingredient only in the shape NUM [UNIT] [of [the]] NAME. A tie is exact or
       null: any other shape ties to nothing.
       Every ingredient name in the result matches the recipe's ingredient list exactly, in any script. The check works in
-      any language, because it reads digits, fractions, unit symbols and digit times and temperatures only. Verbs,
+      any language, because it reads digits, fractions, unit symbols and digit times and temperatures only.
+      The result's sentences must be in the recipe's language: a sentence the detector confidently reads as another
+      language refuses the result (log category `wrongLanguage`, wire `unreadable`). A few sentences in another language
+      inside the recipe's own language pass, and a result written wholly in another language is refused. Verbs,
       equipment, safety words and number words are not machine-checked. A safety instruction with no number, or an
       amount written as a word, is checked only by the cook's review.
       Steps may be merged, split or reordered. The step count of the result is within a range, from ⌈n/2⌉ to 2n+1
@@ -291,7 +294,7 @@ can always cook from the original steps.
   original wording (a versioned set of keyed hashes of word runs, with words cut by the platform's word segmenter), not
   on the text. Length limits are a ratio of the source's character count. The text is folded first: lower-cased,
   punctuation-stripped, stripped of default-ignorable characters (soft hyphen, zero-width space and similar), and reduced by the UTS #39 skeleton so that look-alike letters compare equal. This feature takes the fingerprint
-  in memory from the saved steps. Spec 003B stores one, because it keeps no source text. Both run the one function.
+  in memory from the saved steps. Spec 003B stores one, because it keeps no source text once its job ends. Both run the one function.
 - **FR-043**: Flow Steps MUST carry a credit line wherever they are shown:
     - attached, to the owner: "Steps written by Commise from this recipe." (key `recipes.flowSteps.credit.attached`);
     - after a replace on a public recipe the cook wrote: "Steps written by Commise with AI, checked by {cook}."
@@ -401,7 +404,8 @@ can always cook from the original steps.
 
 - **SC-001**: On the evaluation set (at least 200 real recipes of mixed length and source), 0 Flow Steps shown to a
   cook are missing or adding an amount, temperature, time or ingredient, measured by an independent
-  human audit of a 50-recipe sample as well as by the checks.
+  human audit of a 50-recipe sample as well as by the checks. The audit also counts the safety lines (FR-041 categories
+  2 to 7) in the sample and finds each one kept.
 - **SC-002**: At least 90% of requests on the evaluation set end with Flow Steps shown (the rest end in a stated
   refusal, never a silent one).
 - **SC-003**: A second request for an unchanged recipe makes no generation in 100% of cases, and shows Flow Steps in

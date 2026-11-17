@@ -313,15 +313,15 @@ Every state names its copy and key. Keys are under `importMessages.choice.*` unl
 
 One line, the slot line on Free, "Save my copy".
 
-| Reason                                                                                   | Key                          | Copy                                                                                                            |
-| ---------------------------------------------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `paidRecent` with `{date}`                                                               | `privateOnly.paidRecent`     | "This one is saved just for you. You can share a public version after {date}."                                  |
-| `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, `paidRecent` without a date | `privateOnly.line`           | `This one is saved just for you. We can't write a public version of it.`                                        |
-| `noSteps`                                                                                | `privateOnly.noSteps`        | "There are no steps to write from yet. Save it, add steps in the editor, then share a public version."          |
-| `noSourceAddress`                                                                        | `privateOnly.noSource`       | "This one is saved just for you. To share a public version, import it again from its link."                     |
-| `languageUnsupported`                                                                    | `privateOnly.language`       | "This one is saved just for you. We can’t write public versions in its language yet."                           |
-| `languageUncertain`                                                                      | `privateOnly.languageUnsure` | "This one is saved just for you. We can’t tell which language it’s in, so we can’t write a public version yet." |
-| `budget`                                                                                 | reuse `budget.line`          | `We can’t write public versions right now. Save it just for you.`                                               |
+| Reason                                                                                   | Key                          | Copy                                                                                                              |
+| ---------------------------------------------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `paidRecent` with `{date}`                                                               | `privateOnly.paidRecent`     | "This one is saved just for you. You can share a public version after {date}."                                    |
+| `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, `paidRecent` without a date | `privateOnly.line`           | `This one is saved just for you. We can't write a public version of it.`                                          |
+| `noSteps`                                                                                | `privateOnly.noSteps`        | "There are no steps to write from yet. Save it, add steps in the editor, then share a public version."            |
+| `noSourceAddress`                                                                        | `privateOnly.noSource`       | "This one is saved just for you. We can only share a public version of a recipe saved with the link to its page." |
+| `languageUnsupported`                                                                    | `privateOnly.language`       | "This one is saved just for you. We can’t write public versions in its language."                                 |
+| `languageUncertain`                                                                      | `privateOnly.languageUnsure` | "This one is saved just for you. We can’t tell which language it’s in, so we can’t write a public version of it." |
+| `budget`                                                                                 | reuse `budget.line`          | `We can’t write public versions right now. Save it just for you.`                                                 |
 
 Slot line on Free: `private.hint`. Pro: none.
 
@@ -370,15 +370,17 @@ Slot line on Free: `private.hint`. Pro: none.
 
 ### 6.8 Refused, failed and budget (B8)
 
-| State                          | Copy and keys                                                                     | Actions                                                                                           |
-| ------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Wording too close, public path | `blocked.body`                                                                    | `flag.rewrite`, `review.notNow`                                                                   |
-| Wording too close, Both        | `blocked.bodyBoth`                                                                | `flag.rewrite`, `review.notNowBoth`                                                               |
-| Check unavailable (Publish)    | `checkUnavailable.body`, `checkUnavailable.bodyBoth` on the Both path (new, §7.2) | Publish (enabled, tries again) and the path's not-now key (`review.notNow` / `review.notNowBoth`) |
-| Failed, For everyone           | `failed.title`, `failed.body`                                                     | reuse `importMessages.wizard.retry`, `button.private`. No slot: dead end                          |
-| Failed, Both                   | `failed.title`, `failed.bodyBoth`                                                 | reuse `importMessages.wizard.retry`, "Done" (`failed.done`, new)                                  |
-| Budget spent during the flow   | `budget.line`                                                                     | `button.private`. Both: "Done" (`failed.done`)                                                    |
-| The offer changed (409)        | `offerChanged.line` (new, §7.2)                                                   | "Continue"                                                                                        |
+| State                                      | Copy and keys                                                                     | Actions                                                                                                                        |
+| ------------------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Wording too close, public path             | `blocked.body`                                                                    | `flag.rewrite`, `review.notNow`                                                                                                |
+| Wording too close, public path, 3 attempts | `blocked.bodyFinal` (new, copy pending designer review)                           | `review.notNow` only. No `flag.rewrite`                                                                                        |
+| Wording too close, Both                    | `blocked.bodyBoth`                                                                | `flag.rewrite`, `review.notNowBoth`                                                                                            |
+| Wording too close, Both, 3 attempts        | `blocked.bodyFinalBoth` (new, copy pending designer review)                       | `review.notNowBoth` only. No `flag.rewrite`                                                                                    |
+| Check unavailable (Publish)                | `checkUnavailable.body`, `checkUnavailable.bodyBoth` on the Both path (new, §7.2) | Publish (enabled, tries again) and the path's not-now key (`review.notNow` / `review.notNowBoth`)                              |
+| Failed, For everyone                       | `failed.title`, `failed.body`                                                     | reuse `importMessages.wizard.retry`, `button.private`. No slot: dead end. At 3 attempts: `failed.done` only, no `wizard.retry` |
+| Failed, Both                               | `failed.title`, `failed.bodyBoth`                                                 | reuse `importMessages.wizard.retry`, "Done" (`failed.done`, new). At 3 attempts: "Done" only, no `wizard.retry`                |
+| Budget spent during the flow               | `budget.line`                                                                     | `button.private`. Both: "Done" (`failed.done`)                                                                                 |
+| The offer changed (409)                    | `offerChanged.line` (new, §7.2)                                                   | "Continue"                                                                                                                     |
 
 Every one of these is `role="alert"`, and focus moves to the screen's heading or the alert.
 
@@ -419,6 +421,8 @@ exclamation marks, no reason clauses, and none of the banned words (one list, `b
 | `checkUnavailable.bodyBoth` | "We can’t check this version right now. Your copy is saved. Try again in a moment, or share it later from the recipe." | B8     |
 | `flag.added`                | "Your edit adds “{line}”, which isn’t in the recipe you saved. Take it out in Edit steps, or let us write it again."   | B7     |
 | `failed.done`               | "Done"                                                                                                                 | B8     |
+| `blocked.bodyFinal`         | "We can’t publish this version, and we can’t write it again. Keep it just for you." (copy pending designer review)     | B8     |
+| `blocked.bodyFinalBoth`     | "We can’t publish this version, and we can’t write it again. Your copy is saved." (copy pending designer review)       | B8     |
 | `offerChanged.line`         | "Something changed since you chose. Have a look and pick again."                                                       | B1, B8 |
 
 ### 7.3 Reused keys

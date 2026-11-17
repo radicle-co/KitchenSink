@@ -97,7 +97,9 @@ same paid-site rules.
 
 `GET /api/v1/public-version-jobs/{jobId}` →
 `{ state, attempts, output?: { title, steps: { text }[] }, refusal?: 'factMissing' | 'factAdded' | 'tooSimilar' | 'unreadable' }`.
-The output is present only in `ready`. It holds no source text.
+The output is present only in `ready`. It holds no source text, and the job's `source_steps` is never returned.
+The client reads `attempts` to decide which actions to show: at `attempts === 3` it hides `wizard.retry` and
+`flag.rewrite` (FR-031).
 
 ## Publish
 
@@ -129,17 +131,20 @@ The output is present only in `ready`. It holds no source text.
 ## Retry
 
 `POST /api/v1/public-version-jobs/{jobId}/retry` → `202 { state: 'pending' }`. It serves "Write it again" (job `ready`
-after `422 flags`, `422 tooSimilar` or `409 privateCopyChanged`) and "Try again" (job `checkRefused`), while fewer than
-3 attempts are used.
+after `422 flags`, `422 tooSimilar` or `409 privateCopyChanged`) and "Try again" (job `checkRefused` or `failed`), while
+fewer than 3 attempts are used. Attempts carry over and no allowance unit is spent.
 
-- `409 { code: 'attemptsUsed' }` at 3 attempts.
+- `409 { code: 'attemptsUsed' }` at 3 attempts. The client refetches the job (`GET`) and re-renders from its state and
+  attempts.
 - `409 { code: 'publicExists', recipeId }` when re-entering `pending` collides with another cook's live job on the page.
-- After `privateCopyChanged` it rebuilds the facts snapshot and private digest from the changed private copy.
-- A job in any other state answers `409 { code: 'notRetryable' }`.
+- After `privateCopyChanged` it rebuilds the facts snapshot, the source steps and the private digest from the changed private copy.
+- A job in `pending`, `writing`, `published`, `cancelled` or `budgetSpent` answers `409 { code: 'notRetryable' }`.
 
 ## Cancel
 
-`POST /api/v1/public-version-jobs/{jobId}/cancel` → `200 { state: 'cancelled' }`. Idempotent.
+`POST /api/v1/public-version-jobs/{jobId}/cancel` → `200 { state: 'cancelled' }`. Idempotent. It is accepted from
+`pending`, `writing`, `ready`, `checkRefused` and `failed` (the failed screen's "Done" and "Save my copy"), and it clears
+`facts_snapshot`, `source_steps` and `output` in the same UPDATE.
 
 ## Recipe writes
 

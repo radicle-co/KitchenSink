@@ -1,7 +1,7 @@
 # Implementation Plan: Flow Steps (rewritten recipe steps)
 
 **Branch**: single-branch directive | **Date**: 2026-11-15 | **Spec**: [spec.md](./spec.md)
-**Input**: `specs/027-rewritten-steps/spec.md`. Every clarification there is assumed and waits for the owner.
+**Input**: `specs/027-rewritten-steps/spec.md`. Every clarification there is assumed and waits for the owner, except C-6, C-7 and C-12, which are ruled (2026-11-17).
 
 **Status**: Planned, not built. `staff-architect` PLANNING ran on 2026-11-15 (opus) and its pattern register is folded
 in below. BLUEPRINT, `staff-ux-engineer` DISCOVER/DESIGN/SPECIFY and the ADR are owed before any code.

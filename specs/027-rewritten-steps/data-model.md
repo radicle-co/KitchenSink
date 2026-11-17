@@ -70,4 +70,4 @@ deletion.
 
 ## Not stored
 
-The facts sheet, the prompt and the model's raw answer. (Spec 003B differs on purpose: its job keeps a facts snapshot until a terminal state, because Publish re-checks it. See 003B data-model.) Logs carry outcome and refusal category only (FR-066).
+The facts sheet, the prompt and the model's raw answer. (Spec 003B differs on purpose: its job keeps a facts snapshot and the source step text (`source_steps`) until a terminal state, because Publish re-checks the first and a retry resends the second. See 003B data-model.) Logs carry outcome and refusal category only (FR-066).

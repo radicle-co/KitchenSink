@@ -26,28 +26,29 @@ in `erasureSweepCoverage`'s `RETAINED_BY_RULING` map with this reason.
 | `title_hash`              | bigint NOT NULL      | Keyed hash of the normalised source title.                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `page_key`                | text NOT NULL        | The normalised source address, `sourceLinkKey(url)` (`004`), as text. For a page with no date, the paid hold reads the earliest `recorded_at` per page (FR-017). Indexed.                                                                                                                                                                                                                                                                         |
 | `published_on`            | date NULL            | The page's own publication date, where its data states one.                                                                                                                                                                                                                                                                                                                                                                                       |
-| `language`                | text NULL            | BCP 47 primary subtag of the source's language (2 or 3 lower-case letters), set at the import save (FR-012c). NULL when the language could not be decided with confidence (`languageUncertain`). A code the platform cannot handle is stored as detected, and the offer reads it as `languageUnsupported` when no language profile exists for it. A CHECK allows only `^[a-z]{2,3}$`.                                                             |
+| `language`                | text NULL            | BCP 47 primary subtag of the source's language (2 or 3 lower-case letters), set at the import save (FR-012c). NULL when the language could not be decided with confidence (`languageUncertain`). A decided language the platform cannot handle is still stored as decided (FR-012c step 6), and the offer reads it as `languageUnsupported` when no language profile exists for it. A CHECK allows only `^[a-z]{2,3}$`.                           |
 | `recorded_at`             | timestamptz NOT NULL |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 Append-only for every role, by trigger, as the evidence record of ADR-0089 §6 does. No UPDATE, no DELETE except the retention purge. Indexes: `page_key` and `evidence_id`.
 
 ## `public_version_jobs`
 
-| Column                                                        | Type              | Rule                                                                                                                                |
-| ------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                                                          | uuid PK           |                                                                                                                                     |
-| `source_record_id`                                            | uuid NOT NULL     | FK `recipe_source_records`.                                                                                                         |
-| `page_key`                                                    | text NOT NULL     | Copied from the source record. One live job per page, across cooks (FR-034).                                                        |
-| `user_id`                                                     | id NOT NULL       | The requester. 404 for anyone else.                                                                                                 |
-| `import_item_id`                                              | uuid NULL         | Set on the import path. NULL on the later route.                                                                                    |
-| `private_recipe_id`                                           | uuid NULL         | The Both path and the later route. FK `recipes` ON DELETE SET NULL.                                                                 |
-| `private_digest`                                              | char(64) NULL     | Digest of the private copy at writing time (FR-045). Set on the Both path and on the later route.                                   |
-| `state`                                                       | text NOT NULL     | CHECK in (`pending`, `writing`, `ready`, `checkRefused`, `budgetSpent`, `failed`, `cancelled`, `published`).                        |
-| `attempts`                                                    | smallint NOT NULL | 0 to 3 (C-7). Each claim from `pending` to `writing` adds one.                                                                      |
-| `engine_version`                                              | text NULL         | `{modelId}#{promptSha256}` of the call that wrote the output. Copied to the public version at Publish.                              |
-| `facts_snapshot`                                              | jsonb NULL        | The facts sheet from import (or, on the later route, from the private copy). Cleared only on entering a terminal state (see below). |
-| `output`                                                      | jsonb NULL        | `{ title, steps[] }` from the writer and the title builder. Cleared only on entering a terminal state.                              |
-| `created_at`, `claimed_at`, `state_changed_at`, `finished_at` | timestamptz       | `state_changed_at` is set on every transition and starts every expiry window below. `finished_at` set iff terminal.                 |
+| Column                                                        | Type              | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`                                                          | uuid PK           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `source_record_id`                                            | uuid NOT NULL     | FK `recipe_source_records`.                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `page_key`                                                    | text NOT NULL     | Copied from the source record. One live job per page, across cooks (FR-034).                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `user_id`                                                     | id NOT NULL       | The requester. 404 for anyone else.                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `import_item_id`                                              | uuid NULL         | Set on the import path. NULL on the later route.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `private_recipe_id`                                           | uuid NULL         | The Both path and the later route. FK `recipes` ON DELETE SET NULL.                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `private_digest`                                              | char(64) NULL     | Digest of the private copy at writing time (FR-045). Set on the Both path and on the later route.                                                                                                                                                                                                                                                                                                                                                                                    |
+| `state`                                                       | text NOT NULL     | CHECK in (`pending`, `writing`, `ready`, `checkRefused`, `budgetSpent`, `failed`, `cancelled`, `published`).                                                                                                                                                                                                                                                                                                                                                                         |
+| `attempts`                                                    | smallint NOT NULL | 0 to 3 (C-7). Each claim from `pending` to `writing` adds one.                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `engine_version`                                              | text NULL         | `{modelId}#{promptSha256}` of the call that wrote the output. Copied to the public version at Publish.                                                                                                                                                                                                                                                                                                                                                                               |
+| `facts_snapshot`                                              | jsonb NULL        | The facts sheet from import (or, on the later route, from the private copy). Cleared only on entering a terminal state (see below).                                                                                                                                                                                                                                                                                                                                                  |
+| `source_steps`                                                | jsonb NULL        | `{ text }[]`: the source step text the writer reads (FR-030, `027-FR-035`). A Snapshot beside `facts_snapshot`, filled at Start from the same read: on the public path from the import item's parsed steps, on the Both path and the later route from the private copy's steps. Rebuilt with `facts_snapshot` on `privateCopyChanged`. Cleared in the same UPDATE as `facts_snapshot` and `output` at every terminal state and on cancel. Never returned by a read and never logged. |
+| `output`                                                      | jsonb NULL        | `{ title, steps[] }` from the writer and the title builder. Cleared only on entering a terminal state.                                                                                                                                                                                                                                                                                                                                                                               |
+| `created_at`, `claimed_at`, `state_changed_at`, `finished_at` | timestamptz       | `state_changed_at` is set on every transition and starts every expiry window below. `finished_at` set iff terminal.                                                                                                                                                                                                                                                                                                                                                                  |
 
 Indexes:
 
@@ -56,7 +57,7 @@ Indexes:
 
 Every expiry counts from `state_changed_at`, so a retry starts a fresh window. A job expires lazily, in the data layer, in the same transaction before an insert and again on every read: a job in
 `pending` or `writing` for more than 10 minutes becomes `failed`, and a job in `ready` for more than 24 hours becomes
-`cancelled`, and so is a resting `checkRefused` (fewer than 3 attempts) after 24 hours. No timer process is needed, and a job nobody reads cannot hold its page key past the next insert for that page.
+`cancelled`, and so is a resting `checkRefused` or a resting `failed` (fewer than 3 attempts) after 24 hours. A job lives about 73 hours at most (3 attempts, each a 10-minute window plus a 24-hour rest), inside the 30 days of ADR-0072, which is the longest that `source_steps` is kept. No timer process is needed, and a job nobody reads cannot hold its page key past the next insert for that page.
 
 Finished jobs are deleted 7 days after `finished_at` by the existing retention sweeper. The table is user-keyed: add it
 to `erasureSweepCoverage` and to the test-principal purge.
@@ -65,28 +66,41 @@ to `erasureSweepCoverage` and to the test-principal purge.
 
 ```text
 pending ──claimed by worker──────────────▶ writing         (attempts + 1)
+writing ──re-claim after a transport failure──▶ writing    (no attempt spent, state_changed_at unchanged, claimed_at updated)
 writing ──engine ok──────────────────────▶ ready           (output stored, reservation settled)
 writing ──check refused, attempts < 2────▶ pending         (automatic retry)
 writing ──check refused, attempts >= 2───▶ checkRefused    (rests while attempts < 3, terminal at 3)
 writing ──ceiling denial─────────────────▶ budgetSpent     (refund, ack, never redelivered)
 pending|writing ──Stop───────────────────▶ cancelled       (a late result is dropped: writes need state IN pending, writing)
-pending|writing ──10 min / maxReceive────▶ failed
+pending|writing ──10 min / maxReceive────▶ failed          (rests while attempts < 3, terminal at 3)
 ready ──Publish (server re-checks pass)──▶ published       (same transaction as the recipe insert)
 ready ──Not now / 24 h───────────────────▶ cancelled
 ready ──"Write it again" (422 flags, 422 tooSimilar, 409 privateCopyChanged)──▶ pending   (attempts < 3)
 checkRefused ──"Try again"───────────────▶ pending         (attempts < 3)
 checkRefused ──24 h (attempts < 3)───────▶ cancelled
+failed ──"Try again"────────────────────▶ pending         (attempts < 3)
+failed ──24 h (attempts < 3)─────────────▶ cancelled
+checkRefused|failed ──cancel (failed.done, "Save my copy")──▶ cancelled
 ```
 
 Rules:
 
-- The retry route (`POST /api/v1/public-version-jobs/{jobId}/retry`) makes both `ready` to `pending` and
-  `checkRefused` to `pending`. It answers `409 attemptsUsed` at 3 attempts. Re-entering `pending` meets the partial
-  unique index, and a collision answers `409 publicExists`.
-- After `privateCopyChanged` the re-entry rebuilds `facts_snapshot` and `private_digest` from the changed private copy.
+- The retry route (`POST /api/v1/public-version-jobs/{jobId}/retry`) makes `ready`, `checkRefused` and `failed` to
+  `pending`. It answers `409 attemptsUsed` at 3 attempts. Re-entering `pending` meets the partial
+  unique index, and a collision answers `409 publicExists`. A job in `pending`, `writing`, `published`, `cancelled` or
+  `budgetSpent` answers `409 notRetryable`. Attempts carry over a retry, and a retry spends no allowance unit.
+- `failed` rests like `checkRefused`: it keeps `facts_snapshot`, `source_steps` and `output` while attempts < 3, can be
+  retried or cancelled, expires to `cancelled` after 24 hours, and is final at 3 attempts. The cancel route accepts
+  `checkRefused` and `failed`, and clears the snapshots in the same UPDATE.
+- The claim is one conditional UPDATE: state `pending`, or state `writing` with `claimed_at` older than the visibility
+  timeout. Only a claim from `pending` adds an attempt. A transport failure is not acked, so the message returns and the
+  re-claim `writing` to `writing` spends no attempt and leaves `state_changed_at` alone, so the 10-minute window is not
+  extended.
+- After `privateCopyChanged` the re-entry rebuilds `facts_snapshot`, `source_steps` and `private_digest` from the changed private copy.
 - A Publish that answers `503 checkUnavailable` leaves the job `ready` and spends no attempt.
-- `facts_snapshot` and `output` are cleared only on entering a terminal state: `published`, `cancelled`, `failed`,
-  `budgetSpent`, or `checkRefused` at 3 attempts. They are kept while "Write it again" or "Try again" can still happen.
+- `facts_snapshot`, `source_steps` and `output` are cleared only on entering a terminal state: `published`,
+  `cancelled`, `budgetSpent`, `failed` at 3 attempts, or `checkRefused` at 3 attempts. They are kept while "Write it
+  again" or "Try again" can still happen.
 - Every pair of states that this list does not name is refused.
 
 ## Columns on existing tables
@@ -125,10 +139,10 @@ row is written. Recipe-service holds no age data. `clerk-verify` parses the clai
 
 ## Source evidence retained
 
-ADR-0089 §6's evidence record holds no source steps, and this feature keeps no source text of its own. Keys are never
+ADR-0089 §6's evidence record holds no source steps. This feature keeps source step text only in `public_version_jobs.source_steps`, while the job lives (about 73 hours at most), so a retry sends the writer the same text. The source record keeps hashes only. Keys are never
 deleted, so a missing key version is an operator fault. A later save then answers `503 checkUnavailable` and raises an
 alarm, and Publish answers the same `503`, leaving the job `ready` (FR-050a).
 
 ## Not stored
 
-The source steps and title text. The prompt. The model's raw answer. Logs carry outcome and refusal category only.
+The source steps and title text, once the job has ended (`source_steps` is NULL at every terminal state and on cancel). The prompt. The model's raw answer. Logs carry outcome and refusal category only.

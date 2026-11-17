@@ -10,7 +10,8 @@
  * The panel flips and shifts to stay on screen (`collisionPadding`), so at 320 px it never causes horizontal scroll, and
  * it keeps clear of the page's own chrome by reading the `PopupInsetsContext` reader as it opens (finding D2).
  *
- * - The trigger is 44 × 44 px (spec §3, 2.5.8) and its glyph is `aria-hidden`: `triggerLabel` alone names it.
+ * - The trigger is the attention line, at least 32 px tall (2.5.8 asks 24). Its glyph is `aria-hidden`, and
+ *   `triggerLabel` names it and contains the visible words.
  * - ⛔ No transition classes: the panel appears and disappears without motion, so `prefers-reduced-motion` has
  *   nothing to suppress.
  * - `'use client'`: it holds its open state, and the feature leaf that renders it is reachable from App Router

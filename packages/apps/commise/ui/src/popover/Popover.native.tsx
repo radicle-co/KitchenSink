@@ -5,8 +5,8 @@
  * A phone has no room to anchor a panel beside a row, so the job is kept and the mechanism moves to a bottom sheet
  * (`ingredientStatusExplanation.md` §8e "moved"). Opened by a tap, never a long-press or hover (plan 002 R32).
  *
- * - The trigger is a `button` with `aria-expanded` (RN's alias for `accessibilityState.expanded`), 48 × 48 dp (spec §3, 2.5.8); its glyph is hidden
- *   from assistive tech, so `triggerLabel` alone names it.
+ * - The trigger is a `button` with `aria-expanded` (RN's alias for `accessibilityState.expanded`), at least 48 dp tall
+ *   (spec §3, 2.5.8); its glyph is hidden from assistive tech, so `triggerLabel` alone names it.
  * - The `Sheet` moves the screen-reader cursor to its title when it shows, and leaves the return to its host because
  *   React Native cannot read where the cursor was. This leaf is that host: each close advances a counter, and
  *   `useScreenReaderFocusOnSignal` moves the cursor back to the trigger.

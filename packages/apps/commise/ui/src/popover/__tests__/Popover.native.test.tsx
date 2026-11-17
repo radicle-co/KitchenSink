@@ -2,7 +2,7 @@
  * Popover (native) — the design-system disclosure panel, which on a phone is a bottom sheet
  * (`@commise/ui/sheet`) opened by a TAP (`docs/design/ingredientStatusExplanation.md` §8e "moved", plan 002 R32).
  *
- * Covers: closed at rest with the trigger named, a button, collapsed and 48 dp square; a tap opens the sheet titled by
+ * Covers: closed at rest with the trigger named, a button, collapsed and 48 dp tall; a tap opens the sheet titled by
  * `title`; Close dismisses it; and on close the SCREEN-READER cursor returns to the trigger, because the sheet leaves
  * focus return to its host (`Sheet.native.tsx`) and React Native cannot read where the cursor was.
  *
@@ -58,11 +58,10 @@ describe('Popover (native)', () => {
         expect(screen.queryByRole('heading', { name: 'Kale' })).toBeNull();
     });
 
-    it('meets the 48 dp native target (spec §3, 2.5.8)', () => {
+    it('the text trigger meets the 48 dp native height (spec §3, 2.5.8)', () => {
         renderPopover();
         const style = getComputedStyle(trigger());
 
-        expect(Number.parseFloat(style.minWidth)).toBeGreaterThanOrEqual(48);
         expect(Number.parseFloat(style.minHeight)).toBeGreaterThanOrEqual(48);
     });
 

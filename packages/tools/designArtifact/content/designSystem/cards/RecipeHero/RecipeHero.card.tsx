@@ -28,19 +28,19 @@ const photos = [
     createdAt: '2026-10-01T12:00:00.000Z',
 }));
 
-function overlay({
-    HeroButton,
-    ActionMenu,
-}: CardUi<'HeroButton' | 'ActionMenu'> | NativeCardUi<'HeroButton' | 'ActionMenu'>) {
+function overlay(
+    { HeroButton, ActionMenu }: CardUi<'HeroButton' | 'ActionMenu'> | NativeCardUi<'HeroButton' | 'ActionMenu'>,
+    title: string,
+) {
     return [
         <HeroButton key="b" icon="chevronLeft" label="Back" onPress={noop} />,
         <ActionMenu
             key="m"
             appearance="disc"
-            triggerLabel="Recipe actions"
-            title="Recipe"
-            closeLabel="Close"
-            items={[{ id: 'share', label: 'Share', onSelect: noop }]}
+            triggerLabel={`More actions for ${title}`}
+            title="More actions"
+            closeLabel="Close more actions"
+            items={[{ id: 'clearChecks', label: 'Clear checks', icon: 'rotateCcw', onSelect: noop }]}
         />,
     ];
 }
@@ -53,8 +53,16 @@ export default defineCard({
     staging: { phoneViewport: true },
     render: ({ RecipeHero, HeroButton, ActionMenu }) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
-            <RecipeHero title="Lemon ricotta pancakes" photos={photos} overlay={overlay({ HeroButton, ActionMenu })} />
-            <RecipeHero title="Weeknight pad thai" photos={[]} overlay={overlay({ HeroButton, ActionMenu })} />
+            <RecipeHero
+                title="Lemon ricotta pancakes"
+                photos={photos}
+                overlay={overlay({ HeroButton, ActionMenu }, 'Lemon ricotta pancakes')}
+            />
+            <RecipeHero
+                title="Weeknight pad thai"
+                photos={[]}
+                overlay={overlay({ HeroButton, ActionMenu }, 'Weeknight pad thai')}
+            />
         </div>
     ),
     // The native HeroButton takes `ref` as a plain prop, so its component type differs from the web one.
@@ -64,8 +72,16 @@ export default defineCard({
         ActionMenu,
     }: NativeCardUi<'RecipeHero' | 'HeroButton' | 'ActionMenu'>) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
-            <RecipeHero title="Lemon ricotta pancakes" photos={photos} overlay={overlay({ HeroButton, ActionMenu })} />
-            <RecipeHero title="Weeknight pad thai" photos={[]} overlay={overlay({ HeroButton, ActionMenu })} />
+            <RecipeHero
+                title="Lemon ricotta pancakes"
+                photos={photos}
+                overlay={overlay({ HeroButton, ActionMenu }, 'Lemon ricotta pancakes')}
+            />
+            <RecipeHero
+                title="Weeknight pad thai"
+                photos={[]}
+                overlay={overlay({ HeroButton, ActionMenu }, 'Weeknight pad thai')}
+            />
         </div>
     ),
 });

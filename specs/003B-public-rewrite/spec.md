@@ -283,8 +283,8 @@ later from its own menu. (C-6)
   `clerk-verify` parses from the signed `public_metadata.ageFloorMet` claim. The claim is the integer `16`. Any other
   value, or none, reads as not met. The client then shows the age question (`ageConfirm.*`, wording `ageConfirm.v1`). On
   "I'm 16 or over" it calls identity's age assurance route (FR-016b), refreshes the token, and retries Publish once. A
-  second `403` shows an error and never loops. "Not now" follows the public-version design spec (§6.10): it closes the
-  dialog, publishes nothing and returns the cook to the review screen. The job stays ready until it expires as usual,
+  second `403` shows an error and never loops. "Not now" (`ageConfirm.notNow`, the same size as the confirm button) closes the
+  dialog, publishes nothing, returns focus to Publish and returns the cook to the review screen. The job stays ready until it expires as usual,
   and the cook can still take the normal private exit from review (`review.notNow`, FR-044). Nothing is saved
   automatically. Spec 016's stronger age assurance replaces this later. (C-17)
 - **FR-016a**: Each recipe this feature saves or publishes spends the one shared import allowance (ADR-0072 §8,
@@ -402,6 +402,10 @@ later from its own menu. (C-6)
   (ADR-0074, ADR-0082 §8). The written steps never skip it.
 - **FR-052**: A later edit by the cook is allowed, and the fact check is not re-run after publish. The edit is under the
   same licence (FR-062).
+- **FR-053**: Every save of cook-typed public text MUST refuse the raw text, before any fold or other normalisation,
+  when it contains a bidirectional control: U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F or U+061C. This covers
+  the cook's own rewrite of door two ("Adapted by you", FR-015), an edit under FR-050 or FR-052, and a title. The save
+  is refused with `blocked.body`. A reversed step wrapped in U+202E is refused.
 
 #### G. Credit, label and licence
 
@@ -518,7 +522,7 @@ owner-approved v3 draft over v2 (staff-ux-engineer). `staff-ux-engineer` SPECIFY
 | Success                                                                                              | `done.private`, `done.public`, `done.both`, **reuse** `saved`, `savedPublic`                                                                                                                                                                                                                                                       |
 | Links between the two recipes                                                                        | `done.linkPublic`, `done.linkPrivate`                                                                                                                                                                                                                                                                                              |
 | Later route                                                                                          | `later.action` ("Share a public version"), shown by FR-092; the offer decides the next screen. While the offer loads, a spinner replaces the glyph. If the offer fetch fails: `later.failed` with `failed.done`                                                                                                                    |
-| Age question (after `403 ageConfirmNeeded` at Publish; a second `403` shows **reuse** `failed.body`) | `ageConfirm.title`, `ageConfirm.body`, `ageConfirm.yes`, `ageConfirm.notNow`, recorded as `ageConfirm.v1`                                                                                                                                                                                                                          |
+| Age question (after `403 ageConfirmNeeded` at Publish; a second `403` shows **reuse** `failed.body`) | `ageConfirm.title` ("Before you publish"), `ageConfirm.body` ("Publishing on Commise is for people 16 or over."), `ageConfirm.yes` ("I’m 16 or over"), `ageConfirm.notNow` ("Not now"; same size as the confirm button, closes the dialog, publishes nothing, returns focus to Publish), recorded as `ageConfirm.v1`               |
 | Public page                                                                                          | `credit.written`, `credit.basedOn` (free site), `review.licence`, `publicPage.report`                                                                                                                                                                                                                                              |
 
 The strings are in `research.md` R8, the single source of the copy. The `budget.allowance` variant of the draft is not used: the writer

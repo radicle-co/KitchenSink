@@ -15,7 +15,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
   state gets a vitest component test. Every user story gets a Playwright spec (web) and a Maestro flow (mobile).
 - **Run only impacted e2e.** Use `npm run e2e:plan -- --base origin/main` and the root doors (`test:e2e:web`,
   `test:e2e:mobile`). Never start `playwright test` or `maestro test` by hand.
-- **Format**: `- [ ] Tnnn {slice} [P?] [Story?] Description with path`. The `{slice}` tag names the PR the task ships in: A1 to A7 (engine), B1 to B5 (paste and link import), P0 to P10 (server), P3b (age assurance), P11 (editor routes, after #322), D0 (docs and ADRs), C2a and C2b (paste screens), U0a, U0b and U1 to U7 (choice UI), L0 and L1 (seed and launch) and L2 (after launch). `done` marks work already in the tree. `[P]` means a different file with no open dependency.
+- **Format**: `- [ ] Tnnn {slice} [P?] [Story?] Description with path`. The `{slice}` tag names the PR the task ships in: A1 to A7 (engine), B1 to B5 (paste and link import), P0 to P10 (server), P3b (age assurance), P12 (input door), P11 (editor routes, after #322), D0 (docs and ADRs), C2a and C2b (paste screens), U0a, U0b and U1 to U7 (choice UI), L0 and L1 (seed and launch) and L2 (after launch). `done` marks work already in the tree. `[P]` means a different file with no open dependency.
 - **Owner rulings that override the docs**: no Anthropic model anywhere (Bedrock non-Anthropic only); no facts cards;
   no caps of any kind; a link import fetches on the device first and the server second, and the server never fetches
   a known paid site (the cook is asked to paste); one public version per source page; one import allowance for every
@@ -211,9 +211,16 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 - [ ] T138 {P3b} Implement `publishAgeAllowed` in `RS/recipes/domain/publishAgeAllowed.ts` (pure) and call it at Publish.
 - [ ] T139 {P3b} Service e2e (deployed preview, skips when the sandbox is down): Publish without the claim answers `403`, the age route sets the claim, the retried Publish succeeds.
 - [ ] T140 {P3b} k6 scenario for the age assurance route. Hand-run only; add no automatic trigger.
-- [ ] T141 {U2-U5} [US1] Client: on `403 ageConfirmNeeded` show `ageConfirm.*`; on "I'm 16 or over" call identity, `getToken({ skipCache: true })` (mobile: `commise-native` template), retry Publish once; a second `403` shows an error. "Not now" closes the dialog, publishes nothing and returns the cook to the review screen, where the job stays ready and the normal private exit (`review.notNow`) still works; nothing is saved automatically (design spec §6.10). Component tests, Playwright and Maestro first.
+- [ ] T141 {U2-U5} [US1] Client: on `403 ageConfirmNeeded` show `ageConfirm.*`; on "I'm 16 or over" call identity, `getToken({ skipCache: true })` (mobile: `commise-native` template), retry Publish once; a second `403` shows an error. "Not now" (same size as the confirm button) closes the dialog, publishes nothing, returns focus to Publish and returns the cook to the review screen, where the job stays ready and the normal private exit (`review.notNow`) still works; nothing is saved automatically. Component tests, Playwright and Maestro first.
 - [ ] T142 {P11} After PR #322: the editor's make-public and set-visibility routes adopt `publishAgeAllowed`, so those two routes are gated too (FR-016). Integration test first.
 - [ ] T143 {P3b} [P] Unit test first, then implement: `@kitchensink/clerk-verify` and recipe-service `auth/principal.ts` parse the signed `public_metadata.ageFloorMet` claim into the `Principal` field `publishAgeMet`; a missing claim, or any value other than the integer `16`, reads false.
+
+## Phase 6c: Input door for cook-typed public text
+
+- [ ] T160 {P12} [P] Unit test (fail first): the input door refuses raw text containing any of U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F or U+061C, and accepts text without them; a reversed step wrapped in U+202E is refused, and the check runs before any fold (FR-053), in `RS/recipes/domain/__tests__/bidiControlsRefused.test.ts`.
+- [ ] T161 {P12} [P] Integration test (database mocked): a save of a title, a door-two rewrite, and an edit and a restore under FR-050 and FR-052 each answer the `blocked.body` refusal when the text has a bidi control, and no row is written, in `RS/recipes/tests/bidiControlsRefused.integration.test.ts`.
+- [ ] T162 {P12} Implement the check as one pure predicate in `RS/recipes/domain/bidiControlsRefused.ts`, called inside the recipe write ahead of the fingerprint fold, for steps and titles (FR-053).
+- [ ] T163 {P12} blocked: owner ruling. Look-alike letters in cook-typed public text are not covered by FR-053. Swapping one Cyrillic letter, or using ı, ɑ or ɡ, makes a copy score 0 on the wording check. The fix is a letter allowlist at the same input door. Tracked here until the owner rules on the allowed letters; write no code for it before then.
 
 ## Phase 7: Clients and UI (web and mobile together)
 

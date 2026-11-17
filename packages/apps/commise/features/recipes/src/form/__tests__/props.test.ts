@@ -1370,7 +1370,7 @@ describe('visibilityFieldOf', () => {
             expect(model.shown).toBe(RecipeVisibility.PRIVATE);
         });
 
-        it('keeps the web-copy note for a draft that still holds a link, and the plain note for a book or a paid site', () => {
+        it('says the one source note for a draft that still holds a link, and the plain note for a book or a paid site', () => {
             const privateOnly: RecipePrivateFacts = {
                 rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC, 'public_web'),
                 standing: OPEN,
@@ -1379,7 +1379,7 @@ describe('visibilityFieldOf', () => {
 
             expect(
                 publicCard(visibilityFieldOf({ ...base, facts: privateOnly, webSource: true, publicHeld: true })).note,
-            ).toBe(v.publicRefusedWebSource);
+            ).toBe(v.publicHeldBySource);
             expect(publicCard(visibilityFieldOf({ ...base, facts: privateOnly, publicHeld: true })).note).toBe(
                 v.publicRefused,
             );

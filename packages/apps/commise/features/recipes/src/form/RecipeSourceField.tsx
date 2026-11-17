@@ -25,14 +25,7 @@ import { describedByOf, sourceFieldId } from './fieldIds.js';
 import type { RecipeSourceFieldProps } from './sourceFieldProps.js';
 
 /** The Source row. */
-export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({
-    row,
-    onChange,
-    onRemove,
-    onTouched,
-    focusRequested,
-    onFocusHandled,
-}) => {
+export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({ row, onChange, onRemove, onTouched }) => {
     const { source: m } = useMessages(editorMessages);
 
     if (row.kind === 'hidden') {
@@ -81,8 +74,6 @@ export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({
                     pasted ? sourceNoteId : undefined,
                     error === undefined ? undefined : sourceErrorId,
                 )}
-                focusRequested={focusRequested}
-                onFocusRequestHandled={onFocusHandled}
                 onChangeText={onChange}
                 onSubmit={onTouched}
             />

@@ -798,18 +798,21 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         const publicCard = within(section()).getByRole('radio', { name: /^public/i });
 
         expect(publicCard.getAttribute('aria-disabled')).toBe('true');
-        expect(within(section()).getByText(/copied from a web page, and its author owns the writing/u)).toBeTruthy();
+        expect(within(section()).getByText('This recipe was saved with a source, so it stays private.')).toBeTruthy();
         expect(within(section()).getByRole<HTMLInputElement>('radio', { name: /^private/i }).checked).toBe(true);
     });
 
-    it('Remove puts the cook’s own choice back and returns focus to the empty field', async () => {
+    // REWRITTEN for the designer's approval fixes: Remove used to land the cook in the emptied link field, which raised the
+    // keyboard over the sheet's note. The field is left alone, and focus goes to "Who can see it" so the note is read next.
+    it('Remove puts the cook’s own choice back and moves focus to "Who can see it", not to the emptied field', async () => {
         mount({ seed: { recipe: neverPublished() } });
         const user = await pasteSteps(`Boil the water.\n${LINK}`);
 
         await user.click(screen.getByRole('button', { name: 'Remove source' }));
 
         expect(sourceField().value).toBe('');
-        expect(document.activeElement).toBe(sourceField());
+        expect(document.activeElement).not.toBe(sourceField());
+        expect(document.activeElement).toBe(within(section()).getByRole('group', { name: 'Who can see it' }));
         expect(
             within(section())
                 .getByRole('radio', { name: /^public/i })
@@ -931,13 +934,15 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         expect(document.activeElement).toBe(within(stepsSection()).getByRole('button', { name: 'Paste steps' }));
     });
 
-    it('the row’s own Remove still lands the cook in the empty Source field', async () => {
+    // REWRITTEN for the designer's approval fixes: it said the cook lands in the empty Source field.
+    it('the row’s own Remove lands the cook on "Who can see it", with the held note beside it, and never in the Source field', async () => {
         mount({ seed: { recipe: neverPublished() } });
         const user = await pasteSteps(`Boil the water.\n${LINK}`);
 
         await user.click(within(section()).getByRole('button', { name: 'Remove source' }));
 
-        expect(document.activeElement).toBe(sourceField());
+        expect(document.activeElement).toBe(within(section()).getByRole('group', { name: 'Who can see it' }));
+        expect(document.activeElement).not.toBe(sourceField());
     });
 
     it('a locked source says so under Paste steps when a link is pasted, and offers no Remove', async () => {

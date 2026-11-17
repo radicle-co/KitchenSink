@@ -657,12 +657,10 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
         expect(view.result.current.editor.values).not.toHaveProperty('sourceLink');
         expect(view.result.current.source.row).toEqual({ kind: 'empty', text: '' });
         expect(view.result.current.source.privateRule).toBe('slots');
-        // After Remove the cook is back in the empty field: it is asked for focus, once.
-        expect(view.result.current.source.focusRequested).toBe(true);
-        act(() => {
-            view.result.current.source.onFocusHandled();
-        });
-        expect(view.result.current.source.focusRequested).toBe(false);
+        // REWRITTEN for the designer's approval fixes: the emptied field is NOT asked for focus (that raised the keyboard over the
+        // note). "Who can see it" is: the signal advances once, and nothing else in the Source asks for focus.
+        expect(view.result.current.source.visibilityFocus).toBe(1);
+        expect(view.result.current.source.pasteFocus).toBeUndefined();
 
         paste(view, ALLRECIPES);
 
@@ -720,7 +718,7 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
         expect(view.result.current.source.row).toMatchObject({ kind: 'filled' });
     });
 
-    it('the inline Remove takes the source off WITHOUT moving focus to the field: the paste control gets it back', () => {
+    it('the inline Remove takes the source off WITHOUT moving focus to "Who can see it": the paste control gets it back', () => {
         const view = mount();
 
         act(() => {
@@ -729,11 +727,11 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
         expect(view.result.current.source.notice).toMatchObject({ kind: 'set', origin: 'ingredients' });
 
         act(() => {
-            view.result.current.source.remove({ focus: false });
+            view.result.current.source.remove('notice');
         });
 
         expect(view.result.current.editor.values).not.toHaveProperty('sourceLink');
-        expect(view.result.current.source.focusRequested).toBe(false);
+        expect(view.result.current.source.visibilityFocus).toBe(0);
         expect(view.result.current.source.pasteFocus).toBe('ingredients');
         expect(view.result.current.source.notice).toBeUndefined();
 
@@ -743,7 +741,7 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
         expect(view.result.current.source.pasteFocus).toBeUndefined();
     });
 
-    it('the row’s own Remove asks the Source field for focus and not a paste control', () => {
+    it('the row’s own Remove asks "Who can see it" for focus, once per Remove, and not a paste control', () => {
         const view = mount();
 
         paste(view, ALLRECIPES);
@@ -751,8 +749,15 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
             view.result.current.source.remove();
         });
 
-        expect(view.result.current.source.focusRequested).toBe(true);
+        expect(view.result.current.source.visibilityFocus).toBe(1);
         expect(view.result.current.source.pasteFocus).toBeUndefined();
+
+        paste(view, BBC);
+        act(() => {
+            view.result.current.source.remove();
+        });
+
+        expect(view.result.current.source.visibilityFocus).toBe(2);
     });
 
     it('an address that is not a link yet is plain text while the cook types, and the error once they leave the field', () => {

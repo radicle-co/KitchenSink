@@ -215,7 +215,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
         source.notice?.origin === origin ? (
             <PastedSourceNotice
                 text={source.notice.text}
-                {...(source.notice.kind === 'set' ? { onRemove: () => source.remove({ focus: false }) } : {})}
+                {...(source.notice.kind === 'set' ? { onRemove: () => source.remove('notice') } : {})}
             />
         ) : null;
 
@@ -320,14 +320,13 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                             onChange={source.onChange}
                             onTouched={source.onTouched}
                             onRemove={() => source.remove()}
-                            focusRequested={source.focusRequested}
-                            onFocusHandled={source.onFocusHandled}
                         />
                         <RecipeVisibilityField
                             values={editor.values}
                             onChange={editor.setValues}
                             webSource={source.webSource}
                             publicHeld={editor.publicHeld}
+                            focusSignal={source.visibilityFocus}
                             {...(editor.confirmLineShown ? { confirmLine: publicConfirm.line } : {})}
                             {...privateChoice.field}
                             onPremiumRequired={privateChoice.onPremiumRequired}

@@ -125,6 +125,12 @@ export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps,
     readonly publicHeld?: boolean;
     /** The passive line under the Public card, when this screen draws it: what was sent is what was shown. */
     readonly confirmLine?: string;
+    /**
+     * A counter the host advances when the cook has done something that makes this group the next thing to read: taking a saved
+     * source off, which leaves the held note here. Focus moves to the group (web), or the screen-reader cursor to its first card
+     * (native), only when the counter CHANGES; text focus is never taken, so no keyboard comes up.
+     */
+    readonly focusSignal?: number;
 }
 
 /** One card of the "Who can see it" field. */
@@ -195,8 +201,8 @@ export function visibilityFieldOf(input: {
     readonly refusal: PrivateRefusal | undefined;
     readonly messages: EditorMessages['visibility'];
     /**
-     * Whether the recipe can only be private because it was copied from a web page (ADR-0089), which changes the reason the
-     * Public card gives. Absent is a book or paid-site recipe.
+     * Whether the recipe can only be private because it was copied from a web page (ADR-0089): the Public card then gives the
+     * held-by-source note. Absent is a book or paid-site recipe, which keeps its own reason.
      */
     readonly webSource?: boolean;
     /**
@@ -233,13 +239,12 @@ export function visibilityFieldOf(input: {
                 value: RecipeVisibility.PUBLIC,
                 title: v.public,
                 hint: v.publicHint,
+                // ONE note for a source the recipe holds, before and after the cook removes it; a book or a paid site keeps its own.
                 note: !privateOnly
                     ? (refusedNote ?? costNote)
-                    : !ruleRefuses
+                    : !ruleRefuses || input.webSource === true
                       ? v.publicHeldBySource
-                      : input.webSource === true
-                        ? v.publicRefusedWebSource
-                        : v.publicRefused,
+                      : v.publicRefused,
                 refused: privateOnly,
             },
             {

@@ -12,10 +12,12 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
+import { dimmedOpacity } from '@commise/ui/scale';
+import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { Text as UiText } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { touchFloor } from '@commise/ui/layout';
-import type { RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeVisibility as RecipeVisibilityValue, type RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -36,9 +38,15 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     webSource,
     publicHeld,
     confirmLine: confirmText,
+    focusSignal = 0,
 }) => {
     const { visibility: v } = useMessages(editorMessages);
     const { colors } = useTheme();
+    const muted = colors.inkMuted;
+    // A ref, for the reason `useScreenReaderFocusOnSignal` states: moving the reading cursor has no declarative form. It goes to
+    // the Public card, not the group: a container that is not itself an accessibility element takes no cursor on iOS, and the
+    // card reads its title and, when it is unavailable, the held note as its hint.
+    const publicCard = useScreenReaderFocusOnSignal<View>(focusSignal);
     // Idempotent over a host that already passes the held value: the field enforces the rule rather than trusting it.
     const savedVisibility = heldVisibility(held, values.visibility);
     const { shown, options, slotsFull, confirmLine } = visibilityFieldOf({
@@ -65,7 +73,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     return (
         <View style={styles.field}>
             {/* The group is named by the same words; the visible legend is not read twice. */}
-            <Text aria-hidden style={[styles.legend, { color: colors.inkMuted }]}>
+            <Text aria-hidden style={[styles.legend, { color: muted }]}>
                 {v.legend}
             </Text>
             <View collapsable={false} role="radiogroup" aria-label={v.legend} style={styles.cards}>
@@ -75,6 +83,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     return (
                         <Pressable
                             key={option.value}
+                            ref={option.value === RecipeVisibilityValue.PUBLIC ? publicCard : undefined}
                             role="radio"
                             aria-checked={chosen}
                             // Refused, NOT disabled: the `disabled` prop would take the card out of the focus order and the reason
@@ -90,15 +99,29 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                                 styles.card,
                                 {
                                     backgroundColor: chosen ? colors.selectedFill : colors.paper,
-                                    borderColor: chosen ? colors.selectedEdge : colors.lineControl,
+                                    // An unavailable card takes the divider's muted edge, as the design system's disabled option does.
+                                    borderColor: chosen
+                                        ? colors.selectedEdge
+                                        : option.refused
+                                          ? colors.lineDivider
+                                          : colors.lineControl,
                                 },
                             ]}
                         >
                             <View style={styles.words}>
-                                <Text style={[styles.title, { color: colors.ink }]}>{option.title}</Text>
-                                <Text style={[styles.hint, { color: colors.inkMuted }]}>{option.hint}</Text>
+                                <Text
+                                    style={[
+                                        styles.title,
+                                        { color: colors.ink },
+                                        // Dimmed, as every unavailable control is; the reason below is not.
+                                        option.refused ? { opacity: dimmedOpacity } : null,
+                                    ]}
+                                >
+                                    {option.title}
+                                </Text>
+                                <Text style={[styles.hint, { color: muted }]}>{option.hint}</Text>
                                 {option.note === undefined ? null : (
-                                    <Text style={[styles.hint, { color: colors.inkMuted }]}>{option.note}</Text>
+                                    <Text style={[styles.hint, { color: muted }]}>{option.note}</Text>
                                 )}
                             </View>
                         </Pressable>
@@ -119,7 +142,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     </Text>
                     {slotsFull.overLimit === undefined ? null : (
                         <View style={styles.overLimit}>
-                            <Text style={[styles.hint, { color: colors.inkMuted }]}>{slotsFull.overLimit.text}</Text>
+                            <Text style={[styles.hint, { color: muted }]}>{slotsFull.overLimit.text}</Text>
                             {slotsFull.overLimit.premiumLink === undefined ? null : (
                                 <Pressable role="button" onPress={onPremiumRequired} style={styles.link}>
                                     <Text style={[styles.linkText, { color: colors.action }]}>
@@ -138,7 +161,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                         >
                             <View style={styles.words}>
                                 <Text style={[styles.title, { color: colors.ink }]}>{way.label}</Text>
-                                <Text style={[styles.hint, { color: colors.inkMuted }]}>{way.detail}</Text>
+                                <Text style={[styles.hint, { color: muted }]}>{way.detail}</Text>
                             </View>
                         </Pressable>
                     ))}

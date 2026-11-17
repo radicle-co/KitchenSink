@@ -59,15 +59,13 @@ export interface EditorSource {
     /** The cook left the field (or pressed its Done key): an unusable address is now an error. */
     readonly onTouched: () => void;
     /**
-     * Take the source off. The row's own Remove lands the cook in the empty field (`focus` absent or true). The paste
-     * notice's Remove passes `focus: false`: the cook is at the paste control, so focus goes back THERE, never to a field
-     * they were not using.
+     * Take the source off. The row's own Remove (`'row'`, the default) moves focus to "Who can see it", where the held note is,
+     * and never into the emptied field: that raised the keyboard over the note. The paste notice's Remove (`'notice'`) hands
+     * focus back to the paste control instead: the cook is there, so focus never goes to a place they were not using.
      */
-    readonly remove: (options?: { readonly focus?: boolean }) => void;
-    /** The Source field is asked for focus (after the row's Remove). A level, until {@link onFocusHandled}. */
-    readonly focusRequested: boolean;
-    /** The Source field took a requested focus. */
-    readonly onFocusHandled: () => void;
+    readonly remove: (from?: 'row' | 'notice') => void;
+    /** "Who can see it" is asked for focus: a counter that advances for each Remove from the row. */
+    readonly visibilityFocus: number;
     /** The paste control that is asked for focus (after the notice's Remove). A level, until {@link onPasteFocusHandled}. */
     readonly pasteFocus: PasteOrigin | undefined;
     /** The paste control took a requested focus. */
@@ -118,7 +116,7 @@ export function useEditorSource(options: UseEditorSourceOptions): EditorSource {
     const [fromPaste, setFromPaste] = useState(false);
     const [removed, setRemoved] = useState<string | undefined>(undefined);
     const [notice, setNotice] = useState<EditorSource['notice']>(undefined);
-    const [focusRequested, setFocusRequested] = useState(false);
+    const [visibilityFocus, setVisibilityFocus] = useState(0);
     const [pasteFocus, setPasteFocus] = useState<PasteOrigin | undefined>(undefined);
     const [touched, setTouched] = useState(false);
     const [announcedRemoval, setAnnouncedRemoval] = useState(false);
@@ -162,7 +160,7 @@ export function useEditorSource(options: UseEditorSourceOptions): EditorSource {
                 sayRemoved();
             }
         },
-        remove: (removal) => {
+        remove: (from = 'row') => {
             const link = draftSourceOf(values);
 
             // Session memory only: a paste of the link the cook just took off must not put it back.
@@ -170,18 +168,17 @@ export function useEditorSource(options: UseEditorSourceOptions): EditorSource {
             setFromPaste(false);
             setTouched(false);
 
-            if (removal?.focus === false) {
+            if (from === 'notice') {
                 setPasteFocus(notice?.origin);
             } else {
-                setFocusRequested(true);
+                setVisibilityFocus((count) => count + 1);
             }
 
             setNotice(undefined);
             dispatch({ kind: 'setSourceLink', link: '' });
             sayRemoved();
         },
-        focusRequested,
-        onFocusHandled: () => setFocusRequested(false),
+        visibilityFocus,
         pasteFocus,
         onPasteFocusHandled: () => setPasteFocus(undefined),
         applyPasted: (extraction, origin) => {

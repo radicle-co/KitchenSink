@@ -16,6 +16,7 @@
  *     note and that decision's input, it selects no second mode of the field
  */
 import { useMessages } from '@commise/i18n/react';
+import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { RecipeVisibility as RecipeVisibilityValue, type RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
@@ -29,7 +30,11 @@ import { visibilityChoice, visibilityFieldOf, type RecipeVisibilityFieldProps } 
 const card = `flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-4 py-2 ${FOCUS_RING_CLASS.within}`;
 const cardResting = 'border-line-control bg-paper';
 const cardChosen = 'border-selected-edge bg-selected-fill';
+// A card that cannot be chosen LOOKS it (the design system's disabled treatment, as `RadioList` and `Button` draw it): a muted
+// border, a dimmed radio and title. Its reason is not dimmed: it is the one thing on the card that must stay readable.
 const cardRefused = 'cursor-not-allowed';
+const cardRefusedEdge = 'border-line-divider bg-paper';
+const dimmed = 'opacity-60';
 const confirmLineId = 'recipe-visibility-confirm-line';
 
 /** "Who can see it": Public or Private. */
@@ -45,8 +50,10 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     webSource,
     publicHeld,
     confirmLine: confirmText,
+    focusSignal = 0,
 }) => {
     const { visibility: v } = useMessages(editorMessages);
+    const group = useFocusOnSignal<HTMLFieldSetElement>(focusSignal);
     // Idempotent over a host that already passes the held value: the field enforces the rule rather than trusting it.
     const savedVisibility = heldVisibility(held, values.visibility);
     const { shown, options, slotsFull, confirmLine } = visibilityFieldOf({
@@ -71,7 +78,8 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     };
 
     return (
-        <fieldset className="flex flex-col gap-2">
+        // Focusable by script only (`tabIndex={-1}`): after a Remove the group is the next thing to read, and the held note with it.
+        <fieldset ref={group} tabIndex={-1} className={`flex flex-col gap-2 ${FOCUS_RING_CLASS.offset}`}>
             <legend className="mb-2 text-label text-ink-muted">{v.legend}</legend>
             <div className="grid grid-cols-1 gap-2 @regular/main:grid-cols-2">
                 {options.map((option) => {
@@ -93,7 +101,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     return (
                         <label
                             key={option.value}
-                            className={`${card} ${chosen ? cardChosen : cardResting} ${option.refused ? cardRefused : ''}`}
+                            className={`${card} ${option.refused ? `${cardRefusedEdge} ${cardRefused}` : chosen ? cardChosen : cardResting}`}
                         >
                             <input
                                 type="radio"
@@ -105,10 +113,13 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                                 aria-describedby={describedBy}
                                 // Refused, not disabled: a natively disabled radio leaves the tab order and the reason with it.
                                 aria-disabled={option.refused ? true : undefined}
-                                className="size-5 shrink-0 accent-action"
+                                className={`size-5 shrink-0 accent-action ${option.refused ? dimmed : ''}`}
                             />
                             <span className="flex min-w-0 flex-1 flex-col">
-                                <span id={titleId} className="text-body font-semibold text-ink">
+                                <span
+                                    id={titleId}
+                                    className={`text-body font-semibold text-ink ${option.refused ? dimmed : ''}`}
+                                >
                                     {option.title}
                                 </span>
                                 <span id={hintId} className="text-meta text-ink-muted">

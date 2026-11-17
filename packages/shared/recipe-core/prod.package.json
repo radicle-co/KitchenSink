@@ -105,6 +105,10 @@
             "types": "./dist/spend/spendArithmetic.d.ts",
             "default": "./dist/spend/spendArithmetic.js"
         },
+        "./copy/banned-words": {
+            "types": "./dist/copy/bannedWords.d.ts",
+            "default": "./dist/copy/bannedWords.js"
+        },
         "./parsing/parse-prompt": {
             "types": "./dist/parsing/parsePrompt.d.ts",
             "default": "./dist/parsing/parsePrompt.js"

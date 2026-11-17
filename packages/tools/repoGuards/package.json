@@ -38,6 +38,7 @@
         "@kitchensink/eslint": "*",
         "@kitchensink/loadtest": "*",
         "@kitchensink/nest-error-envelope": "*",
+        "@kitchensink/recipe-core": "*",
         "@kitchensink/schema-food": "*",
         "@kitchensink/schema-identity": "*",
         "@kitchensink/schema-recipe": "*",

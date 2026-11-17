@@ -291,6 +291,11 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/*/step-writing/fingerprint-keyring',
         // Server only (`node:crypto`): `repoGuards/__tests__/nodeKeyedHashServerOnly.test.ts` keeps apps from importing it.
         '!@kitchensink/*/step-writing/node-keyed-hash',
+        // `copy/banned-words` — the one list of words cook-facing copy may not use, and the matcher beside it. Every
+        // copy guard reads it, so a second copy of the list or of the match rule would let two guards disagree.
+        // The bare folder entry is needed too: gitignore semantics cannot un-ignore a file under an ignored folder.
+        '!@kitchensink/*/copy',
+        '!@kitchensink/*/copy/banned-words',
         // `parsing/parse-prompt` and `parsing/parse-answer` (plan U18) — the LLM
         // parse leg's half of the model contract. The prompt is a MEASURED
         // ARTIFACT: every figure in the 2026-08-23 model comparison is denominated

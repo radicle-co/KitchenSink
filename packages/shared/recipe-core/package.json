@@ -45,6 +45,7 @@
         "./step-writing/content-digest": "./src/stepWriting/contentDigest.ts",
         "./step-writing/fingerprint-keyring": "./src/stepWriting/fingerprintKeyring.ts",
         "./step-writing/node-keyed-hash": "./src/stepWriting/nodeKeyedHash.ts",
+        "./copy/banned-words": "./src/copy/bannedWords.ts",
         "./scaling": "./src/scaling.ts",
         "./external-url": "./src/externalUrl.ts"
     },

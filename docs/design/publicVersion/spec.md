@@ -279,8 +279,7 @@ visibility area's render component and the button. The client never computes an 
 - **Save my copy.** Saves the private copy as the paste spec's Save does. Success is P6.
 - **Write the public version / Save and write.** Starts the job (`POST …/public-version`). Both saves the private copy
   first. On `409 offerChanged` (body `{ code: 'offerChanged', offer }`) the visibility area re-renders from `offer`, nothing selected, and shows
-  `offerChanged.line`. On `409 publicExists` it re-renders as `publicExists`. On `429 importAllowance` it shows the
-  paste spec's allowance error (S27).
+  `offerChanged.line`. On `409 publicExists` it re-renders as `publicExists`. Start spends no allowance unit.
 - **Stop.** Cancels the job, returns to P5 with the choice kept. Both: the copy stays.
 - **Show my copy / Hide my copy.** A disclosure. Its state is not kept across visits.
 - **Edit steps.** Turns the steps into fields. The button becomes "Done editing" (reuse the editor's key).

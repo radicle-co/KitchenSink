@@ -108,11 +108,12 @@ Free, and its ingredient lines are matched as before.
 
 1. **Given** "Just for me", **Then** no writer call is made and no spend is reserved.
 2. **Given** a Free cook with slots left, **Then** the hint shows the slot count, and the save uses one slot.
-3. **Given** a paid source that FR-017 holds back (recent, signature or opted out), **Then** no choice is
+3. **Given** a paid source that FR-017 holds back (clearly recent, a clearly read signature recipe or a stated opt-out), **Then** no choice is
    shown: one line (`privateOnly.paidRecent` with the date when known, else `privateOnly.line`), and one button, "Save my copy".
 4. **Given** a paid source that FR-017 allows, **Then** the three choices show, and the public version's credit names no
-   site (`credit.written` only, no `credit.basedOn`). Enabled once the page evidence carries the paid facts. Until then
-   every paid source reads `paidSignature` and is Private only (FR-012b).
+   site (`credit.written` only, no `credit.basedOn`). Enabled once the page evidence carries the paid facts. Until
+   then a detected paid site, one on the paid list, is clearly paid and keeps the paid rules, and a paywall that cannot be
+   read is unknown and takes the rewrite path to public with `credit.written` only (FR-012b).
 5. **Given** a private copy of a paid source, **Then** it cannot be shared or exported, except in the cook's own account data export (ADR-0093 §5). The household sees its public version if
    one exists, and nothing otherwise (FR-019).
 
@@ -257,13 +258,18 @@ later from its own menu. (C-6)
   ADR-0093 §5: the site's wording, no sharing, no household view, and no export except the account data export. (C-1)
 - **FR-012a**: A third-party paste with no detectable page address MUST be Private only (offer reason
   `noSourceAddress`). A recipe the cook wrote is unaffected.
-- **FR-012b**: A paid source stays Private only until spec 016 provides the signature-recipe signal and the publisher
-  opt-out list. Until the page evidence carries the paid facts, a paid signal cannot be read, so a detected paid site
-  reads closed as `paidSignature` (offer `privateOnly`). The paid-site list and the federal publisher list are approved data, drafted with sources and approved
-  before they are seeded (task T084, slice B2).
+- **FR-012b**: Only a clearly read signal blocks a public version. A stated opt-out gives `publisherOptOut` or
+  `aiOptOut`. A clearly paid page keeps the paid rules: the FR-017 hold, and no site named. A clearly read signature
+  recipe stays private only (`paidSignature`). A detected paid site, one on the paid list, is clearly paid. A signal that
+  cannot be read is `unknown`: a paywall the reader cannot tell, an opt-out it cannot read, an unread signature signal,
+  or a paste that carries no signal. For `unknown` the offer takes the rewrite path to public: the choice shows with
+  `credit.written` only, no site is named, and no paid hold applies. `unknown` never maps to `privateOnly`. The paid-site
+  list and the federal publisher list are approved data, drafted with sources and approved before they are seeded (task
+  T084, slice B2).
 - **FR-013**: The classification MUST be one pure rule that reads the detected evidence, the cook's statement, the live
   site claim, the honoured-licence list, the federal-publisher list and the paid-site list. A missing or unreadable
-  input MUST read as third-party (or paid, for the paid inputs), never as open.
+  input MUST read as third-party, never as open. A missing or unreadable paid, opt-out or signature input reads as
+  `unknown` and takes the rewrite path (FR-012b), never as paid and never as `privateOnly`.
 - **FR-014**: When 020 flags an imported recipe's steps as matching an outside page, the public form offered MUST be the
   public version, and the 020 dispute route stays. This replaces `020-FR-075`'s per-step suggestion for imported recipes
   only. Editor-made recipes keep `020-FR-075` and `FR-076` unchanged.
@@ -287,17 +293,17 @@ later from its own menu. (C-6)
   and the cook can still take the normal private exit from review (`review.notNow`, FR-044). Nothing is saved
   automatically. Spec 016's stronger age assurance replaces this later. (C-17)
 - **FR-016a**: Each recipe this feature saves or publishes spends the one shared import allowance (ADR-0072 §8,
-  `004-FR-061`). A public version made in the same import costs no second unit. The later "Share a public version"
-  route spends one unit on the `publicVersion` channel (C-24). A private copy uses a slot, with or without a public version (ADR-0093 §8).
+  `004-FR-061`). Making a public version spends no unit, in the same import or on the later "Share a public version"
+  route: it is part of the original import (C-24). The site-wide AI ceiling still applies (FR-082). A private copy uses a slot, with or without a public version (ADR-0093 §8).
 - **FR-016b**: Identity owns the age claim. `POST /api/v1/me/age-assurance` records one `age_assurances` row (spec 016's
   table, built now) and then sets the `ageFloorMet` claim on the cook's session. The route is idempotent. See
   `contracts/publicVersion.api.md` and `data-model.md` "Identity".
 - **FR-017**: A paid source can go public only as a public version Commise writes in full, under ADR-0093 §5: no
-  publisher opt-out (`004-FR-063`), not a signature recipe from that single source, and older than
+  publisher opt-out (`004-FR-063`), not a clearly read signature recipe from that single source, and older than
   `PAID_CONTENT_HOLD_MONTHS`. The constant is defined once and configurable. With no readable page date, the age counts
   from the first import of that page by any cook, read from the source records. Otherwise it is private only.
   Consensus recipes, which ADR-0093 §5 prefers, are a later feature. Until then the public version is written from the
-  cook's copy alone. (C-19)
+  cook's copy alone. The hold applies only to a clearly paid page, so an unknown paywall applies none (FR-012b). (C-19)
 - **FR-018**: A paid source's public version MUST carry `credit.written` and no `credit.basedOn` (ADR-0093 §4 and §5). It names no site and
   links to none, on the page and in its structured data. The source record keeps the source (FR-080).
 - **FR-019**: A household sees a paid private copy's Commise-written public version, or nothing (ADR-0093 §7, `017`).
@@ -405,6 +411,9 @@ later from its own menu. (C-6)
   when it contains a bidirectional control: U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F or U+061C. This covers
   the cook's own rewrite of door two ("Adapted by you", FR-015), an edit under FR-050 or FR-052, and a title. The save
   is refused with `blocked.body`. A reversed step wrapped in U+202E is refused.
+  Cook-typed public text may be in any language. The save also refuses any WORD that mixes Unicode scripts, such as a
+  Latin word with one Cyrillic letter, with `blocked.body`. A word in one script passes, so "Bibimbap (비빔밥)" is
+  accepted. The bidi check comes first, then the mixed-script check, both before any fold.
 
 #### G. Credit, label and licence
 
@@ -545,7 +554,7 @@ is never charged to a cook's uses (FR-081).
 - **SC-002**: 0 public versions are published whose wording check against their source exceeds the threshold, at any
   save (measured from the source records).
 - **SC-003**: 0 public versions exist from an opted-out publisher, paid content
-  younger than `PAID_CONTENT_HOLD_MONTHS`, or a paid signature recipe from a single source.
+  younger than `PAID_CONTENT_HOLD_MONTHS`, or a clearly read paid signature recipe from a single source.
 - **SC-004**: 95% of public versions are ready for review within 30 seconds of the choice.
 - **SC-005**: Each choice state is reachable and announced on web, iOS and Android, at 320 CSS px with no horizontal
   scroll, and at the largest text size.
@@ -638,7 +647,8 @@ Still owed:
   is not used until spec 016 adds it back. Until then this is a deliberate interim exception to `016-FR-009`, which spec 016's own age assurance closes (T150). App use at the higher of 13 and the market's digital-consent age.
 - **C-18. Rewards and sale?** Assumed: none for a public version (FR-065). Owner to confirm.
 - **C-19. Signature recipes and consensus?** Assumed: a signature recipe names the publisher or its brand in its title,
-  or is on a signature list kept as data. Until consensus recipes ship, a common paid dish is published from the
+  or is on a signature list kept as data. Only a clearly read signal counts: an unread one does not make a recipe
+  private (FR-012b). Until consensus recipes ship, a common paid dish is published from the
   cook's copy alone. Owner to confirm.
 - **C-20. Which household view of a paid recipe?** Ruled 2026-11-15: the Commise-written version, or nothing
   without one. Assumed: on a "Just for me" paid copy, the household sees nothing. Owner to confirm.
@@ -649,8 +659,9 @@ Still owed:
   on the server, so Publish re-checks one known result. Owner to confirm.
 - **C-23. AI credit wording?** Ruled 2026-11-15: "Steps written by Commise with AI, checked by {cook}." Final
   wording settled 2026-11-17 (research R8).
-- **C-24. Does the later "Share a public version" route cost an allowance unit?** Assumed: yes, one unit on the
-  `publicVersion` channel (the feature ADR, owed (T004)); a public version made in the same import costs none. Owner to confirm.
+- **C-24. Does making a public version cost an allowance unit?** Ruled 2026-11-17: no unit is spent. Making a public
+  version is part of the original import, in the same import and on the later "Share a public version" route. The
+  import's own unit and every existing import limit stay unchanged.
 - **C-25. How long may a writer job run?** Assumed: 10 minutes, then it ends `failed`. Owner to confirm.
 - **C-26. Key custody for the wording fingerprint?** Assumed: a secret in AWS Secrets Manager under this feature's
   custody, with rotation that keeps old versions readable. A save with an old key version re-checks with that key.

@@ -11,7 +11,7 @@ Rules that are easy to get wrong. Read before working on this feature.
   never fetches. A link import fetches on the device first and the server second, never for a known paid site. Paste detection never fetches.
 - **The classifier is an allowlist that fails closed.** Open: own claimed site (live claim), an honoured licence that allows
   commercial use, curator public domain, a listed US federal publisher. Everything else is third-party. A missing input
-  reads as third-party or paid, never open. The server computes it. The client never does.
+  reads as third-party, never open. An unread paid, opt-out or signature signal is `unknown`: the rewrite path to public with `credit.written` only, never `privateOnly` (FR-012b). The server computes it. The client never does.
 - **No facts cards** (owner ruling 2026-11-15). Do not build one, and do not offer one as a fallback.
 - **Paid sources go public only as a page Commise writes in full**, under spec FR-017: no opt-out, older than
   `PAID_CONTENT_HOLD_MONTHS` (6, one named constant), counted from the page date or the first import, never a signature recipe from one

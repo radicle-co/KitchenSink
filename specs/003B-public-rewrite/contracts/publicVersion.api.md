@@ -24,6 +24,8 @@ PublicVersionOffer =
                                 holdEndsOn?: string }
           // holdEndsOn is an ISO date, present only for paidRecent when the date is known.
           // A schema refine rejects holdEndsOn on any other reason.
+          // Only a clearly read signal gives paidRecent, paidSignature, publisherOptOut or aiOptOut. An unknown signal
+          // is never a reason: the offer is a choice (FR-012b).
           // 'under16' is not a reason: age is checked at Publish. Spec 016 adds it back.
         | { kind: 'publicExists', status: 'published' | 'writing' | 'inReview', recipeId: string | null }
           // one public version per source page (FR-034). recipeId is null until a recipe exists.
@@ -77,7 +79,7 @@ same paid-site rules.
 - `409 { code: 'publicExists', recipeId: string | null }`: another version of this source page is already public (FR-034). The key is released by FR-034a.
 - `409 { code: 'offerChanged', offer }`: the offer the server computes now differs from the `shownOffer` the client sent
   (see "The shown offer"). `offer` is the current offer. Client copy: `offerChanged.line`. Publish answers the same way.
-- `429 { code: 'importAllowance' }` past the one import allowance (004-FR-061).
+- No allowance unit is spent by Start (C-24), so it never answers `429 importAllowance`.
 
 ## Read the job
 

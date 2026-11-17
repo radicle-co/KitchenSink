@@ -21,6 +21,8 @@ Each item gives the decision, the reason, and the options set aside.
 
 - **Decision**: a keyed hash of each word 5-shingle of the source's steps, and of each 2-word shingle of its title,
   stored as `bigint[]` with a format version and a key version. The normalised source title is stored as one hash.
+  The comparison form (lower-cased, punctuation-stripped) also applies the UTS #39 skeleton, so look-alike letters
+  compare equal.
 - **Reason**: the "For everyone" path keeps no text, but FR-050 must still run on every save. A hash set answers
   Jaccard and containment with no text.
 - **Set aside**: keeping the pasted text (the copy promises it is not kept). Keeping only a digest (it cannot measure

@@ -275,7 +275,8 @@ can always cook from the original steps.
   close to the original (the plan sets the measure and the threshold, and this feature owns both for every consumer of
   the engine, spec 003B included) MUST NOT be shown, stored or charged. This is a
   ceiling on reuse of the original wording, not a measure of quality. The measure works on a hashed fingerprint of the
-  original wording (a versioned set of keyed hashes of word runs), not on the text. This feature takes the fingerprint
+  original wording (a versioned set of keyed hashes of word runs), not on the text. The text is folded first: lower-cased,
+  punctuation-stripped, and reduced by the UTS #39 skeleton so that look-alike letters compare equal. This feature takes the fingerprint
   in memory from the saved steps. Spec 003B stores one, because it keeps no source text. Both run the one function.
 - **FR-043**: Flow Steps MUST carry a credit line wherever they are shown:
     - attached, to the owner: "Steps written by Commise from this recipe." (key `recipes.flowSteps.credit.attached`);

@@ -24,15 +24,15 @@ write, against a hashed fingerprint of the source taken at import. The source te
 **Language/Version**: TypeScript 5.x strict, Node 24.
 **Primary Dependencies**: NestJS 11 (recipe-service), Drizzle ORM, zod + `nestjs-zod`. AWS SDK v3 Bedrock Runtime
 `Converse` through `gatedConverse` (recipe-workers), and SQS. TanStack Query, Tamagui (mobile), Next.js 16 (web).
-**Storage**: recipe PostgreSQL 18. Two new tables, new columns on `recipes` and on the import item, widened CHECKs (the source type, the item choice, and the allowance channel `publicVersion`).
+**Storage**: recipe PostgreSQL 18. Two new tables, new columns on `recipes` and on the import item, widened CHECKs (the source type and the item choice).
 Expand-only (ADR-0035), with the house two-step CHECK migration pair.
 **Testing**: vitest unit and integration (database mocked, DD12), LOCAL e2e for the migration and the publish
 transaction, worker tests, Playwright, Maestro, and k6 by hand.
 **Target Platform**: web, iOS and Android. recipe-service on Fargate. The worker on Lambda (VPC, NAT consumer).
 **Project Type**: monorepo feature across shared core, one service, one worker and two apps.
 **Performance Goals**: 95% of jobs ready within 30 s (SC-004).
-**Constraints**: facts-only writer input. No Anthropic model. The writer never fetches. A link import fetches on the device first, the server second (ADR-0093). Fail closed on spend and on every
-unknown classification input. Job timeout 10 min.
+**Constraints**: facts-only writer input. No Anthropic model. The writer never fetches. A link import fetches on the device first, the server second (ADR-0093). Fail closed on spend and on the open test. An
+unreadable paid, opt-out or signature signal is `unknown` and takes the rewrite path. Job timeout 10 min.
 **Scale/Scope**: bounded by the one import allowance (ADR-0072 §8), 3 calls per item, and the spend ceiling.
 
 ## Constitution Check
@@ -71,7 +71,8 @@ cost and needs no ledger.
 1. `027-FR-045` and its plan: spec 003B builds the engine first (`027-FR-045`).
 2. `wordShingles.ts`: the measure takes shingle SETS, not text. `fingerprint(text, size, hash) → { formatVersion, hashes }`
    uses an injected, keyed, versioned hash, with `jaccard(a, b)` and `containment(part, whole)`. 027's in-memory check, 003B's stored
-   check and 020's copy check run through one function. The per-sentence check is containment, not Jaccard.
+   check and 020's copy check run through one function. The per-sentence check is containment, not Jaccard. The text
+   fold in front of the shingles also applies the UTS #39 skeleton, so look-alike letters compare equal.
 3. `027-FR-032`: no gate. A 027 replace never changes the rights label, and an imported recipe goes public only through 003B-FR-015's two doors. Otherwise "private copy, replace, set public" is a back door.
 4. `027-FR-044`: the banned-word list is one module both guards import (003B FR-064).
 5. `027-FR-043`: no credit key of its own for a public version of an imported recipe. 027 uses 003B's.
@@ -87,7 +88,7 @@ own second pinned prompt behind the same adapter, under its own call site.
 **Prescribed (staff-architect PLANNING, 2026-11-15):**
 
 - **Specification**: `classifySource(input) → open | thirdParty | paid`, pure, an allowlist, fail closed.
-  A second pure Specification, `paidPublicEligibility`, reads opt-outs and signature status. It also reads the
+  A second pure Specification, `paidPublicEligibility`, reads stated opt-outs and clearly read signature status. It also reads the
   publication date, or the first-import date for an undated page, against `PAID_CONTENT_HOLD_MONTHS` (6). It returns
   `allowed` or one reason.
   It lives in `recipe-service/src/import/domain/sourceClassification.ts`, beside the import's visibility rule. It runs
@@ -181,16 +182,16 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 
 ## Testing (tiers owed, test-first)
 
-| Tier                 | What                                                                                                                                                                                                                                                 |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit (core)          | Fingerprint: same set from same text, format version pinned, keyed hash. Containment vs Jaccard. Mutants: one shingle changed, order changed.                                                                                                        |
-| Unit (service)       | Classifier: every allowlist case, every unknown input reads closed, CC BY-NC is not open, `.gov` alone is not open. Title builder never returns the source title.                                                                                    |
-| Integration (mocked) | Choice to job. Double publish returns one recipe. No age claim: the start is not gated, Publish answers `403 ageConfirmNeeded`. Paid hold counted from the first import for an undated page. Wording guard on update and restore. Both digest drift. |
-| Worker               | `budgetSpent` terminal and acked. Unreadable counter retried. Late result after `cancelled` dropped. 10-minute expiry. At most 3 calls.                                                                                                              |
-| LOCAL e2e            | Migration applied. CHECK pairs. Unique `source_page_key`. Page key released on delete, rejection and opt-out. Erasure covers the job table and identity's `age_assurances` row. Age route round trip and k6 by hand (P3b).                           |
-| Service e2e + k6     | Job and publish round trip on a deployed preview. k6 on job status reads, by hand.                                                                                                                                                                   |
-| Component (both)     | Every state in the spec table. Banned-word guard over `importMessages.choice.*` and `recipes.flowSteps.*`.                                                                                                                                           |
-| Playwright / Maestro | US1 Public and Both. US2 Private, and paid held back (paid allowed is enabled once the page evidence carries the paid facts). US3 failure and later route, US4 dead end with switch on and off, US5 blocked save.                                    |
+| Tier                 | What                                                                                                                                                                                                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit (core)          | Fingerprint: same set from same text, format version pinned, keyed hash. Containment vs Jaccard. Mutants: one shingle changed, order changed.                                                                                                                       |
+| Unit (service)       | Classifier: every allowlist case, every unknown open-test input reads third-party, an unread paid, opt-out or signature signal reads `unknown` and offers the choice, CC BY-NC is not open, `.gov` alone is not open. Title builder never returns the source title. |
+| Integration (mocked) | Choice to job. Double publish returns one recipe. No age claim: the start is not gated, Publish answers `403 ageConfirmNeeded`. Paid hold counted from the first import for an undated page. Wording guard on update and restore. Both digest drift.                |
+| Worker               | `budgetSpent` terminal and acked. Unreadable counter retried. Late result after `cancelled` dropped. 10-minute expiry. At most 3 calls.                                                                                                                             |
+| LOCAL e2e            | Migration applied. CHECK pairs. Unique `source_page_key`. Page key released on delete, rejection and opt-out. Erasure covers the job table and identity's `age_assurances` row. Age route round trip and k6 by hand (P3b).                                          |
+| Service e2e + k6     | Job and publish round trip on a deployed preview. k6 on job status reads, by hand.                                                                                                                                                                                  |
+| Component (both)     | Every state in the spec table. Banned-word guard over `importMessages.choice.*` and `recipes.flowSteps.*`.                                                                                                                                                          |
+| Playwright / Maestro | US1 Public and Both. US2 Private, and paid held back (paid allowed is enabled once the page evidence carries the paid facts). US3 failure and later route, US4 dead end with switch on and off, US5 blocked save.                                                   |
 
 ## Watch list
 

@@ -31,7 +31,8 @@ Phase 0 for `plan.md`. Each item: decision, rationale, alternatives rejected.
 
 ## R3. Wording check is a ceiling, on a hashed fingerprint of word 5-shingles
 
-- **Decision**: lower-cased, punctuation-stripped word 5-shingles, reduced to a fingerprint: a versioned set of keyed
+- **Decision**: word 5-shingles of lower-cased, punctuation-stripped text that has also been through the UTS #39
+  skeleton (look-alike letters compare equal), reduced to a fingerprint: a versioned set of keyed
   hashes (`fingerprint(text, size, hash) → { formatVersion, hashes }`, where `hash` is an injected keyed hash). The measure
   takes fingerprint sets, not text: `jaccard(a, b)` for the whole recipe and `containment(part, whole)` for one result
   sentence. Refuse when either exceeds a

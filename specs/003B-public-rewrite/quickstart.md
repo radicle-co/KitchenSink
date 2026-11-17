@@ -14,9 +14,9 @@ Nothing here runs today. The feature is planned, not built.
    review screen returns. Publish again and choose "I'm 16 or over". The recipe publishes after one retry and reads
    "Checking".
 7. Edit its steps back to the pasted wording. The save is refused.
-8. Repeat with a paid-site page. It reads Private only: one line and "Save my copy". Once the page evidence carries the
-   paid facts, a page newer than 6 months shows the same, and an older one shows the choice with a credit that names
-   no site.
+8. Repeat with a paid-site page, which is clearly paid. Once the page evidence carries the paid facts, a page newer than
+   6 months reads Private only: one line and "Save my copy", and an older one shows the choice with a credit that names
+   no site. A page whose paywall cannot be read shows the choice with `credit.written` only and no hold.
 9. Fill 50 private slots on a Free test cook. Paste a paid-site page. The dead end shows. Try "Not now".
 10. Repeat 4 to 9 on Android and iOS through the mobile app.
 

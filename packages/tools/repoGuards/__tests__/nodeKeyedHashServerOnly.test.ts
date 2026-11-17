@@ -32,6 +32,16 @@ const RECIPE_CORE_TESTS = /^packages\/shared\/recipe-core\/(src\/(.*\/)?__tests_
 /** The module as written in an import: the package subpath, or a relative path to its file. */
 const MODULE_SPECIFIER = /(^|\/)(node-keyed-hash|nodeKeyedHash)(\.js)?$/u;
 
+/** Every extension a bundler or a runtime reads as source. */
+export const SCANNED_EXTENSIONS: readonly string[] = ['ts', 'tsx', 'mts', 'cts', 'js', 'jsx', 'mjs', 'cjs'];
+
+/**
+ * Whether a tracked file is source that can import the module.
+ *
+ * @param file - Repo-relative path. Pure.
+ */
+export const isScannedSource = (file: string): boolean => SCANNED_EXTENSIONS.some((ext) => file.endsWith(`.${ext}`));
+
 const isAllowed = (file: string): boolean =>
     ALLOWED_PREFIXES.some((prefix) => file.startsWith(prefix)) || RECIPE_CORE_TESTS.test(file);
 
@@ -84,6 +94,21 @@ describe('offendingImporters (the rule, over fixtures)', () => {
     });
 });
 
+describe('isScannedSource', () => {
+    it.each(['a.ts', 'a.tsx', 'a.mts', 'a.cts', 'a.js', 'a.jsx', 'a.mjs', 'a.cjs'])('scans %s', (file) => {
+        expect(isScannedSource(`packages/apps/x/${file}`)).toBe(true);
+    });
+
+    it.each(['a.json', 'a.md', 'a.d.ts.map', 'a.tsbuildinfo'])('skips %s', (file) => {
+        expect(isScannedSource(`packages/apps/x/${file}`)).toBe(false);
+    });
+
+    it('reads an import from a plain JavaScript file', () => {
+        const files = new Map([['packages/apps/commise/web/next.config.mjs', `import { k } from '${MODULE}';`]]);
+        expect(offendingImporters(files)).toEqual(['packages/apps/commise/web/next.config.mjs']);
+    });
+});
+
 describe('the node keyed hash', () => {
     it('imports node:crypto, which is why it is server only', () => {
         const source = readFileSync(
@@ -94,13 +119,17 @@ describe('the node keyed hash', () => {
     });
 
     it('is imported by no app, feature, design-system or shared source', () => {
-        const tracked = execFileSync('git', ['ls-files', '--', 'packages/*.ts', 'packages/*.tsx'], {
-            cwd: repoRoot,
-            encoding: 'utf8',
-            maxBuffer: 64 * 1024 * 1024,
-        })
+        const tracked = execFileSync(
+            'git',
+            ['ls-files', '--', ...SCANNED_EXTENSIONS.map((ext) => `packages/*.${ext}`)],
+            {
+                cwd: repoRoot,
+                encoding: 'utf8',
+                maxBuffer: 64 * 1024 * 1024,
+            },
+        )
             .split('\n')
-            .filter((file) => file !== '');
+            .filter(isScannedSource);
         expect(tracked.length).toBeGreaterThan(1000);
 
         const sources = new Map(tracked.map((file) => [file, readFileSync(path.join(repoRoot, file), 'utf8')]));

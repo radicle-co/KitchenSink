@@ -19,8 +19,9 @@
  * a stored fingerprint means, and `wordShingles.test.ts` pins it with known answers.
  *
  * Shingles are lower-cased words with punctuation stripped, joined by one space. Apostrophes are removed so
- * "don't" stays one word. A text shorter than the window yields one shingle of all its words, so a short sentence
- * is still comparable; an empty text yields none.
+ * "don't" stays one word. A text shorter than the window yields one shingle of all its words. That shingle matches
+ * only a source that held exactly those words as a whole short text: a short sentence is NOT found inside a longer
+ * source, whose windows are full-size. An empty text yields none.
  *
  * Both measures return 0 for empty input: no evidence of overlap is not an overlap. Both REFUSE two fingerprints of
  * different format or key version with a {@link FingerprintMismatchError}: that is "not comparable", never 0.

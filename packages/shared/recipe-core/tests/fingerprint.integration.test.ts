@@ -3,8 +3,11 @@
  * int64), driven by a keyring parsed from its secret. The unit tier proves the maths through a stand-in; this tier
  * proves the services' hasher satisfies the injected `KeyedHash` contract end to end.
  */
+import { createHash } from 'node:crypto';
+
 import { describe, expect, it } from 'vitest';
 
+import { contentDigestInput } from '@kitchensink/recipe-core/step-writing/content-digest';
 import { parseFingerprintKeyring } from '@kitchensink/recipe-core/step-writing/fingerprint-keyring';
 import { keyedShingleHash } from '@kitchensink/recipe-core/step-writing/node-keyed-hash';
 import {
@@ -78,5 +81,39 @@ describe('fingerprint with the production keyed hasher', () => {
     it('still sees a copied sentence written with a Cyrillic look-alike letter', () => {
         const source = fingerprintUnder(SOURCE, 2);
         expect(containment(fingerprintUnder('Beat in the \u0435ggs one at a time.', 2), source)).toBe(1);
+    });
+});
+
+describe('the content digest with a real SHA-256', () => {
+    const digestOf = (parts: Parameters<typeof contentDigestInput>[0]): string =>
+        createHash('sha256').update(contentDigestInput(parts), 'utf8').digest('hex');
+
+    const base = {
+        steps: ['Boil the water.', 'Add the pasta.'],
+        ingredientLines: ['200 g pasta', '1 tsp salt'],
+        language: 'en',
+    };
+
+    it('is a 64-character lower-case hex digest with a known value, so the preimage cannot drift', () => {
+        expect(digestOf(base)).toBe('f302cbf20d8aa0ce587f334178d8bfc719ffaf74ca9d43ceb79773c227cb9609');
+    });
+
+    it('is the same after edits that change no words: whitespace, empty lines, invisibles', () => {
+        const noisy = {
+            steps: ['  Boil\u200B  the water. ', '', 'Add the\tpasta.'],
+            ingredientLines: ['200  g pasta', '1 tsp sa\u00ADlt'],
+            language: 'en',
+        };
+        expect(digestOf(noisy)).toBe(digestOf(base));
+    });
+
+    it('changes when a word, the step order or the language changes', () => {
+        const digests = new Set([
+            digestOf(base),
+            digestOf({ ...base, steps: ['Boil the milk.', 'Add the pasta.'] }),
+            digestOf({ ...base, steps: [...base.steps].reverse() }),
+            digestOf({ ...base, language: 'fr' }),
+        ]);
+        expect(digests.size).toBe(4);
     });
 });

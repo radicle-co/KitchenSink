@@ -10,7 +10,7 @@ ADR-0039. Ids use the house id type (`recipe-core/src/ids.ts`).
 | `recipe_id`      | id, PK      | FK `recipes(id)` ON DELETE CASCADE. One row per recipe (R6).                                    |
 | `user_id`        | id          | The owner at generation. Erasure deletes by it (FR-024).                                        |
 | `content_digest` | char(64)    | SHA-256 hex of the canonical content (R5). CHECK `~ '^[0-9a-f]{64}$'`.                          |
-| `language`       | text        | Lower-case ISO 639-1 code of the recipe (the primary language subtag).                          |
+| `language`       | text        | Lower-case BCP 47 primary language subtag of the recipe (2 or 3 letters).                       |
 | `steps`          | jsonb       | `[{ text: string, covers: number[] }]`, 1..80 items; validated by the zod parser before insert. |
 | `engine_version` | text        | `{modelId}#{promptSha256}`. Audit only (FR-025).                                                |
 | `job_id`         | id          | The job that produced it.                                                                       |

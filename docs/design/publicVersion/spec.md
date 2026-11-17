@@ -73,7 +73,7 @@ to the 003B state table, the contract and research.
 | X3  | The contract lists `publicPending` and `publicReview` as `privateOnly` reasons. Copy v3 shows the same situations as `publicExists` states `writing` and `inReview`.                                                                                                                        | The contract is to make `publicExists.status` one of `published`, `writing` or `inReview`, with `recipeId` when there is one, and to remove `publicPending` and `publicReview`. The 003B lead applies this.                                                                                                                                                             |
 | X4  | The 003B state table has `hidden.owner.*`, `hidden.superseded` and `hidden.reader`. Copy v3 has `publicPage.hiddenOwner` and `publicPage.hiddenReader`, and no superseded line.                                                                                                             | The 003B table is to use `publicPage.hiddenOwner` and `publicPage.hiddenReader`. They are out of this spec's boards (recipe detail) and belong to the detail spec. The 003B lead applies this.                                                                                                                                                                          |
 | X5  | The brief named the mobile phone size 402. The mobile canvas's existing boards are Iphone390 and Android384.                                                                                                                                                                                | Phone boards are drawn at 390. §12.2 uses Iphone390, Android384, Ipad834 and Ipad1194.                                                                                                                                                                                                                                                                                  |
-| X6  | 003B FR-050a gives `blocked.rewrite` as the button label "Write it again". 003B research R8 gives it as a sentence.                                                                                                                                                                         | This spec follows the copy: the blocked state shows `blocked.body` with the `flag.rewrite` "Write it again" button and `review.notNow`. `rewriteNeeded.body` is the separate rewriteNeeded offer. The 003B lead aligns FR-050a and R8 to that.                                                                                                                          |
+| X6  | 003B FR-050a gives `blocked.rewrite` as the button label "Write it again". 003B research R8 gives it as a sentence.                                                                                                                                                                         | This spec follows the copy: the blocked state shows `blocked.body` with the `flag.rewrite` "Write it again" button and the path's not-now key. `checkUnavailable.body` is the separate check-unavailable state. The 003B lead aligns FR-050a and R8 to that.                                                                                                            |
 | X7  | The contract's `privateOnly` reasons include `under16`. X2's list drops it.                                                                                                                                                                                                                 | `under16` is not a `privateOnly` reason until spec 016 ships a real age check, because nothing can produce it. The age is asked when the cook presses Publish: the server answers `403 ageConfirmNeeded` and the `ageConfirm.v1` dialog opens (screen P10 in this spec). The 003B lead amends FR-016, C-17, `plan.md` and the contract (ruling on PR #343, 2026-11-17). |
 
 `offerChanged` comes from a server `409` with the body `{ code: 'offerChanged', offer }`, on the start-job and the
@@ -281,9 +281,9 @@ visibility area's render component and the button. The client never computes an 
 - **Stop.** Cancels the job, returns to P5 with the choice kept. Both: the copy stays.
 - **Show my copy / Hide my copy.** A disclosure. Its state is not kept across visits.
 - **Edit steps.** Turns the steps into fields. The button becomes "Done editing" (reuse the editor's key).
-- **Write it again.** Starts a new attempt of the same job (up to 3). Returns to P7.
+- **Write it again.** Calls the retry route, which starts a new attempt of the same job (up to 3). Returns to P7.
 - **Publish.** `POST …/publish` with the edited title and steps. A `403 ageConfirmNeeded` answer opens P10 (X7).
-  `422 flags` shows the flags group. `422 tooSimilar` shows B8 blocked. `422 rewriteNeeded` shows B8 rewriteNeeded.
+  `422 flags` shows the flags group. `422 tooSimilar` shows B8 blocked. `503 checkUnavailable` shows B8 check unavailable, with only the private exit.
   `409 privateCopyChanged` (Both) shows the flags group's rewrite action with `flag.fix` (no new string).
 - **Keep it just for me / `Don't publish` / Cancel import.** For everyone: saves the private copy (a slot) and ends the
   job. With no slot left the button is `cancel`, and it ends the import with nothing saved. Both: ends the job, the copy stays.
@@ -313,15 +313,15 @@ Every state names its copy and key. Keys are under `importMessages.choice.*` unl
 
 One line, the slot line on Free, "Save my copy".
 
-| Reason                                                                                   | Key                          | Copy                                                                                                                                             |
-| ---------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `paidRecent` with `{date}`                                                               | `privateOnly.paidRecent`     | "This one is saved just for you. You can share a public version after {date}."                                                                   |
-| `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, `paidRecent` without a date | `privateOnly.line`           | `This one is saved just for you. We can't write a public version of it.`                                                                         |
-| `noSteps`                                                                                | `privateOnly.noSteps`        | "There are no steps to write from yet. Save it, add steps in the editor, then share a public version."                                           |
-| `noSourceAddress`                                                                        | `privateOnly.noSource`       | "We need the page's link to share this one. Save it, add the link as its source, then share a public version."                                   |
-| `languageUnsupported`                                                                    | `privateOnly.language`       | "This one is saved just for you. We can’t write public versions in its language yet."                                                            |
-| `languageUncertain`                                                                      | `privateOnly.languageUnsure` | "This one is saved just for you. We can’t tell which language it’s in, so we can’t write a public version of it." (copy pending designer review) |
-| `budget`                                                                                 | reuse `budget.line`          | `We can’t write public versions right now. Save it just for you.`                                                                                |
+| Reason                                                                                   | Key                          | Copy                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `paidRecent` with `{date}`                                                               | `privateOnly.paidRecent`     | "This one is saved just for you. You can share a public version after {date}."                                                                                 |
+| `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, `paidRecent` without a date | `privateOnly.line`           | `This one is saved just for you. We can't write a public version of it.`                                                                                       |
+| `noSteps`                                                                                | `privateOnly.noSteps`        | "There are no steps to write from yet. Save it, add steps in the editor, then share a public version."                                                         |
+| `noSourceAddress`                                                                        | `privateOnly.noSource`       | "We can’t share this one, because it has no source record. Import the recipe again from its link, then share a public version." (copy pending designer review) |
+| `languageUnsupported`                                                                    | `privateOnly.language`       | "This one is saved just for you. We can’t write public versions in its language yet."                                                                          |
+| `languageUncertain`                                                                      | `privateOnly.languageUnsure` | "This one is saved just for you. We can’t tell which language it’s in, so we can’t write a public version of it." (copy pending designer review)               |
+| `budget`                                                                                 | reuse `budget.line`          | `We can’t write public versions right now. Save it just for you.`                                                                                              |
 
 Slot line on Free: `private.hint`. Pro: none.
 
@@ -363,22 +363,22 @@ Slot line on Free: `private.hint`. Pro: none.
 | Ready                 | `review.title`, `review.body`, `review.titleLabel` (new), `review.titleNote`, `review.stepsHeading` (new), `review.compare`, `review.photoNote`, `credit.written`, `credit.basedOn`, `review.licence`, `review.publish`, `review.edit`, `review.notNow` |
 | Show my copy open     | `review.compareHide`, `review.oursHeading` (new), `review.yourCopyHeading` (new)                                                                                                                                                                        |
 | Editing               | The editor's step field, and "Done editing" (reuse)                                                                                                                                                                                                     |
-| Fact flags            | `flag.title` (ICU), `flag.step`, `flag.allergen`, `flag.fix`, `flag.rewrite`. Focus to the group's heading. Publish stays enabled                                                                                                                       |
+| Fact flags            | `flag.title` (ICU), `flag.step`, `flag.allergen`, `flag.added` (new, §7.2), `flag.fix`, `flag.rewrite`. Focus to the group's heading. Publish stays enabled                                                                                             |
 | Credit, paid site     | `credit.written`, `review.licence`. No site named or linked                                                                                                                                                                                             |
 | Both path             | `review.notNowBoth` reads `Don’t publish` (003B C-29: one key per string)                                                                                                                                                                               |
 | For everyone, no slot | reuse `importMessages.paste.cancel` instead of "Keep it just for me"                                                                                                                                                                                    |
 
 ### 6.8 Refused, failed and budget (B8)
 
-| State                          | Copy and keys                     | Actions                                                                  |
-| ------------------------------ | --------------------------------- | ------------------------------------------------------------------------ |
-| Wording too close, public path | `blocked.body`                    | `flag.rewrite`, `review.notNow`                                          |
-| Wording too close, Both        | `blocked.bodyBoth`                | `flag.rewrite`, `review.notNowBoth`                                      |
-| Rewrite needed                 | `rewriteNeeded.body` (new, §7.2)  | `flag.rewrite` ("Write it again"), `review.notNow` / `review.notNowBoth` |
-| Failed, For everyone           | `failed.title`, `failed.body`     | reuse `importMessages.wizard.retry`, `button.private`. No slot: dead end |
-| Failed, Both                   | `failed.title`, `failed.bodyBoth` | reuse `importMessages.wizard.retry`, "Done" (`failed.done`, new)         |
-| Budget spent during the flow   | `budget.line`                     | `button.private`. Both: "Done" (`failed.done`)                           |
-| The offer changed (409)        | `offerChanged.line` (new, §7.2)   | "Continue"                                                               |
+| State                          | Copy and keys                                                     | Actions                                                                  |
+| ------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Wording too close, public path | `blocked.body`                                                    | `flag.rewrite`, `review.notNow`                                          |
+| Wording too close, Both        | `blocked.bodyBoth`                                                | `flag.rewrite`, `review.notNowBoth`                                      |
+| Check unavailable (Publish)    | `checkUnavailable.body` (new, §7.2, copy pending designer review) | the path's not-now key (`review.notNow` / `review.notNowBoth`) only      |
+| Failed, For everyone           | `failed.title`, `failed.body`                                     | reuse `importMessages.wizard.retry`, `button.private`. No slot: dead end |
+| Failed, Both                   | `failed.title`, `failed.bodyBoth`                                 | reuse `importMessages.wizard.retry`, "Done" (`failed.done`, new)         |
+| Budget spent during the flow   | `budget.line`                                                     | `button.private`. Both: "Done" (`failed.done`)                           |
+| The offer changed (409)        | `offerChanged.line` (new, §7.2)                                   | "Continue"                                                               |
 
 Every one of these is `role="alert"`, and focus moves to the screen's heading or the alert.
 
@@ -406,18 +406,19 @@ exclamation marks, no reason clauses, and none of the banned words (one list, `b
 
 ### 7.2 New strings (not in copy v3 or v2)
 
-| Key                      | Copy                                                             | Where  |
-| ------------------------ | ---------------------------------------------------------------- | ------ |
-| `button.none`            | "Continue"                                                       | B1, B8 |
-| `creditPreview.label`    | "Your public version will say"                                   | B1     |
-| `publicExists.link`      | "See the public version" (same words as `done.linkPublic`)       | B3     |
-| `review.titleLabel`      | "Recipe name"                                                    | B7     |
-| `review.stepsHeading`    | "Steps"                                                          | B7     |
-| `review.oursHeading`     | "Public version"                                                 | B7     |
-| `review.yourCopyHeading` | "Your copy"                                                      | B7     |
-| `rewriteNeeded.body`     | "This version needs writing again before it can be published."   | B8     |
-| `failed.done`            | "Done"                                                           | B8     |
-| `offerChanged.line`      | "Something changed since you chose. Have a look and pick again." | B1, B8 |
+| Key                      | Copy                                                                                                                                     | Where  |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| `button.none`            | "Continue"                                                                                                                               | B1, B8 |
+| `creditPreview.label`    | "Your public version will say"                                                                                                           | B1     |
+| `publicExists.link`      | "See the public version" (same words as `done.linkPublic`)                                                                               | B3     |
+| `review.titleLabel`      | "Recipe name"                                                                                                                            | B7     |
+| `review.stepsHeading`    | "Steps"                                                                                                                                  | B7     |
+| `review.oursHeading`     | "Public version"                                                                                                                         | B7     |
+| `review.yourCopyHeading` | "Your copy"                                                                                                                              | B7     |
+| `checkUnavailable.body`  | "We can’t check this version right now. You can keep it just for you." (copy pending designer review)                                    | B8     |
+| `flag.added`             | "Your edit adds “{line}”, which isn’t in your copy. Take it out in Edit steps, or we can write it again." (copy pending designer review) | B7     |
+| `failed.done`            | "Done"                                                                                                                                   | B8     |
+| `offerChanged.line`      | "Something changed since you chose. Have a look and pick again."                                                                         | B1, B8 |
 
 ### 7.3 Reused keys
 
@@ -443,7 +444,7 @@ exclamation marks, no reason clauses, and none of the banned words (one list, `b
 Glyphs in `packages/apps/commise/ui/src/icon/glyphs.ts`: `lock`, `clock`, `pencilLine`, `check`, `triangleAlert`,
 `image`, `chevronDown`.
 
-### 8.2 New render components (feature package, `features/recipes/src/import/publicVersion/`)
+### 8.2 New render components (feature package, `features/recipes/src/import/choice/`)
 
 Each has a web leaf and a `.native.tsx` leaf with one shared props file. All are presentational.
 
@@ -497,7 +498,7 @@ for the plan card.
 | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Offer → visibility area map (§5.1)                                                                  | Visitor, satisfied by the language: an exhaustive switch over `offer.kind`                                                    |
 | `privateOnly` reason → line                                                                         | Registry: one table from reason to key, written once                                                                          |
-| `usePublicVersionFlow`                                                                              | Headless hook over a State reducer: choice, writing, review, refused, done. Each transition is a Command (TanStack mutations) |
+| `useImportChoice` (reducer `importChoiceMachine`)                                                   | Headless hook over a State reducer: choice, writing, review, refused, done. Each transition is a Command (TanStack mutations) |
 | Job polling                                                                                         | Already satisfied by TanStack Query's refetch interval. Add nothing                                                           |
 | `PublicVersionReview`                                                                               | Template: fixed frame, slots for flags, steps and credit                                                                      |
 | `ImportDeadEnd`                                                                                     | Strategy, satisfied by its `pro` prop being null or a plan: the render picks one of two shapes                                |
@@ -564,26 +565,26 @@ None of our own. Pushes, the dialog and the sheet use the platform's transitions
 
 ### 12.1 `recipeImportingWeb`
 
-| #   | Board                   | States shown                                                                                              | Sizes          |
-| --- | ----------------------- | --------------------------------------------------------------------------------------------------------- | -------------- |
-| B1  | ImportPublicChoice      | Nothing chosen (full P5), For everyone with free and paid credit, Pro with Both, pickOne, offline         | 1280, 390      |
-| B2  | ImportPublicPrivateOnly | paidRecent (full P5), line, noSteps, noSourceAddress, languageUnsupported, languageUncertain, budget, Pro | 1280, 390      |
-| B3  | ImportPublicExists      | published (full P5), writing, inReview, no slot                                                           | 1280, 390      |
-| B4  | ImportPublicOnly        | `full.line` with the Pro card (full P5), switch off                                                       | 1280, 390      |
-| B5  | ImportPublicDeadEnd     | Trial eligible (full P9), trial used, switch off                                                          | 1280, 390      |
-| B6  | ImportPublicWriting     | For everyone, Both with copy saved, offline                                                               | 1280, 390      |
-| B7  | ImportPublicReview      | Closed, open, editing, flags, paid credit, Both actions, For everyone with no slot                        | 1280, 768, 390 |
-| B8  | ImportPublicRefused     | Wording too close, rewrite needed, failed (both paths), budget spent, offer changed                       | 1280, 390      |
-| B9  | ImportPublicSaved       | Both (private copy and public version), Just for me, For everyone                                         | 1280, 390      |
-| B10 | ImportPublicAgeConfirm  | The dialog over the review                                                                                | 1280, 390      |
+| #   | Board                   | States shown                                                                                                                                    | Sizes          |
+| --- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| B1  | ImportPublicChoice      | Nothing chosen (full P5), For everyone with free and paid credit, Pro with Both, pickOne, offline                                               | 1280, 390      |
+| B2  | ImportPublicPrivateOnly | paidRecent (full P5), line, noSteps, noSourceAddress, budget, Pro. Owed after merge: languageUnsupported and languageUncertain                  | 1280, 390      |
+| B3  | ImportPublicExists      | published (full P5), writing, inReview, no slot                                                                                                 | 1280, 390      |
+| B4  | ImportPublicOnly        | `full.line` with the Pro card (full P5), switch off                                                                                             | 1280, 390      |
+| B5  | ImportPublicDeadEnd     | Trial eligible (full P9), trial used, switch off                                                                                                | 1280, 390      |
+| B6  | ImportPublicWriting     | For everyone, Both with copy saved, offline                                                                                                     | 1280, 390      |
+| B7  | ImportPublicReview      | Closed, open, editing, flags, paid credit, Both actions, For everyone with no slot                                                              | 1280, 768, 390 |
+| B8  | ImportPublicRefused     | Wording too close, check unavailable (owed after merge: redraw from the rewrite-needed state), failed (both paths), budget spent, offer changed | 1280, 390      |
+| B9  | ImportPublicSaved       | Both (private copy and public version), Just for me, For everyone                                                                               | 1280, 390      |
+| B10 | ImportPublicAgeConfirm  | The dialog over the review                                                                                                                      | 1280, 390      |
 
 768 is drawn only for B7, where the open comparison sits side by side (regular container) while 390 stacks it. Every
 other screen at 768 has the 390 layout at a wider column. 1024 is not drawn: at 1024 the sidebar leaves `<main>` under
 960 of content, so 1024 shows the one-column layout of 768 (paste spec §3.5).
 
-### 12.2 `recipeImportingMobile` (drawn)
+### 12.2 `recipeImportingMobile` (drawn, with the two language states and check unavailable owed)
 
-Drawn on 2026-11-17 on `recipeImportingMobile`, in four rows below the existing boards, one per size. Every board name is
+Drawn on 2026-11-17 on `recipeImportingMobile`, in four rows below the existing boards, one per size. Owed after merge: the designer draws `languageUnsupported` and `languageUncertain` on M2, and redraws the rewrite-needed state of M8 as check unavailable. Every board name is
 `ImportPublic<Name><Size>`. Boards stack their states, as the paste boards do. The owner rulings in force: the choice is a
 bottom sheet on phones, `ageConfirm` is a centred blocking dialog, the dead end is a full page, and on phones the primary
 action is last in any stacked bar.
@@ -591,13 +592,13 @@ action is last in any stacked bar.
 | #   | Board                   | States drawn                                                                                                                                                                 | Sizes                                    |
 | --- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
 | M1  | ImportPublicChoice      | Review page before the sheet opens (phones), nothing chosen, For everyone with free and paid credit, Pro with Both, pickOne, offline. A sheet on phones, in the page on iPad | Iphone390, Android384, Ipad834, Ipad1194 |
-| M2  | ImportPublicPrivateOnly | paidRecent (full P5), line, noSteps, noSourceAddress, languageUnsupported, languageUncertain, budget, Pro                                                                    | Iphone390, Ipad1194                      |
+| M2  | ImportPublicPrivateOnly | paidRecent (full P5), line, noSteps, noSourceAddress, budget, Pro. Owed after merge: languageUnsupported and languageUncertain                                               | Iphone390, Ipad1194                      |
 | M3  | ImportPublicExists      | published (full P5), writing, inReview, no slot                                                                                                                              | Iphone390                                |
 | M4  | ImportPublicOnly        | `full.line` with the Pro card (full P5), switch off                                                                                                                          | Iphone390                                |
 | M5  | ImportPublicDeadEnd     | Trial eligible, trial used, switch off. Full page, stacked buttons, Upgrade last. The store sheet is the OS's, not drawn                                                     | Iphone390, Android384, Ipad834           |
 | M6  | ImportPublicWriting     | For everyone, Both with copy saved, offline. Stop pinned                                                                                                                     | Iphone390                                |
 | M7  | ImportPublicReview      | Closed, open (stacked on phones, side by side on iPad), editing with the keyboard open (phones), flags, paid credit, Both actions, no slot                                   | Iphone390, Android384, Ipad834, Ipad1194 |
-| M8  | ImportPublicRefused     | Wording too close, rewrite needed, failed (both paths), budget spent, offer changed                                                                                          | Iphone390                                |
+| M8  | ImportPublicRefused     | Wording too close, check unavailable (owed after merge: redraw from the rewrite-needed state), failed (both paths), budget spent, offer changed                              | Iphone390                                |
 | M9  | ImportPublicSaved       | Both (private copy and public version), Just for me, For everyone                                                                                                            | Iphone390, Ipad834                       |
 | M10 | ImportPublicAgeConfirm  | The centred dialog over the review                                                                                                                                           | Iphone390, Ipad834                       |
 
@@ -617,7 +618,7 @@ Both.
 
 ## 15. Open questions
 
-1. **Lead:** X1 to X4 and X6 are applied (2026-11-17); X5 stays open.
+1. **Lead:** X1 to X4, X6 and X7 are applied (2026-11-17); X5 is ruled (phone boards at 390).
 2. **Lead:** the new strings in §7.2.
 3. **Design system owner:** `ButtonPair` and the `RadioList` selected fill (§8.3).
 4. **010 owner:** the mobile store sheet opening at Pro with both periods shown (§4, Upgrade).

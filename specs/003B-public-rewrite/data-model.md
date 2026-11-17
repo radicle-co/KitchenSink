@@ -11,52 +11,52 @@ a recipe, so it outlives the private copy and the public version (C-14). It hold
 owner, and neither the fingerprint nor the monitoring count needs the cook. So erasure has nothing to sweep here, and the table goes
 in `erasureSweepCoverage`'s `RETAINED_BY_RULING` map with this reason.
 
-| Column                    | Type                 | Rule                                                                                                                                                                                                                                                                                                                                                          |
-| ------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                      | uuid PK              |                                                                                                                                                                                                                                                                                                                                                               |
-| `evidence_id`             | uuid NULL            | The ADR-0089 §6 evidence row, where one exists. Not a foreign key: the evidence row cascades away with its recipe, and this record outlives it.                                                                                                                                                                                                               |
-| `source_key`              | text NOT NULL        | Registrable domain (Public Suffix List, by library), (the same key `016` uses for a source). It is not the evidence record's `source_key`, which is the normalised page address (`page_key` here).                                                                                                                                                            |
-| `source_class`            | text NOT NULL        | CHECK in (`site`, `aggregator`, `paid_site`). Kept for monitoring. It changes no rule.                                                                                                                                                                                                                                                                        |
-| `classification`          | text NOT NULL        | CHECK in (`open`, `thirdParty`, `paid`).                                                                                                                                                                                                                                                                                                                      |
-| `classification_inputs`   | jsonb NOT NULL       | The signals read: statement kind, claim state, licence signal, paid signal (which of the three), publication date, signature status, list versions. Each signal is `stated`, `absent` or `unread`. For the open test, `unread` reads as third-party. For the paid, opt-out and signature signals, `unread` is `unknown` and takes the rewrite path (FR-012b). |
-| `fingerprint_format`      | smallint NOT NULL    | Format version of the hashing (R3).                                                                                                                                                                                                                                                                                                                           |
-| `fingerprint_key_version` | smallint NOT NULL    | Version of the hash key. One keyring secret holds every version, rotation adds a version and never deletes one (the feature ADR, owed (T004)).                                                                                                                                                                                                                |
-| `step_shingles`           | bigint[] NOT NULL    | Keyed hashes (first 8 bytes of an HMAC-SHA-256, as a signed bigint) of word 5-shingles of the source steps. Never the text.                                                                                                                                                                                                                                   |
-| `title_shingles`          | bigint[] NOT NULL    | Keyed hashes of word 2-shingles of the source title.                                                                                                                                                                                                                                                                                                          |
-| `title_hash`              | bigint NOT NULL      | Keyed hash of the normalised source title.                                                                                                                                                                                                                                                                                                                    |
-| `page_key`                | text NOT NULL        | The normalised source address, `sourceLinkKey(url)` (`004`), as text. For a page with no date, the paid hold reads the earliest `recorded_at` per page (FR-017). Indexed.                                                                                                                                                                                     |
-| `published_on`            | date NULL            | The page's own publication date, where its data states one.                                                                                                                                                                                                                                                                                                   |
-| `language`                | text NULL            | ISO 639-1 code of the source's language, set at the import save (FR-012c). NULL when the language could not be decided with confidence (`languageUncertain`). A code the platform cannot handle is stored as detected, and the offer reads it as `languageUnsupported` when no language profile exists for it. A CHECK allows only two lower-case letters.    |
-| `recorded_at`             | timestamptz NOT NULL |                                                                                                                                                                                                                                                                                                                                                               |
+| Column                    | Type                 | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                      | uuid PK              |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `evidence_id`             | uuid NULL            | The ADR-0089 §6 evidence row, where one exists. Not a foreign key: the evidence row cascades away with its recipe, and this record outlives it. Indexed: `hasSourceRecord` and the later route read it.                                                                                                                                                                                                                                           |
+| `source_key`              | text NOT NULL        | Registrable domain (Public Suffix List, by library), (the same key `016` uses for a source). It is not the evidence record's `source_key`, which is the normalised page address (`page_key` here).                                                                                                                                                                                                                                                |
+| `source_class`            | text NOT NULL        | CHECK in (`site`, `aggregator`, `paid_site`). Kept for monitoring. It changes no rule.                                                                                                                                                                                                                                                                                                                                                            |
+| `classification`          | text NOT NULL        | CHECK in (`open`, `thirdParty`, `paid`). `paid` only for a clearly read paid signal (`isAccessibleForFree` false, or a metered paywall). A page on the paid list with no clear signal, and every `unknown` signal, is `thirdParty` (FR-012b).                                                                                                                                                                                                     |
+| `classification_inputs`   | jsonb NOT NULL       | The signals read: statement kind, claim state, licence signal, paid signal (`isAccessibleForFree` false or metered paywall; the paid-list domain is a separate input, not a signal), publication date, signature status, list versions. Each signal is `stated`, `absent` or `unread`. For the open test, `unread` reads as third-party. For the paid, opt-out and signature signals, `unread` is `unknown` and takes the rewrite path (FR-012b). |
+| `fingerprint_format`      | smallint NOT NULL    | Format version of the hashing (R3).                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `fingerprint_key_version` | smallint NOT NULL    | Version of the hash key. One keyring secret holds every version, rotation adds a version and never deletes one (the feature ADR, owed (T004)).                                                                                                                                                                                                                                                                                                    |
+| `step_shingles`           | bigint[] NOT NULL    | Keyed hashes (first 8 bytes of an HMAC-SHA-256, as a signed bigint) of word 5-shingles of the source steps. Never the text.                                                                                                                                                                                                                                                                                                                       |
+| `title_shingles`          | bigint[] NOT NULL    | Keyed hashes of word 2-shingles of the source title.                                                                                                                                                                                                                                                                                                                                                                                              |
+| `title_hash`              | bigint NOT NULL      | Keyed hash of the normalised source title.                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `page_key`                | text NOT NULL        | The normalised source address, `sourceLinkKey(url)` (`004`), as text. For a page with no date, the paid hold reads the earliest `recorded_at` per page (FR-017). Indexed.                                                                                                                                                                                                                                                                         |
+| `published_on`            | date NULL            | The page's own publication date, where its data states one.                                                                                                                                                                                                                                                                                                                                                                                       |
+| `language`                | text NULL            | BCP 47 primary subtag of the source's language (2 or 3 lower-case letters), set at the import save (FR-012c). NULL when the language could not be decided with confidence (`languageUncertain`). A code the platform cannot handle is stored as detected, and the offer reads it as `languageUnsupported` when no language profile exists for it. A CHECK allows only `^[a-z]{2,3}$`.                                                             |
+| `recorded_at`             | timestamptz NOT NULL |                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
-Append-only for every role, by trigger, as the evidence record of ADR-0089 §6 does. No UPDATE, no DELETE except the retention purge.
+Append-only for every role, by trigger, as the evidence record of ADR-0089 §6 does. No UPDATE, no DELETE except the retention purge. Indexes: `page_key` and `evidence_id`.
 
 ## `public_version_jobs`
 
-| Column                                    | Type              | Rule                                                                                                         |
-| ----------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------ |
-| `id`                                      | uuid PK           |                                                                                                              |
-| `source_record_id`                        | uuid NOT NULL     | FK `recipe_source_records`.                                                                                  |
-| `page_key`                                | text NOT NULL     | Copied from the source record. One live job per page, across cooks (FR-034).                                 |
-| `user_id`                                 | id NOT NULL       | The requester. 404 for anyone else.                                                                          |
-| `import_item_id`                          | uuid NULL         | Set on the import path. NULL on the later route.                                                             |
-| `private_recipe_id`                       | uuid NULL         | The Both path and the later route. FK `recipes` ON DELETE SET NULL.                                          |
-| `private_digest`                          | char(64) NULL     | Digest of the private copy at writing time (FR-045).                                                         |
-| `state`                                   | text NOT NULL     | CHECK in (`pending`, `writing`, `ready`, `checkRefused`, `budgetSpent`, `failed`, `cancelled`, `published`). |
-| `attempts`                                | smallint NOT NULL | 0 to 3 (C-7).                                                                                                |
-| `engine_version`                          | text NULL         | `{modelId}#{promptSha256}` of the call that wrote the output. Copied to the public version at Publish.       |
-| `facts_snapshot`                          | jsonb NULL        | The facts sheet from import. Set to NULL at any terminal state.                                              |
-| `output`                                  | jsonb NULL        | `{ title, steps[] }` from the writer and the title builder. Set to NULL at any terminal state.               |
-| `created_at`, `claimed_at`, `finished_at` | timestamptz       | `finished_at` set iff terminal.                                                                              |
+| Column                                    | Type              | Rule                                                                                                                                |
+| ----------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                                      | uuid PK           |                                                                                                                                     |
+| `source_record_id`                        | uuid NOT NULL     | FK `recipe_source_records`.                                                                                                         |
+| `page_key`                                | text NOT NULL     | Copied from the source record. One live job per page, across cooks (FR-034).                                                        |
+| `user_id`                                 | id NOT NULL       | The requester. 404 for anyone else.                                                                                                 |
+| `import_item_id`                          | uuid NULL         | Set on the import path. NULL on the later route.                                                                                    |
+| `private_recipe_id`                       | uuid NULL         | The Both path and the later route. FK `recipes` ON DELETE SET NULL.                                                                 |
+| `private_digest`                          | char(64) NULL     | Digest of the private copy at writing time (FR-045). Set on the Both path and on the later route.                                   |
+| `state`                                   | text NOT NULL     | CHECK in (`pending`, `writing`, `ready`, `checkRefused`, `budgetSpent`, `failed`, `cancelled`, `published`).                        |
+| `attempts`                                | smallint NOT NULL | 0 to 3 (C-7). Each claim from `pending` to `writing` adds one.                                                                      |
+| `engine_version`                          | text NULL         | `{modelId}#{promptSha256}` of the call that wrote the output. Copied to the public version at Publish.                              |
+| `facts_snapshot`                          | jsonb NULL        | The facts sheet from import (or, on the later route, from the private copy). Cleared only on entering a terminal state (see below). |
+| `output`                                  | jsonb NULL        | `{ title, steps[] }` from the writer and the title builder. Cleared only on entering a terminal state.                              |
+| `created_at`, `claimed_at`, `finished_at` | timestamptz       | `finished_at` set iff terminal.                                                                                                     |
 
 Indexes:
 
-- `UNIQUE (page_key) WHERE state IN ('pending','writing','ready')`: one live job per source page. A second cook who collides is told there is a version on its way (`publicExists.writing`) and keeps Private.
+- `UNIQUE (page_key) WHERE state IN ('pending','writing','ready')`: one live job per source page. A second cook who collides is told there is a version on its way (`publicExists.writing`) and keeps Private. A job re-entering `pending` meets the same index, and a collision there answers `409 publicExists`.
 - `(user_id, created_at)`: the cook's own job list.
 
 A job expires lazily, in the data layer, in the same transaction before an insert and again on every read: a job in
 `pending` or `writing` for more than 10 minutes becomes `failed`, and a job in `ready` for more than 24 hours becomes
-`cancelled`. No timer process is needed, and a job nobody reads cannot hold its page key past the next insert for that page.
+`cancelled`, and so is a resting `checkRefused` (fewer than 3 attempts) after 24 hours. No timer process is needed, and a job nobody reads cannot hold its page key past the next insert for that page.
 
 Finished jobs are deleted 7 days after `finished_at` by the existing retention sweeper. The table is user-keyed: add it
 to `erasureSweepCoverage` and to the test-principal purge.
@@ -64,19 +64,38 @@ to `erasureSweepCoverage` and to the test-principal purge.
 ## State transitions (job)
 
 ```text
-pending ──claimed by worker──────────────▶ writing
+pending ──claimed by worker──────────────▶ writing         (attempts + 1)
 writing ──engine ok──────────────────────▶ ready           (output stored, reservation settled)
-writing ──check refused, attempts < 2────▶ pending         (one automatic retry)
-writing ──check refused again────────────▶ checkRefused    (terminal, "Try again" by hand makes a new attempt ≤ 3)
+writing ──check refused, attempts < 2────▶ pending         (automatic retry)
+writing ──check refused, attempts >= 2───▶ checkRefused    (rests while attempts < 3, terminal at 3)
 writing ──ceiling denial─────────────────▶ budgetSpent     (refund, ack, never redelivered)
 pending|writing ──Stop───────────────────▶ cancelled       (a late result is dropped: writes need state IN pending, writing)
 pending|writing ──10 min / maxReceive────▶ failed
 ready ──Publish (server re-checks pass)──▶ published       (same transaction as the recipe insert)
-ready ──Not now / flow ends──────────────▶ cancelled
+ready ──Not now / 24 h───────────────────▶ cancelled
+ready ──"Write it again" (422 flags, 422 tooSimilar, 409 privateCopyChanged)──▶ pending   (attempts < 3)
+checkRefused ──"Try again"───────────────▶ pending         (attempts < 3)
+checkRefused ──24 h (attempts < 3)───────▶ cancelled
 ```
+
+Rules:
+
+- The retry route (`POST /api/v1/public-version-jobs/{jobId}/retry`) makes both `ready` to `pending` and
+  `checkRefused` to `pending`. It answers `409 attemptsUsed` at 3 attempts. Re-entering `pending` meets the partial
+  unique index, and a collision answers `409 publicExists`.
+- After `privateCopyChanged` the re-entry rebuilds `facts_snapshot` and `private_digest` from the changed private copy.
+- A Publish that answers `503 checkUnavailable` leaves the job `ready` and spends no attempt.
+- `facts_snapshot` and `output` are cleared only on entering a terminal state: `published`, `cancelled`, `failed`,
+  `budgetSpent`, or `checkRefused` at 3 attempts. They are kept while "Write it again" or "Try again" can still happen.
+- Every pair of states that this list does not name is refused.
 
 ## Columns on existing tables
 
+- `recipes.public_credit text NULL`: the credit a public version carries, set in the Publish transaction from the
+  credit the cook was shown and the server compared (FR-035). CHECK in (`free`, `paid`), and CHECK `public_credit IS
+NOT NULL` if and only if `source_type = 'commise_written'`. Both are `NOT VALID` then `VALIDATE` (expand-only). The
+  display reads this column: `free` shows `credit.basedOn` with the site read through `source_record_id` to the
+  record's `source_key`, and `paid` reads no site (FR-060, FR-018). One-way door, named in the feature ADR, owed (T004).
 - `recipes.source_record_id uuid NULL` and `recipes.source_page_key text NULL`: mark a public version. FK
   `recipe_source_records`, no cascade. A partial `UNIQUE (source_page_key) WHERE source_page_key IS NOT NULL` gives one
   public version per source page (FR-034) and is Publish's idempotency key. The key is released (set to NULL) in the same
@@ -91,8 +110,9 @@ ready ──Not now / flow ends──────────────▶ can
   `importSchemaParity` pins.
 - Allowance: making a public version spends no unit, on the import path or on the later route
   (`POST /api/v1/recipes/{recipeId}/public-version`). `import_allowance_events` and its channel CHECK are unchanged.
-- Recipe read, owner only: `hasSourceRecord` (boolean, no column). True when a `recipe_source_records` row has a
-  `page_key` equal to the recipe's evidence `source_key`. Omitted for any other viewer.
+- Recipe read, owner only: `hasSourceRecord` (boolean, no column). True when a `recipe_source_records` row exists
+  whose `evidence_id` equals this recipe's evidence row (several rows: the latest `recorded_at`, which the later route
+  uses). Only an import writes a source record. An edit in the editor never does. Omitted for any other viewer.
 - Monitoring counts public versions per `source_key` from `recipes.source_page_key` and the source records, for the
   rate alarm only. There is no per-source ledger and there are no caps (owner ruling 2026-11-15).
 - Publish confirmation: one row in `recipe_statement_attestations` (ADR-0095, PR #301, not merged): mode implicit, choice `publicConfirm`, action `create`, wording `publicVersionConfirm.v1`. Licence acceptance (FR-062) is that confirmation.
@@ -107,7 +127,7 @@ row is written. Recipe-service holds no age data. `clerk-verify` parses the clai
 
 ADR-0089 §6's evidence record holds no source steps, and this feature keeps no source text of its own. Keys are never
 deleted, so a missing key version is an operator fault. A later save then answers `503 checkUnavailable` and raises an
-alarm, and Publish answers `422 rewriteNeeded` (FR-050a).
+alarm, and Publish answers the same `503`, leaving the job `ready` (FR-050a).
 
 ## Not stored
 

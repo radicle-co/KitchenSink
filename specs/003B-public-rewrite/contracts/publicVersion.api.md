@@ -13,6 +13,9 @@ source: { classification: 'open' | 'thirdParty' | 'paid', domain: string | null 
 offer:  PublicVersionOffer
 ```
 
+`classification` is `paid` only for a clearly read paid signal. A page on the paid list with no clear signal, and an
+unknown signal, read `thirdParty` with `offer.credit: 'paid'` (FR-012b).
+
 `PublicVersionOffer` is one zod schema, `publicVersionOfferSchema`, authored in recipe-service
 `import/publicVersion/publicVersion.schema.ts`. The import item view and the offer route below both use it:
 
@@ -33,7 +36,7 @@ PublicVersionOffer =
         | { kind: 'publicExists', status: 'published' | 'writing' | 'inReview', recipeId: string | null }
           // one public version per source page (FR-034). recipeId is null until a recipe exists.
           // 'writing' and 'inReview' are states of an existing public version, never privateOnly reasons.
-        | { kind: 'publicOnly' }   // no slot left, public possible
+        | { kind: 'publicOnly', credit: 'free' | 'paid' }   // no slot left, public possible
         | { kind: 'deadEnd', reason: 'paid' | 'noWrite' }
 ```
 
@@ -41,27 +44,30 @@ The server computes `offer`. The client renders it and never derives it.
 
 ## The shown offer
 
-Start and Publish carry `shownOffer`, the offer the client rendered, cut down to the fields the server compares:
+Start and Publish carry `shownOffer`, the offer the client rendered, cut down to the only two kinds a cook can start or
+publish from:
 
 ```text
-ShownOffer =
-          { kind: 'choice', credit: 'free' | 'paid' }
-        | { kind: 'privateOnly', reason }   // the same reasons as the offer. holdEndsOn is not compared
-        | { kind: 'publicExists', status: 'published' | 'writing' | 'inReview' }   // recipeId is not compared
-        | { kind: 'publicOnly' }
-        | { kind: 'deadEnd', reason: 'paid' | 'noWrite' }
+ShownOffer = { kind: 'choice' | 'publicOnly', credit: 'free' | 'paid' }
 ```
 
-The server compares exactly these fields with the offer it computes now, and answers `409 { code: 'offerChanged', offer }`
-on a difference. The client never decides on its own that the offer changed. When the server computes the offer at Start
-and at Publish, it excludes the caller's own live job, so the same cook's job never reads as `publicExists`. If the page
-is now held by another cook's version, the answer is `409 { code: 'publicExists', recipeId }` (`recipeId` as for starting a job), which takes precedence over
-`offerChanged`. The later route sends the `shownOffer` it got from `GET /api/v1/recipes/{recipeId}/public-version/offer`.
+Any other body is a `400`. The server runs one pure function, `publishGate(offer, shownOffer)`. It allows the call
+when the offer the server computes now is `choice` or `publicOnly` and its `credit` equals the shown `credit`, and
+otherwise answers `409 { code: 'offerChanged', offer }`. It never compares slots (`choice` and `publicOnly` differ by
+a slot fact only). The budget is checked at Start only. Publish ignores it, and a retry over the ceiling ends the job
+`budgetSpent` in the worker. When the server computes the offer at Start and at Publish, it excludes the caller's own
+live job and its reservation, so the same cook's job never reads as `publicExists`. If the page is now held by
+another cook's version, the answer is `409 { code: 'publicExists', recipeId }` (`recipeId` as for starting a job),
+which takes precedence over `offerChanged`. The client never decides on its own that the offer changed. The later
+route sends the `shownOffer` it built from `GET /api/v1/recipes/{recipeId}/public-version/offer`.
 
 ## Read the offer for a private copy
 
-`GET /api/v1/recipes/{recipeId}/public-version/offer` → `200 { offer: PublicVersionOffer }`. Owner only, and it needs a
-token. It answers `404` for another cook's recipe, a missing recipe, or a recipe with no source record. The recipe read
+`GET /api/v1/recipes/{recipeId}/public-version/offer` → `200 { offer: LaterOffer }`, where
+`LaterOffer = { kind: 'choice', credit } | { kind: 'privateOnly', reason, holdEndsOn? } | { kind: 'publicExists', status, recipeId }`
+(the same shapes as above). The private copy already holds its slot, so this route never answers `publicOnly` or
+`deadEnd`. Owner only, and it needs a token. It answers `404` for another cook's recipe, a missing recipe, or a recipe
+with no source record. The recipe read
 carries the owner-only field `hasSourceRecord: boolean` (see below), which tells the client whether to show "Share a
 public version" at all. The client calls this route on tap, with no cache (`usePublicVersionOffer(recipeId, { enabled:
 false })`, `staleTime` 0). If the offer changes after that, the `409 offerChanged` of Start covers it.
@@ -69,13 +75,16 @@ false })`, `staleTime` 0). If the offer changes after that, the `409 offerChange
 ## Owner-only field on the recipe read
 
 `GET /api/v1/recipes/{id}` gains `hasSourceRecord: boolean`: true when a `recipe_source_records` row exists whose
-`page_key` equals the recipe's evidence `source_key`. It is present for the owner only and omitted for every other
+`evidence_id` equals the recipe's evidence row (several rows: the latest `recorded_at`; `evidence_id` is indexed).
+Only an import writes a record, so an editor edit never changes it. It is present for the owner only and omitted for every other
 viewer, like the other owner-only fields (ADR-0090, #301). It is computed the way #301 computes `publicNeedsCheck`.
 
 ## Start a public version
 
 `POST /api/v1/import/{importId}/items/{itemId}/public-version` with `{ choice: 'public' | 'both', shownOffer: ShownOffer }`.
-`POST /api/v1/recipes/{recipeId}/public-version` for the later route (a private copy). A paid copy goes through the
+`POST /api/v1/recipes/{recipeId}/public-version` for the later route (a private copy) with
+`{ shownOffer: { kind: 'choice', credit } }` and no `choice` field. Its job has `private_recipe_id` set and
+`import_item_id` NULL, builds its facts from the private copy and sets `private_digest`. A paid copy goes through the
 same paid-site rules.
 
 - `202 { jobId, state }`. A second call while a live job exists returns the same job.
@@ -87,7 +96,7 @@ same paid-site rules.
 ## Read the job
 
 `GET /api/v1/public-version-jobs/{jobId}` →
-`{ state, output?: { title, steps: { text }[] }, refusal?: 'factMissing' | 'factAdded' | 'tooSimilar' | 'unreadable' }`.
+`{ state, attempts, output?: { title, steps: { text }[] }, refusal?: 'factMissing' | 'factAdded' | 'tooSimilar' | 'unreadable' }`.
 The output is present only in `ready`. It holds no source text.
 
 ## Publish
@@ -95,8 +104,11 @@ The output is present only in `ready`. It holds no source text.
 `POST /api/v1/public-version-jobs/{jobId}/publish` with `{ title, steps: { text }[], shownOffer: ShownOffer }` (the cook's edited version).
 
 - `201 { recipeId }`, or `200 { recipeId }` for a job already published (idempotent on the source page key).
-- `422 { code: 'flags', flags: { kind: 'step' | 'allergen', line?, ingredient? }[] }` from the server fact check.
-- `422 { code: 'tooSimilar' }` from the wording check, or `422 { code: 'rewriteNeeded' }` when the stored fingerprint's key version cannot be read (the cook can write it again).
+- `422 { code: 'flags', flags: { kind: 'step' | 'allergen' | 'factAdded', line?, ingredient? }[] }` from the server fact check.
+  `factAdded` carries the added `line`.
+- `422 { code: 'tooSimilar' }` from the wording check.
+- `503 { code: 'checkUnavailable' }` when the stored fingerprint's key version cannot be read. It is retryable and
+  raises the alarm. The job stays `ready` and no attempt is spent (FR-050a).
 - `409 { code: 'privateCopyChanged' }` on the Both path (FR-045).
 - `409 { code: 'offerChanged', offer }` as for starting a job.
 - `409 { code: 'publicExists', recipeId }` when another cook's version now holds the page. It takes precedence over
@@ -113,6 +125,17 @@ The output is present only in `ready`. It holds no source text.
 
 - `204` on success. A repeat call writes no second row.
 - `503` when the claim write fails. The row stays, and a retry writes only the claim.
+
+## Retry
+
+`POST /api/v1/public-version-jobs/{jobId}/retry` → `202 { state: 'pending' }`. It serves "Write it again" (job `ready`
+after `422 flags`, `422 tooSimilar` or `409 privateCopyChanged`) and "Try again" (job `checkRefused`), while fewer than
+3 attempts are used.
+
+- `409 { code: 'attemptsUsed' }` at 3 attempts.
+- `409 { code: 'publicExists', recipeId }` when re-entering `pending` collides with another cook's live job on the page.
+- After `privateCopyChanged` it rebuilds the facts snapshot and private digest from the changed private copy.
+- A job in any other state answers `409 { code: 'notRetryable' }`.
 
 ## Cancel
 

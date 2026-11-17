@@ -6,7 +6,7 @@
 **Status**: BLUEPRINT done 2026-11-17. `staff-architect` PLANNING ran on 2026-11-15 (opus). Its pattern register and its
 findings are folded in below and into the spec (FR-015, FR-016, FR-045, FR-065, and the FR-050 title rule). The decisions
 are to be recorded in the paste and link import ADR, owed (T004), and the feature ADR, owed (T004). The build order is in `tasks.md`, with one slice tag per task.
-`staff-ux-engineer` SPECIFY and EVALUATE are owed before any UI code.
+`staff-ux-engineer` SPECIFY is done (`docs/design/publicVersion/spec.md` and `detailSpec.md`). EVALUATE is owed before launch (T117).
 
 ## Summary
 
@@ -31,9 +31,9 @@ transaction, worker tests, Playwright, Maestro, and k6 by hand.
 **Target Platform**: web, iOS and Android. recipe-service on Fargate. The worker on Lambda (VPC, NAT consumer).
 **Project Type**: monorepo feature across shared core, one service, one worker and two apps.
 **Performance Goals**: 95% of jobs ready within 30 s (SC-004).
-**Constraints**: facts-only writer input. No Anthropic model. The writer never fetches. A link import fetches on the device first, the server second (ADR-0093). Fail closed on spend and on the open test. An
+**Constraints**: writer input is the facts sheet plus the source step text, with no address, statement or source title (owner to confirm). No Anthropic model. The writer never fetches. A link import fetches on the device first, the server second (ADR-0093). Fail closed on spend and on the open test. An
 unreadable paid, opt-out or signature signal is `unknown` and takes the rewrite path. Job timeout 10 min.
-**Scale/Scope**: bounded by the one import allowance (ADR-0072 §8), 3 calls per item, and the spend ceiling.
+**Scale/Scope**: bounded by the spend ceiling, one public version per source page, and 3 attempts per job. Making a public version spends no import unit (C-24).
 
 ## Constitution Check
 
@@ -113,7 +113,7 @@ own second pinned prompt behind the same adapter, under its own call site.
 - `gatedConverse`, unrefactored.
 
 **Intent already satisfied (add nothing):** TanStack mutation as Command. The outcome union as Visitor. The unique
-the unique `recipes.source_page_key` as the idempotency key (no `Idempotency-Key` header).
+`recipes.source_page_key` as the idempotency key (no `Idempotency-Key` header).
 
 ## Cost path under DD21
 
@@ -122,9 +122,10 @@ the unique `recipes.source_page_key` as the idempotency key (no `Idempotency-Key
 - **Charge.** Operating cost (ADR-0024 §6 item 1). Never a cook's use (010-FR-041d, 005-FR-015a).
 - **Per call.** ADR-0024 §6 estimates a recipe-sized call at about 1,750 tokens in and 900 out: about $0.003 on Nova 2
   Lite. The facts sheet is smaller than a full recipe, so this is an upper estimate. The bake-off measures it.
-- **Per item.** At most 3 writer calls (one automatic retry, one by hand, C-7): at most about $0.009.
-- **Per cook.** Bounded by the one import allowance (ADR-0072 §8, `004-FR-061`), at 3 calls per item. There is no separate
-  cap (owner ruling 2026-11-15), so the pool's ceiling is the real bound.
+- **Per job.** At most 3 writer attempts (one automatic retry, one by hand, C-7): at most about $0.009.
+- **Per cook.** Not bounded by the import allowance (making a public version spends no unit, C-24). Bounded by one
+  public version per source page and 3 attempts per job. There is no separate cap (owner ruling 2026-11-15), so the
+  pool's ceiling is the real bound.
 - **Denial.** Terminal `budgetSpent`, refund in full, ack the message, never redeliver (FR-082). The screen reads the
   counter as a hint only. The reservation is the gate.
 - **ADR-0024 §3** gains a third no-retry path, in the feature ADR. §6's split of operating AI from paid credits is
@@ -162,7 +163,7 @@ packages/services/recipe-workers/src/handlers/publicVersionWorker.ts
 packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts  # Lambda, queue, DLQ, reserved concurrency
 packages/schemas/recipe                                        # generated copy (contract:generate)
 packages/clients/recipe-service                                # hooks for the job, publish, cancel
-packages/apps/commise/features/recipes/src/import/choice/      # statechart, orchestration, render (web + .native)
+packages/apps/commise/features/recipes/src/import/choice/      # statechart (importChoiceMachine), hook (useImportChoice), render (web + .native)
 ```
 
 **Structure Decision**: no new package and no new deployable. One new Lambda inside the existing worker stack.
@@ -195,10 +196,10 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 
 ## Watch list
 
-- **Facts-only quality.** The steps can read flat. The bake-off measures it before launch.
+- **Writer input.** The writer reads the facts sheet and the source step text in the source language, and never the address, the statement or the source title (027-FR-035, owner to confirm). The fingerprint check (027-FR-042) guards against copying. The bake-off measures both.
 - **Fact extraction recall.** A fact the extractor misses is neither sent nor checked. SC-001's human audit is the
   backstop.
-- **Key custody.** The fingerprint key is a secret in AWS Secrets Manager under this feature, with rotation that keeps old versions readable (FR-050a). A missing key version is an operator fault: a later save answers `503 checkUnavailable` with an alarm, and Publish answers `422 rewriteNeeded`.
+- **Key custody.** The fingerprint key is a secret in AWS Secrets Manager under this feature, with rotation that keeps old versions readable (FR-050a). A missing key version is an operator fault: a later save answers `503 checkUnavailable` with an alarm, and Publish answers the same `503` and leaves the job `ready`.
 - **Fingerprint permanence.** With no text kept, a fingerprint can never be recomputed. The format version and the key
   version are stored, and a format change keeps the old reader.
 - **Shared pool.** The first operating-cost consumer that a cook's choice triggers. It competes with parse and match

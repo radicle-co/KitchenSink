@@ -105,12 +105,13 @@ or a paste with no detected address, never shows it. Inside that set it always s
 
 **What pressing it does.** The press fetches the server's `offer` for this copy. The client renders it and never
 derives it. While the fetch runs, the item shows a spinner in place of its glyph, its label stays, and the menu stays
-open. A failed fetch swaps the surface for `later.failed` (new, §6) and "Done" (`failed.done`), as for a `privateOnly` line. A `deadEnd` offer
-opens spec.md P9 (B5).
+open. A failed fetch swaps the surface for `later.failed` (new, §6) and "Done" (`failed.done`), as for a `privateOnly` line.
+The route answers only `choice`, `privateOnly` and `publicExists`: the copy already holds its slot, so `publicOnly` and
+`deadEnd` never come from it.
 
 | `offer`                                | Result                                                                                                                                                                                                                         |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `choice` or `publicOnly`               | The menu closes and P7 Writing is pushed (spec.md §3.2), as on the Both path: the copy is already saved, so `writing.bothSaved` shows. Then P8 Review, Publish (P10 opens on `403 ageConfirmNeeded`, spec.md X7), and success. |
+| `choice`                               | The menu closes and P7 Writing is pushed (spec.md §3.2), as on the Both path: the copy is already saved, so `writing.bothSaved` shows. Then P8 Review, Publish (P10 opens on `403 ageConfirmNeeded`, spec.md X7), and success. |
 | `privateOnly` (any reason)             | The menu surface swaps its items for the reason's line (copy v3 `privateOnly.*`, or `budget.line`) and one "Done" (`failed.done`, spec.md §7.2). Done closes it. Nothing is sent.                                              |
 | `publicExists` `published`             | The surface shows `publicExists.published` and the link `publicExists.link` "See the public version", which pushes it, then "Done".                                                                                            |
 | `publicExists` `writing` or `inReview` | The surface shows `publicExists.writing` or `publicExists.inReview`, then "Done".                                                                                                                                              |
@@ -297,17 +298,17 @@ Sizes left off a board show the same layout as a drawn size (P5): Android
 
 ## 10. Open items and conflicts
 
-1. **Contract owed (003B lead).** Ruled by the 003B lead 2026-11-17: show the item when owner + private +
+1. **Settled.** The contract now holds `hasSourceRecord` and the offer route. Ruled by the 003B lead 2026-11-17: show the item when owner + private +
    `hasSourceRecord`, and fetch the offer on press (§3). The contract
-   (`specs/003B-public-rewrite/contracts/publicVersion.api.md`) owes two things: the `hasSourceRecord` field on the
-   recipe read, and an offer read for a private copy. This spec does not specify their wire shape.
-2. **003B lead, key names.** `privateCopy.author` in copy v3 is replaced by `editor.source.authorLabel`. The site placeholder is `{site}`
+   (`specs/003B-public-rewrite/contracts/publicVersion.api.md`) holds the `hasSourceRecord` field on the
+   recipe read and the offer read for a private copy. This spec does not specify their wire shape.
+2. **Settled: key names.** `privateCopy.author` in copy v3 is replaced by `editor.source.authorLabel`. The site placeholder is `{site}`
    everywhere (003B renames `{domain}`).
 3. **016 owner.** The reader menu item "Report this recipe" becomes "Report a problem" on a public version (D4).
 4. **New strings** (§6), for the lead.
 5. **Owner question, FR-082.** One report, from any reader, signed out included, hides a public version at once until
    staff decide. Is that the intended behaviour for a signed-out report?
-6. **003B lead, leaf keys that clash with groups.** In the message files the leaf `credit` clashes with the group
+6. **Settled: leaf keys that clash with groups.** In the message files the leaf `credit` clashes with the group
    `credit.*` (`credit.written`, `credit.basedOn`), and the leaf `notNow` with `notNow.note`. The 003B lead is renaming
    the leaves; the names follow from the 003B lead. Bare uses as leaf keys: `spec.md` §3.1 (`credit` before
    `creditLink`), §6.1 "Nothing chosen (Free)" row (`credit`) and §6.5 "Switch on, upsell, trial eligible" row (`notNow`).

@@ -7,7 +7,7 @@ Rules that are easy to get wrong. Read before working on this feature.
 - **The engine is 027's.** Facts sheet, writer, fact check and shingle measure live in `recipe-core/src/stepWriting/`
   and are designed in spec 027. Build them once, to 027's design. No mode flag in the engine. The title is built by
   003B code, not by the engine.
-- **The writer sees facts only.** Never the source wording, address, title or headnote. No Anthropic model (owner ruling 2026-11-17). The writer
+- **The writer sees the facts sheet and the source step text.** Never the address, statement, source title or headnote (owner to confirm). No Anthropic model (owner ruling 2026-11-17). The writer
   never fetches. A link import fetches on the device first and the server second, never for a known paid site. Paste detection never fetches.
 - **The classifier is an allowlist that fails closed.** Open: own claimed site (live claim), an honoured licence that allows
   commercial use, curator public domain, a listed US federal publisher. Everything else is third-party. A missing input

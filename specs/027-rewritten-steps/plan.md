@@ -11,7 +11,7 @@ in below. BLUEPRINT, `staff-ux-engineer` DISCOVER/DESIGN/SPECIFY and the ADR are
 An owner asks for Flow Steps on one recipe. recipe-service checks eligibility (a pure Specification), computes a
 content digest of the saved recipe, and either returns the stored version (cache hit, no model call, no use) or
 creates one pending job (single-flight on `(recipe_id, content_digest)`) and enqueues it. A new recipe-workers Lambda
-builds a facts-only sheet, calls a non-Anthropic Bedrock model through the existing `gatedConverse` reserve/settle
+builds a facts sheet and reads the step text, calls a non-Anthropic Bedrock model through the existing `gatedConverse` reserve/settle
 path under a new call site, parses the answer as data, and runs two deterministic checks (two-way fact multiset,
 wording similarity ceiling). A pass writes the one attached version and charges one use, keyed on the job id. Replace
 is an Apply Command over the stored version through the existing recipe `update` (compare-and-swap on
@@ -31,7 +31,7 @@ worker tests, Playwright (web), Maestro (mobile), k6 by hand.
 **Target Platform**: web + iOS + Android. Recipe-service on Fargate. Worker on Lambda (VPC, NAT consumer).
 **Project Type**: monorepo feature across shared core, one service, one worker, two apps.
 **Performance Goals**: cache hit < 1 s end to end (SC-003). P95 generation ≤ 30 s (SC-004).
-**Constraints**: facts-only writer input. No Anthropic model. No own keys. Fail closed on spend. Never truncate input;
+**Constraints**: writer input is the facts sheet and the step text (no address, statement or source title). No Anthropic model. No own keys. Fail closed on spend. Never truncate input;
 job timeout 10 min.
 **Scale/Scope**: one row per recipe. Generation bounded by the cook's monthly uses (`010-FR-041b`).
 
@@ -117,7 +117,7 @@ wording limits arrive as the `wording` argument of `rewriteSteps`: `{ source: Fi
 
 ## Key decisions (detail in research.md)
 
-1. Facts-only input for every recipe (R1). 2. Two-way fact multiset across the whole recipe (R2). 3. Similarity is a
+1. Facts sheet plus step text as input for every recipe (R1). 2. Two-way fact multiset across the whole recipe (R2). 3. Similarity is a
    ceiling on reuse, measured on a hashed fingerprint of word 5-shingles, threshold from the evaluation set (R3). 4. Writer chosen by a Bedrock
    bake-off among non-Anthropic models, default candidate Nova 2 Lite (R4). 5. Digest covers steps, ingredient lines and
    language. Validity ignores engine version (R5). 6. One row per recipe (R6). 7. Eligibility needs `firstPublishedAt`,
@@ -186,7 +186,7 @@ packages/apps/commise/features/cooking/                # Original / Flow Steps s
 
 - **Fact extraction recall.** A fact the extractor misses is neither sent nor checked. Mitigation: SC-001 human audit;
   the extractor is measured on the evaluation set before any model is chosen.
-- **Quality from facts only.** May read flat. Measured in the bake-off; SC-007 is a hypothesis.
+- **Quality from the facts sheet and the step text.** May read flat or too close to the source. Measured in the bake-off; SC-007 is a hypothesis.
 - **Shared pool.** First cook-funded consumer of the ADR-0024 pool, which the go-live plan (§6) says must split
   before Pro with AI is sold. Not shippable to paying cooks until that split lands.
 - **Open rulings.** 020 Q-4 (label), 020-FR-078 (spend). See spec "Conflicts".

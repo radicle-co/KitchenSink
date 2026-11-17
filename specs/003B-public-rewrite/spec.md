@@ -112,8 +112,8 @@ Free, and its ingredient lines are matched as before.
    shown: one line (`privateOnly.paidRecent` with the date when known, else `privateOnly.line`), and one button, "Save my copy".
 4. **Given** a paid source that FR-017 allows, **Then** the three choices show, and the public version's credit names no
    site (`credit.written` only, no `credit.basedOn`). Enabled once the page evidence carries the paid facts. Until
-   then a detected paid site, one on the paid list, is clearly paid and keeps the paid rules, and a paywall that cannot be
-   read is unknown and takes the rewrite path to public with `credit.written` only (FR-012b).
+   then a page on the paid list with no clear signal, and a paywall that cannot be read, take the rewrite path to
+   public with `credit.written` only, no hold and no site named (FR-012b).
 5. **Given** a private copy of a paid source, **Then** it cannot be shared or exported, except in the cook's own account data export (ADR-0093 §5). The household sees its public version if
    one exists, and nothing otherwise (FR-019).
 
@@ -253,20 +253,25 @@ later from its own menu. (C-6)
 
 - **FR-011**: The import detects a source, or the cook states one. If that source is not open under FR-010, it is
   **third-party**. Every third-party source MUST go public only as a public version.
-- **FR-012**: A source is **paid** under the three signals of ADR-0093 §5 (`isAccessibleForFree` false, a domain on the
-  paid-site list of `004-FR-014`, or a metered paywall). Any one is enough. A paid source's private copy follows
+- **FR-012**: A source is **paid** when a clear signal of ADR-0093 §5 is read: `isAccessibleForFree` false, or a
+  metered paywall. Either one is enough. A domain on the paid-site list of `004-FR-014` is a known paid site, but the
+  list is not a clear signal on its own (FR-012b). A paid source's private copy follows
   ADR-0093 §5: the site's wording, no sharing, no household view, and no export except the account data export. (C-1)
 - **FR-012a**: A third-party paste with no detectable page address MUST be Private only (offer reason
   `noSourceAddress`). A recipe the cook wrote is unaffected.
 - **FR-012b**: Only a clearly read signal blocks a public version. A stated opt-out gives `publisherOptOut` or
-  `aiOptOut`. A clearly paid page keeps the paid rules: the FR-017 hold, and no site named. A clearly read signature
-  recipe stays private only (`paidSignature`). A detected paid site, one on the paid list, is clearly paid. A signal that
-  cannot be read is `unknown`: a paywall the reader cannot tell, an opt-out it cannot read, an unread signature signal,
-  or a paste of a page whose domain is on the paid list that carries no paid signal. A paste from a domain not on the
-  paid list with no paid signal is free third-party (US1 scenario 2, `credit.basedOn`). For `unknown` the offer takes the rewrite path to public: the choice shows with
-  `credit.written` only, no site is named, and no paid hold applies. The offer is `{ kind: 'choice', credit: 'paid' }`,
-  where `credit: 'paid'` means `credit.written` only. It does not make the source paid, so the FR-012 private-copy rules
-  do not apply. `unknown` never maps to `privateOnly`. The paid-site
+  `aiOptOut`. A clearly paid page (`isAccessibleForFree` false, or a metered paywall) keeps the paid rules: the
+  FR-017 hold, and no site named. A clearly read signature recipe stays private only (`paidSignature`). A domain on
+  the paid list is not a clear signal. A signal that cannot be read is `unknown`: a paywall the reader cannot tell, an
+  opt-out it cannot read, or an unread signature signal. A page whose domain is on the paid list and that carries no
+  clear signal is treated the same way: no hold, and no site named. A paste from a domain not on the paid list with no
+  paid signal is free third-party (US1 scenario 2, `credit.basedOn`). For `unknown`, and for a paid-list page with no
+  clear signal, the offer takes the rewrite path to public: the choice shows with `credit.written` only, no site is
+  named, and no paid hold applies. The offer is `{ kind: 'choice', credit: 'paid' }`, where `credit: 'paid'` means
+  `credit.written` only. `source.classification` is `paid` only for a clearly read paid signal. For `unknown` and for a
+  paid-list page with no clear signal it is `thirdParty`, so the FR-012 private-copy rules do not apply (the source
+  record's `source_class` still reads `paid_site` for the list case, for monitoring). `unknown` never maps to
+  `privateOnly`. The paid-site
   list and the federal publisher list are approved data, drafted with sources and approved before they are seeded (task
   T084, slice B2).
 - **FR-012c**: A public version is written in the language of the source recipe's steps, for every language the
@@ -276,16 +281,20 @@ later from its own menu. (C-6)
   decided with confidence. The server finds the language in this order:
     1. It takes the steps text and removes the ingredient-name spans, digits and units.
     2. It detects the language of each sentence and skips a sentence too short to judge.
-    3. The language of the confidently detected sentences, weighted by letter count, wins when it leads clearly. A recipe
-       that mixes languages keeps the leading language of its steps, and a mix is never a refusal. A recipe is
-       uncertain only when no language leads clearly (the threshold is set on golden fixtures, T183).
+    3. A sentence is confidently detected when the detector's confidence is at least a stated threshold. The
+       language of the confidently detected sentences, weighted by letter count, wins when its share of those letters
+       clears a second stated threshold. A recipe that mixes languages keeps the leading language of its steps, and a
+       mix is never a refusal and never unsure. A recipe is unsure only when no language clears the threshold. Both
+       values are calibrated on the golden fixtures, mixed-language ones included (T183).
     4. Otherwise it uses the page's declared language (the page `lang` or JSON-LD `inLanguage`, carried on the import
        evidence as `evidence.page.language`), but only when that tag equals the detector's top candidate.
     5. Otherwise the language is uncertain and the recipe stays Private only (`languageUncertain`).
+    6. When the language is decided, the server checks that the platform can handle it: a language profile can be
+       derived for it (027). If not, the recipe stays Private only (`languageUnsupported`).
 
-    A declared tag is cut to its lower-case primary subtag, and a tag with no two-letter primary subtag reads as no
-    language. The result is stored on the source record (`recipe_source_records.language`, ISO 639-1, set at the import
-    save). Ingredient names pass through into the public version exactly as the cook wrote them, in any script.
+    A declared tag is cut to its lower-case primary subtag, and a tag with no primary subtag of 2 or 3 letters, and
+    `und`, read as no language. The result is stored on the source record (`recipe_source_records.language`, a BCP 47
+    primary subtag of 2 or 3 lower-case letters, set at the import save). Ingredient names pass through into the public version exactly as the cook wrote them, in any script.
 
 - **FR-013**: The classification MUST be one pure rule that reads the detected evidence, the cook's statement, the live
   site claim, the honoured-licence list, the federal-publisher list and the paid-site list. A missing or unreadable
@@ -314,8 +323,9 @@ later from its own menu. (C-6)
   and the cook can still take the normal private exit from review (the path's not-now key (`review.notNow` on the public path, `review.notNowBoth` on the Both path), FR-044). Nothing is saved
   automatically. Spec 016's stronger age assurance replaces this later. (C-17)
 - **FR-016a**: Each recipe this feature saves spends the one shared import allowance (ADR-0072 §8,
-  `004-FR-061`). Making a public version spends no unit, in the same import or on the later "Share a public version"
-  route: it is part of the original import (C-24). The site-wide AI ceiling still applies (FR-082). A private copy uses a slot, with or without a public version (ADR-0093 §8).
+  `004-FR-061`). The Both path spends one import unit, not two: the public version is part of the same import. Making
+  a public version spends no unit, in the same import or on the later "Share a public version"
+  route (C-24). The site-wide AI ceiling still applies (FR-082). A private copy uses a slot, with or without a public version (ADR-0093 §8).
 - **FR-016b**: Identity owns the age claim. `POST /api/v1/me/age-assurance` records one `age_assurances` row (spec 016's
   table, built now) and then sets the `ageFloorMet` claim on the cook's session. The route is idempotent. See
   `contracts/publicVersion.api.md` and `data-model.md` "Identity".
@@ -347,8 +357,8 @@ later from its own menu. (C-6)
 
 #### D. Writing the public version
 
-- **FR-030**: The public version's steps MUST be written by 027's engine. 027 owns the engine's rules: the facts-only
-  input (`027-FR-035`), the model rule (`027-FR-036`), the checks (`027-FR-040`, `FR-042`) and the thresholds. This
+- **FR-030**: The public version's steps MUST be written by 027's engine. 027 owns the engine's rules: the writer's input
+  (the facts sheet and the source step text, `027-FR-035`), the model rule (`027-FR-036`), the checks (`027-FR-040`, `FR-042`) and the thresholds. This
   feature adds no engine rule. The writer MUST NOT be an Anthropic model (owner ruling, 2026-11-17). The writer never
   fetches anything: the facts come from the import. A link import fetches as ADR-0093 §2 says (device first, server
   second). The server never fetches for a known paid site: the cook is asked to paste the page instead. The server link read is
@@ -361,7 +371,10 @@ later from its own menu. (C-6)
   worker gives the source record's language to the one prompt template as a parameter, and reads the language profile
   (027) derived from it (FR-012c).
 - **FR-031**: A model result that fails 027's checks MUST NOT be shown, stored or published. The job retries once
-  automatically. A second refusal ends the job `checkRefused`, and the cook sees the failed screen. (C-7)
+  automatically. A second refusal moves the job to `checkRefused` and the cook sees the failed screen. `checkRefused`
+  is a resting state while fewer than 3 attempts are used: "Try again" calls the retry route and makes a third
+  attempt. After the third attempt a refusal is final. A resting `checkRefused` expires to `cancelled` after 24
+  hours. (C-7)
 - **FR-032**: The public version MUST hold these parts, and no photo from the source:
     - the written steps.
     - a descriptive title built by code from the facts sheet (the main foods), with no model call. It
@@ -385,12 +398,16 @@ later from its own menu. (C-6)
   After a release a later cook sees the normal choice and may write a new version, except under (c), where the cook
   sees `privateOnly.line` and Private only. While a version is hidden by a report or held in 020's review it keeps the key,
   and a later cook sees `publicExists.inReview` and Private only. (C-27)
-- **FR-035**: Start and Publish MUST each compare the `shownOffer` the client sends with the offer the server computes
-  now, and answer `409 offerChanged` on a difference. The comparison reads these fields and no others: `choice` reads
-  kind and credit variant (`free` or `paid`); `privateOnly` reads kind and reason (`holdEndsOn` is not compared);
-  `publicExists` reads kind and status; `publicOnly` reads kind; `deadEnd` reads kind and reason. When the server
-  computes the offer at Start and at Publish, it EXCLUDES the caller's own live job, so "the same job" means the same
-  cook's job. If the page is now held by another cook's version, the answer is `409 publicExists`, which takes
+- **FR-035**: Start and Publish MUST each check the `shownOffer` the client sends against the offer the server
+  computes now, with one pure function, `publishGate(offer, shownOffer)`, and answer `409 offerChanged` when it
+  refuses. `shownOffer` is `{ kind: 'choice' | 'publicOnly', credit: 'free' | 'paid' }` and nothing else, because a
+  cook can only start or publish from one of those two offers. Any other kind is a `400`. The gate allows the call
+  only when the computed offer is publish-allowed (kind `choice` or `publicOnly`) and its `credit` equals the shown
+  `credit`. It never compares slots: `choice` and `publicOnly` differ only by a slot fact, and a slot that changes
+  between the screen and the call does not refuse it. The budget is checked at Start only. Publish ignores it, and a
+  retry that goes over the ceiling ends the job `budgetSpent` in the worker (FR-082). When the server computes the
+  offer at Start and at Publish, it EXCLUDES the caller's own live job and its reservation, so "the same job" means the
+  same cook's job. If the page is now held by another cook's version, the answer is `409 publicExists`, which takes
   precedence over `offerChanged`. See `contracts/publicVersion.api.md`.
 
 #### E. The review step
@@ -402,13 +419,17 @@ later from its own menu. (C-6)
   Both path it is also reachable later from the public version (owner only, "See my copy").
 - **FR-042**: When the cook edits the written steps in the review, the two-way fact check MUST re-run on the server at
   "Publish", against the facts snapshot taken at import (the job's own copy, which also serves the "For everyone" path
-  where no private copy exists). The server never trusts a verdict from the client. Each missing fact or ingredient name shows as a flag (`flag.*`). The `flag.allergen` flag keeps its key and checks the ingredient name only. Publish
-  waits until each flag is resolved by an edit or by "Write it again". (C-9)
+  where no private copy exists). The server never trusts a verdict from the client. Each missing fact, missing ingredient name or added fact shows as a flag (`flag.*`: `flag.step`, `flag.allergen` and
+  `flag.added`). The `flag.allergen` flag keeps its key and checks the ingredient name only. Publish
+  waits until each flag is resolved by an edit or by "Write it again", which calls the retry route and returns the
+  job to `pending` (data-model "State transitions"). (C-9)
 - **FR-043**: The cook can change the title. The title then goes through the title check of FR-050.
 - **FR-044**: A cook with no slot left who reaches `review.notNow` on the "For everyone" path sees the reused `cancel`
   instead of "Keep it just for me".
 - **FR-045**: On the Both path the private copy can change between the writing and "Publish". Publish MUST then be
-  refused with "Write it again" (`flag.rewrite`). The wording fingerprint stays the one taken from the source at import.
+  refused with `409 privateCopyChanged` and "Write it again" (`flag.rewrite`). That retry rebuilds the job's facts
+  snapshot and private digest from the changed private copy before the job re-enters `pending`. The wording
+  fingerprint stays the one taken from the source at import.
 
 #### F. Every save of a public version
 
@@ -425,8 +446,9 @@ later from its own menu. (C-6)
   `503 { code: 'checkUnavailable' }` and raises an alarm. The editor keeps the cook's edit in its device draft (DD26), so
   nothing is lost, and saves it once the check works again. The cook can still choose "Keep it just for me" (the version
   becomes private). That save does not run the wording check, so it always works. At Publish, a key version the service
-  cannot read still gives `422 rewriteNeeded`, and the cook sees `rewriteNeeded.body` and can choose "Write it again"
-  (`flag.rewrite`). (C-26)
+  cannot read answers the same retryable `503 { code: 'checkUnavailable' }` and raises the same alarm. The job stays
+  `ready` and no attempt is spent, because a new writer call cannot repair a missing key. The cook sees
+  `checkUnavailable.body` and is offered only the private exit (the path's not-now key). (C-26)
 - **FR-051**: Every public door for a public version (publish, a later edit, a restore) MUST pass 020's hold
   (ADR-0074, ADR-0082 §8). The written steps never skip it.
 - **FR-052**: A later edit by the cook is allowed, and the fact check is not re-run after publish. The edit is under the
@@ -439,15 +461,20 @@ later from its own menu. (C-6)
   Latin word with one Cyrillic letter, with `blocked.body` (`blocked.bodyBoth` on the Both path). A word mixes scripts when its UTS #39 resolved script set
   is empty, using augmented script sets: Han with Hiragana and Katakana, Han with Hangul, and Han with Bopomofo each
   count as one script, and Common and Inherited characters (digits, symbols) are ignored. A word in one script passes,
-  so "Bibimbap (비빔밥)", "食べる", "350°F" and "½" are accepted. The bidi check comes first, then the mixed-script
-  check, both before any fold.
+  so "Bibimbap (비빔밥)", "食べる", "350°F" and "½" are accepted. The bidi check comes first, on the raw text. Then default-ignorable code points (soft hyphen, zero-width space and
+  similar) are removed, and the mixed-script check reads the result. Both checks run before any fold, and the fold
+  removes default-ignorables too (`comparisonForm`). The saved text is never changed by either removal.
 
 #### G. Credit, label and licence
 
-- **FR-060**: A public version from a free (non-paid) source MUST show, wherever it is shown, the credit of ADR-0093 §4
-  (`credit.written` with the AI disclosure, and `credit.basedOn` with the domain line). `{site}` is the registrable domain and a link.
-  `{cook}` is the display name, or the username. The wording is in research R8. Its schema.org data carries
-  `isBasedOn` with the source address.
+- **FR-060**: A public version MUST show, wherever it is shown, the credit of ADR-0093 §4. The credit reads the
+  version's own `recipes.public_credit`, set at Publish from the credit the cook was shown (data-model "Columns on
+  existing tables"). `free` shows `credit.written` with the AI disclosure, and `credit.basedOn` with the domain
+  line. `{site}` is the registrable domain and a link, read from the source record. `paid` (a clearly paid or an
+  unknown paid source, or a paid-list page with no clear signal) shows `credit.written` only: no site is named,
+  linked or read for display, and its schema.org data carries no `isBasedOn` (FR-018). `{cook}` is the display name,
+  or the username. The wording is in research R8. For `free`, the schema.org data carries `isBasedOn` with the source
+  address.
 - **FR-061**: A public version's rights label MUST be a new derived label, "Steps written by Commise", never "Written by
   you" and never "Adapted by you" (`016-FR-015i`). It is open to the web (`021-FR-002`). Adding the value is a one-way
   door and needs an ADR before code. (C-11)
@@ -493,10 +520,12 @@ later from its own menu. (C-6)
 
 - **FR-053a**: 003B uses 027's checks (`027-FR-040` to `FR-042`), which work in any language: they read digits,
   fractions, unit symbols and digit times and temperatures, match every ingredient name to the cook's ingredient list
-  exactly, keep the step and sentence counts within a set range, and cut words with the platform's segmenter. The
-  address and hidden-character rules apply unchanged. Verbs, equipment, safety words and number words are not
-  machine-checked: the cook's review covers them. A safety instruction with no number, or an amount written as a word,
-  is checked only by the cook's review.
+  exactly, keep the step count within ⌈n/2⌉ to 2n+1 for n source steps (the range is calibrated on the golden
+  fixtures) and the sentence count within a set range, and cut words with the platform's segmenter. The address and
+  hidden-character rules apply unchanged. Verbs, equipment, safety words and number words are not
+  machine-checked. The writer also reads the source step text (027-FR-035), so reuse of the source's wording is
+  caught by the fingerprint check (027-FR-042), and the cook's review covers the parts the checks do not. A safety
+  instruction with no number, or an amount written as a word, is checked only by the cook's review.
 - **FR-080**: Every import from a third-party source MUST write an internal source record, append-only and never shown
   to cooks or readers. It extends ADR-0089 §6's evidence record with these fields:
     - the classification and its inputs, the paid signal and the licence signal.
@@ -512,8 +541,9 @@ later from its own menu. (C-6)
 - **FR-082**: A ceiling denial MUST end the job `budgetSpent` at once, refund the reservation and never redeliver
   (`004-FR-059` pattern). An unreadable counter or a transport failure retries. A job older than 10 minutes ends
   `failed`. (C-25)
-- **FR-083**: Writer calls are bounded by the original import's one allowance unit (FR-016a), one public version per source page (FR-034), at most 3 calls per item (C-7), and
-  the spend ceiling. There is no separate daily cap (C-15).
+- **FR-083**: Writer calls are bounded by the site-wide spend ceiling (FR-082), one public version per source page
+  (FR-034) and at most 3 attempts per job (C-7). Making a public version spends no import unit (FR-016a). There is no
+  separate daily cap (C-15).
 - **FR-084**: A page with a stated AI opt-out signal (`004-FR-063`) MUST NOT be sent to the writer. Only Private is offered,
   with its own line, `privateOnly.line`, which makes no promise of a later public version. (C-16)
 - **FR-085**: "Stop" during writing MUST end the job `cancelled` and return the cook to the choice. A result that
@@ -528,11 +558,18 @@ later from its own menu. (C-6)
   switch off, imports behave as today (private only, offer reason `switchOff`).
 - **FR-091**: Web and mobile MUST ship every state in the same release (`CODING_STANDARDS.md` §14).
 - **FR-092**: The recipe menu MUST show "Share a public version" (`later.action`) when the viewer is the owner, the
-  recipe is private, and the recipe read's owner-only `hasSourceRecord` is true. Inside that set the item always shows,
+  recipe is private, and the recipe read's owner-only `hasSourceRecord` is true (a source record exists whose
+  `evidence_id` equals this recipe's evidence row). Only an import writes a source record. An edit in the editor never
+  writes one, so adding a link to a recipe there does not make it shareable. Inside that set the item always shows,
   and the offer decides the next screen. On tap the client reads the offer from
   `GET /api/v1/recipes/{recipeId}/public-version/offer` (owner only; `404` for another cook's recipe, a missing recipe
-  or a recipe with no source record), and renders it as the import choice does (FR-020 to FR-024, FR-034). Start on the later route sends the `shownOffer` it
-  got from that route, and if the offer changes before Start, the `409 offerChanged` of Start covers it (FR-035). See `contracts/publicVersion.api.md`.
+  or a recipe with no source record). The private copy already holds its slot, so the route answers only
+  `choice { credit }`, `privateOnly { reason }` or `publicExists { status }`, never `publicOnly` or `deadEnd`. It is
+  rendered as the import choice does (FR-020 to FR-024, FR-034), but the choice is Public only: the copy is already
+  saved. Start on the later route sends `{ shownOffer: { kind: 'choice', credit } }` and no `choice` field. The job
+  has `private_recipe_id` set and `import_item_id` NULL, builds its facts snapshot from the private copy, and sets
+  `private_digest`. If the offer changes before Start, the `409 offerChanged` of Start covers it (FR-035). See
+  `contracts/publicVersion.api.md`.
 
 ### UI states and localisation keys
 
@@ -547,9 +584,9 @@ owner-approved v3 draft over v2 (staff-ux-engineer). `staff-ux-engineer` SPECIFY
 | Nothing chosen                                                                                       | `button.none` ("Continue", never disabled): shows `pickOne` and moves focus to the choice group                                                                                                                                                                                                                                                                            |
 | Writing (loading)                                                                                    | `writing.title`, `writing.body`, `writing.bothSaved`, `writing.stop`, `writing.announce`                                                                                                                                                                                                                                                                                   |
 | Review                                                                                               | `review.title`, `review.body`, `review.titleLabel`, `review.titleNote`, `review.stepsHeading`, `review.compare`, `review.compareHide`, `review.oursHeading`, `review.yourCopyHeading`, `review.photoNote`, `credit.written`, `credit.basedOn` (free site only), `review.licence`, `review.publish`, `review.edit`, `review.notNow`, `review.notNowBoth` (Both path)        |
-| Flags after an edit                                                                                  | `flag.title` (ICU), `flag.step`, `flag.allergen`, `flag.fix`, `flag.rewrite`                                                                                                                                                                                                                                                                                               |
+| Flags after an edit                                                                                  | `flag.title` (ICU), `flag.step`, `flag.allergen`, `flag.added`, `flag.fix`, `flag.rewrite`                                                                                                                                                                                                                                                                                 |
 | Wording refused                                                                                      | `blocked.body` (public path) or `blocked.bodyBoth` (Both path), actions `flag.rewrite` ("Write it again"), the path's not-now key                                                                                                                                                                                                                                          |
-| Rewrite needed                                                                                       | `rewriteNeeded.body`, actions `flag.rewrite` ("Write it again"), the path's not-now key                                                                                                                                                                                                                                                                                    |
+| Check unavailable (Publish)                                                                          | `checkUnavailable.body` (copy pending designer review), and only the path's not-now key. The job stays ready.                                                                                                                                                                                                                                                              |
 | Check unavailable (later edit)                                                                       | The editor's ordinary retryable save error, with no new key. The edit stays in the device draft. "Keep it just for me" stays available.                                                                                                                                                                                                                                    |
 | Writer failed                                                                                        | `failed.title`, `failed.body`, `failed.bodyBoth`, `failed.done`, **reuse** `wizard.retry`                                                                                                                                                                                                                                                                                  |
 | Budget spent                                                                                         | `budget.line`, and `failed.done` on the Both path                                                                                                                                                                                                                                                                                                                          |
@@ -642,8 +679,8 @@ pointer to it. The exception ends when 016's age assurance ships and the `under1
 
 Still owed:
 
-- ADR-0024 §3 (a third no-retry path) and the label, licence and provenance one-way doors (FR-061, FR-062, data-model),
-  in the feature ADR, owed (T004).
+- ADR-0024 §3 (a third no-retry path) and the label, licence, provenance and stored-credit (`recipes.public_credit`)
+  one-way doors (FR-060, FR-061, FR-062, data-model), in the feature ADR, owed (T004).
 
 ## Clarifications
 
@@ -661,7 +698,7 @@ Still owed:
 - **C-6. Bulk import?** Assumed: items save "Just for me". A public version is made later per recipe. No batch rewrite.
   Owner to confirm.
 - **C-7. Retries of a refused model result?** Assumed: one automatic retry, then `checkRefused`, and the cook can "Try
-  again" once more by hand. At most 3 writer calls per item. Owner to confirm.
+  again" once more by hand (the retry route, FR-031). At most 3 attempts per job. Owner to confirm.
 - **C-8. Ingredient lines and title on the public version?** Assumed: ingredient lines rebuilt from the matched facts,
   not the source's line text. The title is built by code from the facts, with no model call. Owner to confirm.
 - **C-9. Can a cook publish with a fact removed in the review?** Assumed: no. Publish waits until each flag is resolved.
@@ -674,8 +711,8 @@ Still owed:
 - **C-13. Monitoring numbers?** Assumed: an alarm at 20 public versions from one source in 24 hours, with no cap. Configuration. Owner to confirm.
 - **C-14. Is the source record kept after the public version is deleted?** Assumed: yes, for 016's
   evidence period. It holds no personal data beyond the recipe link. Owner to confirm.
-- **C-15. Who pays and how much?** Assumed: operating cost from the one $100 pool, own call site, bounded by the one import allowance
-  and 3 calls per item. No daily cap (ruled 2026-11-15). Owner to confirm.
+- **C-15. Who pays and how much?** Assumed: operating cost from the one $100 pool, own call site, bounded by the pool's ceiling,
+  one public version per source page and 3 attempts per job. No daily cap (ruled 2026-11-15). Owner to confirm.
 - **C-16. Stated AI opt-out on the page?** Assumed: only Private is offered, with its own line and no "later" promise. Owner to confirm.
 - **C-17. Age?** Ruled 2026-11-17: publishing at 16 and over, checked at Publish (FR-016). The `under16` offer reason
   is not used until spec 016 adds it back. Until then this is a deliberate interim exception to `016-FR-009`, which spec 016's own age assurance closes (T150). App use at the higher of 13 and the market's digital-consent age.
@@ -707,7 +744,8 @@ Still owed:
 - **C-28. A Free cook with no free slot, where a public version already exists?** Decided, by the 2026-11-17 slot
   rulings: a public version never uses a private slot. The cook sees the existing public version and its link
   (`publicExists.*`). "Save my copy" shows only when a slot is free, which the screen reads from the same slot count as
-  the choice screen (the offer carries no slot fact). With no free slot the cook can open the public version, and the
+  the choice screen (`publicExists` itself carries no slot fact, unlike `choice` and `publicOnly`, which differ by
+  one). With no free slot the cook can open the public version, and the
   usual Free-limit path applies if they try to save from elsewhere, such as the editor. There is no dead end on this screen.
 - **C-29. One key, two strings?** Decided: two keys, so each copy cell holds one string. `review.notNow` is "Keep it
   just for me" (public path) and `review.notNowBoth` is "Don’t publish" (Both path). The designer mirrors the split in

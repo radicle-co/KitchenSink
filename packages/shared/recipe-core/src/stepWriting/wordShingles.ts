@@ -106,8 +106,8 @@ export function fingerprint(text: string, size: ShingleSize, { keyVersion, hash 
 }
 
 /**
- * Refuse a pair taken under a different format or key. Their hashes share no meaning, so a score of 0 would read as
- * "not copied" when the truth is "not comparable".
+ * Refuse a pair taken under a different format, key or shingle size. Their hashes share no meaning, so a score of 0
+ * would read as "not copied" when the truth is "not comparable".
  */
 function assertComparable(a: Fingerprint, b: Fingerprint): void {
     if (a.formatVersion !== b.formatVersion || a.keyVersion !== b.keyVersion || a.shingleSize !== b.shingleSize) {

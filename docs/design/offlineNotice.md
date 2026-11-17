@@ -580,13 +580,13 @@ them. ⛔ It must **not** be silent.
 Cooking mode mounts the host in its cooking form. The cook reads steps with busy hands. Nothing they do in cooking
 mode waits on the network, so the notice reports one fact only: the device is offline.
 
-| Fact while cooking                            | Visible                                    | Spoken              |
-| --------------------------------------------- | ------------------------------------------ | ------------------- |
-| Online, any outbox state                      | nothing                                    | none (empty region) |
-| Offline, any count                            | `offlineTitle` only, no body and no count  | polite              |
-| Back online (`syncing`, then synced)          | nothing: the notice clears with no message | none                |
-| `syncFailed` or `syncConflict`                | nothing while cooking                      | none                |
-| Work set aside (§17 of `specSharedSystem.md`) | nothing while cooking                      | none                |
+| Fact while cooking                            | Visible                                    | Spoken                                         |
+| --------------------------------------------- | ------------------------------------------ | ---------------------------------------------- |
+| Online, any outbox state                      | nothing                                    | none (empty region)                            |
+| Offline, any count                            | `offlineTitle` only, no body and no count  | polite on web; none on native (no live region) |
+| Back online (`syncing`, then synced)          | nothing: the notice clears with no message | none                                           |
+| `syncFailed` or `syncConflict`                | nothing while cooking                      | none                                           |
+| Work set aside (§17 of `specSharedSystem.md`) | nothing while cooking                      | none                                           |
 
 Offline wins: while the device is offline, the notice shows the title only, whatever else is true. The rows for back
 online, failures and conflicts apply only while online. The set-aside notice stays hidden in every cooking state.
@@ -599,7 +599,7 @@ online, failures and conflicts apply only while online. The set-aside notice sta
 - **Leaving cooking mode is never blocked offline** (owner ruling, 2026-11-15): every way out works, and the notice
   carries no leave message.
 - Failures, conflicts and set-aside work are not lost: the app form shows them again once the cook leaves cooking
-  mode. The set-aside notice keeps its dismissal while hidden.
+  mode. The set-aside notice keeps its dismissal while hidden (on web, a page change still resets it, #315).
 
 ---
 

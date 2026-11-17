@@ -122,7 +122,10 @@ function hasMainEntity(container: SchemaNode, recipe: SchemaNode): boolean {
     );
 }
 
-/** The properties by which a recipe names the page it is on. A part of the page (`hasPart`) states no date for it. */
+/**
+ * The properties by which a recipe names the page it is on. Only a page node ({@link isPageNode}) is read from them: a
+ * whole blog or site (`isPartOf`) or a part of the page (`hasPart`) states no date for the recipe.
+ */
 const RECIPE_LINKS: readonly string[] = ['mainEntityOfPage', 'isPartOf'];
 
 /** The nodes a node embeds under `keys`, in order. A reference by `@id` alone states nothing and is read as a node. */
@@ -133,7 +136,7 @@ function linkedNodes(node: SchemaNode, keys: readonly string[]): readonly Schema
 /**
  * When a Recipe node, or the page around it, was published.
  *
- * The recipe is read first, then the nodes it embeds as `mainEntityOfPage` and `isPartOf`, then its
+ * The recipe is read first, then the page nodes it embeds as `mainEntityOfPage` and `isPartOf`, then its
  * containers: a node whose `mainEntity` is the recipe, then a page node ({@link isPageNode}).
  *
  * @param node - A JSON-LD Recipe node or a microdata item shaped like one.
@@ -144,7 +147,7 @@ function linkedNodes(node: SchemaNode, keys: readonly string[]): readonly Schema
 export function datePublishedOf(node: SchemaNode, containers: readonly SchemaNode[]): string | undefined {
     const sources = [
         node,
-        ...linkedNodes(node, RECIPE_LINKS),
+        ...linkedNodes(node, RECIPE_LINKS).filter(isPageNode),
         ...containers.filter((container) => container !== node && hasMainEntity(container, node)),
         ...containers.filter((container) => container !== node && isPageNode(container)),
     ];

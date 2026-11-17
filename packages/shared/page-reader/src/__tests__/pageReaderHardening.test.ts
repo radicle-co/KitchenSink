@@ -353,7 +353,7 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
     });
 
-    // Round-4 re-review of 526e153b2, MEDIUM 1 and 2: a jump link is furniture only when every target holds a read line
+    // a jump link is furniture only when every target holds a read line
     // and does not contain the item itself, and its own words do not name an ingredient of the recipe. The read lines sit
     // in `#ing`; `#page` wraps the whole card.
     describe('a jump link before the lines', () => {
@@ -426,7 +426,7 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         });
     });
 
-    // Round-4 re-review of #324: an omitted group after the read lines that opens with amounts is refused, in a
+    // an omitted group after the read lines that opens with amounts is refused, in a
     // container of its own too.
     it('refuses an omitted group after the read lines whose lines open with amounts', () => {
         const page = makePage({
@@ -437,7 +437,7 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
     });
 
-    // Round-4 re-review of #324: a line shown beside the read lines, in the same container, is refused when they are paragraphs.
+    // a line shown beside the read lines, in the same container, is refused when they are paragraphs.
     it('refuses an unread paragraph beside the read ingredient paragraphs', () => {
         const page = makePage({
             jsonLd: [makeRecipeNode({ recipeIngredient: ['1 cup flour', '2 eggs'], recipeInstructions: STEPS })],

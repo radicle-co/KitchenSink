@@ -392,7 +392,7 @@ describe('readPastedContent', () => {
         });
 
         // 003B: the date beside the recipe, absent when the page states none. A fact only: the reader applies no policy to
-        // it, and it never changes whether a recipe is read. The paywall and AI opt-out facts moved to a follow-up PR.
+        // it, and it never changes whether a recipe is read.
         describe('date facts', () => {
             const evidence = (page: string) => {
                 const result = readPastedContent(page);
@@ -427,7 +427,7 @@ describe('readPastedContent', () => {
                         'the page the recipe names as mainEntityOfPage',
                         { mainEntityOfPage: dated('WebPage', '2023-02-02') },
                     ],
-                    ['the work the recipe names as isPartOf', { isPartOf: dated('Blog', '2023-02-02') }],
+                    ['the post the recipe names as isPartOf', { isPartOf: dated('BlogPosting', '2023-02-02') }],
                 ])('reads it from %s', (_name, link) => {
                     expect(evidence(makePage({ jsonLd: [recipe(link)] }))).toMatchObject({
                         datePublished: '2023-02-02',
@@ -446,10 +446,23 @@ describe('readPastedContent', () => {
                     });
                 });
 
-                it('never reads it from a part of the page the recipe names as hasPart', () => {
-                    expect(
-                        evidence(makePage({ jsonLd: [recipe({ hasPart: dated('WebPageElement', '2023-02-02') })] })),
-                    ).not.toHaveProperty('datePublished');
+                it.each([
+                    ['a part of the page named as hasPart', { hasPart: dated('WebPageElement', '2023-02-02') }],
+                    ['a whole blog named as isPartOf', { isPartOf: dated('Blog', '2023-02-02') }],
+                    ['a whole site named as isPartOf', { isPartOf: dated('WebSite', '2023-02-02') }],
+                ])('never reads it from %s', (_name, link) => {
+                    expect(evidence(makePage({ jsonLd: [recipe(link)] }))).not.toHaveProperty('datePublished');
+                });
+
+                it('reads the page the recipe names before the node whose mainEntity is the recipe', () => {
+                    const graph = [
+                        { ...dated('Thing', '2021-01-01'), mainEntity: { '@id': 'https://example.com/pie#recipe' } },
+                        recipe({ mainEntityOfPage: dated('WebPage', '2023-02-02') }),
+                    ];
+
+                    expect(evidence(makePage({ jsonLd: [{ '@graph': graph }] }))).toMatchObject({
+                        datePublished: '2023-02-02',
+                    });
                 });
             });
 

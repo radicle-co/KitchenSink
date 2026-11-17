@@ -63,17 +63,17 @@ touching the wire.
 
 ### 0.2 Input conflicts, rulings for the 003B lead
 
-These are differences between the inputs. Each has a ruling and this spec follows it. X1 to X6 are applied by the lead
-(2026-11-17) to the 003B state table, the contract and research.
+These are differences between the inputs. Each has a ruling and this spec follows it. The 003B lead applies X1 to X4 and X6
+to the 003B state table, the contract and research.
 
-| #   | Conflict                                                                                                                                                                                                                                                                                    | Ruling                                                                                                                                                                                                                                                         |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| X1  | 003B's state table uses `exists.*`, `paid.*`, `optOut.line`, `review.credit`, `review.creditPaid`, `deadEnd.bodyNoWrite` and `deadEnd.bodyPaid`. Copy v3 replaces them with `publicExists.*`, `privateOnly.*`, `credit.written`, `credit.basedOn` and `deadEnd.body`, and deletes `paid.*`. | The 003B table is to use the v3 keys. Applied by the lead (2026-11-17).                                                                                                                                                                                        |
-| X2  | The contract's `privateOnly` reasons list `optOut` twice and have no `aiOptOut` or `noSourceAddress`.                                                                                                                                                                                       | The contract is to use the reasons `paidRecent`, `paidSignature`, `publisherOptOut`, `aiOptOut`, `budget`, `under16`, `noSteps`, `noSourceAddress` and `switchOff`. `paidRecent` carries `holdEndsOn`, which fills `{date}`. Applied by the lead (2026-11-17). |
-| X3  | The contract lists `publicPending` and `publicReview` as `privateOnly` reasons. Copy v3 shows the same situations as `publicExists` states `writing` and `inReview`.                                                                                                                        | The contract is to make `publicExists.status` one of `published`, `writing` or `inReview`, with `recipeId` when there is one, and to remove `publicPending` and `publicReview`. Applied by the lead (2026-11-17).                                              |
-| X4  | The 003B state table has `hidden.owner.*`, `hidden.superseded` and `hidden.reader`. Copy v3 has `publicPage.hiddenOwner` and `publicPage.hiddenReader`, and no superseded line.                                                                                                             | The 003B table is to use `publicPage.hiddenOwner` and `publicPage.hiddenReader`. They are out of this spec's boards (recipe detail) and belong to the detail spec. Applied by the lead (2026-11-17).                                                           |
-| X5  | The brief named the mobile phone size 402. The mobile canvas's existing boards are Iphone390 and Android384.                                                                                                                                                                                | Phone boards are drawn at 390. §12.2 uses Iphone390, Android384, Ipad834 and Ipad1194. Applied by the lead (2026-11-17).                                                                                                                                       |
-| X6  | 003B FR-050a gives `blocked.rewrite` as the button label "Write it again". 003B research R8 gives it as a sentence.                                                                                                                                                                         | This spec follows the copy: the blocked state shows `blocked.body` with the `flag.rewrite` "Write it again" button and `review.notNow`. `rewriteNeeded.body` is the separate rewriteNeeded offer. The lead is to align R8. Applied by the lead (2026-11-17).   |
+| #   | Conflict                                                                                                                                                                                                                                                                                    | Ruling                                                                                                                                                                                                                                                   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| X1  | 003B's state table uses `exists.*`, `paid.*`, `optOut.line`, `review.credit`, `review.creditPaid`, `deadEnd.bodyNoWrite` and `deadEnd.bodyPaid`. Copy v3 replaces them with `publicExists.*`, `privateOnly.*`, `credit.written`, `credit.basedOn` and `deadEnd.body`, and deletes `paid.*`. | The 003B table and contract are to use the v3 keys. The 003B lead applies this.                                                                                                                                                                          |
+| X2  | The contract's `privateOnly` reasons list `optOut` twice and have no `aiOptOut` or `noSourceAddress`.                                                                                                                                                                                       | The contract is to use the reasons `paidRecent`, `paidSignature`, `publisherOptOut`, `aiOptOut`, `budget`, `under16`, `noSteps`, `noSourceAddress` and `switchOff`. `paidRecent` carries `holdEndsOn`, which fills `{date}`. The 003B lead applies this. |
+| X3  | The contract lists `publicPending` and `publicReview` as `privateOnly` reasons. Copy v3 shows the same situations as `publicExists` states `writing` and `inReview`.                                                                                                                        | The contract is to make `publicExists.status` one of `published`, `writing` or `inReview`, with `recipeId` when there is one, and to remove `publicPending` and `publicReview`. The 003B lead applies this.                                              |
+| X4  | The 003B state table has `hidden.owner.*`, `hidden.superseded` and `hidden.reader`. Copy v3 has `publicPage.hiddenOwner` and `publicPage.hiddenReader`, and no superseded line.                                                                                                             | The 003B table is to use `publicPage.hiddenOwner` and `publicPage.hiddenReader`. They are out of this spec's boards (recipe detail) and belong to the detail spec. The 003B lead applies this.                                                           |
+| X5  | The brief named the mobile phone size 402. The mobile canvas's existing boards are Iphone390 and Android384.                                                                                                                                                                                | Phone boards are drawn at 390. §12.2 uses Iphone390, Android384, Ipad834 and Ipad1194.                                                                                                                                                                   |
+| X6  | 003B FR-050a gives `blocked.rewrite` as the button label "Write it again". 003B research R8 gives it as a sentence.                                                                                                                                                                         | This spec follows the copy: the blocked state shows `blocked.body` with the `flag.rewrite` "Write it again" button and `review.notNow`. `rewriteNeeded.body` is the separate rewriteNeeded offer. The 003B lead aligns FR-050a and R8 to that.           |
 
 `offerChanged` comes from a server `409` with the body `{ code: 'offerChanged', offer }`, on the start-job and the
 publish requests. The client re-renders the visibility area from that `offer` (§5.2).
@@ -106,14 +106,14 @@ P5 Review (paste spec) ── visibility area = offer ──┬─ choice ─ Co
                                                                                 └─ Not now / Close ─► import ends, nothing saved
 ```
 
-| Screen           | Web, 840 and wider                                             | Web below 840, phone                                                                                    | Tablet 834 and 1194                                |
-| ---------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| P5 visibility    | Right column of the review at `wide`, in flow above the button | Phone: the choice is a bottom sheet over the review. The review keeps its lines and a pinned "Continue" | 834: the in-page card, button pinned. 1194: as web |
-| P7 Writing       | Pushed page, Stop in flow                                      | Pushed page, Stop pinned                                                                                | Pushed page, 834 pinned, 1194 in flow              |
-| P8 Review        | Two columns at `wide`: steps left, credit and actions right    | One column, actions pinned                                                                              | 834: one column. 1194: two columns                 |
-| P9 Dead end      | One column, 560 wide, in the page                              | One column, buttons stacked at the end                                                                  | One column, at most 560 wide                       |
-| P10 Age question | `ConfirmDialog` over P8                                        | `ConfirmDialog` (sheet on phones)                                                                       | Dialog                                             |
-| P6 Recipe detail | Exists. Gains the credit, the links and the Checking badge     | Exists                                                                                                  | Exists                                             |
+| Screen           | Web, 840 and wider                                             | Web below 840, phone                                                                                                                                       | Tablet 834 and 1194                                |
+| ---------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| P5 visibility    | Right column of the review at `wide`, in flow above the button | Web below 840: the choice is a card in the one column, button pinned. Phone: a bottom sheet over the review, which keeps its lines and a pinned "Continue" | 834: the in-page card, button pinned. 1194: as web |
+| P7 Writing       | Pushed page, Stop in flow                                      | Pushed page, Stop pinned                                                                                                                                   | Pushed page, 834 pinned, 1194 in flow              |
+| P8 Review        | Two columns at `wide`: steps left, credit and actions right    | One column, actions pinned                                                                                                                                 | 834: one column. 1194: two columns                 |
+| P9 Dead end      | One column, 560 wide, in the page                              | One column, buttons stacked at the end                                                                                                                     | One column, at most 560 wide                       |
+| P10 Age question | `ConfirmDialog` over P8, centred                               | `ConfirmDialog`, centred and blocking, as on every size                                                                                                    | Dialog, centred                                    |
+| P6 Recipe detail | Exists. Gains the credit, the links and the Checking badge     | Exists                                                                                                                                                     | Exists                                             |
 
 Back from P7 stops the job (as Stop) and returns to P5 with the choice kept. On the For everyone path with no edit, Back from P8
 asks nothing and returns to P5. After an edit it asks with `ConfirmDialog` (reuse the
@@ -203,7 +203,7 @@ Unchanged layout. Under the badge row:
 | Dead end buttons         | One row, equal width, Upgrade first                                        | Stacked, equal width, Upgrade at the bottom                                                                                               | moved       | Reach. "Upgrade to Pro" and "Not now" never wrap at full width                                                                            |
 | Plan prices              | Two figures in one row                                                     | Same, wrapping as units below 360                                                                                                         | kept        | "$99.99" never breaks inside the figure                                                                                                   |
 | Upgrade                  | Opens the subscription page as a modal at Pro's payment page (010 FR-042a) | Opens the store purchase sheet for Pro, both periods shown, neither chosen                                                                | translated  | The store owns the payment page on mobile                                                                                                 |
-| Age question             | Centred dialog, buttons in one row, equal                                  | Dialog on tablet, bottom sheet on phones, buttons stacked equal, "I'm 16 or over" at the bottom                                           | moved       | Reach                                                                                                                                     |
+| Age question             | Centred dialog, buttons in one row, equal                                  | Centred blocking dialog on every size. On phones the buttons are stacked, equal, "I'm 16 or over" at the bottom                           | moved       | Reach                                                                                                                                     |
 | Live announcements       | One polite `LiveRegion`                                                    | `AccessibilityInfo.announceForAccessibility` through the same `LiveRegion` primitive                                                      | kept        |                                                                                                                                           |
 
 **Primary action per platform.** Below 840 on web and on phones, the primary sits at the bottom, full width (thumb zone,
@@ -407,28 +407,25 @@ exclamation marks, no reason clauses, and none of the banned words (one list, `b
 
 ### 7.2 New strings (not in copy v3 or v2)
 
-| Key                       | Copy                                                                                                                              | Where         |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| `button.none`             | "Continue"                                                                                                                        | B1, B8        |
-| `creditPreview.label`     | "Your public version will say"                                                                                                    | B1            |
-| `publicExists.link`       | "See the public version" (same words as `done.linkPublic`)                                                                        | B3            |
-| `review.titleLabel`       | "Recipe name"                                                                                                                     | B7            |
-| `review.stepsHeading`     | "Steps"                                                                                                                           | B7            |
-| `review.oursHeading`      | "Public version"                                                                                                                  | B7            |
-| `review.yourCopyHeading`  | "Your copy"                                                                                                                       | B7            |
-| `rewriteNeeded.body`      | "This version needs writing again before it can be published."                                                                    | B8            |
-| `failed.done`             | "Done"                                                                                                                            | B8            |
-| `credit.written`          | "Steps written by Commise with AI, checked by {cook}." ({cook} is the display name or username)                                   | B1, B7, B9    |
-| `credit.basedOn`          | "Based on a recipe at {domain}. Not affiliated." ({domain} is a link. Free sites only. A paid site shows `credit.written` alone.) | B1, B7, B9    |
-| `publicPage.hiddenOwner`  | "Hidden after a report. Only you can see it now."                                                                                 | Recipe detail |
-| `publicPage.hiddenReader` | "This recipe isn't available right now."                                                                                          | Recipe detail |
-| `offerChanged.line`       | "Something changed since you chose. Have a look and pick again."                                                                  | B1, B8        |
+| Key                      | Copy                                                             | Where  |
+| ------------------------ | ---------------------------------------------------------------- | ------ |
+| `button.none`            | "Continue"                                                       | B1, B8 |
+| `creditPreview.label`    | "Your public version will say"                                   | B1     |
+| `publicExists.link`      | "See the public version" (same words as `done.linkPublic`)       | B3     |
+| `review.titleLabel`      | "Recipe name"                                                    | B7     |
+| `review.stepsHeading`    | "Steps"                                                          | B7     |
+| `review.oursHeading`     | "Public version"                                                 | B7     |
+| `review.yourCopyHeading` | "Your copy"                                                      | B7     |
+| `rewriteNeeded.body`     | "This version needs writing again before it can be published."   | B8     |
+| `failed.done`            | "Done"                                                           | B8     |
+| `offerChanged.line`      | "Something changed since you chose. Have a look and pick again." | B1, B8 |
 
 ### 7.3 Reused keys
 
-- Keys: `importMessages.wizard.retry` is in `features/recipes/src/import/messages.ts`. `importMessages.paste.review.offline`,
+- Keys: `importMessages.wizard.retry` is in `packages/apps/commise/features/recipes/src/import/messages.ts`. `importMessages.paste.review.offline`,
   `importMessages.paste.cancel` are new in paste spec §6 (S7 and S38). `budget.line` is reused from 003B
   (`specs/003B-public-rewrite/spec.md`), not new in the paste spec.
+- From 003B copy v3, not new here: `credit.written`, `credit.basedOn`, `publicPage.hiddenOwner` and `publicPage.hiddenReader`.
 - The private copy's lines: `editor.source.rightsLabel` and `editor.source.authorLabel` (§3.5).
 - From the editor: the visibility heading "Who can see it", the discard dialog and "Done editing".
 - From the paste spec: the Save area line, `importMessages.paste.review.confirmSource` (S8).
@@ -621,7 +618,8 @@ Both.
 
 ## 15. Open questions
 
-1. ~~**Lead:** apply the rulings in §0.2.~~ Closed: X1 to X6 are applied by the lead (2026-11-17).
+1. **Lead:** apply the rulings in §0.2, except X5. This stays open until
+   `git grep -E 'exists\.|paid\.|hidden\.(owner|reader)|publicPending' origin/main -- specs/003B-public-rewrite` finds nothing.
 2. **Lead:** the new strings in §7.2.
 3. **Design system owner:** `ButtonPair` and the `RadioList` selected fill (§8.3).
 4. **010 owner:** the mobile store sheet opening at Pro with both periods shown (§4, Upgrade).

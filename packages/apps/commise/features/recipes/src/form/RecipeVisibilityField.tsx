@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @module @commise/features-recipes/form — `RecipeVisibilityField` (web): "Who can see it"
  * (`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), a radio group of two cards, Public and Private.

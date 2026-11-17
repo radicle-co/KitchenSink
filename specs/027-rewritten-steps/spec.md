@@ -3,7 +3,7 @@
 **Feature Branch**: single-branch directive. The spec directory is `specs/027-rewritten-steps`. The slug is neutral on purpose, because the name below waits for the owner.
 `.specify/feature.json` is not pointed here: another session uses it.
 **Created**: 2026-11-15
-**Status**: Draft. Clarified with assumed answers (see Clarifications, C-1 to C-21, each marked "Assumed, owner to confirm"). Planned
+**Status**: Draft. Clarified with assumed answers (see Clarifications, C-1 to C-21, each marked "Assumed, owner to confirm" unless it says it was ruled). Planned
 (`plan.md`). Not built. Every user-facing surface needs `staff-ux-engineer` DISCOVER, DESIGN and SPECIFY before build.
 None has run.
 **Input**: Owner, 2026-11-15, verbatim: "we have a feature in the future that allows users to elect to have the
@@ -254,7 +254,7 @@ can always cook from the original steps.
   exactly as the recipe's ingredient list has them), and the recipe's own step text, in its source language. It MUST
   NOT receive the source address, the source statement, the source title or any other recipe text (notes, headnote,
   description). The fingerprint check of FR-042 guards against the writer copying the step text. This holds for every
-  recipe, whoever wrote it. (C-7, owner to confirm)
+  recipe, whoever wrote it. (C-7, ruled 2026-11-17)
 - **FR-036**: The writer MUST be a model that is not made by Anthropic (owner ruling, 2026-11-17), run on Amazon Bedrock. The cook's own keys (`005-FR-015`) MUST NOT be used for Flow Steps. (C-6)
 - **FR-037**: The writer MUST rewrite into cook-ready steps: one main action per step, preparation gathered before the
   heat where the facts allow, waits named so the cook can work during them, and a short "before you start" step for
@@ -429,7 +429,7 @@ can always cook from the original steps.
 
 ### Session 2026-11-15 (assumed answers. The owner was not asked, per the brief)
 
-Each answer is the best-justified default. Each is **Assumed, owner to confirm**.
+Each answer is the best-justified default. Each is **Assumed, owner to confirm**, unless it says it was ruled.
 
 - **C-1. The name.** Q: What do we call it? → A: **Flow Steps**; Original steps for the cook's own. (The name)
   _Assumed, owner to confirm._
@@ -448,7 +448,7 @@ Each answer is the best-justified default. Each is **Assumed, owner to confirm**
 - **C-7. Facts only for the cook's own words too?** Q: Could the writer see the wording when the cook wrote it? → A:
   It sees the step text and the facts sheet, in the source language, for every recipe, and never the address, the
   statement or the source title. A source statement is the cook's claim and can be wrong, and one input type is one
-  tested path. FR-042's fingerprint guards against copying. (FR-035) _Assumed, owner to confirm._
+  tested path. FR-042's fingerprint guards against copying. (FR-035) _Ruled 2026-11-17._
 - **C-8. Rights label after a replace.** Q: Which label? → A: None changes. Neither an attached version nor a replace
   touches the label. (FR-032) _Assumed, owner to confirm._
 - **C-9. Public replace of another site's recipe.** Q: Allowed now? → A: Another site's steps become public only through

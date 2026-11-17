@@ -448,7 +448,8 @@ later from its own menu. (C-6)
   becomes private). That save does not run the wording check, so it always works. At Publish, a key version the service
   cannot read answers the same retryable `503 { code: 'checkUnavailable' }` and raises the same alarm. The job stays
   `ready` and no attempt is spent, because a new writer call cannot repair a missing key. The cook sees
-  `checkUnavailable.body` and is offered only the private exit (the path's not-now key). (C-26)
+  `checkUnavailable.body` (`checkUnavailable.bodyBoth` on the Both path) with Publish, enabled, to try again and the path's
+  private exit (the path's not-now key). (C-26)
 - **FR-051**: Every public door for a public version (publish, a later edit, a restore) MUST pass 020's hold
   (ADR-0074, ADR-0082 §8). The written steps never skip it.
 - **FR-052**: A later edit by the cook is allowed, and the fact check is not re-run after publish. The edit is under the
@@ -586,7 +587,7 @@ owner-approved v3 draft over v2 (staff-ux-engineer). `staff-ux-engineer` SPECIFY
 | Review                                                                                               | `review.title`, `review.body`, `review.titleLabel`, `review.titleNote`, `review.stepsHeading`, `review.compare`, `review.compareHide`, `review.oursHeading`, `review.yourCopyHeading`, `review.photoNote`, `credit.written`, `credit.basedOn` (free site only), `review.licence`, `review.publish`, `review.edit`, `review.notNow`, `review.notNowBoth` (Both path)        |
 | Flags after an edit                                                                                  | `flag.title` (ICU), `flag.step`, `flag.allergen`, `flag.added`, `flag.fix`, `flag.rewrite`                                                                                                                                                                                                                                                                                 |
 | Wording refused                                                                                      | `blocked.body` (public path) or `blocked.bodyBoth` (Both path), actions `flag.rewrite` ("Write it again"), the path's not-now key                                                                                                                                                                                                                                          |
-| Check unavailable (Publish)                                                                          | `checkUnavailable.body` (copy pending designer review), and only the path's not-now key. The job stays ready.                                                                                                                                                                                                                                                              |
+| Check unavailable (Publish)                                                                          | `checkUnavailable.body` (`checkUnavailable.bodyBoth` on the Both path), Publish enabled to try again, and the path's not-now key. The job stays ready.                                                                                                                                                                                                                     |
 | Check unavailable (later edit)                                                                       | The editor's ordinary retryable save error, with no new key. The edit stays in the device draft. "Keep it just for me" stays available.                                                                                                                                                                                                                                    |
 | Writer failed                                                                                        | `failed.title`, `failed.body`, `failed.bodyBoth`, `failed.done`, **reuse** `wizard.retry`                                                                                                                                                                                                                                                                                  |
 | Budget spent                                                                                         | `budget.line`, and `failed.done` on the Both path                                                                                                                                                                                                                                                                                                                          |
@@ -680,7 +681,7 @@ pointer to it. The exception ends when 016's age assurance ships and the `under1
 Still owed:
 
 - ADR-0093 §4 says the writer sees facts only. This feature changes that: the writer reads the facts sheet and the
-  source step text (`027-FR-035`, owner to confirm). `016-FR-077` already points to `027-FR-035`. The feature ADR
+  source step text (`027-FR-035`, ruled 2026-11-17). `016-FR-077` already points to `027-FR-035`. The feature ADR
   records the amendment, owed (T004).
 - ADR-0024 §3 (a third no-retry path) and the label, licence, provenance and stored-credit (`recipes.public_credit`)
   one-way doors (FR-060, FR-061, FR-062, data-model), in the feature ADR, owed (T004).

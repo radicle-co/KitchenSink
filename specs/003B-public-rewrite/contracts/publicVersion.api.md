@@ -108,7 +108,7 @@ The output is present only in `ready`. It holds no source text.
   `factAdded` carries the added `line`.
 - `422 { code: 'tooSimilar' }` from the wording check.
 - `503 { code: 'checkUnavailable' }` when the stored fingerprint's key version cannot be read. It is retryable and
-  raises the alarm. The job stays `ready` and no attempt is spent (FR-050a).
+  raises the alarm. The job stays `ready` and no attempt is spent, so the client can send Publish again (FR-050a).
 - `409 { code: 'privateCopyChanged' }` on the Both path (FR-045).
 - `409 { code: 'offerChanged', offer }` as for starting a job.
 - `409 { code: 'publicExists', recipeId }` when another cook's version now holds the page. It takes precedence over

@@ -31,7 +31,7 @@ transaction, worker tests, Playwright, Maestro, and k6 by hand.
 **Target Platform**: web, iOS and Android. recipe-service on Fargate. The worker on Lambda (VPC, NAT consumer).
 **Project Type**: monorepo feature across shared core, one service, one worker and two apps.
 **Performance Goals**: 95% of jobs ready within 30 s (SC-004).
-**Constraints**: writer input is the facts sheet plus the source step text, with no address, statement or source title (owner to confirm). No Anthropic model. The writer never fetches. A link import fetches on the device first, the server second (ADR-0093). Fail closed on spend and on the open test. An
+**Constraints**: writer input is the facts sheet plus the source step text, with no address, statement or source title (ruled 2026-11-17). No Anthropic model. The writer never fetches. A link import fetches on the device first, the server second (ADR-0093). Fail closed on spend and on the open test. An
 unreadable paid, opt-out or signature signal is `unknown` and takes the rewrite path. Job timeout 10 min.
 **Scale/Scope**: bounded by the spend ceiling, one public version per source page, and 3 attempts per job. Making a public version spends no import unit (C-24).
 
@@ -196,7 +196,7 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart (imp
 
 ## Watch list
 
-- **Writer input.** The writer reads the facts sheet and the source step text in the source language, and never the address, the statement or the source title (027-FR-035, owner to confirm). The fingerprint check (027-FR-042) guards against copying. The bake-off measures both.
+- **Writer input.** The writer reads the facts sheet and the source step text in the source language, and never the address, the statement or the source title (027-FR-035, ruled 2026-11-17). The fingerprint check (027-FR-042) guards against copying. The bake-off measures both.
 - **Fact extraction recall.** A fact the extractor misses is neither sent nor checked. SC-001's human audit is the
   backstop.
 - **Key custody.** The fingerprint key is a secret in AWS Secrets Manager under this feature, with rotation that keeps old versions readable (FR-050a). A missing key version is an operator fault: a later save answers `503 checkUnavailable` with an alarm, and Publish answers the same `503` and leaves the job `ready`.

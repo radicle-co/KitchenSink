@@ -6,7 +6,7 @@ Phase 0 for `plan.md`. Each item: decision, rationale, alternatives rejected.
 
 - **Decision**: `FactsSheet` = ordered steps, each with `amounts`, `temperatures`, `durations` (all read from digits, fractions and unit symbols) and
   `ingredients` (names from the recipe's ingredient lines found in the step). There is no verb, equipment or safety-word
-  lexicon: those are left to the cook's review. Plus the ingredient-line names and the recipe language. Built by code. Never stored. The writer also gets the recipe's own step text in its source language, and never the address, the statement or the source title (owner to confirm). The wording check of R3 guards against copying it.
+  lexicon: those are left to the cook's review. Plus the ingredient-line names and the recipe language. Built by code. Never stored. The writer also gets the recipe's own step text in its source language, and never the address, the statement or the source title (ruled 2026-11-17). The wording check of R3 guards against copying it.
 - **Ties**: a tie between an amount and an ingredient is exact or null. Only the shape NUM [UNIT] [of [the]] NAME ties.
   A step with two or more untied amounts that carry a unit refuses the sheet.
 - **Rationale**: spec FR-035. A cook's source statement is a claim and can be wrong. One input shape (the sheet and the step text) gives one pinned

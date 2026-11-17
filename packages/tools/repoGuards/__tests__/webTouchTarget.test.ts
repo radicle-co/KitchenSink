@@ -23,13 +23,8 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { appSourceModules, classTokensOf, stringLikeTexts } from './appSources.js';
+import { appSourceModules, classTokensOf, splitToken, stringLikeTexts } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
-
-/** The variants of a token (`md:`), removed to read the utility. A bracketed variant may hold a colon. */
-function utilityOf(token: string): string {
-    return token.split(/:(?![^[]*\])/u).at(-1) ?? '';
-}
 
 /**
  * Whether a class string writes a fixed rem square: a `size-11` token, or `h-11` and `w-11` together. Pure.
@@ -37,7 +32,7 @@ function utilityOf(token: string): string {
  * @param tokens - The whitespace-split tokens of one class string.
  */
 export function writesRemSquare(tokens: readonly string[]): boolean {
-    const utilities = tokens.map((token) => utilityOf(token).replace(/^!/u, ''));
+    const utilities = tokens.map((token) => splitToken(token).base.replace(/^!/u, ''));
 
     return utilities.includes('size-11') || (utilities.includes('h-11') && utilities.includes('w-11'));
 }

@@ -5,8 +5,8 @@
  * A phone has no room to anchor a panel beside a row, so the job is kept and the mechanism moves to a bottom sheet
  * (`ingredientStatusExplanation.md` §8e "moved"). Opened by a tap, never a long-press or hover (plan 002 R32).
  *
- * - The trigger is a `button` with `aria-expanded` (RN's alias for `accessibilityState.expanded`), 48 × 48 dp (spec §3, 2.5.8); its glyph is hidden
- *   from assistive tech, so `triggerLabel` alone names it.
+ * - The trigger is a `button` with `aria-expanded` (RN's alias for `accessibilityState.expanded`), at least 48 dp tall
+ *   (spec §3, 2.5.8); its glyph is hidden from assistive tech, so `triggerLabel` alone names it.
  * - The `Sheet` moves the screen-reader cursor to its title when it shows, and leaves the return to its host because
  *   React Native cannot read where the cursor was. This leaf is that host: each close advances a counter, and
  *   `useScreenReaderFocusOnSignal` moves the cursor back to the trigger.
@@ -71,25 +71,16 @@ export const Popover: FC<PopoverProps> = ({
                 onPress={() => {
                     onOpenChange(true);
                 }}
-                style={({ pressed }) => [
-                    triggerText === undefined ? styles.trigger : styles.textTrigger,
-                    pressed && { backgroundColor: wash },
-                ]}
+                style={({ pressed }) => [styles.textTrigger, pressed && { backgroundColor: wash }]}
             >
                 <View aria-hidden style={styles.glyph}>
                     {busy ? (
                         <ActivityIndicator color={colors.ink} />
                     ) : (
-                        <Icon
-                            name={triggerIcon}
-                            size={triggerText === undefined ? 20 : 16}
-                            tone={triggerText === undefined ? 'ink' : 'attention'}
-                        />
+                        <Icon name={triggerIcon} size={16} tone="attention" />
                     )}
                 </View>
-                {triggerText !== undefined && (
-                    <Text style={[styles.triggerText, { color: colors.attention }]}>{triggerText}</Text>
-                )}
+                <Text style={[styles.triggerText, { color: colors.attention }]}>{triggerText}</Text>
             </Pressable>
             <Sheet
                 open={open}
@@ -110,13 +101,6 @@ export const Popover: FC<PopoverProps> = ({
 };
 
 const styles = StyleSheet.create({
-    trigger: {
-        minWidth: TARGET_DP,
-        minHeight: TARGET_DP,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: TARGET_DP / 2,
-    },
     // The attention line: the full 48 dp target, its words beside the glyph (build spec §7.5.1).
     textTrigger: {
         minHeight: TARGET_DP,

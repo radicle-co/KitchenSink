@@ -32,7 +32,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-import { appSourceModules, classTokensOf, parseModule, stringLikeTexts } from './appSources.js';
+import { appSourceModules, classTokensOf, parseModule, splitToken, stringLikeTexts } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
 
 /** The directory that owns the recipe, and so may write the tokens. */
@@ -53,20 +53,14 @@ const PRESS_ROLE = /^bg-press-/u;
 /** An ink-alpha background: `bg-ink/6`, `bg-ink-muted/10`, `bg-ink/[0.06]`. */
 const INK_ALPHA = /^bg-ink(?:-muted)?\/(?:\d+(?:\.\d+)?|\[[^\]\s]+\])$/u;
 
-/** A token split into its variant chain and its utility (`md:hover:bg-ink/6`). */
-function splitToken(token: string): { readonly variants: readonly string[]; readonly base: string } {
-    const parts = token.split(/:(?![^[]*\])/u);
-
-    return { variants: parts.slice(0, -1), base: (parts.at(-1) ?? '').replace(/^!/u, '') };
-}
-
 /**
  * Whether a class token is a hand-written press fill. Pure.
  *
  * @param token - One whitespace-free token.
  */
 export function isHandWrittenPress(token: string): boolean {
-    const { variants, base } = splitToken(token);
+    const { variants, base: raw } = splitToken(token);
+    const base = raw.replace(/^!/u, '');
 
     return (
         (FIXED_PRESS.test(base) && variants.some((variant) => PRESS_VARIANT.test(variant))) ||

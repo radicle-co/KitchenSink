@@ -5,9 +5,9 @@
  * - **iOS 26:** a 44 pt disc of regular Liquid Glass, untinted, because a user's photo can be any brightness.
  * - **Android, older iOS and web:** a solid 44 px `photoChip` disc. Web blurs only small fixed bars, never a disc.
  *
- * It carries a glyph, never text: no text we own sits on glass over a photo. Unlike `PhotoControl` it can be a real
- * link on web (a Back that opens in a new tab), take a screen-reader focus request, and report an open/closed state —
- * which the ⋯ menu's trigger needs.
+ * It carries a glyph, never text: no text we own sits on glass over a photo. On web it can be a real link (a Back that
+ * opens in a new tab), take a screen-reader focus request, and report an open/closed state, which the ⋯ menu's
+ * trigger needs.
  */
 import type { IconName } from '../icon/props.js';
 

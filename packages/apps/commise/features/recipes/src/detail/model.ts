@@ -890,7 +890,7 @@ export interface RecipeHeroProps {
      */
     readonly photos: readonly RecipePhoto[];
     /**
-     * The controls that sit ON the photo: back and ⋯ (D12), each a `PhotoControl` from `@commise/ui/photo-control`.
+     * The controls that sit ON the photo: back and ⋯ (D12), Back is a `HeroButton` and ⋯ is an `ActionMenu` with `appearance="disc"`.
      * The hero lays them over its top edge, start to end, first in the reading order. The caller owns what they do.
      */
     readonly overlay?: ReactNode;

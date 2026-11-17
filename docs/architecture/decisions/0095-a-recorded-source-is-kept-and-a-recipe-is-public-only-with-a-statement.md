@@ -189,7 +189,7 @@ An attestation is kept while its recipe is public, plus 6 years. Then it is dele
 - A hard delete by the cook keeps the rows. A soft delete keeps everything.
 - Evidence rows keep their cascade. They go with the recipe.
 
-**Owed:** the purge job.
+**Owed:** the purge job. Until it exists, each test reset leaves its records under a fresh token, so the table grows with every CI or e2e run.
 
 **Known limit.** The two exceptions to append-only trust tables the service itself writes. The service role writes
 `test_principals` and `test_reset_jobs`, and it starts erasure jobs. So the service role could mark an account as a test

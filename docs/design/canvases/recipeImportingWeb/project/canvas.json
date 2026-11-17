@@ -255,6 +255,153 @@
       "h": 1562,
       "title": "Recipe importing, paste waiting (web, 1280)"
     },
+    "ImportPublicChoiceWeb1280.dc.html": {
+      "x": 0,
+      "y": 14260,
+      "w": 1280,
+      "h": 3903,
+      "title": "Recipe importing, choice (web, 1280)"
+    },
+    "ImportPublicPrivateOnlyWeb1280.dc.html": {
+      "x": 1360,
+      "y": 14260,
+      "w": 1280,
+      "h": 1967,
+      "title": "Recipe importing, private only (web, 1280)"
+    },
+    "ImportPublicExistsWeb1280.dc.html": {
+      "x": 2720,
+      "y": 14260,
+      "w": 1280,
+      "h": 2339,
+      "title": "Recipe importing, public version exists (web, 1280)"
+    },
+    "ImportPublicOnlyWeb1280.dc.html": {
+      "x": 4080,
+      "y": 14260,
+      "w": 1280,
+      "h": 2431,
+      "title": "Recipe importing, public only, no slot (web, 1280)"
+    },
+    "ImportPublicDeadEndWeb1280.dc.html": {
+      "x": 5440,
+      "y": 14260,
+      "w": 1280,
+      "h": 1829,
+      "title": "Recipe importing, dead end and Pro (web, 1280)"
+    },
+    "ImportPublicWritingWeb1280.dc.html": {
+      "x": 6800,
+      "y": 14260,
+      "w": 1280,
+      "h": 863,
+      "title": "Recipe importing, writing (web, 1280)"
+    },
+    "ImportPublicReviewWeb1280.dc.html": {
+      "x": 8160,
+      "y": 14260,
+      "w": 1280,
+      "h": 3618,
+      "title": "Recipe importing, public version review (web, 1280)"
+    },
+    "ImportPublicRefusedWeb1280.dc.html": {
+      "x": 9520,
+      "y": 14260,
+      "w": 1280,
+      "h": 1387,
+      "title": "Recipe importing, refused, failed and budget (web, 1280)"
+    },
+    "ImportPublicSavedWeb1280.dc.html": {
+      "x": 10880,
+      "y": 14260,
+      "w": 1280,
+      "h": 1736,
+      "title": "Recipe importing, saved and published (web, 1280)"
+    },
+    "ImportPublicAgeConfirmWeb1280.dc.html": {
+      "x": 12240,
+      "y": 14260,
+      "w": 1280,
+      "h": 634,
+      "title": "Recipe importing, age confirm (web, 1280)"
+    },
+    "ImportPublicReviewWeb768.dc.html": {
+      "x": 0,
+      "y": 18660,
+      "w": 768,
+      "h": 1649,
+      "title": "Recipe importing, public version review (web, 768)"
+    },
+    "ImportPublicChoiceWeb390.dc.html": {
+      "x": 0,
+      "y": 20760,
+      "w": 390,
+      "h": 7682,
+      "title": "Recipe importing, choice (web, 390)"
+    },
+    "ImportPublicPrivateOnlyWeb390.dc.html": {
+      "x": 470,
+      "y": 20760,
+      "w": 390,
+      "h": 4232,
+      "title": "Recipe importing, private only (web, 390)"
+    },
+    "ImportPublicExistsWeb390.dc.html": {
+      "x": 940,
+      "y": 20760,
+      "w": 390,
+      "h": 4045,
+      "title": "Recipe importing, public version exists (web, 390)"
+    },
+    "ImportPublicOnlyWeb390.dc.html": {
+      "x": 1410,
+      "y": 20760,
+      "w": 390,
+      "h": 3350,
+      "title": "Recipe importing, public only, no slot (web, 390)"
+    },
+    "ImportPublicDeadEndWeb390.dc.html": {
+      "x": 1880,
+      "y": 20760,
+      "w": 390,
+      "h": 2682,
+      "title": "Recipe importing, dead end and Pro (web, 390)"
+    },
+    "ImportPublicWritingWeb390.dc.html": {
+      "x": 2350,
+      "y": 20760,
+      "w": 390,
+      "h": 1566,
+      "title": "Recipe importing, writing (web, 390)"
+    },
+    "ImportPublicReviewWeb390.dc.html": {
+      "x": 2820,
+      "y": 20760,
+      "w": 390,
+      "h": 7043,
+      "title": "Recipe importing, public version review (web, 390)"
+    },
+    "ImportPublicRefusedWeb390.dc.html": {
+      "x": 3290,
+      "y": 20760,
+      "w": 390,
+      "h": 2853,
+      "title": "Recipe importing, refused, failed and budget (web, 390)"
+    },
+    "ImportPublicSavedWeb390.dc.html": {
+      "x": 3760,
+      "y": 20760,
+      "w": 390,
+      "h": 3057,
+      "title": "Recipe importing, saved and published (web, 390)"
+    },
+    "ImportPublicAgeConfirmWeb390.dc.html": {
+      "x": 4230,
+      "y": 20760,
+      "w": 390,
+      "h": 812,
+      "title": "Recipe importing, age confirm (web, 390)"
+    },
     "ImportAddRecipeWeb1024.dc.html": {
       "x": 0,
       "y": 3418,
@@ -492,6 +639,76 @@
       "w": 390,
       "h": 1200,
       "title": "Recipe importing, library results (web, 390)"
+    },
+    "ImportPasteReplaceReviewWeb1280.dc.html": {
+      "x": 47600,
+      "y": 260,
+      "w": 1280,
+      "h": 843,
+      "title": "Recipe importing, paste replace review (web, 1280)"
+    },
+    "ImportPasteReplaceDraftWeb1280.dc.html": {
+      "x": 48960,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, paste replace a draft (web, 1280)"
+    },
+    "ImportPasteCopiesWeb1280.dc.html": {
+      "x": 50320,
+      "y": 260,
+      "w": 1280,
+      "h": 2657,
+      "title": "Recipe importing, paste copies list (web, 1280)"
+    },
+    "ImportPasteReplaceConflictWeb1280.dc.html": {
+      "x": 51680,
+      "y": 260,
+      "w": 1280,
+      "h": 856,
+      "title": "Recipe importing, paste replace conflict (web, 1280)"
+    },
+    "ImportPasteHeldWeb390.dc.html": {
+      "x": 10340,
+      "y": 9265,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, paste held from public (web, 390)"
+    },
+    "ImportPasteReplaceReviewWeb390.dc.html": {
+      "x": 10810,
+      "y": 9265,
+      "w": 390,
+      "h": 1566,
+      "title": "Recipe importing, paste replace review (web, 390)"
+    },
+    "ImportPasteReplaceDraftWeb390.dc.html": {
+      "x": 11280,
+      "y": 9265,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, paste replace a draft (web, 390)"
+    },
+    "ImportPasteCopiesWeb390.dc.html": {
+      "x": 11750,
+      "y": 9265,
+      "w": 390,
+      "h": 1465,
+      "title": "Recipe importing, paste copies list (web, 390)"
+    },
+    "ImportPasteReplaceConflictWeb390.dc.html": {
+      "x": 12220,
+      "y": 9265,
+      "w": 390,
+      "h": 1754,
+      "title": "Recipe importing, paste replace conflict (web, 390)"
+    },
+    "ImportPasteReviewHoldsWeb390.dc.html": {
+      "x": 12690,
+      "y": 9265,
+      "w": 390,
+      "h": 3587,
+      "title": "Recipe importing, paste review holds (web, 390)"
     }
   },
   "order": [
@@ -530,6 +747,27 @@
     "ImportPasteSlotsFullWeb1280.dc.html",
     "ImportPasteTextCardWeb1280.dc.html",
     "ImportPasteWaitingWeb1280.dc.html",
+    "ImportPublicChoiceWeb1280.dc.html",
+    "ImportPublicPrivateOnlyWeb1280.dc.html",
+    "ImportPublicExistsWeb1280.dc.html",
+    "ImportPublicOnlyWeb1280.dc.html",
+    "ImportPublicDeadEndWeb1280.dc.html",
+    "ImportPublicWritingWeb1280.dc.html",
+    "ImportPublicReviewWeb1280.dc.html",
+    "ImportPublicRefusedWeb1280.dc.html",
+    "ImportPublicSavedWeb1280.dc.html",
+    "ImportPublicAgeConfirmWeb1280.dc.html",
+    "ImportPublicReviewWeb768.dc.html",
+    "ImportPublicChoiceWeb390.dc.html",
+    "ImportPublicPrivateOnlyWeb390.dc.html",
+    "ImportPublicExistsWeb390.dc.html",
+    "ImportPublicOnlyWeb390.dc.html",
+    "ImportPublicDeadEndWeb390.dc.html",
+    "ImportPublicWritingWeb390.dc.html",
+    "ImportPublicReviewWeb390.dc.html",
+    "ImportPublicRefusedWeb390.dc.html",
+    "ImportPublicSavedWeb390.dc.html",
+    "ImportPublicAgeConfirmWeb390.dc.html",
     "ImportAddRecipeWeb1024.dc.html",
     "ImportPasteEmptyWeb1024.dc.html",
     "ImportPasteReviewWeb1024.dc.html",
@@ -563,7 +801,17 @@
     "ImportStatementsWeb390.dc.html",
     "ImportLimitReachedWeb390.dc.html",
     "ImportLibraryProgressWeb390.dc.html",
-    "ImportLibraryResultsWeb390.dc.html"
+    "ImportLibraryResultsWeb390.dc.html",
+    "ImportPasteReplaceReviewWeb1280.dc.html",
+    "ImportPasteReplaceDraftWeb1280.dc.html",
+    "ImportPasteCopiesWeb1280.dc.html",
+    "ImportPasteReplaceConflictWeb1280.dc.html",
+    "ImportPasteHeldWeb390.dc.html",
+    "ImportPasteReplaceReviewWeb390.dc.html",
+    "ImportPasteReplaceDraftWeb390.dc.html",
+    "ImportPasteCopiesWeb390.dc.html",
+    "ImportPasteReplaceConflictWeb390.dc.html",
+    "ImportPasteReviewHoldsWeb390.dc.html"
   ],
   "notes": {
     "row0": {
@@ -591,6 +839,27 @@
       "x": 0,
       "y": 9005,
       "text": "Recipe importing: web, 390",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "publicVersion1280": {
+      "x": 0,
+      "y": 14000,
+      "text": "Public version (spec 003B): web, 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "publicVersion768": {
+      "x": 0,
+      "y": 18400,
+      "text": "Public version (spec 003B): web, 768",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "publicVersion390": {
+      "x": 0,
+      "y": 20500,
+      "text": "Public version (spec 003B): web, 390",
       "kind": "title1",
       "maxW": 2400
     }

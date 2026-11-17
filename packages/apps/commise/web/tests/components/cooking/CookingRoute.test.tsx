@@ -14,8 +14,10 @@ import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { NotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
+import { SyncProvider, useSyncQueue } from '@commise/query/sync';
 import { renderWithRecipeClient } from '@commise/test-utils';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createMemoryOutboxStore } from '@kitchensink/sync';
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
@@ -456,5 +458,122 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
 
         expect(await screen.findByText(stepOf(1, 4))).toBeInTheDocument();
         expect(screen.queryByText('We couldn’t open this recipe')).not.toBeInTheDocument();
+    });
+});
+
+describe('CookingRoute: the offline notice', () => {
+    const OFFLINE = 'You’re offline';
+
+    function cooking(preload: boolean): ReactNode {
+        const client = createFakeRecipeServiceClient();
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+
+        if (preload) {
+            queryClient.setQueryData(
+                recipeQueries(client).detail('rec_1').queryKey,
+                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, status: RecipeStatus.PUBLISHED, steps: STEPS }),
+            );
+        } else {
+            vi.spyOn(client, 'getRecipeById').mockReturnValue(new Promise(() => undefined));
+        }
+
+        return (
+            <LocaleProvider locale="en">
+                <QueryClientProvider client={queryClient}>
+                    <RecipeServiceProvider client={client}>
+                        <CookingRoute id="rec_1" />
+                    </RecipeServiceProvider>
+                </QueryClientProvider>
+            </LocaleProvider>
+        );
+    }
+
+    afterEach(() => {
+        act(() => {
+            onlineManager.setOnline(true);
+        });
+    });
+
+    it('shows exactly one notice, title only, above the top bar of a settled step', async () => {
+        act(() => {
+            onlineManager.setOnline(false);
+        });
+        render(cooking(true));
+
+        const exit = await screen.findByRole('button', { name: 'Exit cooking mode' });
+        const notices = screen.getAllByText(OFFLINE);
+
+        expect(notices).toHaveLength(1);
+        expect(screen.getByRole('main').contains(notices[0] ?? null)).toBe(true);
+        expect(notices[0]?.compareDocumentPosition(exit)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+        expect(screen.getByRole('status', { name: 'Sync status' }).textContent).toBe(OFFLINE);
+    });
+
+    it('shows it on the loading frame too, so the cook is told before the recipe arrives', () => {
+        act(() => {
+            onlineManager.setOnline(false);
+        });
+        render(cooking(false));
+
+        expect(screen.getAllByText(OFFLINE)).toHaveLength(1);
+        expect(screen.getByText('Step –')).toBeTruthy();
+    });
+
+    it('draws no notice element while online', async () => {
+        render(cooking(true));
+
+        await screen.findByRole('button', { name: 'Exit cooking mode' });
+
+        expect(screen.queryByText(OFFLINE)).toBeNull();
+    });
+
+    it('⛔ says nothing of syncing in cooking mode when it reconnects with a write still going out', async () => {
+        // One write is pending and its send never resolves, so reconnecting leaves it syncing: the app form would say
+        // "Back online" and "Syncing 1 change…" for it, and cooking mode says neither.
+        const send = vi.fn(() => new Promise<never>(() => undefined));
+
+        const Writer = (): ReactNode => {
+            const queue = useSyncQueue();
+
+            return (
+                <button
+                    type="button"
+                    onClick={() => {
+                        void queue.submit({
+                            entity: 'recipe',
+                            intentKind: 'update',
+                            localId: 'r1',
+                            dependsOn: [],
+                            payload: {},
+                        });
+                    }}
+                >
+                    save a change
+                </button>
+            );
+        };
+
+        act(() => {
+            onlineManager.setOnline(false);
+        });
+        render(
+            <SyncProvider subject="user_a" send={send} store={createMemoryOutboxStore()}>
+                {cooking(true)}
+                <Writer />
+            </SyncProvider>,
+        );
+        await screen.findByRole('button', { name: 'Exit cooking mode' });
+        await userEvent.click(screen.getByRole('button', { name: 'save a change' }));
+
+        await act(async () => {
+            onlineManager.setOnline(true);
+        });
+
+        await waitFor(() => {
+            expect(send).toHaveBeenCalled();
+        });
+        expect(screen.queryByText(OFFLINE)).toBeNull();
+        expect(screen.queryByText('Back online')).toBeNull();
+        expect(screen.queryByText(/Syncing/u)).toBeNull();
     });
 });

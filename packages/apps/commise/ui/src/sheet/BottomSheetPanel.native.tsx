@@ -72,6 +72,16 @@ export interface BottomSheetPanelProps extends Pick<
     readonly onSwipeDismiss: () => void;
 }
 
+/** The grab handle. A centred dialog has no bottom edge to drag from, so it draws none. */
+const GrabHandle: FC<{ readonly centred: boolean; readonly fill: string }> = ({ centred, fill }) =>
+    centred ? null : (
+        <View
+            aria-hidden
+            importantForAccessibility="no-hide-descendants"
+            style={[styles.handle, { backgroundColor: fill }]}
+        />
+    );
+
 export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     title,
     closeLabel,
@@ -156,14 +166,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
                     with the same thresholds. The handle is decorative; the labelled Close button stays the accessible way
                     out (WCAG 2.5.7). */}
                     <View {...panHandlers}>
-                        {/* A centred dialog has no bottom edge to drag from, so it draws no handle. */}
-                        {centred ? null : (
-                            <View
-                                aria-hidden
-                                importantForAccessibility="no-hide-descendants"
-                                style={[styles.handle, { backgroundColor: colors.lineDivider }]}
-                            />
-                        )}
+                        <GrabHandle centred={centred} fill={colors.lineDivider} />
                         <View style={styles.titleRow}>
                             <View style={styles.titleBox}>
                                 <Text

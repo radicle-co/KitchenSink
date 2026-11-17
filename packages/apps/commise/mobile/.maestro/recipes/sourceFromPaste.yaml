@@ -133,4 +133,15 @@ appId: ${APP_ID}
       visible: 'Source removed.'
       timeout: 10000
 # No keyboard rose: the held note is in view, with the Public card it explains.
-- assertVisible: 'This recipe was saved with a source, so it stays private.'
+# The note is the Public card's hint: Android reads it as text, while iOS gives Maestro only the card's title, so there the
+# card stands in for it (the note's wording is the component tests' subject).
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible: 'This recipe was saved with a source, so it stays private.'
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible: '^Public$'

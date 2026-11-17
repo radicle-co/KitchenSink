@@ -1,11 +1,11 @@
 /**
  * @module modifierLexicon — the vocabulary KTD-11b's ruling is made of.
  *
- * DESIGN PATTERN: **Lexicon / lookup table behind a pure total function**, the sibling of
- * `@kitchensink/recipe-core/parsing/number-words` — a vocabulary is a piece of knowledge, and it is filed apart from the policy that
- * consumes it (`parseComparator.ts`) for the reason §1 gives: a file that is a policy AND a word list is
+ * DESIGN PATTERN: **Lexicon / lookup table behind a pure total function**, like the number lexicon in
+ * `@kitchensink/recipe-core/parsing/number-words` — a vocabulary is a piece of knowledge, and it is filed apart from
+ * the policy that consumes it (`parseComparator.ts`) for the reason §1 gives: a file that is a policy AND a word list is
  * two files wearing one name. Nothing here is on the package barrel; the classification is an
- * implementation detail of the comparator, exactly as `WHOLE_NUMBER_WORDS` is of the pre-normalizer.
+ * implementation detail of the comparator, as the number lexicon's word tables are of the pre-normalizer.
  *
  * ## The ruling this carries (KTD-11b, owner ruling 2026-08-23)
  *

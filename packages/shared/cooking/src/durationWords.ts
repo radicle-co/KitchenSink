@@ -11,7 +11,7 @@
 
 import { FRACTION_WORD_DENOMINATORS, readNumberWords } from '@kitchensink/recipe-core/parsing/number-words';
 
-import type { DurationReading } from './duration.js';
+import { oneReading, type DurationReading } from './durationReading.js';
 
 /** Seconds per unit word. The singular `second` is here, but an article never counts it ("a second" is a moment). */
 const UNIT_SECONDS: ReadonlyMap<string, number> = new Map([
@@ -203,7 +203,8 @@ function isFractionAfterCount(tokens: readonly string[], index: number): boolean
 /** Whether the words around a span make its time a repeat, a part of the step, or a hedge. */
 function isUnreadable(tokens: readonly string[], span: Span): boolean {
     const before = tokens[span.start - 1];
-    const after = tokens.slice(span.end);
+    // The longest look-ahead is four tokens: "and", a two-word count, then a fraction word.
+    const after = tokens.slice(span.end, span.end + 4);
 
     if (before !== undefined && REPEAT_WORDS.has(before)) {
         return true;
@@ -266,7 +267,5 @@ export function readWordDuration(line: string): DurationReading {
         return { kind: 'none' };
     }
 
-    return only.highSeconds === undefined
-        ? { kind: 'one', seconds: only.seconds }
-        : { kind: 'one', seconds: only.seconds, highSeconds: only.highSeconds };
+    return oneReading(only.seconds, only.highSeconds);
 }

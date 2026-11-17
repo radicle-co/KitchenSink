@@ -1,5 +1,5 @@
 /**
- * Times written in words (S8.U1, R10). Every row is a line a cook could really read, with the exact reading it must
+ * Times written in words. Every row is a line a cook could really read, with the exact reading it must
  * give. The word grammar is a second layer under `readDuration`: it runs only when the digit layer found no span.
  */
 import { describe, expect, it } from 'vitest';
@@ -53,6 +53,17 @@ describe('readWordDuration', () => {
         ['Rest a minute and stir', 60],
     ])('reads an article amount that ends the line or is followed by an allowed word: %s', (line, seconds) => {
         expect(readWordDuration(line)).toStrictEqual({ kind: 'one', seconds });
+    });
+
+    it.each(['fifteen to ten minutes', 'ten to ten minutes'])(
+        'drops the high end of a reversed or equal range, and never swaps it: %s',
+        (line) => {
+            expect(readWordDuration(line)).not.toHaveProperty('highSeconds');
+        },
+    );
+
+    it('reads the low end of a reversed range as written', () => {
+        expect(readWordDuration('fifteen to ten minutes')).toStrictEqual({ kind: 'one', seconds: 900 });
     });
 
     it.each(['ten to fifteen eggs', 'ten to fifteen drops'])('reads no time from a range with no unit: %s', (line) => {
@@ -187,35 +198,5 @@ describe('readDuration layers the word grammar under the digit grammar', () => {
 
     it('reads many for two word times', () => {
         expect(readDuration('Bake ten minutes, then rest five minutes.')).toEqual({ kind: 'many' });
-    });
-});
-
-describe('readDuration gives the high end of a digit range', () => {
-    it.each([
-        ['Simmer 20 to 25 minutes', 1_200, 1_500],
-        ['Simmer 20-25 min', 1_200, 1_500],
-        ['Simmer 20–25 minutes', 1_200, 1_500],
-        ['Simmer for 20 or 25 minutes', 1_200, 1_500],
-        ['Bake between 20 and 25 minutes', 1_200, 1_500],
-        ['Bake 20‐25 minutes', 1_200, 1_500],
-        ['Bake 20‑25 minutes', 1_200, 1_500],
-        ['Bake 20‒25 minutes', 1_200, 1_500],
-        ['Bake 20―25 minutes', 1_200, 1_500],
-        ['Bake 20—25 minutes', 1_200, 1_500],
-        ['Bake 1-2 hours', 3_600, 7_200],
-        ['Bake 1 to 1½ hours', 3_600, 5_400],
-    ])('%s gives %i s up to %i s', (line, seconds, highSeconds) => {
-        expect(readDuration(line)).toEqual({ kind: 'one', seconds, highSeconds });
-    });
-
-    it.each(['Rest for 1 hour 5 minutes', 'Roast for 1 h 30', 'Bake 1½ hours', 'Stir for 30 sec'])(
-        '%s carries no high end',
-        (line) => {
-            expect(readDuration(line)).not.toHaveProperty('highSeconds');
-        },
-    );
-
-    it('carries no high end on a range joined to another amount', () => {
-        expect(readDuration('Rest 1 to 2 hours 5 minutes')).not.toHaveProperty('highSeconds');
     });
 });

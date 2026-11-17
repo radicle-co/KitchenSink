@@ -1,7 +1,8 @@
-import type { DurationReading } from '../duration.js';
+import type { DurationReading } from '../durationReading.js';
 
 /**
- * The r0 golden readings: what the digit-only `readDuration` of origin/main a0e3653f5 answered for each line below.
+ * The digit-only golden readings: what `readDuration` of origin/main a0e3653f5, which reads digits only, answered for
+ * each line below.
  *
  * Generated ONCE from that reader, never from a newer one. Command, run from the repository root with Node 24:
  * `npx tsx gen.ts modern.json`, where gen.ts calls main's `readDuration` over every line of GOLDEN_CORPUS_STEPS,
@@ -25,15 +26,14 @@ import type { DurationReading } from '../duration.js';
  *     const rows = unique.map((line) => `    { line: ${JSON.stringify(line)}, reading: ${JSON.stringify(readDuration(line)).replace(/"(\w+)":/g, '$1:').replace(/,/g, ', ').replace(/\{/g, '{ ').replace(/\}/g, ' }')} },`);
  *     process.stdout.write(rows.join('\n') + '\n');
  *
- * This is the frozen r0 reader in data form (qse carry 1). A later edit to this file is a test change and needs a qse
- * TEST-CHANGE record.
+ * This is the frozen digit-only reader in data form. Never edit a row: a change here changes what the test protects.
  */
-export interface R0Reading {
+export interface DigitReading {
     readonly line: string;
     readonly reading: DurationReading;
 }
 
-export const DURATION_READINGS_R0: readonly R0Reading[] = [
+export const DIGIT_READINGS: readonly DigitReading[] = [
     {
         line: 'Select round, very firm and even sized tomatoes, cut off the top (reserve to use as a cover), scrape out the inside, being very careful to not break the tomato.',
         reading: { kind: 'none' },

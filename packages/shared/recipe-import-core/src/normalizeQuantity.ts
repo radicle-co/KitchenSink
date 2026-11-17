@@ -148,6 +148,7 @@ function readNumeral(tokens: readonly Token[], index: number): Reading | null {
 
 /** Reads a whole-number word, including a compound like `"forty-five"`, as the exact fraction of its value. */
 function readWholeWord(tokens: readonly Token[], index: number): Reading | null {
+    // The reader looks one token ahead (the unit half of a compound), so two tokens are all it is given.
     const read = readNumberWords(
         tokens.slice(index, index + 2).map((token) => token.text),
         0,

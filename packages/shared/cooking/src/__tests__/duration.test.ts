@@ -210,3 +210,40 @@ describe('elapsedParts: whole minutes since the end, floored and never rounded',
         expect(elapsedParts(elapsedMs)).toEqual(expected);
     });
 });
+
+describe('readDuration gives the high end of a digit range', () => {
+    it.each([
+        ['Simmer 20 to 25 minutes', 1_200, 1_500],
+        ['Simmer 20-25 min', 1_200, 1_500],
+        ['Simmer 20–25 minutes', 1_200, 1_500],
+        ['Simmer for 20 or 25 minutes', 1_200, 1_500],
+        ['Bake between 20 and 25 minutes', 1_200, 1_500],
+        ['Bake 20‐25 minutes', 1_200, 1_500],
+        ['Bake 20‑25 minutes', 1_200, 1_500],
+        ['Bake 20‒25 minutes', 1_200, 1_500],
+        ['Bake 20―25 minutes', 1_200, 1_500],
+        ['Bake 20—25 minutes', 1_200, 1_500],
+        ['Bake 1-2 hours', 3_600, 7_200],
+        ['Bake 1 to 1½ hours', 3_600, 5_400],
+    ])('%s gives %i s up to %i s', (line, seconds, highSeconds) => {
+        expect(readDuration(line)).toEqual({ kind: 'one', seconds, highSeconds });
+    });
+
+    it.each(['Rest for 1 hour 5 minutes', 'Roast for 1 h 30', 'Bake 1½ hours', 'Stir for 30 sec'])(
+        '%s carries no high end',
+        (line) => {
+            expect(readDuration(line)).not.toHaveProperty('highSeconds');
+        },
+    );
+
+    it.each([
+        ['Bake 25 to 20 minutes', 1_500],
+        ['Bake 20 to 20 minutes', 1_200],
+    ])('%s reads its low end alone: a reversed or equal range is never swapped', (line, seconds) => {
+        expect(readDuration(line)).toStrictEqual({ kind: 'one', seconds });
+    });
+
+    it('carries no high end on a range joined to another amount', () => {
+        expect(readDuration('Rest 1 to 2 hours 5 minutes')).not.toHaveProperty('highSeconds');
+    });
+});

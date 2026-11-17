@@ -14,17 +14,9 @@
 
 import { amountAt } from '@kitchensink/recipe-core/parsing/measure-reader';
 
+import { oneReading, type DurationReading } from './durationReading.js';
 import { readWordDuration } from './durationWords.js';
 import { isValidTimerMs } from './timer.js';
-
-/**
- * What a line says: no duration, exactly one (in seconds), or several. A range ("20 to 25 minutes") gives its low end
- * as `seconds` and its high end as `highSeconds`. Only a span that is one range carries `highSeconds`.
- */
-export type DurationReading =
-    | { readonly kind: 'none' }
-    | { readonly kind: 'one'; readonly seconds: number; readonly highSeconds?: number }
-    | { readonly kind: 'many' };
 
 const SECONDS_PER_UNIT: Readonly<Record<string, number>> = { h: 3_600, m: 60, s: 1 };
 
@@ -156,11 +148,8 @@ export function readDuration(line: string): DurationReading {
 
     // Only a span that is exactly one range carries its high end.
     const [only] = amounts;
-    const high = amounts.length === 1 && bareMinutes === undefined ? only?.highSeconds : undefined;
 
-    return high !== undefined && high > total
-        ? { kind: 'one', seconds: Math.round(total), highSeconds: Math.round(high) }
-        : { kind: 'one', seconds: Math.round(total) };
+    return oneReading(total, amounts.length === 1 && bareMinutes === undefined ? only?.highSeconds : undefined);
 }
 
 /** The one duration a line reads, in seconds, or `undefined` when it reads none or several. */

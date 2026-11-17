@@ -6,8 +6,8 @@
  * | R29 — a clause splitter must not cut an `and` the quantity grammar owns | the span suites |
  *
  * This exists so `cookbook-import` can ask "is this ` and ` part of a number?" without restating the
- * number lexicon, which has exactly one owner (`@kitchensink/recipe-core/parsing/number-words`). Every case therefore asserts the span
- * BOUNDARIES, not merely that something was found — a span one character short of the `and` would let the
+ * number lexicon, which has exactly one owner (`@kitchensink/recipe-core/parsing/number-words`). Every case therefore
+ * asserts the span BOUNDARIES, not merely that something was found — a span one character short of the `and` would let the
  * splitter cut anyway while a "did we find it" test stayed green.
  */
 import { describe, it, expect } from 'vitest';

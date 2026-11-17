@@ -76,4 +76,5 @@ export type {
     TimerState,
 } from './timer.js';
 export { durationParts, elapsedParts, offerSecondsOf, readDuration } from './duration.js';
-export type { DurationParts, DurationReading, ElapsedParts, OfferInput } from './duration.js';
+export type { DurationParts, ElapsedParts, OfferInput } from './duration.js';
+export type { DurationReading } from './durationReading.js';

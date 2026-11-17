@@ -1,5 +1,5 @@
 /**
- * Hand-labelled expectations for "times written in words" (S8.U1, AE4a). Labelled by reading the text as a cook
+ * Hand-labelled expectations for "times written in words". Labelled by reading the text as a cook
  * would, before any word reader existed, never by running a reader.
  */
 
@@ -12,7 +12,7 @@ export interface CorpusOffer {
 }
 
 /**
- * All 31 `GOLDEN_CORPUS_STEPS`. Labelling notes:
+ * Every step of `GOLDEN_CORPUS_STEPS`. Labelling notes:
  * - "a few minutes", "a moment" and "several days" state no length: no offer.
  * - CANNING FRUIT BAKED IN OVEN 3, "eight to ten minutes or according to the fruit": the time is hedged by "or
  *   according to", so it offers nothing (a wrong timer is worse than none).
@@ -59,7 +59,7 @@ export interface LineOffer {
     readonly seconds: number | undefined;
 }
 
-/** AE4a's positive rows, and the plan's extra positives. */
+/** Lines that must offer a timer, with its seconds. */
 export const POSITIVE_LINE_OFFERS: readonly LineOffer[] = [
     { line: 'An hour and a half', seconds: 5_400 },
     { line: 'Ten to fifteen minutes', seconds: 600 },
@@ -75,7 +75,7 @@ export const POSITIVE_LINE_OFFERS: readonly LineOffer[] = [
     { line: 'Bake 20 minutes, then ten minutes more.', seconds: 1_200 },
 ];
 
-/** AE4a's negative rows, and the plan's extra negatives. Each offers nothing. */
+/** Lines that must offer nothing. */
 export const NEGATIVE_LINES: readonly string[] = [
     'two eggs',
     'every five minutes',

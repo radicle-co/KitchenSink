@@ -1,9 +1,11 @@
 /**
- * The English number/fraction lexicon an imported ingredient line is written in.
+ * The English number/fraction lexicon a line of recipe text is written in: an imported ingredient line and a step's
+ * time in words.
  *
  * DESIGN PATTERN: Registry, whose intent is already satisfied by a module-scope `ReadonlyMap` — there is
- * no registry class here and none is wanted. This file is DATA over a closed ~50-word vocabulary; the
- * grammar that composes entries into a value is `normalizeQuantity`, and the arithmetic is `fraction.js`.
+ * no registry class here and none is wanted. This file is data over a closed ~50-word vocabulary, plus the one
+ * function that reads a whole number from it (`readNumberWords`). The grammar that composes fractions from entries is
+ * `normalizeQuantity`, and the arithmetic is `fraction.js`.
  *
  * ⛔ LIBRARY-FIRST JUSTIFICATION (measured 2026-08-19; re-verified in this workspace on the same date —
  * do not re-litigate, and do not replace this table with a "words to numbers" package):
@@ -12,8 +14,8 @@
  *   already records, and it IS used, for unit + description extraction. It cannot read number WORDS:
  *   measured to return `quantity: null` for `"one tablespoon of butter"`, `"two-thirds cup of flour"` and
  *   `"one-half teaspoon salt"` — which is the notation an entire 1900s cookbook is written in.
- * - `fraction.js@5.3.4` (MIT, ~51M dl/wk) — USED for every rational operation here. Fraction arithmetic is
- *   never done by hand and `2/3` is never allowed to become `0.6666666666666666` internally.
+ * - `fraction.js@5.3.4` (MIT, ~51M dl/wk) — USED for every rational operation by its user, `normalizeQuantity`.
+ *   Fraction arithmetic is never done by hand and `2/3` is never allowed to become `0.6666666666666666` internally.
  * - `numerizer@0.0.4` — REJECTED. Last published 2022-06-22 (dormant — the same criterion `tech-stack.md`
  *   used to reject `recipe-ingredient-parser-v2`), and measured to emit the CORRUPTED string
  *   `"2-<frac>2 pounds of beef"` for `"one and one-half pounds of beef"`.
@@ -32,6 +34,8 @@
  *
  * The tens beyond sixty are present although no requirement named them: this is a CLOSED set, and leaving
  * a hole at `seventy` would make `"seventy minutes"` unreadable for no reason a reader could reconstruct.
+ *
+ * Exported only so the table's own test can assert it entry by entry; readers go through {@link readNumberWords}.
  */
 export const WHOLE_NUMBER_WORDS: ReadonlyMap<string, number> = new Map([
     ['a', 1],
@@ -109,6 +113,8 @@ export const FRACTION_WORD_DENOMINATORS: ReadonlyMap<string, number> = new Map([
  * #12350 (`The International Jewish Cook Book`, 1919), `"a little"` occurs 362 times and `"a few"` 194 —
  * more often than every genuine `a`-as-one phrase in the book combined (`"a pinch"` 74, `"a dozen"` 18,
  * `"a sprig"` 10, `"a stalk"` 2). Nothing speculative belongs here; add a word only with a count.
+ *
+ * Exported only so the table's own test can assert it entry by entry; readers go through {@link readNumberWords}.
  */
 export const INDEFINITE_QUALIFIERS: ReadonlySet<string> = new Set(['little', 'few']);
 
@@ -121,11 +127,11 @@ const INDEFINITE_ARTICLES: ReadonlySet<string> = new Set(['a', 'an']);
 /**
  * Reads a whole-number word at `index`, compounds included (`"forty-five"`), as a plain integer.
  *
- * `a`/`an` read as one unless a qualifier follows (`"a little"`, `"a few"`), and they are excluded from the unit half of
- * a compound, so `"twenty a"` reads as 20. Matching is case-insensitive. Whole numbers are exact as numbers, so no
+ * `a`/`an` read as one unless a qualifier follows (`"a little"`, `"a few"`), and they are excluded from the unit half
+ * of a compound, so `"twenty a"` reads as 20. Matching is case-insensitive. Whole numbers are exact as numbers, so no
  * fraction type is needed here. Pure.
  *
- * @param words - The words of a line, one per entry, with no punctuation.
+ * @param words - The tokens of a line, one per entry. A punctuation token matches no number word.
  * @param index - Where to read.
  * @returns The value and the index of the first word not used, or `undefined` when no number word is at `index`.
  */

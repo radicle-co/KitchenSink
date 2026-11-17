@@ -88,10 +88,12 @@ describe('parseStepAnswer, text outside the step list', () => {
 });
 
 describe('parseStepAnswer, order of refusals', () => {
-    it('reports an unreadable answer before counting its steps', () => {
+    // Changed from "unreadable first": an oversized answer is now refused on its step count before any step is read, so
+    // a huge reply is never parsed step by step. A reply that is not JSON, or has no steps list, is still unreadable.
+    it('counts the steps before it reads them, so an oversized malformed answer is overCap', () => {
         const tooMany = Array.from({ length: 5 }, () => ({ covers: [0] }));
 
-        expect(parseStepAnswer(answer(tooMany), 3)).toEqual({ refused: 'unreadable' });
+        expect(parseStepAnswer(answer(tooMany), 3)).toEqual({ refused: 'overCap' });
     });
 });
 

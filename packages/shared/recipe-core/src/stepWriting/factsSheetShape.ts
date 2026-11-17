@@ -3,8 +3,8 @@
  * field fails to compile until the shape names it.
  *
  * The sheet is kept as jsonb, so the type alone does not hold at runtime: a field can be missing, null or the wrong
- * type, and an enum can hold another value. Which strings are plain facts, and which numbers are in range, is for
- * `toPlainFactsSheet`. Extra properties are allowed here, because `toPlainFactsSheet` rebuilds the sheet from the named
+ * type, and an enum can hold another value. Which strings are plain facts, and that a duration is not negative or
+ * backwards, is for `toPlainFactsSheet`. Quantities and temperatures are not range checked. Extra properties are allowed here, because `toPlainFactsSheet` rebuilds the sheet from the named
  * fields and drops the rest.
  */
 import { z } from 'zod';

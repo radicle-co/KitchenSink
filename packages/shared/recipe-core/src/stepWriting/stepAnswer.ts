@@ -70,6 +70,17 @@ export function parseStepAnswer(text: string, cap: number, language: OutputLangu
         return { refused: looksLikeWrappedAnswer(text) ? 'outsideList' : 'unreadable' };
     }
 
+    // The cap comes first so an oversized answer is not parsed step by step.
+    if (
+        typeof json === 'object' &&
+        json !== null &&
+        'steps' in json &&
+        Array.isArray(json.steps) &&
+        json.steps.length > cap
+    ) {
+        return { refused: 'overCap' };
+    }
+
     const parsed = answerSchema.safeParse(json);
 
     if (!parsed.success) {

@@ -15,7 +15,7 @@ interface LanguageCases {
     readonly refused: readonly (readonly [string, string])[];
     /** Names that must pass, as written and as a sentence. */
     readonly accepted: readonly string[];
-    /** The same words spelt with a different dot that the language's address rule must read as a dot. */
+    /** Different characters that must each read as the dot of an address, and a plain dotted name for contrast. */
     readonly dotted: readonly string[];
 }
 
@@ -26,6 +26,11 @@ interface LanguageCases {
 const CASES: Record<OutputLanguage, LanguageCases> = {
     en: {
         refused: [
+            ['a registered sign before a dot', 'evil\u00AE.com'],
+            ['a parenthesis before a dot', 'evil).com'],
+            ['an ellipsis for a dot', 'evil\u2026com'],
+            ['a percent-escaped dot', 'evil%2Ecom'],
+            ['a trade mark hiding a scheme', '\u2122javascript:alert(1)'],
             ['a Latin small letter l with middle dot', 'evil\u0140.com'],
             ['a Latin capital letter L with middle dot', '\u013F.com'],
             ['a Latin small letter l with middle dot alone', 'evil\u0140'],
@@ -91,7 +96,17 @@ const CASES: Record<OutputLanguage, LanguageCases> = {
             '\u215E tsp',
             '\u00BC cup',
         ],
-        dotted: ['evil\uFF0Ecom', 'evil\u2024com', 'evil\uFE52com', 'evil.com', 'evil.cooking', 'evil.zip'],
+        dotted: [
+            'evil\uFF0Ecom',
+            'evil\u2024com',
+            'evil\uFE52com',
+            'evil.com',
+            'evil.cooking',
+            'evil.zip',
+            'evil\u00AE.com',
+            'evil\u2026com',
+            'evil%2Ecom',
+        ],
     },
 };
 

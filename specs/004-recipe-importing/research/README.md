@@ -8,7 +8,6 @@
 | [codebase-analysis.md](./codebase-analysis.md) | The shipped codebase as of `main` — **regenerated**       | Current                       |
 | [tech-stack.md](./tech-stack.md)               | Registry-verified dependency selections — **regenerated** | Current                       |
 | [competitors.md](./competitors.md)             | Comparator set and import-feature comparison              | Current (normalization noted) |
-| [ux-patterns.md](./ux-patterns.md)             | Import UX patterns and prior art                          | Current                       |
 | [metrics-roi.md](./metrics-roi.md)             | Value case and cost model                                 | Current                       |
 
 ## Note on `research.md`

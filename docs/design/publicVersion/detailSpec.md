@@ -125,7 +125,7 @@ or the `publicExists.published` line on P7, as on import. Offline at press: P7 s
 
 The existing 016 report page (`RightsReport*`), pushed, with the target set to this public version. It keeps its own
 title, reasons, details field, email field and "Send report". It is a page, not a sheet or panel, on every size: it
-holds a radio group of six reasons and two text fields, so on a phone the keyboard covers most of a bottom sheet,
+holds a radio group of five reasons and two text fields, so on a phone the keyboard covers most of a bottom sheet,
 and a page gives the fields room and native back. A side panel on wide web was dropped: it is a
 second presentation of the same form. Back returns to the recipe with nothing sent.
 

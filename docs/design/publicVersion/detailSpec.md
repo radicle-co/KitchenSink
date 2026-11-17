@@ -87,12 +87,14 @@ A reader who sent the report and comes back sees this same view (§4.3).
 ## 3. C3 "Share a public version" (`later.action`)
 
 **Where.** The owner's more menu on a private import (`RecipeDetailMenu*`), in the slot "Make public" holds on other
-recipes: after Version history, before Clear checks. The `globe` glyph (20). It is shown on every private copy of a
-third-party or paid import that has no public version of its own. Once the cook's public version exists, the item goes,
-and `done.linkPublic` in the credit block (§1.2) is the way there.
+recipes: after Version history, before Clear checks. The `globe` glyph (20). It shows when all three hold: the viewer
+is the owner, the recipe is private, and the recipe read's owner-only `hasSourceRecord` flag is true. An editor recipe,
+or a paste with no detected address, never shows it. Inside that set it always shows, so no board draws a hidden item.
 
-**What pressing it does.** The recipe read carries the server's `offer` for this copy (contract ask, §10). The client
-renders it and never derives it.
+**What pressing it does.** The press fetches the server's `offer` for this copy. The client renders it and never
+derives it. While the fetch runs, the item shows a spinner in place of its glyph, its label stays, and the menu stays
+open. A failed fetch swaps the surface for `later.failed` (new, §6) and "Done", as for a `privateOnly` line. A `deadEnd` offer
+opens spec.md P9 (B5).
 
 | `offer`                                | Result                                                                                                                                                                                                                  |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -106,7 +108,7 @@ gains `done.linkPublic`, and one polite announcement reads `done.public`.
 
 **Failure on the way.** `409 offerChanged` and `409 publicExists` at the start show spec.md B8's `offerChanged.line`
 or the `publicExists.published` line on P7, as on import. Offline at press: P7 shows `writing.offline` with "Try again"
-(spec.md §6.6). There is no dead end on this route, because the copy already holds its slot.
+(spec.md §6.6).
 
 ---
 
@@ -161,11 +163,12 @@ The layout reserves the credit block's height on load, so nothing shifts when it
 
 Keys are under `importMessages.choice.*`, as copy v3's `publicPage.*` keys are.
 
-| Key                        | Copy                                              | Where  |
-| -------------------------- | ------------------------------------------------- | ------ |
-| `publicPage.hiddenBadge`   | "Hidden"                                          | §2, D5 |
-| `publicPage.reportFailed`  | "We couldn't send your report. Try again."        | §4.3   |
-| `publicPage.reportOffline` | "You're offline. Connect, then send your report." | §4.3   |
+| Key                        | Copy                                                              | Where  |
+| -------------------------- | ----------------------------------------------------------------- | ------ |
+| `publicPage.hiddenBadge`   | "Hidden"                                                          | §2, D5 |
+| `publicPage.reportFailed`  | "We couldn't send your report. Try again."                        | §4.3   |
+| `publicPage.reportOffline` | "You're offline. Connect, then send your report."                 | §4.3   |
+| `later.failed`             | "We couldn't check this recipe right now. Try again in a moment." | §3     |
 
 Every other string is copy v3, spec.md §7.2, the paste spec, or `recipeLoadMessages`, as cited.
 
@@ -266,7 +269,7 @@ Sample values: spec.md S14 (public title "Baked chicken and vegetable pie", cook
 | RecipePublicVersionHidden            | Owner: hidden after a report                                                                 | Web1280, Web390 | Iphone390, Ipad820             |
 | RecipePublicVersionHiddenReader      | Reader view of a hidden version                                                              | Web1280, Web390 | Iphone390                      |
 | RecipePrivateImportMenu              | Private copy with rightsLabel and authorLabel, owner menu open with "Share a public version" | Web1280, Web390 | Iphone390, Android384, Ipad820 |
-| RecipePrivateImportShareLine         | Stacked: privateOnly paidRecent, budget, publicExists published, writing                     | Web1280, Web390 | Iphone390, Ipad820             |
+| RecipePrivateImportShareLine         | Stacked: loading, privateOnly paidRecent, budget, publicExists published, writing            | Web1280, Web390 | Iphone390, Ipad820             |
 | RecipePublicVersionReaderMenu        | Reader menu open on a public version, item "Report a problem"                                | Web1280, Web390 | Iphone390                      |
 
 On `reportsRulesAndYourRightsWeb` and `reportsRulesAndYourRightsMobile`, one board each:
@@ -283,8 +286,7 @@ On `reportsRulesAndYourRightsWeb` and `reportsRulesAndYourRightsMobile`, one boa
 
 ## 10. Open items and conflicts
 
-1. **003B lead and `staff-architect`, contract.** The recipe read of a private import needs the server's `offer` for C3
-   (§3). Today `offer` is only on the import item read. This is a wire change.
+1. **Settled (003B lead).** The item reads `hasSourceRecord` from the recipe read and fetches the offer on press.
 2. **003B lead, key names.** `privateCopy.author` in copy v3 is replaced by `editor.source.authorLabel`. The site placeholder is `{site}`
    everywhere (003B renames `{domain}`).
 3. **Drawn boards differ (D2).** B9 and M9 on `recipeImporting*` show "Report a problem" on the owner's public version.

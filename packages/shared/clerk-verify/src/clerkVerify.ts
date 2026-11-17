@@ -77,9 +77,10 @@ export interface VerifiedClerkClaims {
      */
     readonly testPrincipal: boolean;
     /**
-     * Whether the cook has met the publish age floor: publishing needs age 16 or over. Read from the signed
-     * `public_metadata.ageFloorMet` by `parsePublishAgeMet`; false when absent or malformed. REQUIRED so every
-     * consumer that builds a principal from these claims has to supply it.
+     * Whether the cook has met the publish age floor: publishing needs age 16 or over. For now the claim comes from
+     * the cook confirming "I'm 16 or over" at first publish; spec 016's age assurance replaces it later.
+     * Read from the signed `public_metadata.ageFloorMet` by `parsePublishAgeMet`; false when absent or malformed.
+     * REQUIRED so every consumer that builds a principal from these claims has to supply it.
      */
     readonly publishAgeMet: boolean;
 }

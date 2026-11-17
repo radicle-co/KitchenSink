@@ -246,7 +246,7 @@ describe('AuthMiddleware', () => {
 
     describe('test principals (ADR-0040)', () => {
         it('⛔ marks a signed test principal `test` and carries the stage containment onto the Principal', async () => {
-            verifySpy.mockResolvedValue(makeClaims({ testPrincipal: true, publishAgeMet: false }));
+            verifySpy.mockResolvedValue(makeClaims({ testPrincipal: true }));
             const { req, res, next } = makeContext({ authorization: 'Bearer good.session.token' });
 
             await middleware.use(req, res, next);
@@ -258,7 +258,7 @@ describe('AuthMiddleware', () => {
 
         it('carries an `off` stage onto the Principal unchanged', async () => {
             middleware = new AuthMiddleware(clerkAuth, 'off', registry);
-            verifySpy.mockResolvedValue(makeClaims({ testPrincipal: true, publishAgeMet: false }));
+            verifySpy.mockResolvedValue(makeClaims({ testPrincipal: true }));
             const { req, res, next } = makeContext({ authorization: 'Bearer good.session.token' });
 
             await middleware.use(req, res, next);
@@ -268,7 +268,7 @@ describe('AuthMiddleware', () => {
         });
 
         it('⛔ registers a test principal in the service registry, ONCE per process', async () => {
-            verifySpy.mockResolvedValue(makeClaims({ testPrincipal: true, publishAgeMet: false }));
+            verifySpy.mockResolvedValue(makeClaims({ testPrincipal: true }));
 
             for (let request = 0; request < 3; request += 1) {
                 const { req, res, next } = makeContext({ authorization: 'Bearer good.session.token' });
@@ -280,7 +280,7 @@ describe('AuthMiddleware', () => {
         });
 
         it('⛔ never fails the request when the registry write fails, and retries it on the next request', async () => {
-            verifySpy.mockResolvedValue(makeClaims({ testPrincipal: true, publishAgeMet: false }));
+            verifySpy.mockResolvedValue(makeClaims({ testPrincipal: true }));
             registry.register.mockRejectedValueOnce(new Error('connection refused'));
             const first = makeContext({ authorization: 'Bearer good.session.token' });
             const second = makeContext({ authorization: 'Bearer good.session.token' });

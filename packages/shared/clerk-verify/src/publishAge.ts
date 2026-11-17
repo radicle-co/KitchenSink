@@ -1,5 +1,6 @@
 /**
- * The publish age claim: publishing needs age 16 or over; the claim is written by identity's age assurance.
+ * The publish age claim: publishing needs age 16 or over. For now the claim comes from the cook confirming
+ * "I'm 16 or over" at first publish; spec 016's age assurance replaces it later.
  *
  * `public_metadata.ageFloorMet` is the age floor the cook has met, as a number. It is read through
  * {@link parsePublishAgeMet} and nothing else: only an integer of 16 or more counts, so an absent, malformed,

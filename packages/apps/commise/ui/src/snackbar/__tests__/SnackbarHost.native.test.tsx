@@ -256,6 +256,23 @@ describe('SnackbarHost (native)', () => {
         expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('916px');
     });
 
+    it('sits above a keyboard that was already up when the snackbar shows, with no event to tell it', () => {
+        vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 400, height: 2400, scale: 1, fontScale: 1 });
+        // The keyboard opened before the host read it, so React Native's own state is all there is: no event follows.
+        keyboard.settle({ screenY: 1452, height: 900 });
+        render(
+            <PopupInsetsContext value={() => ({ top: 0, bottom: 80 })}>
+                <SnackbarHost>
+                    <Screen input={{ message: 'Source removed.' }} />
+                </SnackbarHost>
+            </PopupInsetsContext>,
+        );
+
+        showFrom('Source removed.');
+
+        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('964px');
+    });
+
     it('listens for the keyboard only while a snackbar shows, and lets go when it is gone', () => {
         render(
             <SnackbarHost>

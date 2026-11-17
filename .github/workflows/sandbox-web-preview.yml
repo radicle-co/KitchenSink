@@ -242,7 +242,7 @@ jobs:
             - name: Wait for the Vercel preview to be READY
               if: github.event.action != 'closed' && steps.kvs.outputs.found == 'true'
               id: preview
-              uses: zentered/vercel-preview-url@fba568fc6d882ae788a9724d7e28dee618728771 # v1.4.0
+              uses: zentered/vercel-preview-url@3ec84b19c8ebcf8695c4973475c8bbae96b5fedb # v1.4.3
               env:
                   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
               with:

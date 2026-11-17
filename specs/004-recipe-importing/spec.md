@@ -713,7 +713,7 @@ them. So the import never invents a value:
    type-it-in message. **Given** the same page without the tag, **Then** the fallback runs. **Given** a page with JSON-LD
    and a `noai` tag, **Then** the device read still works. _Mutation lens:_ an implementation that ignores the tag fails.
 
-Tiers owed: unit; integration (database mocked, [ADR-0032](../../docs/architecture/decisions/0032-test-tier-boundaries.md));
+Tiers owed: unit; integration (database mocked, [ADR-0032](../../docs/architecture/decisions/0032-deployed-ecosystem-test-tier.md));
 LOCAL e2e for the result table; worker tests; Playwright (web); Maestro (mobile). The k6 script is run by hand. These are
 the tiers the build writes test-first.
 

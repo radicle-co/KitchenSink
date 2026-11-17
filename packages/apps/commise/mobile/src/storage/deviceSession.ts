@@ -32,7 +32,8 @@ import { createNativeOutboxStore } from './outboxStore.js';
 export const nativeDeviceStore = createNativeOutboxStore();
 
 /**
- * End a cook's device session: their drafts, their outbox, both quarantines and their recent searches and their kept cooking session.
+ * End a cook's device session: their drafts, their outbox, both quarantines, their recent searches and their kept
+ * cooking session.
  *
  * @param subject - The cook who was signed in (Clerk `userId`), or `undefined` when nobody was.
  * @sideEffect Removes keys from AsyncStorage, through each store's own writer (the recent searches through theirs).

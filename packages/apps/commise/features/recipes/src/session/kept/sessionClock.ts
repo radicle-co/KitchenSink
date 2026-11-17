@@ -1,6 +1,7 @@
 /**
- * @module The kept record's idle and end policy (ADR-0094 section 8). Pure: the clock is an argument, and no background
- * job runs. The schema refuses an unparseable instant before these functions run, so they assume valid instants.
+ * @module The kept record's idle and end policy: ask first from 4 h idle (008-FR-039), end after 24 h (008-FR-040).
+ * Pure: the clock is an argument, and no background job runs. The schema refuses an unparseable instant before these
+ * functions run, so they assume valid instants.
  *
  * @pattern Specification — two predicates over a session or a timer and a clock.
  */

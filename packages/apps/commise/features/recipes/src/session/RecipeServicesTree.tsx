@@ -38,7 +38,7 @@ export interface RecipeServicesTreeProps {
     readonly clients: RecipeServiceClients;
     /** The app's one device key/value store: the same object its `SyncProvider` and session end use. */
     readonly store: OutboxStore;
-    /** The app's one kept cooking-session store (ADR-0094 section 1), scoped here to the cook. */
+    /** The app's one kept cooking-session store (ADR-0094 section 5), scoped here to the cook. */
     readonly kept: KeptSessionStore;
     /**
      * Clerk's raw `userId`: `undefined` while it loads, `null` once nobody is signed in, else the cook. Never a
@@ -60,7 +60,7 @@ export const RecipeServicesTree: FC<RecipeServicesTreeProps> = ({
     useQueue,
     children,
 }) => {
-    // R7b: another cook's record is removed only once auth has resolved, and a sign-out removes them all.
+    // Another cook's record is removed only once auth has resolved, and a sign-out removes them all (ADR-0094 section 5).
     useKeptSessionScope(kept, subject);
     const cook = subject ?? undefined;
 

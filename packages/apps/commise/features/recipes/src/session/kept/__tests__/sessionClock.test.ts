@@ -15,7 +15,7 @@ import {
 
 const S = 1000;
 
-describe('sessionClock (ADR-0094 section 8)', () => {
+describe('sessionClock (008-FR-039, 008-FR-040)', () => {
     const entry = makeCooking();
     const at = (ms: number) => iso(T0 + ms);
 
@@ -26,7 +26,7 @@ describe('sessionClock (ADR-0094 section 8)', () => {
         expect(sessionClock(entry, [], at(24 * HOUR))).toBe('ended');
     });
 
-    it('AE3: 25 h with no timer is ended', () => {
+    it('25 h with no timer is ended', () => {
         expect(sessionClock(entry, [], at(25 * HOUR))).toBe('ended');
     });
 
@@ -34,18 +34,18 @@ describe('sessionClock (ADR-0094 section 8)', () => {
         expect(sessionClock(entry, [], at(-HOUR))).toBe('resumeStraight');
     });
 
-    it('AE6: a 5 h running timer at 4 h 30 resumes straight (idle runs from its end)', () => {
+    it('a 5 h running timer at 4 h 30 resumes straight (idle runs from its end)', () => {
         const running = makeTimer({ endsAt: at(5 * HOUR) });
 
         expect(sessionClock(entry, [running], at(4.5 * HOUR))).toBe('resumeStraight');
     });
 
-    it.each(['ringing', 'endedAway'] as const)('qse 1: a %s timer idles from endedAt', (state) => {
+    it.each(['ringing', 'endedAway'] as const)('a %s timer idles from endedAt', (state) => {
         const timer = makeEnded(state, { endedAt: at(HOUR) });
 
         expect(sessionClock(entry, [timer], at(HOUR + 4 * HOUR - S))).toBe('resumeStraight');
         expect(sessionClock(entry, [timer], at(HOUR + 4 * HOUR))).toBe('askFirst');
-        // AE7
+        // Asks from 4 h (008-FR-039) and ends at 24 h (008-FR-040), both counted from the timer's end.
         expect(sessionClock(entry, [timer], at(HOUR + 24 * HOUR - S))).toBe('askFirst');
         expect(sessionClock(entry, [timer], at(HOUR + 24 * HOUR))).toBe('ended');
     });

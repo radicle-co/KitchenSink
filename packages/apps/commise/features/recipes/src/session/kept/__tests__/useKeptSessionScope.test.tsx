@@ -29,9 +29,10 @@ describe('useKeptSessionScope (ADR-0094 section 5)', () => {
 
     it('calls scope again on a change, and once for a rerender with the same value', () => {
         const { store, spy } = makeStore();
-        const { rerender } = renderHook(({ subject }) => useKeptSessionScope(store, subject), {
-            initialProps: { subject: 'user_a' as string | null | undefined },
-        });
+        const { rerender } = renderHook<void, { subject: string | null | undefined }>(
+            ({ subject }) => useKeptSessionScope(store, subject),
+            { initialProps: { subject: 'user_a' } },
+        );
 
         rerender({ subject: 'user_a' });
         expect(spy).toHaveBeenCalledTimes(1);

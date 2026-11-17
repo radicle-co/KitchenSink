@@ -86,7 +86,7 @@ export const keptTimerSchema = z.discriminatedUnion('state', [
         pausedAt: isoInstant,
     }),
     z.strictObject({ ...endedShape, state: z.literal('ringing') }),
-    /** `announcedAt` is S4b's, written only for the ended-away announcement (ADR-0094 section 2). */
+    /** `announcedAt` is written only for the ended-away announcement (ADR-0094 section 2). */
     z.strictObject({ ...endedShape, state: z.literal('endedAway'), announcedAt: isoInstant.optional() }),
 ]);
 
@@ -117,7 +117,7 @@ export const EMPTY_KEPT_DOCUMENT: KeptDocument = { v: 1, rev: 0, entries: {}, ti
 
 export type ParsedKept =
     | { readonly kind: 'absent' }
-    /** The store removes the key (ADR-0094 section 3). */
+    /** The store removes the key (ADR-0094 section 2). */
     | { readonly kind: 'invalid' }
     | { readonly kind: 'ok'; readonly doc: KeptDocument; readonly droppedTimerIds: readonly string[] };
 

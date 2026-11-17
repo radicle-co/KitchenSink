@@ -35151,7 +35151,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The app's one kept cooking-session store (ADR-0094 section 1), scoped here to the cook.",
+                            "description": "The app's one kept cooking-session store (ADR-0094 section 5), scoped here to the cook.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/session/RecipeServicesTree.tsx"
                         },
                         {

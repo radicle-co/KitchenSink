@@ -1,5 +1,5 @@
 /**
- * The store's rule for which document a command applies to (ADR-0094 sections 3, 4 and 6): storage is the truth, memory
+ * The store's rule for which document a command applies to (ADR-0094 sections 3 and 6): storage is the truth, memory
  * stands in only when storage could not be read, and the one document held after a failed write is used only while
  * storage still holds the rev it held then.
  */

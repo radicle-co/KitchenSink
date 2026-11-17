@@ -74,7 +74,7 @@ describe('page ticks', () => {
         expect(off.entries['r1']).toMatchObject({ kind: 'cooking', ticks: [] });
     });
 
-    it('finish of another recipe leaves a page entry (AE19)', () => {
+    it('finish of another recipe leaves a page entry', () => {
         const doc = makeDoc({ entries: { r1: makePage({ ticks: ['salt'] }), r2: makeCooking() } });
         const next = applied(run(doc, { type: 'finish', recipeId: 'r2' }));
 
@@ -113,7 +113,7 @@ describe('startSession (r4)', () => {
     });
 });
 
-describe('the two "Start from step 1" commands (qse r4)', () => {
+describe('the two "Start from step 1" commands ', () => {
     const doc = makeDoc({
         entries: { r1: makeCooking({ step: step(3), ticks: ['butter'], marks: [step(1)] }) },
         timers: [makeTimer({ recipeId: 'r1' })],
@@ -183,7 +183,7 @@ describe('session commands', () => {
 describe('rebind (ADR-0094 section 9)', () => {
     const stepsNow = ['a', 'c', 'd', 'e'].map(digestOf);
 
-    it('with no steps (gone or noSteps) it changes nothing (redteam r3 c)', () => {
+    it('with no steps (gone or noSteps) it changes nothing', () => {
         const doc = makeDoc({ entries: { r1: makeCooking({ step: { index: 4, digest: digestOf('c') } }) } });
 
         expect(run(doc, { type: 'rebind', recipeId: 'r1', stepDigests: [] })).toEqual({ kind: 'unchanged' });
@@ -249,7 +249,7 @@ describe('End then Undo (ADR-0094 section 8)', () => {
         expect(run(before, { type: 'restoreSession', snapshot })).toEqual({ kind: 'unchanged' });
     });
 
-    it('redteam r3 a: ticks made on the page entry in the window are merged, not overwritten', () => {
+    it('ticks made on the page entry in the window are merged, not overwritten', () => {
         const snapshot = snapshotForEnd(before, 'r1');
         const ended = applied(run(before, { type: 'endSession', recipeId: 'r1' }));
         const withPage = applied(run(ended, { type: 'tickPage', recipeId: 'r1', ingredientId: 'salt', ticked: true }));
@@ -266,7 +266,7 @@ describe('End then Undo (ADR-0094 section 8)', () => {
     it.each([
         ['the page entry is newer, so its servings win', iso(T0 + HOUR), 6],
         ['the snapshot is newer, so its servings win', iso(T0 - HOUR), 4],
-    ])('redteam r3 b: %s', (_name, pageTouch, expected) => {
+    ])('%s', (_name, pageTouch, expected) => {
         const snapshot = snapshotForEnd(
             makeDoc({ entries: { r1: makeCooking({ servings: 4, lastTouch: iso(T0) }) } }),
             'r1',

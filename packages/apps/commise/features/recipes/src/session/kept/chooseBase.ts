@@ -1,5 +1,5 @@
 /**
- * @module Which document a kept command applies to (ADR-0094 sections 3, 4 and 6). Pure: the store reads storage and
+ * @module Which document a kept command applies to (ADR-0094 sections 3 and 6). Pure: the store reads storage and
  * holds its state, and this decides from them.
  * @pattern Specification — one rule over what storage, memory and a failed write hold.
  */

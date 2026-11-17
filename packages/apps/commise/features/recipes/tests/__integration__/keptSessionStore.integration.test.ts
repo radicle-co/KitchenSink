@@ -67,7 +67,7 @@ describe('two tabs over one record (ADR-0094 section 6)', () => {
         expect(stored()).toMatchObject({ rev: 3, entries: { r1: { step: step(5), ticks: ['butter'] } } });
     });
 
-    it('two writes queued in the same tick on one store both survive (qse 3: no queue means last write wins)', async () => {
+    it('two writes queued in the same tick on one store both survive (no queue means last write wins)', async () => {
         const { a, stored } = await twoTabs({ [KEY]: withSession });
 
         await Promise.all([a.dispatch(tickButter), a.dispatch({ ...tickButter, ingredientId: 'salt' })]);
@@ -179,7 +179,7 @@ describe('a write never brings back a cleared or newer record (ADR-0094 sections
 describe('sign-out while a write waits (ADR-0094 section 4)', () => {
     it('leaves no cook.v2.* key (mutant: the clear outside the lock, or no generation check)', async () => {
         const base = makeFakeLocks();
-        const door = { gate: Promise.resolve(), open: () => undefined as void };
+        const door: { gate: Promise<void>; open: () => void } = { gate: Promise.resolve(), open: () => undefined };
         // Every section waits at the gate, so the dispatch is inside the lock, waiting, when the clear is asked for.
         const gated: ExclusiveRunner = (name, work) =>
             base(name, async () => {
@@ -205,7 +205,11 @@ describe('sign-out while a write waits (ADR-0094 section 4)', () => {
 describe('sign-out during a write (ADR-0094 section 4)', () => {
     it("does not publish the signed-out cook's document as ready (mutant: no generation check after the write)", async () => {
         const fake = makeFakePort({ [KEY]: withSession });
-        const door = { gate: Promise.resolve(), open: () => undefined as void, writing: false };
+        const door: { gate: Promise<void>; open: () => void; writing: boolean } = {
+            gate: Promise.resolve(),
+            open: () => undefined,
+            writing: false,
+        };
         const slowPort = {
             ...fake.port,
             write: async (key: string, value: string) => {

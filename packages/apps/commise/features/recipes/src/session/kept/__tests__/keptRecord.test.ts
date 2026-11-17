@@ -135,7 +135,7 @@ describe('parseKeptDocument', () => {
         ],
         ['an endedAway timer that still has endsAt', { ...makeEnded('endedAway'), endsAt: iso(T0) }],
         [
-            'a ringing timer with announcedAt (S4b writes it only on endedAway)',
+            'a ringing timer with announcedAt (only endedAway may carry announcedAt)',
             { ...makeEnded('ringing'), announcedAt: iso(T0) },
         ],
         ['a timer of an unknown state', { ...makeTimer(), state: 'frozen' }],

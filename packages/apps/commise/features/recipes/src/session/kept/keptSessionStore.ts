@@ -303,7 +303,7 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
             // Storage is the truth. The one exception: our own write failed and nobody has written since, so storage
             // still holds the rev it held then (an absent or unreadable key is rev 0, and every real record is 1 or
             // more). Otherwise an absent key means empty, never memory, or a record another tab cleared would come back
-            // (ADR-0094 section 4).
+            // (ADR-0094 section 6).
             const read = locked ? await attempt(() => port.read(key)) : undefined;
             const writable = read?.ok === true;
             const stored = read?.ok === true ? parseKeptDocument(read.value) : undefined;

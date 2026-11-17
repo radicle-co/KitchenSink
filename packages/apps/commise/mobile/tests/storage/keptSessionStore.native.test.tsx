@@ -51,7 +51,7 @@ describe('nativeKeptPort', () => {
 });
 
 describe('nativeKeptSessionStore', () => {
-    it('⛔ two dispatches in the same tick on the real native runner both survive (qse 3; mutant: no queue)', async () => {
+    it('⛔ two dispatches in the same tick on the real native runner both survive (mutant: no queue)', async () => {
         asyncStorage.store.clear();
         await nativeKeptSessionStore.scope('user_a');
 

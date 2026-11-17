@@ -29,8 +29,8 @@ export type KeptCommand =
     | { readonly type: 'endSession'; readonly recipeId: string }
     | { readonly type: 'restoreSession'; readonly snapshot: EndedSnapshot }
     /**
-     * Moves a recipe's step, marks and line ticks onto the recipe's current steps (ADR-0094 section 9). The timers move
-     * in the S4a timer unit, through the reducer's `rematch`.
+     * Moves a recipe's step, marks and line ticks onto the recipe's current steps (ADR-0094 section 9). Timers are not moved here: the
+     * timer reducer moves them with its `rematch` command.
      */
     | { readonly type: 'rebind'; readonly recipeId: string; readonly stepDigests: readonly string[] }
     | { readonly type: 'prune' };
@@ -161,7 +161,7 @@ function restoreSession(doc: KeptDocument, c: Extract<KeptCommand, { type: 'rest
 
     return applied(doc, {
         entries: withEntry(doc, snapshot.recipeId, entry),
-        // The timer limit is not applied here: T3 applies it through `reduceTimer`'s `restore` (ADR-0094 section 2).
+        // The timer limit is not applied here: the timer reducer applies it through its `restore` command (ADR-0094 section 2).
         timers: [...doc.timers, ...snapshot.timers],
     });
 }

@@ -10,19 +10,20 @@
 
 ## Context
 
-Cooking mode kept the cook's step and ticks in memory per screen, so leaving lost them. S4a keeps them on the device. The
-record is read by several tabs and written by them, it outlives the page, and on a shared browser it must end with the
-cook's session. Its format is a one-way door: once a client has written it, tightening it needs a migration.
+Cooking mode kept the cook's step and ticks in memory per screen, so leaving lost them. This change keeps them on the
+device. The record is read by several tabs and written by them, it outlives the page, and on a shared browser it must
+end with the cook's session. Its format is a one-way door: once a client has written it, tightening it needs a
+migration.
 
 ## Decision
 
-### 1. Where the store lives (KTD0)
+### 1. Where the store lives
 
 The store lives in `@commise/features-recipes`, beside the device session, because both apps mount the recipe subtree and
 the end of a session already runs there. It is built from a port (`KeptPort`) and an exclusion (`ExclusiveRunner`) that
 each app supplies, so the rules are tested once with fakes and each app adds only a thin adapter.
 
-### 2. The record, v1 (KTD1)
+### 2. The record, v1
 
 The key is `cook.v2.{clerkUserId}`. The value is `{ v: 1, rev, entries, timers }`, parsed with a strict zod schema
 (parse, don't validate). An entry is a union on `kind`: a `page` entry (ingredient ticks, the page's step mark,
@@ -40,22 +41,28 @@ included, is a new version (v2) and never an edit to v1: an older tab or app wou
 A document that fails to parse counts as no record and is removed. One bad timer is dropped and reported once, and the
 rest of the document stays. A duplicate timer id keeps the first. The schema takes any number of timers, so several
 timers need no format change. The one-timer limit and the numbering and step rules belong to cooking-core's
-`reduceTimer`, not to the record (staff S63). A later format change bumps `v` and adds a migration.
+`reduceTimer`, not to the record. A later format change bumps `v` and adds a migration.
 
-### 3. The port and the write outcome (KTD2)
+Finishing a recipe removes its entry and keeps its timers. Starting a session over an existing cooking entry writes
+nothing and joins it at that step. Ending a session keeps a snapshot in memory for Undo, and nothing of that snapshot is
+stored.
+
+### 3. The port and the write outcome
 
 A write returns `{ ok: true }` or `{ ok: false, error }`; it never throws. When a write fails, the new document stays in
 memory, the failure is reported once, and the next change builds on it only while storage still holds the revision the
-failed write started from.
+failed write started from. Readers are held until the first read finishes. A change made while storage cannot be read is
+applied in memory with the instant the cook made it, and replayed on top of what storage then holds on the next
+successful write, so it is not lost. It is dropped on sign-out and on a change of cook.
 
-### 4. The clear goes through the store's own writer (KTD3)
+### 4. The clear goes through the store's own writer
 
 Ending a session calls `kept.clear(subject)`, before the early return for a missing subject. The clear bumps a
 generation synchronously and removes the key inside the same lock as every write, so a write queued before it is
 dropped by the generation check or removed by the clear, and none lands afterwards. Clearing another cook (a switch of
 cook) removes that cook's key and does not reset the cook now scoped.
 
-### 5. The subject has three states (KTD4)
+### 5. The subject has three states
 
 `undefined` means auth is loading and removes nothing. `null` means signed out and removes every kept record. A string
 is the cook, and every other cook's record is removed once auth has resolved. The scope lives in `RecipeServicesTree`,
@@ -63,7 +70,7 @@ which both apps mount, and not in `useDeviceSessionScope`, which is web only. On
 when the `userId` goes to `null`: the drafts and the outbox stay, by the owner's ruling of 2026-10-13, because they are
 unsent work, and the kept session is the cook's place in a recipe.
 
-### 6. One writer across tabs (KTD5)
+### 6. One writer across tabs
 
 Each write runs in one exclusive section named by the key. On web the section is a Web Lock; on the phone it is one
 serial queue per name. Inside it, the store re-reads the stored document, applies one command to it with a pure reducer,
@@ -72,14 +79,14 @@ longer exists changes nothing. When the key is absent, storage is empty: memory 
 tab cleared at sign-out would come back. Where Web Locks are missing, the store keeps the session in memory, writes
 nothing and warns once. A re-read, on a `storage` event, a restored page or a tab becoming visible, never writes.
 
-### 7. The alarm across tabs (KTD9a)
+### 7. The alarm across tabs
 
-Every tab shows the alarm, and one tab that can sound it plays it, under a lock. This is decided here and built in the
-timer unit (T3).
+Every tab shows the alarm, and one tab that can sound it plays it, under a lock. This is decided here and built with the
+timer unit.
 
 ### 8. The four conditions of the device record
 
-The plan carries four conditions from its decision record, and each is met above:
+The device record carries four conditions, and each is met above:
 
 1. The record ends with the cook's session, through the store's own writer (section 4).
 2. No typed label is stored (section 2).
@@ -92,6 +99,9 @@ A saved step is found again by `stepDigest`: FNV-1a 32 over the UTF-8 bytes of t
 whitespace-collapse normalisation. It is a change detector for a few dozen steps of one recipe, not a security control,
 so a published, five-line, synchronous algorithm with reference vectors beats a runtime dependency in a shared library
 that runs on Hermes and in browsers.
+
+`matchStep` returns the one step whose digest matches, and with none or several it returns the saved index clamped to the
+last step. `matchStepStrict` returns the single match or nothing, so a mark or line tick with no single match is dropped.
 
 ## Consequences
 

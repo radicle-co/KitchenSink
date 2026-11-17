@@ -79,7 +79,7 @@ describe('useSignOutAndLeave — the device session ends before the leave', () =
         expect(keysAtLeave).toEqual([[]]);
     });
 
-    it('⛔ removes the kept cooking session from localStorage before it navigates away (AE10; mutant: the wrapper does not pass the store)', async () => {
+    it('⛔ removes the kept cooking session from localStorage before it navigates away (mutant: the wrapper does not pass the store)', async () => {
         const { result } = renderHook(() => useSignOutAndLeave());
 
         await result.current.signOutAndLeave();

@@ -10,6 +10,153 @@
   },
   "pages": [],
   "boards": {
+    "ImportPublicChoiceIphone390.dc.html": {
+      "x": 0,
+      "y": 13660,
+      "w": 390,
+      "h": 5775,
+      "title": "Recipe importing, public version choice (mobile, iPhone 390)"
+    },
+    "ImportPublicPrivateOnlyIphone390.dc.html": {
+      "x": 470,
+      "y": 13660,
+      "w": 390,
+      "h": 7447,
+      "title": "Recipe importing, public version private only (mobile, iPhone 390)"
+    },
+    "ImportPublicExistsIphone390.dc.html": {
+      "x": 940,
+      "y": 13660,
+      "w": 390,
+      "h": 4968,
+      "title": "Recipe importing, public version exists (mobile, iPhone 390)"
+    },
+    "ImportPublicOnlyIphone390.dc.html": {
+      "x": 1410,
+      "y": 13660,
+      "w": 390,
+      "h": 3570,
+      "title": "Recipe importing, public version only (mobile, iPhone 390)"
+    },
+    "ImportPublicDeadEndIphone390.dc.html": {
+      "x": 1880,
+      "y": 13660,
+      "w": 390,
+      "h": 3300,
+      "title": "Recipe importing, public version dead end (mobile, iPhone 390)"
+    },
+    "ImportPublicWritingIphone390.dc.html": {
+      "x": 2350,
+      "y": 13660,
+      "w": 390,
+      "h": 2968,
+      "title": "Recipe importing, public version writing (mobile, iPhone 390)"
+    },
+    "ImportPublicReviewIphone390.dc.html": {
+      "x": 2820,
+      "y": 13660,
+      "w": 390,
+      "h": 10772,
+      "title": "Recipe importing, public version review (mobile, iPhone 390)"
+    },
+    "ImportPublicRefusedIphone390.dc.html": {
+      "x": 3290,
+      "y": 13660,
+      "w": 390,
+      "h": 5755,
+      "title": "Recipe importing, public version refused (mobile, iPhone 390)"
+    },
+    "ImportPublicSavedIphone390.dc.html": {
+      "x": 3760,
+      "y": 13660,
+      "w": 390,
+      "h": 3041,
+      "title": "Recipe importing, public version saved (mobile, iPhone 390)"
+    },
+    "ImportPublicAgeConfirmIphone390.dc.html": {
+      "x": 4230,
+      "y": 13660,
+      "w": 390,
+      "h": 1150,
+      "title": "Recipe importing, public version age confirm (mobile, iPhone 390)"
+    },
+    "ImportPublicChoiceAndroid384.dc.html": {
+      "x": 0,
+      "y": 24892,
+      "w": 384,
+      "h": 5828,
+      "title": "Recipe importing, public version choice (mobile, Android 384)"
+    },
+    "ImportPublicDeadEndAndroid384.dc.html": {
+      "x": 464,
+      "y": 24892,
+      "w": 384,
+      "h": 3302,
+      "title": "Recipe importing, public version dead end (mobile, Android 384)"
+    },
+    "ImportPublicReviewAndroid384.dc.html": {
+      "x": 928,
+      "y": 24892,
+      "w": 384,
+      "h": 10958,
+      "title": "Recipe importing, public version review (mobile, Android 384)"
+    },
+    "ImportPublicChoiceIpad834.dc.html": {
+      "x": 0,
+      "y": 36310,
+      "w": 834,
+      "h": 8516,
+      "title": "Recipe importing, public version choice (mobile, iPad 834)"
+    },
+    "ImportPublicDeadEndIpad834.dc.html": {
+      "x": 914,
+      "y": 36310,
+      "w": 834,
+      "h": 3990,
+      "title": "Recipe importing, public version dead end (mobile, iPad 834)"
+    },
+    "ImportPublicReviewIpad834.dc.html": {
+      "x": 1828,
+      "y": 36310,
+      "w": 834,
+      "h": 8683,
+      "title": "Recipe importing, public version review (mobile, iPad 834)"
+    },
+    "ImportPublicSavedIpad834.dc.html": {
+      "x": 2742,
+      "y": 36310,
+      "w": 834,
+      "h": 2720,
+      "title": "Recipe importing, public version saved (mobile, iPad 834)"
+    },
+    "ImportPublicAgeConfirmIpad834.dc.html": {
+      "x": 3656,
+      "y": 36310,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe importing, public version age confirm (mobile, iPad 834)"
+    },
+    "ImportPublicChoiceIpad1194.dc.html": {
+      "x": 0,
+      "y": 45453,
+      "w": 1194,
+      "h": 5986,
+      "title": "Recipe importing, public version choice (mobile, iPad 1194)"
+    },
+    "ImportPublicPrivateOnlyIpad1194.dc.html": {
+      "x": 1274,
+      "y": 45453,
+      "w": 1194,
+      "h": 3343,
+      "title": "Recipe importing, public version private only (mobile, iPad 1194)"
+    },
+    "ImportPublicReviewIpad1194.dc.html": {
+      "x": 2548,
+      "y": 45453,
+      "w": 1194,
+      "h": 9200,
+      "title": "Recipe importing, public version review (mobile, iPad 1194)"
+    },
     "ImportAddRecipeIphone390.dc.html": {
       "x": 0,
       "y": 260,
@@ -677,6 +824,27 @@
     }
   },
   "order": [
+    "ImportPublicChoiceIphone390.dc.html",
+    "ImportPublicPrivateOnlyIphone390.dc.html",
+    "ImportPublicExistsIphone390.dc.html",
+    "ImportPublicOnlyIphone390.dc.html",
+    "ImportPublicDeadEndIphone390.dc.html",
+    "ImportPublicWritingIphone390.dc.html",
+    "ImportPublicReviewIphone390.dc.html",
+    "ImportPublicRefusedIphone390.dc.html",
+    "ImportPublicSavedIphone390.dc.html",
+    "ImportPublicAgeConfirmIphone390.dc.html",
+    "ImportPublicChoiceAndroid384.dc.html",
+    "ImportPublicDeadEndAndroid384.dc.html",
+    "ImportPublicReviewAndroid384.dc.html",
+    "ImportPublicChoiceIpad834.dc.html",
+    "ImportPublicDeadEndIpad834.dc.html",
+    "ImportPublicReviewIpad834.dc.html",
+    "ImportPublicSavedIpad834.dc.html",
+    "ImportPublicAgeConfirmIpad834.dc.html",
+    "ImportPublicChoiceIpad1194.dc.html",
+    "ImportPublicPrivateOnlyIpad1194.dc.html",
+    "ImportPublicReviewIpad1194.dc.html",
     "ImportAddRecipeIphone390.dc.html",
     "ImportLinkProgressIphone390.dc.html",
     "ImportReviewDraftIphone390.dc.html",
@@ -774,6 +942,34 @@
     "ImportLibraryResultsIpad820.dc.html"
   ],
   "notes": {
+    "rowPublic0": {
+      "x": 0,
+      "y": 13400,
+      "text": "Recipe importing, public version: mobile, iPhone 390",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowPublic1": {
+      "x": 0,
+      "y": 24632,
+      "text": "Recipe importing, public version: mobile, Android 384",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowPublic2": {
+      "x": 0,
+      "y": 36050,
+      "text": "Recipe importing, public version: mobile, iPad 834",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowPublic3": {
+      "x": 0,
+      "y": 45193,
+      "text": "Recipe importing, public version: mobile, iPad 1194",
+      "kind": "title1",
+      "maxW": 2400
+    },
     "row0": {
       "x": 0,
       "y": 0,

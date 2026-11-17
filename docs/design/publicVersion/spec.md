@@ -63,17 +63,17 @@ touching the wire.
 
 ### 0.2 Input conflicts, rulings for the 003B lead
 
-These are differences between the inputs. Each has a ruling and this spec follows it. The 003B lead applies the
-rulings to the 003B state table, the contract and research. §15 item 1 is the one place that tracks this.
+These are differences between the inputs. Each has a ruling and this spec follows it. X1 to X6 are applied by the lead
+(2026-11-17) to the 003B state table, the contract and research.
 
-| #   | Conflict                                                                                                                                                                                                                                                                                    | Ruling (applied by the 003B lead, §15 item 1)                                                                                                                                                                                |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| X1  | 003B's state table uses `exists.*`, `paid.*`, `optOut.line`, `review.credit`, `review.creditPaid`, `deadEnd.bodyNoWrite` and `deadEnd.bodyPaid`. Copy v3 replaces them with `publicExists.*`, `privateOnly.*`, `credit.written`, `credit.basedOn` and `deadEnd.body`, and deletes `paid.*`. | The 003B table is to use the v3 keys.                                                                                                                                                                                        |
-| X2  | The contract's `privateOnly` reasons list `optOut` twice and have no `aiOptOut` or `noSourceAddress`.                                                                                                                                                                                       | The contract is to use the reasons `paidRecent`, `paidSignature`, `publisherOptOut`, `aiOptOut`, `budget`, `under16`, `noSteps`, `noSourceAddress` and `switchOff`. `paidRecent` carries `holdEndsOn`, which fills `{date}`. |
-| X3  | The contract lists `publicPending` and `publicReview` as `privateOnly` reasons. Copy v3 shows the same situations as `publicExists` states `writing` and `inReview`.                                                                                                                        | The contract is to make `publicExists.status` one of `published`, `writing` or `inReview`, with `recipeId` when there is one, and to remove `publicPending` and `publicReview`.                                              |
-| X4  | The 003B state table has `hidden.owner.*`, `hidden.superseded` and `hidden.reader`. Copy v3 has `publicPage.hiddenOwner` and `publicPage.hiddenReader`, and no superseded line.                                                                                                             | The 003B table is to use `publicPage.hiddenOwner` and `publicPage.hiddenReader`. They are out of this spec's boards (recipe detail) and belong to the detail spec.                                                           |
-| X5  | The brief named the mobile phone size 402. The mobile canvas's existing boards are Iphone390 and Android384.                                                                                                                                                                                | Phone boards are drawn at 390. §12.2 uses Iphone390, Android384, Ipad834 and Ipad1194.                                                                                                                                       |
-| X6  | 003B FR-050a gives `blocked.rewrite` as the button label "Write it again". 003B research R8 gives it as a sentence.                                                                                                                                                                         | This spec follows the copy: the blocked state shows `blocked.body` with the `flag.rewrite` "Write it again" button and `review.notNow`. `rewriteNeeded.body` is the separate rewriteNeeded offer. The lead is to align R8.   |
+| #   | Conflict                                                                                                                                                                                                                                                                                    | Ruling                                                                                                                                                                                                                                                         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| X1  | 003B's state table uses `exists.*`, `paid.*`, `optOut.line`, `review.credit`, `review.creditPaid`, `deadEnd.bodyNoWrite` and `deadEnd.bodyPaid`. Copy v3 replaces them with `publicExists.*`, `privateOnly.*`, `credit.written`, `credit.basedOn` and `deadEnd.body`, and deletes `paid.*`. | The 003B table is to use the v3 keys. Applied by the lead (2026-11-17).                                                                                                                                                                                        |
+| X2  | The contract's `privateOnly` reasons list `optOut` twice and have no `aiOptOut` or `noSourceAddress`.                                                                                                                                                                                       | The contract is to use the reasons `paidRecent`, `paidSignature`, `publisherOptOut`, `aiOptOut`, `budget`, `under16`, `noSteps`, `noSourceAddress` and `switchOff`. `paidRecent` carries `holdEndsOn`, which fills `{date}`. Applied by the lead (2026-11-17). |
+| X3  | The contract lists `publicPending` and `publicReview` as `privateOnly` reasons. Copy v3 shows the same situations as `publicExists` states `writing` and `inReview`.                                                                                                                        | The contract is to make `publicExists.status` one of `published`, `writing` or `inReview`, with `recipeId` when there is one, and to remove `publicPending` and `publicReview`. Applied by the lead (2026-11-17).                                              |
+| X4  | The 003B state table has `hidden.owner.*`, `hidden.superseded` and `hidden.reader`. Copy v3 has `publicPage.hiddenOwner` and `publicPage.hiddenReader`, and no superseded line.                                                                                                             | The 003B table is to use `publicPage.hiddenOwner` and `publicPage.hiddenReader`. They are out of this spec's boards (recipe detail) and belong to the detail spec. Applied by the lead (2026-11-17).                                                           |
+| X5  | The brief named the mobile phone size 402. The mobile canvas's existing boards are Iphone390 and Android384.                                                                                                                                                                                | Phone boards are drawn at 390. §12.2 uses Iphone390, Android384, Ipad834 and Ipad1194. Applied by the lead (2026-11-17).                                                                                                                                       |
+| X6  | 003B FR-050a gives `blocked.rewrite` as the button label "Write it again". 003B research R8 gives it as a sentence.                                                                                                                                                                         | This spec follows the copy: the blocked state shows `blocked.body` with the `flag.rewrite` "Write it again" button and `review.notNow`. `rewriteNeeded.body` is the separate rewriteNeeded offer. The lead is to align R8. Applied by the lead (2026-11-17).   |
 
 `offerChanged` comes from a server `409` with the body `{ code: 'offerChanged', offer }`, on the start-job and the
 publish requests. The client re-renders the visibility area from that `offer` (§5.2).
@@ -403,23 +403,28 @@ exclamation marks, no reason clauses, and none of the banned words (one list, `b
 
 ### 7.2 New strings (not in copy v3 or v2)
 
-| Key                      | Copy                                                             | Where  |
-| ------------------------ | ---------------------------------------------------------------- | ------ |
-| `button.none`            | "Continue"                                                       | B1, B8 |
-| `creditPreview.label`    | "Your public version will say"                                   | B1     |
-| `publicExists.link`      | "See the public version" (same words as `done.linkPublic`)       | B3     |
-| `review.titleLabel`      | "Recipe name"                                                    | B7     |
-| `review.stepsHeading`    | "Steps"                                                          | B7     |
-| `review.oursHeading`     | "Public version"                                                 | B7     |
-| `review.yourCopyHeading` | "Your copy"                                                      | B7     |
-| `rewriteNeeded.body`     | "This version needs writing again before it can be published."   | B8     |
-| `failed.done`            | "Done"                                                           | B8     |
-| `offerChanged.line`      | "Something changed since you chose. Have a look and pick again." | B1, B8 |
+| Key                       | Copy                                                                                                                              | Where         |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `button.none`             | "Continue"                                                                                                                        | B1, B8        |
+| `creditPreview.label`     | "Your public version will say"                                                                                                    | B1            |
+| `publicExists.link`       | "See the public version" (same words as `done.linkPublic`)                                                                        | B3            |
+| `review.titleLabel`       | "Recipe name"                                                                                                                     | B7            |
+| `review.stepsHeading`     | "Steps"                                                                                                                           | B7            |
+| `review.oursHeading`      | "Public version"                                                                                                                  | B7            |
+| `review.yourCopyHeading`  | "Your copy"                                                                                                                       | B7            |
+| `rewriteNeeded.body`      | "This version needs writing again before it can be published."                                                                    | B8            |
+| `failed.done`             | "Done"                                                                                                                            | B8            |
+| `credit.written`          | "Steps written by Commise with AI, checked by {cook}." ({cook} is the display name or username)                                   | B1, B7, B9    |
+| `credit.basedOn`          | "Based on a recipe at {domain}. Not affiliated." ({domain} is a link. Free sites only. A paid site shows `credit.written` alone.) | B1, B7, B9    |
+| `publicPage.hiddenOwner`  | "Hidden after a report. Only you can see it now."                                                                                 | Recipe detail |
+| `publicPage.hiddenReader` | "This recipe isn't available right now."                                                                                          | Recipe detail |
+| `offerChanged.line`       | "Something changed since you chose. Have a look and pick again."                                                                  | B1, B8        |
 
 ### 7.3 Reused keys
 
 - Keys: `importMessages.wizard.retry` is in `features/recipes/src/import/messages.ts`. `importMessages.paste.review.offline`,
-  `importMessages.paste.cancel` and `budget.line` are new in paste spec §6 and §7.
+  `importMessages.paste.cancel` are new in paste spec §6 (S7 and S38). `budget.line` is reused from 003B
+  (`specs/003B-public-rewrite/spec.md`), not new in the paste spec.
 - The private copy's lines: `editor.source.rightsLabel` and `editor.source.authorLabel` (§3.5).
 - From the editor: the visibility heading "Who can see it", the discard dialog and "Done editing".
 - From the paste spec: the Save area line, `importMessages.paste.review.confirmSource` (S8).
@@ -576,24 +581,27 @@ None of our own. Pushes, the dialog and the sheet use the platform's transitions
 other screen at 768 has the 390 layout at a wider column. 1024 is not drawn: at 1024 the sidebar leaves `<main>` under
 960 of content, so 1024 shows the one-column layout of 768 (paste spec §3.5).
 
-### 12.2 `recipeImportingMobile` (the mobile pass)
+### 12.2 `recipeImportingMobile` (drawn)
 
-| #   | Board                   | Translation from web (§4)                                                                                | Sizes                                    |
-| --- | ----------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| M1  | ImportPublicChoice      | One column, button pinned, rows full width                                                               | Iphone390, Android384, Ipad834, Ipad1194 |
-| M2  | ImportPublicPrivateOnly | Same as web 390                                                                                          | Iphone390, Ipad1194                      |
-| M3  | ImportPublicExists      | "See the public version" pushes the recipe                                                               | Iphone390                                |
-| M4  | ImportPublicOnly        | Same as web 390                                                                                          | Iphone390                                |
-| M5  | ImportPublicDeadEnd     | Buttons stacked, Upgrade at the bottom. Upgrade opens the store sheet                                    | Iphone390, Android384, Ipad834           |
-| M6  | ImportPublicWriting     | Stop pinned                                                                                              | Iphone390                                |
-| M7  | ImportPublicReview      | Phone stacked comparison, actions pinned and stacked. iPad side by side. Keyboard open on an edited step | Iphone390, Android384, Ipad834, Ipad1194 |
-| M8  | ImportPublicRefused     | Same as web 390                                                                                          | Iphone390                                |
-| M9  | ImportPublicSaved       | Same as web 390                                                                                          | Iphone390, Ipad834                       |
-| M10 | ImportPublicAgeConfirm  | Bottom sheet on phones, buttons stacked equal. Dialog on iPad                                            | Iphone390, Ipad834                       |
+Drawn on 2026-11-17 on `recipeImportingMobile`, in four rows below the existing boards, one per size. Every board name is
+`ImportPublic<Name><Size>`. Boards stack their states, as the paste boards do. The owner rulings in force: the choice is a
+bottom sheet on phones, `ageConfirm` is a centred blocking dialog, the dead end is a full page, and on phones the primary
+action is last in any stacked bar.
+
+| #   | Board                   | States drawn                                                                                                                               | Sizes                                    |
+| --- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| M1  | ImportPublicChoice      | Nothing chosen, For everyone with free and paid credit, Pro with Both, pickOne, offline. A sheet on phones, in the page on iPad            | Iphone390, Android384, Ipad834, Ipad1194 |
+| M2  | ImportPublicPrivateOnly | paidRecent (full P5), line, under16, noSteps, noSourceAddress, budget, Pro                                                                 | Iphone390, Ipad1194                      |
+| M3  | ImportPublicExists      | published (full P5), writing, inReview, no slot                                                                                            | Iphone390                                |
+| M4  | ImportPublicOnly        | `full.line` with the Pro card (full P5), switch off                                                                                        | Iphone390                                |
+| M5  | ImportPublicDeadEnd     | Trial eligible, trial used, switch off. Full page, stacked buttons, Upgrade last. The store sheet is the OS's, not drawn                   | Iphone390, Android384, Ipad834           |
+| M6  | ImportPublicWriting     | For everyone, Both with copy saved, offline. Stop pinned                                                                                   | Iphone390                                |
+| M7  | ImportPublicReview      | Closed, open (stacked on phones, side by side on iPad), editing with the keyboard open (phones), flags, paid credit, Both actions, no slot | Iphone390, Android384, Ipad834, Ipad1194 |
+| M8  | ImportPublicRefused     | Wording too close, rewrite needed, failed (both paths), budget spent, offer changed                                                        | Iphone390                                |
+| M9  | ImportPublicSaved       | Both (private copy and public version), Just for me, For everyone                                                                          | Iphone390, Ipad834                       |
+| M10 | ImportPublicAgeConfirm  | The centred dialog over the review                                                                                                         | Iphone390, Ipad834                       |
 
 Size names: see X5.
-
----
 
 ## 13. Out of scope
 
@@ -609,7 +617,7 @@ Both.
 
 ## 15. Open questions
 
-1. **Lead:** apply the rulings in §0.2 (X1 to X3 and X6) to the 003B table, the contract and research R8.
+1. ~~**Lead:** apply the rulings in §0.2.~~ Closed: X1 to X6 are applied by the lead (2026-11-17).
 2. **Lead:** the new strings in §7.2.
 3. **Design system owner:** `ButtonPair` and the `RadioList` selected fill (§8.3).
 4. **010 owner:** the mobile store sheet opening at Pro with both periods shown (§4, Upgrade).

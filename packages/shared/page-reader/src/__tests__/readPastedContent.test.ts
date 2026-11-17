@@ -417,6 +417,42 @@ describe('readPastedContent', () => {
                 ).toMatchObject({ datePublished: '2024-03-01' });
             });
 
+            describe('datePublished sources, in order', () => {
+                const recipe = (overrides: Record<string, unknown> = {}) =>
+                    credited({ '@id': 'https://example.com/pie#recipe', ...overrides });
+                const dated = (type: string, date: string) => ({ '@type': type, datePublished: date });
+
+                it.each([
+                    [
+                        'the page the recipe names as mainEntityOfPage',
+                        { mainEntityOfPage: dated('WebPage', '2023-02-02') },
+                    ],
+                    ['the work the recipe names as isPartOf', { isPartOf: dated('Blog', '2023-02-02') }],
+                ])('reads it from %s', (_name, link) => {
+                    expect(evidence(makePage({ jsonLd: [recipe(link)] }))).toMatchObject({
+                        datePublished: '2023-02-02',
+                    });
+                });
+
+                it('reads it from the node whose mainEntity is the recipe by @id, over a page node in the same graph', () => {
+                    const graph = [
+                        dated('WebPage', '2021-01-01'),
+                        { ...dated('Thing', '2023-02-02'), mainEntity: { '@id': 'https://example.com/pie#recipe' } },
+                        recipe(),
+                    ];
+
+                    expect(evidence(makePage({ jsonLd: [{ '@graph': graph }] }))).toMatchObject({
+                        datePublished: '2023-02-02',
+                    });
+                });
+
+                it('never reads it from a part of the page the recipe names as hasPart', () => {
+                    expect(
+                        evidence(makePage({ jsonLd: [recipe({ hasPart: dated('WebPageElement', '2023-02-02') })] })),
+                    ).not.toHaveProperty('datePublished');
+                });
+            });
+
             it.each(['2024-03-01', '2024-03-01T09:30:00+01:00', '2024-03-01T08:30:00Z'])(
                 'keeps datePublished %j as written',
                 (date) => {

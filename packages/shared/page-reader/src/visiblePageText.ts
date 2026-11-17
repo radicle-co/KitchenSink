@@ -266,6 +266,7 @@ function positionOf(block: BlockSpan, span: ReadSpan): CardItem['position'] {
 
 /** Whether `holder` is a target a jump link in `block` may name: an element that holds read lines, and not `block` itself. */
 function isJumpTarget(elements: readonly ElementExtent[], holder: number | undefined, block: BlockSpan): boolean {
+    // The `?? 0` cannot fire: `holder` is an element number from `elements` (DD19).
     return holder !== undefined && !(holder <= block.element && block.element <= (elements[holder]?.last ?? 0));
 }
 

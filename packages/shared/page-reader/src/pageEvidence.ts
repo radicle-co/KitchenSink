@@ -79,7 +79,7 @@ function isoDate(value: unknown): string | undefined {
 
 /**
  * The schema.org types of a node that stands for the page a recipe is on: a web page, or an article or post (and their
- * common subtypes). A node of one of these types states what it says about access and age for the whole page.
+ * common subtypes). A node of one of these types states when the whole page was published.
  */
 const PAGE_TYPES: ReadonlySet<string> = new Set([
     'WebPage',
@@ -122,8 +122,8 @@ function hasMainEntity(container: SchemaNode, recipe: SchemaNode): boolean {
     );
 }
 
-/** The properties by which a recipe names the page it is on, or a part of that page (Google's paywall markup). */
-const RECIPE_LINKS: readonly string[] = ['mainEntityOfPage', 'isPartOf', 'hasPart'];
+/** The properties by which a recipe names the page it is on. A part of the page (`hasPart`) states no date for it. */
+const RECIPE_LINKS: readonly string[] = ['mainEntityOfPage', 'isPartOf'];
 
 /** The nodes a node embeds under `keys`, in order. A reference by `@id` alone states nothing and is read as a node. */
 function linkedNodes(node: SchemaNode, keys: readonly string[]): readonly SchemaNode[] {
@@ -133,7 +133,7 @@ function linkedNodes(node: SchemaNode, keys: readonly string[]): readonly Schema
 /**
  * When a Recipe node, or the page around it, was published.
  *
- * The recipe is read first, then the nodes it embeds as `mainEntityOfPage`, `isPartOf` and `hasPart`, then its
+ * The recipe is read first, then the nodes it embeds as `mainEntityOfPage` and `isPartOf`, then its
  * containers: a node whose `mainEntity` is the recipe, then a page node ({@link isPageNode}).
  *
  * @param node - A JSON-LD Recipe node or a microdata item shaped like one.

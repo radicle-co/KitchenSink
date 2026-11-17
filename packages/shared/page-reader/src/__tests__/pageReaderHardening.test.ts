@@ -374,25 +374,25 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
 
         it.each([
             [
-                'P4: an ingredient name linked to an element around the whole card',
+                'an ingredient name linked to an element around the whole card',
                 '<li><a href="#page">Salt</a></li>',
                 'page',
             ],
-            ['P4: a link to an element around the whole card', '<li><a href="#page">Back to top</a></li>', 'page'],
-            ['P17: an ingredient name linked to the read list', '<li><a href="#ing">Salt</a></li>', undefined],
+            ['a link to an element around the whole card', '<li><a href="#page">Back to top</a></li>', 'page'],
+            ['an ingredient name linked to the read list', '<li><a href="#ing">Salt</a></li>', undefined],
             [
-                'C2: an ingredient name in a link with a block inside it',
+                'an ingredient name in a link with a block inside it',
                 '<li><a href="#ing"><div></div>Salt</a></li>',
                 undefined,
             ],
-            ['C2: words in a link with a block inside it', '<li><a href="#ing"><div></div>Print</a></li>', undefined],
+            ['words in a link with a block inside it', '<li><a href="#ing"><div></div>Print</a></li>', undefined],
             [
-                'C5/C6: one link to the read list and one to no read line',
+                'one link to the read list and one to no read line',
                 '<li><a href="#ing">Jump</a> <a href="#notes">Salt</a></li>',
                 undefined,
             ],
             [
-                'C6: an omitted line with a jump link at its end',
+                'an omitted line with a jump link at its end',
                 '<li>One onion <a href="#ing">see the list</a></li>',
                 undefined,
             ],
@@ -402,7 +402,7 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
                 undefined,
             ],
             [
-                'C5/C6: two links, one to no read line, no ingredient named',
+                'two links, one to no read line, no ingredient named',
                 '<li><a href="#ing">Jump</a> <a href="#notes">Print</a></li>',
                 undefined,
             ],
@@ -426,7 +426,7 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         });
     });
 
-    // Round-4 re-review, HIGH 5 / D13: an omitted group after the read lines that opens with amounts is refused, in a
+    // Round-4 re-review of #324: an omitted group after the read lines that opens with amounts is refused, in a
     // container of its own too.
     it('refuses an omitted group after the read lines whose lines open with amounts', () => {
         const page = makePage({
@@ -437,7 +437,7 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
     });
 
-    // Round-4 re-review, E6: a line shown beside the read lines, in the same container, is refused when they are paragraphs.
+    // Round-4 re-review of #324: a line shown beside the read lines, in the same container, is refused when they are paragraphs.
     it('refuses an unread paragraph beside the read ingredient paragraphs', () => {
         const page = makePage({
             jsonLd: [makeRecipeNode({ recipeIngredient: ['1 cup flour', '2 eggs'], recipeInstructions: STEPS })],
@@ -463,7 +463,7 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         ['a time label holding an ingredient', ['Prep Time: 2 eggs']],
         ['a time label holding a duration and an ingredient', ['Prep Time: 10 minutes, 2 eggs']],
         ['a time label holding a bare number', ['Cook Time: 2']],
-        ['a time label holding a unit and no number (D7)', ['Prep Time: minutes']],
+        ['a time label holding a unit and no number', ['Prep Time: minutes']],
     ])('refuses an omitted group before the lines, nested deeper than the read lists, with %s', (_name, lines) => {
         const page = makePage({
             jsonLd: [NODE],
@@ -482,7 +482,7 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         ['Russian', ['Сложность: сложно']],
         ['Russian time and count', ['Время приготовления: 1 час 30 минут', 'Выход: 4 шт']],
         ['Japanese, with a full-width colon', ['調理時間：30分']],
-        ['English, with spaces around the label (D8)', ['Prep  Time : 10 minutes', '  Servings :4']],
+        ['English, with spaces around the label', ['Prep  Time : 10 minutes', '  Servings :4']],
     ])('reads a card with a %s meta list of labelled facts before the lines', (_name, lines) => {
         const page = makePage({
             jsonLd: [NODE],

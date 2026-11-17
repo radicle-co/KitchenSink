@@ -133,6 +133,7 @@ From the owner-approved copy, v3 over v2, as published in the public-version boa
 | `done.both`                                            | {title} is saved for you, and the public version is published. We’re checking it now.                                                                         |
 | `done.linkPublic` / `done.linkPrivate`                 | See the public version / See my copy                                                                                                                          |
 | `later.action`                                         | Share a public version                                                                                                                                        |
+| `later.failed`                                         | We couldn't check this recipe right now. Try again in a moment.                                                                                               |
 | `publicPage.report`                                    | Report a problem                                                                                                                                              |
 
 ICU parameters: `{limit}` is the Free private-recipe limit (ADR-0073), `{aiUses}` the Pro monthly uses and `{trialDays}` the trial length (`010-FR-041b`, `010-FR-042`). The copy holds no plan number.

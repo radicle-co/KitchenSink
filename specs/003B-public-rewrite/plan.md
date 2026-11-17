@@ -77,7 +77,7 @@ cost and needs no ledger.
 4. `027-FR-044`: the banned-word list is one module both guards import (003B FR-064).
 5. `027-FR-043`: no credit key of its own for a public version of an imported recipe. 027 uses 003B's.
 6. 027's "Not stored: the facts sheet" stays true for 027. 003B stores a facts snapshot and the source step text (`source_steps`) on its job until the flow
-   ends (FR-033, FR-042). This is a deliberate difference, recorded in both plans.
+   ends (FR-033, FR-042). This is a deliberate difference, recorded here and in 027's data model.
 
 **The title is not in the engine.** 027 never changes a title, so a title field only 003B reads is a mode flag.
 003B builds the title in code from the facts sheet (C-8). If the bake-off shows those titles read badly, 003B adds its

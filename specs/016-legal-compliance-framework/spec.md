@@ -637,7 +637,8 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
   the detected evidence and the cook's statement it was made under, and which allowlist rule or rewrite made it
   public. The record is append-only and is never shown to readers.
 - **FR-080**: **Paid sites.** A site is paid when its page data says `isAccessibleForFree` is false, or its domain is
-  on the paid list (data, kept by staff), or it has a metered paywall.
+  on the paid list (data, kept by staff), or it has a metered paywall. _(Amended by `003B-FR-012b`: a paid-list domain
+  alone is not a clear signal. Only `isAccessibleForFree` false or a metered paywall makes a source paid.)_
     - A paid-site recipe goes public only as a fully Commise-written page that names no site.
     - Where the dish exists in free or independent sources, a consensus recipe is preferred.
     - A paid site's signature recipe is never published from that single source.

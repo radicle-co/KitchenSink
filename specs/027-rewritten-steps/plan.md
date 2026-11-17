@@ -59,8 +59,9 @@ No unjustified violation. No Complexity Tracking entry.
 
 - **Pipeline of pure functions**: `buildFactsSheet → buildStepPrompt → (writer port) → parseStepAnswer → checkFacts →
 checkWording`. Each stage its own module and subpath export under `recipe-core/src/stepWriting/`.
-- **Type-pinned input**: `buildStepPrompt(sheet: FactsSheet)` arity pinned with `Exact<Parameters<…>, [FactsSheet]>`
-  like `buildParsePrompt`. System prompt pinned by length and SHA-256. No path can pass step wording.
+- **Type-pinned input**: `buildStepPrompt(sheet: FactsSheet, sourceSteps: SourceSteps)` arity pinned with
+  `Exact<Parameters<…>, [FactsSheet, SourceSteps]>` like `buildParsePrompt`. System prompt pinned by length and SHA-256.
+  No path can pass the address, the statement or the source title.
 - **Adapter on a Template Method**: `createGatedStepWriter(deps, modelId, callSite)` in recipe-workers over
   `gatedConverse`. `gatedConverse` itself is not refactored. Its default "ceiling denial throws and redelivers" is
   overridden for this step to a terminal `budgetSpent` (010-FR-041d). That override is the contract to test.

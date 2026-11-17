@@ -373,9 +373,9 @@ later from its own menu. (C-6)
   tier sits between the deterministic tiers and server AI, and it stays optional. Built-in OCR is allowed. (C-22)
 - **FR-030b**: The writer writes each public version in the source recipe's own language. There is no translation. The
   worker gives the source record's language to the one prompt template as a parameter, and reads the language profile
-  (027) derived from it (FR-012c). The engine also checks the output's language (`027-FR-040`): an output sentence the
-  detector confidently reads as another language refuses the result (log category `wrongLanguage`, wire `unreadable`).
-  A Spanish recipe whose steps hold a few English sentences passes. A writer that answers in English is refused.
+  (027) derived from it (FR-012c). The engine also checks the output's language by the same rule (`027-FR-040`, log category
+  `wrongLanguage`, wire `unreadable`). A Spanish recipe whose steps hold a few English sentences passes. A writer that
+  answers in English is refused.
 - **FR-031**: A model result that fails 027's checks MUST NOT be shown, stored or published. The job retries once
   automatically. A second refusal moves the job to `checkRefused` and the cook sees the failed screen. `checkRefused`
   is a resting state while fewer than 3 attempts are used: "Try again" calls the retry route and makes a third
@@ -383,7 +383,7 @@ later from its own menu. (C-6)
   hours. A job that ends `failed` (FR-082) rests the same way: "Try again" while fewer than 3 attempts are used, then
   `cancelled` after 24 hours, and final at 3 attempts. Cancel (`failed.done`, "Save my copy") is accepted from
   `checkRefused` and `failed`. Attempts carry over a retry and no allowance unit is spent. At 3 attempts the client
-  hides `wizard.retry` and `flag.rewrite`: the failed screen shows `failed.title`, `failed.body` and `failed.done`
+  hides `wizard.retry` and `flag.rewrite`: the failed screen shows `failed.title`, `failed.body` (`failed.bodyBoth` on the Both path) and `failed.done`
   only, and the blocked state shows `blocked.bodyFinal` (`blocked.bodyFinalBoth` on the Both path) with the path's
   not-now key only. On `409 attemptsUsed` the client refetches the job. (C-7)
 - **FR-032**: The public version MUST hold these parts, and no photo from the source:
@@ -398,8 +398,8 @@ later from its own menu. (C-6)
 
 - **FR-033**: On the "For everyone" path the pasted step text MUST be kept only in the job's `source_steps`, so a
   retry sends the writer the same text. It MUST be cleared in the same UPDATE as `facts_snapshot` and `output` at every
-  terminal state and on cancel, and the import item's draft step text MUST be cleared in the transaction that fills
-  `source_steps` at Start. A job lives about 73 hours at most, inside ADR-0072's 30 days. Only the source record of
+  terminal state and on cancel, and the import item's draft step text MUST be cleared in that same transaction. Until
+  then the item's draft still serves "Show my copy" and the cook's exits that save a private copy. A job lives about 73 hours at most, inside ADR-0072's 30 days. Only the source record of
   FR-080 stays.
 - **FR-034**: A source page MUST have at most one Commise-written public version at a time (ADR-0093 §2). The page is
   its normalised source address (`sourceLinkKey`, `004`). A retry or a second device of the same cook MUST return the
@@ -692,7 +692,7 @@ Still open:
 ## Amendments
 
 [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)
-carries the amendments to 004, 016, 020, 021 and the paste design spec. 003B does not duplicate them.
+carries the amendments to 004, 016, 020, 021 and the paste design spec, except the two named under "Still owed" above (§4 writer input, §5 paid-list signal), which the feature ADR (T004) carries. 003B does not duplicate the rest.
 
 Done: `010` US6 scenario 2 and `010-FR-042c` are amended for the dead-end screen only (FR-074, 2026-11-17).
 
@@ -704,6 +704,12 @@ Still owed:
 - ADR-0093 §4 says the writer sees facts only. This feature changes that: the writer reads the facts sheet and the
   source step text (`027-FR-035`, ruled 2026-11-17). `016-FR-077` already points to `027-FR-035`. The feature ADR
   records the amendment, owed (T004).
+- ADR-0093 §5 and `016-FR-080` say a domain on the paid list makes a site paid. This feature changes that: a paid-list
+  domain alone is not a clear signal (FR-012, FR-012b), so no hold and no private-copy limit apply to it. The feature ADR
+  records the amendment, owed (T004).
+- At 3 attempts on the "For everyone" path the failed screen offers only `failed.done`, and the job's end clears the
+  pasted text, so the cook's paste is gone. Whether `button.private` ("Save my copy") stays at 3 attempts, saving the
+  private copy from the item before the clear, is not decided. Owed to the architect and the owner.
 - ADR-0024 §3 (a third no-retry path) and the label, licence, provenance and stored-credit (`recipes.public_credit`)
   one-way doors (FR-060, FR-061, FR-062, data-model), in the feature ADR, owed (T004).
 

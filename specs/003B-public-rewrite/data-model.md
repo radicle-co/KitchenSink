@@ -57,7 +57,7 @@ Indexes:
 
 Every expiry counts from `state_changed_at`, so a retry starts a fresh window. A job expires lazily, in the data layer, in the same transaction before an insert and again on every read: a job in
 `pending` or `writing` for more than 10 minutes becomes `failed`, and a job in `ready` for more than 24 hours becomes
-`cancelled`, and so is a resting `checkRefused` or a resting `failed` (fewer than 3 attempts) after 24 hours. A job lives about 73 hours at most (3 attempts, each a 10-minute window plus a 24-hour rest), inside the 30 days of ADR-0072, which is the longest that `source_steps` is kept. No timer process is needed, and a job nobody reads cannot hold its page key past the next insert for that page.
+`cancelled`, and so is a resting `checkRefused` or a resting `failed` (fewer than 3 attempts) after 24 hours. A job lives about 73 hours at most (3 attempts, each a 10-minute window plus a 24-hour rest), inside the 30 days of ADR-0072, which is how long `source_steps` can live. No timer process is needed, and a job nobody reads cannot hold its page key past the next insert for that page.
 
 Finished jobs are deleted 7 days after `finished_at` by the existing retention sweeper. The table is user-keyed: add it
 to `erasureSweepCoverage` and to the test-principal purge.

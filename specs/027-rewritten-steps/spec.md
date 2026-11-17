@@ -269,9 +269,10 @@ can always cook from the original steps.
       null: any other shape ties to nothing.
       Every ingredient name in the result matches the recipe's ingredient list exactly, in any script. The check works in
       any language, because it reads digits, fractions, unit symbols and digit times and temperatures only.
-      The result's sentences must be in the recipe's language: a sentence the detector confidently reads as another
-      language refuses the result (log category `wrongLanguage`, wire `unreadable`). A few sentences in another language
-      inside the recipe's own language pass, and a result written wholly in another language is refused. Verbs,
+      The result must be in the recipe's language, by the rule of `003B-FR-012c`: among the sentences the detector reads
+      confidently, the language with the most letters must be the recipe's language. Otherwise the result is refused
+      (log category `wrongLanguage`, wire `unreadable`). A few sentences in another language pass, and a result written
+      mostly in another language is refused. Verbs,
       equipment, safety words and number words are not machine-checked. A safety instruction with no number, or an
       amount written as a word, is checked only by the cook's review.
       Steps may be merged, split or reordered. The step count of the result is within a range, from ⌈n/2⌉ to 2n+1

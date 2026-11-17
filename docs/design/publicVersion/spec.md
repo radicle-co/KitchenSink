@@ -554,6 +554,7 @@ None of our own. Pushes, the dialog and the sheet use the platform's transitions
 - **No slot left and a public version possible.** `publicOnly` (B4), never a dead end.
 - **The offer changes between read and press.** `409 offerChanged` (B8).
 - **Another device publishes first.** `409 publicExists`: the area re-renders as `publicExists.published`.
+- **Retry at 3 attempts.** `409 attemptsUsed`: the client refetches the job and re-renders from its state and attempts. At 3 attempts the screens hide `wizard.retry` and `flag.rewrite` and show `blocked.bodyFinal` or `blocked.bodyFinalBoth` where blocked, and `failed.done` only where failed (B8).
 - **The private copy changes during writing (Both).** `409 privateCopyChanged` at Publish: `flag.fix` with "Write it
   again".
 - **Under 16 learned at the age question.** "Not now" publishes nothing. The cook can still keep a private copy from P8
@@ -589,7 +590,7 @@ other screen at 768 has the 390 layout at a wider column. 1024 is not drawn: at 
 
 ### 12.2 `recipeImportingMobile` (drawn, with the two language states and check unavailable owed)
 
-Drawn on 2026-11-17 on `recipeImportingMobile`, in four rows below the existing boards, one per size. Owed after merge: the designer draws `languageUnsupported` and `languageUncertain` on M2, and redraws the rewrite-needed state of M8 as check unavailable. Every board name is
+Drawn on 2026-11-17 on `recipeImportingMobile`, in four rows below the existing boards, one per size. Owed after merge: the designer redraws the review board M7 with the new `review.body`, draws the 3-attempt states (`blocked.bodyFinal`, `blocked.bodyFinalBoth`, failed with `failed.done` only), draws `languageUnsupported` and `languageUncertain` on M2, and redraws the rewrite-needed state of M8 as check unavailable. Every board name is
 `ImportPublic<Name><Size>`. Boards stack their states, as the paste boards do. The owner rulings in force: the choice is a
 bottom sheet on phones, `ageConfirm` is a centred blocking dialog, the dead end is a full page, and on phones the primary
 action is last in any stacked bar.

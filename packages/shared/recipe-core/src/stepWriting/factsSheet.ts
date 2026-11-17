@@ -30,11 +30,10 @@ import {
     type FactsSheet,
     type FactsStep,
 } from './factsSheet.types.js';
-import { looksLikeAddress } from './addressLike.js';
+import { ALPHABET_BY_LANGUAGE, isOutputLanguage, PLAIN_FACT_PUNCTUATION, type OutputLanguage } from './alphabet.js';
 import {
     FactsSheetInvalidError,
     NAME_WORD_CHARS,
-    PLAIN_FACT_PUNCTUATION,
     assertFactsSheetPlain,
     assertIngredientName,
     wordsOf,
@@ -214,21 +213,25 @@ interface IngredientMatcher {
     readonly matcher: RegExp;
 }
 
-const OUTSIDE_PLAIN_NAME = new RegExp(`[^\\p{L}\\p{M}\\p{N}${escapeRegExp(PLAIN_FACT_PUNCTUATION)}]`, 'gu');
+/**
+ * What a name may not be cleaned of: a hidden character (`\p{Cf}`) is kept, so the alphabet refuses it and no name is
+ * split or invented. Anything else outside letters, marks, numbers and the plain punctuation becomes a space.
+ */
+const OUTSIDE_PLAIN_NAME = new RegExp(`[^\\p{L}\\p{M}\\p{N}\\p{Cf}${escapeRegExp(PLAIN_FACT_PUNCTUATION)}]`, 'gu');
 
-/** Characters that draw nothing: zero-width spaces and joiners, soft hyphens, variation selectors and the like. */
+/** Characters that draw nothing: zero-width spaces and joiners, soft hyphens and the like. A step is read without them. */
 const HIDDEN_CHARACTER = /\p{Default_Ignorable_Code_Point}/gu;
 
-/** The text without its hidden characters, as the address check reads it, so they split no word and hide no fact. */
-const withoutHidden = (text: string): string => text.replaceAll(HIDDEN_CHARACTER, '');
+/** A step's text without its hidden characters, in NFC, so none can split a word or hide a fact from a reader. */
+const readableStep = (text: string): string => text.replaceAll(HIDDEN_CHARACTER, '').normalize('NFC');
 
 /**
- * A line's text as a plain name: what is outside the plain set becomes a space, and the name starts at a letter, mark,
- * number or apostrophe. It is never cut: a name that is too long is refused, not made into text the cook did not write.
- * A name with nothing plain in it is empty.
+ * A line's text as a plain name, in NFC, so the sheet holds the form that was checked: what is outside the plain set
+ * becomes a space, and the name starts at a letter, mark, number or apostrophe. It is never cut: a name that is too
+ * long is refused, not made into text the cook did not write. A name with nothing plain in it is empty.
  */
 function plainNameOf(text: string): string {
-    const spaced = withoutHidden(text).normalize('NFC').replaceAll(OUTSIDE_PLAIN_NAME, ' ').replaceAll(/\s+/gu, ' ');
+    const spaced = text.normalize('NFC').replaceAll(OUTSIDE_PLAIN_NAME, ' ').replaceAll(/\s+/gu, ' ');
 
     return spaced.replace(new RegExp(`^[^${NAME_WORD_CHARS}]+`, 'u'), '').trim();
 }
@@ -237,12 +240,16 @@ function plainNameOf(text: string): string {
  * The name of one ingredient line: the text it shows, else its bound food's name.
  *
  * The raw text is checked before it is made plain, so a link is refused and never sanitised into a name. A line that is
- * an address, too long, or step text refuses the whole sheet: dropping it would describe another recipe, and cleaning or
- * cutting it would be text the cook never wrote.
+ * an address, outside the alphabet, too long, or step text refuses the whole sheet: dropping it would describe another
+ * recipe, and cleaning or cutting it would be text the cook never wrote.
  *
  * @throws {FactsSheetInvalidError} Naming the line, never its text.
  */
-function nameOfLine(line: StepSourceRecipe['ingredientLines'][number], index: number): string | undefined {
+function nameOfLine(
+    line: StepSourceRecipe['ingredientLines'][number],
+    index: number,
+    language: OutputLanguage,
+): string | undefined {
     const field = `ingredientLines[${index}]`;
 
     for (const raw of [line.displayText ?? '', line.name ?? '']) {
@@ -252,11 +259,11 @@ function nameOfLine(line: StepSourceRecipe['ingredientLines'][number], index: nu
             continue;
         }
 
-        if (looksLikeAddress(raw)) {
+        if (ALPHABET_BY_LANGUAGE[language].addressRule(raw)) {
             throw new FactsSheetInvalidError(field);
         }
 
-        assertIngredientName(field, name);
+        assertIngredientName(field, name, language);
 
         return name;
     }
@@ -265,8 +272,8 @@ function nameOfLine(line: StepSourceRecipe['ingredientLines'][number], index: nu
 }
 
 /** The names of the ingredient lines, once each, in order. */
-function ingredientNamesOf(lines: StepSourceRecipe['ingredientLines']): string[] {
-    return [...new Set(lines.flatMap((line, index) => nameOfLine(line, index) ?? []))];
+function ingredientNamesOf(lines: StepSourceRecipe['ingredientLines'], language: OutputLanguage): string[] {
+    return [...new Set(lines.flatMap((line, index) => nameOfLine(line, index, language) ?? []))];
 }
 
 const HEAD_MIN_LETTERS = 3;
@@ -672,12 +679,16 @@ function safetyOf(text: string, temperatures: readonly PlacedTemperature[]): Fac
  * @throws {FactsSheetInvalidError} When the language is not a language tag, or a field is still not a plain fact.
  */
 export function buildFactsSheet(recipe: StepSourceRecipe, readers: FactsSheetReaders): FactsSheet {
-    const ingredientNames = ingredientNamesOf(recipe.ingredientLines);
+    if (!isOutputLanguage(recipe.language)) {
+        throw new FactsSheetInvalidError('language');
+    }
+
+    const ingredientNames = ingredientNamesOf(recipe.ingredientLines, recipe.language);
     const matchers = ingredientMatchersOf(ingredientNames);
 
     const steps = recipe.steps.map(({ instruction }): FactsStep => {
-        // Hidden characters drawn nowhere are dropped first, so none can split a word or hide a fact from a reader.
-        const text = withoutHidden(instruction);
+        // Hidden characters are dropped and the text composed first, so none can split a word or hide a fact.
+        const text = readableStep(instruction);
         const { temperatures, rest } = readTemperatures(text);
         const mentions = mentionsOf(text, matchers);
         const equipment = equipmentMatchesOf(text);

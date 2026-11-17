@@ -13,6 +13,7 @@ import { buildFactsSheet, type FactsSheetReaders, type StepSourceRecipe } from '
 import { escapeRegExp } from '../../parsing/escapeRegExp.js';
 import { FactsSheetInvalidError, MAX_FACT_TEXT_CHARS, assertFactsSheetPlain } from '../factsSheetInput.js';
 import { SAFETY_CATEGORIES, type FactsSheet, type FactsStep } from '../factsSheet.types.js';
+import { buildStepPrompt } from '../stepPrompt.js';
 import { ACTION_VERBS, SAFETY_RULES } from '../stepLexicons.js';
 
 const noDurations: FactsSheetReaders = { durations: () => [] };
@@ -84,13 +85,13 @@ describe('order and shape', () => {
 
     it('carries the recipe language and the ingredient-line names once each, skipping a line with no name at all', () => {
         const recipe: StepSourceRecipe = {
-            language: 'fr',
+            language: 'en',
             ingredientLines: [{ displayText: 'butter' }, {}, { displayText: '  flour ' }, { displayText: 'butter' }],
             steps: [],
         };
 
         expect(buildFactsSheet(recipe, noDurations)).toEqual({
-            language: 'fr',
+            language: 'en',
             ingredientNames: ['butter', 'flour'],
             steps: [],
         });
@@ -609,8 +610,28 @@ describe('ingredient names and language are plain facts', () => {
         expect(() => sheetOf([], ['butter', `${atLimit}a`])).toThrow(/ingredientLines\[1\]/u);
     });
 
-    it('removes a hidden character from a name, so no name is split or invented', () => {
-        expect(namesOf(['bu\u200Btter', 'sal\u00ADt'])).toEqual(['butter', 'salt']);
+    it('refuses a name with a hidden character, so no name is split or invented', () => {
+        for (const name of ['bu\u200Btter', 'sal\u00ADt']) {
+            expect(() => sheetOf([], ['butter', name])).toThrow(/ingredientLines\[1\]/u);
+        }
+    });
+
+    it.each([
+        ['a name in another script', '\u6885'],
+        ['a name in Bengali', '\u0998\u09BF'],
+        ['a tight dot that is no abbreviation', 'U.S. beef'],
+    ])('refuses the whole sheet for %s, and the recipe stays private', (_what, name) => {
+        expect(() => sheetOf(['Stir.'], ['butter', name])).toThrow(/ingredientLines\[1\]/u);
+    });
+
+    it('stores the NFC form of a name, and finds it in a step written the other way', () => {
+        const decomposed = 'jalapen\u0303o';
+        const sheet = sheetOf([`Dice the ${decomposed}.`], [decomposed]);
+
+        expect(sheet.ingredientNames).toEqual(['jalape\u00F1o']);
+        expect(sheet.steps[0]?.ingredients).toEqual(['jalape\u00F1o']);
+        expect(buildStepPrompt(sheet).userMessage).toContain('jalape\u00F1o');
+        expect(buildStepPrompt(sheet).userMessage).not.toContain('n\u0303');
     });
 
     it('reads a step with hidden characters in it as the step without them', () => {
@@ -626,6 +647,7 @@ describe('ingredient names and language are plain facts', () => {
         ['a zero-width space', 'evil\u200B.com'],
         ['a combining grapheme joiner', 'evil.\u034Fcom'],
         ['a variation selector', 'evil.\uFE0Fcom'],
+        ['a combining mark', 'evil.\u0334com'],
     ])('refuses an address hidden by %s, and never reads it as a name', (_what, name) => {
         expect(() => sheetOf(['Stir.'], ['butter', name])).toThrow(/ingredientLines\[1\]/u);
     });

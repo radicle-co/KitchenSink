@@ -155,6 +155,8 @@ packages/shared/recipe-core/src/copy/bannedWords.ts            # the one banned-
 packages/services/recipe-service/src/import/domain/sourceClassification.ts
 packages/services/recipe-service/src/import/publicVersion/     # controller, schema, service, DAL, title builder
 packages/services/recipe-service/src/recipes/domain/publicVersionWordingGuard.ts
+packages/services/recipe-service/src/recipes/domain/publishAgeAllowed.ts   # pure predicate (FR-016)
+packages/services/identity/                                    # age_assurances migration, POST /api/v1/me/age-assurance (slice P3b)
 packages/services/recipe-service/src/database/migrations/00NN_public_versions.sql (+ _validate)
 packages/services/recipe-workers/src/handlers/publicVersionWorker.ts
 packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts  # Lambda, queue, DLQ, reserved concurrency
@@ -180,16 +182,16 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 
 ## Testing (tiers owed, test-first)
 
-| Tier                 | What                                                                                                                                                                                           |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit (core)          | Fingerprint: same set from same text, format version pinned, keyed hash. Containment vs Jaccard. Mutants: one shingle changed, order changed.                                                  |
-| Unit (service)       | Classifier: every allowlist case, every unknown input reads closed, CC BY-NC is not open, `.gov` alone is not open. Title builder never returns the source title.                              |
-| Integration (mocked) | Choice to job. Double publish returns one recipe. Under 16: private only. Paid hold counted from the first import for an undated page. Wording guard on update and restore. Both digest drift. |
-| Worker               | `budgetSpent` terminal and acked. Unreadable counter retried. Late result after `cancelled` dropped. 10-minute expiry. At most 3 calls.                                                        |
-| LOCAL e2e            | Migration applied. CHECK pairs. Unique `source_page_key`. Page key released on delete, rejection and opt-out. Erasure covers the job table.                                                    |
-| Service e2e + k6     | Job and publish round trip on a deployed preview. k6 on job status reads, by hand.                                                                                                             |
-| Component (both)     | Every state in the spec table. Banned-word guard over `importMessages.choice.*` and `recipes.flowSteps.*`.                                                                                     |
-| Playwright / Maestro | US1 Public and Both. US2 Private, and paid held back or allowed. US3 failure and later route, US4 dead end with switch on and off, US5 blocked save.                                           |
+| Tier                 | What                                                                                                                                                                                                                                                 |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit (core)          | Fingerprint: same set from same text, format version pinned, keyed hash. Containment vs Jaccard. Mutants: one shingle changed, order changed.                                                                                                        |
+| Unit (service)       | Classifier: every allowlist case, every unknown input reads closed, CC BY-NC is not open, `.gov` alone is not open. Title builder never returns the source title.                                                                                    |
+| Integration (mocked) | Choice to job. Double publish returns one recipe. No age claim: the start is not gated, Publish answers `403 ageConfirmNeeded`. Paid hold counted from the first import for an undated page. Wording guard on update and restore. Both digest drift. |
+| Worker               | `budgetSpent` terminal and acked. Unreadable counter retried. Late result after `cancelled` dropped. 10-minute expiry. At most 3 calls.                                                                                                              |
+| LOCAL e2e            | Migration applied. CHECK pairs. Unique `source_page_key`. Page key released on delete, rejection and opt-out. Erasure covers the job table and identity's `age_assurances` row. Age route round trip and k6 by hand (P3b).                           |
+| Service e2e + k6     | Job and publish round trip on a deployed preview. k6 on job status reads, by hand.                                                                                                                                                                   |
+| Component (both)     | Every state in the spec table. Banned-word guard over `importMessages.choice.*` and `recipes.flowSteps.*`.                                                                                                                                           |
+| Playwright / Maestro | US1 Public and Both. US2 Private, and paid held back or allowed. US3 failure and later route, US4 dead end with switch on and off, US5 blocked save.                                                                                                 |
 
 ## Watch list
 

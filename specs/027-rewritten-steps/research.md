@@ -8,6 +8,9 @@ Phase 0 for `plan.md`. Each item: decision, rationale, alternatives rejected.
   `durations`, `ingredients` (names from the recipe's ingredient lines found in the step), `equipment` (closed list),
   `safety` (FR-041 categories, carried as a category plus its facts, not its words). Plus the ingredient-line names and
   the recipe language. Built by code. Never stored.
+- **Ties**: a tie between an amount and an ingredient is exact or null. Only the shape NUM [UNIT] [of [the]] NAME ties.
+  A step with two or more untied amounts that carry a unit refuses the sheet. Actions are read only at an instruction
+  position, and a doneness value needs a reading verb.
 - **Rationale**: spec FR-035. A cook's source statement is a claim and can be wrong. One input type gives one pinned
   prompt signature and one evaluation path (same discipline as 004-FR-057 and ADR-0026's `buildParsePrompt`).
 - **Rejected**: wording for "Written by you" recipes (two prompts, two evaluations, trusts a cook-supplied label);
@@ -18,7 +21,8 @@ Phase 0 for `plan.md`. Each item: decision, rationale, alternatives rejected.
 - **Decision**: extract the same categories from the result with the same extractor. Compare per category as
   multisets over the whole recipe (steps may merge, split or reorder). Normalise before comparing: amounts to
   canonical quantity + unit, temperatures to °C integer with the stated scale kept, durations to seconds ranges,
-  ingredient names by the recipe's own ingredient-line names. Any missing or extra element fails.
+  ingredient names by the recipe's own ingredient-line names. Any missing or extra element fails. The check compares
+  (quantity, unit, ingredient) triples, not bare amounts, so two amounts swapped between ingredients fail.
 - **Rationale**: FR-040. 008-FR-034a forbids steps gaining amounts from the list, so "nothing added" is as binding
   as "nothing dropped". Durations feed Cooking Mode timers (008-FR-034). Research CK-006 names dropped and changed
   amounts as the trust failure.

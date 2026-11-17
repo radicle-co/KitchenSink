@@ -69,12 +69,14 @@ Withdrawal never deletes: `FR-035` and a regulator both need to know _when_ cons
 
 ## 3. `age_assurances` — the basis, not the birth date
 
-| Column        | Type                   | Notes                                                                     |
-| ------------- | ---------------------- | ------------------------------------------------------------------------- |
-| `account_id`  | `text` PK              | One per account                                                           |
-| `basis`       | `text` NOT NULL        | Closed union: `self_attested`, `payment_verified`, `operator_reviewed`    |
-| `floor_met`   | `text` NOT NULL        | The floor applied, e.g. `13`, `16` — recorded because it varies by market |
-| `asserted_at` | `timestamptz` NOT NULL |                                                                           |
+| Column            | Type                   | Notes                                                                     |
+| ----------------- | ---------------------- | ------------------------------------------------------------------------- |
+| `account_id`      | `text` PK              | One per account                                                           |
+| `basis`           | `text` NOT NULL        | Closed union: `self_attested`, `payment_verified`, `operator_reviewed`    |
+| `floor_met`       | `text` NOT NULL        | The floor applied, e.g. `13`, `16` — recorded because it varies by market |
+| `asserted_at`     | `timestamptz` NOT NULL |                                                                           |
+| `wording_version` | `text` NULL            | The wording the cook saw, e.g. `ageConfirm.v1` (003B FR-016)              |
+| `locale`          | `text` NULL            | The locale of that wording                                                |
 
 Per [R4](./research.md#r4) **no date of birth is stored.** `FR-008` asks for a recorded basis; a birth date
 would be personal data with no other use in this product.

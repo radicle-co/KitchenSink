@@ -15,7 +15,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
   state gets a vitest component test. Every user story gets a Playwright spec (web) and a Maestro flow (mobile).
 - **Run only impacted e2e.** Use `npm run e2e:plan -- --base origin/main` and the root doors (`test:e2e:web`,
   `test:e2e:mobile`). Never start `playwright test` or `maestro test` by hand.
-- **Format**: `- [ ] Tnnn {slice} [P?] [Story?] Description with path`. The `{slice}` tag names the PR the task ships in: A1 to A7 (engine), B1 to B5 (paste and link import), P0 to P10 (server), D0 (docs and ADRs), C2a and C2b (paste screens), U0 to U7 (choice UI), L0 and L1 (seed and launch). `done` marks work already in the tree. `[P]` means a different file with no open dependency.
+- **Format**: `- [ ] Tnnn {slice} [P?] [Story?] Description with path`. The `{slice}` tag names the PR the task ships in: A1 to A7 (engine), B1 to B5 (paste and link import), P0 to P10 (server), P3b (age assurance), P11 (editor routes, after #322), D0 (docs and ADRs), C2a and C2b (paste screens), U0 to U7 (choice UI), L0 and L1 (seed and launch). `done` marks work already in the tree. `[P]` means a different file with no open dependency.
 - **Owner rulings that override the docs**: no Anthropic model anywhere (Bedrock non-Anthropic only); no facts cards;
   no caps of any kind; a link import fetches on the device first and the server second, and the server never fetches
   a known paid site (the cook is asked to paste); one public version per source page; one import allowance for every
@@ -59,7 +59,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 - [ ] T007 {A2} [P] Unit test: fact sheet extraction per category (order, actions from a fixed list, amounts, temperatures, times, ingredient names, equipment, the seven safety categories of 027-FR-041) in `RC/stepWriting/__tests__/factsSheet.test.ts`. The duration reader is injected, because `cooking` already depends on `recipe-core` and the reverse edge would be a cycle. The integration test that runs the real duration reader lives in `packages/shared/cooking`, not in `recipe-core`.
 - [ ] T008 {A3} [P] Unit test: `buildStepPrompt(sheet)` arity pinned in invariant position, and the system prompt pinned by length and SHA-256, in `RC/stepWriting/__tests__/stepPrompt.test.ts`.
 - [ ] T009 {A3} [P] Unit test: answer parser refuses unreadable text, text outside the step list, and more steps than the cap, in `RC/stepWriting/__tests__/stepAnswer.test.ts`.
-- [ ] T010 {A4} [P] Unit test: two-way fact check with mutants (drop one amount, add one, change a duration, drop a safety line, add an allergen, merge and split steps stay valid) in `RC/stepWriting/__tests__/factCheck.test.ts`.
+- [ ] T010 {A4} [P] Unit test: two-way fact check with mutants (drop one amount, add one, change a duration, drop a safety line, add an allergen, merge and split steps stay valid; rejects output where two tied amounts are swapped between ingredients) in `RC/stepWriting/__tests__/factCheck.test.ts`.
 - [ ] T011 {A1} [P] Unit test: `fingerprint(text, size, hash)` returns `{ formatVersion, hashes }` with an injected keyed hash, the same set from the same text, format version pinned; `jaccard` and `containment` (the per-sentence check is containment); mutants: one shingle changed, order changed, in `RC/stepWriting/__tests__/wordShingles.test.ts`.
 - [ ] T012 {P7} [P] Unit test: title builder never returns the source title, uses only facts, and the title check (normalised equality, 2-word shingles) in `RS/import/publicVersion/__tests__/titleBuilder.test.ts`.
 - [ ] T013 {A4} [P] Unit test: `rewriteSteps(sheet, writer, wording)` outcomes (ok, checkRefused with a category, unreadable) with a fake writer, and no fetch in the engine, in `RC/stepWriting/__tests__/rewriteSteps.test.ts`.
@@ -108,7 +108,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 - [ ] T039 {P6} [US1] Integration test (database mocked): choice to job; a second call returns the same job; `409 publicExists`; `409 offerChanged` when the sent `shownOffer` kind or reason differs from the offer computed now, on start and on publish; `429 importAllowance`; 404 for another cook's job, in `packages/services/recipe-service/tests/publicVersion.integration.test.ts`.
 - [ ] T040 {P7} [US1] Integration test: Publish runs the server fact check and the wording check, double publish returns one recipe (`200` on replay), `422 flags`, `422 tooSimilar`, `422 rewriteNeeded`, `409 privateCopyChanged` on Both, in the same file.
 - [ ] T041 {P7} [P] [US1] Integration test: Both path saves the private copy first and uses one slot; "For everyone" keeps no private copy and no pasted text; the public version uses no slot; the 020 hold applies and a not-approved version becomes private over the limit where need be, in the same file.
-- [ ] T042 {P7} [P] [US2] Integration test: under 16 gets private only; no steps gets private only; paid held back (recent, signature, opt-out) gets `privateOnly`; a paid private copy is never shared or exported, and the household sees only the public version, in the same file.
+- [ ] T042 {P7} [P] [US2] Integration test: no steps gets private only; paid held back (recent, signature, opt-out) gets `privateOnly`; a paid private copy is never shared or exported, and the household sees only the public version, in the same file.
 - [ ] T043 {P8} [P] [US5] Integration test: wording guard on `PATCH` and on version restore (ADR-0058) refuses with `422 tooSimilar`; the check runs inside the recipe write, in the same file.
 - [ ] T044 {P8} [P] [US1] Integration test: page key release and hold (delete, 020 rejection, opt-out; hidden by report keeps the key), in the same file.
 - [ ] T045 {P6} [P] [US3] Integration test: AI opt-out page and spent budget hint give private only with no writer call; cancel is idempotent, in the same file.
@@ -124,7 +124,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 - [ ] T052 {P7} Implement the title builder (`RS/import/publicVersion/titleBuilder.ts`) from the facts sheet, with no model call and never the source title.
 - [ ] T053 {P2} Implement the fingerprint key custody: Secrets Manager read with versions, a cache with a short TTL, and an unreadable key giving `rewriteNeeded`. In `RS/import/publicVersion/fingerprintKey.ts`.
 - [ ] T054 {P4} Implement the source-record write (classification inputs, fingerprint of steps and title, format and key version, `page_key`, `published_on`) in the same transaction as the item save or job creation. (needs #301)
-- [ ] T055 {P6} Implement `RS/import/publicVersion/publicVersion.service.ts`: start (import path and the later route), read, cancel, Publish Command through `RecipesService.create`, with the age 16 check and the page-key idempotency.
+- [ ] T055 {P6} Implement `RS/import/publicVersion/publicVersion.service.ts`: start (import path and the later route), read, cancel, Publish Command through `RecipesService.create`, with the `publishAgeAllowed` check at Publish only (`403 ageConfirmNeeded`) and the page-key idempotency.
 - [ ] T056 {P8} Implement `RS/recipes/domain/publicVersionWordingGuard.ts` and call it inside `RecipesService.update` and version restore for any recipe with a `source_page_key`.
 - [ ] T057 {P8} Implement the page-key release in the delete, 020 rejection and opt-out transactions (FR-034a).
 - [ ] T058 {P6} Implement the controller and zod schema `RS/import/publicVersion/publicVersion.controller.ts` and `publicVersion.schema.ts` for the routes in `contracts/publicVersion.api.md`. Run `contract:generate`; commit the generated `packages/schemas/recipe` copy.
@@ -185,6 +185,22 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 - [ ] T088 {B5} HELD until link import has a design (link import has no UI in the first web release). Implement the server link import: device result accepted first, server fetch second, never for a known paid site (answer: ask the cook to paste), and a paste never fetches. No safe-fetch client exists in the tree: this task builds it in slice B5 (a maintained request-filtering agent over `node:https`, a robots reader, redirect, time and size limits), and it stays off by default.
 - [ ] T089 {B2} Implement the paste switch (`IMPORT_PASTE_MODE`, signed grant `recipes:import:paste`) and one pure `pasteImportAllowed(mode, scopes)` in `RC/`, if the BLUEPRINT keeps it.
 - [ ] T090 {B4} Service e2e (deployed) for `copies` and a create against the preview, and a k6 scenario `tests/load/importCopies.load.js` (hand-run only).
+
+## Phase 6b: Age assurance and the Publish gate
+
+- [ ] T131 {P3b} [P] Unit test: `publishAgeAllowed(principal)` allows only a principal with `publishAgeMet`, in `RS/recipes/domain/__tests__/publishAgeAllowed.test.ts`.
+- [ ] T132 {P3b} [P] [US1] Integration test (database mocked): Publish answers `403 { code: 'ageConfirmNeeded' }` with no claim and `201` with it; the start of a job is never gated, in `RS/import/publicVersion/tests/`.
+- [ ] T133 {P3b} [P] Unit test: identity age assurance service writes the row first and then the claim; a failed claim write gives `503` and a retry writes only the claim.
+- [ ] T134 {P3b} [P] Integration test (identity, database mocked): `POST /api/v1/me/age-assurance` accepts only `floor: 16` and `wordingVersion: 'ageConfirm.v1'`, is idempotent, and answers `503` on a claim failure.
+- [ ] T135 {P3b} LOCAL e2e (write first, watch it fail): the migrated identity schema has `age_assurances`; the route writes one row; account erasure deletes it.
+- [ ] T136 {P3b} Write the identity migration for `age_assurances` as defined in spec 016 data-model §3 and its Drizzle schema, and add the table to identity's erasure coverage test.
+- [ ] T137 {P3b} Implement `POST /api/v1/me/age-assurance` in identity: row first, then the Clerk `public_metadata.ageFloorMet` claim, idempotent, `503` on a claim failure. Run `contract:generate`.
+- [ ] T143 {P3b} [P] Unit test first, then implement: `@kitchensink/clerk-verify` and recipe-service `auth/principal.ts` parse the signed `public_metadata.ageFloorMet` claim into the `Principal` field `publishAgeMet`; a missing or unsigned claim reads false.
+- [ ] T138 {P3b} Implement `publishAgeAllowed` in `RS/recipes/domain/publishAgeAllowed.ts` (pure) and call it at Publish.
+- [ ] T139 {P3b} Service e2e (deployed preview, skips when the sandbox is down): Publish without the claim answers `403`, the age route sets the claim, the retried Publish succeeds.
+- [ ] T140 {P3b} k6 scenario for the age assurance route. Hand-run only; add no automatic trigger.
+- [ ] T141 {U2-U5} [US1] Client: on `403 ageConfirmNeeded` show `ageConfirm.*`; on "I'm 16 or over" call identity, `getToken({ skipCache: true })` (mobile: `commise-native` template), retry Publish once; a second `403` shows an error. On "Not now" on the "For everyone" path, save the private copy with the import's own unit and no second charge. Component tests, Playwright and Maestro first.
+- [ ] T142 {P11} After PR #322: the editor's make-public and set-visibility routes adopt `publishAgeAllowed`, so the 16 or over rule covers every publication surface (FR-016). Integration test first.
 
 ## Phase 7: Clients and UI (web and mobile together)
 

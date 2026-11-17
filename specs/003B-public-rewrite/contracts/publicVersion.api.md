@@ -12,9 +12,10 @@ or recipe answers 404, never 403.
 source: { classification: 'open' | 'thirdParty' | 'paid', domain: string | null }
 offer:  { kind: 'choice', credit: 'free' | 'paid' }
         | { kind: 'privateOnly', reason: 'paidRecent' | 'paidSignature' | 'publisherOptOut' | 'aiOptOut' | 'budget'
-                                | 'under16' | 'noSteps' | 'noSourceAddress' | 'switchOff',
+                                | 'noSteps' | 'noSourceAddress' | 'switchOff',
                                 holdEndsOn?: string }
           // holdEndsOn is an ISO date, present only for paidRecent when the date is known.
+          // 'under16' is not a reason: age is checked at Publish. Spec 016 adds it back.
         | { kind: 'publicExists', status: 'published' | 'writing' | 'inReview', recipeId: string | null }
           // one public version per source page (FR-034). recipeId is null until a recipe exists.
           // 'writing' and 'inReview' are states of an existing public version, never privateOnly reasons.
@@ -53,6 +54,18 @@ The output is present only in `ready`. It holds no source text.
 - `422 { code: 'tooSimilar' }` from the wording check, or `422 { code: 'rewriteNeeded' }` when the stored fingerprint's key version cannot be read. The service keeps no source text to re-check against, so there is no other branch.
 - `409 { code: 'privateCopyChanged' }` on the Both path (FR-045).
 - `409 { code: 'offerChanged', offer }` as for starting a job.
+- `403 { code: 'ageConfirmNeeded' }`: the principal has no `publishAgeMet`, the `Principal` field parsed from the signed `public_metadata.ageFloorMet` claim (`publishAgeAllowed`, FR-016). Only
+  Publish is gated, and so is the Publish step of the later route. The client shows `ageConfirm.*` (wording
+  `ageConfirm.v1`). On "I'm 16 or over" it calls the identity route below, then `getToken({ skipCache: true })` (on
+  mobile with the `commise-native` template), then retries Publish once. A second `403` shows an error and never loops.
+
+## Identity: age assurance
+
+`POST /api/v1/me/age-assurance` with `{ floor: 16, wordingVersion: 'ageConfirm.v1', locale }`. It writes the
+`age_assurances` row first, then sets the Clerk `public_metadata.ageFloorMet` claim. It is idempotent.
+
+- `204` on success. A repeat call writes no second row.
+- `503` when the claim write fails. The row stays, and a retry writes only the claim.
 
 ## Cancel
 

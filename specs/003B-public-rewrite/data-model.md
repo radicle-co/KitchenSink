@@ -95,7 +95,12 @@ ready ──Not now / flow ends──────────────▶ can
 - Monitoring counts public versions per `source_key` from `recipes.source_page_key` and the source records, for the
   rate alarm only. There is no per-source ledger and there are no caps (owner ruling 2026-11-15).
 - Publish confirmation: one row in `recipe_statement_attestations` (ADR-0095): mode implicit, choice `publicConfirm`, action `create`, wording `publicVersionConfirm.v1`. Licence acceptance (FR-062) is that confirmation.
-- Age confirmation at first publish: one row in the same table (ADR-0095), wording `ageConfirm.v1`. Identity sets the cook's age claim, `ageFloorMet`, from it (FR-016).
+
+## Identity
+
+Identity's database gains the `age_assurances` table now, as defined in `specs/016-legal-compliance-framework/data-model.md` §3 (FR-016, FR-016b). This feature writes `basis = self_attested`, `floor_met = 16`, `wording_version = ageConfirm.v1` and the cook's `locale`. Account erasure
+deletes the row, and the erasure coverage test covers it. The Clerk claim `public_metadata.ageFloorMet` is set after the
+row is written. Recipe-service holds no age data. `clerk-verify` parses the claim into the `Principal` field `publishAgeMet`.
 
 ## Source evidence retained
 

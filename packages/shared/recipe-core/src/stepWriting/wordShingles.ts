@@ -8,12 +8,14 @@
  *
  * Text goes through the package's one text canonical form (`sanitizeFoodName`: NFKC, invisible characters removed,
  * controls as spaces), so composed and decomposed accents are one word, an invisible character never splits a word,
- * and a stored fingerprint matches text typed or pasted in either form. A combining mark with no composed form stays
- * inside its word.
+ * and a stored fingerprint matches text typed or pasted in either form. A combining mark never splits a word.
  *
- * Look-alike letters are then folded to the Latin letter they imitate (the `confusables` package, built on the Unicode
- * confusables data), so a Cyrillic `е` in "eggs" cannot hide a copy. The fold runs before lower-casing, and only
- * here: it is for MATCHING and is lossy, so the content digest does not use it (see `contentDigest.ts`).
+ * Look-alike letters are then folded to the Latin letter they imitate (the `confusables` package, pinned to an exact
+ * version), so a Cyrillic `е` in "eggs" cannot hide a copy. The fold is wider than look-alikes: it also strips
+ * accents (`café` is `cafe`) and transliterates other scripts letter by letter, so two different non-Latin words can
+ * collide. That is accepted, because it is for MATCHING and a collision cannot fill a whole 5-word window. It runs
+ * before lower-casing and only here: the content digest does not use it (see `contentDigest.ts`). Its output is part
+ * of what a stored fingerprint means, and `wordShingles.test.ts` pins it with known answers.
  *
  * Shingles are lower-cased words with punctuation stripped, joined by one space. Apostrophes are removed so
  * "don't" stays one word. A text shorter than the window yields one shingle of all its words, so a short sentence
@@ -26,12 +28,15 @@
 import { remove } from 'confusables';
 
 import { sanitizeFoodName } from '../foodName.js';
-import { isFingerprintKeyVersion } from './fingerprintKeyring.js';
+import { FINGERPRINT_KEY_VERSION_MAX, isFingerprintKeyVersion } from './fingerprintKeyring.js';
 
 /** A keyed hash of one shingle, as a signed 64-bit integer. */
 export type KeyedHash = (shingle: string) => bigint;
 
-/** The format of {@link Fingerprint}. Stored beside it; bump it when the shingling or the measure changes. */
+/**
+ * The format of {@link Fingerprint}. Stored beside it; bump it when the shingling or the measure changes, and when the
+ * text fold changes, including a data change in the `confusables` package (which is pinned for that reason).
+ */
 export const FINGERPRINT_FORMAT_VERSION = 1;
 
 /** The window sizes in use: 5 words for steps, 2 words for titles. */
@@ -90,7 +95,9 @@ export function wordShingles(text: string, size: ShingleSize): string[] {
  */
 export function fingerprint(text: string, size: ShingleSize, hash: KeyedHash, keyVersion: number): Fingerprint {
     if (!isFingerprintKeyVersion(keyVersion)) {
-        throw new RangeError('A fingerprint needs a key version that is an integer from 1 to 32767.');
+        throw new RangeError(
+            `A fingerprint needs a key version that is an integer from 1 to ${FINGERPRINT_KEY_VERSION_MAX}.`,
+        );
     }
 
     return {
@@ -107,7 +114,8 @@ export function fingerprint(text: string, size: ShingleSize, hash: KeyedHash, ke
 function assertComparable(a: Fingerprint, b: Fingerprint): void {
     if (a.formatVersion !== b.formatVersion || a.keyVersion !== b.keyVersion) {
         throw new FingerprintMismatchError(
-            `Fingerprints differ in format (${a.formatVersion}, ${b.formatVersion}) or key version (${a.keyVersion}, ${b.keyVersion}).`,
+            `Fingerprints differ in format (${a.formatVersion}, ${b.formatVersion}) ` +
+                `or key version (${a.keyVersion}, ${b.keyVersion}).`,
         );
     }
 }

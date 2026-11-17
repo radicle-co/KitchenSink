@@ -55,7 +55,7 @@ describe('wordShingles', () => {
 
     it('keeps a combining mark with no composed form inside its word', () => {
         expect(wordShingles('a\u0301\u0323 b', 2)).toHaveLength(1);
-        expect(wordShingles('a\u0301\u0323 b c', 2)).toHaveLength(2);
+        expect(wordShingles('a\u0301\u0323 b c', 2)).toEqual(['a b', 'b c']);
     });
 
     it.each([
@@ -192,6 +192,24 @@ describe('measures refuse fingerprints that cannot be compared', () => {
     it('does not mistake other errors for a mismatch', () => {
         expect(isFingerprintMismatchError(new Error('x'))).toBe(false);
         expect(isFingerprintMismatchError(undefined)).toBe(false);
+    });
+});
+
+describe('the persisted fold (fingerprint format 1)', () => {
+    /**
+     * Known answers for the whole text form: NFKC, invisibles removed, the `confusables` fold, lower case. The fold
+     * is part of what a stored fingerprint means, so any change to it, including a data change in the package, must
+     * fail here and force a new FINGERPRINT_FORMAT_VERSION. It strips accents and transliterates other scripts on
+     * purpose: it is a matcher, and a collision between two different non-Latin words cannot fill a whole 5-word window.
+     */
+    it.each([
+        ['Caf\u00E9 cr\u00E8me', ['cafe creme']],
+        ['Stra\u00DFe', ['strabe']],
+        ['\u041F\u0440\u0438\u0432\u0435\u0442 \u043C\u0438\u0440', ['npnbet mnp']],
+        ['\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC', ['eaanvlka']],
+        ['\uFF25ggs \u2460', ['eggs 1']],
+    ])('shingles %j as %j', (text, expected) => {
+        expect(wordShingles(text, 5)).toEqual(expected);
     });
 });
 

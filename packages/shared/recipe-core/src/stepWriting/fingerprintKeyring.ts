@@ -15,7 +15,7 @@ export const FINGERPRINT_KEY_VERSION_MAX = 32_767;
 
 /** Whether `value` is a usable key version: an integer from 1 to {@link FINGERPRINT_KEY_VERSION_MAX}. */
 export function isFingerprintKeyVersion(value: unknown): value is number {
-    return Number.isInteger(value) && (value as number) >= 1 && (value as number) <= FINGERPRINT_KEY_VERSION_MAX;
+    return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= FINGERPRINT_KEY_VERSION_MAX;
 }
 
 // At most five digits and no leading zero, so the name is read as an exact small integer, never a rounded one.

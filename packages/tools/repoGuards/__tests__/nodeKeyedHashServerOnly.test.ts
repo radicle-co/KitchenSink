@@ -2,8 +2,8 @@
  * Guard: `@kitchensink/recipe-core/step-writing/node-keyed-hash` is server only.
  *
  * That module imports `node:crypto`, which the web and mobile bundles do not have. It is kept off the package
- * barrel, and this guard closes the other door: only deployable services (`packages/services/**`), recipe-core
- * itself and these guards may import it. An app, the design system, a feature package, the query layer or any other
+ * barrel, and this guard enforces that: only deployable services (`packages/services/**`), these guards and
+ * recipe-core's own tests may import it. An app, the design system, a feature package, the query layer or any other
  * shared package (the apps bundle them) that imports it fails here, before a bundler or a device finds out.
  *
  * Imports are read with the TypeScript pre-processor, so a comment or a string that merely names the module is not
@@ -20,12 +20,22 @@ import { repoRoot } from './serviceSources.js';
 
 const MODULE = '@kitchensink/recipe-core/step-writing/node-keyed-hash';
 
-/** Where an import of the module is allowed. */
-const ALLOWED_PREFIXES: readonly string[] = [
-    'packages/services/',
-    'packages/shared/recipe-core/',
-    'packages/tools/repoGuards/',
-];
+/** Where an import of the module is allowed: deployable services and these guards. */
+const ALLOWED_PREFIXES: readonly string[] = ['packages/services/', 'packages/tools/repoGuards/'];
+
+/**
+ * Inside recipe-core only its own tests may import the module. Every other recipe-core source is bundled into the
+ * apps through the barrel, so a default hasher in `wordShingles.ts` or a barrel export would put `node:crypto` there.
+ */
+const RECIPE_CORE_TESTS = /^packages\/shared\/recipe-core\/(src\/.*\/__tests__|tests)\//u;
+
+/** The module as written in an import: the package subpath, or a relative path to its file. */
+const MODULE_SPECIFIER = /(^|\/)(node-keyed-hash|nodeKeyedHash)(\.js)?$/u;
+
+const isAllowed = (file: string): boolean =>
+    ALLOWED_PREFIXES.some((prefix) => file.startsWith(prefix)) ||
+    RECIPE_CORE_TESTS.test(file) ||
+    file === 'packages/shared/recipe-core/src/stepWriting/nodeKeyedHash.ts';
 
 /**
  * The files whose imports break the rule.
@@ -35,11 +45,9 @@ const ALLOWED_PREFIXES: readonly string[] = [
  */
 export function offendingImporters(sources: ReadonlyMap<string, string>): readonly string[] {
     return [...sources]
-        .filter(([file]) => !ALLOWED_PREFIXES.some((prefix) => file.startsWith(prefix)))
+        .filter(([file]) => !isAllowed(file))
         .filter(([, text]) =>
-            ts
-                .preProcessFile(text, true, true)
-                .importedFiles.some(({ fileName }) => fileName === MODULE || fileName.endsWith('/node-keyed-hash')),
+            ts.preProcessFile(text, true, true).importedFiles.some(({ fileName }) => MODULE_SPECIFIER.test(fileName)),
         )
         .map(([file]) => file);
 }
@@ -50,6 +58,12 @@ describe('offendingImporters (the rule, over fixtures)', () => {
         ['packages/apps/commise/features/recipes/src/b.tsx', `const m = await import('${MODULE}');`],
         ['packages/shared/query/src/c.ts', `const m = require('${MODULE}');`],
         ['packages/apps/commise/web/src/d.ts', `// ${MODULE} is server only\nconst s = '${MODULE}';`],
+        ['packages/shared/recipe-core/src/stepWriting/wordShingles.ts', `import { x } from './nodeKeyedHash.js';`],
+        ['packages/shared/recipe-core/src/index.ts', `export * from './stepWriting/nodeKeyedHash.js';`],
+        [
+            'packages/shared/recipe-core/src/stepWriting/__tests__/nodeKeyedHash.test.ts',
+            `import { keyedShingleHash } from '../nodeKeyedHash.js';`,
+        ],
         ['packages/services/recipe-service/src/e.ts', `import { keyedShingleHash } from '${MODULE}';`],
     ]);
 
@@ -58,6 +72,8 @@ describe('offendingImporters (the rule, over fixtures)', () => {
             'packages/apps/commise/mobile/src/a.ts',
             'packages/apps/commise/features/recipes/src/b.tsx',
             'packages/shared/query/src/c.ts',
+            'packages/shared/recipe-core/src/stepWriting/wordShingles.ts',
+            'packages/shared/recipe-core/src/index.ts',
         ]);
     });
 });

@@ -43,7 +43,7 @@ const FORMAT_CHARACTER = /^\p{Cf}$/u;
 /**
  * Whether `char` is part of a word or a number: a letter, a mark or a digit. Anything else (punctuation, a plugin's
  * checkbox "▢", a bullet, a star, an emoji) separates words like a space. The reader's one definition of word material:
- * the tokenizer, the link-only count and the gate all use it.
+ * the tokenizer, the fragment-link count and the gate all use it.
  */
 export const isWordMaterial = (char: string): boolean => LETTER_MARK_OR_DIGIT.test(char);
 

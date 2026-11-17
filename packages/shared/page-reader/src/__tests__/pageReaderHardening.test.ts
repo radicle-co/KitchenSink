@@ -500,7 +500,7 @@ describe('G-CORR on a card shaped like a recipe plugin’s', () => {
     });
 
     // Rewritten for round 9 (code-reviewer HIGH 2 on #324): an equipment list before the ingredients ("Mixing bowl") was
-    // read as furniture. It is not a labelled fact, and it cannot be told from an omitted group whose amounts are words
+    // read as furniture. It is not a meta fact under a label on the closed list (`cardMetaLabels.ts`), and it cannot be told from an omitted group whose amounts are words
     // ("One onion"), so any doubt is no: the card is refused.
     it.each([
         ['an equipment list before the ingredients', { equipment: true, nutrition: false, jumps: false }],

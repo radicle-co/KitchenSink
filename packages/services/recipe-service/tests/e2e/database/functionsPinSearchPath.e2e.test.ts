@@ -17,7 +17,11 @@ import { recipeDb } from '../../support/roleDb.js';
 
 const roleDb = recipeDb();
 
-/** The schema's own functions (extensions excluded) with no `search_path` in their settings, and the triggers that fire them. */
+/**
+ * The schema's own functions (extensions excluded) whose settings do NOT carry a `search_path` that lists `pg_temp` LAST, and
+ * the triggers that fire them. `pg_temp` listed first, or left out, searches the session's temporary schema first, and a
+ * path of `public` alone still does (an unlisted `pg_temp` is implicitly searched FIRST), so both are unpinned here.
+ */
 const UNPINNED_QUERY = `
     SELECT p.proname::text AS name,
            COALESCE((SELECT array_agg(DISTINCT t.tgname::text) FROM pg_trigger t
@@ -27,7 +31,8 @@ const UNPINNED_QUERY = `
      WHERE n.nspname = 'public'
        AND p.prokind = 'f'
        AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
-       AND NOT EXISTS (SELECT 1 FROM unnest(COALESCE(p.proconfig, ARRAY[]::text[])) AS setting WHERE setting LIKE 'search_path=%')
+       AND NOT EXISTS (SELECT 1 FROM unnest(COALESCE(p.proconfig, ARRAY[]::text[])) AS setting
+                        WHERE setting ~ '^search_path=.*, ?pg_temp$')
      ORDER BY p.proname`;
 
 describe('every function of the recipes schema pins its search_path (migration 0090)', () => {
@@ -47,7 +52,7 @@ describe('every function of the recipes schema pins its search_path (migration 0
         expect(rows.map((row) => row.name)).toEqual([]);
     });
 
-    it('goes red for a trigger function and a rule function that leave the pin out', async () => {
+    it('goes red for functions with no pin, a `public`-only pin, and a pin that lists pg_temp first', async () => {
         const found = await roleDb.asOwner(async (client) => {
             await client.query('BEGIN');
 
@@ -63,6 +68,14 @@ describe('every function of the recipes schema pins its search_path (migration 0
                     `CREATE FUNCTION recipe_probe_unpinned_rule(p uuid) RETURNS boolean AS $$ SELECT true $$ LANGUAGE sql`,
                 );
                 await client.query(
+                    `CREATE FUNCTION recipe_probe_public_only_rule(p uuid) RETURNS boolean AS $$ SELECT true $$ LANGUAGE sql
+                         SET search_path = public`,
+                );
+                await client.query(
+                    `CREATE FUNCTION recipe_probe_temp_first_rule(p uuid) RETURNS boolean AS $$ SELECT true $$ LANGUAGE sql
+                         SET search_path = pg_temp, pg_catalog, public`,
+                );
+                await client.query(
                     `CREATE FUNCTION recipe_probe_pinned_rule(p uuid) RETURNS boolean AS $$ SELECT true $$ LANGUAGE sql
                          SET search_path = pg_catalog, public, pg_temp`,
                 );
@@ -76,6 +89,8 @@ describe('every function of the recipes schema pins its search_path (migration 0
         });
 
         expect(found).toEqual([
+            { name: 'recipe_probe_public_only_rule', triggers: [] },
+            { name: 'recipe_probe_temp_first_rule', triggers: [] },
             { name: 'recipe_probe_unpinned_guard', triggers: ['trg_probe_unpinned'] },
             { name: 'recipe_probe_unpinned_rule', triggers: [] },
         ]);

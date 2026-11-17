@@ -1,7 +1,7 @@
 /**
  * The gate: whether a recipe read from a page is good enough to send, as a plain yes or no.
  *
- * DESIGN PATTERN: **Specification**, a composite of named predicates (G1 to G8 in the table below), with the numbers a
+ * DESIGN PATTERN: **Specification**, a composite of named predicates (G1 to G9 in the table below), with the numbers a
  * predicate compares against held as data per tier in {@link ACCEPTANCE_BY_TIER} (a **Registry**). It is the ONE owner of
  * "is this good enough": a strategy finds candidates and knows nothing of it, and it knows a recipe and the tier that read
  * it, never the page. The verdict is black and white (owner ruling 2026-11-15): there is no review in the middle.
@@ -75,8 +75,8 @@ const MIN_STEP_CHARS = 3;
 /** G6: the most words an ingredient-shaped step may have; a longer one is a sentence that happens to start with an amount. */
 const MAX_INGREDIENT_STEP_WORDS = 8;
 
-/** G6: how far into a step a `:` may be and still end a section label such as "For the glaze". */
-const MAX_SECTION_LABEL_CHARS = 40;
+/** G6: how far into a step a `:` may be and still end a leading label: a step name the page shows ("For the glaze") or the site's own text. */
+const MAX_LEADING_LABEL_CHARS = 40;
 
 /** Whether `char` is an uppercase letter in some script: it changes when lowercased. */
 function isUpperCase(char: string): boolean {
@@ -141,16 +141,16 @@ function isGarbled(text: string): boolean {
 /** G8: whether `text` has no word material in it ("***", a zero-width space, emoji alone): nothing a cook can read. */
 const hasNoWordMaterial = (text: string): boolean => !Array.from(text).some(isWordMaterial);
 
-/** A step without its section label ("For the glaze: 1 cup sugar" → "1 cup sugar"). */
-function withoutSectionLabel(step: string): string {
+/** A step without its leading label, the text before a colon ("For the glaze: 1 cup sugar" → "1 cup sugar"). */
+function withoutLeadingLabel(step: string): string {
     const colon = step.indexOf(':');
 
-    return colon > 0 && colon <= MAX_SECTION_LABEL_CHARS ? step.slice(colon + 1) : step;
+    return colon > 0 && colon <= MAX_LEADING_LABEL_CHARS ? step.slice(colon + 1) : step;
 }
 
 /** G6: whether a step reads as an ingredient: an amount, then a canonical unit, in a few words. */
 function isIngredientStep(step: string): boolean {
-    const text = withoutSectionLabel(step).trim();
+    const text = withoutLeadingLabel(step).trim();
 
     if (text.split(/\s+/u).length > MAX_INGREDIENT_STEP_WORDS) {
         return false;
@@ -175,7 +175,7 @@ interface Predicate {
     readonly fails: (judged: Judged) => boolean;
 }
 
-/** G1 to G8, in the table's order: the first that fails is the reason. */
+/** G1 to G9, in the table's order: the first that fails is the reason. */
 const PREDICATES: readonly Predicate[] = [
     { reason: 'titleUnusable', fails: ({ recipe }) => !recipeTitleSchema.safeParse(recipe.title).success },
     {

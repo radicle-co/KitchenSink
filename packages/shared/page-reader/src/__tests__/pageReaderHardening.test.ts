@@ -449,6 +449,38 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         ])('refuses a link whose id is first given to %s', (_name, body) => {
             expect(readPastedContent(makePage({ jsonLd: [NODE], body }))).toMatchObject(refused);
         });
+
+        // Round-6, Medium 1: a browser follows the first element with the id, whatever it is: an inline one, or one the
+        // cook cannot see. The read list further down is then not where the link goes, so the item refuses.
+        const withFirstCarrier = (carrier: string, jump = '<li><a href="#ing">Ingredients</a></li>'): string =>
+            makePage({
+                jsonLd: [NODE],
+                body: `<article><div class="jump"><div><ul>${jump}</ul></div></div>${carrier}<div id="ing"><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`,
+            });
+
+        it.each([
+            ['an inline element', '<span id="ing">x</span>'],
+            ['a hidden element', '<div hidden id="ing">x</div>'],
+            ['an element a style hides', '<div style="display:none" id="ing">x</div>'],
+            ['an element inside a hidden one', '<div hidden><p id="ing">x</p></div>'],
+            ['an element in a closed details', '<details><summary>More</summary><p id="ing">x</p></details>'],
+            ['a template itself', '<template id="ing"><p>x</p></template>'],
+            ['an element with the id padded by white space', '<span id=" ing ">x</span>'],
+        ])('refuses a link whose id is first given to %s', (_name, carrier) => {
+            expect(readPastedContent(withFirstCarrier(carrier))).toMatchObject(refused);
+        });
+
+        // An element inside a template is not in the page, and a link's trailing space is not part of its target.
+        it.each([
+            [
+                'an id inside a template',
+                '<template><p id="ing">x</p></template>',
+                '<li><a href="#ing">Ingredients</a></li>',
+            ],
+            ['a target with a trailing space', '', '<li><a href="#ing ">Ingredients</a></li>'],
+        ])('still reads a jump link with %s', (_name, carrier, jump) => {
+            expect(readPastedContent(withFirstCarrier(carrier, jump))).toMatchObject({ kind: 'extracted' });
+        });
     });
 
     // An omitted group after the read lines that opens with amounts is refused, in a container of its own too.

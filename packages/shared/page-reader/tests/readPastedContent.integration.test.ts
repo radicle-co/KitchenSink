@@ -5,6 +5,8 @@ import { MAX_PASTE_BYTES, readPastedContent } from '@kitchensink/page-reader';
 import { MAX_JSON_LD_BLOCK_BYTES, MAX_RECIPES_PER_PAGE } from '../src/pageCaps.js';
 import { parsePage, type PageDocument } from '../src/pageDocument.js';
 import type * as PageDocumentModule from '../src/pageDocument.js';
+import type * as PageTokensModule from '../src/pageTokens.js';
+import { tokensOf } from '../src/pageTokens.js';
 import { makeLinkHead, makePage, makeRecipeCard, makeRecipeNode } from '../src/__fixtures__/pageFixtures.js';
 
 /**
@@ -21,6 +23,12 @@ vi.mock('../src/pageDocument.js', async (importOriginal) => {
     const actual = await importOriginal<typeof PageDocumentModule>();
 
     return { ...actual, parsePage: vi.fn(actual.parsePage) };
+});
+
+vi.mock('../src/pageTokens.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof PageTokensModule>();
+
+    return { ...actual, tokensOf: vi.fn(actual.tokensOf) };
 });
 
 /**
@@ -279,22 +287,36 @@ describe('readPastedContent over a whole synthetic page', () => {
 
     // Round-5 review, High 1: an ingredient-name check over every jump link cost jump tokens × ingredient tokens, outside
     // the comparison budget (5 s on this 679 KB page). A jump link is now matched only by its short text on a closed list.
-    it('refuses 340 long jump links before 200 long lines within a bounded walk', () => {
+    // Round-6, Medium 2: the page must get PAST every item, or the walk never runs. So each of the 340 long items is
+    // furniture the card tolerates (a meta fact with a long value), the schema is extracted, and the cost is counted: the
+    // characters the page's items hand to the tokenizer, which the item policy and the token lookups both use, stay within
+    // a small multiple of the page's own text. A wall-time ceiling backs the count for work the count cannot see.
+    it('reads a card after 340 long tolerated items and 340 jump links, at a cost bounded by the page', () => {
         const filler = (count: number) => Array.from({ length: count }, () => 'q').join(' ');
-        const lines = Array.from({ length: 200 }, (_, index) => `${filler(450)} u${String(index)}`);
+        const lines = Array.from({ length: 200 }, (_, index) => `${filler(40)} u${String(index)}`);
         const steps = ['Mix it all.', 'Bake until golden.'];
-        const jumps = `<li><a href="#ing">${filler(448)} z</a></li>`.repeat(340);
+        const meta = `<li>Keywords: ${filler(600)} z</li>`.repeat(340);
+        const jumps = '<li><a href="#ing">Ingredients</a></li>'.repeat(340);
         const page = makePage({
             jsonLd: [makeRecipeNode({ recipeIngredient: lines, recipeInstructions: steps })],
-            body: `<article><div class="jump"><div><ul>${jumps}</ul></div></div><div id="ing"><ul>${lines.map((line) => `<li>${line}</li>`).join('')}</ul></div><ol>${steps.map((step) => `<li>${step}</li>`).join('')}</ol></article>`,
+            body: `<article><div class="jump"><div><ul>${meta}${jumps}</ul></div></div><div id="ing"><ul>${lines.map((line) => `<li>${line}</li>`).join('')}</ul></div><ol>${steps.map((step) => `<li>${step}</li>`).join('')}</ol></article>`,
         });
 
-        expect(page.length).toBeGreaterThan(600_000);
+        expect(page.length).toBeGreaterThan(400_000);
 
+        vi.mocked(tokensOf).mockClear();
+
+        const started = performance.now();
         const { result, works } = readCounted(page);
+        const elapsedMs = performance.now() - started;
+        const charsTokenized = vi.mocked(tokensOf).mock.calls.reduce((sum, [text]) => sum + text.length, 0);
 
-        expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+        expect(result).toMatchObject({ kind: 'extracted' });
         expectBoundedWalks(works);
+        // Measured: the page's text is tokenized once over (about 0.97 times its length). A second scan of each item
+        // doubles it, and a scan of each item against the lines tokenizes them again, 340 times over.
+        expect(charsTokenized).toBeLessThanOrEqual(2 * page.length);
+        expect(elapsedMs).toBeLessThan(1_500);
     });
 
     describe('a block nested 100,000 deep, under the byte cap', () => {

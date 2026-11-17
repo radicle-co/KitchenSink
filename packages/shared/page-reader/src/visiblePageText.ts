@@ -12,7 +12,7 @@
  * Only linear whitespace and newline splits run over page text, and no pattern can backtrack.
  */
 import { MAX_TOKEN_COMPARISONS, MAX_VISIBLE_NODES, MAX_VISIBLE_TOKENS } from './pageCaps.js';
-import type { ElementExtent, PageDocument, VisibleBlock } from './pageDocument.js';
+import { UNUSABLE_ID, type ElementExtent, type PageDocument, type VisibleBlock } from './pageDocument.js';
 import { tokensOf } from './pageTokens.js';
 
 /** Whether a run was found, was not, or could not be looked for within the page's comparison budget. */
@@ -152,6 +152,8 @@ interface Tokenized {
     readonly blocks: readonly BlockSpan[];
     /** The block elements of the body, by number (`VisibleBlock.element`). */
     readonly elements: readonly ElementExtent[];
+    /** What each `id` of the body names, as a browser follows it (`VisibleRead.firstIds`). */
+    readonly firstIds: ReadonlyMap<string, number>;
 }
 
 interface BlockSpan {
@@ -227,18 +229,15 @@ interface ReadAncestry {
     readonly elementById: ReadonlyMap<string, number>;
 }
 
-/** The {@link ReadAncestry} of the blocks in `read`: one walk up from each, and one pass over the elements for ids. */
-function readAncestryOf(elements: readonly ElementExtent[], read: readonly BlockSpan[]): ReadAncestry {
+/** The {@link ReadAncestry} of the blocks in `read`: one walk up from each, stopped at an ancestor already held. */
+function readAncestryOf(
+    elements: readonly ElementExtent[],
+    elementById: ReadonlyMap<string, number>,
+    read: readonly BlockSpan[],
+): ReadAncestry {
     const listParents = new Set<number>();
     const listGrandparents = new Set<number>();
     const holders = new Set<number>();
-    const elementById = new Map<string, number>();
-
-    elements.forEach(({ id }, element) => {
-        if (id !== undefined && !elementById.has(id)) {
-            elementById.set(id, element);
-        }
-    });
 
     for (const block of read) {
         if (block.item > 0) {
@@ -248,7 +247,7 @@ function readAncestryOf(elements: readonly ElementExtent[], read: readonly Block
             listGrandparents.add(grandparent);
         }
 
-        for (let element = block.element; element > 0; element = parentIn(elements, element)) {
+        for (let element = block.element; element > 0 && !holders.has(element); element = parentIn(elements, element)) {
             holders.add(element);
         }
     }
@@ -286,6 +285,7 @@ function isJumpTarget(
     // The `?? 0` cannot fire: `holder` is an element number from `elements` (DD19).
     return (
         holder !== undefined &&
+        holder !== UNUSABLE_ID &&
         ancestry.holders.has(holder) &&
         !(holder <= block.element && block.element <= (elements[holder]?.last ?? 0))
     );
@@ -315,7 +315,7 @@ function cardItemOf(
 
 /** Whether the blocks that runs were read from leave a line of their list, or a list item of their card, unread. */
 function leavesLinesUnread(
-    { blocks, elements }: Tokenized,
+    { blocks, elements, firstIds }: Tokenized,
     covered: Uint8Array,
     tolerates: (item: CardItem) => boolean,
 ): boolean {
@@ -341,7 +341,7 @@ function leavesLinesUnread(
 
     const card = cardOf(elements, read);
     const cardLast = elements[card]?.last ?? 0;
-    const ancestry = readAncestryOf(elements, read);
+    const ancestry = readAncestryOf(elements, firstIds, read);
     const span: ReadSpan = { first: read[0]?.first ?? 0, last: read.at(-1)?.last ?? 0 };
 
     // Loose text (group 0) is not a list: any other block is a line of the list its siblings are. A list item inside the
@@ -469,7 +469,7 @@ export const DEFAULT_VISIBLE_CAPS: VisibleCaps = Object.freeze({
 /** The tokens of `blocks`, or `undefined` when they pass `maxTokens`: a page that long is never half read. */
 function tokenizedBlocks(
     blocks: readonly VisibleBlock[],
-    elements: readonly ElementExtent[],
+    { elements, firstIds }: Pick<Tokenized, 'elements' | 'firstIds'>,
     maxTokens: number,
 ): Tokenized | undefined {
     const tokens: string[] = [];
@@ -510,7 +510,7 @@ function tokenizedBlocks(
         blockEnds[span.last] = 1;
     });
 
-    return { tokens, blockStarts, blockEnds, blocks: spans, elements };
+    return { tokens, blockStarts, blockEnds, blocks: spans, elements, firstIds };
 }
 
 /**
@@ -532,13 +532,13 @@ export function visibleTextOf(page: PageDocument, caps: VisibleCaps = DEFAULT_VI
         return { kind: 'noBody' };
     }
 
-    const { blocks, elements, truncated } = body.visibleText(caps.maxNodes);
+    const { blocks, elements, firstIds, truncated } = body.visibleText(caps.maxNodes);
 
     if (truncated) {
         return { kind: 'tooComplex' };
     }
 
-    const tokenized = tokenizedBlocks(blocks, elements, caps.maxTokens);
+    const tokenized = tokenizedBlocks(blocks, { elements, firstIds }, caps.maxTokens);
 
     return tokenized === undefined ? { kind: 'tooComplex' } : { kind: 'ok', text: textOfTokens(tokenized) };
 }

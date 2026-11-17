@@ -54,15 +54,24 @@ export interface ElementExtent {
     readonly parent: number;
     /** The number of its last descendant: the block elements inside it are numbered from its own up to this. */
     readonly last: number;
-    /** Its `id`, when it has one: the target a fragment link names. */
-    readonly id?: string;
 }
+
+/** What an `id` names in a browser: the number of a shown block element, or this when the first element with it is none. */
+export const UNUSABLE_ID = -1;
 
 /** A body's visible text: its blocks, the block elements they sit in, and whether the read was cut short. */
 export interface VisibleRead {
     readonly blocks: readonly VisibleBlock[];
     /** Every block element read, by number; 0 is the root of the read. */
     readonly elements: readonly ElementExtent[];
+    /**
+     * Each `id` the walk met, with the element a browser follows for it: the FIRST element that carries it, in document
+     * order, whatever it is. That is the number of a shown block element, or {@link UNUSABLE_ID} when it is an inline
+     * element or one the cook cannot see (hidden, a template itself, a closed `<details>`'s other children). The element
+     * is looked up in no other way, so a duplicate id further down never wins. Only the body is read: an id in the head is
+     * not seen.
+     */
+    readonly firstIds: ReadonlyMap<string, number>;
     readonly truncated: boolean;
 }
 
@@ -202,11 +211,19 @@ const isHiddenElement = (element: DomElement): boolean =>
     (element.name === 'dialog' && !Object.hasOwn(element.attribs, 'open')) ||
     styleHides(element.attribs['style'] ?? '');
 
+/** Whether `element` is a `<details>` that is not open, which shows only its `<summary>`. */
+const isClosedDetails = (element: DomElement): boolean =>
+    element.name === 'details' && !Object.hasOwn(element.attribs, 'open');
+
+const isSummary = (node: DomNode): boolean => isTag(node) && node.name === 'summary';
+
 /** The children a cook sees: of a `<details>` that is not open, only its `<summary>`. */
 const shownChildren = (element: DomElement): readonly DomNode[] =>
-    element.name === 'details' && !Object.hasOwn(element.attribs, 'open')
-        ? element.children.filter((child) => isTag(child) && child.name === 'summary')
-        : element.children;
+    isClosedDetails(element) ? element.children.filter(isSummary) : element.children;
+
+/** The children a cook does not see (they are still in the page, and an `id` of theirs is still followed). */
+const hiddenChildren = (element: DomElement): readonly DomNode[] =>
+    isClosedDetails(element) ? element.children.filter((child) => !isSummary(child)) : [];
 
 /** The most times {@link plainText} reads a value again to undo an earlier encoding. */
 const MAX_DECODE_PASSES = 2;
@@ -305,11 +322,43 @@ function fragmentTargetOf(element: DomElement): string | undefined {
     return href.startsWith('#') ? href.slice(1) : undefined;
 }
 
-/** A new block element's extent, numbered `element` under `parent`, with its `id` when it has one. */
-function extentOf(node: DomElement, parent: number, element: number): ElementExtent {
+/**
+ * Record the `id` of every element of `roots` and below (but nothing inside a template) as {@link UNUSABLE_ID}, unless one
+ * before it carries it already: elements the cook cannot see, which a browser follows all the same.
+ *
+ * @returns The nodes read, which is `budget` when the read stopped there.
+ */
+function unseenIds(roots: readonly DomNode[], ids: Map<string, number>, budget: number): number {
+    const stack: DomNode[] = [...roots].reverse();
+    let visited = 0;
+
+    for (let next = stack.pop(); next !== undefined; next = stack.pop()) {
+        if (visited >= budget) {
+            return visited;
+        }
+
+        visited += 1;
+
+        if (isTag(next)) {
+            noteId(next, UNUSABLE_ID, ids);
+
+            // Nothing inside a template is in the page.
+            if (next.name !== 'template') {
+                pushReversed(stack, next.children);
+            }
+        }
+    }
+
+    return visited;
+}
+
+/** Record the `id` of `node` as carried by `element`, unless an earlier element already carries it. */
+function noteId(node: DomElement, element: number, ids: Map<string, number>): void {
     const id = node.attribs['id']?.trim();
 
-    return { parent, last: element, ...(id ? { id } : {}) };
+    if (id && !ids.has(id)) {
+        ids.set(id, element);
+    }
 }
 
 /**
@@ -357,6 +406,8 @@ function blocksOf(
 ): VisibleRead & { readonly visited: number } {
     const blocks: VisibleBlock[] = [];
     const elements: ElementExtent[] = [{ parent: -1, last: 0 }];
+    const firstIds = new Map<string, number>();
+    let unseenCut = false;
     const groups = new Map<unknown, number>();
     let owner = LOOSE_TEXT;
     let current = '';
@@ -409,6 +460,15 @@ function blocksOf(
         });
     };
 
+    // The ids of what the cook cannot see, read within what is left of the node budget.
+    const unseen = (nodes: readonly DomNode[]): void => {
+        const left = maxNodes - visited;
+        const read = unseenIds(nodes, firstIds, left);
+
+        visited += read;
+        unseenCut ||= read >= left;
+    };
+
     // A node to read, or the end of a block element.
     const stack: (DomNode | BlockEnd | typeof FRAGMENT_LINK_END)[] = [...roots].reverse();
 
@@ -430,12 +490,16 @@ function blocksOf(
             owner = next.previous;
         } else if (isText(next)) {
             addText(next.data);
-        } else if (isTag(next) && !isHiddenElement(next)) {
+        } else if (isTag(next) && isHiddenElement(next)) {
+            unseen([next]);
+        } else if (isTag(next)) {
+            noteId(next, BLOCK_TAGS.has(next.name) ? elements.length : UNUSABLE_ID, firstIds);
+
             if (BLOCK_TAGS.has(next.name)) {
                 const element = elements.length;
 
                 flush();
-                elements.push(extentOf(next, owner.element, element));
+                elements.push({ parent: owner.element, last: element });
                 stack.push(new BlockEnd(owner, element));
                 groups.set(next.parent, groups.get(next.parent) ?? groups.size + 1);
                 owner = blockOwner(next, owner, element, groups.get(next.parent) ?? 0, fragmentDepth);
@@ -449,6 +513,7 @@ function blocksOf(
                 stack.push(FRAGMENT_LINK_END);
             }
 
+            unseen(hiddenChildren(next));
             pushReversed(stack, shownChildren(next));
         }
     }
@@ -456,7 +521,7 @@ function blocksOf(
     flush();
     elements[0] = { parent: -1, last: elements.length - 1 };
 
-    return { blocks, elements, truncated: next !== undefined, visited };
+    return { blocks, elements, firstIds, truncated: next !== undefined || unseenCut, visited };
 }
 
 /**
@@ -553,11 +618,11 @@ function elementView(node: DomNode, meter: WorkMeter): PageElement | undefined {
 
     /** A walk of the element's nodes, its visits added to the page's meter. */
     const walked = (maxNodes: number): VisibleRead => {
-        const { blocks, elements, truncated, visited } = blocksOf(node.children, false, maxNodes);
+        const { blocks, elements, firstIds, truncated, visited } = blocksOf(node.children, false, maxNodes);
 
         meter.visits += visited;
 
-        return { blocks, elements, truncated };
+        return { blocks, elements, firstIds, truncated };
     };
 
     return {

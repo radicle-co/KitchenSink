@@ -17,7 +17,7 @@
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run",
         "test:integration": "vitest run --config vitest.integration.config.ts",
-        "test:e2e": "vitest run --config vitest.e2e.config.ts",
+        "corpus:facts": "tsx scripts/factsSheetCorpus.ts",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",
@@ -34,6 +34,7 @@
         "eslint": "^10.0.3",
         "fast-check": "^4.10.2",
         "prettier": "^3.10.1",
+        "tsx": "^4.23.15",
         "typescript": "^6.0.3",
         "vitest": "^4.1.12"
     },

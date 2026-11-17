@@ -6,6 +6,6 @@
     // integration tier under `tests/` is deliberately INCLUDED: vitest transpiles without typechecking,
     // so leaving it out gives those specs no static analysis at all and lets type drift accumulate
     // unseen. `rootDir` is `.` rather than `src` so `tests/` can be part of the program at all.
-    "include": ["src/**/*.ts", "src/**/*.d.ts", "tests/**/*.ts"],
+    "include": ["src/**/*.ts", "src/**/*.d.ts", "tests/**/*.ts", "scripts/**/*.ts"],
     "exclude": ["node_modules", "dist"]
 }

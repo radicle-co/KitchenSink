@@ -136,27 +136,23 @@ describe('a test-principal reset relabels the principal’s statement records an
         expect(await countFor(PRINCIPAL)).toBe(1);
     });
 
+    const swapOf = (account: string): Promise<unknown> =>
+        db.execute(sql`UPDATE recipe_statement_attestations SET account_id = 'erased_00000000000000000000000000000000'
+                        WHERE account_id = ${account}`);
+
     it('refuses the swap of the same rows when no reset is running for the account', async () => {
         const mine = await insertRecipe(PRINCIPAL);
 
         await attest(mine, PRINCIPAL);
 
-        const swap = (): Promise<unknown> =>
-            db.execute(sql`UPDATE recipe_statement_attestations SET account_id = 'erased_00000000000000000000000000000000'
-                            WHERE account_id = ${PRINCIPAL}`);
-
-        await expect(swap()).rejects.toMatchObject({ cause: { message: expect.stringMatching(/append-only/) } });
+        await expect(swapOf(PRINCIPAL)).rejects.toMatchObject({ cause: { message: expect.stringMatching(/append-only/) } });
 
         // A queued reset has not started: only a running one may swap.
         await db.execute(sql`INSERT INTO test_reset_jobs (user_id, status) VALUES (${PRINCIPAL}, 'queued')`);
 
-        await expect(swap()).rejects.toMatchObject({ cause: { message: expect.stringMatching(/append-only/) } });
+        await expect(swapOf(PRINCIPAL)).rejects.toMatchObject({ cause: { message: expect.stringMatching(/append-only/) } });
         expect(await countFor(PRINCIPAL)).toBe(1);
     });
-
-    const swapOf = (account: string): Promise<unknown> =>
-        db.execute(sql`UPDATE recipe_statement_attestations SET account_id = 'erased_00000000000000000000000000000000'
-                        WHERE account_id = ${account}`);
 
     it('a running reset for one account does not let another account’s rows be relabelled', async () => {
         const theirs = await insertRecipe(BYSTANDER);

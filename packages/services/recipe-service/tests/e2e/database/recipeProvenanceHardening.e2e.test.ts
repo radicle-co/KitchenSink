@@ -57,6 +57,10 @@ describe('recipe provenance hardening (migration 0090)', () => {
         await pool.end();
     });
 
+    /** Swap the case's account for the erased token: the one UPDATE of `account_id` the guard ever lets through. */
+    const swap = (): Promise<unknown> =>
+        pool.query(`UPDATE recipe_statement_attestations SET account_id = $2 WHERE account_id = $1`, [OWNER_ID, TOKEN]);
+
     async function insertRecipe(statementKind: string | null = null): Promise<void> {
         await pool.query(
             `INSERT INTO recipes (id, owner_id, title, description, prep_time_minutes, cook_time_minutes,
@@ -306,12 +310,6 @@ describe('recipe provenance hardening (migration 0090)', () => {
     });
 
     describe('the account swap needs an erasure job in flight for that account', () => {
-        const swap = (): Promise<unknown> =>
-            pool.query(`UPDATE recipe_statement_attestations SET account_id = $2 WHERE account_id = $1`, [
-                OWNER_ID,
-                TOKEN,
-            ]);
-
         it.each(['queued', 'running'])('allows the swap while the job is %s', async (status) => {
             await insertRecipe();
             await attest(AUTHORED);
@@ -355,12 +353,6 @@ describe('recipe provenance hardening (migration 0090)', () => {
     });
 
     describe('a registered test principal\u2019s reset swaps the account, and nothing ever deletes (ADR-0095 section 6)', () => {
-        const swap = (): Promise<unknown> =>
-            pool.query(`UPDATE recipe_statement_attestations SET account_id = $2 WHERE account_id = $1`, [
-                OWNER_ID,
-                TOKEN,
-            ]);
-
         afterEach(async () => {
             await pool.query(`DELETE FROM test_reset_jobs WHERE user_id = ANY($1::text[])`, [
                 [OWNER_ID, 'someone-else'],

@@ -40,11 +40,11 @@ The real font files ship in `fonts/`: Inter 400, 500 and 600 and Manrope 600, co
 A centred modal blocks the whole screen, so it is rare. When the cook must stop and answer before anything else can happen, use one. Otherwise do not. For confirmations, modals are appropriate (owner ruling, 2026-11-17).
 
 - **Centred modal: yes.** An action that destroys something and cannot be undone. A confirmation before a commit that other people see at once, or that spends or stops money: publish, make public, buy, cancel Pro, replace a copy. Each keeps a short centred confirm. An interruption the app raises and the cook must answer, such as a timer going off. Use `ConfirmDialog` for a destructive step.
-- **Centred modal: no.** An undoable action: do it at once and offer Undo in a snackbar. Information, an outcome, a limit or a refusal: say it beside the control, or in a snackbar. An upsell or a Pro gate: an inline card where the locked feature is. A form, a picker, a list or a detail: a lighter surface below. Rating a recipe is inline stars, saved on tap with Undo; its optional comment opens in place below the stars.
-- **Lighter surfaces, in order.** Inline expansion. An anchored `Popover` or `ActionMenu`. A FAB menu on phones and tablets. A side sheet on wide screens. A bottom `Sheet` on phones. A full page for long tasks. A snackbar for outcomes.
-- **Web to mobile.** A web popover or menu becomes a bottom sheet on a phone. The create action's kinds become a FAB menu. A side sheet becomes a bottom sheet. A blocking confirm stays centred everywhere.
+- **Centred modal: no.** An undoable action: do it at once and offer Undo in a snackbar. Information, an outcome, a limit or a refusal: say it beside the control, or in a snackbar. An upsell or a Pro gate: an inline card where the locked feature is. A form, a picker, a list or a detail: a lighter surface below. Rating a recipe: ownerFeedback M2.
+- **Lighter surfaces, in order.** Inline expansion. An anchored `Popover` or `ActionMenu`. The create chooser's surface follows pasteImport spec P1. A side sheet on wide screens. A bottom `Sheet` on phones. A full page for long tasks. A snackbar for outcomes.
+- **Web to mobile.** A web popover or menu becomes a bottom sheet on a phone. The create chooser follows pasteImport spec P1. A side sheet becomes a bottom sheet. A blocking confirm stays centred everywhere.
 - **Every modal.** One at a time, never one opened from another. Short: a title, at most two sentences and the actions. The safe choice is as easy to see and press as the other. Focus moves in, stays in, and returns to the opener on close.
-- **Not built yet.** The web `Sheet` is still a centred dialog from 640 px, there is no side sheet, and `CreateFab` holds one action. Until those land, a task on `Sheet` is centred on wide screens. New designs draw the side sheet.
+- **Build status.** See `docs/design/modalUsage.md` section 7. New designs draw the side sheet.
 
 The research, the full decision table and the audit of the current boards are in `docs/design/modalUsage.md`.
 

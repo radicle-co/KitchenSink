@@ -1,1156 +1,194 @@
 # Tasks: Feature 004 — Recipe Importing
 
 **Feature**: `004-recipe-importing`
-**Regenerated**: 2026-08-02
-**Source**: `spec.md`, `plan.md`
+**Source**: [spec.md](./spec.md), [plan.md](./plan.md). Screens: [designSource.md](./designSource.md).
 
-> ⚠️ **Owner rulings, 2026-11-15 (spec `FR-064` to `FR-067`).** A link is fetched on the cook's device first and by
-> the server if that fails, so the URL fetch tasks apply to that server fetch (`FR-008`, `FR-023`). A paste is never
-> fetched. There are no facts cards, no linked card, no per-market switch and no per-source caps: T-034, T-035 and
-> T-036 are withdrawn, and so are the facts-card and `MarketCopyPolicy` items in T-014. Every user-facing import
-> spends one import allowance, 200 a day on Free and 1,000 on a paid plan, with no limit for test principals
-> (`FR-067`). New tasks for `FR-064` to `FR-067` are owed: the device fetch of a link with the server fallback, the
-> device extraction tiers with a strict yes or no, the on-device AI tier and its account setting, the Private, Public
-> or Both choice, the private copy's wording and author name, and the one allowance.
-
-> **Regeneration note.** Every file path in the previous revision was wrong: it targeted
-> `packages/api/recipe/` (a directory containing only `.gitkeep`) and `packages/shared/db/` (does not exist),
-> and placed UI in `packages/apps/commise/web/src/features/` rather than the `@commise/features-recipes`
-> package where recipe UI actually lives. It also had no mobile counterpart for attribution display, made the
-> mobile import UI a P2 that _depended on_ the web UI (violating `CODING_STANDARDS §14.1` lockstep parity),
-> specified no k6 or Maestro tests at all, sequenced all testing into a single trailing task, and carried no
-> acceptance criteria for the Catastrophic SSRF hazard. Paths below are verified against `main`.
+Shipped tasks are closed with their commit and the test file that proves them. Every other task is unbuilt and is written
+test-first. A task names its tier and its test file. A test path marked "(planned)" does not exist yet.
 
 ---
 
 ## Mandatory conventions for every task
 
-- **Test-first (§7.1, absolute).** The failing test is written before the code. A task is not startable by
-  writing implementation.
-- **Test tiers by category — omitting any one makes the task INCOMPLETE:**
-    - Non-UI (services, DALs, policies, parsers): **unit AND integration**.
-    - The service as a deployable API: additionally **e2e AND k6**.
-    - UI: **a vitest component test for EVERY state/branch**, **Playwright** (web) **AND** **Maestro** (mobile).
-- **Naming (§1a/§1b, CI-enforced by `eslint-plugin-check-file`).** Backend kebab `name.type.ts`, unit tests
-  `__tests__/*.test.ts`; e2e `tests/e2e/*.e2e.test.ts`. Frontend camelCase modules, PascalCase components,
-  mobile leaves `*.native.tsx`.
-- **Lockstep parity (§14.1).** Every user-facing task ships web **and** mobile in the same task. No waiver is
-  claimed by this feature.
-- **Localization.** No user-facing literal. Copy goes in
-  `packages/apps/commise/features/recipes/src/messages.ts` and is shared by both platforms via `useMessages`.
-- **Purity.** Policies, normalizers, and parsers are pure; impure functions carry `@sideEffect`.
+- **Test-first** ([`docs/CODING_STANDARDS.md`](../../docs/CODING_STANDARDS.md) §7.1, absolute). The failing test is
+  written before the code, and the red run is watched.
+- **Test tiers by category. Omitting one makes the task incomplete:**
+    - Non-UI (services, DALs, policies, parsers): unit and integration, with the database mocked
+      ([ADR-0032](../../docs/architecture/decisions/0032-deployed-ecosystem-test-tier.md)).
+    - A deployable service: additionally service e2e, and k6 by hand.
+    - A migration: a LOCAL e2e that asserts the migrated schema.
+    - A wire change: a contract test, with `contract:generate` leaving no diff.
+    - UI: a vitest component test for every state, on web and `.native`; one Playwright flow (web) and one Maestro flow
+      (mobile) per user story.
+- **File names** follow `docs/CODING_STANDARDS.md` §1: camelCase modules, PascalCase components, mobile leaves
+  `*.native.tsx`, no hyphens in any file name.
+- **Lockstep parity** (§14.1). A user-facing task ships web and mobile together. The one exception is the paste web-first
+  exception (`FR-062`, plan.md section 14).
+- **Localisation.** No user-facing literal. Copy goes through `@commise/i18n` and is shared by both platforms.
+- **Purity.** Policies, normalisers and parsers are pure. An impure function carries `@sideEffect`.
 
 ---
 
-## User story reference
+## Shipped
 
-| ID         | Title                                                                                  | Priority   | Requirements                       |
-| ---------- | -------------------------------------------------------------------------------------- | ---------- | ---------------------------------- |
-| US-401     | Import a recipe from a public URL                                                      | P1         | REQ-001..004, REQ-024              |
-| US-402     | Import from an Instagram caption                                                       | P1 (gated) | REQ-005, REQ-IF-001, REQ-CN-004    |
-| US-403     | Attribution on imported public recipes                                                 | P1         | REQ-016                            |
-| US-404     | Provenance classification and visibility                                               | P1         | REQ-014, REQ-015, REQ-022          |
-| ~~US-405~~ | ~~Import from a photo of a physical copy~~ — **transferred to 011** (D-001 as amended) | —          | —                                  |
-| US-412     | Paste recipe text and import it                                                        | P1         | REQ-036, REQ-021, REQ-022, REQ-023 |
-| US-406     | Reject paywalled sources                                                               | P1         | REQ-017..020                       |
-| US-407     | Duplicate source handling                                                              | P1         | REQ-003, REQ-004, REQ-CN-001       |
-| US-408     | Review and complete a draft before saving                                              | P1         | REQ-012, REQ-013, REQ-008, REQ-011 |
-| US-409     | Actionable error recovery                                                              | P1         | REQ-024, REQ-NF-005                |
-| US-410     | Paid-source attestation guardrail                                                      | P1         | REQ-021, REQ-022, REQ-023          |
-| US-411     | Import from a structured file                                                          | P1         | REQ-006                            |
-
----
-
-## Dependency graph
-
-```
-T-001 zod contract + schema-recipe regen ──┬─► T-002 schema/migrations ──► T-003 error codes
-                                           └─► T-004 shared DOMAIN types (recipe-core; wire types stay in schema-recipe)
-T-004 ──► T-005 CanonicalSourceUrl ──┐
-T-004 ──► T-006 ProvenancePolicy     ├─► T-011 ImportsService (facade)
-T-004 ──► T-007 normalizers          │
-T-004 ──► T-008 extractor chain      │
-T-002 ──► T-009 blocklist            │
-T-010 SourceFetcher + SSRF ──────────┘
-T-011 ──► T-012 drafts ──► T-013 jobs+worker ──► T-014 URL channel
-T-011 ──► T-015 file channel
-T-012 ──► T-016 confirmation bridge
-T-009 ──► T-017 admin blocklist endpoints
-T-013 ──► T-032 raw-text channel   (T-018 OCR — TRANSFERRED to 011)
-T-013 ──► T-019 Instagram channel (gated)
-T-014,T-016 ──► T-020 typed client
-T-020 ──► T-021 import UI (web+mobile) ──► T-022 draft review UI (web+mobile)
-T-020 ──► T-023 attribution UI (web+mobile)
-T-021,T-022 ──► T-024 error-state UI (web+mobile)
-ALL ──► T-025 e2e · T-026 k6 · T-027 accuracy corpus
-```
+- [x] **T-001** The import wire contract, authored as zod in the service and copied to `@kitchensink/schema-recipe`.
+      `FR-025`. Commits `58ab190f1`, `0016a7f1b` (#220). Proof:
+      [`import.schema.test.ts`](../../packages/services/recipe-service/src/recipes/__tests__/import.schema.test.ts).
+- [x] **T-003** The shipped import error codes and their mapping. `FR-016`, `FR-022`, `FR-028`. Commits `0016a7f1b`
+      (#220), `7899fa3a6` (#261). Proof:
+      [`errorContractLockstep.test.ts`](../../packages/services/recipe-service/src/common/__tests__/errorContractLockstep.test.ts).
+- [x] **T-006** The provenance policy, and provenance-aware creation in 001's recipes vertical. `FR-024`, `FR-025`.
+      Commit `7b46e90fe`. Proof:
+      [`provenancePolicy.test.ts`](../../packages/services/recipe-service/src/recipes/domain/__tests__/provenancePolicy.test.ts).
+- [x] **T-007** The normalisers: ingredient lines, quantities, durations, servings and the sanitiser. `FR-020`,
+      `FR-021`, `NFR-008`. Commit `7b46e90fe`. Proof:
+      [`ingredientLine.test.ts`](../../packages/shared/recipe-import-core/src/__tests__/ingredientLine.test.ts) and
+      [`valueNormalizers.test.ts`](../../packages/shared/recipe-import-core/src/__tests__/valueNormalizers.test.ts).
+- [x] **T-008** The device extraction tiers with a strict yes or no: schema.org JSON-LD, microdata and the rule-based
+      reader. `FR-064`, `FR-052`. Commit `8bbd17e7f` (#278). Proof:
+      [`jsonLdRecipe.test.ts`](../../packages/shared/page-reader/src/__tests__/jsonLdRecipe.test.ts),
+      [`microdataRecipe.test.ts`](../../packages/shared/page-reader/src/__tests__/microdataRecipe.test.ts) and
+      [`readPastedContent.test.ts`](../../packages/shared/page-reader/src/__tests__/readPastedContent.test.ts).
+- [x] **T-011** The import service: items, statement provenance, holds, refusals and the publish hold. `FR-015`,
+      `FR-047`, `FR-026`, `FR-027`. Commit `0016a7f1b` (#220). Proof:
+      [`importService.test.ts`](../../packages/services/recipe-service/src/import/__tests__/importService.test.ts).
+- [x] **T-015** File import: the client reads the file and sends one structured recipe per item. `FR-019`. Commits
+      `0016a7f1b` (#220), `7899fa3a6` (#261). Proof:
+      [`importRoutes.integration.test.ts`](../../packages/services/recipe-service/__tests__/integration/import/importRoutes.integration.test.ts).
+- [x] **T-049** The import controller with the one allowance, the unpaid-storage cap and safe body parsing. `FR-022`,
+      `FR-067`, `D-018`. Commit `7899fa3a6` (#261). Proof:
+      [`importRoutes.integration.test.ts`](../../packages/services/recipe-service/__tests__/integration/import/importRoutes.integration.test.ts).
+- [x] **T-050** The editor's ingredient-list paste draws on the one allowance. `FR-022`, `FR-067`. Commit `5f56fd88c`
+      (#277). Proof:
+      [`importAllowancePolicy.test.ts`](../../packages/services/recipe-service/src/common/__tests__/importAllowancePolicy.test.ts).
 
 ---
 
-## Phase 1 — Contract and foundations
+## Server link fetch and its policies
 
-### T-001 · Author the import wire contract as zod in the service, and regenerate `@kitchensink/schema-recipe`
+- [ ] **T-033** `FetchSignalPolicy` and the per-fetch signal log. `FR-023`. Pure policy: allow or deny from robots.txt
+      (the `*` group binds when no group names the agent), TDMRep, `noai`, `noimageai`, AI-crawler blocks and Content
+      Signals. One log row per fetch, with "none found". Tiers: unit
+      `packages/services/recipe-service/src/import/domain/__tests__/fetchSignalPolicy.test.ts` (planned), under the
+      mutation lens; integration for the log row.
+- [ ] **T-009** The paid list as data, seeded, with the paid classification. `FR-014`, `D-004`. One table and a pure
+      classifier over the page's structured data, the list and a metered gate. Seeded from product's starting list in
+      the same migration. Tiers: unit `.../domain/__tests__/paidClassification.test.ts` (planned); LOCAL e2e on the
+      migrated table `packages/services/recipe-service/tests/e2e/paidList.e2e.test.ts` (planned).
+- [ ] **T-017** Admin endpoints for the paid list, with an audit trail. `D-004`. Admin scope only. Tiers: unit and
+      integration `.../__tests__/paidListAdmin.integration.test.ts` (planned). The operator screen is owed a design
+      ([designSource.md](./designSource.md)) and is not in this task.
+- [ ] **T-010** The server fetcher and the SSRF guard. **Security-critical, `D-018`, non-waivable.** `NFR-006`,
+      `NFR-007`, plan.md section 4. The fetch budget, address checks with `ipaddr.js`, the connection pinned to the
+      validated address, the checks re-run on every redirect hop, no credentials. Tiers: unit on the guard (mutation lens,
+      95% gate, `D-010`) `.../fetch/__tests__/ssrfGuard.test.ts` (planned); integration with named cases (a redirect to a
+      private address, a DNS answer that resolves to a private address, IPv6 and IPv4-mapped forms)
+      `.../fetch/__tests__/sourceFetcher.integration.test.ts` (planned); service e2e against a local fixture server.
+- [ ] **T-051** The fetch error codes: `IMPORT_SOURCE_BLOCKED`, `IMPORT_SOURCE_UNREACHABLE`, `IMPORT_NO_RECIPE_FOUND`,
+      `IMPORT_NO_CAPTION`, `IMPORT_PAYLOAD_TOO_LARGE`, `IMPORT_PROVIDER_UNAVAILABLE`. `FR-016`, plan.md section 4.
+      Tiers: contract (`contract:generate` leaves no diff, schema tests accept and reject); unit on the exception filter
+      mapping `packages/services/recipe-service/src/common/__tests__/errorContractLockstep.test.ts`.
+- [ ] **T-014** The link import channel: the device fetches first, then the server, never the server for a known paid
+      site, with a fetched page going through the same tiers and the same server AI fallback as a paste. `FR-008`,
+      `FR-064`, `FR-053`, `FR-053a`. Depends on T-010, T-033, T-009, T-051. Tiers: unit; integration
+      `.../__tests__/linkImport.integration.test.ts` (planned); service e2e; Playwright flow (web) and Maestro flow
+      (mobile) for the link import.
+- [ ] **T-054** The bulk library-duplicate rule. `FR-068`. A bulk item whose web address matches a library recipe's
+      `source_url` shows "Already in your library", is skipped by default, offers "Import as a new copy" and offers no
+      Replace. The match key is the export's web address, normalised as C-001 says (the normaliser is built by 003B).
+      Tiers: unit on the match key `.../import/domain/__tests__/libraryDuplicate.test.ts` (planned); integration;
+      component tests for the state on web and `.native`; one Playwright and one Maestro flow.
 
-**Priority** P1 · **Effort** M · **Depends on** — · **Implements** REQ-IF-006, GR-015 §15-a, GR-016 §16-a, GR-017 §17-a.1/§17-a.3/§17-a.5/§17-c
+## Statements and photos
 
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-IF-006-A`
+- [ ] **T-052** The `family` statement kind, "From another person". `FR-011`, `FR-014a`. An expand-only CHECK migration,
+      one wire member in `import.schema.ts`, private only through the visibility policy, and the label never reads
+      "Written by you". Tiers: unit on the statement-to-label table `.../__tests__/statementLabel.test.ts` (planned);
+      contract; LOCAL e2e on the CHECK `.../tests/e2e/statementKind.e2e.test.ts` (planned). The `adapted` and
+      `publicDomain` kinds follow spec 016's data model.
+- [ ] **T-053** Page photos. `FR-008`, **GATED, see `D-020`.** The device fetches the page's main photo and saves it to
+      the private copy through the cook's ordinary photo upload. The fallback links to the source page and shows the
+      photo loaded on the device, never saved. The server never fetches a photo. The import contract gains the photo
+      field only in this task. Tiers: unit; integration; component tests for each state on web and `.native`; one
+      Playwright and one Maestro flow. Ships only after `D-020`'s release sign-off.
 
-Contract-first: the contract is authored **before** any handler.
+## The AI text-extraction fallback
 
-> ⛔ **REPOINTED 2026-08-12 — the target document changed, and the old one is superseded.** This task previously
-> said "All 12 import endpoints added to `specs/001-commise-recipe-app/contracts/api.openapi.yaml`", extending a
-> **hand-written** document (2,810 lines of body) that is **verified by nothing**. The recipe service's **derived**
-> document now exists at **`packages/schemas/recipe/openapi.yaml`** (**5,700 lines, 34 paths** — against the
-> hand-written file's 32 — ⚠️ re-measured 2026-08-12, correcting the **4,945** / **2,827** figures this note carried
-> from 2026-08-11; the derived document is **generated** and grew when the `versions` and `api-error` schema copies
-> landed, and the hand-written file grew by header rewrites, not by body. **`wc -l` them; do not quote these back.**),
-> generated from the zod the service authors.
->
-> **⛔ Do NOT extend the hand-written document.** Per `docs/CODING_STANDARDS.md` §15.2(6) and GR-015 §15-a.7 there
-> is **one contract document per service and it REPLACES its hand-written predecessor**; adding 12 endpoints to
-> the superseded file would make the problem strictly worse, because two artifacts would then both claim to be
-> normative and only one is verified. Where the two disagree, **the service's zod wins**. Marking the old file
-> superseded and repointing its citations is **001's T-186/T-187**.
->
-> **The "one service, one contract" instinct was right; the artifact was wrong.** 004 still does not create
-> `specs/004-recipe-importing/contracts/api.openapi.yaml`, and still adds to the **existing**
-> `@kitchensink/schema-recipe` rather than forking a new schema package — a schema package is per **SERVICE**, not
-> per feature.
+- [ ] **T-048** The fallback. `FR-056` to `FR-063`. A new Lambda under the single Bedrock role, with its own queue,
+      dead-letter queue and reserved concurrency, VPC-attached, with call site `'text-extraction'` and a row in ADR-0004's
+      `nat-consumers` table. Line numbers only, a pinned prompt builder, the 48,000-byte cap refused and never truncated,
+      the opt-out skip, `budgetSpent` not retried, a result row with an expiry, and the same advance steps and one
+      allowance as every import. Depends on T-032. The mobile paste row stays behind a flag until this ships. Tiers:
+      unit and worker tests for the cases in `spec.md`'s criteria for `FR-056` to `FR-063`
+      `packages/services/recipe-workers/src/__tests__/textExtract.test.ts` (planned); integration; LOCAL e2e on the
+      result table and erasure; service e2e; Playwright and Maestro flows for the read, `budgetSpent`, over-cap and
+      source-question states; k6 by hand. A new ADR records the queue, role and call site.
+- [ ] **T-055** The AI-attempt spend signal. `FR-061`, plan.md section 6. A per-principal attempt count in the fallback's
+      spend metrics, and an alarm when one principal's share of the month's ceiling passes a set fraction. Detection, not
+      a cap. Tiers: unit on the share calculation `.../__tests__/attemptShare.test.ts` (planned); an infra synth test for
+      the alarm.
 
-- [ ] All 12 import endpoints authored as zod at `packages/services/recipe-service/src/imports/imports.schema.ts`,
-      **beside the controller they serve** (§15.2) — never in a `dto/` directory
-- [ ] Request/response schemas: `ImportDraft`, `ImportJob`, `ExtractedRecipe`, `ParsedIngredient`, `PaywalledDomain`
-- [ ] Every `*.schema.ts` imports **only `zod` and other `*.schema.ts` files** (§15.2's load-bearing constraint) —
-      no DAL type, no drizzle schema, no Nest symbol, or the copied package breaks and drags the server graph into
-      every client
-- [ ] Routes consume that zod through **`createZodDto`** under **`nestjs-zod`'s** `ZodValidationPipe` — ⚠️ never
-      Nest's own `ValidationPipe`, under which a `createZodDto` DTO **validates nothing while looking correctly
-      wired** (this already bit identity's `PATCH /users/me`). ⛔ **No `class-validator` DTO** is added — ⚠️ **corrected
-      2026-08-12: recipe-service is no longer "mid-removal of 19 such files" (001 T-188); that removal is DONE and the
-      count was a mention count anyway.** The service has **zero** `class-validator` importers and has dropped the
-      dependency from `package.json` and `prod.package.json`, so a DTO added here would **re-introduce** the second
-      mechanism GR-016 §16-a.2 forbids and would fail repo-wide gate **G5** in
-      `packages/tools/repoGuards/__tests__/serviceSecurityInvariants.test.ts`, which has no exception list
-- [ ] **Every mutating body uses `z.strictObject()`** (GR-017 §17-c) — `z.object()` strips unknown keys silently,
-      so a misspelled field on an import request yields a `200` and a partial write the caller was told succeeded
-- [ ] `Idempotency-Key` required on `/api/v1/import/{url,instagram,text}` — modelled in the schema (a required
-      header, parsed, not merely documented) so it cannot be omitted by a handler
-- [ ] Every error response references the shipped `ErrorResponse` envelope, with the new codes enumerated
-- [ ] Status codes match `plan.md §3` exactly (422 for policy/extraction failures, not 400)
-- [ ] `npm run contract:verify` regenerates `packages/schemas/recipe` — `schemas.ts`, `types.ts` (`z.infer` only),
-      `contractHash.ts`, barrel, and the **derived** `openapi.yaml` — with **no diff**; nothing in it is hand-edited
-- [ ] `packages/services/recipe-service/src/__tests__/buildInputs.test.ts` covers the new schema file, so turbo's
-      `$TURBO_ROOT$` **`inputs`** glob rebuilds the copy on a content change; the `CONTRACT_HASH` boot assertion
-      still holds
+## The channels' surfaces
 
-⛔ **Three things that look wrong and are not.** The schema package is a literal file **COPY**, not a
-transformation — zod schemas are runtime values, so they cannot be derived from themselves. `openapi.yaml` is
-**DERIVED** output for `oasdiff`/docs/integrators and is **NEVER a codegen input** — deriving types through JSON
-Schema loses `readonly`, branded and template-literal types and flattens discriminated unions, which matters here
-because `ImportChannel` **is** a discriminated union (T-004). And the copy is wired with `$TURBO_ROOT$` **`inputs`**,
-**never `dependsOn`** — that edge closes the cycle `client → schema → service → client`, because `recipe-service`
-devDepends on its own client for the contract tier.
+- [ ] **T-032** The paste channel surfaces, web first and mobile after T-048. `FR-052`, `FR-062`, the paste design spec.
+      The shipped device read is T-008. Tiers: component tests for every state on web and `.native`; one Playwright
+      flow (web) and one Maestro flow (mobile).
+- [ ] **T-019** The Instagram official-API path, gated by `D-002`. An oEmbed adapter with an app credential, behind a
+      capability flag that defaults off. The adapter validates the raw upstream shape at the boundary with its own zod,
+      and that boundary schema is never converged away. Developed against a contract fake generated from the same zod
+      the adapter validates. Tiers: unit and integration against the fake; a contract test that pins the response shape
+      and rejects a renamed, missing, wrong-typed and null field; service e2e with the flag on and off (`404`).
+- [ ] **T-020** The typed client extension for the new routes. Wire types and runtime zod come from
+      `@kitchensink/schema-recipe`, and the client declares none of its own. Every response is parsed on receipt and
+      every outbound body is validated before the call. Extend the existing contract-skew guard
+      (`packages/clients/recipe-service/src/contractSkew.ts`), and add no second guard. Tiers: unit on every mapped error
+      status and on each parse failure; integration against a live response and a hand-skewed fixture.
+- [ ] **T-021** The import-method chooser rows. `FR-046`. Only shipped methods are listed, paste and link are separate
+      methods, and a pasted link is never fetched. Web and mobile together. Tiers: component tests for every row state;
+      one Playwright flow and one Maestro flow.
+- [ ] **T-023** Attribution display on recipes. `FR-010`. `RecipeAttribution` and `RecipeAttribution.native`, with an
+      identical public API. A source that can no longer be verified shows as such. Tiers: component tests for a web source,
+      an Instagram source, an unverifiable source and none, on both platforms.
+- [ ] **T-024** The import error states. `FR-016`, `NFR-005`. An exhaustive switch over the error-code union, so a new
+      code cannot ship without a rendering branch, each with a distinct message and next step. Tiers: a component test per
+      code on both platforms.
 
-⛔ **Do NOT add server-side response validation.** GR-016 §16-g **defers** a producing service parsing what it
-**emits** — an owner decision, not an unfinished task. Consumer-side receipt validation (T-020) is the required
-half (GR-017 §17-f).
+## The ownership claim
 
-- [ ] Contract lints clean; a schema round-trip test asserts the generated package's types match the authored zod
-- [ ] **Unit tests**: each schema accepts a valid fixture and rejects every malformed variant — wrong-typed field,
-      missing field, unknown key, absent `Idempotency-Key`
-- [ ] **Integration test**: a known-bad body posted to a **real** import route on a booted app returns `400`
-      naming the offending field (modelled on `packages/services/identity/tests/appValidation.test.ts`) — this is
-      the **only** thing that can observe the wrong-pipe failure; plus regenerate-and-diff clean
+- [ ] **T-040** Statement 1a on paste, link and social import. `FR-014a`, `FR-009`. Tiers: unit; integration; component
+      tests; one Playwright and one Maestro flow.
+- [ ] **T-041** The offer to verify the site, at import or later. `FR-014a`. Never pre-ticked, never a condition of
+      saving, not repeated after a decline. Every state has copy and a localisation key. Tiers: component tests for
+      offered, in progress, live, failed and declined.
+- [ ] **T-043** The gate reads the claim as it stands each time it runs, and a lost claim stops clearing new hits at once.
+      `FR-014a`, `020-FR-012g`. Tiers: unit; integration.
+- [ ] **T-045** The "Save to Commise" screen offers the ownership claim. `FR-053`. Tiers: component tests; Playwright flow.
+- [ ] **T-046** Claim ownership later, on a recipe already saved. `FR-055`. Tiers: unit; integration; component tests for
+      offered, claimed, verifying, verified, failed and declined; one Playwright and one Maestro flow.
+- [ ] **T-047** A social import clears its own-post hit only with a matching linked account. `FR-009`, `026-FR-061`.
+      Tiers: unit; integration.
 
-**Files** `packages/services/recipe-service/src/imports/imports.schema.ts`, `packages/schemas/recipe/*` (generated),
-`packages/services/recipe-service/src/imports/__tests__/`
+## The step check
 
----
-
-### T-002 · Database schema and migrations
-
-**Priority** P1 · **Effort** M · **Depends on** T-001 · **Implements** REQ-004, REQ-019, REQ-026, REQ-CN-001, REQ-CN-002
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ITP-007-A, UTS-CN-002`
-
-- [ ] `0019_import_drafts.sql`, `0020_import_jobs.sql`, `0021_paywalled_domains.sql`, `0022_recipes_import_columns.sql`
-- [ ] `recipes` gains **only** `import_channel` and `source_url_canonical` — `source_url`, `source_attribution`,
-      `cloned_from_id`, `source_type`, `has_substantive_edit` **already exist and MUST NOT be re-added**
-- [ ] Partial unique index on `source_url_canonical WHERE source_url_canonical IS NOT NULL AND deleted_at IS NULL`
-- [ ] CHECK constraints on every enumerated column (`status`, `import_channel`, `source_type`)
-- [ ] Expand/contract safe: all added columns nullable or defaulted, deployable ahead of the code
-- [ ] Migrations are idempotent and re-runnable
-- [ ] Drizzle schema files mirror the SQL exactly, tied to recipe-core types with `as const satisfies`
-- [ ] **Integration test** proves: the partial index rejects a concurrent duplicate insert; a soft-deleted row
-      does **not** block re-import; every CHECK rejects an out-of-domain value
-
-**Files** `src/database/migrations/0019..0022*.sql`, `src/database/schema/{import-drafts,import-jobs,paywalled-domains,recipes}.ts`, `src/database/__tests__/schema.test.ts`
-
----
-
-### T-003 · Import error codes
-
-**Priority** P1 · **Effort** S · **Depends on** T-002 · **Implements** REQ-024
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ITP-015-A`
-
-- [ ] The 10 codes from `plan.md §3` added to `RecipeErrorCode` in `@kitchensink/recipe-core`
-- [ ] Status mapping added to the **shipped** `ApiExceptionFilter` — no second filter, no error normalizer
-- [ ] Typed factory functions in `imports/import.error.ts` following the shipped `recipe.error.ts` pattern
-      (`Object.setPrototypeOf`, `is*` guard)
-- [ ] **Unit tests**: every code maps to its documented status; unknown code falls through to 500
-- [ ] Client `errors.ts` extended so each code is discriminable downstream
-
-**Files** `packages/shared/recipe-core/src/recipe.types.ts`, `src/common/filters/apiException.filter.ts`, `src/imports/import.error.ts`, `packages/clients/recipe-service/src/errors.ts`
+- [ ] **T-038** The step check and its suggestions beside the ingredient-match review. `FR-054`. The rules are `020-FR-075`
+      and `020-FR-076`. Tiers: component tests on both platforms; one Playwright and one Maestro flow.
+- [ ] **T-039** The step suggestions in the review of a flagged recipe. `FR-054`. Tiers: component tests on both
+      platforms.
 
 ---
 
-### T-004 · Shared import contracts
-
-**Priority** P1 · **Effort** S · **Depends on** T-001 · **Implements** REQ-IF-006, REQ-NF-001, REQ-NF-002
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-034-A`
-
-- [ ] `importTypes.ts`, `importDraft.ts` in `@kitchensink/recipe-core` (camelCase — §1b)
-- [ ] `ImportChannel`, `ImportJobState` and the **domain** vocabulary live here (GR-007 axis)
-- [ ] ⛔ **`ExtractedRecipe`, `ParsedIngredient`, `NormalizedDraft` and `ImportDraft` are WIRE shapes and belong to
-      `@kitchensink/schema-recipe`** (T-001), not to `recipe-core`. GR-007 governs **domain** types; GR-015 governs
-      **wire** types — the endpoint envelopes — and these four are request/response bodies of the import endpoints.
-      Declaring them here as well would create the two-independent-representations drift GR-015 exists to prevent.
-      A schema package **reuses `recipe-core` `import type`** and never re-declares its types; the reverse is
-      equally true
-- [ ] `ImportChannel` is a discriminated union enabling exhaustive switching (Visitor intent — no class hierarchy).
-      ⚠️ This is also why `openapi.yaml` must never be a codegen input: JSON Schema flattens a discriminated union
-      without explicit `oneOf`/`discriminator`, and a generated schema that silently flattens it is a contract that
-      lies
-- [ ] JSDoc on every export; zero `any`
-- [ ] **Unit tests** assert exhaustiveness: adding a channel fails compilation at every switch
-- [ ] **Unit tests** assert each `recipe-core` domain type used by a wire schema is consumed `import type` only, so
-      no runtime dependency leaks into the copied schema package
-- [ ] **Integration test**: a `git ls-files`-based assertion that no wire shape of the import endpoints is declared
-      outside `@kitchensink/schema-recipe`
-
-**Files** `packages/shared/recipe-core/src/{importTypes,importDraft}.ts`, `src/__tests__/`
-
----
-
-## Phase 2 — Pure core (no I/O)
-
-### T-005 · CanonicalSourceUrl value object
-
-**Priority** P1 · **Effort** S · **Depends on** T-004 · **Implements** REQ-003, REQ-CN-001 · **Mitigates** HAZ-019
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-024-A, UTP-024-B`
-
-- [ ] Construction canonicalizes via `normalize-url`; an unnormalized instance is unrepresentable
-- [ ] Lowercases scheme+host, strips fragment, default port, and tracking params; normalizes trailing slash
-- [ ] Rejects non-`http(s)` schemes at construction
-- [ ] Pure; JSDoc'd
-- [ ] **Unit tests** — table-driven over: case variants, `www.`, trailing slash, `utm_*`, fragments, default vs
-      explicit port, percent-encoding, IDN/punycode, `javascript:`/`file:`/`data:` rejection
-- [ ] **Mutation check**: each assertion fails if canonicalization is weakened
-
-**Files** `src/imports/policy/canonical-source-url.ts`, `src/imports/__tests__/canonical-source-url.test.ts`
-
----
-
-### T-006 · ProvenancePolicy
-
-**Priority** P1 · **Effort** S · **Depends on** T-004 · **Implements** REQ-014, REQ-021, REQ-022, REQ-023, REQ-CN-003
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-022-A, UTP-022-B`
-
-- [ ] Pure total function `(channel, attestation, citationReachable) → RecipeSourceType`
-- [ ] `url`/`instagram` → `imported_public`; `file` → `user_created` (`FR-011`); `text` → `user_created`, or `imported_paid` when attested (`FR-014a`); attested non-public source →
-      `imported_paid` (D-003)
-- [ ] _(amended 2026-11-03, owner ruling, ADR-0082)_ `imported_public` means "copied from a publicly reachable page",
-      which is fully protected and the opposite of public domain. The policy also maps the D3 statement kinds
-      (`authored`, `adapted`, `source`, `family`, `publicDomain`), and `family` and `adapted` are not `imported_paid`.
-- [ ] Detection heuristics return a **review flag only** — they never change the returned classification
-- [ ] **Does not** decide visibility; that is the shipped `evaluateVisibility` (REQ-015)
-- [ ] **Unit tests** cover the full cartesian product of inputs, including every path that must NOT yield
-      `imported_public`
-- [ ] **Integration test** asserts the **verbatim copy** of an `imported_paid` draft is refused public visibility
-      by the **shipped** policy, proving the delegation holds. _(Amended 2026-11-03, ADR-0082: the cook's Adapted
-      version and a family recipe are not refused.)_
-
-**Files** `src/imports/policy/provenance.policy.ts`, `src/imports/__tests__/provenance.policy.test.ts`
-
----
-
-### T-007 · Normalizers
-
-**Priority** P1 · **Effort** L · **Depends on** T-004 · **Implements** REQ-008, REQ-009, REQ-011, REQ-NF-010
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-018-A, UTP-019-A, UTP-020-A, UTP-021-A`
-
-- [ ] `ingredient-line.ts` — `parse-ingredient`; **always** retains `raw`; unparseable ⇒ `quantity: null` +
-      flag, never a throw
-- [ ] `value-normalizers.ts` — ISO-8601 → integer minutes (`iso8601-duration`); free-text yield → positive
-      integer where unambiguous; **absent/ambiguous ⇒ empty + flagged, NEVER a default**
-- [ ] `content-sanitizer.ts` — zero-tag allowlist over every extracted text field
-- [ ] `normalizer.service.ts` computes `missingRequired` against the shipped `CreateRecipeRequest` requirements
-- [ ] All pure; JSDoc'd
-- [ ] **Unit tests**: quantities incl. unicode fractions (`½`), ranges (`2-3`), "to taste", empty; durations
-      `PT1H30M`/`PT45M`/malformed/absent; yields `"4 servings"`/`"serves 4-6"`/`"a crowd"`/absent; sanitizer
-      against `<script>`, `<img onerror>`, entity-encoded and nested payloads
-- [ ] **Explicit test**: a recipe with no stated servings produces `missingRequired: ['servings']` and never a
-      fabricated value
-
-**Files** `src/imports/normalize/*.ts`, `src/imports/__tests__/normalize/*.test.ts`
-
----
-
-### T-008 · Extractor chain
-
-**Priority** P1 · **Effort** L · **Depends on** T-004 · **Implements** REQ-001, REQ-002, REQ-NF-003, REQ-CN-005, REQ-CN-006
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-008-A, UTP-009-A, UTP-010-A, UTP-011-A`
-
-- [ ] `recipe-extractor.port.ts` — Strategy interface; implementations return `null`, **never throw**
-- [ ] `json-ld.extractor.ts` — walks `@graph`, Zod-validates `@type === 'Recipe'` before accepting (HAZ-028)
-- [ ] `microdata.extractor.ts` (`microdata-node`), `heuristic.extractor.ts` (`cheerio`, emits confidence)
-- [ ] **RDFa is out of scope** (REQ-CN-005) — do not add a fourth extractor
-- [ ] `extractor-chain.service.ts` — first non-null wins; "fetched but nothing found" is an explicit outcome,
-      never an empty success (HAZ-009, REQ-CN-006)
-- [ ] **Unit tests per extractor** with fixture HTML: valid, malformed JSON, `@graph` arrays, multiple recipes,
-      non-Recipe JSON-LD, charset/BOM variants (HAZ-005), absent markup
-- [ ] **Integration test** over the SC-002 fixture corpus asserting chain ordering and hit rates
-
-**Files** `src/imports/extractors/*.ts`, `src/imports/__tests__/extractors/*.test.ts`, `src/imports/__fixtures__/html/`
-
----
-
-## Phase 3 — Egress and policy edge
-
-### T-009 · Paywalled-domain blocklist
-
-**Priority** P1 · **Effort** M · **Depends on** T-002 · **Implements** REQ-017, REQ-019, REQ-020 · **Mitigates** HAZ-020, HAZ-022
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-023-A, ITP-014-A`
-
-- [ ] DAL + service over `paywalled_domains` with audit fields (`added_by`, `created_at`, `reason`)
-- [ ] _(added 2026-11-03, ADR-0082)_ Known pirate hosts are seeded as blocked hosts, each with its reason
-      field filled
-- [ ] Matching is **exact host or registrable suffix — never substring** (`notnytimes.com` must not match `nytimes.com`)
-- [ ] Host normalized (lowercase, strip `www.`) before lookup
-- [ ] Bounded-TTL cache; a cache miss fails **closed** (blocked) rather than open
-- [ ] **Unit tests**: exact, subdomain, suffix, near-miss, case, `www.`, punycode
-- [ ] **Integration test** against real Postgres: CRUD, audit trail, uniqueness
-
-**Files** `src/imports/blocklist/paywalled-domains.{service,dal}.ts`, `src/imports/__tests__/blocklist/`, `src/imports/__integration__/`
-
----
-
-### T-010 · SourceFetcher and SSRF guard ⚠️ SECURITY-CRITICAL
-
-**Priority** P1 · **Effort** L · **Depends on** T-005 · **Implements** REQ-018, REQ-NF-007, REQ-NF-008, REQ-NF-009, REQ-NF-012 · **Mitigates** HAZ-001..004 (incl. **HAZ-003, Catastrophic**)
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-006-A, UTP-005-A, ITP-003-A`
-
-The previous task list specified **none** of this. Security tests are written first.
-
-- [ ] `ssrf-guard.ts`: rejects loopback, RFC-1918 private, link-local (incl. `169.254.169.254`), CGNAT,
-      unique-local, unspecified, and multicast addresses via `ipaddr.js`
-- [ ] Connection **pinned** to the validated address with a custom `undici` dispatcher, closing the
-      DNS-rebinding window between check and connect
-- [ ] Guard **and** blocklist re-evaluated on **every** redirect hop (REQ-018)
-- [ ] Budget enforced: 3s connect, 10s total, ≤5 redirects, ≤5 MB **streamed with early abort** (not buffered),
-      html content types only
-- [ ] Per-registrable-domain circuit breaker + bounded-concurrency bulkhead (`cockatiel`)
-- [ ] Retry: idempotent GET only, transient only, ≤2 attempts, exponential backoff **with full jitter**
-- [ ] `robots.txt` per RFC 9309 _(amended 2026-11-03, ADR-0082)_: the group naming our agent binds, else the `*` group
-      binds, including a bare `Disallow: /`; unreachable/unparseable robots is permissive; blocks counted
-- [ ] TDMRep, `noai`, AI-crawler blocks and `ai-input=no` honoured, one signal log row per fetch (T-033)
-- [ ] No credentials, cookies, or `Authorization` on any outbound request
-- [ ] Response bodies are **never logged** (REQ-NF-012)
-- [ ] **Unit tests** (adversarial, written first): `127.0.0.1`, `[::1]`, `10.x`, `192.168.x`, `169.254.169.254`,
-      `0.0.0.0`, decimal/octal/hex IP encodings, DNS name resolving to a private address, redirect chains ending
-      at a private address, redirect loops, oversized response, slow-loris, non-html content type, scheme downgrade
-- [ ] **Integration test** against a local malicious-server harness covering redirect-to-private and oversize
-- [ ] **A test asserting that removing the guard fails the suite** — the mutation lens applied to the one
-      Catastrophic hazard
-
-**Files** `src/imports/fetch/{source-fetcher.service,ssrf-guard,fetch-budget.config}.ts`, `src/imports/__tests__/fetch/`, `src/imports/__integration__/source-fetcher.integration.test.ts`
-
----
-
-## Phase 4 — Pipeline and lifecycle
-
-### T-011 · ImportsService facade
-
-**Priority** P1 · **Effort** M · **Depends on** T-005..T-010 · **Implements** REQ-024 · **Mitigates** HAZ-026
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-002-A, ITP-002-A`
-
-- [ ] Fixed pipeline order in ONE place: blocklist → fetch → extract → normalize → classify → dedupe → draft
-- [ ] Blocklist and classification are **hard-fail** gates; neither may be skipped or reordered
-- [ ] Every failure is a typed `RecipeDomainError`; no untyped throw escapes
-- [ ] **Unit tests** with faked ports assert the call **order**, not merely the outcome — an ordering regression
-      must fail the suite
-- [ ] **Integration test** exercises the full pipeline against real Postgres + a local fixture server
-
-**Files** `src/imports/imports.service.ts`, `src/imports/__tests__/imports.service.test.ts`
-
----
-
-### T-012 · Import drafts
-
-**Priority** P1 · **Effort** M · **Depends on** T-011 · **Implements** REQ-012, REQ-026, REQ-027
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-025-A, ITP-008-A`
-
-- [ ] DAL + service; state machine `open → confirmed | expired` with illegal transitions unrepresentable
-- [ ] `loadForOwner` returns **404 for another user's draft** — indistinguishable from absent (REQ-027)
-- [ ] `PATCH` applies user corrections and recomputes `missingRequired`
-- [ ] `expires_at = created_at + 7 days` (D-005); the retention window is stage-configurable and **capped at 7 days in production**
-- [ ] Expiry sweep deletes due drafts **and** any artifacts they own in one unit (REQ-026) _(OCR objects are 011's; 004 sweeps only what 004 stored)_ — an image must never outlive its draft
-- [ ] **Unit tests**: every transition, every illegal transition, expiry boundary
-- [ ] **Integration tests**: owner isolation (IDOR), expiry sweep removes the S3 object, correction round-trip
-
-**Files** `src/imports/drafts/*.ts`, `src/imports/__tests__/drafts/`, `src/imports/__integration__/import-drafts.integration.test.ts`
-
----
-
-### T-013 · Import jobs and worker
-
-**Priority** P1 · **Effort** M · **Depends on** T-012 · **Implements** REQ-024, REQ-028, REQ-NF-012
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-003-A, ITP-009-A`
-
-- [ ] Job state machine; typed failure code recorded on failure
-- [ ] `Idempotency-Key` resolution cached per `(key, endpoint, principal)`; a repeated key returns the original
-      outcome and does **not** import twice
-- [ ] Worker is idempotent (at-least-once delivery assumed), DLQ-routed with a retry cap, correlation-ID propagating
-- [ ] **Unit tests**: transitions, idempotent replay, terminal-state immutability
-- [ ] **Integration tests**: duplicate delivery produces one effect; poison message reaches the DLQ
-- [ ] **Daily allowance (D-006)** enforced in `ImportsService` as domain policy — **not** a second registered
-      throttler (`throttle.config.ts` documents that v6 ANDs every throttler across every route)
-- [ ] _(amended 2026-11-15: one import allowance for every user-facing channel, no limit for test principals, spec `FR-067`)_ 200 imports/day/user across channels _(the 50/day OCR sub-allowance transfers to 011 with the channel — REQ-029)_; `IMPORT_QUOTA_EXCEEDED` (`429`) carries `resetsAt`
-- [ ] Quota function accepts the principal's tier and returns identical limits for all tiers today — the seam 010 needs
-- [ ] Burst limits via shipped `@Throttle`: 10/min url+instagram, 10/min text _(the 5/min photo limit transfers to 011)_
-- [ ] **Explicit idempotency test**: same key twice ⇒ exactly one draft (`ENGINEERING_EXCELLENCE §9`)
-
-**Files** `src/imports/jobs/*.ts`, `packages/services/recipe-workers/src/import-job.worker.ts`, tests alongside
-
----
-
-### T-014 · URL import channel
-
-**Priority** P1 · **Effort** M · **Depends on** T-013 · **Implements** REQ-001, REQ-003, REQ-004 · **US-401, US-407**
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-001-A, ATP-003-A, ATP-004-A`
-
-- [ ] `POST /api/v1/import/url` → `202 { jobId }`; `GET /import/jobs/{id}` → status
-- [ ] Duplicate canonical URL resolves to the existing recipe with `cloneAvailable: true` — **200, not an error**
-- [ ] _(withdrawn 2026-11-15: no facts cards; a second import is matched by `sourceLinkKey`, spec C-001)_ The existing public item is the page's one **facts card**, readable signed out.
-      URL-only matching misses the same recipe at another address and pasted copies. That is a recorded product gap
-      (C-001), not a legal bar
-- [ ] _(withdrawn 2026-11-15: no per-market switch, spec `FR-066`)_ The stored copy follows `MarketCopyPolicy` (T-034): EU and UK keep facts and a
-      link only
-- [ ] Constraint violation on insert is caught and resolved to the winning recipe (HAZ-018)
-- [ ] **Integration test** for the concurrent-duplicate race: two simultaneous imports ⇒ exactly one recipe
-- [ ] **e2e** `import-url.e2e.test.ts` against real Postgres + LocalStack + a local fixture server
-
-**Files** `src/imports/imports.controller.ts`, `src/imports/dedup/deduplication.service.ts`, `tests/e2e/import-url.e2e.test.ts`
-
----
-
-### T-015 · File import channel
-
-**Priority** P1 · **Effort** M · **Depends on** T-011 · **Implements** REQ-006 · **US-411**
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-006-A, ATP-006-B`
-
-- [ ] `POST /api/v1/import/file` → `201 { draftId }` (sync — no outbound call)
-- [ ] Type determined by **magic bytes** (`file-type`, already a dependency), never the client MIME/filename
-- [ ] JSON / YAML (`yaml`) / Markdown-frontmatter (`gray-matter`) parsers; ≤1 MB
-- [ ] Classified `user_created` (FR-011) — file import stays available to free tier
-- [ ] `415` for unsupported format, `413` for oversize, with field-level errors on schema failure
-- [ ] **Unit tests**: each format valid/invalid; a `.json`-named file whose bytes are a ZIP is rejected
-- [ ] **Integration + e2e** coverage of the upload path
-
-**Files** `src/imports/files/*.ts`, tests alongside, `tests/e2e/import-file.e2e.test.ts`
-
----
-
-### T-029 · Provenance-aware creation in 001's recipes vertical ⚠️ CROSS-FEATURE
-
-**Priority** P1 · **Effort** M · **Depends on** T-004 · **Implements** REQ-031, REQ-032 · _(D-011)_
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-031-A, ATP-031-B, ATP-032-A`
-
-Touches **001's shipped code**, not 004's. Additive: `POST /api/v1/recipes` behaviour must be unchanged.
-
-- [ ] `RecipesService.create` accepts provenance; `evaluateVisibility` receives the **actual** `sourceType`
-      rather than the hardcoded `USER_CREATED`
-- [ ] Omitted provenance ⇒ `user_created` — existing callers and the shipped contract are unaffected
-- [ ] `RecipesService.createMany` added: **per-recipe** transaction and outcome, never all-or-nothing (HAZ-058)
-- [ ] Ingredient resolution in bulk stays asynchronous and batched — no synchronous fan-out to 003 (HAZ-059)
-- [ ] `POST /api/v1/recipes` DTO admits only `declaredSource: own | paid-source + citation`;
-      `imported_public` / `imported_physical` are **not representable** in the DTO (REQ-032, HAZ-057)
-- [ ] **Regression tests proving `POST /api/v1/recipes` is unchanged** for every existing case
-- [ ] **Unit tests**: each provenance value reaches `evaluateVisibility`; a free-tier caller cannot obtain a
-      private recipe by declaring a physical/imported source; false `imported_public` is unrepresentable
-- [ ] **Integration tests** against real Postgres for both `create` and `createMany`
-
-**Files** `packages/services/recipe-service/src/recipes/recipes.service.ts`, `dto/createRecipe.dto.ts`, tests alongside
-
----
-
-### T-030 · Multi-recipe file import + bulk confirm
-
-**Priority** P1 · **Effort** L · **Depends on** T-015, T-016, T-029 · **Implements** REQ-033, REQ-034 · _(D-012)_ · **US-415**
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-033-A, ATP-034-A`
-
-- [ ] File parser detects a collection and yields **one draft per recipe**, sharing one import job
-- [ ] Bounded: **max 1,000 recipes per file** (D-013) and max file size; streamed parse, chunked persistence (HAZ-060)
-- [ ] _(replaced 2026-10-26 and 2026-11-15: per recipe, against the one import allowance, `FR-067`)_ A bulk file import counts as **one** import against the D-006 daily allowance, not one per recipe
-- [ ] _(withdrawn 2026-11-15: no facts cards)_ A per-source cap applies to the facts cards a file would make public (T-035)
-- [ ] `POST /import/drafts/confirm-bulk` → `207` with a per-draft outcome (`created` / `already_existed` / `failed` + reason)
-- [ ] Deduplication applies **per recipe**; an already-present recipe is `already_existed`, **not** a failure
-- [ ] One recipe's failure does not discard the others (HAZ-058)
-- [ ] **Integration test**: a fixture export where some recipes are complete, some incomplete, and some already
-      exist — assert the split and that no successful recipe is lost when one row fails
-- [ ] **e2e** `import-bulk-file.e2e.test.ts`
-
-**Files** `src/imports/files/*`, `src/imports/confirm/draft-confirmation.service.ts`, `tests/e2e/import-bulk-file.e2e.test.ts`
-
----
-
-### T-016 · Draft confirmation bridge
-
-**Priority** P1 · **Effort** M · **Depends on** T-012 · **Implements** REQ-010, REQ-013, REQ-015, REQ-IF-003, REQ-IF-005, REQ-CN-007 · **US-408**
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-013-A, ATP-013-B, ITP-010-A`
-
-- [ ] `POST /import/drafts/{id}/confirm` → `201` via the **shipped** `RecipesService.create`
-- [ ] Incomplete draft ⇒ `422 IMPORT_DRAFT_INCOMPLETE` with the field list; no recipe created
-- [ ] Ingredient names submitted to the food client asynchronously; resolution **never blocks** confirmation
-- [ ] **Contains no visibility logic** — `evaluateVisibility` is invoked through the shipped write path
-- [ ] **Unit tests**: complete, incomplete, expired, wrong owner
-- [ ] **Integration tests**: created recipe carries the correct `sourceType`/attribution; food resolution
-      degrades gracefully when the food service is down (`ENGINEERING_EXCELLENCE §4`)
-- [ ] **e2e** `import-draft-confirm.e2e.test.ts`
-
-**Files** `src/imports/confirm/draft-confirmation.service.ts`, tests alongside, `tests/e2e/import-draft-confirm.e2e.test.ts`
-
----
-
-### T-017 · Admin blocklist endpoints
-
-**Priority** P1 · **Effort** S · **Depends on** T-009 · **Implements** REQ-019 · **US-406** · _(D-004)_
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-019-A, ATP-019-B`
-
-- [ ] `GET/POST/DELETE /api/v1/admin/import/paywalled-domains`, guarded by the admin scope from the signed token
-- [ ] `403` without the scope; audit trail records the acting admin ULID
-- [ ] **Unit + integration tests** incl. a non-admin principal being refused
-- [ ] **e2e** `import-blocklist.e2e.test.ts` proves a blocked domain is refused **without any outbound request**
-
-**Files** `src/imports/blocklist/paywalled-domains.controller.ts`, tests alongside
-
----
-
-### T-031 · Premium entitlement gate on non-public channels
-
-**Priority** P1 · **Effort** S · **Depends on** T-006, T-011 · **Implements** REQ-035 · _(D-014)_ · **Mitigates** HAZ-061
-
-> ⚠️ **Superseded in substance, 2026-10-26 (owner ruling, [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)).**
-> `FR-028` and D-014 no longer gate these channels on premium. Do not build the checklist below as written. A free
-> cook may use every channel, and each recipe that must be private uses one of their 50 private slots. The refusal is
-> `PRIVATE_SLOTS_FULL` (`403`, with `used` and `limit`), decided by the C-004 policy under the slot lock, and the
-> channels stay advertised. The V-Model artifacts that described the premium gate were removed on 2026-11-13.
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-035-A, ATP-035-B`
-
-- [ ] `ProvenancePolicy` reports whether a classification is non-public by policy (`imported_physical` / `imported_paid`)
-- [ ] `ImportsService` requires premium **before** the channel runs — no Textract call, no fetch, for an unentitled caller
-- [ ] Entitlement read from the signed token's `permissions` (shipped `PREMIUM_PERMISSION`); fails **closed** when unknown
-- [ ] `IMPORT_REQUIRES_PREMIUM` (`403`) — distinct from a generic authorization failure, so the client can show the upgrade path
-- [ ] `GET /import/sources` omits gated channels for an unentitled caller (no dead affordance)
-- [ ] **Unit tests**: entitled/unentitled × each channel; unknown entitlement treated as unentitled
-- [ ] **Integration test**: an unentitled attested-paid submission is rejected **before** any downstream work _(the equivalent OCR-provider assertion transfers to 011)_
-
-**Files** `src/imports/imports.service.ts`, `src/imports/policy/provenance.policy.ts`, tests alongside
-
----
-
-### T-018 · ⛔ TRANSFERRED TO 011 — do NOT build the OCR channel here _(D-001 as amended 2026-08-14; ADR-0019 §3)_
-
-**Priority** — · **Effort** — · **Depends on** — · **Implements** — · **Mitigates** —
-
-**Test-first:** n/a — 004 builds nothing here.
-
-The row is kept rather than deleted so nobody rediscovers the OCR channel from a stale artifact and builds it.
-`spec.md`'s channel-ownership banner and `FR-012` reassigned photo/OCR to
-[011-recipe-digitization](../011-recipe-digitization/spec.md) on 2026-08-14; this file was never re-synced and
-still said "P1, ships at launch". Building it would have produced **two** OCR pipelines, and 011's would have
-been the one with the on-device tier.
-
-- [x] **What it said** — `ocr-provider.port.ts` + `textract.adapter.ts`, `POST /import/photo` → `202`, S3 +
-      `sharp` preprocessing, bounded polling with a breaker, `imported_physical` drafts, source-image deletion
-      on every terminal path, OCR text never logged, and the §15-d boundary-validation discipline for Textract.
-- [x] **Why it is superseded** — the channel moved with its service. 011 runs a **stateless** image-processing
-      service (ADR-0019 §3) and submits its extracted candidates to 004's bulk import contract; a second OCR
-      pipeline in the recipe service is the duplication ADR-0019 §1 exists to prevent.
-- [x] **What survives, and where it went** — every _rule_ transfers to 011 and 011 MUST inherit rather than
-      re-derive it: the premium gate (D-014), the tighter OCR sub-quota (REQ-029), artifact deletion on draft
-      expiry (REQ-026), OCR text never logged (REQ-NF-012), and ⛔ the §15-d **opposite-case** treatment of the
-      OCR vendor — boundary-validate its raw shape with zod, never converge it, never give it an OpenAPI
-      document, and **reject an absent confidence rather than defaulting it to `0`**, because a sentinel
-      confidence silently passes the quality gate. Deleting that boundary schema in the convergence rule's
-      name is a **security regression**, not a cleanup.
-- [x] **What 004 still owes the photo method** — exactly two things, both already tasked: the chooser presents
-      photo as **unavailable-until-011** rather than omitting it or rendering a dead control (REQ-016 /
-      `FR-046`, T-021), and the bulk import contract accepts `sourceType = imported_physical` without a
-      contract change (`FR-047`, T-013/T-020).
-- [x] ⛔ **`imported_physical` is NOT what 011's mobile OCR declares.** See T-032 and `spec.md` `FR-011`:
-      client-declared `imported_physical` is **not representable** in the DTO (REQ-032, HAZ-057), so 011's
-      submission classifies **`imported_paid`**. The premium gate keeps its enforcement point either way,
-      because both classes are private-only under the shipped C-004 policy.
-
-**Files** none in 004. The build is `specs/011-recipe-digitization/`.
-
----
-
-### T-032 · Raw-text channel _(FR-052 — P1, ships at launch)_
-
-**Priority** P1 · **Effort** M · **Depends on** T-013 · **Implements** REQ-036, REQ-021, REQ-022, REQ-023, REQ-032 · **US-412**
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-036-A, ATP-036-B, ITP-013-A`
-
-Paste is a **first-class channel**, not a fallback. It is the only channel every error path in this feature
-already promises — every wireframe's failure state offers "paste manually", and the product spec's J3 journey
-is entirely about it — while `spec.md`, `plan.md` and this file shipped no endpoint, no FR and no task for it.
-That is a hole, not a new feature. It is also what the OCR transfer makes load-bearing: with photo owned by
-011, paste is how a user gets a cookbook recipe in **today**.
-
-- [ ] A paste is a one-recipe import on `POST /api/v1/import`. A page with JSON-LD or microdata is read on the device with no vendor call. `POST /api/v1/import/text` answers **`202`** and `GET /api/v1/import/text/{id}` is polled, only for text with no structured data (the AI fallback, T-048, `FR-056`)
-- [ ] Body is `{ text, declaredSource, sourceCitation? }`. `text` is bounded (48,000 UTF-8 bytes, `FR-058`) and rejected empty;
-      the bound is asserted, because an unbounded body is the memory-exhaustion vector this repo has already
-      been bitten by
-- [ ] Extracted text flows through the **same** normalize → parse → classify → draft path as every other
-      channel (`FR-047` convergence) — no second pipeline, no channel-specific draft shape
-- [ ] ⛔ **Provenance is DECLARED, never inferred.** `declaredSource` is whitelisted server-side (REQ-032):
-      `own` → **`user_created`**; `paid-source` **plus a citation** → **`imported_paid`** (FR-014a, FR-011).
-      `imported_public` and `imported_physical` are **not representable** on this endpoint — a client that
-      could declare either would grant itself a private recipe C-004 reserves for premium (HAZ-057)
-- [ ] The paste body itself is **user input at an untrusted boundary** — validated with the endpoint's own zod
-      (GR-016), and **never logged** (REQ-NF-012). A pasted cookbook page is third-party copyrighted text
-- [ ] Unparseable content **degrades, never fails**: lines that will not parse are preserved verbatim with a
-      null quantity and flagged for correction (REQ-021 / `FR-020`), so a paste of prose still produces a
-      reviewable draft rather than a `422`
-- [ ] Spends the one import allowance (`FR-061`, owner ruling 2026-11-15); 10/min burst via the shipped `@Throttle`
-- [ ] **Unit tests**: an ingredients-and-steps paste, a prose paste, a paste with no recognisable recipe,
-      empty, whitespace-only, at the size bound and one byte over, and every `declaredSource` value including
-      the two that must be rejected
-- [ ] **Integration tests**: `paid-source` without a citation is rejected; `paid-source` with one produces a
-      draft that confirms to a **private** recipe under the shipped `evaluateVisibility`; `own` produces
-      `user_created`
-- [ ] **e2e** `import-text.e2e.test.ts`
-
-**Files** `src/imports/text/*.ts`, tests alongside, `tests/e2e/import-text.e2e.test.ts`
-
----
-
-### T-019 · Instagram channel _(D-002 — gated)_
-
-**Priority** P1 (gated) · **Effort** M · **Depends on** T-013 · **Implements** REQ-005, REQ-IF-001, REQ-CN-004 · **US-402**
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-005-A, ATP-005-B, ITP-012-A`
-
-- [ ] `oembed-provider.port.ts` + Meta-hosted adapter using an app credential from SSM/Secrets
-- [ ] _(added 2026-11-03, ADR-0082)_ Official API only. No server-side video download. No frames or audio kept. No face
-      recognition. The fallback is the cook's paste, share sheet or screenshot
-- [ ] **Capability flag defaults OFF.** With it off the endpoints return `404`, the channel is absent from
-      `GET /import/sources`, and neither UI offers it — no dead affordance
-- [ ] `429` classified explicitly as throttled, not a generic failure (HAZ-010); response shape validated (HAZ-012)
-- [ ] No caption / no recipe text ⇒ `422 IMPORT_NO_CAPTION`
-- [ ] ⛔ **Instagram/Meta oEmbed is the §15-d OPPOSITE case — boundary-validate it, and NEVER "converge" it.** It is
-      an API the platform does **not** serve. The adapter **validates the raw upstream oEmbed shape at the boundary
-      with its own zod** the moment a body arrives, **MAY declare its own types**, and **gets NO OpenAPI document**.
-      Rules 17-b.1–17-b.5 do **not** apply to it, and Meta's shapes **must not enter `@kitchensink/schema-recipe`**.
-      HAZ-012's "response shape validated" **is** this obligation — it is required by GR-016, not optional hardening,
-      because the caption is untrusted third-party text that becomes a user's recipe
-- [ ] ⛔ **Deleting that boundary schema in GR-015 §15-b's name is a security regression, not a cleanup.**
-      `packages/clients/usda/src/schemas.ts` is the reference implementation and must **NEVER** be touched for it
-- [ ] **Developed and tested against a contract fake** — CI must be green without a Meta credential
-- [ ] **Unit + integration tests** via the fake; a contract test pins the expected oEmbed response shape, and the
-      boundary schema is asserted to reject a renamed, missing, wrong-typed and null-valued upstream field. ⚠️ The
-      fake must be **generated from the same zod** the adapter validates against, or the fake and the parser can
-      agree with each other while both disagree with Meta
-- [ ] **e2e** runs with the flag on against the fake, and with the flag off asserting `404`
-
-**Files** `src/imports/instagram/*.ts`, tests alongside
-
----
-
-## Phase 5 — Client and UI (web + mobile in lockstep, §14.1)
-
-### T-020 · Typed client extension
-
-**Priority** P1 · **Effort** M · **Depends on** T-014, T-016 · **Implements** REQ-IF-006
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ITP-016-A`
-
-- [ ] `importQueries.ts` / `importHooks.ts` added to `@kitchensink/recipe-service-client`
-- [ ] New error codes discriminable via `is*` guards; job polling with bounded backoff
-- [ ] ⛔ **The client declares NO wire shape of its own** (GR-015 §15-b.2, GR-017 §17-b.1). It imports wire **types
-      and runtime zod** from `@kitchensink/schema-recipe`; `types.ts` keeps only genuinely client-side types — base
-      URL and fetch config, request options, its own error shapes — **including type-only** declarations
-- [ ] **Every response is parsed with that zod at the moment the body arrives** (GR-016 §16-c.3, GR-017 §17-b.3).
-      ⚠️ **The `ImportJob` poll response is the load-bearing case**: a drifted `state` field read without parsing
-      either polls forever or reports success on a job that failed
-- [ ] **Every outbound body is validated against the schema-package zod before the call** (§16-c.2), so a malformed
-      import request fails in the caller with a usable stack rather than as a remote `400`/`422`
-- [ ] A parse failure is a typed client error naming the field — never a silent cast
-- [ ] The existing `packages/clients/recipe-service/src/contractSkew.ts` guard covers these endpoints once the hash
-      changes — **extend `src/__tests__/contractSkew.test.ts`; do NOT add a second guard**
-- [ ] ⛔ **Do NOT add server-side response validation** — GR-016 §16-g defers a producing service parsing what it
-      **emits**. This is the **consumer** parsing what it **received** (GR-017 §17-f); only this half is required
-- [ ] **Unit tests**: each method's happy path and every mapped error status; a response with a missing, renamed and
-      wrong-typed field each raise the typed parse error; an invalid outbound body is rejected **before** any fetch
-- [ ] **Integration tests** (the client package already has an `__integration__` suite): a live import response
-      parses clean, and a hand-skewed fixture does not
-
-**Files** `packages/clients/recipe-service/src/{importQueries,importHooks,client,types,errors,contractSkew}.ts`,
-`packages/clients/recipe-service/src/__tests__/contractSkew.test.ts`
-
----
-
-### T-021 · Import entry UI — **web AND mobile**
-
-**Priority** P1 · **Effort** L · **Depends on** T-020, T-032 · **Implements** REQ-016, REQ-NF-004..006, REQ-CN-008 · **US-401, US-402, US-411, US-412**
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-027-A, UTP-028-A`
-
-- [ ] `ImportEntry.tsx` + `ImportEntry.native.tsx` — identical public API (§14.3)
-- [ ] `ImportProgress.tsx` + `.native.tsx`; shared headless hooks hold all logic (no logic in render leaves)
-- [ ] Channel list driven by `GET /import/sources` so a gated channel never renders
-- [ ] ⛔ **No camera capture in this task.** Photo renders as **unavailable-until-011** with the reason shown
-      (`FR-046`) — not omitted, not a control that does nothing. T-018 is transferred; wiring a capture button
-      to a channel 004 does not build is the dead affordance `FR-046` exists to forbid.
-- [ ] Web route `app/[locale]/recipes/import/page.tsx`; mobile `screens/ImportScreen.tsx`
-- [ ] All copy localized in `messages.ts` and shared across platforms
-- [ ] **Component tests for EVERY state** — idle, submitting, queued, running, succeeded, duplicate-found,
-      each error class, channel-disabled — on **both** web and native leaves
-- [ ] **Playwright** `importUrl.spec.ts` (`getByRole`/`getByLabel` only; no `data-testid`, no `waitForTimeout`)
-- [ ] **Maestro** `import-url-flow.yaml` and `import-text-flow.yaml` _(the photo flow belongs to 011)_
-
-**Files** `packages/apps/commise/features/recipes/src/import/*`, `web/src/app/[locale]/recipes/import/page.tsx`, `web/tests/e2e/importUrl.spec.ts`, `mobile/src/screens/ImportScreen.tsx`, `mobile/.maestro/recipes/*.yaml`
-
----
-
-### T-022 · Draft review UI — **web AND mobile**
-
-**Priority** P1 · **Effort** L · **Depends on** T-021 · **Implements** REQ-012, REQ-013, REQ-008, REQ-011, REQ-021 · **US-408, US-410**
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-029-A, ATP-012-A`
-
-This is where the user completes what extraction could not determine — the pivot of the whole feature.
-
-- [ ] `ImportDraftReview.tsx` + `.native.tsx`: editable title, ingredients, steps, times, servings
-- [ ] Missing required fields are **visibly flagged and block confirmation** until completed
-- [ ] Each ingredient row shows the parsed values **and the raw line**, and is correctable
-- [ ] Low-confidence fields indicated by icon **and** text, never colour alone (REQ-NF-005)
-- [ ] Paid-source attestation + citation control (D-003), with the consequence stated before saving
-- [ ] **Component tests for EVERY state**: complete, each missing-field permutation, unparsed ingredient,
-      low confidence, expired draft, save-in-flight, save-rejected — web **and** native
-- [ ] **Playwright** `importDraft.spec.ts`; **Maestro** `import-draft-flow.yaml`
-
-**Files** `packages/apps/commise/features/recipes/src/import/ImportDraftReview*.tsx`, tests, `web/tests/e2e/importDraft.spec.ts`, `mobile/.maestro/recipes/import-draft-flow.yaml`
-
----
-
-### T-023 · Attribution display — **web AND mobile**
-
-**Priority** P1 · **Effort** S · **Depends on** T-020 · **Implements** REQ-016, REQ-025 · **US-403**
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-030-A, ATP-016-A`
-
-The previous task list had a web component here with **no mobile counterpart** — a §14.1 violation.
-
-- [ ] `RecipeAttribution.tsx` + `RecipeAttribution.native.tsx`, identical public API
-- [ ] Renders when `sourceUrl` or `sourceAttribution` is present; shows platform, author, and source link
-- [ ] Web link opens in a new tab with `rel="noopener noreferrer"`; mobile opens the system browser
-- [ ] Descriptive link text (never "click here"); accessible name present (REQ-NF-004)
-- [ ] Unverifiable source rendered as such rather than hidden (REQ-025)
-- [ ] **Component tests for EVERY state**: web source, Instagram source, cloned-with-attribution, unverifiable,
-      absent (renders nothing) — both platforms
-- [ ] Covered by the Playwright and Maestro flows in T-021/T-022
-
-**Files** `packages/apps/commise/features/recipes/src/detail/RecipeAttribution{,.native}.tsx` + `__tests__/`
-
----
-
-### T-024 · Error-state UI — **web AND mobile**
-
-**Priority** P1 · **Effort** M · **Depends on** T-021, T-022 · **Implements** REQ-024, REQ-NF-005, REQ-NF-006 · **US-409**
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-031-A, ATP-024-A`
-
-- [ ] `ImportErrorState.tsx` + `.native.tsx` mapping each error code to a distinct, actionable recovery
-- [ ] Blocked, unreachable, no-recipe-found, no-caption, unsupported-format, too-large, text-unparseable,
-      provider-unavailable, draft-expired each render a **distinct** message and next step
-- [ ] Icon + text pairing throughout (REQ-NF-005); all copy localized
-- [ ] **Component test per error code**, both platforms — an exhaustive switch over the code union so a new
-      code cannot be added without a rendering branch
-
-**Files** `packages/apps/commise/features/recipes/src/import/ImportErrorState{,.native}.tsx` + `__tests__/`
-
----
-
-## Phase 6 — Verification gates
-
-### T-025 · End-to-end suite
-
-**Priority** P1 · **Effort** M · **Depends on** T-014..T-024 · **Implements** all
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-CN-008-A`
-
-- [ ] Service e2e boots against real Postgres + LocalStack (per the shipped harness) covering every channel,
-      duplicate handling, blocked source, incomplete draft, and expiry
-- [ ] Web Playwright and mobile Maestro flows green for every user story
-- [ ] `npm run lint`, `npm run typecheck`, `npm run test`, `npm run test:e2e` all pass
-
----
-
-### T-028 · Mutation-score gates on the pure core
-
-**Priority** P1 · **Effort** S · **Depends on** T-005..T-008 · **Implements** REQ-NF-013 · _(D-010)_
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-NF-013-A`
-
-- [ ] `stryker` config scoped for `src/imports/`, extending the service's existing setup
-- [ ] Thresholds that **break the build**: `policy/` 90% · `normalize/` 90% · `fetch/ssrf-guard.ts` 95% · `extractors/` 80%
-- [ ] I/O adapters (`instagram/`, `files/`, DALs) reported but **not** gated — unkillable mutants there are noise
-- [ ] Wired into the same CI path as the existing mutation job
-- [ ] A surviving mutant in a gated module is a test defect, fixed by strengthening the assertion — **never** by
-      excluding the mutant or lowering the threshold
-
-**Files** `packages/services/recipe-service/stryker.config.*`
-
----
-
-### T-026 · k6 load and soak _(the previous task list had no performance tier at all)_
-
-**Priority** P1 · **Effort** M · **Depends on** T-025 · **Implements** REQ-NF-011 · **SC-004**
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-NF-011-A`
-
-- [ ] `packages/tools/loadtest/import.js` following the shipped `journey.js` conventions (per-VU token refresh,
-      success-only latency trends, script-relative `open()`)
-- [ ] Asserts SC-004: URL import job p95 ≤ 15s / p99 ≤ 30s; draft confirm p95 ≤ 400ms
-- [ ] Outbound fetches target a **local fixture server**, never third-party sites
-- [ ] **Soak to failure**, not merely to target — establishes the capacity limit and the next bottleneck
-- [ ] Verifies backpressure: over-capacity sheds `429`, it does not queue unboundedly or OOM
-- [ ] Wired into the `heavy-e2e` labelled CI path alongside the existing k6 job
-
-**Files** `packages/tools/loadtest/import.js`
-
----
-
-### T-027 · SC-002 accuracy corpus and measurement
-
-**Priority** P1 · **Effort** M · **Depends on** T-008 · **Implements** REQ-NF-003 · **SC-002, SC-003**
-
-**Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-NF-003-A`
-
-SC-002 is unverifiable without this; the number is meaningless until the corpus exists.
-
-- [ ] ≥50 hand-verified fixture pages spanning JSON-LD, microdata, and markup-free sources, with expected values
-- [ ] Captured as static fixtures — the measurement must be deterministic and offline, never live-fetching
-- [ ] Automated field-level accuracy report for title, ingredient lines, and steps
-- [ ] **CI gate fails below 85%** (SC-002) and below 95% zero-missing-required for JSON-LD sources (SC-003)
-- [ ] Corpus composition and licensing recorded in the plan
-
-**Files** `src/imports/__fixtures__/corpus/`, `src/imports/__tests__/extraction-accuracy.test.ts`
-
----
-
-## Task summary
-
-| ID    | Title                               | Pri  | Effort | Depends      | Web+mobile paired |
-| ----- | ----------------------------------- | ---- | ------ | ------------ | ----------------- |
-| T-001 | Wire zod + `schema-recipe` regen    | P1   | M      | —            | n/a               |
-| T-002 | Schema + migrations                 | P1   | M      | T-001        | n/a               |
-| T-003 | Import error codes                  | P1   | S      | T-002        | n/a               |
-| T-004 | Shared import contracts             | P1   | S      | T-001        | n/a               |
-| T-005 | CanonicalSourceUrl                  | P1   | S      | T-004        | n/a               |
-| T-006 | ProvenancePolicy                    | P1   | S      | T-004        | n/a               |
-| T-007 | Normalizers                         | P1   | L      | T-004        | n/a               |
-| T-008 | Extractor chain                     | P1   | L      | T-004        | n/a               |
-| T-009 | Blocklist store                     | P1   | M      | T-002        | n/a               |
-| T-010 | SourceFetcher + SSRF ⚠️             | P1   | L      | T-005        | n/a               |
-| T-011 | ImportsService facade               | P1   | M      | T-005..010   | n/a               |
-| T-012 | Import drafts                       | P1   | M      | T-011        | n/a               |
-| T-013 | Jobs + worker                       | P1   | M      | T-012        | n/a               |
-| T-014 | URL channel                         | P1   | M      | T-013        | n/a               |
-| T-015 | File channel                        | P1   | M      | T-011        | n/a               |
-| T-016 | Confirmation bridge                 | P1   | M      | T-012        | n/a               |
-| T-017 | Admin blocklist endpoints           | P1   | S      | T-009        | n/a               |
-| T-018 | ⛔ OCR channel — TRANSFERRED to 011 | —    | —      | —            | n/a               |
-| T-032 | Raw-text channel                    | P1   | M      | T-013        | n/a               |
-| T-019 | Instagram channel (gated)           | P1\* | M      | T-013        | n/a               |
-| T-020 | Typed client                        | P1   | M      | T-014, T-016 | n/a               |
-| T-021 | Import entry UI                     | P1   | L      | T-020        | ✅ yes            |
-| T-022 | Draft review UI                     | P1   | L      | T-021        | ✅ yes            |
-| T-023 | Attribution display                 | P1   | S      | T-020        | ✅ yes            |
-| T-024 | Error-state UI                      | P1   | M      | T-021, T-022 | ✅ yes            |
-| T-025 | e2e suite                           | P1   | M      | T-014..024   | ✅ both           |
-| T-026 | k6 load + soak                      | P1   | M      | T-025        | n/a               |
-| T-027 | SC-002 accuracy corpus              | P1   | M      | T-008        | n/a               |
-
-`P1*` = gated on the external Meta credential (D-002); ships disabled, does not block release.
-
-**No §14.1 single-platform waiver is claimed.** Every user-facing task (T-021..T-024) delivers web and mobile
-together.
-
----
-
-## Phase 7 — Open recipe library (added 2026-11-03, owner ruling, ADR-0082)
-
-Each task is test-first and needs no UI change except T-036. _(Amended 2026-11-15, owner rulings: T-033 applies to the
-server fetch of a link. T-034, T-035 and T-036 are withdrawn: no per-market switch and no facts cards. T-037 stays.)_
-
-### T-033 · FetchSignalPolicy and the per-fetch signal log
-
-**Priority** P1 · **Effort** M · **Depends on** T-010 · **Implements** FR-023
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] Pure `FetchSignalPolicy`: from robots.txt, TDMRep, `tdm-reservation`, `noai`, `noimageai`, AI-crawler blocks and
-      `ai-input=no`, return allow or deny with the winning signal
-- [ ] Table-driven unit tests, including a `*` group `Disallow: /` that now denies, and a group naming us that wins
-- [ ] One signal log row per fetch with each signal's reading, including "none found". It holds no page body
-- [ ] **Integration test** against real Postgres asserts the log row on allow, on deny and on "none found"
-
-**Files** `src/imports/fetch/fetchSignal.policy.ts`, `src/imports/fetch/__tests__/fetchSignal.policy.test.ts`
-
-### T-034 · _(Withdrawn 2026-11-15)_ MarketCopyPolicy (the per-market URL-import switch, D6)
-
-**Priority** P1 · **Effort** M · **Depends on** T-014 · **Implements** FR-008 ruling
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] Pure `MarketCopyPolicy`: US gives `keepPrivateCopy`. EU, UK and any market not yet cleared give
-      `factsAndLinkOnly`. The default is closed
-- [ ] The extractor stores no verbatim method, headnote or photo reference when the policy says `factsAndLinkOnly`
-- [ ] **Unit tests** for every market and for an unknown market. **Integration test** that a UK cook's URL import
-      leaves no verbatim method row
-
-### T-035 · _(Withdrawn 2026-11-15)_ Per-source cap for facts cards (single imports and bulk)
-
-**Priority** P1 · **Effort** M · **Depends on** T-030 · **Implements** FR-014b, FR-026
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] Count public facts cards per source (site, book by ISBN or title, paid site) over time, across every card and any
-      later Commise version. _(Amended 2026-11-03, owner ruling O6, ADR-0082.)_ User-recipe aggregators get NO public
-      card at all, so they are not counted. A recipe from one stays private unless the cook adapts it
-- [ ] Add an aggregator-site list as configuration, checked before any card is offered, for single and bulk imports.
-      A test imports from an aggregator host and asserts no public card is made, in a single import and in a
-      1,000-recipe file
-- [ ] Past the cap, the card is the "title, site name, link only" form (D4), and bulk recipes stay private
-- [ ] No feature lists, browses or filters public cards by site
-- [ ] **Unit and integration tests**, including a cap crossed by a 1,000-recipe file
-
-### T-036 · _(Withdrawn 2026-11-15)_ Facts card for book and paid-site recipes (D5)
-
-**Priority** P2 · **Effort** M · **Depends on** T-035 · **Implements** FR-014b
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] Public projection with the linked card's field list, no prose, headnote or photo, a credit to the book or site,
-      never in the book's order or as a book's collection
-- [ ] Web and mobile in lockstep (§14.1). Component tests for each state, a Playwright test and a Maestro flow
-- [ ] _(added 2026-11-03, owner ruling, ADR-0082 §2)_ A recipe with a public facts card counts as public and uses no
-      private slot. Unit test on the slot count, and an integration test in which a free cook at 50 private recipes
-      saves a book recipe as a facts card and is not refused (`FR-028`)
-- [ ] Bulk import offers the facts card for a book or paid-site recipe and does not pause for it. Integration test
-      with a free cook at the limit importing a book file
-
-### T-037 · Delete the page image after extraction
-
-**Priority** P1 · **Effort** S · **Depends on** T-018 transfer to 011 · **Implements** FR-012 note
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] The extraction worker deletes the page image after a successful extraction unless the cook asked to keep it
-- [ ] Video frames and audio are never stored. **Unit and integration tests** assert the deletion and the keep case
-
-### T-038 · Step check and suggestions in the import match review _(FINAL, owner ruling 2026-11-03)_
-
-**Priority** P2 · **Effort** M · **Depends on** `020` tasks N-01 to N-03 · **Implements** FR-054
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] The review screen shows a step flag and its suggestion beside the ingredient matches, on web and mobile in the
-      same release. **Component tests** cover: no flag, one flag, flag with suggestion, flag with no suggestion
-      (budget spent), accepted, edited, disputed.
-- [ ] A pending step flag does not block finishing the ingredient matches, and finished matches do not clear a flag.
-      **Unit and integration tests** assert both.
-- [ ] A private import is saved while a flag is pending. A public choice or a sale is refused. **Integration test**.
-- [ ] **Playwright** and **Maestro** flows cover accept, edit and dispute.
-
-### T-039 · Step suggestions in the review of a flagged recipe _(FINAL, owner ruling 2026-11-03)_
-
-**Priority** P2 · **Effort** S · **Depends on** T-038, `020` task N-06 · **Implements** FR-054
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] The in-review screen reuses T-038's component. A private-match flag shows only the generic message and no step
-      detail. **Component and integration tests** assert it.
-
-## Phase 8: "This is my recipe" (added 2026-11-03, owner ruling O16, ADR-0082)
-
-The owner statement 1a (`FR-014a`) on paste, URL and social import, and the offer to verify the site through 026's
-claim. It builds on ADR-0078 and adds no second way to verify. Every task is test-first: the failing tests in every
-tier come before the code.
-
-### T-040 · Owner statement 1a on paste, URL and social import
-
-**Priority** P2 · **Effort** M · **Depends on** T-014, T-032, T-019, `016` L082-08 · **Implements** FR-014a item 1 and 2, FR-008, FR-009, FR-052
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] Each channel offers statement 1a. It stores `authored` with the own origin (`016` data-model §15), sets
-      `user_created`, and the rights label derives "Written by you".
-- [ ] The own origin on a URL or social import is the page or account the server fetched or read. Any other own
-      origin is refused (`FR-025` note).
-- [ ] **Unit tests**, table-driven over the three channels, assert the stored kind and own origin. Mutation lens: a
-      build that sets `user_created` on a URL import with no statement fails.
-- [ ] **Integration test**: a URL import with statement 1a and a mismatched own origin answers a refusal and writes
-      nothing.
-- [ ] Web and mobile in lockstep (§14.1). **Component tests** for the statement choice in every state. **Playwright**
-      and **Maestro** flows for the paste and URL story.
-
-### T-041 · Offer to verify the site, at import or later
-
-**Priority** P2 · **Effort** M · **Depends on** T-040, `026-L07` · **Implements** FR-014a item 4
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] The import offers 026's claim when the own origin's domain has no live claim of this cook. The offer is never
-      pre-ticked and never blocks the save. After a decline for a domain it is not shown again for that domain.
-- [ ] The cook can start the claim later from the recipe and from settings.
-- [ ] **Component tests** for offered, in progress, live, failed and declined. **Integration test**: a save with the
-      offer declined succeeds and records no claim. **Playwright** and **Maestro** flows for verify-at-import.
-
-### T-042 · An owner import is never routed into a clone
-
-**Priority** P2 · **Effort** S · **Depends on** T-040 · **Implements** FR-008 owner note item 2
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] _(withdrawn 2026-11-15 with the facts card)_ A URL import with statement 1a of a page that already has a public facts card by another cook creates the
-      cook's own recipe and leaves the card as it is.
-- [ ] **Unit test** on the dedup branch, and an **integration test** against the C-001 constraint: the owner import
-      succeeds, and an import of the same page without the statement still surfaces the card.
-
-### T-043 · The gate reads the claim: unverified versus verified, persistence, and loss
-
-**Priority** P1 · **Effort** M · **Depends on** T-040, `020` K082-26 to K082-28 · **Implements** FR-014a items 2, 3, 5 and 6
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] Unverified: a URL import with statement 1a, headed public, goes to a person with the statement shown. It does not
-      go public on its own.
-- [ ] Verified: the same import from a domain with this cook's live claim clears the own-origin hit. Any other signal
-      still sends it to a person.
-- [ ] Persistence: a second import from the same verified domain clears the own-origin hit without a new offer or a
-      new proof.
-- [ ] Loss: after the claim fails, an already cleared recipe stays public, and a new import from that domain goes to a
-      person.
-- [ ] **Integration tests** for all four. **Deployed e2e** for the unverified and verified pair. **Playwright** and
-      **Maestro** for the verified owner story, end to end.
-
-### T-044 · Paste and social owner imports always go to a person on an own-page hit
-
-**Priority** P2 · **Effort** S · **Depends on** T-040 · **Implements** FR-014a item 7
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] A pasted recipe with statement 1a, whose text the web search finds on the cook's own claimed page, goes to a
-      person. The claim does not clear a web-search hit (ADR-0078 §1).
-- [ ] A social import with statement 1a and no matching linked account goes to a person on a hit on its own post.
-      _(rewritten 2026-11-03, owner ruling, ADR-0082 §9, to prove the new behaviour. Was: "until social proof exists".
-      The matching-link case is T-047.)_
-- [ ] **Integration tests** for both. Mutation lens: a claim that clears a web-search hit fails the paste test.
-
-### T-045 · The "Save to Commise" screen offers the ownership claim
-
-**Priority** P2 · **Effort** S · **Depends on** T-040, T-041 · **Implements** FR-053 (amended 2026-11-03), FR-014a
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] The save screen offers "This is my recipe, from my site", never pre-ticked and never a condition of saving.
-- [ ] With the statement the save is `user_created` and "Written by you". Without it the save is never `user_created`.
-- [ ] **Unit test** over the two cases. Mutation lens: a build that sets `user_created` on a save with no statement
-      fails.
-- [ ] **Component tests** for every state of the offer. **Playwright** and **Maestro** flows for a save with and
-      without the claim, in lockstep (§14.1).
-
-### T-046 · Claim ownership later, on a recipe already saved
-
-**Priority** P2 · **Effort** M · **Depends on** T-040, T-041 · **Implements** FR-055
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] A saved recipe without statement 1a offers the claim from the recipe and from settings.
-- [ ] Claiming later records a new attestation with its own time and keeps the earlier statement. The label derives
-      "Written by you" from then on.
-- [ ] The claim changes no outcome by itself. The next door to public or sale reads the claim or link as it stands then,
-      and a recipe already public is not reopened.
-- [ ] **Unit tests** for the label before and after. **Integration test**: claim later, then publish, and the gate
-      reads the live claim. Mutation lens: a build that rewrites the earlier statement in place fails.
-- [ ] **Component tests** for offered, claimed, verifying, verified, failed and declined. **Playwright** and
-      **Maestro** flows for claim-later.
-
-### T-047 · A social import clears its own-post hit only with a matching linked account
-
-**Priority** P1 · **Effort** M · **Depends on** T-040, `026-FR-061`, `020` K082-31 and K082-32 · **Implements** FR-009
-(amended 2026-11-03), FR-014a item 7
-
-**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
-
-- [ ] A social import whose post author id matches the cook's linked account clears the own-post hit. Any other signal
-      still sends it to a person.
-- [ ] A mismatched author id, a post with no author id, or no linked account clears nothing.
-- [ ] A revoked token or an unlink stops clearing new imports at once. A recipe already public stays public.
-- [ ] The import offers the link when the cook makes statement 1a and holds no link for that platform. The offer is
-      never pre-ticked.
-- [ ] **Unit tests**, table-driven over match, mismatch, no author id and no link. **Integration tests** for revoke and
-      unlink. **Playwright** and **Maestro** flows for link-at-import. Mutation lens: a rule that clears on the bare
-      statement fails.
-
----
-
-### T-048 · AI text-extraction fallback _(FR-056 to FR-063, added 2026-11-15, owner ruling)_
-
-**Priority** P1 · **Effort** L · **Depends on** T-032, T-013 · **Implements** FR-056, FR-057, FR-058, FR-059, FR-060, FR-061, FR-062, FR-063
-
-**Test-first:** true. Write the tests for every tier below and watch them fail before any implementation.
-
-- [ ] New Lambda `RecipeTextExtractFunction` under the single Bedrock role, with its own queue, DLQ and reserved
-      concurrency, VPC-attached. New `SPEND_CALL_SITES` member `'text-extraction'`. ADR-0004's `nat-consumers` table
-      gains a row. `llmSpendGuards` stays green and `natEgressConsumers` is updated.
-- [ ] Prompt builder takes the text only, signature pinned, system prompt pinned by length and SHA-256. The model returns
-      line numbers only. Out-of-range or overlapping ranges are refused.
-- [ ] Input over 48,000 UTF-8 bytes is refused, never truncated. A page opt-out (`noai`, `noimageai`, TDM reservation) skips the fallback with a neutral type-it-in message (`FR-063`, confirmed before launch).
-- [ ] Pasted text is deleted when the job leaves `pending`. All six states have copy and a localisation key.
-- [ ] A ceiling denial ends `budgetSpent`, is acknowledged and is not retried. An unreadable counter retries. A job
-      older than 10 minutes is `failed`.
-- [ ] A guessed source fills a suggestion only. The item stays under "Needs your statement".
-- [ ] The result goes through the one import pipeline and the one import allowance (one unit per successful extraction; a failed one costs nothing, awaiting an owner ruling). No second save path.
-- [ ] New result table with expiry, covered by erasure, the test-principal purge and the TTL sweep.
-- [ ] The mobile paste row is behind a flag that turns on only when this task ships. Web HTML paste ships earlier.
-- [ ] **Unit and worker tests**: the cases in the `FR-056` to `FR-062` acceptance criteria in `spec.md`. **Integration
-      tests** (database mocked, DD12). **LOCAL e2e** on the result table and erasure. **Playwright** (web) and **Maestro**
-      (mobile) for the read, `budgetSpent`, over-cap and source-question states. **k6** by hand.
-- [ ] ADRs amended in place: ADR-0024 §3 and §4c, ADR-0072 §3 and §8, ADR-0004 table, ADR-0026 Relates note, ADR-0089 §1 and §7, ADR-0072 §1 and §9. Write ADR-0092.
-- [ ] **Depends on, not yet tasked**: the import controller, the device page reader and the paste channel (blueprint PRs A to C). T-032 is rewritten to the amended `FR-052`.
-
-**Files** `packages/services/recipe-workers/**`, `packages/services/recipe-service/src/import/**`, tests alongside
+## Verification gates
+
+- [ ] **T-025** The end-to-end suite. Service e2e against a real Postgres and LocalStack (the shipped harness) for every
+      channel, the duplicate choice, a blocked source and the holds. Web Playwright and mobile Maestro flows for every
+      user story. `npm run lint`, `npm run typecheck`, `npm run test` and `npm run test:e2e` pass.
+- [ ] **T-028** The mutation-score gates on the pure core (`D-010`): `policy/` and `normalize/` at 90%, the SSRF guard at
+      95%, `extractors/` at 80%. I/O adapters are reported and not gated. A surviving mutant in a gated module is a test
+      defect, fixed by strengthening the assertion, never by excluding the mutant or lowering the threshold. Config:
+      `packages/services/recipe-service/stryker.conf.json`.
+- [ ] **T-026** k6 load and soak for the server fetch. `SC-004`: p95 15 seconds and p99 30 seconds for a link import job.
+      Outbound fetches target a local fixture server, never a third-party site. Soak to failure, and verify that
+      over-capacity sheds `429` and does not queue without bound. Run by hand.
+- [ ] **T-027** The `SC-002` held-out corpus and measurement. The corpus is stratified by extraction tier, hand-verified,
+      captured as static fixtures so the measurement is deterministic and offline, with a report of each tier's coverage
+      and wrong-yes bound (`SC-002`, `SC-003`, `D-009`). New pages go in `packages/shared/page-reader/src/__fixtures__/`, beside the page reader.

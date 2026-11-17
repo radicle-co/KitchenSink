@@ -1,30 +1,27 @@
 /**
- * The step-writing engine's first three stages across their real seams: the facts sheet check, the prompt builder,
- * a writer port, and the answer reader. Only the writer is a stub (the model is the one thing this tier does not
- * call). The engine has no database.
+ * The step-writing engine's first three stages across their real seams, imported through the package's own export
+ * map: the facts sheet check, the prompt builder, a writer port, and the answer reader. Only the writer is a stub (the
+ * model is the one thing this tier does not call). The engine has no database.
  *
- * What a unit test of one stage cannot show, and this does: the facts a recipe's sheet carries are the only thing the
- * writer is sent, and whatever the writer answers is read as data by the real reader, with the refusals the caller
- * counts.
+ * What a unit test of one stage cannot show, and this does: a sheet that carries extra fields (a title, a headnote,
+ * the source's step text, planted fields inside nested facts) sends the writer none of them, and whatever the writer
+ * answers is read as data by the real reader, with the refusals the caller counts. A broken export entry fails this
+ * file at import.
  */
+import { isFactsSheetInvalidError } from '@kitchensink/recipe-core/step-writing/facts-sheet-input';
+import { parseStepAnswer } from '@kitchensink/recipe-core/step-writing/step-answer';
+import { buildStepPrompt } from '@kitchensink/recipe-core/step-writing/step-prompt';
 import { describe, expect, it } from 'vitest';
 
-import { isFactsSheetInvalidError } from '../src/stepWriting/factsSheetInput.js';
-import { parseStepAnswer } from '../src/stepWriting/stepAnswer.js';
-import { buildStepPrompt } from '../src/stepWriting/stepPrompt.js';
-
-import type { FactsSheet } from '../src/stepWriting/factsSheet.types.js';
-import type { StepAnswer } from '../src/stepWriting/stepAnswer.js';
-import type { StepPrompt } from '../src/stepWriting/stepPrompt.js';
+import type { FactsSheet } from '@kitchensink/recipe-core/step-writing/facts-sheet-types';
+import type { StepAnswer } from '@kitchensink/recipe-core/step-writing/step-answer';
+import type { StepPrompt } from '@kitchensink/recipe-core/step-writing/step-prompt';
 
 /** The writer port: one prompt in, the model's raw reply out. */
 type StepWriter = (prompt: StepPrompt) => Promise<string>;
 
-/** The source recipe's own words. They exist only here, so a prompt that holds any of them has leaked. */
-const SOURCE_WORDING = [
-    'Preheat the oven to 400 degrees. Melt the butter in my grandmother skillet and let it foam for a minute.',
-    'Roast the SENTINEL-chicken until the juices run clear, about twenty minutes.',
-];
+/** The source's own words. They exist only in planted fields, so a prompt that holds any of them has leaked. */
+const SENTINEL = 'SENTINEL-source-wording-4d2e';
 
 const SHEET: FactsSheet = {
     language: 'en',
@@ -51,6 +48,29 @@ const SHEET: FactsSheet = {
     ],
 };
 
+/**
+ * The same sheet with the source's wording planted where a careless caller or a careless builder would leave it:
+ * beside the sheet, beside each step, and inside every kind of nested fact.
+ */
+function widened(): FactsSheet & { title: string; headnote: string; sourceAddress: string } {
+    const plant = <T extends object>(fact: T): T & { text: string } => ({ ...fact, text: SENTINEL });
+
+    return {
+        ...SHEET,
+        title: SENTINEL,
+        headnote: SENTINEL,
+        sourceAddress: SENTINEL,
+        steps: SHEET.steps.map((step) => ({
+            ...step,
+            text: SENTINEL,
+            amounts: step.amounts.map(plant),
+            temperatures: step.temperatures.map(plant),
+            durations: step.durations.map(plant),
+            safety: step.safety.map(plant),
+        })),
+    };
+}
+
 /** The engine's first three stages, as a caller composes them. */
 async function writeSteps(sheet: FactsSheet, writer: StepWriter, cap: number): Promise<StepAnswer> {
     return parseStepAnswer(await writer(buildStepPrompt(sheet)), cap);
@@ -71,7 +91,7 @@ describe('the engine round trip, with a stub writer', () => {
             });
         };
 
-        const result = await writeSteps(SHEET, writer, 80);
+        const result = await writeSteps(widened(), writer, 80);
 
         expect(result).toEqual({
             ok: true,
@@ -84,13 +104,13 @@ describe('the engine round trip, with a stub writer', () => {
 
         const sent = `${received[0]?.systemPrompt ?? ''}${received[0]?.userMessage ?? ''}`;
 
-        for (const wording of SOURCE_WORDING) {
-            expect(sent).not.toContain(wording);
-        }
-
+        expect(sent).not.toContain(SENTINEL);
         expect(sent).not.toContain('SENTINEL');
         expect(sent).toContain('chicken thigh');
         expect(sent).toContain('"maxSeconds":1200');
+        expect(sent).toContain('"quantity":2');
+        expect(sent).toContain('"scale":"F"');
+        expect(sent).toContain('juices run clear');
     });
 
     it('turns a writer that wraps its answer, links out, or runs past the cap into the refusals the caller counts', async () => {
@@ -112,7 +132,7 @@ describe('the engine round trip, with a stub writer', () => {
         });
     });
 
-    it('never calls the writer for a sheet that carries wording', async () => {
+    it('never calls the writer for a sheet that carries wording in a field it reads', async () => {
         const calls: StepPrompt[] = [];
 
         const writer: StepWriter = async (prompt) => {
@@ -121,7 +141,12 @@ describe('the engine round trip, with a stub writer', () => {
             return '{}';
         };
 
-        const hostile: FactsSheet = { ...SHEET, ingredientNames: [SOURCE_WORDING[0] ?? ''] };
+        const hostile: FactsSheet = {
+            ...SHEET,
+            ingredientNames: [
+                'Preheat the oven to 400 degrees. Melt the butter in my grandmother skillet and let it foam.',
+            ],
+        };
 
         await expect(writeSteps(hostile, writer, 80)).rejects.toSatisfy(isFactsSheetInvalidError);
         expect(calls).toHaveLength(0);

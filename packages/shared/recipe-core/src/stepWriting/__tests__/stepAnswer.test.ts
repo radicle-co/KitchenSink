@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { PLAIN_FACT_PUNCTUATION } from '../factsSheetInput.js';
 import { MAX_ANSWER_CAP, MAX_REWRITTEN_STEP_CHARS, parseStepAnswer } from '../stepAnswer.js';
 
 const answer = (steps: unknown): string => JSON.stringify({ steps });
@@ -118,6 +119,21 @@ describe('parseStepAnswer, text that is not plain', () => {
         ['a full-width full stop used as a dot', 'Open evil\uFF0Ecom now.'],
         ['full-width letters and an ideographic full stop', 'Open ｅｖｉｌ。ｃｏｍ now.'],
         ['mixed-width letters and an ideographic full stop', 'Open evil。ｃom now.'],
+        ['a javascript scheme', 'Run javascript:alert(1) now.'],
+        ['a data scheme', 'Open data:text/html,hi now.'],
+        ['a vbscript scheme', 'Run vbscript:x now.'],
+        ['a file scheme', 'Open file:x now.'],
+        ['an http scheme', 'Open http:x now.'],
+        ['an https scheme', 'Open https:x now.'],
+        ['a host spelt with the abbreviation e.g.', 'Open e.g.com now.'],
+        ['a hidden character beside a dot', 'Open evil\u034F.com now.'],
+        ['a hidden character in plain words', 'Stir\u034F well.'],
+        ['a variation selector in plain words', 'Stir\uFE0F well.'],
+        [
+            'a Cyrillic host with an ideographic full stop',
+            'Open \u043F\u0440\u0438\u043C\u0435\u0440\u3002\u0440\u0444 now.',
+        ],
+        ['a Han top level after an ASCII host', 'Open evil\u3002\u4E2D\u56FD now.'],
         ['a template placeholder', 'Stir {{name}} well.'],
         ['a backslash escape', 'Stir\\nwell.'],
         ['a line break', 'Stir.\nThen serve.'],
@@ -138,6 +154,22 @@ describe('parseStepAnswer, text that is not plain', () => {
             '\u30D0\u30BF\u30FC\u3092\u6EB6\u304B\u3057\u307E\u3059\u3002\u6B21\u306B\u6DB2\u3092\u52A0\u3048\u307E\u3059\u3002';
 
         expect(parseStepAnswer(one(text), 80)).toMatchObject({ ok: true });
+    });
+
+    it('accepts a plus sign between ingredients', () => {
+        expect(parseStepAnswer(one('Season with salt + pepper.'), 80)).toMatchObject({ ok: true });
+    });
+
+    it('accepts every mark a fact name may hold, so the two character sets cannot drift apart', () => {
+        for (const mark of PLAIN_FACT_PUNCTUATION) {
+            expect(parseStepAnswer(one(`Add a${mark} b`), 80)).toMatchObject({ ok: true });
+        }
+    });
+
+    it('accepts a Persian word with a zero-width non-joiner', () => {
+        expect(parseStepAnswer(one('\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645'), 80)).toMatchObject({
+            ok: true,
+        });
     });
 
     it('accepts a time with a colon', () => {

@@ -98,6 +98,8 @@ describe('assertFactsSheetPlain', () => {
         ['a colon, the scheme and port marker', 'a: b'],
         ['a host and port', 'localhost:3000'],
         ['an at sign', 'a@b'],
+        ['a hidden character', 'butter\u034F'],
+        ['a variation selector', 'butter\uFE0F'],
     ])('refuses %s as an ingredient name', (_what, name) => {
         expect(faultOf(makeSheet({ ingredientNames: [name] }))).toMatchObject({ field: 'ingredientNames[0]' });
     });
@@ -142,6 +144,7 @@ describe('assertFactsSheetPlain', () => {
     it.each([
         ['a negative minimum', { minSeconds: -1, maxSeconds: 5 }, 'minSeconds'],
         ['a negative maximum', { minSeconds: 0, maxSeconds: -5 }, 'maxSeconds'],
+        ['a minimum that is not a number', { minSeconds: Number.NaN, maxSeconds: 5 }, 'minSeconds'],
         ['a minimum above the maximum', { minSeconds: 90, maxSeconds: 60 }, 'maxSeconds'],
     ])('refuses a duration with %s', (_what, duration, field) => {
         const base = makeSheet().steps[0];
@@ -149,6 +152,45 @@ describe('assertFactsSheetPlain', () => {
         expect(faultOf(makeSheet({ steps: [{ ...base, durations: [duration] }] }))).toMatchObject({
             field: `steps[0].durations[0].${field}`,
         });
+    });
+
+    // The sheet is stored as jsonb and read back, so any shape can arrive. A wrong shape must name its field, never
+    // throw a TypeError from inside the check.
+    it.each([
+        [
+            'a unit that is a number',
+            (sheet: FactsSheet) => Reflect.set(sheet.steps[0].amounts[0], 'unit', 123),
+            'steps[0].amounts[0].unit',
+        ],
+        [
+            'safety facts that are null',
+            (sheet: FactsSheet) => Reflect.set(sheet.steps[0].safety[0], 'facts', null),
+            'steps[0].safety[0].facts',
+        ],
+        [
+            'actions that are undefined',
+            (sheet: FactsSheet) => Reflect.set(sheet.steps[0], 'actions', undefined),
+            'steps[0].actions',
+        ],
+        ['steps that are null', (sheet: FactsSheet) => Reflect.set(sheet, 'steps', null), 'steps'],
+        ['a language that is a number', (sheet: FactsSheet) => Reflect.set(sheet, 'language', 5), 'language'],
+        [
+            'an ingredient name that is an object',
+            (sheet: FactsSheet) => Reflect.set(sheet.ingredientNames, 0, {}),
+            'ingredientNames[0]',
+        ],
+        [
+            'a quantity that is a string',
+            (sheet: FactsSheet) => Reflect.set(sheet.steps[0].amounts[0], 'quantity', '2'),
+            'steps[0].amounts[0].quantity',
+        ],
+    ])('refuses a sheet with %s, naming the field', (_what, plant, field) => {
+        const sheet = makeSheet();
+
+        plant(sheet);
+
+        expect(faultOf(sheet)).toMatchObject({ field });
+        expect(isFactsSheetInvalidError(faultOf(sheet))).toBe(true);
     });
 
     it('accepts a single time and a zero time', () => {

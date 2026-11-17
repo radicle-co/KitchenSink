@@ -19,17 +19,20 @@
  */
 import { z } from 'zod';
 
-import { looksLikeAddress } from './addressLike.js';
+import { hasInvisibleCharacter, looksLikeAddress } from './addressLike.js';
 
 /** The largest `cap` a caller may pass. A bound far above any real recipe that still catches a typo. */
 export const MAX_ANSWER_CAP = 1_000;
 
+/** The two joiners real scripts need (Persian, Indic). They are Cf, so the check sets them aside before the class. */
+const JOINERS = /\u200C|\u200D/gu;
+
 /**
  * What a written step may contain: letters, marks, numbers, spaces and the punctuation of plain recipe prose.
- * No angle or square brackets, braces, backslash, backtick, `@`, `*`, `_`, `#`, `|`, `~`, `$`, `=`, `+`, emoji or
+ * No angle or square brackets, braces, backslash, backtick, `@`, `*`, `_`, `#`, `|`, `~`, `$`, `=`, emoji or
  * control characters, and no line break.
  */
-const PLAIN_PROSE = /^[\p{L}\p{M}\p{N} .,;:!?'’"“”()\-–—/%°&。、，；：！？（）「」]+$/u;
+const PLAIN_PROSE = /^[\p{L}\p{M}\p{N} .,;:!?'’"“”()\-–—/%°&+。、，；：！？（）「」]+$/u;
 
 /** The most text one rewritten step may hold (contract `rewrittenSteps.api.md`). */
 export const MAX_REWRITTEN_STEP_CHARS = 2_000;
@@ -87,7 +90,12 @@ export function parseStepAnswer(text: string, cap: number): StepAnswer {
         return { refused: 'overCap' };
     }
 
-    if (parsed.data.steps.some(({ text: step }) => !PLAIN_PROSE.test(step) || looksLikeAddress(step))) {
+    if (
+        parsed.data.steps.some(
+            ({ text: step }) =>
+                !PLAIN_PROSE.test(step.replace(JOINERS, '')) || hasInvisibleCharacter(step) || looksLikeAddress(step),
+        )
+    ) {
         return { refused: 'unsafeText' };
     }
 

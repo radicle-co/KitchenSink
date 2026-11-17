@@ -13,8 +13,9 @@
  */
 import { escapeRegExp } from '../parsing/escapeRegExp.js';
 
-import { looksLikeAddress } from './addressLike.js';
+import { hasInvisibleCharacter, looksLikeAddress } from './addressLike.js';
 import { SAFETY_CATEGORIES } from './factsSheet.types.js';
+import { firstShapeFault } from './factsSheetShape.js';
 
 import type { FactsSheet } from './factsSheet.types.js';
 
@@ -29,7 +30,7 @@ export const PLAIN_FACT_PUNCTUATION = " '\u2019,()&%\u00B0.+/-";
 
 /** A name starts with a letter, mark, number or apostrophe (`'nduja`), then holds only the set above. */
 const PLAIN_FACT_TEXT = new RegExp(
-    `^[\\p{L}\\p{M}\\p{N}'\u2019][\\p{L}\\p{M}\\p{N}${escapeRegExp(PLAIN_FACT_PUNCTUATION)}]*$`,
+    `^[\\p{L}\\p{M}\\p{N}'\u2019][\\p{L}\\p{M}\\p{N}\\u200C\\u200D${escapeRegExp(PLAIN_FACT_PUNCTUATION)}]*$`,
     'u',
 );
 
@@ -44,7 +45,12 @@ const LANGUAGE_TAG = /^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2})?$/;
  */
 export function isPlainFactText(text: string): boolean {
     // Code points, not UTF-16 units: an astral letter is one character of the name.
-    return [...text].length <= MAX_FACT_TEXT_CHARS && PLAIN_FACT_TEXT.test(text) && !looksLikeAddress(text);
+    return (
+        [...text].length <= MAX_FACT_TEXT_CHARS &&
+        PLAIN_FACT_TEXT.test(text) &&
+        !hasInvisibleCharacter(text) &&
+        !looksLikeAddress(text)
+    );
 }
 
 /** A sheet field that is not a fact. The message names the field and never echoes its text. */
@@ -71,21 +77,21 @@ export function isFactsSheetInvalidError(error: unknown): error is FactsSheetInv
  * @throws {FactsSheetInvalidError} On the first field that is not a plain fact. Pure.
  */
 export function assertFactsSheetPlain(sheet: FactsSheet): void {
+    const shapeFault = firstShapeFault(sheet);
+
+    if (shapeFault !== null) {
+        throw new FactsSheetInvalidError(shapeFault);
+    }
+
+    if (!LANGUAGE_TAG.test(sheet.language)) {
+        throw new FactsSheetInvalidError('language');
+    }
+
     const plain = (field: string, text: string): void => {
         if (!isPlainFactText(text)) {
             throw new FactsSheetInvalidError(field);
         }
     };
-
-    const finite = (field: string, value: number): void => {
-        if (!Number.isFinite(value)) {
-            throw new FactsSheetInvalidError(field);
-        }
-    };
-
-    if (!LANGUAGE_TAG.test(sheet.language)) {
-        throw new FactsSheetInvalidError('language');
-    }
 
     sheet.ingredientNames.forEach((name, i) => plain(`ingredientNames[${i}]`, name));
     sheet.steps.forEach((step, s) => {
@@ -95,15 +101,11 @@ export function assertFactsSheetPlain(sheet: FactsSheet): void {
         step.ingredients.forEach((text, i) => plain(`${at}.ingredients[${i}]`, text));
         step.equipment.forEach((text, i) => plain(`${at}.equipment[${i}]`, text));
         step.amounts.forEach((amount, i) => {
-            finite(`${at}.amounts[${i}].quantity`, amount.quantity);
-
             if (amount.unit !== null) {
                 plain(`${at}.amounts[${i}].unit`, amount.unit);
             }
         });
         step.temperatures.forEach((temperature, i) => {
-            finite(`${at}.temperatures[${i}].value`, temperature.value);
-
             // The sheet is stored as jsonb and read back, so the type alone does not hold at runtime.
             if (temperature.scale !== 'C' && temperature.scale !== 'F') {
                 throw new FactsSheetInvalidError(`${at}.temperatures[${i}].scale`);
@@ -113,14 +115,11 @@ export function assertFactsSheetPlain(sheet: FactsSheet): void {
             const min = `${at}.durations[${i}].minSeconds`;
             const max = `${at}.durations[${i}].maxSeconds`;
 
-            finite(min, duration.minSeconds);
-            finite(max, duration.maxSeconds);
-
             if (duration.minSeconds < 0) {
                 throw new FactsSheetInvalidError(min);
             }
 
-            if (duration.maxSeconds < 0 || duration.minSeconds > duration.maxSeconds) {
+            if (duration.minSeconds > duration.maxSeconds) {
                 throw new FactsSheetInvalidError(max);
             }
         });

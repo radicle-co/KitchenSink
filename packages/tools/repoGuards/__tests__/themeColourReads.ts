@@ -66,7 +66,6 @@ export function themeColourReads(source: string, fileName: string): ThemeReads {
             (ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
             parent.expression === node;
 
-
         record(kind, member ? parent : node);
     };
 
@@ -114,8 +113,7 @@ export function themeColourReads(source: string, fileName: string): ThemeReads {
         const { initializer } = node;
         const isMember = ts.isPropertyAccessExpression(initializer) || ts.isElementAccessExpression(initializer);
         const base = isMember ? initializer.expression : undefined;
-        const kind =
-            base !== undefined && ts.isIdentifier(base) ? recordLocals.get(base.text) : recordOffTheme(base);
+        const kind = base !== undefined && ts.isIdentifier(base) ? recordLocals.get(base.text) : recordOffTheme(base);
 
         if (kind !== undefined) {
             aliasLocals.set(node.name.text, kind);
@@ -171,8 +169,9 @@ export function themeColourReads(source: string, fileName: string): ThemeReads {
 
     // `theme.colors` and `useTheme().colors`: the record read off the theme.
     const recordOffTheme = (node: ts.Node | undefined): Kind | undefined =>
-        node !== undefined &&
-        ts.isPropertyAccessExpression(node) && isTheme(node.expression) ? KIND_OF_MEMBER[node.name.text] : undefined;
+        node !== undefined && ts.isPropertyAccessExpression(node) && isTheme(node.expression)
+            ? KIND_OF_MEMBER[node.name.text]
+            : undefined;
 
     // Second pass: every use of them.
     const visit = (node: ts.Node): void => {

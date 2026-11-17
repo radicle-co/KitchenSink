@@ -271,7 +271,8 @@ can always cook from the original steps.
       any language, because it reads digits, fractions, unit symbols and digit times and temperatures only.
       The result must be in the recipe's language, by the rule of `003B-FR-012c`: among the sentences the detector reads
       confidently, the language with the most letters must be the recipe's language. Otherwise the result is refused
-      (log category `wrongLanguage`, wire `unreadable`). A few sentences in another language pass, and a result written
+      (log category `wrongLanguage`, wire `unreadable`). With no confidently read sentence the check passes, and so does
+      a tie that includes the recipe's language: the cook's review covers those. A few sentences in another language pass, and a result written
       mostly in another language is refused. Verbs,
       equipment, safety words and number words are not machine-checked. A safety instruction with no number, or an
       amount written as a word, is checked only by the cook's review.
@@ -424,7 +425,7 @@ can always cook from the original steps.
 - 005's ledger of uses is built before or with this feature. This feature does not build a second one.
 - The plan register (`010-FR-041b`) gains a Flow Steps entry.
 - Every language the platform's detector supports is written. There is no list of languages and no per-language
-  reviewer: the cook's review is the language check. One language profile is derived from the platform's locale data (script,
+  reviewer: the cook's review is the language check, beyond the output check of FR-040. One language profile is derived from the platform's locale data (script,
   sentence and word segmentation). One prompt template takes the language as a parameter, with one pin. The language is
   the lower-case BCP 47 primary language subtag (2 or 3 letters), and the 003B source record stores the same code.
 - The figures in FR-004, FR-042 and FR-064 are set in the plan and measured on the evaluation set.

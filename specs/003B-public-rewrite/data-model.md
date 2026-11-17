@@ -100,7 +100,7 @@ Rules:
 - A Publish that answers `503 checkUnavailable` leaves the job `ready` and spends no attempt.
 - `facts_snapshot`, `source_steps` and `output` are cleared only on entering a terminal state: `published`,
   `cancelled`, `budgetSpent`, `failed` at 3 attempts, or `checkRefused` at 3 attempts. They are kept while "Write it
-  again" or "Try again" can still happen.
+  again" or "Try again" can still happen. The import item's draft step text is cleared in the same UPDATE or transaction (FR-033), including at lazy expiry to `cancelled`.
 - Every pair of states that this list does not name is refused.
 
 ## Columns on existing tables

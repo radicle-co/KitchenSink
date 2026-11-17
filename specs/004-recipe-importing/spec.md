@@ -588,7 +588,8 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
 
 - **FR-014** _(amended 2026-11-15, owner ruling, ADR-0093)_: System MUST classify a source as a **paid site** when the
   page's structured data says `isAccessibleForFree=false`, when its domain is on the paid list, or when the site has a
-  metered paywall. The paid list MUST be stored as data with an admin-managed lifecycle (D-004), not as a code constant.
+  metered paywall. _(Amended by `003B-FR-012b`: a paid-list domain alone is not a clear signal. Only
+  `isAccessibleForFree=false` or a metered paywall makes a source paid.)_ The paid list MUST be stored as data with an admin-managed lifecycle (D-004), not as a code constant.
   A paid-site recipe is kept privately (`FR-066`) and goes public only as a page Commise writes in full that names no
   site (`FR-065`). The import never passes a paywall, login or meter, and never uses a cook's password or cookies.
   _(Was: reject a known paywalled source before any outbound request. The list now classifies the source instead of

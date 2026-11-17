@@ -16,7 +16,7 @@
 >    a rule-based reader, then an on-device AI tier when the cook's account setting allows it (on by default on mobile,
 >    off on web), each a strict yes or no, with no cook review of the extraction. A "no" from every tier goes to the
 >    server AI fallback (§12a).
-> 2. **The paywall blocklist becomes the paid list.** It classifies a source as a paid site (`FR-014`), it does not
+> 2. **The paywall blocklist becomes the paid list.** It classifies a source as a paid site (`FR-014`, amended by `003B-FR-012b`: the list alone is not a clear signal), it does not
 >    block one.
 > 3. **No facts cards, no linked card, no per-market switch.** `MarketCopyPolicy`, the facts-card cap counter and the
 >    linked-card read are withdrawn. The public path is a Commise-written version (`FR-065`, spec 003B, planned).

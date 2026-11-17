@@ -278,7 +278,7 @@ later from its own menu. (C-6)
   T084, slice B2).
 - **FR-012c**: A public version is written in the language of the source recipe's steps, for every language the
   platform's language detector supports. There is no list of languages and no per-language reviewer: the cook's review
-  before publishing is the language check. Two reasons keep a recipe Private only. `languageUnsupported`: the detector
+  before publishing is the language check, beyond the output check of `027-FR-040`. Two reasons keep a recipe Private only. `languageUnsupported`: the detector
   or the platform's Unicode and locale data cannot handle the language. `languageUncertain`: the language cannot be
   decided with confidence. The server finds the language in this order:
     1. It takes the steps text and removes the ingredient-name spans, digits and units.
@@ -381,7 +381,7 @@ later from its own menu. (C-6)
   is a resting state while fewer than 3 attempts are used: "Try again" calls the retry route and makes a third
   attempt. After the third attempt a refusal is final. A resting `checkRefused` expires to `cancelled` after 24
   hours. A job that ends `failed` (FR-082) rests the same way: "Try again" while fewer than 3 attempts are used, then
-  `cancelled` after 24 hours, and final at 3 attempts. Cancel (`failed.done`, "Save my copy") is accepted from
+  `cancelled` after 24 hours, and final at 3 attempts. Cancel (`button.private` on the "For everyone" path, `failed.done` on the Both path) is accepted from
   `checkRefused` and `failed`. Attempts carry over a retry and no allowance unit is spent. At 3 attempts the client
   hides `wizard.retry` and `flag.rewrite`: the failed screen shows `failed.title`, `failed.body` (`failed.bodyBoth` on the Both path) and `failed.done`
   only, and the blocked state shows `blocked.bodyFinal` (`blocked.bodyFinalBoth` on the Both path) with the path's
@@ -704,7 +704,7 @@ Still owed:
 - ADR-0093 §4 says the writer sees facts only. This feature changes that: the writer reads the facts sheet and the
   source step text (`027-FR-035`, ruled 2026-11-17). `016-FR-077` already points to `027-FR-035`. The feature ADR
   records the amendment, owed (T004).
-- ADR-0093 §5 and `016-FR-080` say a domain on the paid list makes a site paid. This feature changes that: a paid-list
+- ADR-0093 §5 and `016-FR-080` and `004-FR-014` say a domain on the paid list makes a site paid. This feature changes that: a paid-list
   domain alone is not a clear signal (FR-012, FR-012b), so no hold and no private-copy limit apply to it. The feature ADR
   records the amendment, owed (T004).
 - At 3 attempts on the "For everyone" path the failed screen offers only `failed.done`, and the job's end clears the

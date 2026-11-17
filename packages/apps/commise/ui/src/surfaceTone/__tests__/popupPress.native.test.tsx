@@ -139,7 +139,7 @@ describe.each(['light', 'dark'] as const)('in the %s theme, under a muted surfac
                 <Popover
                     triggerLabel="About Kale"
                     triggerIcon="info"
-                    triggerText="No match found"
+                    triggerText="About"
                     title="Kale"
                     closeLabel="Close details"
                 >

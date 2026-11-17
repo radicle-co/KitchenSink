@@ -39,7 +39,7 @@ const renderPopover = (): void => {
         <Popover
             triggerLabel="About Kale"
             triggerIcon="info"
-            triggerText="No match found"
+            triggerText="About"
             title="Kale"
             closeLabel="Close details for Kale"
         >
@@ -94,7 +94,7 @@ describe('Popover (native)', () => {
             <Popover
                 triggerLabel="About Kale"
                 triggerIcon="info"
-                triggerText="No match found"
+                triggerText="About"
                 title="Kale"
                 closeLabel="Close Kale"
             >
@@ -117,7 +117,7 @@ describe('Popover (native)', () => {
             <Popover
                 triggerLabel="About Kale"
                 triggerIcon="info"
-                triggerText="No match found"
+                triggerText="About"
                 title="Kale"
                 closeLabel="Close Kale"
                 busy
@@ -137,7 +137,7 @@ describe('Popover (native)', () => {
             <Popover
                 triggerLabel="About Kale"
                 triggerIcon="triangleAlert"
-                triggerText="No match found"
+                triggerText="About"
                 title="Kale"
                 closeLabel="Close Kale"
             >
@@ -165,7 +165,7 @@ describe('Popover (native)', () => {
             <Popover
                 triggerLabel="About Kale"
                 triggerIcon="info"
-                triggerText="No match found"
+                triggerText="About"
                 title="Kale"
                 closeLabel="Close Kale"
                 focusRequested={focusRequested}
@@ -215,7 +215,7 @@ describe('Popover (native) — once it is gone', () => {
             <Popover
                 triggerLabel="About Kale"
                 triggerIcon="info"
-                triggerText="No match found"
+                triggerText="About"
                 title="Kale"
                 closeLabel="Close Kale"
                 onDismissed={onDismissed}

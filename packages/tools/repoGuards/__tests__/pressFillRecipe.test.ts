@@ -59,8 +59,7 @@ const INK_ALPHA = /^bg-ink(?:-muted)?\/(?:\d+(?:\.\d+)?|\[[^\]\s]+\])$/u;
  * @param token - One whitespace-free token.
  */
 export function isHandWrittenPress(token: string): boolean {
-    const { variants, base: raw } = splitToken(token);
-    const base = raw.replace(/^!/u, '');
+    const { variants, base } = splitToken(token);
 
     return (
         (FIXED_PRESS.test(base) && variants.some((variant) => PRESS_VARIANT.test(variant))) ||
@@ -222,6 +221,8 @@ describe('the hand-written press fill reader', () => {
             source: `const c = 'bg-press-paper-overlay';`,
             found: ['bg-press-paper-overlay'],
         },
+        { shape: 'a suffix important ink wash', source: `const c = 'hover:bg-ink/6!';`, found: ['hover:bg-ink/6!'] },
+        { shape: 'a prefix important ink wash', source: `const c = 'hover:!bg-ink/6';`, found: ['hover:!bg-ink/6'] },
         { shape: 'a bare ink wash', source: `const c = 'bg-ink/6';`, found: ['bg-ink/6'] },
         { shape: 'a hover ink wash', source: `const c = 'flex hover:bg-ink/6 gap-2';`, found: ['hover:bg-ink/6'] },
         { shape: 'an ink-muted wash', source: `const c = 'hover:bg-ink-muted/10';`, found: ['hover:bg-ink-muted/10'] },

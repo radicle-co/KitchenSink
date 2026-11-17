@@ -32,7 +32,7 @@ import { repoRoot } from './serviceSources.js';
  * @param tokens - The whitespace-split tokens of one class string.
  */
 export function writesRemSquare(tokens: readonly string[]): boolean {
-    const utilities = tokens.map((token) => splitToken(token).base.replace(/^!/u, ''));
+    const utilities = tokens.map((token) => splitToken(token).base);
 
     return utilities.includes('size-11') || (utilities.includes('h-11') && utilities.includes('w-11'));
 }
@@ -56,6 +56,8 @@ describe('the rem touch square reader', () => {
     const cases: readonly { readonly shape: string; readonly source: string; readonly found: boolean }[] = [
         { shape: 'size-11', source: `const c = 'inline-flex size-11 items-center';`, found: true },
         { shape: 'size-11 behind a variant', source: `const c = 'md:size-11';`, found: true },
+        { shape: 'a suffix important size-11', source: `const c = 'size-11!';`, found: true },
+        { shape: 'a suffix important h-11 with w-11', source: `const c = 'h-11! w-11';`, found: true },
         { shape: 'an important size-11', source: `const c = '!size-11';`, found: true },
         { shape: 'size-11 in a template part', source: 'const c = `flex size-11 ${x}`;', found: true },
         { shape: 'size-11 in JSX text', source: `const e = <p className="size-11">x</p>;`, found: true },

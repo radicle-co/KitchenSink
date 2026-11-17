@@ -34,7 +34,7 @@ const RECIPE_DIRECTORY = 'packages/apps/commise/ui/src/focusRing/';
 const FOCUS_VARIANT = /^(?:focus|focus-visible|focus-within|has-\[:focus-visible\])$/u;
 
 /** A utility of the ring family: `ring`, `ring-2`, `ring-inset`, `ring-focus-ring`, `ring-offset-2`. */
-const RING_UTILITY = /^!?ring(?:-.+)?$/u;
+const RING_UTILITY = /^ring(?:-.+)?$/u;
 
 /**
  * Whether a class token is a hand-written focus ring or ring offset. Pure.
@@ -44,7 +44,7 @@ const RING_UTILITY = /^!?ring(?:-.+)?$/u;
 export function isHandWrittenFocusRing(token: string): boolean {
     const { variants, base } = splitToken(token);
 
-    if (/^!?ring-offset(?:-|$)/u.test(base)) {
+    if (/^ring-offset(?:-|$)/u.test(base)) {
         return true;
     }
 
@@ -95,6 +95,21 @@ describe('the hand-written focus ring reader', () => {
             shape: 'a focus: ring',
             source: `const c = 'focus:ring-2 focus:ring-focus-ring';`,
             found: ['focus:ring-2', 'focus:ring-focus-ring'],
+        },
+        {
+            shape: 'a suffix important ring',
+            source: `const c = 'focus-visible:ring-2!';`,
+            found: ['focus-visible:ring-2!'],
+        },
+        {
+            shape: 'a prefix important ring',
+            source: `const c = 'focus-visible:!ring-2';`,
+            found: ['focus-visible:!ring-2'],
+        },
+        {
+            shape: 'a suffix important ring offset',
+            source: `const c = 'ring-offset-2!';`,
+            found: ['ring-offset-2!'],
         },
         { shape: 'a focus-within ring', source: `const c = 'focus-within:ring-2';`, found: ['focus-within:ring-2'] },
         {

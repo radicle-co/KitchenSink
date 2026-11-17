@@ -45,43 +45,34 @@ function overlay(
     ];
 }
 
+type HeroUi =
+    CardUi<'RecipeHero' | 'HeroButton' | 'ActionMenu'> | NativeCardUi<'RecipeHero' | 'HeroButton' | 'ActionMenu'>;
+
+/** The card body: a recipe with photos and one without, in one column. Web and native render the same tree. */
+function heroes({ RecipeHero, HeroButton, ActionMenu }: HeroUi) {
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
+            <RecipeHero
+                title="Lemon ricotta pancakes"
+                photos={photos}
+                overlay={overlay({ HeroButton, ActionMenu }, 'Lemon ricotta pancakes')}
+            />
+            <RecipeHero
+                title="Weeknight pad thai"
+                photos={[]}
+                overlay={overlay({ HeroButton, ActionMenu }, 'Weeknight pad thai')}
+            />
+        </div>
+    );
+}
+
 export default defineCard({
     group: 'Recipes',
     height: 470,
     platforms: 'both',
     uses: ['RecipeHero', 'HeroButton', 'ActionMenu'],
     staging: { phoneViewport: true },
-    render: ({ RecipeHero, HeroButton, ActionMenu }) => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
-            <RecipeHero
-                title="Lemon ricotta pancakes"
-                photos={photos}
-                overlay={overlay({ HeroButton, ActionMenu }, 'Lemon ricotta pancakes')}
-            />
-            <RecipeHero
-                title="Weeknight pad thai"
-                photos={[]}
-                overlay={overlay({ HeroButton, ActionMenu }, 'Weeknight pad thai')}
-            />
-        </div>
-    ),
-    // The native HeroButton takes `ref` as a plain prop, so its component type differs from the web one.
-    renderNative: ({
-        RecipeHero,
-        HeroButton,
-        ActionMenu,
-    }: NativeCardUi<'RecipeHero' | 'HeroButton' | 'ActionMenu'>) => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
-            <RecipeHero
-                title="Lemon ricotta pancakes"
-                photos={photos}
-                overlay={overlay({ HeroButton, ActionMenu }, 'Lemon ricotta pancakes')}
-            />
-            <RecipeHero
-                title="Weeknight pad thai"
-                photos={[]}
-                overlay={overlay({ HeroButton, ActionMenu }, 'Weeknight pad thai')}
-            />
-        </div>
-    ),
+    render: heroes,
+    // The native HeroButton takes `ref` as a plain prop, so the native card needs its own typed entry.
+    renderNative: heroes,
 });

@@ -19,7 +19,7 @@ export type SyncNoticeState =
     | {
           readonly kind: 'offline';
           readonly title: string;
-          /** Absent in cooking mode: title only, no blank row. */
+          /** When absent, the card shows the title alone, with no body row (`offlineNotice.md` §9, the cooking form). */
           readonly body?: string;
       }
     | { readonly kind: 'syncing'; readonly title: string; readonly body: string };

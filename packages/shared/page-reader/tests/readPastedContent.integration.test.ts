@@ -277,6 +277,26 @@ describe('readPastedContent over a whole synthetic page', () => {
         });
     });
 
+    // Round-5 review, High 1: an ingredient-name check over every jump link cost jump tokens × ingredient tokens, outside
+    // the comparison budget (5 s on this 679 KB page). A jump link is now matched only by its short text on a closed list.
+    it('refuses 340 long jump links before 200 long lines within a bounded walk', () => {
+        const filler = (count: number) => Array.from({ length: count }, () => 'q').join(' ');
+        const lines = Array.from({ length: 200 }, (_, index) => `${filler(450)} u${String(index)}`);
+        const steps = ['Mix it all.', 'Bake until golden.'];
+        const jumps = `<li><a href="#ing">${filler(448)} z</a></li>`.repeat(340);
+        const page = makePage({
+            jsonLd: [makeRecipeNode({ recipeIngredient: lines, recipeInstructions: steps })],
+            body: `<article><div class="jump"><div><ul>${jumps}</ul></div></div><div id="ing"><ul>${lines.map((line) => `<li>${line}</li>`).join('')}</ul></div><ol>${steps.map((step) => `<li>${step}</li>`).join('')}</ol></article>`,
+        });
+
+        expect(page.length).toBeGreaterThan(600_000);
+
+        const { result, works } = readCounted(page);
+
+        expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+        expectBoundedWalks(works);
+    });
+
     describe('a block nested 100,000 deep, under the byte cap', () => {
         const DEPTH = 100_000;
         const nested = `${'['.repeat(DEPTH)}"x"${']'.repeat(DEPTH)}`;

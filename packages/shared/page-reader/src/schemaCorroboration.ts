@@ -16,7 +16,7 @@
  * does, so "flour" is not "2 cups flour"), the steps are read in order, a list the lines sit in has no line the schema
  * leaves out, and the recipe CARD (the smallest element holding every line and step read) has no list item the schema
  * leaves out but its furniture ({@link isCardFurniture}: outside the read lines and beside no read list, an unnumbered
- * item with no leading amount that comes after the lines, or before them is a jump link or a listed meta fact), so a schema
+ * item with no leading amount that comes after the lines, or before them is a listed jump phrase or meta fact), so a schema
  * missing a line, an ingredient group or a second method is
  * caught as surely as a page missing one. The per-card rule counts only list items (`<li>`), so it does not see three
  * kinds of line unless the schema reads a sibling of theirs: a table row (`<tr>`, as in an ingredient or nutrition
@@ -35,6 +35,7 @@ import { readCooksMeasure } from '@kitchensink/recipe-core/parsing/measure-reade
 
 import { CARD_META_LABELS, type CardMetaKind, DURATION_JOINS, DURATION_WORDS } from './cardMetaLabels.js';
 import { instructionOf } from './instructionSteps.js';
+import { JUMP_PHRASES, MAX_JUMP_PHRASE_CHARS } from './jumpPhrases.js';
 import type { ExtractionTier, PageCandidate, PageRecipe } from './pageRecipeCandidate.js';
 import { namesAMeasure, tokensOf } from './pageTokens.js';
 import type { CardItem, VisibleText, VisibleTextResult } from './visiblePageText.js';
@@ -98,19 +99,12 @@ function isMetaFact(text: string): boolean {
     return kind !== undefined && value !== undefined && VALUE_SHAPES[kind](value);
 }
 
-/** Whether `run` appears, token for token, in `line`. */
-const holdsRun = (line: readonly string[], run: readonly string[]): boolean =>
-    line.some((_, at) => run.every((token, offset) => line[at + offset] === token));
-
 /**
- * Whether a jump link's words name an ingredient: they are, token for token, part of a line the schema reads ("Salt" in
- * "1 tsp salt"). ⚠️ Recipe-relative: an omitted ingredient the recipe never names is not seen here.
+ * Whether `text` is, whole, a jump phrase on the closed list ({@link JUMP_PHRASES}). The length check bounds the work, not
+ * the answer: no phrase on the list is longer, so a long text is never folded to be looked up.
  */
-function namesAnIngredient(text: string, ingredients: readonly (readonly string[])[]): boolean {
-    const run = tokensOf(text);
-
-    return run.length > 0 && ingredients.some((line) => holdsRun(line, run));
-}
+const isJumpPhrase = (text: string): boolean =>
+    text.length <= MAX_JUMP_PHRASE_CHARS && JUMP_PHRASES.has(text.trim().toLowerCase());
 
 /**
  * The card's furniture: an unread list item of the card that is no part of the recipe the schema left out. An item is
@@ -119,12 +113,13 @@ function namesAnIngredient(text: string, ingredients: readonly (readonly string[
  * second method) or when it opens with an amount (an ingredient). Past those checks:
  * - an item after the last read line is furniture (notes, nutrition, related recipes);
  * - an item before the first read line is furniture only when it is a jump link to an element that holds the lines read
- *   and not the link (`href="#ingredients"`) whose words name no ingredient of the recipe ({@link namesAnIngredient}), or
- *   a meta fact: a label on the closed list and a value of that label's shape
- *   ({@link isMetaFact}). Any other item there, a link to another page included, may be an omitted group ("One onion", "Eggs: 2", "Мука: 200 г"), so the card is refused.
+ *   and not the link, whose whole text is a jump phrase on the closed list ({@link isJumpPhrase}), or a meta fact: a
+ *   label on the closed list and a value of that label's shape ({@link isMetaFact}). Any other item there, a link to the
+ *   lines or another page included, may be an omitted group ("One onion", "Eggs: 2", "Мука: 200 г"), so the card is
+ *   refused.
  * Any doubt is no.
  */
-function isCardFurniture(item: CardItem, ingredients: readonly (readonly string[])[]): boolean {
+function isCardFurniture(item: CardItem): boolean {
     if (
         item.position === 'between' ||
         item.besideReadList ||
@@ -134,11 +129,7 @@ function isCardFurniture(item: CardItem, ingredients: readonly (readonly string[
         return false;
     }
 
-    return (
-        item.position === 'after' ||
-        (item.jumpsToReadLines && !namesAnIngredient(item.text, ingredients)) ||
-        isMetaFact(item.text)
-    );
+    return item.position === 'after' || (item.jumpsToReadLines && isJumpPhrase(item.text)) || isMetaFact(item.text);
 }
 
 /** G-CORR over a page's visible text: the card the cook reads is the ingredient lines and the steps, no more and no less. */
@@ -153,7 +144,7 @@ function pageShows(candidate: PageCandidate, text: VisibleText): Corroboration {
             { runs: ingredients, wholeBlocks: true },
             { runs: steps, wholeBlocks: false },
         ],
-        (item) => isCardFurniture(item, ingredients),
+        isCardFurniture,
     );
 
     if (lookup === 'overBudget') {

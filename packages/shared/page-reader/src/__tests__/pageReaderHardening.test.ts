@@ -344,18 +344,20 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
     });
 
+    // Rewritten: the links said "Jump to ingredients" and "Jump to instructions", which no page of the tuning corpus
+    // shows. A jump link's text must be on the closed list (`jumpPhrases.ts`), so the links say "Ingredients" and "Method".
     it('reads a card with jump links before the lines to the elements that hold them', () => {
         const page = makePage({
             jsonLd: [NODE],
-            body: `<article><div class="jump"><div><ul><li><a href="#ingredients">Jump to ingredients</a></li><li><a href="#instructions">Jump to instructions</a></li></ul></div></div><div id="ingredients"><ul>${items(INGREDIENTS)}</ul></div><div id="instructions"><ol>${items(STEPS)}</ol></div></article>`,
+            body: `<article><div class="jump"><div><ul><li><a href="#ingredients">Ingredients</a></li><li><a href="#instructions">Method</a></li></ul></div></div><div id="ingredients"><ul>${items(INGREDIENTS)}</ul></div><div id="instructions"><ol>${items(STEPS)}</ol></div></article>`,
         });
 
         expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
     });
 
-    // a jump link is furniture only when every target holds a read line
-    // and does not contain the item itself, and its own words do not name an ingredient of the recipe. The read lines sit
-    // in `#ing`; `#page` wraps the whole card.
+    // A jump link is furniture only when its text is on the closed list of jump phrases (`jumpPhrases.ts`), every target
+    // holds a read line, and no target holds the item itself. The read lines sit in `#ing`; `#page` wraps the whole card.
+    // Each structural case uses a phrase on the list, so only its own rule refuses it.
     describe('a jump link before the lines', () => {
         const jumpPage = (item: string, wrapperId?: string): string => {
             const card = `<article><div class="jump"><div><ul>${item}</ul></div></div><div id="ing"><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`;
@@ -366,68 +368,90 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
             });
         };
 
-        it('reads one to the read list whose words name no ingredient', () => {
-            expect(readPastedContent(jumpPage('<li><a href="#ing">Jump to ingredients</a></li>'))).toMatchObject({
-                kind: 'extracted',
+        const refused = { kind: 'notExtractable', reason: 'pageDisagreesWithSchema' };
+
+        it.each([['Jump to recipe'], ['Ingredients'], ['  JUMP TO RECIPE ']])(
+            'reads one to the read list that says %j',
+            (text) => {
+                expect(readPastedContent(jumpPage(`<li><a href="#ing">${text}</a></li>`))).toMatchObject({
+                    kind: 'extracted',
+                });
+            },
+        );
+
+        it.each([
+            ['an omitted ingredient', '<li><a href="#ing">One onion</a></li>'],
+            ['a plural ingredient', '<li><a href="#ing">Onions</a></li>'],
+            ['an amount in words', '<li><a href="#ing">Half a lemon</a></li>'],
+            ['two ingredients, two links', '<li><a href="#ing">Onions</a>, <a href="#ing">garlic</a></li>'],
+            ['an ingredient the schema names in another form', '<li><a href="#ing">Egg</a></li>'],
+            ['an ingredient the schema names', '<li><a href="#ing">Salt</a></li>'],
+            ['a phrase on the list with more words', '<li><a href="#ing">Jump to recipe now</a></li>'],
+        ])('refuses a jump link whose text is not a jump phrase: %s', (_name, item) => {
+            expect(readPastedContent(jumpPage(item))).toMatchObject(refused);
+        });
+
+        it('refuses an omitted ingredient linked to one step', () => {
+            const page = makePage({
+                jsonLd: [NODE],
+                body: `<article><div class="jump"><div><ul><li><a href="#s2">One onion</a></li></ul></div></div><ul>${items(INGREDIENTS)}</ul><ol><li>${STEPS[0] ?? ''}</li><li id="s2">${STEPS[1] ?? ''}</li><li>${STEPS[2] ?? ''}</li></ol></article>`,
             });
+
+            expect(readPastedContent(page)).toMatchObject(refused);
         });
 
         it.each([
-            [
-                'an ingredient name linked to an element around the whole card',
-                '<li><a href="#page">Salt</a></li>',
-                'page',
-            ],
-            ['a link to an element around the whole card', '<li><a href="#page">Back to top</a></li>', 'page'],
-            ['an ingredient name linked to the read list', '<li><a href="#ing">Salt</a></li>', undefined],
-            [
-                'an ingredient name in a link with a block inside it',
-                '<li><a href="#ing"><div></div>Salt</a></li>',
-                undefined,
-            ],
-            ['words in a link with a block inside it', '<li><a href="#ing"><div></div>Print</a></li>', undefined],
+            ['a link to an element around the whole card', '<li><a href="#page">Jump to recipe</a></li>', 'page'],
+            ['a link with a block inside it', '<li><a href="#ing"><div></div>Ingredients</a></li>', undefined],
             [
                 'one link to the read list and one to no read line',
-                '<li><a href="#ing">Jump</a> <a href="#notes">Salt</a></li>',
+                '<li><a href="#ing">Jump to</a> <a href="#notes">recipe</a></li>',
                 undefined,
             ],
-            [
-                'an omitted line with a jump link at its end',
-                '<li>One onion <a href="#ing">see the list</a></li>',
-                undefined,
-            ],
+            ['a phrase only part of which is a link', '<li>Jump to <a href="#ing">recipe</a></li>', undefined],
             [
                 'a list inside a jump link, its item holding a jump link of its own',
-                '<a href="#ing"><li>One onion <a href="#ing">here</a></li></a>',
-                undefined,
-            ],
-            [
-                'two links, one to no read line, no ingredient named',
-                '<li><a href="#ing">Jump</a> <a href="#notes">Print</a></li>',
+                '<a href="#ing"><li>Jump to <a href="#ing">recipe</a></li></a>',
                 undefined,
             ],
         ])('refuses %s', (_name, item, wrapperId) => {
-            expect(readPastedContent(jumpPage(item, wrapperId))).toMatchObject({
-                kind: 'notExtractable',
-                reason: 'pageDisagreesWithSchema',
+            expect(readPastedContent(jumpPage(item, wrapperId))).toMatchObject(refused);
+        });
+
+        it('refuses a link to an element that holds no read line', () => {
+            const page = makePage({
+                jsonLd: [NODE],
+                body: `<article><div class="jump"><div><ul><li><a href="#notes">Ingredients</a></li></ul></div></div><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol><div id="notes"><p>Serve warm.</p></div></article>`,
             });
+
+            expect(readPastedContent(page)).toMatchObject(refused);
         });
 
         it('refuses a link to an element that holds read lines and the link itself', () => {
             const page = makePage({
                 jsonLd: [NODE],
-                body: `<article><div id="ing"><div class="jump"><div><ul><li><a href="#ing">Jump to ingredients</a></li></ul></div></div><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`,
+                body: `<article><div id="ing"><div class="jump"><div><ul><li><a href="#ing">Ingredients</a></li></ul></div></div><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`,
             });
 
-            expect(readPastedContent(page)).toMatchObject({
-                kind: 'notExtractable',
-                reason: 'pageDisagreesWithSchema',
-            });
+            expect(readPastedContent(page)).toMatchObject(refused);
+        });
+
+        // A browser follows the FIRST element with an id. Here that is the link's own container, not the read list.
+        it.each([
+            [
+                'the jump list itself',
+                `<article><div class="jump" id="ing"><div><ul><li><a href="#ing">Ingredients</a></li></ul></div></div><div id="ing"><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`,
+            ],
+            [
+                'the link item itself',
+                `<article><div class="jump"><div><ul><li id="ing"><a href="#ing">Ingredients</a></li></ul></div></div><div id="ing"><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`,
+            ],
+        ])('refuses a link whose id is first given to %s', (_name, body) => {
+            expect(readPastedContent(makePage({ jsonLd: [NODE], body }))).toMatchObject(refused);
         });
     });
 
-    // an omitted group after the read lines that opens with amounts is refused, in a
-    // container of its own too.
+    // An omitted group after the read lines that opens with amounts is refused, in a container of its own too.
     it('refuses an omitted group after the read lines whose lines open with amounts', () => {
         const page = makePage({
             jsonLd: [NODE],
@@ -437,7 +461,7 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
     });
 
-    // a line shown beside the read lines, in the same container, is refused when they are paragraphs.
+    // A line shown beside the read lines, in the same container, is refused when they are paragraphs.
     it('refuses an unread paragraph beside the read ingredient paragraphs', () => {
         const page = makePage({
             jsonLd: [makeRecipeNode({ recipeIngredient: ['1 cup flour', '2 eggs'], recipeInstructions: STEPS })],
@@ -612,7 +636,7 @@ function pluginStyleCard(lists: {
         '<div class="recipe-container"><div class="recipe-card">',
         '<h2 class="recipe-name">Test</h2>',
         lists.jumps
-            ? '<ul class="recipe-jump-links"><li><a href="#ingredients">Jump to ingredients</a></li><li><a href="#instructions">Jump to instructions</a></li></ul>'
+            ? '<ul class="recipe-jump-links"><li><a href="#ingredients">Ingredients</a></li><li><a href="#instructions">Instructions</a></li></ul>'
             : '',
         lists.equipment
             ? '<div class="recipe-equipment"><h3>Equipment</h3><ul><li class="equipment-item">Mixing bowl</li><li class="equipment-item">Baking tray</li></ul></div>'

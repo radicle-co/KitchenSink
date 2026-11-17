@@ -79,12 +79,12 @@ function isoDate(value: unknown): string | undefined {
 
 /**
  * The schema.org types of a node that stands for the page a recipe is on: a web page, or an article or post (and their
- * common subtypes). A node of one of these types states when the whole page was published.
+ * common subtypes). A node of one of these types states when the whole page was published. `CollectionPage` is left
+ * out on purpose: a roundup's date is never its recipes' date.
  */
 const PAGE_TYPES: ReadonlySet<string> = new Set([
     'WebPage',
     'ItemPage',
-    'CollectionPage',
     'AboutPage',
     'FAQPage',
     'QAPage',
@@ -124,20 +124,50 @@ function hasMainEntity(container: SchemaNode, recipe: SchemaNode): boolean {
 
 /**
  * The properties by which a recipe names the page it is on. Only a page node ({@link isPageNode}) is read from them: a
- * whole blog or site (`isPartOf`) or a part of the page (`hasPart`) states no date for the recipe.
+ * whole blog, site or roundup (`isPartOf`) or a part of the page (`hasPart`) states no date for the recipe.
  */
 const RECIPE_LINKS: readonly string[] = ['mainEntityOfPage', 'isPartOf'];
 
-/** The nodes a node embeds under `keys`, in order. A reference by `@id` alone states nothing and is read as a node. */
-function linkedNodes(node: SchemaNode, keys: readonly string[]): readonly SchemaNode[] {
-    return keys.flatMap((key) => items(field(node, key)).filter(isSchemaNode));
+/**
+ * The nodes a recipe names under `keys`, in order: each node it embeds, then the page's nodes that its `@id`, or a bare
+ * address in its place, names ("mainEntityOfPage": {"@id": ".../pie"}), as JSON-LD links them.
+ */
+function linkedNodes(node: SchemaNode, keys: readonly string[], graph: readonly SchemaNode[]): readonly SchemaNode[] {
+    return keys.flatMap((key) =>
+        items(field(node, key)).flatMap((item) => {
+            const id = isSchemaNode(item) ? idOf(item) : item;
+            const named = typeof id === 'string' ? graph.filter((other) => idOf(other) === id) : [];
+
+            return [...(isSchemaNode(item) ? [item] : []), ...named];
+        }),
+    );
 }
 
 /**
- * When a Recipe node, or the page around it, was published.
+ * The page's one page node, when it has exactly one (counted by `@id`) that names no other node as its `mainEntity`.
+ * With two or more, nothing ties either to the recipe: one may be a related post, a comment or another recipe's page.
+ */
+function solePageNode(node: SchemaNode, graph: readonly SchemaNode[]): readonly SchemaNode[] {
+    const pages = graph.filter(
+        (other) => isPageNode(other) && (field(other, 'mainEntity') === undefined || hasMainEntity(other, node)),
+    );
+    const distinct = new Set(
+        pages.map((page) => {
+            const id = idOf(page);
+
+            return typeof id === 'string' ? id : page;
+        }),
+    );
+
+    return distinct.size === 1 ? pages.slice(0, 1) : [];
+}
+
+/**
+ * When a Recipe node, or the page it is on, was published.
  *
- * The recipe is read first, then the page nodes it embeds as `mainEntityOfPage` and `isPartOf`, then its
- * containers: a node whose `mainEntity` is the recipe, then a page node ({@link isPageNode}).
+ * A date the recipe states is the answer, and one it states that cannot be read gives no date: another node's date is
+ * never put in its place. Without one, the page nodes it names as `mainEntityOfPage` or `isPartOf` (embedded or by
+ * `@id`) are read, then a node whose `mainEntity` is the recipe, then the page's one page node ({@link solePageNode}).
  *
  * @param node - A JSON-LD Recipe node or a microdata item shaped like one.
  * @param containers - The page's other nodes that may contain it: page nodes and nodes with a `mainEntity`. Any other
@@ -145,11 +175,17 @@ function linkedNodes(node: SchemaNode, keys: readonly string[]): readonly Schema
  * @returns The first usable `datePublished` in that order, or `undefined`. Pure.
  */
 export function datePublishedOf(node: SchemaNode, containers: readonly SchemaNode[]): string | undefined {
+    const stated = field(node, 'datePublished');
+
+    if (stated !== undefined) {
+        return isoDate(stated);
+    }
+
+    const graph = containers.filter((container) => container !== node);
     const sources = [
-        node,
-        ...linkedNodes(node, RECIPE_LINKS).filter(isPageNode),
-        ...containers.filter((container) => container !== node && hasMainEntity(container, node)),
-        ...containers.filter((container) => container !== node && isPageNode(container)),
+        ...linkedNodes(node, RECIPE_LINKS, graph).filter(isPageNode),
+        ...graph.filter((container) => hasMainEntity(container, node)),
+        ...solePageNode(node, graph),
     ];
 
     return sources.map((source) => isoDate(field(source, 'datePublished'))).find((date) => date !== undefined);

@@ -59,8 +59,9 @@ export interface CardItem {
     readonly text: string;
     /**
      * It is a jump link to the lines read: all of its word material sits inside its own fragment links, and each names
-     * the `id` of an element that holds a block the runs read (`#ingredients`, `#instructions`) and does not hold the item
-     * itself. So a link to the whole card, or to anything around it, is no jump link.
+     * an `id` whose first element (as a browser follows it) holds a block the runs read (`#ingredients`) and does not hold
+     * the item itself. So a link to the whole card, or to anything around it, is no jump link. What its text says is the
+     * policy's to judge.
      */
     readonly jumpsToReadLines: boolean;
     /** It is an item of an ordered list. */
@@ -215,19 +216,29 @@ function listParentsOf(elements: readonly ElementExtent[], item: number): readon
     return [parent, parentIn(elements, parent)];
 }
 
-/** What the read blocks sit in: the parents and grandparents of their lists, and the ids of their elements and ancestors. */
+/**
+ * What the read blocks sit in: the parents and grandparents of their lists, and every element that holds one (a read
+ * block's element and its ancestors), by number. With the element each id first names, as a browser follows it.
+ */
 interface ReadAncestry {
     readonly listParents: ReadonlySet<number>;
     readonly listGrandparents: ReadonlySet<number>;
-    /** The ids of the read blocks' elements and their ancestors, each with its element number. */
-    readonly holderIds: ReadonlyMap<string, number>;
+    readonly holders: ReadonlySet<number>;
+    readonly elementById: ReadonlyMap<string, number>;
 }
 
-/** The {@link ReadAncestry} of the blocks in `read`, in one walk up from each. */
+/** The {@link ReadAncestry} of the blocks in `read`: one walk up from each, and one pass over the elements for ids. */
 function readAncestryOf(elements: readonly ElementExtent[], read: readonly BlockSpan[]): ReadAncestry {
     const listParents = new Set<number>();
     const listGrandparents = new Set<number>();
-    const holderIds = new Map<string, number>();
+    const holders = new Set<number>();
+    const elementById = new Map<string, number>();
+
+    elements.forEach(({ id }, element) => {
+        if (id !== undefined && !elementById.has(id)) {
+            elementById.set(id, element);
+        }
+    });
 
     for (const block of read) {
         if (block.item > 0) {
@@ -238,15 +249,11 @@ function readAncestryOf(elements: readonly ElementExtent[], read: readonly Block
         }
 
         for (let element = block.element; element > 0; element = parentIn(elements, element)) {
-            const id = elements[element]?.id;
-
-            if (id !== undefined) {
-                holderIds.set(id, element);
-            }
+            holders.add(element);
         }
     }
 
-    return { listParents, listGrandparents, holderIds };
+    return { listParents, listGrandparents, holders, elementById };
 }
 
 /** The first and the last token the read blocks span. */
@@ -264,10 +271,24 @@ function positionOf(block: BlockSpan, span: ReadSpan): CardItem['position'] {
     return block.first > span.last ? 'after' : 'between';
 }
 
-/** Whether `holder` is a target a jump link in `block` may name: an element that holds read lines, and not `block` itself. */
-function isJumpTarget(elements: readonly ElementExtent[], holder: number | undefined, block: BlockSpan): boolean {
+/**
+ * Whether `target`, an id, is one a jump link in `block` may name: the first element with that id holds read lines,
+ * and does not hold `block` itself.
+ */
+function isJumpTarget(
+    elements: readonly ElementExtent[],
+    ancestry: ReadAncestry,
+    target: string,
+    block: BlockSpan,
+): boolean {
+    const holder = ancestry.elementById.get(target);
+
     // The `?? 0` cannot fire: `holder` is an element number from `elements` (DD19).
-    return holder !== undefined && !(holder <= block.element && block.element <= (elements[holder]?.last ?? 0));
+    return (
+        holder !== undefined &&
+        ancestry.holders.has(holder) &&
+        !(holder <= block.element && block.element <= (elements[holder]?.last ?? 0))
+    );
 }
 
 /** The card item an unread list item is, as the card policy sees it. */
@@ -284,7 +305,7 @@ function cardItemOf(
         jumpsToReadLines:
             block.fragmentLinksOnly &&
             block.fragmentTargets.length > 0 &&
-            block.fragmentTargets.every((target) => isJumpTarget(elements, ancestry.holderIds.get(target), block)),
+            block.fragmentTargets.every((target) => isJumpTarget(elements, ancestry, target, block)),
         ordered: block.ordered,
         position: positionOf(block, span),
         besideReadList:

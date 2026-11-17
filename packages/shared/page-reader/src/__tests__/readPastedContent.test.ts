@@ -454,6 +454,113 @@ describe('readPastedContent', () => {
                     expect(evidence(makePage({ jsonLd: [recipe(link)] }))).not.toHaveProperty('datePublished');
                 });
 
+                // Each page node not tied to the recipe is someone else's date: a related post, a comment, a roundup or a
+                // node whose mainEntity is another recipe. Without a tie, the date is read only when the page holds one
+                // page node.
+                it.each([
+                    [
+                        'P4: the page the recipe names by @id, after another page in the graph',
+                        [
+                            {
+                                '@graph': [
+                                    { ...dated('WebPage', '2004-04-04'), '@id': 'https://example.com/other' },
+                                    { ...dated('WebPage', '2024-05-05'), '@id': 'https://example.com/pie' },
+                                    recipe({ mainEntityOfPage: { '@id': 'https://example.com/pie' } }),
+                                ],
+                            },
+                        ],
+                        '2024-05-05',
+                    ],
+                    [
+                        'the page the recipe names by its address alone',
+                        [
+                            {
+                                '@graph': [
+                                    { ...dated('WebPage', '2004-04-04'), '@id': 'https://example.com/other' },
+                                    { ...dated('WebPage', '2024-05-05'), '@id': 'https://example.com/pie' },
+                                    recipe({ mainEntityOfPage: 'https://example.com/pie' }),
+                                ],
+                            },
+                        ],
+                        '2024-05-05',
+                    ],
+                    [
+                        'P7: the one page node, past an Article whose mainEntity is another recipe',
+                        [
+                            {
+                                '@graph': [
+                                    {
+                                        ...dated('Article', '2007-07-07'),
+                                        mainEntity: { '@id': 'https://example.com/other#recipe' },
+                                    },
+                                    dated('WebPage', '2024-05-05'),
+                                    recipe(),
+                                ],
+                            },
+                        ],
+                        '2024-05-05',
+                    ],
+                    [
+                        'the one page node, written twice under one @id',
+                        [
+                            { ...dated('WebPage', '2024-05-05'), '@id': 'https://example.com/pie' },
+                            { '@type': 'WebPage', '@id': 'https://example.com/pie', name: 'Pie' },
+                            recipe(),
+                        ],
+                        '2024-05-05',
+                    ],
+                ])('reads %s', (_name, jsonLd, date) => {
+                    expect(evidence(makePage({ jsonLd }))).toMatchObject({ datePublished: date });
+                });
+
+                it.each([
+                    [
+                        'P1: two page nodes, a related article first, and no tie to either',
+                        [
+                            { ...dated('NewsArticle', '2001-01-01'), '@id': 'https://example.com/other' },
+                            { ...dated('WebPage', '2024-05-05'), '@id': 'https://example.com/pie' },
+                            recipe(),
+                        ],
+                    ],
+                    [
+                        'P3: a related post in an ItemList beside the page node',
+                        [
+                            {
+                                '@graph': [
+                                    {
+                                        '@type': 'ItemList',
+                                        itemListElement: [
+                                            { '@type': 'ListItem', item: dated('BlogPosting', '2003-03-03') },
+                                        ],
+                                    },
+                                    dated('WebPage', '2024-05-05'),
+                                    recipe(),
+                                ],
+                            },
+                        ],
+                    ],
+                    [
+                        'P8: a forum post in a comment beside the page node',
+                        [
+                            {
+                                '@graph': [
+                                    { '@type': 'Thing', comment: [dated('DiscussionForumPosting', '2008-08-08')] },
+                                    dated('BlogPosting', '2024-05-05'),
+                                    recipe(),
+                                ],
+                            },
+                        ],
+                    ],
+                    [
+                        'a recipe date it cannot read, beside a page date',
+                        [dated('WebPage', '2006-06-06'), recipe({ datePublished: '2024-01-01 10:00:00' })],
+                    ],
+                    ['a roundup named as isPartOf', [recipe({ isPartOf: dated('CollectionPage', '2005-05-05') })]],
+                    ['a roundup as the one page node', [dated('CollectionPage', '2005-05-05'), recipe()]],
+                ])('gives no date for %s', (_name, jsonLd) => {
+                    expect(evidence(makePage({ jsonLd }))).not.toHaveProperty('datePublished');
+                });
+
                 it('reads the page the recipe names before the node whose mainEntity is the recipe', () => {
                     const graph = [
                         { ...dated('Thing', '2021-01-01'), mainEntity: { '@id': 'https://example.com/pie#recipe' } },

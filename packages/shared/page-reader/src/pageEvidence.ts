@@ -1,5 +1,6 @@
 /**
- * What a page says about WHO made a recipe and WHERE its picture is: evidence beside the recipe, never part of it.
+ * What a page says about WHO made a recipe, WHERE its picture is, whether it is free to read, when it was published and
+ * whether it reserves itself from AI: evidence beside the recipe, never part of it.
  *
  * A `PageRecipe` stays exactly what becomes the import. Credit and the image address ride beside it, for the
  * source statement step, so a recipe cannot assert its own provenance.

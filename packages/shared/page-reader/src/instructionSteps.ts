@@ -4,8 +4,8 @@
  * `recipeInstructions` is any of: one string, a list of strings, `HowToStep`s (`text`, else `name`), `HowToSection`s
  * (their `itemListElement`) and an `ItemList`. They are read in order into a flat list of steps.
  *
- * A section's name ("For the glaze") is a group heading, and a group heading is no part of the recipe (the labelling
- * rulings), so it goes into no step: the steps of every section are read as one flat list. A section with no steps adds
+ * A section's name ("For the glaze") is a group heading, and a group heading is no part of the recipe a cook reads, so
+ * it goes into no step: the steps of every section are read as one flat list. A section with no steps adds
  * nothing. The walk is `boundedWalk`: iterative, and capped in depth and nodes. A walk a cap cut short is reported, never used.
  *
  * A HowToStep's own `name` ("Scramble the egg") rides beside the text, never in it: a name is a heading only where the

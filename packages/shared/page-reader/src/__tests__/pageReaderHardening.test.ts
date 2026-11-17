@@ -224,6 +224,14 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
     });
 
+    // ⚠️ ACCEPTED RISK, pinned (staff-architect, round 8): an omitted ingredient group after the method with no line that
+    // opens with an amount reads as furniture. Telling it from a notes list needs a signal no structure gives.
+    it('reads, as furniture, an omitted group after the method whose lines state no amount', () => {
+        expect(
+            readPastedContent(cardPage(NODE, { extra: '<ul><li>Salt to taste</li><li>Fresh herbs</li></ul>' })),
+        ).toMatchObject({ kind: 'extracted' });
+    });
+
     it('refuses a list before the ingredients whose line opens with an amount', () => {
         const page = makePage({
             jsonLd: [NODE],

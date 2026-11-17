@@ -98,6 +98,9 @@ function sentenceEnds(line: string): number {
     return ends;
 }
 
+/** A digit in any script. */
+const DIGIT = /^\p{N}$/u;
+
 /**
  * G9: whether an ingredient line is a heading in capitals ("CRUMBLE", "FÜR DEN TEIG:"): no digit, no lower-case letter,
  * and at least two capitals. A script with no case has no capitals, so it is never one.
@@ -115,9 +118,6 @@ function isCapitalsHeading(line: string): boolean {
 
     return capitals >= 2;
 }
-
-/** A digit in any script. */
-const DIGIT = /^\p{N}$/u;
 
 /** G8: whether `text` holds U+FFFD (a decoder's replacement) or a C1 control character (U+0080 to U+009F). One pass. */
 function isGarbled(text: string): boolean {

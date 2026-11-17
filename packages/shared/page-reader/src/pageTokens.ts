@@ -29,24 +29,17 @@ const VULGAR_FRACTIONS: Readonly<Record<string, string>> = Object.freeze({
     '⅞': '7/8',
 });
 
-/** Characters that only separate words. Whitespace is separate. `/`, `-`, `.` and `,` are handled where they sit. */
-const SEPARATORS: ReadonlySet<string> = new Set([...';:!?"\'()[]{}<>|\\*_~^`+=#&@$%…•·‘’‚‛“”„′″«»¡¿° ']);
-
-/** Characters that are word material only when they sit between digits: `/`, `-`, `.` and `,`. */
-const NUMBER_JOINERS: ReadonlySet<string> = new Set(['/', '-', '.', ',']);
-
 const isDigit = (char: string): boolean => char >= '0' && char <= '9';
 const isSpace = (char: string): boolean => char.trim() === '';
 
-/** A letter, a combining mark or a digit, in any script. One character class, so the test is linear and cannot backtrack. */
+/** A letter, a combining mark or a digit, in any script. One character class: linear, and it cannot backtrack. */
 const LETTER_MARK_OR_DIGIT = /^[\p{L}\p{M}\p{N}]$/u;
 
 /**
- * Whether `char` is part of a word or a number: a letter, a mark or a digit that is not a separator. Anything else (a
- * plugin's checkbox "▢", a bullet, a star, an emoji) is decoration and separates words like a space.
+ * Whether `char` is part of a word or a number: a letter, a mark or a digit. Anything else (punctuation, a plugin's
+ * checkbox "▢", a bullet, a star, an emoji) separates words like a space.
  */
-const isWordMaterial = (char: string): boolean =>
-    isDigit(char) || (!SEPARATORS.has(char) && !NUMBER_JOINERS.has(char) && LETTER_MARK_OR_DIGIT.test(char));
+const isWordMaterial = (char: string): boolean => LETTER_MARK_OR_DIGIT.test(char);
 
 /** The text with each vulgar fraction written out as ` n/d `, so `1½` reads `1 1/2`. */
 function withFractionsWritten(text: string): string {

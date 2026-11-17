@@ -363,6 +363,8 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         ['a count label holding two ingredients', ['Servings: 2 slices bread, 1 egg']],
         ['a count label holding two counts', ['Yield: 6 slices 2 pieces']],
         ['a count label with a count word and no number', ['Yield: slices']],
+        ['a count label holding a word off the list', ['Calories: 350 kcal']],
+        ['a Russian count label holding a word the corpus does not show', ['Выход: 4 порции']],
         ['a text label holding a leading amount', ['Keywords: 2 eggs, 1 onion']],
         ['a time label holding an ingredient', ['Prep Time: 2 eggs']],
         ['a time label holding a duration and an ingredient', ['Prep Time: 10 minutes, 2 eggs']],

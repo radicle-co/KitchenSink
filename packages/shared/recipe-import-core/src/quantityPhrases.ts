@@ -10,7 +10,8 @@
  * `cookbook-import` splits prose into clauses on a bare ` and `, which is load-bearing: these books chain
  * several ingredients into one punctuation-free breath. But `"one and one-half pounds"` is ONE number
  * containing that same word, and splitting it published a third of the stated quantity. Deciding which
- * `and` is which needs the number lexicon, and that lexicon has exactly one owner (`quantityWords.ts`).
+ * `and` is which needs the number lexicon, and that lexicon has exactly one owner
+ * (`@kitchensink/recipe-core/parsing/number-words`).
  * Restating it in the importer would be a second representation that drifts the first time a word is
  * added.
  *

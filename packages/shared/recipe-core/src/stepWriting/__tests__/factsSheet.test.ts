@@ -367,14 +367,19 @@ describe('times', () => {
         expect(step.amounts).toEqual([]);
     });
 
-    it('hands the reader only the text of each time, and nothing for a step with no time', () => {
+    it('hands the reader the text of each time, and each sentence that has no digit time', () => {
         const durations = vi.fn(minutesReader.durations);
 
         sheetOf(['Bake for 20 to 25 minutes.', 'Stir in 2 tbsp butter.', 'Simmer for 1 hour 30 minutes.'], [], {
             durations,
         });
 
-        expect(durations.mock.calls).toEqual([['20 minutes'], ['25 minutes'], ['1 hour 30 minutes']]);
+        expect(durations.mock.calls).toEqual([
+            ['20 minutes'],
+            ['25 minutes'],
+            ['Stir in 2 tbsp butter.'],
+            ['1 hour 30 minutes'],
+        ]);
     });
 
     it('keeps a time as an amount, in hours, minutes or seconds, when the reader returns nothing for it', () => {
@@ -405,6 +410,36 @@ describe('times', () => {
 
         expect(step.durations).toEqual([{ minSeconds: 180, maxSeconds: 180 }]);
         expect(step.amounts).toEqual([{ quantity: 2, unit: null, ingredient: null }]);
+    });
+
+    it('asks the reader about a sentence with no digit time, so a time written in words is a duration', () => {
+        const wordReader: FactsSheetReaders = {
+            durations: (text) => (/ten minutes/u.test(text) ? [{ minSeconds: 600, maxSeconds: 600 }] : []),
+        };
+        const step = durationsOf('Add 2 tbsp butter. Simmer ten minutes.', wordReader);
+
+        expect(step.durations).toEqual([{ minSeconds: 600, maxSeconds: 600 }]);
+        expect(step.amounts).toEqual([{ quantity: 2, unit: 'tablespoon', ingredient: null }]);
+    });
+
+    it('does not ask about a sentence whose digit time is already a duration, so no time is counted twice', () => {
+        const durations = vi.fn(minutesReader.durations);
+
+        sheetOf(['Bake for 20 minutes. Rest for 5 minutes.', 'Stir.'], [], { durations });
+
+        expect(durations.mock.calls).toEqual([['20 minutes'], ['5 minutes'], ['Stir.']]);
+    });
+
+    it('keeps the durations of a step in the order the step states them', () => {
+        const wordReader: FactsSheetReaders = {
+            durations: (text) =>
+                /ten minutes/u.test(text) ? [{ minSeconds: 600, maxSeconds: 600 }] : minutesReader.durations(text),
+        };
+
+        expect(durationsOf('Simmer ten minutes. Then bake 20 minutes.', wordReader).durations).toEqual([
+            { minSeconds: 600, maxSeconds: 600 },
+            { minSeconds: 1200, maxSeconds: 1200 },
+        ]);
     });
 
     it('does not read a temperature next to a time as part of it', () => {

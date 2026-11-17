@@ -10,12 +10,14 @@ import { describe, expect, it } from 'vitest';
 
 import { readDuration } from '@kitchensink/cooking-core';
 
-/** The adapter a caller writes: the sheet hands over one time at a time, and the real reader reads it. */
+/** The adapter a caller writes: the sheet hands over a time or a sentence, and the real reader reads it. */
 const readers: FactsSheetReaders = {
     durations: (text) => {
         const reading = readDuration(text);
 
-        return reading.kind === 'one' ? [{ minSeconds: reading.seconds, maxSeconds: reading.seconds }] : [];
+        return reading.kind === 'one'
+            ? [{ minSeconds: reading.seconds, maxSeconds: reading.highSeconds ?? reading.seconds }]
+            : [];
     },
 };
 
@@ -73,5 +75,24 @@ describe('buildFactsSheet with the real duration reader', () => {
 
         expect(step?.durations).toEqual([{ minSeconds: 172_800, maxSeconds: 259_200 }]);
         expect(step?.amounts).toEqual([]);
+    });
+
+    it('reads a time written in words as the cooking timer does, so the two agree', () => {
+        const sheet = sheetOf(
+            ['Simmer ten minutes.', 'Simmer about ten to fifteen minutes.', 'Add 2 tbsp butter.'],
+            ['butter'],
+        );
+
+        expect(sheet.steps[0]?.durations).toEqual([{ minSeconds: 600, maxSeconds: 600 }]);
+        expect(sheet.steps[1]?.durations).toEqual([{ minSeconds: 600, maxSeconds: 900 }]);
+        expect(sheet.steps[2]?.durations).toEqual([]);
+        expect(readDuration('Simmer ten minutes.')).toEqual({ kind: 'one', seconds: 600 });
+    });
+
+    it('reads no duration where the timer offers none', () => {
+        const step = sheetOf(['Simmer every five minutes.']).steps[0];
+
+        expect(readDuration('Simmer every five minutes.')).toEqual({ kind: 'none' });
+        expect(step?.durations).toEqual([]);
     });
 });

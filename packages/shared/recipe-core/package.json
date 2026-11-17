@@ -35,6 +35,7 @@
         "./parsing/parse-line-delivery": "./src/parsing/parseLineDelivery.ts",
         "./parsing/parse-key": "./src/parsing/parseKey.ts",
         "./parsing/measure-reader": "./src/parsing/measureReader.ts",
+        "./parsing/number-words": "./src/parsing/numberWords.ts",
         "./parsing/pasted-line-measure": "./src/parsing/pastedLineMeasure.ts",
         "./spend/spend-arithmetic": "./src/spend/spendArithmetic.ts",
         "./parsing/parse-prompt": "./src/parsing/parsePrompt.ts",

@@ -45,8 +45,9 @@ import type { RecipeIngredientView, RecipeStep } from '../recipe.types.js';
 /** The readers a sheet is built with. Durations are injected: the real reader lives in a package that imports this one. */
 export interface FactsSheetReaders {
     /**
-     * The durations the text states, in seconds: one duration for one span of time ("20 minutes", "1 hour 30 minutes"),
-     * and none when the text states none. The sheet hands it one time at a time, never a whole step.
+     * The durations the text states, in seconds: one duration for one span of time ("20 minutes", "1 hour 30 minutes",
+     * "ten minutes"), and none when the text states none. The sheet hands it one time written in digits, or one sentence
+     * that has no digit time, and never a whole step. A range gives its low and high ends.
      */
     durations(text: string): readonly FactDuration[];
 }
@@ -510,6 +511,12 @@ function timeRunsOf(reads: readonly ReadAmount[], text: string): ReadAmount[][] 
     return runs;
 }
 
+/** A duration and where in the step it is written. */
+interface PlacedDuration {
+    readonly at: number;
+    readonly duration: FactDuration;
+}
+
 /**
  * The durations of a step and the time reads the reader returned nothing for.
  *
@@ -521,8 +528,8 @@ function timesOf(
     reads: readonly ReadAmount[],
     text: string,
     readers: FactsSheetReaders,
-): { durations: FactDuration[]; unread: ReadonlySet<ReadAmount> } {
-    const durations: FactDuration[] = [];
+): { durations: PlacedDuration[]; unread: ReadonlySet<ReadAmount> } {
+    const durations: PlacedDuration[] = [];
     const unread = new Set<ReadAmount>();
 
     for (const run of timeRunsOf(reads, text)) {
@@ -533,10 +540,15 @@ function timesOf(
             continue;
         }
 
+        const at = first.start;
+
         if (isLongTime(first)) {
             const seconds = SECONDS_PER_LONG_UNIT[first.timeUnit];
 
-            durations.push({ minSeconds: (low ?? 0) * seconds, maxSeconds: (high ?? low ?? 0) * seconds });
+            durations.push({
+                at,
+                duration: { minSeconds: (low ?? 0) * seconds, maxSeconds: (high ?? low ?? 0) * seconds },
+            });
             continue;
         }
 
@@ -545,7 +557,7 @@ function timesOf(
             const [max] = readers.durations(`${high} ${first.timeWord}`);
 
             if (min !== undefined && max !== undefined) {
-                durations.push({ minSeconds: min.minSeconds, maxSeconds: max.maxSeconds });
+                durations.push({ at, duration: { minSeconds: min.minSeconds, maxSeconds: max.maxSeconds } });
             } else {
                 unread.add(first);
             }
@@ -556,13 +568,36 @@ function timesOf(
         const found = readers.durations(text.slice(first.start, run.at(-1)?.end));
 
         if (found.length > 0) {
-            durations.push(...found);
+            durations.push(...found.map((duration) => ({ at, duration })));
         } else {
             run.forEach((read) => unread.add(read));
         }
     }
 
     return { durations, unread };
+}
+
+/** A sentence ends at a full stop, "!" or "?" followed by a space, so "1.5 hours" is not cut. */
+const SENTENCE_END = /(?<=[.!?])\s+/u;
+
+/**
+ * The durations the reader finds in the sentences that state no digit time. A time written in words ("Simmer ten
+ * minutes.") has no digit for the sheet to find, so the sentence is handed to the same reader cooking mode uses, and
+ * the sheet and the timer agree. A sentence with a digit time is not asked, so no time is counted twice.
+ */
+function wordTimesOf(text: string, digitTimes: readonly ReadAmount[], readers: FactsSheetReaders): PlacedDuration[] {
+    let from = 0;
+
+    return text.split(SENTENCE_END).flatMap((sentence): PlacedDuration[] => {
+        const start = text.indexOf(sentence, from);
+        const end = start + sentence.length;
+
+        from = end;
+
+        return digitTimes.some((read) => read.start >= start && read.start < end)
+            ? []
+            : readers.durations(sentence).map((duration) => ({ at: start, duration }));
+    });
 }
 
 /** The most words that may sit between an amount's unit and the name it measures: "2 cups finely chopped parsley". */
@@ -715,7 +750,17 @@ export function buildFactsSheet(recipe: StepSourceRecipe, readers: FactsSheetRea
         const equipment = equipmentMatchesOf(text);
         // Figure and hyphen-like dashes read as the hyphen a range is written with. One character each, so offsets hold.
         const reads = readAmounts(rest.replaceAll(/[‐‑‒―]/gu, '-'));
-        const { durations, unread } = timesOf(reads, text, readers);
+        const { durations: digitDurations, unread } = timesOf(reads, text, readers);
+        const durations = [
+            ...digitDurations,
+            ...wordTimesOf(
+                text,
+                reads.filter((read) => read.timeUnit !== null),
+                readers,
+            ),
+        ]
+            .sort((a, b) => a.at - b.at)
+            .map(({ duration }) => duration);
 
         return {
             actions: actionsOf(text, [...equipment, ...mentions]),

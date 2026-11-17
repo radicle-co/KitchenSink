@@ -10,7 +10,7 @@
  *
  * These books embed ingredients in sentences — "_put in kettle with one pound of fat brisket of beef_" —
  * so the quantity is frequently NOT at the head of its clause. Locating it needs to know which words are
- * numbers, and that lexicon already has exactly one owner: `recipe-import-core`'s `quantityWords.ts`.
+ * numbers, and that lexicon already has exactly one owner: `@kitchensink/recipe-core/parsing/number-words`.
  * Restating it here would be a second representation of the same knowledge, drifting silently.
  *
  * So this module never asks "where is the quantity?". It splits the prose into clauses and then tries

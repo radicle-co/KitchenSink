@@ -5,6 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import type { EndedAwayTimer, PausedTimer, RingingTimer, RunningTimer, TimerBase } from '@kitchensink/cooking-core';
+
 import { keptTimerSchema, parseKeptDocument, serializeKeptDocument, type KeptDocument } from '../keptRecord.js';
 
 import { makeEnded, makePaused, makeTimer, timerId } from '../__fixtures__/keptFixtures.js';
@@ -114,6 +116,34 @@ const FIELD_SOURCES = {
 /** The reducer holds these and the record does not: `name` has no stored label (R8a) and `undo` is held in memory. */
 const NOT_STORED = ['name', 'undo'] as const;
 
+/** The four states of a timer, in the order the record lists them. */
+const STATES = ['running', 'paused', 'ringing', 'endedAway'] as const;
+
+/** Where one reducer field lands in the v1 record: stored (`kind` is stored as `state`), or held only in memory. */
+type FieldHome = 'stored' | 'notStored';
+
+const BASE_HOMES = {
+    id: 'stored',
+    run: 'stored',
+    recipeId: 'stored',
+    stepIndex: 'stored',
+    stepDigest: 'stored',
+    ordinal: 'stored',
+    durationMs: 'stored',
+    name: 'notStored',
+} as const satisfies Record<keyof TimerBase, FieldHome>;
+
+/**
+ * Every field of each cooking-core timer kind, classified. `satisfies Record<keyof ...>` makes a field added to the
+ * reducer with no entry here fail `tsc`, and not only this test.
+ */
+const REDUCER_HOMES = {
+    running: { ...BASE_HOMES, kind: 'stored', endsAt: 'stored' } satisfies Record<keyof RunningTimer, FieldHome>,
+    paused: { ...BASE_HOMES, kind: 'stored', remainingMs: 'stored' } satisfies Record<keyof PausedTimer, FieldHome>,
+    ringing: { ...BASE_HOMES, kind: 'stored', endedAt: 'stored' } satisfies Record<keyof RingingTimer, FieldHome>,
+    endedAway: { ...BASE_HOMES, kind: 'stored', endedAt: 'stored' } satisfies Record<keyof EndedAwayTimer, FieldHome>,
+};
+
 describe('every v1 timer field has a classified source', () => {
     const everyField = {
         running: makeTimer(),
@@ -122,10 +152,10 @@ describe('every v1 timer field has a classified source', () => {
         endedAway: makeEnded('endedAway', { announcedAt: '2026-06-01T12:30:00.000Z' }),
     };
 
-    it.each(Object.entries(everyField))('%s: its stored fields are exactly the classified ones', (state, timer) => {
-        const sources = FIELD_SOURCES[state as keyof typeof FIELD_SOURCES];
+    it.each(STATES)('%s: its stored fields are exactly the classified ones', (state) => {
+        const sources = FIELD_SOURCES[state];
 
-        expect(Object.keys(timer).sort()).toEqual([...sources.reducer, ...sources.recordOnly].sort());
+        expect(Object.keys(everyField[state]).sort()).toEqual([...sources.reducer, ...sources.recordOnly].sort());
     });
 
     it('the schema holds exactly the classified fields for each state, so an unclassified field fails here', () => {
@@ -133,43 +163,31 @@ describe('every v1 timer field has a classified source', () => {
             keptTimerSchema.options.map((option) => [option.shape.state.value, Object.keys(option.shape).sort()]),
         );
         const classified = Object.fromEntries(
-            Object.entries(FIELD_SOURCES).map(([state, s]) => [state, [...s.reducer, ...s.recordOnly].sort()]),
+            STATES.map((state) => [
+                state,
+                [...FIELD_SOURCES[state].reducer, ...FIELD_SOURCES[state].recordOnly].sort(),
+            ]),
         );
 
         expect(fromSchema).toEqual(classified);
     });
 
     it('a field the reducer holds and the record does not is listed as not stored', () => {
-        const stored = new Set<string>(Object.values(FIELD_SOURCES).flatMap((s) => [...s.reducer, ...s.recordOnly]));
+        const stored = new Set<string>(
+            STATES.flatMap((s) => [...FIELD_SOURCES[s].reducer, ...FIELD_SOURCES[s].recordOnly]),
+        );
 
         for (const name of NOT_STORED) {
             expect(stored.has(name)).toBe(false);
         }
     });
 
-    // shortcut: a hand list of the reducer's fields as of #288 at 55f73e9f5, because cooking-core on this base is the
-    // older reducer. T3 replaces it with `satisfies` over `keyof` each timer kind once #288 is on main, so a reducer
-    // field with no v1 home then fails `tsc` and not only this test.
-    const REDUCER_FIELDS = {
-        running: [...COMMON.filter((f) => f !== 'state'), 'name', 'kind', 'endsAt'],
-        paused: [...COMMON.filter((f) => f !== 'state'), 'name', 'kind', 'remainingMs'],
-        ringing: [...COMMON.filter((f) => f !== 'state'), 'name', 'kind', 'endedAt'],
-        endedAway: [...COMMON.filter((f) => f !== 'state'), 'name', 'kind', 'endedAt'],
-    } as const;
+    it.each(STATES)('%s: the reducer fields the record stores are exactly the classified reducer fields', (state) => {
+        const homes: Readonly<Record<string, FieldHome>> = REDUCER_HOMES[state];
+        const storedByReducer = Object.keys(homes)
+            .filter((field) => homes[field] === 'stored')
+            .map((field) => (field === 'kind' ? 'state' : field));
 
-    it.each(Object.entries(REDUCER_FIELDS))(
-        '%s: every reducer field is stored, or listed as not stored (a reducer field with no v1 home fails here)',
-        (state, fields) => {
-            const sources = FIELD_SOURCES[state as keyof typeof FIELD_SOURCES];
-            const stored = new Set<string>(sources.reducer.map((f) => (f === 'state' ? 'kind' : f)));
-            const notStored = new Set<string>(NOT_STORED);
-            const homeless = fields.filter((f) => !stored.has(f) && !notStored.has(f));
-
-            expect(homeless).toEqual([]);
-            // The other way: every field classified as the reducer's is a field the reducer holds.
-            const held = new Set<string>(fields);
-
-            expect(sources.reducer.map((f) => (f === 'state' ? 'kind' : f)).filter((f) => !held.has(f))).toEqual([]);
-        },
-    );
+        expect(storedByReducer.sort()).toEqual([...FIELD_SOURCES[state].reducer].sort());
+    });
 });

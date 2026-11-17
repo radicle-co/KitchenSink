@@ -39,8 +39,8 @@ included, is a new version (v2) and never an edit to v1: an older tab or app wou
 
 A document that fails to parse counts as no record and is removed. One bad timer is dropped and reported once, and the
 rest of the document stays. A duplicate timer id keeps the first. The schema takes any number of timers, so several
-timers need no format change. The one-timer limit and the numbering and step rules belong to cooking-core's `reduceTimer`, not to the record (staff S63). A later format
-change bumps `v` and adds a migration.
+timers need no format change. The one-timer limit and the numbering and step rules belong to cooking-core's
+`reduceTimer`, not to the record (staff S63). A later format change bumps `v` and adds a migration.
 
 ### 3. The port and the write outcome (KTD2)
 

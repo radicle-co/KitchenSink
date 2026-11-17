@@ -19,7 +19,7 @@ Rules that are easy to get wrong. Read before working on this feature.
   only the Commise version. The paid list is 004-FR-014's list. Do not make a second one.
 - **One public version per source page**, whoever imports it (FR-034). A later cook is pointed to it.
 - **Two doors to public for a third-party recipe** (FR-015): Publish of the Commise-written version (default), or the cook's own "Adapted by you" rewrite through the similarity check and 020's review (never for a paid source). Not the visibility toggle, not a clone, not a 027 replace.
-- **The page key is released** on delete, 020 rejection, market-off and opt-out (FR-034a). Hold it while a version is hidden by a report.
+- **The page key is released** on delete, 020 rejection and opt-out (FR-034a). Hold it while a version is hidden by a report.
 - **The fingerprint key** is a Secrets Manager secret, rotation keeps old versions readable (FR-050a).
 - **The wording check runs on every save of a public version**, inside the recipe write, against the hashed fingerprint
   in the append-only source record. The source text is never kept for it.

@@ -28,8 +28,9 @@ Phase 0 for `plan.md`. Each item: decision, rationale, alternatives rejected.
 ## R3. Wording check is a ceiling, on a hashed fingerprint of word 5-shingles
 
 - **Decision**: lower-cased, punctuation-stripped word 5-shingles, reduced to a fingerprint: a versioned set of keyed
-  hashes (`fingerprint(text) → { formatVersion, hashes }`). The measure takes fingerprints, not text: `jaccard(a, b)`
-  for the whole recipe and `containment(sentence, set)` for one result sentence. Refuse when either exceeds a
+  hashes (`fingerprint(text, size, hash) → { formatVersion, hashes }`, where `hash` is an injected keyed hash). The measure
+  takes fingerprint sets, not text: `jaccard(a, b)` for the whole recipe and `containment(part, whole)` for one result
+  sentence. Refuse when either exceeds a
   threshold set from the evaluation set (start point for the bake-off: whole 0.10, per sentence 0.30. To be measured,
   not shipped as guessed). This feature fingerprints the saved steps in memory. Spec 003B stores the fingerprint of
   an import's steps, because it keeps no source text, and runs the same functions on every save.

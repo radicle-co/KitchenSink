@@ -279,6 +279,17 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
   spends the one import allowance: 200 a rolling day on Free and 1,000 a rolling day on a paid plan. No channel has a
   counter of its own. Test principals (ADR-0040) have no limit. This
   replaces the per-channel counts in the `FR-022` note, D-006 and D-013.
+- **FR-068** _(added 2026-11-17, the paste and link import ADR (ADR-0096))_: **A link import reads the page
+  on the device first and on the server if that fails, and the server never reads a known paid site.**
+    - The device read runs first. If it cannot fetch the page, the import asks the server to read it. On web the device
+      read always answers "cannot fetch", because a browser cannot read another site's page, so the server read runs.
+    - The server read is a route that takes the link and returns the page's recipe content, never the page's HTML. It
+      stores nothing and logs no page content. It is off unless a switch turns it on.
+    - Before any request, the server reads the link's domain. For a known paid site it answers that the cook must
+      paste the page, and it makes no request.
+    - The server follows at most 5 redirects, stops after 10 seconds or at the paste size limit, accepts only HTML,
+      sends no cookies, refuses addresses on private networks, and honours the site's robots rules.
+    - A paste is never fetched, on any path (`FR-064`).
 
 **Ingestion**
 

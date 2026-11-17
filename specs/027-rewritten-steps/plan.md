@@ -17,8 +17,7 @@ wording similarity ceiling). A pass writes the one attached version and charges 
 is an Apply Command over the stored version through the existing recipe `update` (compare-and-swap on
 `expectedVersion` plus a digest check), so versions, the 020 check and the label rules come for free.
 
-The writer and both checks are one engine in `@kitchensink/recipe-core` (`src/stepWriting/`), consumed first by
-whichever of this feature or spec 003B ships first, then by the other and by 020's suggestion. Each composes it with
+The writer and both checks are one engine in `@kitchensink/recipe-core` (`src/stepWriting/`), built first by spec 003B (FR-045), then consumed by this feature and by 020's suggestion. Each composes it with
 its own call site, charging rule and sink.
 
 ## Technical Context
@@ -102,14 +101,19 @@ the same fact).
 | Two-way fact check                                                            | `…/stepWriting/factCheck.ts`                                            |
 | Hashed fingerprint and the shingle measure (each consumer owns its threshold) | `…/stepWriting/wordShingles.ts` (020's copy check reuses it)            |
 | Content digest                                                                | `…/stepWriting/contentDigest.ts` (pure; used by service and worker)     |
-| Engine `rewriteSteps(sheet, original, writer) → Outcome`                      | `…/stepWriting/rewriteSteps.ts`                                         |
+| Engine `rewriteSteps(sheet, writer, wording) → Outcome`                       | `…/stepWriting/rewriteSteps.ts`                                         |
 | Bedrock writer adapter                                                        | `packages/services/recipe-workers/src/stepWriting/gatedStepWriter.ts`   |
 | Worker handler                                                                | `packages/services/recipe-workers/src/handlers/rewrittenStepsWorker.ts` |
 | API, tables, eligibility, apply                                               | `packages/services/recipe-service/src/recipes/rewrittenSteps/`          |
 
-Amounts, temperatures and durations reuse existing readers: `@kitchensink/shared/cooking` `duration.ts` for times,
-`recipe-import-core` quantity readers for amounts. A second reader would break the "same reader every channel" rule
-(004-FR-057).
+Amounts reuse `readCooksMeasure` in `@kitchensink/recipe-core/parsing/measure-reader`; the temperature reader is new, inside the engine. Durations come from `@kitchensink/cooking-core`
+`duration.ts`, which depends on `recipe-core`, so the fact sheet takes a duration reader as an INJECTED input
+(`buildFactsSheet(recipe, { durations })`); the reverse import would be a cycle. A test in `packages/shared/cooking` runs
+the sheet with the real reader. A second reader would break the "same reader every channel" rule (004-FR-057).
+
+The fingerprint functions take no key and no clock of their own. The keyed hash is an injected
+`KeyedHash = (shingle: string) => bigint`, and `jaccard(a, b)` and `containment(part, whole)` take fingerprint sets. The
+wording limits arrive as the `wording` argument of `rewriteSteps`: `{ source: Fingerprint, hash, limits }`.
 
 ## Key decisions (detail in research.md)
 

@@ -85,7 +85,7 @@ with no source photo, a new title and every amount, time and temperature from th
 1. **Given** a paste from a third-party site with free access, **When** the review is done, **Then** the choice offers
    "Just for me", "For everyone" and "Both", with none selected.
 2. **Given** the cook chooses "For everyone", **When** the writer returns, **Then** the review step shows the written
-   steps, a new title, `review.credit` and `review.licence`, and no photo from the page.
+   steps, a new title, `credit.written` (with `credit.basedOn` for a free site) and `review.licence`, and no photo from the page.
 3. **Given** the review step, **When** the cook taps "Show my copy", **Then** the pasted steps show beside the written
    ones, and "Hide my copy" hides them.
 4. **Given** the cook taps "Publish", **Then** the public version is saved as a public recipe, it reads "Checking"
@@ -110,9 +110,9 @@ Free, and its ingredient lines are matched as before.
 1. **Given** "Just for me", **Then** no writer call is made and no spend is reserved.
 2. **Given** a Free cook with slots left, **Then** the hint shows the slot count, and the save uses one slot.
 3. **Given** a paid source that FR-017 holds back (recent, signature or opted out), **Then** no choice is
-   shown: one line, `paid.line` and `paid.keepWording`, and one button, "Save my copy".
+   shown: one line (`privateOnly.paidRecent` with the date when known, else `privateOnly.line`), and one button, "Save my copy".
 4. **Given** a paid source that FR-017 allows, **Then** the three choices show, and the public version's credit names no
-   site (`review.creditPaid`).
+   site (`credit.written` only, no `credit.basedOn`).
 5. **Given** a private copy of a paid source, **Then** it cannot be shared or exported, except in the cook's own account data export (ADR-0093 §5). The household sees its public version if
    one exists, and nothing otherwise (FR-019).
 
@@ -127,7 +127,7 @@ The cook can still keep the recipe and make a public version later.
 
 1. **Given** the budget is spent, **When** the cook opens the choice, **Then** only "Save my copy" is offered, with
    `budget.line`, and no writer call is made.
-2. **Given** the page carries an AI opt-out signal, **Then** only "Save my copy" is offered, with `optOut.line` and no
+2. **Given** the page carries an AI opt-out signal, **Then** only "Save my copy" is offered, with `privateOnly.line` and no
    promise of a later public version (FR-084).
 3. **Given** the writer fails after its retry (FR-031), **Then** `failed.title` and `failed.body` show with "Try again"
    and "Save my copy". On the Both path the private copy is already saved and the screen shows `failed.bodyBoth`.
@@ -173,11 +173,11 @@ refused with `blocked.body`. A reader of the public page sees the credit, the li
    is accepted.
 2. **Given** the check refuses, **Then** nothing is saved, and the cook sees `blocked.body` with "Write it again" and
    "Keep it just for me".
-3. **Given** a reader, signed in or out, **Then** the page shows `review.credit`, `review.licence` and
+3. **Given** a reader, signed in or out, **Then** the page shows `credit.written`, `credit.basedOn` (free site), `review.licence` and
    `publicPage.report`, and never `editor.source.rightsLabel`.
 4. **Given** "Report a problem", **Then** the version is hidden from every reader at once and stays hidden until staff
-   decide (`020-FR-082`). Its owner sees `hidden.owner.title` and `hidden.owner.body`, and a reader sees
-   `hidden.reader`.
+   decide (`020-FR-082`). Its owner sees `publicPage.hiddenOwner`, and a reader sees
+   `publicPage.hiddenReader`.
 
 ### User Story 6 - Sources that can be shown as they are (Priority: P3)
 
@@ -267,18 +267,25 @@ later from its own menu. (C-6)
   (ADR-0093 §5). No other door can make third-party steps public: not the visibility toggle on a copy that keeps the
   source's wording, not a clone, and not a 027 Flow Steps replace. A 027 replace never changes the rights label
   (`027-FR-032`). (Owner ruling 2026-11-17, found at PLANNING, staff-architect.)
-- **FR-016**: Publishing needs a cook aged 16 or over (ADR-0093 §8, `016-FR-009`). A younger cook MUST NOT be offered
-  "For everyone" or "Both", and gets the private path only. (C-17)
+- **FR-016**: Publishing needs a cook aged 16 or over (ADR-0093 §8, `016-FR-009`). At first publish the cook confirms
+  "I'm 16 or over". The app records the confirmation as one attestation row (wording `ageConfirm.v1`) and identity sets
+  the cook's age claim, `ageFloorMet`. A cook who has not confirmed MUST NOT be offered "For everyone" or "Both", and
+  gets the private path only. Spec 016's stronger age assurance replaces this later. (C-17)
 - **FR-016a**: Each recipe this feature saves or publishes spends the one shared import allowance (ADR-0072 §8,
   `004-FR-061`). A public version made in the same import costs no second unit. The later "Share a public version"
-  route costs no unit either (C-24). A private copy uses a slot, with or without a public version (ADR-0093 §8).
+  route spends one unit on the `publicVersion` channel (C-24). A private copy uses a slot, with or without a public version (ADR-0093 §8).
+- **FR-012a**: A third-party paste with no detectable page address MUST be Private only (offer reason
+  `noSourceAddress`). A recipe the cook wrote is unaffected.
+- **FR-012b**: A paid source stays Private only until spec 016 provides the signature-recipe signal and the publisher
+  opt-out list. The paid-site list and the federal publisher list are approved data, drafted with sources and approved
+  before they are seeded (task T084, slice B2).
 - **FR-017**: A paid source can go public only as a public version Commise writes in full, under ADR-0093 §5: no
   publisher opt-out (`004-FR-063`), not a signature recipe from that single source, and older than
   `PAID_CONTENT_HOLD_MONTHS`. The constant is defined once and configurable. With no readable page date, the age counts
   from the first import of that page by any cook, read from the source records. Otherwise it is private only.
   Consensus recipes, which ADR-0093 §5 prefers, are a later feature. Until then the public version is written from the
   cook's copy alone. (C-19)
-- **FR-018**: A paid source's public version MUST carry `review.creditPaid` (ADR-0093 §4 and §5). It names no site and
+- **FR-018**: A paid source's public version MUST carry `credit.written` and no `credit.basedOn` (ADR-0093 §4 and §5). It names no site and
   links to none, on the page and in its structured data. The source record keeps the source (FR-080).
 - **FR-019**: A household sees a paid private copy's Commise-written public version, or nothing (ADR-0093 §7, `017`).
   (C-20)
@@ -294,7 +301,7 @@ later from its own menu. (C-6)
   group with one radio or a disabled radio (pasteImport D8 rule, kept).
 - **FR-023**: An open source (FR-010) and a recipe with no third-party source use the cook's own visibility ("Who can see
   it?", existing keys). Nothing about rewriting or credit is shown.
-- **FR-024**: A paid source that FR-017 holds back shows `paid.line`, `paid.keepWording` and, on Free, `paid.count`,
+- **FR-024**: A paid source that FR-017 holds back shows one line (`privateOnly.paidRecent` or `privateOnly.line`) and, on Free, the slot line `private.hint`,
   with one button, "Save my copy". No Public, no Both, no "share it later". A paid source that FR-017 allows gets the
   choice of FR-020.
 
@@ -304,7 +311,9 @@ later from its own menu. (C-6)
   input (`027-FR-035`), the model rule (`027-FR-036`), the checks (`027-FR-040`, `FR-042`) and the thresholds. This
   feature adds no engine rule. The writer MUST NOT be an Anthropic model (owner ruling, 2026-11-17). The writer never
   fetches anything: the facts come from the import. A link import fetches as ADR-0093 §2 says (device first, server
-  second). The server never fetches for a known paid site: the cook is asked to paste the page instead.
+  second). The server never fetches for a known paid site: the cook is asked to paste the page instead. The server link read is
+  held until link import has a design, and link import has no UI in the first web release, which follows the paste
+  web-first exception.
 - **FR-030a**: The public-version writer runs on the server, so Publish can re-check its result. The account's
   on-device AI setting is ON by default on mobile and OFF on web. It governs only the import's extraction tiers. That
   tier sits between the deterministic tiers and server AI, and it stays optional. Built-in OCR is allowed. (C-22)
@@ -324,21 +333,20 @@ later from its own menu. (C-6)
   flow ends. Only the source record of FR-080 stays.
 - **FR-034**: A source page MUST have at most one Commise-written public version at a time (ADR-0093 §2). The page is
   its normalised source address (`sourceLinkKey`, `004`). A retry or a second device of the same cook MUST return the
-  same version. A later cook who chooses "For everyone" or "Both" while one holds the page is shown it (`exists.line`,
-  `exists.link`) and can keep a private copy. That cook never writes a second one. A cook's own "Adapted by you"
+  same version. A later cook who chooses "For everyone" or "Both" while one holds the page is shown it (`publicExists.published`,
+  `publicExists.link`) and can keep a private copy. That cook never writes a second one. A cook's own "Adapted by you"
   recipe (FR-015, door two) is not a public version and does not hold the page.
 - **FR-034a**: A public version holds its page through the source page key. The key MUST be released, in the same
   transaction as its cause, when the version is (a) deleted, (b) not approved by 020 (it becomes private,
-  ADR-0074), (c) hidden because its market switch went off (FR-090), or (d) withdrawn by a publisher opt-out (`016`).
-  After a release a later cook sees the normal choice and may write a new version, except under (d), where the cook
-  sees `optOut.line` and Private only. While a version is hidden by a report or held in 020's review it keeps the key,
-  and a later cook sees `exists.review` and Private only. When a market switch comes back on, a hidden version returns
-  only if its key is still free. Otherwise it stays hidden, and its owner sees `hidden.superseded`. (C-27)
+  ADR-0074), or (c) withdrawn by a publisher opt-out (`016`).
+  After a release a later cook sees the normal choice and may write a new version, except under (c), where the cook
+  sees `privateOnly.line` and Private only. While a version is hidden by a report or held in 020's review it keeps the key,
+  and a later cook sees `publicExists.inReview` and Private only. (C-27)
 
 #### E. The review step
 
 - **FR-040**: The cook MUST see and confirm the public version before it publishes: `review.title`, `review.body`, the
-  steps, `review.titleNote`, `review.photoNote`, `review.credit`, `review.licence`, and the actions "Publish", "Edit
+  steps, `review.titleNote`, `review.photoNote`, `credit.written`, `credit.basedOn` (free site), `review.licence`, and the actions "Publish", "Edit
   steps" and `review.notNow`. Nothing publishes without "Publish".
 - **FR-041**: "Show my copy" MUST show the cook's copy beside the written steps, during the review on both paths. On the
   Both path it is also reachable later from the public version (owner only, "See my copy").
@@ -362,9 +370,8 @@ later from its own menu. (C-6)
   alike. (C-10)
 - **FR-050a**: This feature owns the fingerprint key. It is a secret in AWS Secrets Manager, with rotation that keeps
   old versions readable. The source record stores the key version. When the stored key version is not the current one,
-  the save re-runs the check against the retained source evidence (ADR-0089 §6) if any is kept. With none kept, the
-  check runs with the stored version's key. If that key cannot be read, the save is refused with `blocked.rewrite`
-  ("Write it again"). (C-26)
+  the save runs the check with the stored version's key. Evidence keeps no text, so a key version the service cannot
+  read, or that is missing, gives `422 rewriteNeeded`, and the cook sees `rewriteNeeded.body` and can choose "Write it again" (`flag.rewrite`). (C-26)
 - **FR-051**: Every public door for a public version (publish, a later edit, a restore) MUST pass 020's hold
   (ADR-0074, ADR-0082 §8). The written steps never skip it.
 - **FR-052**: A later edit by the cook is allowed, and the fact check is not re-run after publish. The edit is under the
@@ -373,8 +380,8 @@ later from its own menu. (C-6)
 #### G. Credit, label and licence
 
 - **FR-060**: A public version from a free (non-paid) source MUST show, wherever it is shown, the credit of ADR-0093 §4
-  (`review.credit`, with the AI disclosure and the domain line). `{domain}` is the registrable domain and a link.
-  `{cook}` is the display name, or the username. The final wording is to be confirmed. Its schema.org data carries
+  (`credit.written` with the AI disclosure, and `credit.basedOn` with the domain line). `{domain}` is the registrable domain and a link.
+  `{cook}` is the display name, or the username. The wording is in research R8. Its schema.org data carries
   `isBasedOn` with the source address.
 - **FR-061**: A public version's rights label MUST be a new derived label, "Steps written by Commise", never "Written by
   you" and never "Adapted by you" (`016-FR-015i`). It is open to the web (`021-FR-002`). Adding the value is a one-way
@@ -385,8 +392,8 @@ later from its own menu. (C-6)
   (`016` data-model §1 and §11).
 - **FR-063**: A public version MUST show "Report a problem" (`publicPage.report`). A report hides the version until
   staff look and decide, as ADR-0093 §4 and `020-FR-082` say. 020 owns the hide, the decision and the statement of
-  reasons. While it is hidden the owner sees `hidden.owner.title` and `hidden.owner.body`, and a reader sees
-  `hidden.reader`.
+  reasons. While it is hidden the owner sees `publicPage.hiddenOwner`, and a reader sees
+  `publicPage.hiddenReader`.
 - **FR-064**: No string in this feature or in 027's `recipes.flowSteps.*` can use a word on the banned-word list. The
   list lives in one module, `packages/shared/recipe-core/src/copy/bannedWords.ts`, that every copy guard imports. It
   replaces the comment beside `editor.source.rightsLabel` in
@@ -436,7 +443,7 @@ later from its own menu. (C-6)
 - **FR-083**: Writer calls are bounded by the one shared import allowance (FR-016a), at most 3 calls per item (C-7), and
   the spend ceiling. There is no separate daily cap (C-15).
 - **FR-084**: A page with an AI opt-out signal (`004-FR-063`) MUST NOT be sent to the writer. Only Private is offered,
-  with its own line, `optOut.line`, which makes no promise of a later public version. (C-16)
+  with its own line, `privateOnly.line`, which makes no promise of a later public version. (C-16)
 - **FR-085**: "Stop" during writing MUST end the job `cancelled` and return the cook to the choice. A result that
   arrives later is dropped. A call already started is still paid from the pool. The cook never pays (FR-081). On the
   Both path the private copy stays.
@@ -444,42 +451,44 @@ later from its own menu. (C-6)
 #### K. Release
 
 - **FR-090**: The feature MUST sit behind one switch, read in one place, shared by web and mobile, and per market
-  (ADR-0093 §6a, which rules the launch state and what turning a market off does). Turning a market off releases each
-  hidden version's page key (FR-034a). With the switch off, imports behave as today (private only for web copies).
+  (ADR-0093 §6a, which rules the launch state). The reader's market decides whether a public version is shown, and
+  the cook's market does not gate publishing. There is one switch for each market, all on at launch. With the feature
+  switch off, imports behave as today (private only, offer reason `switchOff`).
 - **FR-091**: Web and mobile MUST ship every state in the same release (`CODING_STANDARDS.md` §14).
 
 ### UI states and localisation keys
 
-Keys are under `importMessages.choice.*` unless marked **reuse**. Every state exists on web and mobile. Copy is from the
-owner-approved v2 draft (staff-ux-engineer, 2026-11-15). `staff-ux-engineer` SPECIFY owns layout and final copy.
+Keys are under `importMessages.choice.*` unless marked **reuse**. Every state exists on web and mobile. Copy is the
+owner-approved v3 draft over v2 (staff-ux-engineer). `staff-ux-engineer` SPECIFY owns layout and final copy.
 
-| State                         | Keys                                                                                                                                                                                                                                                      |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Public version already exists | `exists.line`, `exists.link`, `exists.pending`, `exists.review`, `exists.cancel`, and for a Free cook with no slots `exists.full` (the free ways out, then Pro as in the dead end)                                                                        |
-| Public version hidden         | Owner: `hidden.owner.title`, `hidden.owner.body`, `hidden.superseded`. Reader: `hidden.reader`                                                                                                                                                            |
-| Choice                        | `title`, `explain`, `private.label`, `private.hint` (ICU), `private.hintPro`. And `public.label`, `public.hint`, `both.label`, `both.hint` (ICU), `both.hintPro`. And `credit`, `creditLink`, `pickOne`, `button.private`, `button.public`, `button.both` |
-| Writing (loading)             | `writing.title`, `writing.body`, `writing.bothSaved`, `writing.stop`, `writing.announce`                                                                                                                                                                  |
-| Review                        | `review.title`, `review.body`, `review.compare`, `review.compareHide`, `review.titleNote`, `review.photoNote`, `review.credit`, `review.licence`, `review.publish`, `review.edit`, `review.notNow`                                                        |
-| Flags after an edit           | `flag.title` (ICU), `flag.step`, `flag.allergen`, `flag.fix`, `flag.rewrite`                                                                                                                                                                              |
-| Wording refused               | `blocked.body`, `blocked.rewrite`, actions `flag.rewrite`, `review.notNow`                                                                                                                                                                                |
-| Writer failed                 | `failed.title`, `failed.body`, `failed.bodyBoth`, **reuse** `wizard.retry`                                                                                                                                                                                |
-| Budget spent                  | `budget.line`                                                                                                                                                                                                                                             |
-| AI opt-out on the page        | `optOut.line`, no "later" promise                                                                                                                                                                                                                         |
-| Offline                       | **reuse** `review.offline` (choosing), `writing.offline` (writing)                                                                                                                                                                                        |
-| No slot, public possible      | `full.line`, `full.free`, button `button.public`, then the Pro panel without "Not now"                                                                                                                                                                    |
-| Paid source, held back        | `paid.line`, `paid.keepWording`, `paid.count` (ICU)                                                                                                                                                                                                       |
-| Other private-only reasons    | Under 16, no steps: `paid.line`, `paid.keepWording` and `paid.count`, with no "later" promise. Switch off: today's `review.webPrivate`, `review.webPrivatePro` and `hold.slotsFull`.                                                                      |
-| Paid public version credit    | `review.creditPaid`                                                                                                                                                                                                                                       |
-| Own recipe or open source     | **reuse** the editor's visibility keys                                                                                                                                                                                                                    |
-| Dead end                      | `deadEnd.title`, `deadEnd.bodyNoWrite`, `deadEnd.bodyPaid`, `deadEnd.free`                                                                                                                                                                                |
-| Pro panel                     | `pro.name`, `pro.price`, `pro.perk.private`, `pro.perk.pantry`, `pro.perk.ai`, `pro.trial`, `pro.renews`, `pro.upgrade`, `pro.compare`, `notNow`, `notNow.note`, `pro.welcome`, `deadEnd.closed`                                                          |
-| Dead end, no paid plan        | `deadEnd.close`, `deadEnd.closeNote`                                                                                                                                                                                                                      |
-| Success                       | `done.private`, `done.public`, `done.both`, **reuse** `saved`, `savedPublic`                                                                                                                                                                              |
-| Links between the two recipes | `done.linkPublic`, `done.linkPrivate`                                                                                                                                                                                                                     |
-| Later route                   | `later.action` ("Share a public version")                                                                                                                                                                                                                 |
-| Public page                   | `review.credit`, `review.licence`, `publicPage.report`                                                                                                                                                                                                    |
+| State                         | Keys                                                                                                                                                                                                                                                                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public version already exists | `publicExists.published` with `publicExists.link`, `publicExists.writing`, `publicExists.inReview`. A Free cook with no slots sees the line, then the dead end, with no "Save my copy"                                                                                                                                                      |
+| Public version hidden         | Owner: `publicPage.hiddenOwner`. Reader: `publicPage.hiddenReader`                                                                                                                                                                                                                                                                          |
+| Choice                        | `title`, `explain`, `private.label`, `private.hint` (ICU), `private.hintPro`. And `public.label`, `public.hint`, `both.label`, `both.hint` (ICU), `both.hintPro`. And `credit`, `creditLink`, `creditPreview.label`, `pickOne`, `button.private`, `button.public`, `button.both`, `button.none`                                             |
+| Nothing chosen                | `button.none` ("Continue", never disabled): shows `pickOne` and moves focus to the choice group                                                                                                                                                                                                                                             |
+| Writing (loading)             | `writing.title`, `writing.body`, `writing.bothSaved`, `writing.stop`, `writing.announce`                                                                                                                                                                                                                                                    |
+| Review                        | `review.title`, `review.body`, `review.titleLabel`, `review.titleNote`, `review.stepsHeading`, `review.compare`, `review.compareHide`, `review.oursHeading`, `review.yourCopyHeading`, `review.photoNote`, `credit.written`, `credit.basedOn` (free site only), `review.licence`, `review.publish`, `review.edit`, `review.notNow`          |
+| Flags after an edit           | `flag.title` (ICU), `flag.step`, `flag.allergen`, `flag.fix`, `flag.rewrite`                                                                                                                                                                                                                                                                |
+| Wording refused               | `blocked.body`, actions `flag.rewrite` ("Write it again"), `review.notNow`                                                                                                                                                                                                                                                                  |
+| Rewrite needed                | `rewriteNeeded.body`, actions `flag.rewrite` ("Write it again"), `review.notNow`                                                                                                                                                                                                                                                            |
+| Writer failed                 | `failed.title`, `failed.body`, `failed.bodyBoth`, `failed.done`, **reuse** `wizard.retry`                                                                                                                                                                                                                                                   |
+| Budget spent                  | `budget.line`, and `failed.done` on the Both path                                                                                                                                                                                                                                                                                           |
+| The offer changed             | `offerChanged.line`, then the area re-renders from the new offer with nothing selected                                                                                                                                                                                                                                                      |
+| Private only, by reason       | One line per reason: `privateOnly.paidRecent` (with `{date}`), `privateOnly.under16`, `privateOnly.noSteps`, `privateOnly.noSource`, `budget.line`; `privateOnly.line` for `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, and for `paidRecent` with no date. On Free the slot line `private.hint` follows. No "later" promise |
+| Offline                       | **reuse** `review.offline` (choosing), `writing.offline` (writing)                                                                                                                                                                                                                                                                          |
+| No slot, public possible      | `full.line`, `full.free`, `public.hint`, button `button.public`, then the Pro panel without "Not now"                                                                                                                                                                                                                                       |
+| Own recipe or open source     | **reuse** the editor's visibility keys                                                                                                                                                                                                                                                                                                      |
+| Dead end                      | `deadEnd.title`, `deadEnd.body` (one string, with `{limit}`), `deadEnd.free`                                                                                                                                                                                                                                                                |
+| Pro panel                     | `pro.name`, `pro.trialBadge`, `pro.price`, `pro.saving`, `pro.perk.private`, `pro.perk.pantry`, `pro.perk.ai`, `pro.trial`, `pro.renews`, `pro.upgrade`, `pro.compare`, `notNow`, `notNow.note`, `pro.welcome`, `deadEnd.closed`                                                                                                            |
+| Dead end, no paid plan        | `deadEnd.close`, `deadEnd.closeNote`                                                                                                                                                                                                                                                                                                        |
+| Success                       | `done.private`, `done.public`, `done.both`, **reuse** `saved`, `savedPublic`                                                                                                                                                                                                                                                                |
+| Links between the two recipes | `done.linkPublic`, `done.linkPrivate`                                                                                                                                                                                                                                                                                                       |
+| Later route                   | `later.action` ("Share a public version")                                                                                                                                                                                                                                                                                                   |
+| Age question                  | `ageConfirm.title`, `ageConfirm.body`, `ageConfirm.yes`, `ageConfirm.notNow`, recorded as `ageConfirm.v1`                                                                                                                                                                                                                                   |
+| Public page                   | `credit.written`, `credit.basedOn` (free site), `review.licence`, `publicPage.report`                                                                                                                                                                                                                                                       |
 
-The exact strings are in the plan's research (R8). The `budget.allowance` variant of the draft is not used: the writer
+The strings are in `docs/design/publicVersion/spec.md` §6 and §7. The `budget.allowance` variant of the draft is not used: the writer
 is never charged to a cook's uses (FR-081).
 
 ### Key Entities
@@ -596,14 +605,14 @@ Still owed:
   cook.
 - **C-22. Does the on-device AI tier write public versions?** Assumed: no. It serves extraction only. The writer stays
   on the server, so Publish re-checks one known result. Owner to confirm.
-- **C-23. AI credit wording?** Ruled 2026-11-15: "Steps written by Commise with AI, checked by {cook}." The final
-  wording is to be confirmed.
-- **C-24. Does the later "Share a public version" route cost an allowance unit?** Assumed: no. The import already
-  paid its unit, and the writer is operating cost. Owner to confirm.
+- **C-23. AI credit wording?** Ruled 2026-11-15: "Steps written by Commise with AI, checked by {cook}." Final
+  wording settled 2026-11-17 (research R8).
+- **C-24. Does the later "Share a public version" route cost an allowance unit?** Assumed: yes, one unit on the
+  `publicVersion` channel (ADR-0097 §9); a public version made in the same import costs none. Owner to confirm.
 - **C-25. How long may a writer job run?** Assumed: 10 minutes, then it ends `failed`. Owner to confirm.
 - **C-26. Key custody for the wording fingerprint?** Assumed: a secret in AWS Secrets Manager under this feature's
-  custody, with rotation that keeps old versions readable. A save with an old key version re-checks against retained
-  source evidence if any, then with the old key, and is refused with "Write it again" if that key is gone (FR-050a).
+  custody, with rotation that keeps old versions readable. A save with an old key version re-checks with that key,
+  and is refused with "Write it again" if the key is gone (FR-050a).
   Owner to confirm.
-- **C-27. When is a page key released?** Assumed: on delete, a 020 rejection, a market switch off or a publisher
+- **C-27. When is a page key released?** Assumed: on delete, a 020 rejection or a publisher
   opt-out, as FR-034a lists. Owner to confirm.

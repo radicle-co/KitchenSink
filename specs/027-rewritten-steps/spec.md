@@ -281,7 +281,7 @@ can always cook from the original steps.
     - after a replace on a private copy of another site's recipe: "Steps written by Commise. Based on a recipe at
       {domain}." (`recipes.flowSteps.credit.privateSourced`). It replaces the copy's "Saved from {domain}" wording,
       which no longer describes the steps (C-19).
-      A public version of an imported recipe keeps the credit line of spec 003B (`review.credit`, or `review.creditPaid`).
+      A public version of an imported recipe keeps the credit lines of spec 003B (`credit.written`, plus `credit.basedOn` for a free site).
       This feature adds no key for it (C-20).
       The credit line sits beside the rights label and the source line. It does not replace them (FR-032).
 - **FR-044**: Copy for this feature MUST NOT use any word on the one shared banned-word list, in any language. The
@@ -289,8 +289,9 @@ can always cook from the original steps.
   enforce it over every `recipes.flowSteps.*` string.
 - **FR-045**: The writer, the fact sheet, the fact check and the wording check MUST be one engine, shared with the
   import-time public version (spec [003B](../003B-public-rewrite/spec.md)) and offered to `020`'s rewording
-  suggestion (`020-FR-075`). They MUST NOT be written twice. Whichever of this feature and 003B ships first builds the
-  engine, and the other uses it. The plan says where the engine lives.
+  suggestion (`020-FR-075`). They MUST NOT be written twice. Spec 003B builds the engine first, and this feature uses it.
+  The engine takes its time reader and its keyed hash as injected inputs, and its fingerprint functions take sets, so the
+  shared package needs no dependency on a package that depends on it. The plan says where the engine lives.
 - **FR-046**: The writer's output MUST be read as data. An answer that cannot be read, holds more steps than the plan's
   cap, or holds text outside the step list MUST be refused, and the job ends failed. Nothing is guessed.
 
@@ -354,8 +355,8 @@ can always cook from the original steps.
 - Regenerating one step at a time, or asking for a different style.
 - Flow Steps for a reader of someone else's recipe (C-2).
 - Reading Flow Steps aloud. Voice in Cooking Mode belongs to `008`.
-- Building the import-time public version (spec 003B). The shared engine is built once, by whichever of the two ships
-  first (FR-045).
+- Building the import-time public version (spec 003B). Spec 003B builds the shared engine first
+  (FR-045).
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -396,7 +397,7 @@ can always cook from the original steps.
 ## Assumptions
 
 - The writer, the checks and the import-time public version are new. The code has no step rewording today (`020` Q-6),
-  so whichever of this feature and 003B ships first builds the engine (FR-045).
+  so spec 003B builds the engine first (FR-045).
 - 005's ledger of uses is built before or with this feature. This feature does not build a second one.
 - The plan register (`010-FR-041b`) gains a Flow Steps entry.
 - English is the only writing language at first (`025`, English markets first).

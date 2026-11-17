@@ -3,9 +3,11 @@
 **Branch**: single-branch directive | **Date**: 2026-11-15 | **Spec**: [spec.md](./spec.md)
 **Input**: `specs/003B-public-rewrite/spec.md`. Each clarification there is ruled where marked, and the rest are assumed and wait for the owner.
 
-**Status**: Planned, not built. `staff-architect` PLANNING ran on 2026-11-15 (opus). Its pattern register and its
-findings are folded in below and into the spec (FR-015, FR-016, FR-045, FR-065, and the FR-050 title rule). BLUEPRINT,
-the feature ADR, and `staff-ux-engineer` SPECIFY and EVALUATE are owed before any code.
+**Status**: BLUEPRINT done 2026-11-17. `staff-architect` PLANNING ran on 2026-11-15 (opus). Its pattern register and its
+findings are folded in below and into the spec (FR-015, FR-016, FR-045, FR-065, and the FR-050 title rule). The decisions
+are recorded in the paste and link import ADR (ADR-0096) and
+the public version ADR (ADR-0097). The build order is in `tasks.md`, with one slice tag per task.
+`staff-ux-engineer` SPECIFY and EVALUATE are owed before any UI code.
 
 ## Summary
 
@@ -67,9 +69,9 @@ cost and needs no ledger.
 
 **Edits made to 027 in the same PR:**
 
-1. `027-FR-045` and its plan: the engine is built first by whichever of 027 or 003B ships first.
-2. `wordShingles.ts`: the measure takes shingle SETS, not text. `fingerprint(text) → { formatVersion, hashes }` uses a
-   keyed, versioned hash, with `jaccard(a, b)` and `containment(sentence, set)`. 027's in-memory check, 003B's stored
+1. `027-FR-045` and its plan: spec 003B builds the engine first (`027-FR-045`).
+2. `wordShingles.ts`: the measure takes shingle SETS, not text. `fingerprint(text, size, hash) → { formatVersion, hashes }`
+   uses an injected, keyed, versioned hash, with `jaccard(a, b)` and `containment(part, whole)`. 027's in-memory check, 003B's stored
    check and 020's copy check run through one function. The per-sentence check is containment, not Jaccard.
 3. `027-FR-032`: no gate. A 027 replace never changes the rights label, and an imported recipe goes public only through 003B-FR-015's two doors. Otherwise "private copy, replace, set public" is a back door.
 4. `027-FR-044`: the banned-word list is one module both guards import (003B FR-064).
@@ -148,7 +150,7 @@ specs/003B-public-rewrite/
 ### Source Code (repository root)
 
 ```text
-packages/shared/recipe-core/src/stepWriting/                  # 027's engine (built once, by whichever lands first)
+packages/shared/recipe-core/src/stepWriting/                  # 027's engine (built once, by 003B first: 027-FR-045)
 packages/shared/recipe-core/src/copy/bannedWords.ts            # the one banned-word list (FR-064)
 packages/services/recipe-service/src/import/domain/sourceClassification.ts
 packages/services/recipe-service/src/import/publicVersion/     # controller, schema, service, DAL, title builder
@@ -184,7 +186,7 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 | Unit (service)       | Classifier: every allowlist case, every unknown input reads closed, CC BY-NC is not open, `.gov` alone is not open. Title builder never returns the source title.                              |
 | Integration (mocked) | Choice to job. Double publish returns one recipe. Under 16: private only. Paid hold counted from the first import for an undated page. Wording guard on update and restore. Both digest drift. |
 | Worker               | `budgetSpent` terminal and acked. Unreadable counter retried. Late result after `cancelled` dropped. 10-minute expiry. At most 3 calls.                                                        |
-| LOCAL e2e            | Migration applied. CHECK pairs. Unique `source_page_key`. Page key released on delete, rejection, market-off and opt-out. Erasure covers the job table.                                        |
+| LOCAL e2e            | Migration applied. CHECK pairs. Unique `source_page_key`. Page key released on delete, rejection and opt-out. Erasure covers the job table.                                                    |
 | Service e2e + k6     | Job and publish round trip on a deployed preview. k6 on job status reads, by hand.                                                                                                             |
 | Component (both)     | Every state in the spec table. Banned-word guard over `importMessages.choice.*` and `recipes.flowSteps.*`.                                                                                     |
 | Playwright / Maestro | US1 Public and Both. US2 Private, and paid held back or allowed. US3 failure and later route, US4 dead end with switch on and off, US5 blocked save.                                           |
@@ -194,7 +196,7 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 - **Facts-only quality.** The steps can read flat. The bake-off measures it before launch.
 - **Fact extraction recall.** A fact the extractor misses is neither sent nor checked. SC-001's human audit is the
   backstop.
-- **Key custody.** The fingerprint key is a secret in AWS Secrets Manager under this feature, with rotation that keeps old versions readable (FR-050a). A lost key version sends a save to retained evidence or to `blocked.rewrite`.
+- **Key custody.** The fingerprint key is a secret in AWS Secrets Manager under this feature, with rotation that keeps old versions readable (FR-050a). A lost key version sends a save to `rewriteNeeded`.
 - **Fingerprint permanence.** With no text kept, a fingerprint can never be recomputed. The format version and the key
   version are stored, and a format change keeps the old reader.
 - **Shared pool.** The first operating-cost consumer that a cook's choice triggers. It competes with parse and match

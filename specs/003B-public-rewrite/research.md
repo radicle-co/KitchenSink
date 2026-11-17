@@ -53,7 +53,7 @@ Each item gives the decision, the reason, and the options set aside.
 
 ## R8. Copy (source strings)
 
-From the owner-approved v2 copy draft (staff-ux-engineer, 2026-11-15). Keys are under `importMessages.choice.*`.
+From the owner-approved copy, v3 over v2, as published in the public-version boards' spec. Keys are under `importMessages.choice.*`.
 `staff-ux-engineer` SPECIFY owns the final words. A curly apostrophe is used in the product strings.
 
 | Key                                                    | Copy                                                                                                                                                          |
@@ -82,9 +82,16 @@ From the owner-approved v2 copy draft (staff-ux-engineer, 2026-11-15). Keys are 
 | `review.compare` / `review.compareHide`                | Show my copy / Hide my copy                                                                                                                                   |
 | `review.titleNote`                                     | We gave it a new name. You can change it.                                                                                                                     |
 | `review.photoNote`                                     | Add your own photo. Photos from the page don’t come along.                                                                                                    |
-| `review.creditPaid`                                    | Steps written by Commise with AI, checked by {cook}. (final wording to be confirmed)                                                                          |
-| `review.credit`                                        | Steps written by Commise with AI, checked by {cook}. Based on a recipe at {domain}. Not affiliated. (final wording to be confirmed)                           |
+| `credit.written`                                       | Steps written by Commise with AI, checked by {cook}. ({cook} is the display name, else the username)                                                          |
+| `credit.basedOn`                                       | Based on a recipe at {domain}. Not affiliated. ({domain} is a link; free site only)                                                                           |
 | `review.licence`                                       | It’s shared under {licenceName}, credited to Commise and contributors, and so are your edits.                                                                 |
+| `button.none`                                          | Continue                                                                                                                                                      |
+| `creditPreview.label`                                  | Your public version will say                                                                                                                                  |
+| `review.titleLabel`                                    | Recipe name                                                                                                                                                   |
+| `review.stepsHeading`                                  | Steps                                                                                                                                                         |
+| `review.oursHeading` / `review.yourCopyHeading`        | Public version / Your copy                                                                                                                                    |
+| `failed.done`                                          | Done                                                                                                                                                          |
+| `offerChanged.line`                                    | Something changed since you chose. Have a look and pick again.                                                                                                |
 | `review.publish` / `review.edit`                       | Publish / Edit steps                                                                                                                                          |
 | `review.notNow`                                        | Public path: Keep it just for me. Both path: Don’t publish.                                                                                                   |
 | `flag.title`                                           | One thing to look at / {count} things to look at (ICU plural)                                                                                                 |
@@ -92,29 +99,26 @@ From the owner-approved v2 copy draft (staff-ux-engineer, 2026-11-15). Keys are 
 | `flag.allergen`                                        | Your copy uses {ingredient}. Our steps don’t mention it.                                                                                                      |
 | `flag.fix`                                             | Add it in Edit steps, or we can write it again.                                                                                                               |
 | `flag.rewrite`                                         | Write it again                                                                                                                                                |
-| `blocked.body`                                         | We can’t publish this version. Let us write it again, or keep it just for you.                                                                                |
+| `blocked.body`                                         | We can’t publish this version. Let us write it again, or keep it just for you. (shown with the `flag.rewrite` action "Write it again" and `review.notNow`)    |
 | `failed.title`                                         | We couldn’t write the public version this time                                                                                                                |
 | `failed.body`                                          | Try again, or save it just for you. You can share it later from the recipe.                                                                                   |
 | `failed.bodyBoth`                                      | Your copy is saved. Try again, or share it later from the recipe.                                                                                             |
 | `budget.line`                                          | We can’t write public versions right now. Save it just for you.                                                                                               |
 | `full.line`                                            | You can share this one with everyone. All {limit} of your private recipes are in use, so it can’t be kept just for you.                                       |
 | `full.free`                                            | To make room, delete a private recipe or share one.                                                                                                           |
-| `exists.line` / `exists.link`                          | This recipe already has a public version. / See the public version                                                                                            |
-| `exists.pending`                                       | A public version of this recipe is being written. Your copy is saved just for you.                                                                            |
-| `exists.review`                                        | This recipe’s public version is being looked at. Your copy is saved just for you.                                                                             |
-| `exists.cancel`                                        | Cancel                                                                                                                                                        |
-| `exists.full`                                          | This recipe already has a public version, and all {limit} of your private recipes are in use. (then the free ways out and Pro, as in the dead end)            |
-| `optOut.line`                                          | This page can only be saved just for you.                                                                                                                     |
-| `hidden.owner.title` / `hidden.owner.body`             | Your public version is hidden for now / We are looking at a report. You will hear from us.                                                                    |
-| `hidden.reader`                                        | This recipe isn’t available right now.                                                                                                                        |
-| `hidden.superseded`                                    | Your public version is hidden because another version of this recipe is public.                                                                               |
-| `blocked.rewrite`                                      | We can’t check this version any more. Let us write it again.                                                                                                  |
-| `paid.line`                                            | This recipe is saved just for you.                                                                                                                            |
-| `paid.keepWording`                                     | It’s kept exactly as you saved it.                                                                                                                            |
-| `paid.count`                                           | It uses one of your {limit} private recipes, and you have {count} left. (ICU plural, none on Pro)                                                             |
+| `publicExists.published` / `publicExists.link`         | There's already a public version of this recipe. / See the public version                                                                                     |
+| `publicExists.writing`                                 | A public version of this recipe is being written.                                                                                                             |
+| `publicExists.inReview`                                | A public version of this recipe is being checked.                                                                                                             |
+| `privateOnly.line`                                     | This one is saved just for you. We can't write a public version of it.                                                                                        |
+| `privateOnly.paidRecent`                               | This one is saved just for you. You can share a public version after {date}.                                                                                  |
+| `privateOnly.under16`                                  | Publishing is for cooks 16 or over. This one is saved just for you.                                                                                           |
+| `privateOnly.noSteps`                                  | There are no steps to write from yet. Save it, add steps in the editor, then share a public version.                                                          |
+| `privateOnly.noSource`                                 | We need the page's link to share this one. Save it, add the link as its source, then share a public version.                                                  |
+| `publicPage.hiddenOwner`                               | Hidden after a report. Only you can see it now.                                                                                                               |
+| `publicPage.hiddenReader`                              | This recipe isn't available right now.                                                                                                                        |
+| `rewriteNeeded.body`                                   | This version needs writing again before it can be published.                                                                                                  |
 | `deadEnd.title`                                        | Your private recipes are full                                                                                                                                 |
-| `deadEnd.bodyNoWrite`                                  | This one can only be saved just for you right now, and all {limit} of your spots are in use.                                                                  |
-| `deadEnd.bodyPaid`                                     | Recipes from {domain} are saved just for you, and all {limit} of your spots are in use.                                                                       |
+| `deadEnd.body`                                         | This one can only be saved just for you right now, and all {limit} of your spots are in use.                                                                  |
 | `deadEnd.free`                                         | To make room, delete a private recipe or share one. Then import this one again.                                                                               |
 | `pro.name` / `pro.price`                               | Pro / {monthlyPrice} a month, or {yearlyPrice} a year                                                                                                         |
 | `pro.perk.private` / `pro.perk.pantry` / `pro.perk.ai` | As many private recipes as you like / A pantry that reminds you what to use up / {aiUses} AI uses a month                                                     |
@@ -134,7 +138,7 @@ From the owner-approved v2 copy draft (staff-ux-engineer, 2026-11-15). Keys are 
 
 ICU parameters: `{limit}` is the Free private-recipe limit (ADR-0073), `{aiUses}` the Pro monthly uses and `{trialDays}` the trial length (`010-FR-041b`, `010-FR-042`). The copy holds no plan number.
 
-Not used: the draft's `paid.ourWording` (the owner ruled that paid copies keep the site's wording) and
+Not used: the draft's own-wording line for paid copies (the owner ruled that paid copies keep the site's wording) and
 `budget.allowance` (the writer never spends a cook's uses).
 
 Open copy items for the owner: who "Not affiliated." names, the licence link target, and the credit for a

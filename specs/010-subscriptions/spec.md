@@ -72,7 +72,7 @@ it, and check that the changes are still there. Then check each state in `FR-042
 **Acceptance Scenarios**:
 
 1. **Given** a cook has unsaved changes in the recipe editor, **When** they choose the paid-plan link in the publish dialog, **Then** the page opens as a modal over the editor. **When** they close it, **Then** every change is still there.
-2. **Given** the page is open, **Then** it shows each plan's price, billing period, renewal terms, trial terms and contents. This comes before any payment step. No plan is chosen for the cook.
+2. **Given** the page is open, **Then** it shows each plan's price, billing period, renewal terms, trial terms and contents. This comes before any payment step. No plan is chosen for the cook. _(Amended 2026-11-17, for one screen only.)_ When the cook opens the page from the import dead end's "Upgrade to Pro" button, it opens at Pro's checkout with both billing periods shown and neither chosen. Every other entry keeps this scenario as written.
 3. **Given** the page is open, **Then** "Not now" and the close control are always visible and look as strong as the buy buttons.
 4. **Given** a cook leaves for checkout, **When** checkout ends in any way, **Then** the cook comes back to the screen they started from. Their work is intact.
 5. **Given** a subscriber opens the page, **Then** it shows their plan, the next renewal date and amount, and a Cancel control. Cancelling takes no more steps than subscribing took.
@@ -396,7 +396,8 @@ the page's UX and legal requirements)_
   no upgrade is bundled into a decline. If one billing period is shown first, both prices stay visible.
   _(Amended 2026-11-15, owner ruling, for one screen only.)_ On the import dead end, where a cook can neither keep an
   import privately nor publish it, the main button is "Upgrade to Pro", with a "Compare plans" link and a "Not now"
-  button of equal size. Every other rule of `FR-042c` and `FR-042d` still holds
+  button of equal size. "Upgrade to Pro" opens the subscription page as a modal at Pro's checkout, with both billing
+  periods shown and neither chosen (US6 scenario 2). Every other rule of `FR-042c` and `FR-042d` still holds
   on that screen, and every other screen keeps "no plan is chosen for the cook".
 - **FR-042d**: The page MUST NOT use deceptive patterns. "Not now" and the close control are visible at all times and
   look as strong as the buy buttons. Decline copy is neutral, with no confirmshaming. There is no fake urgency: no

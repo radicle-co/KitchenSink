@@ -22,5 +22,5 @@ Rules that are easy to get wrong. Read before working on this feature.
   suggestion consume it with their own call site, charge rule and sink. No mode flag inside the engine. The wording
   check runs on a hashed fingerprint of the original, never on stored text.
 - **One banned-word list**, defined by 003B-FR-064 and held in one module. A test enforces it over `recipes.flowSteps.*`.
-- **No credit key of its own** for a public version of an imported recipe: 027 uses 003B's `review.credit` and
-  `review.creditPaid`.
+- **No credit key of its own** for a public version of an imported recipe: 027 uses 003B's `credit.written` and
+  `credit.basedOn`.

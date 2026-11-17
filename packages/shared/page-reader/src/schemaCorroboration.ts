@@ -100,11 +100,11 @@ function isMetaFact(text: string): boolean {
 }
 
 /**
- * Whether `text` is, whole, a jump phrase on the closed list ({@link JUMP_PHRASES}). The length check bounds the work, not
- * the answer: no phrase on the list is longer, so a long text is never folded to be looked up.
+ * Whether `text` (white space already folded) is, whole, a jump phrase on the closed list ({@link JUMP_PHRASES}). The
+ * length check bounds the work, not the answer: no phrase is longer, so a long text is never folded to be looked up.
  */
 const isJumpPhrase = (text: string): boolean =>
-    text.length <= MAX_JUMP_PHRASE_CHARS && JUMP_PHRASES.has(text.trim().toLowerCase());
+    text.length <= MAX_JUMP_PHRASE_CHARS && JUMP_PHRASES.has(text.toLowerCase());
 
 /**
  * The card's furniture: an unread list item of the card that is no part of the recipe the schema left out. An item is

@@ -129,14 +129,54 @@ function hasMainEntity(container: SchemaNode, recipe: SchemaNode): boolean {
 const RECIPE_LINKS: readonly string[] = ['mainEntityOfPage', 'isPartOf'];
 
 /**
- * The nodes a recipe names under `keys`, in order: each node it embeds, then the page's nodes that its `@id`, or a bare
- * address in its place, names ("mainEntityOfPage": {"@id": ".../pie"}), as JSON-LD links them.
+ * The page's nodes that may contain a recipe, indexed once per page so each recipe's date is read in time linear in what
+ * it names: the page nodes, the nodes with a `mainEntity`, and every one of them by its `@id`.
  */
-function linkedNodes(node: SchemaNode, keys: readonly string[], graph: readonly SchemaNode[]): readonly SchemaNode[] {
+export interface PageGraph {
+    readonly pages: readonly SchemaNode[];
+    readonly mainEntityHolders: readonly SchemaNode[];
+    readonly byId: ReadonlyMap<string, readonly SchemaNode[]>;
+}
+
+/**
+ * Index a page's container nodes for {@link datePublishedOf}.
+ *
+ * @param containers - The page's page nodes and nodes with a `mainEntity`, in page order.
+ * @returns The index, built in one pass. Pure.
+ */
+export function pageGraphOf(containers: readonly SchemaNode[]): PageGraph {
+    const byId = new Map<string, SchemaNode[]>();
+
+    for (const container of containers) {
+        const id = idOf(container);
+
+        if (typeof id === 'string') {
+            const named = byId.get(id);
+
+            if (named === undefined) {
+                byId.set(id, [container]);
+            } else {
+                named.push(container);
+            }
+        }
+    }
+
+    return {
+        pages: containers.filter(isPageNode),
+        mainEntityHolders: containers.filter((container) => field(container, 'mainEntity') !== undefined),
+        byId,
+    };
+}
+
+/**
+ * The nodes a recipe names under `keys`, in order: each node it embeds, then the page's nodes that its `@id`, or a bare
+ * address in its place, names ("mainEntityOfPage": {"@id": ".../pie"}), as JSON-LD links them. One lookup per name.
+ */
+function linkedNodes(node: SchemaNode, keys: readonly string[], graph: PageGraph): readonly SchemaNode[] {
     return keys.flatMap((key) =>
         items(field(node, key)).flatMap((item) => {
             const id = isSchemaNode(item) ? idOf(item) : item;
-            const named = typeof id === 'string' ? graph.filter((other) => idOf(other) === id) : [];
+            const named = typeof id === 'string' ? (graph.byId.get(id) ?? []) : [];
 
             return [...(isSchemaNode(item) ? [item] : []), ...named];
         }),
@@ -147,9 +187,9 @@ function linkedNodes(node: SchemaNode, keys: readonly string[], graph: readonly 
  * The page's one page node, when it has exactly one (counted by `@id`) that names no other node as its `mainEntity`.
  * With two or more, nothing ties either to the recipe: one may be a related post, a comment or another recipe's page.
  */
-function solePageNode(node: SchemaNode, graph: readonly SchemaNode[]): readonly SchemaNode[] {
-    const pages = graph.filter(
-        (other) => isPageNode(other) && (field(other, 'mainEntity') === undefined || hasMainEntity(other, node)),
+function solePageNode(node: SchemaNode, graph: PageGraph): readonly SchemaNode[] {
+    const pages = graph.pages.filter(
+        (page) => page !== node && (field(page, 'mainEntity') === undefined || hasMainEntity(page, node)),
     );
     const distinct = new Set(
         pages.map((page) => {
@@ -170,21 +210,19 @@ function solePageNode(node: SchemaNode, graph: readonly SchemaNode[]): readonly 
  * `@id`) are read, then a node whose `mainEntity` is the recipe, then the page's one page node ({@link solePageNode}).
  *
  * @param node - A JSON-LD Recipe node or a microdata item shaped like one.
- * @param containers - The page's other nodes that may contain it: page nodes and nodes with a `mainEntity`. Any other
- *   node is passed over.
+ * @param graph - The page's container nodes, indexed once per page ({@link pageGraphOf}).
  * @returns The first usable `datePublished` in that order, or `undefined`. Pure.
  */
-export function datePublishedOf(node: SchemaNode, containers: readonly SchemaNode[]): string | undefined {
+export function datePublishedOf(node: SchemaNode, graph: PageGraph): string | undefined {
     const stated = field(node, 'datePublished');
 
     if (stated !== undefined) {
         return isoDate(stated);
     }
 
-    const graph = containers.filter((container) => container !== node);
     const sources = [
-        ...linkedNodes(node, RECIPE_LINKS, graph).filter(isPageNode),
-        ...graph.filter((container) => hasMainEntity(container, node)),
+        ...linkedNodes(node, RECIPE_LINKS, graph).filter((linked) => linked !== node && isPageNode(linked)),
+        ...graph.mainEntityHolders.filter((container) => container !== node && hasMainEntity(container, node)),
         ...solePageNode(node, graph),
     ];
 

@@ -19,7 +19,8 @@ import { boundedWalk } from './boundedWalk.js';
 import { instructionOf, instructionSteps } from './instructionSteps.js';
 import type { SchemaStep } from './instructionSteps.js';
 import { isTextCut } from './pageDocument.js';
-import { creditOf, datePublishedOf, imageRefsOf } from './pageEvidence.js';
+import { creditOf, datePublishedOf, imageRefsOf, pageGraphOf } from './pageEvidence.js';
+import type { PageGraph } from './pageEvidence.js';
 import type { PageCredit } from './pageEvidence.js';
 import { durationMinutes } from './isoDuration.js';
 import { servingsOf } from './recipeYield.js';
@@ -182,7 +183,7 @@ function hasCutText(node: SchemaNode): boolean {
     return cut || truncated;
 }
 
-function candidateOf(node: SchemaNode, containers: readonly SchemaNode[]): CandidateRead {
+function candidateOf(node: SchemaNode, graph: PageGraph): CandidateRead {
     const name = textOf(field(node, 'name'));
 
     if (name === undefined) {
@@ -233,7 +234,7 @@ function candidateOf(node: SchemaNode, containers: readonly SchemaNode[]): Candi
         recipe: Object.freeze(recipe),
         links: Object.freeze(links),
         credit: creditOf(node),
-        ...stated('datePublished', datePublishedOf(node, containers)),
+        ...stated('datePublished', datePublishedOf(node, graph)),
         imageRefs: Object.freeze(imageRefsOf(node)),
         schemaSteps: Object.freeze(steps.map((step) => Object.freeze(step))),
         emptyDeclaredSteps: asList(field(node, 'recipeInstructions')).some(
@@ -271,9 +272,10 @@ export function extractionOf(
 
     const seen = new Set<string>();
     const candidates: PageCandidate[] = [];
+    const graph = pageGraphOf(containers);
 
     for (const node of nodes) {
-        const { candidate, truncated } = candidateOf(node, containers);
+        const { candidate, truncated } = candidateOf(node, graph);
 
         if (truncated) {
             return TOO_COMPLEX;

@@ -27,5 +27,5 @@ export const JUMP_PHRASES: ReadonlySet<string> = new Set([
     'приготовление', // fresh8/mA_ruGotovimDoma
 ]);
 
-/** The longest text read as a jump phrase, in characters: past it, an item is never looked up. */
-export const MAX_JUMP_PHRASE_CHARS = 40;
+/** The longest phrase on the list, in characters: a longer text is never looked up. */
+export const MAX_JUMP_PHRASE_CHARS = Math.max(...Array.from(JUMP_PHRASES, (phrase) => phrase.length));

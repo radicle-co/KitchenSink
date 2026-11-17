@@ -501,6 +501,16 @@ describe('readPastedContent', () => {
                         '2024-05-05',
                     ],
                     [
+                        'the page the recipe names by @id, written in two blocks with its date in the second',
+                        [
+                            { '@type': 'WebPage', '@id': 'https://example.com/pie', name: 'Pie' },
+                            { ...dated('WebPage', '2024-05-05'), '@id': 'https://example.com/pie' },
+                            { ...dated('WebPage', '2004-04-04'), '@id': 'https://example.com/other' },
+                            recipe({ mainEntityOfPage: { '@id': 'https://example.com/pie' } }),
+                        ],
+                        '2024-05-05',
+                    ],
+                    [
                         'the one page node, written twice under one @id',
                         [
                             { ...dated('WebPage', '2024-05-05'), '@id': 'https://example.com/pie' },

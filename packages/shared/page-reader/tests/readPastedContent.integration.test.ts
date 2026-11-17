@@ -5,6 +5,7 @@ import { MAX_PASTE_BYTES, readPastedContent } from '@kitchensink/page-reader';
 import { MAX_JSON_LD_BLOCK_BYTES, MAX_RECIPES_PER_PAGE } from '../src/pageCaps.js';
 import { parsePage, type PageDocument } from '../src/pageDocument.js';
 import type * as PageDocumentModule from '../src/pageDocument.js';
+import type * as SchemaNodeModule from '../src/schemaNode.js';
 import { makeLinkHead, makePage, makeRecipeCard, makeRecipeNode } from '../src/__fixtures__/pageFixtures.js';
 
 /**
@@ -21,6 +22,22 @@ vi.mock('../src/pageDocument.js', async (importOriginal) => {
     const actual = await importOriginal<typeof PageDocumentModule>();
 
     return { ...actual, parsePage: vi.fn(actual.parsePage) };
+});
+
+/** Every field read of a schema node is counted too: the JSON-LD a recipe names is read by `field`, not by a page walk. */
+const fieldReads = vi.hoisted(() => ({ count: 0 }));
+
+vi.mock('../src/schemaNode.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof SchemaNodeModule>();
+
+    return {
+        ...actual,
+        field: (node: SchemaNodeModule.SchemaNode, key: string): unknown => {
+            fieldReads.count += 1;
+
+            return actual.field(node, key);
+        },
+    };
 });
 
 /**
@@ -295,6 +312,28 @@ describe('readPastedContent over a whole synthetic page', () => {
 
         expect(result).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
         expectBoundedWalks(works);
+    });
+
+    // GATE on fb9ccfa23: each @id a recipe names was looked up by a scan of every page node, ids × nodes reads outside any
+    // budget (11 s on a 1.85 MB page). An index makes it one read per node and one lookup per id.
+    it('looks up the @ids a recipe names once each, against thousands of page nodes', () => {
+        const blocks = 5;
+        const pagesPerBlock = 2_000;
+        const ids = 5_000;
+        const pageBlocks = Array.from({ length: blocks }, (_, block) => ({
+            '@graph': Array.from({ length: pagesPerBlock }, (_, index) => ({
+                '@type': 'WebPage',
+                '@id': `b${String(block)}n${String(index)}`,
+            })),
+        }));
+        const recipe = makeRecipeNode({
+            mainEntityOfPage: Array.from({ length: ids }, (_, index) => ({ '@id': `x${String(index)}` })),
+        });
+
+        fieldReads.count = 0;
+
+        expect(readPastedContent(makePage({ jsonLd: [recipe, ...pageBlocks] }))).toMatchObject({ kind: 'extracted' });
+        expect(fieldReads.count).toBeLessThan(20 * (blocks * pagesPerBlock + ids));
     });
 
     describe('a block nested 100,000 deep, under the byte cap', () => {

@@ -209,8 +209,9 @@ The schema runs ahead of the service (ADR-0035). In the time between the migrati
 
 Nothing is live, so we accept this window and add no shim.
 
-Migration `0090` pins `search_path` to `pg_catalog, public, pg_temp` on every trigger and rule function from `0086`,
-`0087` and `0088`. A role that can create temporary tables can no longer shadow `recipes` with its own table.
+Migration `0090` pins `search_path` to `pg_catalog, public, pg_temp` on every trigger and rule function of the recipes
+schema: the ones from `0086`, `0087` and `0088`, and the eight older ones. A LOCAL e2e check reads the catalog and fails for any
+function that leaves the pin out. A role that can create temporary tables can no longer shadow `recipes` with its own table.
 
 ## Consequences
 

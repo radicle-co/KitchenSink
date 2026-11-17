@@ -7,8 +7,8 @@
  * The pin lives in each function's own `proconfig`, which only the catalog can show.
  *
  * The check covers EVERY function the schema owns, not a list of the ones written so far, so a new trigger or rule function
- * that leaves the pin out turns this red. The functions of migrations before 0086 are named in `UNPINNED_LEGACY` and that list
- * may only shrink. The detector is proved red with a temporary function, created in a transaction that rolls back.
+ * that leaves the pin out turns this red. The detector is proved red with temporary functions, created in a transaction that
+ * rolls back.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
@@ -16,18 +16,6 @@ import pg from 'pg';
 import { recipeDb } from '../../support/roleDb.js';
 
 const roleDb = recipeDb();
-
-/** Trigger functions that predate the pin. A name leaves this list when its migration pins it; none may join. */
-const UNPINNED_LEGACY: readonly string[] = [
-    'analytics_events_fold',
-    'ingredients_public_recipe_no_private_food',
-    'recipe_holds_private_food',
-    'recipe_private_food_lines',
-    'recipe_ratings_aggregate_refresh',
-    'recipes_first_published_at_ratchet',
-    'recipes_public_holds_no_private_food',
-    'recipes_search_vector_update',
-];
 
 /** The schema's own functions (extensions excluded) with no `search_path` in their settings, and the triggers that fire them. */
 const UNPINNED_QUERY = `
@@ -53,17 +41,10 @@ describe('every function of the recipes schema pins its search_path (migration 0
         await pool.end();
     });
 
-    it('leaves no function unpinned apart from the named legacy ones', async () => {
-        const { rows } = await pool.query<{ name: string }>(UNPINNED_QUERY);
-        const unpinned = rows.map((row) => row.name).filter((name) => !UNPINNED_LEGACY.includes(name));
-
-        expect(unpinned).toEqual([]);
-    });
-
-    it('still finds every legacy name, so the list cannot go stale', async () => {
+    it('leaves no function of the schema unpinned', async () => {
         const { rows } = await pool.query<{ name: string }>(UNPINNED_QUERY);
 
-        expect(rows.map((row) => row.name).sort()).toEqual([...UNPINNED_LEGACY].sort());
+        expect(rows.map((row) => row.name)).toEqual([]);
     });
 
     it('goes red for a trigger function and a rule function that leave the pin out', async () => {

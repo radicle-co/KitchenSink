@@ -22,7 +22,8 @@
 -- TWO: SEARCH PATH. A trigger or SQL function that names `recipes` with no schema is resolved through the session's search
 -- path, and a session's own temporary schema comes FIRST unless `pg_temp` is listed. `CREATE TEMP TABLE recipes (id uuid)` in a
 -- session of a role that may create temporary tables made `NOT EXISTS (SELECT 1 FROM recipes ...)` true, which let a DELETE
--- through the guard. Every function of 0086, 0087 and 0088 is recreated with a pinned path that lists `pg_temp` LAST.
+-- through the guard. Every function of 0086, 0087 and 0088 is recreated with a pinned path that lists `pg_temp` LAST, and the eight older trigger and rule
+-- functions get the same pin with `ALTER FUNCTION`, so no function of the schema is left open to it.
 --
 -- THREE: `recipe_is_from_person` also counts a PAST `fromPerson` attestation when the stored statement is NULL, the SQL twin of
 -- `fromPersonOf` (recipe-core). Without it a cook could say "from another person", clear the statement, and publish.
@@ -226,3 +227,15 @@ CREATE TRIGGER trg_recipes_clone_inherits_from_person
     AFTER INSERT ON recipes
     FOR EACH ROW WHEN (NEW.cloned_from_id IS NOT NULL)
     EXECUTE FUNCTION recipes_clone_inherits_from_person();
+
+-- ── The older functions: the same pin, no body restated ───────────────────────────────────────────────────────────────────────
+
+-- Each of these names only `pg_catalog` and `public` objects, so the pin changes no answer.
+ALTER FUNCTION recipes_search_vector_update() SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION recipe_ratings_aggregate_refresh() SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION analytics_events_fold() SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION recipes_first_published_at_ratchet() SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION recipe_private_food_lines(uuid) SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION recipe_holds_private_food(uuid) SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION ingredients_public_recipe_no_private_food() SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION recipes_public_holds_no_private_food() SET search_path = pg_catalog, public, pg_temp;

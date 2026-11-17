@@ -186,11 +186,13 @@ describe('buildStepPrompt', () => {
 
     it('accepts a prompt of exactly the cap and refuses one code point more', () => {
         const withPadding = (padding: number): FactsSheet => makeSheet({ ingredientNames: ['a'.repeat(padding)] });
+
         const length = (sheet: FactsSheet): number => {
             const { systemPrompt, userMessage } = buildStepPrompt(sheet);
 
             return [...systemPrompt].length + [...userMessage].length;
         };
+
         const room = MAX_STEP_PROMPT_CHARS - length(withPadding(0));
 
         expect(length(withPadding(room))).toBe(MAX_STEP_PROMPT_CHARS);

@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { PLAIN_FACT_PUNCTUATION } from '../factsSheetInput.js';
+import { PLAIN_FACT_PUNCTUATION } from '../alphabet.js';
 import { MAX_ANSWER_CAP, MAX_REWRITTEN_STEP_CHARS, parseStepAnswer } from '../stepAnswer.js';
 
 const answer = (steps: unknown): string => JSON.stringify({ steps });
@@ -56,8 +56,6 @@ describe('parseStepAnswer, unreadable', () => {
         ['a step that is a string', answer(['Melt the butter.'])],
         ['a step with no text', answer([{ covers: [0] }])],
         ['a step with blank text', answer([{ text: '   ', covers: [0] }])],
-        ['a step of spaces and a zero-width non-joiner', answer([{ text: ' \u200C ', covers: [0] }])],
-        ['a step of only joiners', answer([{ text: '\u200C\u200D', covers: [0] }])],
         ['a step with no covers', answer([{ text: 'Melt.' }])],
         ['a step that covers nothing', answer([{ text: 'Melt.', covers: [] }])],
         ['a covers entry that is a string', answer([{ text: 'Melt.', covers: ['0'] }])],
@@ -69,7 +67,7 @@ describe('parseStepAnswer, unreadable', () => {
     });
 
     it('counts the text limit in code points, so astral characters are not counted twice', () => {
-        const text = answer([{ text: '𝒜'.repeat(MAX_REWRITTEN_STEP_CHARS), covers: [0] }]);
+        const text = answer([{ text: '\u{10780}'.repeat(MAX_REWRITTEN_STEP_CHARS), covers: [0] }]);
 
         expect(parseStepAnswer(text, 80)).toMatchObject({ ok: true });
     });
@@ -118,6 +116,21 @@ describe('parseStepAnswer, text that is not plain', () => {
         ['a host and port', 'Open localhost:3000/x now.'],
         ['a digit in the domain', 'Open evil.c0m/x now.'],
         ['an ideographic full stop used as a dot', 'Open evil\u3002com/x now.'],
+        ['spaces and a zero-width non-joiner', ' \u200C '],
+        ['only joiners', '\u200C\u200D'],
+        ['a combining mark beside a dot', 'Open evil\u0300.com now.'],
+        ['a Devanagari host', 'Open \u0939\u093F\u0902\u0926\u0940.\u092D\u093E\u0930\u0924 now.'],
+        ['a Thai host', 'Open \u0E44\u0E17\u0E22\u0E14\u0E35.com now.'],
+        ['a zero-width joiner in a host', 'Open evil\u200D.com now.'],
+        ['a short host', 'Open t.co now.'],
+        [
+            'a Japanese step with ideographic punctuation',
+            '\u5C0F\u9EA6\u7C89200g\u3002\u6B21\u306B\u6DB2\u3092\u52A0\u3048\u307E\u3059\u3002',
+        ],
+        ['a Japanese word', '\u30D0\u30BF\u30FC\u3092\u6EB6\u304B\u3057\u307E\u3059'],
+        ['an Arabic-Indic digit', 'Add \u0663 eggs.'],
+        ['a full-width digit', 'Add \uFF13 eggs.'],
+        ['a Persian word with a joiner', '\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645'],
         ['a full-width full stop used as a dot', 'Open evil\uFF0Ecom now.'],
         ['full-width letters and an ideographic full stop', 'Open ｅｖｉｌ。ｃｏｍ now.'],
         ['mixed-width letters and an ideographic full stop', 'Open evil。ｃom now.'],
@@ -151,13 +164,6 @@ describe('parseStepAnswer, text that is not plain', () => {
         expect(parseStepAnswer(one(text), 80)).toMatchObject({ ok: true });
     });
 
-    it('accepts a Japanese sentence break with no space after it', () => {
-        const text =
-            '\u30D0\u30BF\u30FC\u3092\u6EB6\u304B\u3057\u307E\u3059\u3002\u6B21\u306B\u6DB2\u3092\u52A0\u3048\u307E\u3059\u3002';
-
-        expect(parseStepAnswer(one(text), 80)).toMatchObject({ ok: true });
-    });
-
     it('accepts a plus sign between ingredients', () => {
         expect(parseStepAnswer(one('Season with salt + pepper.'), 80)).toMatchObject({ ok: true });
     });
@@ -168,24 +174,28 @@ describe('parseStepAnswer, text that is not plain', () => {
         }
     });
 
-    it('accepts a Persian word with a zero-width non-joiner', () => {
-        expect(parseStepAnswer(one('\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645'), 80)).toMatchObject({
-            ok: true,
-        });
-    });
-
-    it('accepts a word with several joiners', () => {
-        const text = '\u0645\u06CC\u200C\u062E\u0648\u0631\u0645\u200C\u0647\u0627';
-
-        expect(parseStepAnswer(one(text), 80)).toMatchObject({ ok: true });
-    });
-
     it('accepts a time with a colon', () => {
         expect(parseStepAnswer(one('Rest for 1:30 minutes.'), 80)).toMatchObject({ ok: true });
     });
 
-    it('accepts non-Latin letters', () => {
-        expect(parseStepAnswer(one('バターを溶かします。'), 80)).toMatchObject({ ok: true });
+    it('accepts the plain Latin cases a recipe needs', () => {
+        for (const text of [
+            'A.1. sauce',
+            '2 fl.oz.',
+            'crème fraîche',
+            'St. Louis',
+            '2.5 cups',
+            '\u00BD cup',
+            'Rest 1:30.',
+        ]) {
+            expect(parseStepAnswer(one(text), 80)).toMatchObject({ ok: true });
+        }
+    });
+
+    it('returns NFC text, so a decomposed letter comes back composed', () => {
+        const result = parseStepAnswer(one('Fry the jalapen\u0303o.'), 80);
+
+        expect(result).toEqual({ ok: true, steps: [{ text: 'Fry the jalape\u00F1o.', covers: [0] }] });
     });
 
     it('checks every step, not only the first', () => {

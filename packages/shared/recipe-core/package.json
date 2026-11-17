@@ -43,6 +43,7 @@
         "./step-writing/step-prompt": "./src/stepWriting/stepPrompt.ts",
         "./step-writing/step-answer": "./src/stepWriting/stepAnswer.ts",
         "./step-writing/facts-sheet-types": "./src/stepWriting/factsSheet.types.ts",
+        "./step-writing/alphabet": "./src/stepWriting/alphabet.ts",
         "./step-writing/address-like": "./src/stepWriting/addressLike.ts",
         "./step-writing/facts-sheet-input": "./src/stepWriting/factsSheetInput.ts",
         "./scaling": "./src/scaling.ts",

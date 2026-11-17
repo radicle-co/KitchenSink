@@ -9,7 +9,8 @@
  * - `outsideList`: readable parts that are not the step list, such as prose around the JSON, a code fence, or a
  *   field the prompt never asked for;
  * - `overCap`: more steps than the caller's cap;
- * - `unsafeText`: a step holding a link, markup or any character outside plain recipe prose (see `PLAIN_PROSE`).
+ * - `unsafeText`: a step holding a link, an address, markup or any character outside the language's alphabet (see
+ *   `alphabet.ts`).
  *
  * This reader checks the SHAPE and the CHARACTERS of the text only. Truth to the recipe is checked later in the pipeline
  * (spec 027 FR-040, the two-way fact check).
@@ -19,25 +20,18 @@
  */
 import { z } from 'zod';
 
-import { hasInvisibleCharacter, looksLikeAddress, withoutJoiners } from './addressLike.js';
+import { ALPHABET_BY_LANGUAGE } from './alphabet.js';
+
+import type { OutputLanguage } from './alphabet.js';
 
 /** The largest `cap` a caller may pass. A bound far above any real recipe that still catches a typo. */
 export const MAX_ANSWER_CAP = 1_000;
-
-/**
- * What a written step may contain: letters, marks, numbers, spaces and the punctuation of plain recipe prose.
- * No angle or square brackets, braces, backslash, backtick, `@`, `*`, `_`, `#`, `|`, `~`, `$`, `=`, emoji or
- * control characters, and no line break.
- */
-const PLAIN_PROSE = /^[\p{L}\p{M}\p{N} .,;:!?'’"“”()\-–—/%°&+。、，；：！？（）「」]+$/u;
 
 /** The most text one rewritten step may hold (contract `rewrittenSteps.api.md`). */
 export const MAX_REWRITTEN_STEP_CHARS = 2_000;
 
 const stepSchema = z.strictObject({
-    text: z
-        .string()
-        .refine((text) => withoutJoiners(text).trim() !== '' && [...text].length <= MAX_REWRITTEN_STEP_CHARS),
+    text: z.string().refine((text) => text.trim() !== '' && [...text].length <= MAX_REWRITTEN_STEP_CHARS),
     covers: z.array(z.number().int().nonnegative()).min(1),
 });
 
@@ -58,10 +52,11 @@ export type StepAnswer =
  *
  * @param text - The model's reply, verbatim.
  * @param cap - The most steps the caller accepts: an integer from 1 to {@link MAX_ANSWER_CAP}.
+ * @param language - The output language the steps are written in. Defaults to English.
  * @returns The steps, or the refusal. Pure.
  * @throws {RangeError} When `cap` is not an integer from 1 to {@link MAX_ANSWER_CAP}.
  */
-export function parseStepAnswer(text: string, cap: number): StepAnswer {
+export function parseStepAnswer(text: string, cap: number, language: OutputLanguage = 'en'): StepAnswer {
     if (!Number.isInteger(cap) || cap < 1 || cap > MAX_ANSWER_CAP) {
         throw new RangeError(`cap must be an integer from 1 to ${MAX_ANSWER_CAP}`);
     }
@@ -89,16 +84,15 @@ export function parseStepAnswer(text: string, cap: number): StepAnswer {
         return { refused: 'overCap' };
     }
 
-    if (
-        parsed.data.steps.some(
-            ({ text: step }) =>
-                !PLAIN_PROSE.test(withoutJoiners(step)) || hasInvisibleCharacter(step) || looksLikeAddress(step),
-        )
-    ) {
+    const { prose, addressRule } = ALPHABET_BY_LANGUAGE[language];
+    // NFC first, so a decomposed letter composes and passes. The steps handed back are the NFC text that was checked.
+    const steps = parsed.data.steps.map((step) => ({ ...step, text: step.text.normalize('NFC') }));
+
+    if (steps.some(({ text: step }) => !prose.test(step) || addressRule(step))) {
         return { refused: 'unsafeText' };
     }
 
-    return { ok: true, steps: parsed.data.steps };
+    return { ok: true, steps };
 }
 
 /**

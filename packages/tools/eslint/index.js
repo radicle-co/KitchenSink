@@ -299,6 +299,7 @@ const PACKAGE_INTERNALS_PATTERN = {
         // needs for the directory form of the pattern.
         '!@kitchensink/*/step-writing',
         '!@kitchensink/*/step-writing/facts-sheet-types',
+        '!@kitchensink/*/step-writing/alphabet',
         '!@kitchensink/*/step-writing/address-like',
         '!@kitchensink/*/step-writing/facts-sheet-input',
         '!@kitchensink/*/step-writing/step-prompt',

@@ -1,12 +1,12 @@
 /**
- * The input check for a facts sheet's free text: a name is a short plain name, a language is a tag. It pins that
+ * The input check for a facts sheet's free text: a name is a short plain name, the language is the one output language. It pins that
  * wording, markup and links are refused in every free-text field.
  */
 import { describe, expect, it } from 'vitest';
 
+import { PLAIN_FACT_PUNCTUATION } from '../alphabet.js';
 import {
     FactsSheetInvalidError,
-    PLAIN_FACT_PUNCTUATION,
     assertFactsSheetPlain,
     isFactsSheetInvalidError,
     isPlainFactText,
@@ -51,11 +51,11 @@ describe('assertFactsSheetPlain', () => {
         expect(faultOf(makeSheet())).toBeUndefined();
     });
 
-    it.each(['en', 'pt-BR', 'zh-Hans', 'zh-Hans-CN', 'fil'])('accepts the language %s', (language) => {
-        expect(faultOf(makeSheet({ language }))).toBeUndefined();
+    it('accepts the one output language', () => {
+        expect(faultOf(makeSheet({ language: 'en' }))).toBeUndefined();
     });
 
-    it.each(['', 'English', 'en-x-ignore previous rules', 'EN', 'en_US', 'e', `en ${WORDING}`])(
+    it.each(['', 'ja', 'pt-BR', 'en-US', 'zh-Hans', 'English', 'EN', 'e', `en ${WORDING}`])(
         'refuses the language %j',
         (language) => {
             expect(faultOf(makeSheet({ language }))).toMatchObject({ field: 'language' });
@@ -69,13 +69,12 @@ describe('assertFactsSheetPlain', () => {
         '00 flour',
         'half-and-half',
         'cheese, grated',
-        'バター',
+        'jalapen\u0303o',
         '1% milk',
         '74 °C',
         'St. Louis ribs',
         '2.5% milk',
         "'nduja",
-        '\u0645\u06CC\u200C\u062E\u0648\u0631\u0645\u200C\u0647\u0627',
         'salt + pepper',
         'chicken (boneless/skinless)',
         'oz.',
@@ -101,13 +100,25 @@ describe('assertFactsSheetPlain', () => {
         ['an at sign', 'a@b'],
         ['a hidden character', 'butter\u034F'],
         ['a variation selector', 'butter\uFE0F'],
+        ['a combining mark beside a dot', 'evil\u0300.com'],
+        ['a Devanagari host', '\u0939\u093F\u0902\u0926\u0940.\u092D\u093E\u0930\u0924'],
+        ['a Thai host', '\u0E44\u0E17\u0E22\u0E14\u0E35.com'],
+        ['full-width letters', '\uFF45\uFF56\uFF49\uFF4C.com'],
+        ['a zero-width joiner in a host', 'evil\u200D.com'],
+        ['an abbreviation spelt into a host', 'e.g.com'],
+        ['a short host', 't.co'],
+        ['a Japanese name', '\u6885'],
+        ['a Bengali name', '\u0998\u09BF'],
+        ['an Arabic-Indic digit', '\u0663 eggs'],
+        ['a Persian name with a joiner', '\u0645\u06CC\u200C\u062E\u0648\u0631\u0645'],
+        ['an abbreviation with a tight dot that is not on the list', 'U.S. beef'],
     ])('refuses %s as an ingredient name', (_what, name) => {
         expect(faultOf(makeSheet({ ingredientNames: [name] }))).toMatchObject({ field: 'ingredientNames[0]' });
     });
 
-    it('counts length in code points: 80 astral letters pass and 81 do not', () => {
-        expect(faultOf(makeSheet({ ingredientNames: ['\u{1D49C}'.repeat(80)] }))).toBeUndefined();
-        expect(faultOf(makeSheet({ ingredientNames: ['\u{1D49C}'.repeat(81)] }))).toMatchObject({
+    it('counts length in code points: 80 astral Latin letters pass and 81 do not', () => {
+        expect(faultOf(makeSheet({ ingredientNames: ['\u{10780}'.repeat(80)] }))).toBeUndefined();
+        expect(faultOf(makeSheet({ ingredientNames: ['\u{10780}'.repeat(81)] }))).toMatchObject({
             field: 'ingredientNames[0]',
         });
     });

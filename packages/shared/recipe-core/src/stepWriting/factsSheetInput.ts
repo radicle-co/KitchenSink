@@ -1,54 +1,43 @@
 /**
  * The one input check for a facts sheet's free text.
  *
- * The prompt is facts only, so every string a sheet carries must be a fact: a short plain name or a language tag, and
- * never a sentence of source wording. Any code that hands a sheet to the writer calls {@link assertFactsSheetPlain}
- * first.
+ * The prompt is facts only, so every string a sheet carries must be a fact: a short plain name, never a sentence of
+ * source wording, and a language the writer answers in. Any code that hands a sheet to the writer calls
+ * {@link assertFactsSheetPlain} first.
  *
- * Names are plain by construction: letters, marks, numbers and {@link PLAIN_FACT_PUNCTUATION}, at most
- * {@link MAX_FACT_TEXT_CHARS} code points, and nothing that `looksLikeAddress` flags. A sentence runs past the length,
- * a link fails the address check, and markup needs an angle bracket, so none of them passes.
+ * Names are plain by construction: normalised to NFC, then made only of what the language's alphabet allows (see
+ * `alphabet.ts`), at most {@link MAX_FACT_TEXT_CHARS} code points, and nothing the language's address rule flags. A
+ * sentence runs past the length, a link fails the address rule, and markup needs an angle bracket, so none passes.
  *
  * The colon is not in the set. It is the scheme and port marker, and no ingredient name needs it.
+ *
+ * Product behaviour, fail-closed: a name with a tight dot not on the abbreviation list (`U.S. beef`), or in another
+ * script (`梅`, `ঘি`), refuses the whole sheet. The recipe then stays private, and no rewrite is made.
  */
-import { escapeRegExp } from '../parsing/escapeRegExp.js';
-
-import { hasInvisibleCharacter, looksLikeAddress, withoutJoiners } from './addressLike.js';
+import { ALPHABET_BY_LANGUAGE, isOutputLanguage } from './alphabet.js';
 import { firstShapeFault } from './factsSheetShape.js';
 
+import type { OutputLanguage } from './alphabet.js';
 import type { FactsSheet } from './factsSheet.types.js';
 
 /** The longest name, unit, action, equipment word or safety fact, in code points. */
 export const MAX_FACT_TEXT_CHARS = 80;
 
 /**
- * What a plain name may hold besides letters, marks and numbers: space, apostrophes, comma, parentheses, ampersand,
- * percent, degree, full stop, plus, slash and hyphen. The hyphen stays last so the set reads as a regex class.
- */
-export const PLAIN_FACT_PUNCTUATION = " '\u2019,()&%\u00B0.+/-";
-
-/** A name starts with a letter, mark, number or apostrophe (`'nduja`), then holds only the set above. */
-const PLAIN_FACT_TEXT = new RegExp(
-    `^[\\p{L}\\p{M}\\p{N}'\u2019][\\p{L}\\p{M}\\p{N}${escapeRegExp(PLAIN_FACT_PUNCTUATION)}]*$`,
-    'u',
-);
-
-/** A BCP 47 tag of language, optional script and optional region: `en`, `pt-BR`, `zh-Hans-CN`. */
-const LANGUAGE_TAG = /^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2})?$/;
-
-/**
- * Whether the text is a plain fact name: short, from the plain character set, and not an address.
+ * Whether the text is a plain fact name: short, made only of the language's alphabet, and not an address.
  *
  * @param text - A name, unit, action, equipment word or safety fact.
+ * @param language - The output language. Defaults to English.
  * @returns True when it is plain. Pure.
  */
-export function isPlainFactText(text: string): boolean {
+export function isPlainFactText(text: string, language: OutputLanguage = 'en'): boolean {
+    const alphabet = ALPHABET_BY_LANGUAGE[language];
+    // NFC first, so a decomposed letter composes and passes, and one that cannot compose is not on the list.
+    const composed = text.normalize('NFC');
+
     // Code points, not UTF-16 units: an astral letter is one character of the name.
     return (
-        [...text].length <= MAX_FACT_TEXT_CHARS &&
-        PLAIN_FACT_TEXT.test(withoutJoiners(text)) &&
-        !hasInvisibleCharacter(text) &&
-        !looksLikeAddress(text)
+        [...composed].length <= MAX_FACT_TEXT_CHARS && alphabet.name.test(composed) && !alphabet.addressRule(composed)
     );
 }
 
@@ -82,12 +71,14 @@ export function assertFactsSheetPlain(sheet: FactsSheet): void {
         throw new FactsSheetInvalidError(shapeFault);
     }
 
-    if (!LANGUAGE_TAG.test(sheet.language)) {
+    const language = sheet.language;
+
+    if (!isOutputLanguage(language)) {
         throw new FactsSheetInvalidError('language');
     }
 
     const plain = (field: string, text: string): void => {
-        if (!isPlainFactText(text)) {
+        if (!isPlainFactText(text, language)) {
             throw new FactsSheetInvalidError(field);
         }
     };

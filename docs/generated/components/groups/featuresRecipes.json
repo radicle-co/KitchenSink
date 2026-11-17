@@ -6,11 +6,11 @@
     "coverage": {
         "components": 210,
         "implementations": 355,
-        "props": 2456,
+        "props": 2454,
         "documentedComponents": 210,
         "implementationsWithModuleDoc": 355,
         "implementationsWithComponentDoc": 244,
-        "documentedProps": 1884,
+        "documentedProps": 1882,
         "classifiedComponents": 188,
         "componentsWithPatternTag": 100,
         "crossPlatformComponents": 145
@@ -496,7 +496,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/actions/SourceStatementSheet.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes/actions — `SourceStatementSheet` (native): the React Native leaf of\n`./SourceStatementSheet.tsx`, on the same props, the same view model (`sheetViewOf`) and the same words. A bottom sheet on a\nphone and a centred dialog from the tablet width, on the design-system `Sheet`. Styled with Tamagui only (ADR-0080).\n\nWhat differs from web, and why:\n- The effect line is pinned in the footer, above the buttons, so it is read before the confirm at any text size; the body\n  scrolls and the title and footer stay put.\n- The two footer buttons are equal shares; their labels wrap and are never clipped.\n- React Native has no `aria-describedby`: a field's error is its accessibility hint (`error`) as well as drawn.\n- The platform back route is the dismiss, and does nothing while the change is in flight.",
+                    "moduleDoc": "@commise/features-recipes/actions — `SourceStatementSheet` (native): the React Native leaf of\n`./SourceStatementSheet.tsx`, on the same props, the same view model (`sheetViewOf`) and the same words. A bottom sheet on a\nphone and a centred dialog from the tablet width, on the design-system `Sheet`. Styled with Tamagui only (ADR-0080).\n\nWhat differs from web, and why:\n- The effect line is pinned in the footer, above the buttons, so it is read before the confirm at any text size; the body\n  scrolls and the title and footer stay put.\n- The two footer buttons are equal shares; their labels wrap and are never clipped.\n- React Native has no `aria-describedby`: a field's error is its accessibility hint (`error`) as well as drawn, and the message\n  above the field is an assertive live region, so it is spoken as it appears.\n- The platform back route is the dismiss, and does nothing while the change is in flight.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -23312,30 +23312,12 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "focusRequested",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The field is asked for focus (after Remove): a level, which stands until {@link onFocusHandled}.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
-                        },
-                        {
                             "name": "onChange",
                             "type": "(text: string) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "The cook typed in the field.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
-                        },
-                        {
-                            "name": "onFocusHandled",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The field took a requested focus.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
                         },
                         {
@@ -23399,30 +23381,12 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "focusRequested",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The field is asked for focus (after Remove): a level, which stands until {@link onFocusHandled}.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
-                        },
-                        {
                             "name": "onChange",
                             "type": "(text: string) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "The cook typed in the field.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
-                        },
-                        {
-                            "name": "onFocusHandled",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The field took a requested focus.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
                         },
                         {
@@ -23527,6 +23491,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "What Private is decided from (`recipePrivateGate`): the recipe's rule, the cook's slot standing and their\npaid-feature state.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "focusSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "0",
+                            "description": "A counter the host advances when the cook has done something that makes this group the next thing to read: taking a saved\nsource off, which leaves the held note here. Focus moves to the group (web), or the screen-reader cursor to its first card\n(native), only when the counter CHANGES; text focus is never taken, so no keyboard comes up.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -23663,6 +23636,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "What Private is decided from (`recipePrivateGate`): the recipe's rule, the cook's slot standing and their\npaid-feature state.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "focusSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "0",
+                            "description": "A counter the host advances when the cook has done something that makes this group the next thing to read: taking a saved\nsource off, which leaves the held note here. Focus moves to the group (web), or the screen-reader cursor to its first card\n(native), only when the counter CHANGES; text focus is never taken, so no keyboard comes up.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {

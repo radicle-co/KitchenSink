@@ -6,11 +6,11 @@
     "coverage": {
         "components": 94,
         "implementations": 152,
-        "props": 980,
+        "props": 983,
         "documentedComponents": 94,
         "implementationsWithModuleDoc": 152,
         "implementationsWithComponentDoc": 138,
-        "documentedProps": 883,
+        "documentedProps": 886,
         "classifiedComponents": 87,
         "componentsWithPatternTag": 94,
         "crossPlatformComponents": 58
@@ -13854,6 +13854,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The host has a change in flight that this sheet asked for, so the whole sheet is waiting: web `aria-busy` on the dialog,\nnative `aria-busy` on its dialog view. It changes nothing on screen by itself; the host dims what it disables.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
+                        },
+                        {
                             "name": "closeLabel",
                             "type": "string",
                             "typeDetail": null,
@@ -14119,6 +14128,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The host has a change in flight that this sheet asked for, so the whole sheet is waiting: web `aria-busy` on the dialog,\nnative `aria-busy` on its dialog view. It changes nothing on screen by itself; the host dims what it disables.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
+                        },
+                        {
                             "name": "children",
                             "type": "ReactNode",
                             "typeDetail": null,
@@ -14292,6 +14310,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The host has a change in flight that this sheet asked for, so the whole sheet is waiting: web `aria-busy` on the dialog,\nnative `aria-busy` on its dialog view. It changes nothing on screen by itself; the host dims what it disables.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
+                        },
                         {
                             "name": "children",
                             "type": "ReactNode",

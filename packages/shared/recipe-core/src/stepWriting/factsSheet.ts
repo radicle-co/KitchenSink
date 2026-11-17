@@ -213,14 +213,17 @@ interface IngredientMatcher {
     readonly matcher: RegExp;
 }
 
-/** What draws nothing: format characters (`\p{Cf}`) and the default-ignorable ones, as a regex class body. */
+/** Format (`\p{Cf}`) and default-ignorable characters, as a regex class body. */
 const HIDDEN = String.raw`\p{Cf}\p{Default_Ignorable_Code_Point}`;
 
 /**
- * What a name is cleaned of. A hidden character is not cleaned: it stays, so the alphabet refuses it and no name is
- * split or invented. Anything else outside letters, marks, numbers and the plain punctuation becomes a space.
+ * What a name is cleaned of: anything outside letters, marks, numbers and the plain punctuation becomes a space. A name
+ * with a hidden character is refused before it is cleaned, so this set never sees one.
  */
-const OUTSIDE_PLAIN_NAME = new RegExp(`[^\\p{L}\\p{M}\\p{N}${HIDDEN}${escapeRegExp(PLAIN_FACT_PUNCTUATION)}]`, 'gu');
+const OUTSIDE_PLAIN_NAME = new RegExp(`[^\\p{L}\\p{M}\\p{N}${escapeRegExp(PLAIN_FACT_PUNCTUATION)}]`, 'gu');
+
+/** A hidden character anywhere in a text. Not global, so `test` keeps no position between calls. */
+const HAS_HIDDEN_CHARACTER = new RegExp(`[${HIDDEN}]`, 'u');
 
 const HIDDEN_CHARACTERS = new RegExp(`[${HIDDEN}]`, 'gu');
 
@@ -255,6 +258,11 @@ function nameOfLine(
     const field = `ingredientLines[${index}]`;
 
     for (const raw of [line.displayText ?? '', line.name ?? '']) {
+        // Refused before any cleaning: cleaning would split the name or drop the character, text the cook never wrote.
+        if (HAS_HIDDEN_CHARACTER.test(raw)) {
+            throw new FactsSheetInvalidError(field);
+        }
+
         const name = plainNameOf(raw);
 
         if (name === '') {

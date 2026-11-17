@@ -93,7 +93,7 @@ or a paste with no detected address, never shows it. Inside that set it always s
 
 **What pressing it does.** The press fetches the server's `offer` for this copy. The client renders it and never
 derives it. While the fetch runs, the item shows a spinner in place of its glyph, its label stays, and the menu stays
-open. A failed fetch swaps the surface for `later.failed` (new, §6) and "Done", as for a `privateOnly` line. A `deadEnd` offer
+open. A failed fetch swaps the surface for `later.failed` (new, §6) and "Done" (`failed.done`), as for a `privateOnly` line. A `deadEnd` offer
 opens spec.md P9 (B5).
 
 | `offer`                                | Result                                                                                                                                                                                                                  |

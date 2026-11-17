@@ -10,7 +10,8 @@
  * bottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the
  * short-screen height rule, and is busy while the recipe loads.
  *
- * The route's offline notice (`CookingNoticeSlot`) is the first child, above the top bar.
+ * The route's offline notice (`CookingNoticeSlot`) is the first thing in the centred column, above the top bar and
+ * starting where it starts.
  *
  * Presentational: props → JSX, plus the notice slot it reads from context.
  */
@@ -33,8 +34,8 @@ export const CookingFrame: FC<CookingFrameProps> = ({ topBar, body, foot, busy }
             aria-busy={busy ? true : undefined}
             className="flex h-dvh flex-col bg-canvas text-ink [container-type:size]"
         >
-            {notice}
             <div className={`mx-auto flex min-h-0 w-full flex-1 flex-col ${COOKING_COLUMN.webClassName}`}>
+                {notice}
                 {topBar}
                 <div data-cooking-scroll className="min-h-0 flex-1 overflow-y-auto">
                     {body}

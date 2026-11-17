@@ -131,6 +131,8 @@ describe('CookingFrame', () => {
             const exit = screen.getByRole('button', { name: 'Exit' });
 
             expect(screen.getByRole('main').contains(notice)).toBe(true);
+            // The same centred column as the top bar, so the title starts where Exit starts at every width.
+            expect(notice.parentElement).toBe(exit.parentElement);
             expect(notice.compareDocumentPosition(exit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         });
 

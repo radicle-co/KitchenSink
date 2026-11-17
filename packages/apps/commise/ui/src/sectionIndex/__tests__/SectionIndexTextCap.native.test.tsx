@@ -22,10 +22,7 @@ const state = vi.hoisted(() => ({ containerClass: 'narrow' as ContainerClass }))
 
 vi.mock('../../layout/useContainerClass.native.js', () => ({ useContainerClass: () => state.containerClass }));
 // The sheet's keyboard lift reads the frame from the same module, so only the shown flag is replaced.
-vi.mock('../../layout/useKeyboardShown.native.js', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('../../layout/useKeyboardShown.native.js')>()),
-    useKeyboardShown: () => false,
-}));
+vi.mock('../../layout/useKeyboardShown.native.js', () => ({ useKeyboardShown: () => false }));
 vi.mock('../../motion/useReduceMotion.native.js', () => ({ useReduceMotion: () => true }));
 
 afterEach(() => {

@@ -47,10 +47,7 @@ vi.mock('react-native-safe-area-context', () => ({
     useSafeAreaInsets: () => ({ top: 24, right: 6, bottom: 16, left: 4 }),
 }));
 // The sheet's keyboard lift reads the frame from the same module, so only the shown flag is replaced.
-vi.mock('../../layout/useKeyboardShown.native.js', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('../../layout/useKeyboardShown.native.js')>()),
-    useKeyboardShown: () => false,
-}));
+vi.mock('../../layout/useKeyboardShown.native.js', () => ({ useKeyboardShown: () => false }));
 vi.mock('../../motion/useReduceMotion.native.js', () => ({ useReduceMotion: () => false }));
 
 beforeEach(() => {

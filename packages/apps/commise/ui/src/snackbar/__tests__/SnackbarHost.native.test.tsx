@@ -268,6 +268,9 @@ describe('SnackbarHost (native)', () => {
             </PopupInsetsContext>,
         );
 
+        // No snackbar shows, so the host reads nothing: the keyboard that is already up is met only through React Native's state.
+        expect(keyboard.added).toEqual([]);
+
         showFrom('Source removed.');
 
         expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('964px');

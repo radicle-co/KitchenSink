@@ -204,7 +204,9 @@ can always cook from the original steps.
 - **FR-010**: Every generation MUST produce one attached Flow Steps version stored beside the recipe. It MUST NOT
   change the recipe, its steps, its version history, its rights label or its public view.
 - **FR-011**: An attached version MUST be visible only to the recipe's owner, on every device they use. Readers of a
-  public recipe MUST see only the recipe's own steps. (C-3)
+  public recipe MUST see only the recipe's own steps. A household member never sees attached Flow Steps, and never sees
+  a replace of a paid site's private copy: for such a copy the household sees what 003B-FR-019 allows, and nothing
+  more. (C-3)
 - **FR-012**: The owner MUST be able to switch between Flow Steps and Original steps on the recipe page and in Cooking
   Mode. In Cooking Mode the choice MUST be remembered per recipe on that device, and timers MUST come from the steps
   being shown (`008-FR-034`). Switching MUST keep the cook's place as closely as the two step lists allow: the
@@ -218,7 +220,7 @@ can always cook from the original steps.
     - on a public recipe, the content check runs on the new steps like any edit (`020-FR-058`);
     - the recipe's rights label does not change (FR-032).
 - **FR-032**: A replace MUST NEVER change the recipe's rights label, whichever recipe it is. A recipe whose steps came
-  from another site becomes public only through spec 003B's Publish (003B-FR-015), so a replace opens no way to publish
+  from another site becomes public only through the two doors of 003B-FR-015, so a replace opens no way to publish
   another site's steps. A replace is allowed on a private copy: it is the cook's own choice.
 - **FR-033**: A replace MUST be refused if the recipe changed after the Flow Steps were made (FR-020), or if another
   edit landed first. The cook sees the out-of-date state and nothing changes.
@@ -248,7 +250,7 @@ can always cook from the original steps.
   actions from a fixed list, the amounts, temperatures, times, ingredient names, equipment from a fixed list, and the
   safety lines (FR-041). It MUST NOT receive the wording of the steps, the source address, the source statement or
   any other recipe text. This holds for every recipe, whoever wrote it. (C-7)
-- **FR-036**: The writer MUST be a model that is not made by Anthropic, run on Amazon Bedrock. The cook's own keys (`005-FR-015`) MUST NOT be used for Flow Steps. (C-6)
+- **FR-036**: The writer MUST be a model that is not made by Anthropic (owner ruling, 2026-11-17), run on Amazon Bedrock. The cook's own keys (`005-FR-015`) MUST NOT be used for Flow Steps. (C-6)
 - **FR-037**: The writer MUST rewrite into cook-ready steps: one main action per step, preparation gathered before the
   heat where the facts allow, waits named so the cook can work during them, and a short "before you start" step for
   anything that must happen well ahead (preheat, marinate, rest). It MUST NOT add tips, reasons, substitutions,
@@ -267,7 +269,8 @@ can always cook from the original steps.
     6. An allergen named in the steps.
     7. A "do not", "never" or "discard" warning.
 - **FR-042**: Code MUST check the result's wording against the original step wording. A result whose wording is too
-  close to the original (the plan sets the measure and the threshold) MUST NOT be shown, stored or charged. This is a
+  close to the original (the plan sets the measure and the threshold, and this feature owns both for every consumer of
+  the engine, spec 003B included) MUST NOT be shown, stored or charged. This is a
   ceiling on reuse of the original wording, not a measure of quality. The measure works on a hashed fingerprint of the
   original wording (a versioned set of keyed hashes of word runs), not on the text. This feature takes the fingerprint
   in memory from the saved steps. Spec 003B stores one, because it keeps no source text. Both run the one function.
@@ -418,15 +421,15 @@ Each answer is the best-justified default. Each is **Assumed, owner to confirm**
 - **C-5. When a use is taken.** Q: Does a generation that fails the checks take a use? → A: No. A use is taken only
   when the cook sees Flow Steps. The pool still pays for the failed call. (FR-050) _Assumed, owner to confirm._
 - **C-6. Own keys.** Q: May a Pro with AI cook's own keys pay for Flow Steps after the allowance? → A: No. The writer
-  must be a known, measured, non-Anthropic model, and own keys may name any provider. (FR-036) _Assumed, owner to
-  confirm._
+  must be a known, measured, non-Anthropic model, and own keys may name any provider. (FR-036) _Owner ruling,
+  2026-11-17: no Anthropic model._
 - **C-7. Facts only for the cook's own words too?** Q: Could the writer see the wording when the cook wrote it? → A:
   No, facts only for every recipe. A source statement is the cook's claim and can be wrong, and one input type is one
   tested path. (FR-035) _Assumed, owner to confirm._
 - **C-8. Rights label after a replace.** Q: Which label? → A: None changes. Neither an attached version nor a replace
   touches the label. (FR-032) _Assumed, owner to confirm._
 - **C-9. Public replace of another site's recipe.** Q: Allowed now? → A: Another site's steps become public only through
-  spec 003B's Publish, so a replace needs no gate and opens no door. (FR-032) _Assumed, owner to confirm._
+  the two doors of 003B-FR-015, so a replace needs no gate and opens no door. (FR-032) _Assumed, owner to confirm._
 - **C-10. Updating after a change.** Q: Update automatically when the recipe changes? → A: No. Show it out of date and
   update only when the cook asks, because an update spends a use. (FR-022) _Assumed, owner to confirm._
 - **C-11. Undo a replace.** Q: How does the cook go back? → A: From the recipe's version history. A recipe must have

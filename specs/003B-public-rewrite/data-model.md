@@ -21,7 +21,7 @@ in `erasureSweepCoverage`'s `RETAINED_BY_RULING` map with this reason.
 | `classification`          | text NOT NULL        | CHECK in (`open`, `thirdParty`, `paid`).                                                                                                                               |
 | `classification_inputs`   | jsonb NOT NULL       | The signals read: statement kind, claim state, licence signal, paid signal (which of the three), publication date, signature status, list versions.                    |
 | `fingerprint_format`      | smallint NOT NULL    | Format version of the hashing (R3).                                                                                                                                    |
-| `fingerprint_key_version` | smallint NOT NULL    | Version of the hash key.                                                                                                                                               |
+| `fingerprint_key_version` | smallint NOT NULL    | Version of the hash key (secret in AWS Secrets Manager, rotation keeps old versions readable, FR-050a).                                                                |
 | `step_shingles`           | bigint[] NOT NULL    | Keyed hashes of word 5-shingles of the source steps. Never the text.                                                                                                   |
 | `title_shingles`          | bigint[] NOT NULL    | Keyed hashes of word 2-shingles of the source title.                                                                                                                   |
 | `title_hash`              | bigint NOT NULL      | Keyed hash of the normalised source title.                                                                                                                             |
@@ -75,7 +75,10 @@ ready ──Not now / flow ends──────────────▶ can
 
 - `recipes.source_record_id uuid NULL` and `recipes.source_page_key bytea NULL`: mark a public version. FK
   `recipe_source_records`, no cascade. A partial `UNIQUE (source_page_key) WHERE source_page_key IS NOT NULL` gives one
-  public version per source page (FR-034) and is Publish's idempotency key.
+  public version per source page (FR-034) and is Publish's idempotency key. The key is released (set to NULL) in the same
+  transaction as its cause: delete (the row goes), a 020 rejection, a market switch off, or a publisher opt-out
+  (FR-034a). A hidden version records its released key so it can return only if the key is still free
+  (`hidden.superseded` otherwise).
 - `recipes` rights label input: a new derived label "Steps written by Commise" (016-FR-015c). One-way door.
 - `recipes.licence`: the union gains `cc-by-sa-4.0` (016 data-model §11). One-way door.
 - Provenance pair: a public version needs its own `source_type` and `source_kind` pairing in the
@@ -86,6 +89,11 @@ ready ──Not now / flow ends──────────────▶ can
 - Monitoring counts public versions per `source_key` from `recipes.source_page_key` and the source records, for the
   rate alarm only. There is no per-source ledger and there are no caps (owner ruling 2026-11-15).
 - Licence acceptance at Publish: one row in 016's acceptance record with the terms version (FR-062).
+
+## Source evidence retained
+
+Where ADR-0089 §6's evidence record keeps source text, the stale-key save of FR-050a re-checks against it. This feature
+keeps none of its own.
 
 ## Not stored
 

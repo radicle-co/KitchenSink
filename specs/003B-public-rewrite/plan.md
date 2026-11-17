@@ -32,7 +32,7 @@ transaction, worker tests, Playwright, Maestro, and k6 by hand.
 **Performance Goals**: 95% of jobs ready within 30 s (SC-004).
 **Constraints**: facts-only writer input. No Anthropic model. The writer never fetches. A link import fetches on the device first, the server second (ADR-0093). Fail closed on spend and on every
 unknown classification input. Job timeout 10 min.
-**Scale/Scope**: bounded by the one import allowance (200 or 1,000 a day), 3 calls per item, and the spend ceiling.
+**Scale/Scope**: bounded by the one import allowance (ADR-0072 §8), 3 calls per item, and the spend ceiling.
 
 ## Constitution Check
 
@@ -71,8 +71,7 @@ cost and needs no ledger.
 2. `wordShingles.ts`: the measure takes shingle SETS, not text. `fingerprint(text) → { formatVersion, hashes }` uses a
    keyed, versioned hash, with `jaccard(a, b)` and `containment(sentence, set)`. 027's in-memory check, 003B's stored
    check and 020's copy check run through one function. The per-sentence check is containment, not Jaccard.
-3. `027-FR-032`: no gate. A 027 replace never changes the rights label, and only 003B's Publish makes a public version
-   (003B FR-015). Otherwise "private copy, replace, set public" is a back door.
+3. `027-FR-032`: no gate. A 027 replace never changes the rights label, and an imported recipe goes public only through 003B-FR-015's two doors. Otherwise "private copy, replace, set public" is a back door.
 4. `027-FR-044`: the banned-word list is one module both guards import (003B FR-064).
 5. `027-FR-043`: no credit key of its own for a public version of an imported recipe. 027 uses 003B's.
 6. 027's "Not stored: the facts sheet" stays true for 027. 003B stores a facts snapshot on its job until the flow
@@ -122,9 +121,8 @@ the unique `recipes.source_page_key` as the idempotency key (no `Idempotency-Key
 - **Per call.** ADR-0024 §6 estimates a recipe-sized call at about 1,750 tokens in and 900 out: about $0.003 on Nova 2
   Lite. The facts sheet is smaller than a full recipe, so this is an upper estimate. The bake-off measures it.
 - **Per item.** At most 3 writer calls (one automatic retry, one by hand, C-7): at most about $0.009.
-- **Per cook.** Bounded by the one import allowance: at most 1,000 items a day on a paid plan, so about $9 a day in the
-  3-call worst case. There is no separate cap (owner ruling 2026-11-15), so the pool's ceiling is the real bound.
-- **Pool reach.** Were it the only consumer, $100 covers about 11,000 items a month at the 3-call worst case.
+- **Per cook.** Bounded by the one import allowance (ADR-0072 §8, `004-FR-061`), at 3 calls per item. There is no separate
+  cap (owner ruling 2026-11-15), so the pool's ceiling is the real bound.
 - **Denial.** Terminal `budgetSpent`, refund in full, ack the message, never redeliver (FR-082). The screen reads the
   counter as a hint only. The reservation is the gate.
 - **ADR-0024 §3** gains a third no-retry path, in the feature ADR. §6's split of operating AI from paid credits is
@@ -174,7 +172,7 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 3. recipe-service: classifier, job API, Publish Command, wording guard, title builder, zod contract,
    `contract:generate`.
 4. recipe-workers: handler, adapter wiring, infra (Lambda, queue, DLQ, reserved concurrency, NAT row, call site).
-5. Bake-off (027 step 5): pin the model, set the step and title thresholds from the evaluation set.
+5. Bake-off (027 step 5): pin the model and set the step threshold from the evaluation set (027 owns both). This feature sets the title check's own measure from the same set.
 6. Clients and UI, web and mobile together, after SPECIFY.
 7. Amendments owed through the ADR (spec "Amendments"). The per-market switch is on in every market at launch (ADR-0093 §6a).
 
@@ -186,7 +184,7 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 | Unit (service)       | Classifier: every allowlist case, every unknown input reads closed, CC BY-NC is not open, `.gov` alone is not open. Title builder never returns the source title.                              |
 | Integration (mocked) | Choice to job. Double publish returns one recipe. Under 16: private only. Paid hold counted from the first import for an undated page. Wording guard on update and restore. Both digest drift. |
 | Worker               | `budgetSpent` terminal and acked. Unreadable counter retried. Late result after `cancelled` dropped. 10-minute expiry. At most 3 calls.                                                        |
-| LOCAL e2e            | Migration applied. CHECK pairs. Unique `source_page_key`. Source-count row written. Erasure covers the job table.                                                                              |
+| LOCAL e2e            | Migration applied. CHECK pairs. Unique `source_page_key`. Page key released on delete, rejection, market-off and opt-out. Erasure covers the job table.                                        |
 | Service e2e + k6     | Job and publish round trip on a deployed preview. k6 on job status reads, by hand.                                                                                                             |
 | Component (both)     | Every state in the spec table. Banned-word guard over `importMessages.choice.*` and `recipes.flowSteps.*`.                                                                                     |
 | Playwright / Maestro | US1 Public and Both. US2 Private, and paid held back or allowed. US3 failure and later route, US4 dead end with switch on and off, US5 blocked save.                                           |
@@ -196,6 +194,7 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 - **Facts-only quality.** The steps can read flat. The bake-off measures it before launch.
 - **Fact extraction recall.** A fact the extractor misses is neither sent nor checked. SC-001's human audit is the
   backstop.
+- **Key custody.** The fingerprint key is a secret in AWS Secrets Manager under this feature, with rotation that keeps old versions readable (FR-050a). A lost key version sends a save to retained evidence or to `blocked.rewrite`.
 - **Fingerprint permanence.** With no text kept, a fingerprint can never be recomputed. The format version and the key
   version are stored, and a format change keeps the old reader.
 - **Shared pool.** The first operating-cost consumer that a cook's choice triggers. It competes with parse and match

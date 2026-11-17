@@ -10,7 +10,7 @@ or recipe answers 404, never 403.
 
 ```text
 source: { classification: 'open' | 'thirdParty' | 'paid', domain: string | null }
-offer:  { kind: 'choice', credit: 'free' | 'paid' } | { kind: 'privateOnly', reason: 'paidRecent' | 'paidSignature' | 'publisherOptOut' | 'budget' | 'optOut' | 'under16' | 'noSteps' | 'switchOff' | 'publicPending' }
+offer:  { kind: 'choice', credit: 'free' | 'paid' } | { kind: 'privateOnly', reason: 'paidRecent' | 'paidSignature' | 'publisherOptOut' | 'budget' | 'optOut' | 'under16' | 'noSteps' | 'switchOff' | 'publicPending' | 'publicReview' | 'optOut' }
         | { kind: 'publicExists', recipeId: string }   // one public version per source page (FR-034)
         | { kind: 'publicOnly' }   // no slot left, public possible
         | { kind: 'deadEnd', reason: 'paid' | 'noWrite' }
@@ -25,7 +25,7 @@ The server computes `offer`. The client renders it and never derives it.
 same paid-site rules.
 
 - `202 { jobId, state }`. A second call while a live job exists returns the same job.
-- `409 { code: 'publicExists', recipeId }`: another version of this source page is already public (FR-034).
+- `409 { code: 'publicExists', recipeId }`: another version of this source page is already public (FR-034). The key is released by FR-034a.
 - `409 { code: 'offerChanged', offer }`: the offer moved (budget hint, slots, allowance).
 - `429 { code: 'importAllowance' }` past the one import allowance (004-FR-061).
 
@@ -41,7 +41,7 @@ The output is present only in `ready`. It holds no source text.
 
 - `201 { recipeId }`, or `200 { recipeId }` for a job already published (idempotent on the source page key).
 - `422 { code: 'flags', flags: { kind: 'step' | 'allergen', line?, ingredient? }[] }` from the server fact check.
-- `422 { code: 'tooSimilar' }` from the wording check.
+- `422 { code: 'tooSimilar' }` from the wording check, or `422 { code: 'rewriteNeeded' }` when the key version cannot be read (FR-050a).
 - `409 { code: 'privateCopyChanged' }` on the Both path (FR-045).
 
 ## Cancel

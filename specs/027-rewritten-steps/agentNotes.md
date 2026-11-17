@@ -8,7 +8,7 @@ Rules that are easy to get wrong. Read before working on this feature.
   system prompt is pinned by SHA-256. Do not add a "wording" parameter for recipes the cook wrote.
 - **The fact check is two-way and deterministic.** Nothing dropped, nothing added (008-FR-034a), across the whole
   recipe as multisets. Durations must survive or Cooking Mode timers break. No LLM judge.
-- **No Anthropic model, no own keys.** Bedrock non-Anthropic only, under the one verification role, new
+- **No Anthropic model (owner ruling 2026-11-17), no own keys.** Bedrock non-Anthropic only, under the one verification role, new
   `SPEND_CALL_SITES` member `step-rewrite-cook`. Never a second Bedrock grantee.
 - **Ceiling denial is terminal.** `gatedConverse` redelivers a denial by default. This step must end `budgetSpent`, refund in full, take no use and ack the message.
 - **Cache-aside on the saved-content digest** (steps, ingredient lines, language). Never the device draft (DD26).
@@ -16,7 +16,7 @@ Rules that are easy to get wrong. Read before working on this feature.
 - **Nothing regenerates without the cook.** A stale version shows as out of date. No background or on-open update.
 - **Attach is private to the owner.** Replace is an Apply Command through `RecipesService.update`
   (`expectedVersion` + digest). It needs a recipe published once, so a version always exists (ADR-0058).
-- **A replace never changes the rights label.** Another site's steps go public only through 003B's Publish.
+- **A replace never changes the rights label.** Another site's steps go public only through the two doors of 003B-FR-015.
   Attach changes no label either.
 - **One engine.** Whichever of 027 and 003B ships first builds `recipe-core/src/stepWriting/`. The other and 020's
   suggestion consume it with their own call site, charge rule and sink. No mode flag inside the engine. The wording

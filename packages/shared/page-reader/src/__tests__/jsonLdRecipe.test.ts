@@ -113,7 +113,8 @@ describe('jsonLdRecipe: reading a Recipe node', () => {
         expect(foundRecipe(makeRecipeNode({ prepTime: 'P1M' })).prepTimeMinutes).toBeUndefined();
     });
 
-    it('reads sections into steps, with the section name in front of its first step', () => {
+    // Rewritten for round 8: a section's name is a group heading, no part of the recipe, so no step carries it.
+    it('reads sections into steps, with no section name in them', () => {
         const recipe = foundRecipe(
             makeRecipeNode({
                 recipeInstructions: [
@@ -126,7 +127,7 @@ describe('jsonLdRecipe: reading a Recipe node', () => {
             }),
         );
 
-        expect(recipe.steps).toEqual([{ instruction: 'Dough: Knead.' }]);
+        expect(recipe.steps).toEqual([{ instruction: 'Knead.' }]);
     });
 
     it('does not take a node with a name but no ingredients and no steps for a recipe', () => {
@@ -412,7 +413,7 @@ describe('jsonLdRecipe: cleaning what a page writes (round 5)', () => {
 });
 
 describe('jsonLdRecipe: what the corroboration stage reads (round 5)', () => {
-    it('keeps each step raw, with its section heading and its offered name, beside the built steps', () => {
+    it('keeps each step raw, with its offered name, beside the built steps', () => {
         const extraction = read(
             makeRecipeNode({
                 recipeInstructions: [
@@ -429,11 +430,8 @@ describe('jsonLdRecipe: what the corroboration stage reads (round 5)', () => {
         expect(extraction).toMatchObject({
             candidates: [
                 {
-                    recipe: { steps: [{ instruction: 'Whisk the eggs.' }, { instruction: 'Glaze: Stir.' }] },
-                    schemaSteps: [
-                        { text: 'Whisk the eggs.', name: 'Scramble the egg' },
-                        { text: 'Stir.', heading: 'Glaze' },
-                    ],
+                    recipe: { steps: [{ instruction: 'Whisk the eggs.' }, { instruction: 'Stir.' }] },
+                    schemaSteps: [{ text: 'Whisk the eggs.', name: 'Scramble the egg' }, { text: 'Stir.' }],
                     emptyDeclaredSteps: false,
                 },
             ],

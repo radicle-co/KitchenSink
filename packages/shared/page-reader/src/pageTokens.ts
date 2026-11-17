@@ -2,8 +2,9 @@
  * Text as a list of comparable tokens, the one rule the reader uses to ask "does the page say this".
  *
  * Case, punctuation, brackets, spacing and the way a fraction or a times sign is written do not make two texts differ;
- * a number, a unit, a word or a slash do. A character scan with an explicit set of separators: no regular expression
- * runs over page text, and every character outside the set is word material, so a script with no case still tokenizes.
+ * a number, a unit, a word or a slash do. A character scan: only letters, combining marks and digits (in any script, so
+ * a script with no case still tokenizes) are word material, and no pattern runs over page text except a one-character
+ * class test, which cannot backtrack.
  */
 
 /** A vulgar fraction and what it reads as. NFKC alone would turn `1½` into `11⁄2`, so it is expanded first. */
@@ -37,9 +38,15 @@ const NUMBER_JOINERS: ReadonlySet<string> = new Set(['/', '-', '.', ',']);
 const isDigit = (char: string): boolean => char >= '0' && char <= '9';
 const isSpace = (char: string): boolean => char.trim() === '';
 
-/** Whether `char` is part of a word or a number: a digit, or anything that is not a space, a separator or a joiner. */
+/** A letter, a combining mark or a digit, in any script. One character class, so the test is linear and cannot backtrack. */
+const LETTER_MARK_OR_DIGIT = /^[\p{L}\p{M}\p{N}]$/u;
+
+/**
+ * Whether `char` is part of a word or a number: a letter, a mark or a digit that is not a separator. Anything else (a
+ * plugin's checkbox "▢", a bullet, a star, an emoji) is decoration and separates words like a space.
+ */
 const isWordMaterial = (char: string): boolean =>
-    isDigit(char) || (!isSpace(char) && !SEPARATORS.has(char) && !NUMBER_JOINERS.has(char));
+    isDigit(char) || (!SEPARATORS.has(char) && !NUMBER_JOINERS.has(char) && LETTER_MARK_OR_DIGIT.test(char));
 
 /** The text with each vulgar fraction written out as ` n/d `, so `1½` reads `1 1/2`. */
 function withFractionsWritten(text: string): string {

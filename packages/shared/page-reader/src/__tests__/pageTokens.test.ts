@@ -31,6 +31,20 @@ describe('tokensOf', () => {
         expect(new Set(all).size).toBe(all.length);
     });
 
+    // A plugin's checkbox, a bullet, a star or an emoji is decoration, not a word: "▢ 2 tablespoons butter" is the schema's
+    // "2 tablespoons butter". Only letters, combining marks and digits are word material, in any script.
+    it.each([
+        ['▢ 2 tablespoons butter', ['2', 'tablespoons', 'butter']],
+        ['☐ 1 egg ✓', ['1', 'egg']],
+        ['★★★★☆ 4.5', ['4', '.', '5']],
+        ['🥚 2 eggs 🍳', ['2', 'eggs']],
+        ['→ Mix well ▸', ['mix', 'well']],
+        ['日本の 料理', ['日本の', '料理']],
+        ['जीरा पाउडर', ['जीरा', 'पाउडर']],
+    ])('reads %j with its decoration dropped', (text, tokens) => {
+        expect(tokensOf(text)).toEqual(tokens);
+    });
+
     it('does not join a dash that is not between digits', () => {
         expect(tokensOf('half-and-half 2 - dash')).toEqual(['half', 'and', 'half', '2', 'dash']);
     });

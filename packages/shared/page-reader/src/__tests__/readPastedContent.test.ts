@@ -391,6 +391,92 @@ describe('readPastedContent', () => {
             });
         });
 
+        // 003B: three facts beside the recipe, each tri-state (absent: the page states nothing). Facts only: the reader
+        // applies no policy to them, and none of them changes whether a recipe is read.
+        describe('access, date and AI opt-out facts', () => {
+            const evidence = (page: string) => {
+                const result = readPastedContent(page);
+
+                if (result.kind !== 'extracted') {
+                    throw new Error(`expected a recipe, got ${result.kind}`);
+                }
+
+                return result.evidence;
+            };
+
+            it.each([
+                [true, true],
+                ['True', true],
+                ['false', false],
+                [false, false],
+            ])('reads isAccessibleForFree %j as %j', (value, read) => {
+                expect(evidence(makePage({ jsonLd: [credited({ isAccessibleForFree: value })] }))).toMatchObject({
+                    isAccessibleForFree: read,
+                });
+            });
+
+            it.each([['yes'], [1], [{ value: true }]])('leaves isAccessibleForFree absent for %j', (value) => {
+                expect(evidence(makePage({ jsonLd: [credited({ isAccessibleForFree: value })] }))).not.toHaveProperty(
+                    'isAccessibleForFree',
+                );
+            });
+
+            it.each(['2024-03-01', '2024-03-01T09:30:00+01:00', '2024-03-01T08:30:00Z'])(
+                'keeps datePublished %j as written',
+                (date) => {
+                    expect(evidence(makePage({ jsonLd: [credited({ datePublished: date })] }))).toMatchObject({
+                        datePublished: date,
+                    });
+                },
+            );
+
+            it.each(['March 1, 2024', '2024-13-45', '', '2024-03-01 and more'])(
+                'leaves datePublished %j absent',
+                (date) => {
+                    expect(evidence(makePage({ jsonLd: [credited({ datePublished: date })] }))).not.toHaveProperty(
+                        'datePublished',
+                    );
+                },
+            );
+
+            it.each([
+                ['a TDMRep reservation', '<meta name="tdm-reservation" content="1">', true],
+                ['a robots noai', '<meta name="robots" content="index, follow, noai">', true],
+                ['a robots noimageai', '<meta name="ROBOTS" content="noimageai">', true],
+                ['a TDMRep non-reservation', '<meta name="tdm-reservation" content="0">', false],
+                [
+                    'a non-reservation beside a noai',
+                    '<meta name="tdm-reservation" content="0"><meta name="robots" content="noai">',
+                    true,
+                ],
+            ])('reads %s as aiOptOut %j', (_name, head, read) => {
+                expect(evidence(makePage({ jsonLd: [credited()], head }))).toMatchObject({ aiOptOut: read });
+            });
+
+            it.each([
+                ['no signal', ''],
+                ['a robots meta with neither token', '<meta name="robots" content="index, follow">'],
+                ['an unknown reservation value', '<meta name="tdm-reservation" content="maybe">'],
+            ])('leaves aiOptOut absent with %s', (_name, head) => {
+                expect(evidence(makePage({ jsonLd: [credited()], head }))).not.toHaveProperty('aiOptOut');
+            });
+
+            it('reads the same recipe whatever the facts say: none of them is a reason to refuse', () => {
+                const plain = readPastedContent(makePage({ jsonLd: [credited()] }));
+                const marked = readPastedContent(
+                    makePage({
+                        jsonLd: [credited({ isAccessibleForFree: false, datePublished: '2024-03-01' })],
+                        head: '<meta name="tdm-reservation" content="1">',
+                    }),
+                );
+
+                expect(marked.kind).toBe('extracted');
+                expect(marked.kind === 'extracted' && plain.kind === 'extracted' && marked.recipe).toEqual(
+                    plain.kind === 'extracted' && plain.recipe,
+                );
+            });
+        });
+
         it('keeps the recipe exactly the fields that become the import: no credit or image in it', () => {
             const result = readPastedContent(makePage({ jsonLd: [credited()] }));
 

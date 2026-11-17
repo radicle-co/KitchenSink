@@ -15,8 +15,9 @@
  * two-way (`VisibleText.shows`): each ingredient line is a whole visible line (it starts and ends where a visible block
  * does, so "flour" is not "2 cups flour"), the steps are read in order, a list the lines sit in has no line the schema
  * leaves out, and the recipe CARD (the smallest element holding every line and step read) has no list item the schema
- * leaves out, so a schema missing a line, an ingredient group or a second method is caught as surely as a page missing
- * one. The per-card rule counts only list items (`<li>`), so it does not see three kinds of line unless the schema reads
+ * leaves out but its furniture ({@link isCardFurniture}: links anywhere, and before or after the read lines anything that
+ * is neither numbered nor opens with an amount), so a schema missing a line, an ingredient group or a second method is
+ * caught as surely as a page missing one. The per-card rule counts only list items (`<li>`), so it does not see three kinds of line unless the schema reads
  * a sibling of theirs: a table row (`<tr>`, as in an ingredient or nutrition table), a paragraph or a `<br>`-separated
  * line, and anything outside the card, such as an ingredient group a theme renders after the card element. Text a cook cannot
  * see (a template, a `noscript`, a `textarea`, anything `hidden`, an inline `display:none`, a closed `<details>`, a `<meta>`)
@@ -27,10 +28,12 @@
  *
  * The same page text answers R3: a step's `name` is a heading only where the page shows it ({@link withShownStepNames}).
  */
+import { readCooksMeasure } from '@kitchensink/recipe-core/parsing/measure-reader';
+
 import { instructionOf } from './instructionSteps.js';
 import type { ExtractionTier, PageCandidate, PageRecipe } from './pageRecipeCandidate.js';
 import { tokensOf } from './pageTokens.js';
-import type { VisibleText, VisibleTextResult } from './visiblePageText.js';
+import type { CardItem, VisibleText, VisibleTextResult } from './visiblePageText.js';
 
 /** Why the page and its structured data are not taken together as one recipe. */
 export type CorroborationReason =
@@ -47,6 +50,22 @@ const AGREES: Corroboration = Object.freeze({ ok: true });
 
 const refusal = (reason: CorroborationReason): Corroboration => Object.freeze({ ok: false, reason });
 
+/**
+ * The card's furniture: an unread list item of the card that is no part of the recipe the schema left out. Language-neutral
+ * on purpose, from structure only:
+ * - a link-only item, anywhere (Print, Rate, jump links, tags, related recipes);
+ * - an item before the first line the schema reads or after the last (meta, notes, nutrition), unless it is numbered (a
+ *   second method) or opens with an amount (an ingredient group).
+ * An unread item between the read lines (an equipment list, an omitted group) is never furniture: any doubt is no.
+ */
+function isCardFurniture(item: CardItem): boolean {
+    if (item.linkOnly) {
+        return true;
+    }
+
+    return item.position !== 'between' && !item.ordered && readCooksMeasure(item.text).quantity.kind === 'absent';
+}
+
 /** G-CORR over a page's visible text: the card the cook reads is the ingredient lines and the steps, no more and no less. */
 function pageShows(candidate: PageCandidate, text: VisibleText): Corroboration {
     const ingredients = candidate.recipe.ingredientLines.map(tokensOf);
@@ -54,10 +73,13 @@ function pageShows(candidate: PageCandidate, text: VisibleText): Corroboration {
 
     // Ingredients are whole lines, one visible block each (or several, joined): "flour" is not "2 cups flour". Both lists
     // are one card, so a list in it that neither reads (a group the schema leaves out) differs.
-    const lookup = text.shows([
-        { runs: ingredients, wholeBlocks: true },
-        { runs: steps, wholeBlocks: false },
-    ]);
+    const lookup = text.shows(
+        [
+            { runs: ingredients, wholeBlocks: true },
+            { runs: steps, wholeBlocks: false },
+        ],
+        isCardFurniture,
+    );
 
     if (lookup === 'overBudget') {
         return refusal('pageTooComplex');
@@ -101,7 +123,7 @@ export function corroborate(
  *   (a name the page does not show is dropped, and so is every name on a page that cannot be read). Pure.
  */
 export function withShownStepNames(candidate: PageCandidate, visible: () => VisibleTextResult): PageRecipe {
-    const named = candidate.schemaSteps.some((step) => step.heading === undefined && step.name !== undefined);
+    const named = candidate.schemaSteps.some((step) => step.name !== undefined);
     const page = named ? visible() : undefined;
 
     if (page?.kind !== 'ok') {
@@ -109,10 +131,7 @@ export function withShownStepNames(candidate: PageCandidate, visible: () => Visi
     }
 
     const shown = candidate.schemaSteps.map(
-        (step) =>
-            step.heading === undefined &&
-            step.name !== undefined &&
-            page.text.find(tokensOf(step.name), false) === 'found',
+        (step) => step.name !== undefined && page.text.find(tokensOf(step.name), false) === 'found',
     );
 
     return shown.some(Boolean)

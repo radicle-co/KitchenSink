@@ -20,9 +20,10 @@ import { detectPageSource, pageAddressesOf } from './detectPageSource.js';
 import type { DetectedSource } from './detectPageSource.js';
 import { MAX_PASTE_BYTES, classifyPaste } from './pageCaps.js';
 import { parsePage } from './pageDocument.js';
-import { imageUrlOf } from './pageEvidence.js';
+import type { PageDocument } from './pageDocument.js';
+import { aiOptOutOf, imageUrlOf } from './pageEvidence.js';
 import type { PageEvidence } from './pageEvidence.js';
-import type { ExtractionTier, PageRecipe } from './pageRecipeCandidate.js';
+import type { ExtractionTier, PageCandidate, PageRecipe } from './pageRecipeCandidate.js';
 import { acceptRecipe } from './recipeAcceptance.js';
 import type { AcceptanceReason } from './recipeAcceptance.js';
 import { extractRecipe } from './recipeExtractors.js';
@@ -91,15 +92,22 @@ function notExtractable(
     };
 }
 
-/** The evidence for one found recipe: its credit, and its image made absolute against the detected source. */
-function evidenceOf(
-    credit: PageEvidence['credit'],
-    imageRefs: readonly string[],
-    source: DetectedSource,
-): PageEvidence {
-    const imageUrl = imageUrlOf(imageRefs, source.kind === 'found' ? source.citation.url : undefined);
+/**
+ * The evidence for one found recipe: its credit and access facts, its image made absolute against the detected source, and
+ * the page's AI opt-out.
+ */
+function evidenceOf(candidate: PageCandidate, page: PageDocument, source: DetectedSource): PageEvidence {
+    const imageUrl = imageUrlOf(candidate.imageRefs, source.kind === 'found' ? source.citation.url : undefined);
+    const aiOptOut = aiOptOutOf(
+        page.byTag('meta').map((meta) => ({ name: meta.attr('name'), content: meta.attr('content') })),
+    );
 
-    return Object.freeze({ credit, ...(imageUrl === undefined ? {} : { imageUrl }) });
+    return Object.freeze({
+        credit: candidate.credit,
+        ...candidate.access,
+        ...(imageUrl === undefined ? {} : { imageUrl }),
+        ...(aiOptOut === undefined ? {} : { aiOptOut }),
+    });
 }
 
 /**
@@ -178,7 +186,7 @@ export function readPastedContent(text: string): PasteReadResult {
         ? {
               kind: 'extracted',
               recipe,
-              evidence: evidenceOf(candidate.credit, candidate.imageRefs, source),
+              evidence: evidenceOf(candidate, page, source),
               source,
               tier,
               pasteDigest,

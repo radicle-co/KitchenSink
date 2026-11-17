@@ -16,6 +16,7 @@
  * | G6 | no step is an amount and a canonical unit in at most 8 words (an ingredient in the method)        | `ingredientsInSteps`  |
  * | G7 | no line is in both the ingredients and the steps (a range read twice)                             | `ingredientsInSteps`  |
  * | G8 | no title, ingredient line or step holds U+FFFD or a C1 control character (U+0080 to U+009F), and none of them is without a letter or digit (`\p{L}`, `\p{N}`) | `garbledText`         |
+ * | G9 | no ingredient line is a heading in capitals: no digit, and every cased letter (two at least) a capital | `headingInIngredients` |
  *
  * The first predicate that fails, in table order, is the reason. Every predicate here is language-neutral except G6's unit
  * test, which reads English units: a page it cannot read gives no, never a wrong yes (precision first). The step LIMITS
@@ -43,7 +44,8 @@ export type AcceptanceReason =
     | 'ingredientsNotSeparated'
     | 'noSteps'
     | 'ingredientsInSteps'
-    | 'garbledText';
+    | 'garbledText'
+    | 'headingInIngredients';
 
 /** The gate's answer. */
 export type Acceptance = { readonly ok: true } | { readonly ok: false; readonly reason: AcceptanceReason };
@@ -95,6 +97,27 @@ function sentenceEnds(line: string): number {
 
     return ends;
 }
+
+/**
+ * G9: whether an ingredient line is a heading in capitals ("CRUMBLE", "FÜR DEN TEIG:"): no digit, no lower-case letter,
+ * and at least two capitals. A script with no case has no capitals, so it is never one.
+ */
+function isCapitalsHeading(line: string): boolean {
+    let capitals = 0;
+
+    for (const char of line) {
+        if (DIGIT.test(char) || (char !== char.toUpperCase() && char === char.toLowerCase())) {
+            return false;
+        }
+
+        capitals += char !== char.toLowerCase() ? 1 : 0;
+    }
+
+    return capitals >= 2;
+}
+
+/** A digit in any script. */
+const DIGIT = /^\p{N}$/u;
 
 /** G8: whether `text` holds U+FFFD (a decoder's replacement) or a C1 control character (U+0080 to U+009F). One pass. */
 function isGarbled(text: string): boolean {
@@ -185,6 +208,10 @@ const PREDICATES: readonly Predicate[] = [
         fails: ({ recipe, steps }) =>
             [recipe.title, ...recipe.ingredientLines, ...steps].some(isGarbled) ||
             [recipe.title, ...recipe.ingredientLines, ...steps].some(hasNoLetterOrDigit),
+    },
+    {
+        reason: 'headingInIngredients',
+        fails: ({ recipe }) => recipe.ingredientLines.some(isCapitalsHeading),
     },
 ];
 

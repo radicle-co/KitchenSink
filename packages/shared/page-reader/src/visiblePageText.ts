@@ -40,15 +40,28 @@ export interface VisibleText {
      *   heading, and no block is read by a run in part. A schema that leaves a line out, or reads only the end of one,
      *   therefore differs.
      * - THE CARD is the smallest block element that holds every block a run was read from. Every list item (`<li>`) inside
-     *   it must be read too, so a whole list the schema leaves out (an ingredient group, a second method) differs. A
-     *   paragraph in the card that no run reads (a note) does not, and nor does a list outside it (the page's menus).
+     *   it must be read too, unless `tolerates` says the item is the card's furniture, so a whole list the schema leaves
+     *   out (an ingredient group, a second method) differs. A paragraph in the card that no run reads (a note) does not,
+     *   and nor does a list outside it (the page's menus).
      *
      * @param lists - The lists of the recipe, each with the tokens of its lines in order. A run with no tokens never matches.
+     * @param tolerates - Whether an unread list item of the card may stay unread. By default none may.
      */
-    shows(lists: readonly ShownList[]): ListLookup;
+    shows(lists: readonly ShownList[], tolerates?: (item: CardItem) => boolean): ListLookup;
 
     /** The token comparisons the lookups have spent so far: the work a test holds bounded in place of a time budget. */
     comparisonsSpent(): number;
+}
+
+/** A list item of the card that no run read, as the card-rule policy sees it. */
+export interface CardItem {
+    readonly text: string;
+    /** Every letter and digit of it sits inside a link. */
+    readonly linkOnly: boolean;
+    /** It is an item of an ordered list. */
+    readonly ordered: boolean;
+    /** Where it sits against the blocks the runs read: before the first, after the last, or between. */
+    readonly position: 'before' | 'between' | 'after';
 }
 
 /** One list a page must show. */
@@ -131,6 +144,9 @@ interface Tokenized {
 }
 
 interface BlockSpan {
+    readonly text: string;
+    readonly linkOnly: boolean;
+    readonly ordered: boolean;
     readonly first: number;
     readonly last: number;
     readonly group: number;
@@ -167,7 +183,11 @@ function cardOf(elements: readonly ElementExtent[], read: readonly BlockSpan[]):
 }
 
 /** Whether the blocks that runs were read from leave a line of their list, or a list item of their card, unread. */
-function leavesLinesUnread({ blocks, elements }: Tokenized, covered: Uint8Array): boolean {
+function leavesLinesUnread(
+    { blocks, elements }: Tokenized,
+    covered: Uint8Array,
+    tolerates: (item: CardItem) => boolean,
+): boolean {
     const touched = new Set<number>();
     const read: BlockSpan[] = [];
     const unread: BlockSpan[] = [];
@@ -196,13 +216,30 @@ function leavesLinesUnread({ blocks, elements }: Tokenized, covered: Uint8Array)
 
     const card = cardOf(elements, read);
     const cardLast = elements[card]?.last ?? 0;
+    const firstRead = read[0]?.first ?? 0;
+    const lastRead = read.at(-1)?.last ?? 0;
+    const positionOf = (block: BlockSpan): CardItem['position'] =>
+        block.last < firstRead ? 'before' : block.first > lastRead ? 'after' : 'between';
 
     // Loose text (group 0) is not a list: any other block is a line of the list its siblings are. A list item inside the
-    // card (its `<li>` numbered after the card's own, and within its range) is a line of the card.
+    // card (its `<li>` numbered after the card's own, and within its range) is a line of the card, unless the policy
+    // tolerates it.
     return unread.some(
-        (block) => (block.group !== 0 && touched.has(block.group)) || (block.item > card && block.item <= cardLast),
+        (block) =>
+            (block.group !== 0 && touched.has(block.group)) ||
+            (block.item > card &&
+                block.item <= cardLast &&
+                !tolerates({
+                    text: block.text,
+                    linkOnly: block.linkOnly,
+                    ordered: block.ordered,
+                    position: positionOf(block),
+                })),
     );
 }
+
+/** The default card policy: no unread list item of the card may stay unread. */
+const TOLERATES_NONE = (): boolean => false;
 
 /** The first-token index, the block marks and the comparison budget of one page's tokens. */
 function textOfTokens(page: Tokenized): VisibleText {
@@ -271,7 +308,7 @@ function textOfTokens(page: Tokenized): VisibleText {
 
             return start === ABSENT ? 'absent' : 'found';
         },
-        shows: (lists) => {
+        shows: (lists, tolerates = TOLERATES_NONE) => {
             const covered = new Uint8Array(tokens.length);
 
             for (const { runs, wholeBlocks } of lists) {
@@ -293,7 +330,7 @@ function textOfTokens(page: Tokenized): VisibleText {
                 }
             }
 
-            return leavesLinesUnread(page, covered) ? 'differs' : 'matches';
+            return leavesLinesUnread(page, covered, tolerates) ? 'differs' : 'matches';
         },
         comparisonsSpent: () => comparisons,
     };
@@ -335,6 +372,9 @@ function tokenizedBlocks(
 
         if (tokens.length > first) {
             spans.push({
+                text: block.text,
+                linkOnly: block.linkOnly,
+                ordered: block.ordered,
                 first,
                 last: tokens.length - 1,
                 group: block.group,

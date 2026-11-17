@@ -4,9 +4,9 @@
  * `recipeInstructions` is any of: one string, a list of strings, `HowToStep`s (`text`, else `name`), `HowToSection`s
  * (their `itemListElement`) and an `ItemList`. They are read in order into a flat list of steps.
  *
- * The recipe model has no sections, so a section's name ("For the glaze") is a step's HEADING: written at the start of the
- * section's first step as `For the glaze: Whisk.` Nothing is invented: no section name means no heading, and a section with
- * no steps adds nothing. The walk is `boundedWalk`: iterative, and capped in depth and nodes. A walk a cap cut short is reported, never used.
+ * A section's name ("For the glaze") is a group heading, and a group heading is no part of the recipe (the labelling
+ * rulings), so it goes into no step: the steps of every section are read as one flat list. A section with no steps adds
+ * nothing. The walk is `boundedWalk`: iterative, and capped in depth and nodes. A walk a cap cut short is reported, never used.
  *
  * A HowToStep's own `name` ("Scramble the egg") rides beside the text, never in it: a name is a heading only where the
  * page SHOWS it (the corroboration stage asks), because many sites keep a name in their data that no cook ever sees.
@@ -20,22 +20,8 @@ import type { SchemaNode } from './schemaNode.js';
 /** One step as the page's structured data states it. `text` is the raw text, which is what the page must agree with. */
 export interface SchemaStep {
     readonly text: string;
-    /** The section label this step spent, written in front of it always. */
-    readonly heading?: string;
     /** The step's own name, offered as a heading only where the page shows it (see {@link instructionOf}). */
     readonly name?: string;
-}
-
-/** A named section whose label goes in front of the first step read from it or from a section inside it. */
-interface Section {
-    readonly label: string;
-    readonly parent: Section | undefined;
-    used: boolean;
-}
-
-interface Frame {
-    readonly value: unknown;
-    readonly section: Section | undefined;
 }
 
 const LIST_TYPES: ReadonlySet<string> = new Set(['HowToSection', 'ItemList']);
@@ -48,21 +34,6 @@ function labelled(label: string, text: string): string {
     const last = label.charAt(label.length - 1);
 
     return last === ':' || last === '\uFF1A' ? `${label} ${text}` : `${label}: ${text}`;
-}
-
-/** The label for a step read inside `section`: its own, or the nearest unlabelled one's. Every enclosing section is then spent. */
-function takeLabel(section: Section | undefined): string | undefined {
-    let label: string | undefined;
-
-    for (let next = section; next !== undefined; next = next.parent) {
-        if (label === undefined && !next.used) {
-            label = next.label;
-        }
-
-        next.used = true;
-    }
-
-    return label;
 }
 
 /** Whether `tokens` appear in `of` in order, with other tokens allowed between them. */
@@ -93,9 +64,7 @@ function isUsefulName(name: string, text: string): boolean {
 
 /** A heading in front of a text: `Heading: text`. */
 export function instructionOf(step: SchemaStep, nameShown: boolean): string {
-    const heading = step.heading ?? (nameShown ? step.name : undefined);
-
-    return heading === undefined ? step.text : labelled(heading, step.text);
+    return nameShown && step.name !== undefined ? labelled(step.name, step.text) : step.text;
 }
 
 /** The steps of one `recipeInstructions` value, and whether a walk cap left part of it unread. */
@@ -105,25 +74,22 @@ export interface InstructionRead {
     readonly truncated: boolean;
 }
 
-type Emit = (text: string | undefined, section: Section | undefined, name?: string) => void;
+type Emit = (text: string | undefined, name?: string) => void;
 
-/** A node that is a section or list walks into its items (a `HowToSection` opens a labelled section); any other is one step. */
-function nodeFrames(node: SchemaNode, section: Section | undefined, emit: Emit): readonly Frame[] {
+/** A node that is a section or list walks into its items; any other is one step. */
+function nodeFrames(node: SchemaNode, emit: Emit): readonly unknown[] {
     const items = asList(field(node, 'itemListElement'));
     const text = textOf(field(node, 'text'));
     const name = textOf(field(node, 'name'));
     const types = typeNames(node);
 
     if (!types.some((type) => LIST_TYPES.has(type)) && (items.length === 0 || text !== undefined)) {
-        emit(text ?? name, section, text === undefined ? undefined : name);
+        emit(text ?? name, text === undefined ? undefined : name);
 
         return [];
     }
 
-    const inner: Section | undefined =
-        name !== undefined && types.includes('HowToSection') ? { label: name, parent: section, used: false } : section;
-
-    return items.map((item) => ({ value: item, section: inner }));
+    return items;
 }
 
 /**
@@ -136,36 +102,28 @@ function nodeFrames(node: SchemaNode, section: Section | undefined, emit: Emit):
 export function instructionSteps(value: unknown): InstructionRead {
     const steps: SchemaStep[] = [];
 
-    const emit: Emit = (text, section, name) => {
+    const emit: Emit = (text, name) => {
         if (text !== undefined) {
-            const heading = takeLabel(section);
-
-            steps.push({
-                text,
-                ...(heading === undefined ? {} : { heading }),
-                ...(name === undefined || !isUsefulName(name, text) ? {} : { name }),
-            });
+            steps.push({ text, ...(name === undefined || !isUsefulName(name, text) ? {} : { name }) });
         }
     };
 
-    const { truncated } = boundedWalk<Frame>([{ value, section: undefined }], ({ value: current, section }, depth) => {
+    const { truncated } = boundedWalk<unknown>([value], (current, depth) => {
         if (typeof current === 'string') {
             // A lone string is the whole method, broken at its line breaks; a string inside a list is one step.
             (depth === 0 ? textBlocks(current) : [textOf(current)]).forEach((text) => {
-                emit(text, section);
+                emit(text);
             });
 
             return [];
         }
 
         if (isList(current)) {
-            return current.map((item) => ({ value: item, section }));
+            return current;
         }
 
         // A tip is advice, not a step: it is skipped with everything under it.
-        return isSchemaNode(current) && !typeNames(current).includes(TIP_TYPE)
-            ? nodeFrames(current, section, emit)
-            : [];
+        return isSchemaNode(current) && !typeNames(current).includes(TIP_TYPE) ? nodeFrames(current, emit) : [];
     });
 
     return { steps, truncated };

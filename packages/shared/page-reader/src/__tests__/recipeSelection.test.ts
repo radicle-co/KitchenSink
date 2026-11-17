@@ -19,6 +19,7 @@ function candidateOf(title: string, overrides: Partial<PageCandidate> = {}): Pag
         },
         links: [],
         credit: { authors: [] },
+        access: {},
         imageRefs: [],
         schemaSteps: [{ text: `Cook the ${title}.` }],
         emptyDeclaredSteps: false,

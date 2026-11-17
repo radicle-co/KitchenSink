@@ -19,8 +19,8 @@ import { boundedWalk } from './boundedWalk.js';
 import { instructionOf, instructionSteps } from './instructionSteps.js';
 import type { SchemaStep } from './instructionSteps.js';
 import { isTextCut } from './pageDocument.js';
-import { creditOf, imageRefsOf } from './pageEvidence.js';
-import type { PageCredit } from './pageEvidence.js';
+import { accessOf, creditOf, imageRefsOf } from './pageEvidence.js';
+import type { PageAccess, PageCredit } from './pageEvidence.js';
 import { durationMinutes } from './isoDuration.js';
 import { servingsOf } from './recipeYield.js';
 import { readCooksMeasure } from '@kitchensink/recipe-core/parsing/measure-reader';
@@ -58,6 +58,8 @@ export interface PageCandidate {
     readonly links: readonly string[];
     /** Who the node credits. */
     readonly credit: PageCredit;
+    /** What the node states about access and age. */
+    readonly access: PageAccess;
     /** The image addresses as written, to be resolved against the canonical address. Never fetched. */
     readonly imageRefs: readonly string[];
     /** The steps as the structured data states them, raw: what the page is asked to agree with, never the built text. */
@@ -231,6 +233,7 @@ function candidateOf(node: SchemaNode): CandidateRead {
         recipe: Object.freeze(recipe),
         links: Object.freeze(links),
         credit: creditOf(node),
+        access: accessOf(node),
         imageRefs: Object.freeze(imageRefsOf(node)),
         schemaSteps: Object.freeze(steps.map((step) => Object.freeze(step))),
         emptyDeclaredSteps: asList(field(node, 'recipeInstructions')).some(

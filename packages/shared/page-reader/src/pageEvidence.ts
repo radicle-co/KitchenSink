@@ -31,11 +31,112 @@ export interface PageCredit {
     readonly license?: string;
 }
 
-/** Evidence beside a recipe. */
-export interface PageEvidence {
+/** What a Recipe node states about access and age. Every field may be absent: the node states nothing usable. */
+export interface PageAccess {
+    /** schema.org `isAccessibleForFree`: `true` or `false` as stated (a boolean, or the text "true" or "false"). */
+    readonly isAccessibleForFree?: boolean;
+    /** schema.org `datePublished` as written, when it is an ISO 8601 date or date-time with a real calendar date. */
+    readonly datePublished?: string;
+}
+
+/**
+ * Evidence beside a recipe. FACTS ONLY: the reader applies no policy to any of them, and none of them changes whether a
+ * recipe is read.
+ */
+export interface PageEvidence extends PageAccess {
     readonly credit: PageCredit;
     /** An absolute http(s) address, never fetched. ABSENT when the page names none that is usable. */
     readonly imageUrl?: string;
+    /**
+     * Whether the page reserves its content from AI and text-and-data mining: `true` for a TDMRep `tdm-reservation` of 1
+     * or a robots `noai` or `noimageai`, `false` for a `tdm-reservation` of 0 and no reservation, ABSENT for no signal.
+     * Read from the page's own `<meta>` tags; a paste carries no HTTP headers.
+     */
+    readonly aiOptOut?: boolean;
+}
+
+/** The longest `datePublished` read, in characters. */
+const MAX_DATE_CHARS = 40;
+
+/** An ISO 8601 date, with an optional time and zone: anchored, with no repetition that could backtrack. */
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:?\d{2})?)?$/u;
+
+/** A stated boolean: `true`, `false`, or the text of either in any case. Anything else is not one. */
+function statedBoolean(value: unknown): boolean | undefined {
+    const raw = scalar(value);
+
+    if (typeof raw === 'boolean') {
+        return raw;
+    }
+
+    const text = typeof raw === 'string' ? raw.trim().toLowerCase() : undefined;
+
+    return text === 'true' ? true : text === 'false' ? false : undefined;
+}
+
+/** An ISO 8601 date as written, when its calendar date is real ("2024-02-30" is not). */
+function isoDate(value: unknown): string | undefined {
+    const text = textOf(scalar(value));
+    const match = text !== undefined && text.length <= MAX_DATE_CHARS ? ISO_DATE.exec(text) : null;
+
+    if (match === null) {
+        return undefined;
+    }
+
+    const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+    const date = new Date(Date.UTC(year, month - 1, day));
+
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+        ? text
+        : undefined;
+}
+
+/**
+ * Read what a Recipe node states about access and age.
+ *
+ * @param node - A JSON-LD Recipe node or a microdata item shaped like one.
+ * @returns The facts; a field the node does not state usably is absent. Pure.
+ */
+export function accessOf(node: SchemaNode): PageAccess {
+    const isAccessibleForFree = statedBoolean(field(node, 'isAccessibleForFree'));
+    const datePublished = isoDate(field(node, 'datePublished'));
+
+    return Object.freeze({
+        ...(isAccessibleForFree === undefined ? {} : { isAccessibleForFree }),
+        ...(datePublished === undefined ? {} : { datePublished }),
+    });
+}
+
+/** The robots tokens that reserve a page from AI. */
+const NO_AI_TOKENS: ReadonlySet<string> = new Set(['noai', 'noimageai']);
+
+/**
+ * Whether a page reserves its content from AI and text-and-data mining (see {@link PageEvidence.aiOptOut}).
+ *
+ * @param metas - The page's `<meta>` elements, as `name` and `content`.
+ * @returns `true`, `false` or `undefined` (no signal). Pure.
+ */
+export function aiOptOutOf(
+    metas: readonly { readonly name?: string; readonly content?: string }[],
+): boolean | undefined {
+    let notReserved = false;
+
+    for (const { name, content } of metas) {
+        const key = name?.trim().toLowerCase();
+        const value = content?.trim().toLowerCase() ?? '';
+
+        if (key === 'tdm-reservation' && value === '1') {
+            return true;
+        }
+
+        if (key === 'robots' && value.split(/[\s,]+/u).some((token) => NO_AI_TOKENS.has(token))) {
+            return true;
+        }
+
+        notReserved = notReserved || (key === 'tdm-reservation' && value === '0');
+    }
+
+    return notReserved ? false : undefined;
 }
 
 /** The items of a property, microdata's one-level lists flattened. */

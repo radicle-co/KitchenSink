@@ -184,12 +184,53 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
             '<h3>Frosting</h3><ul><li>1 cup icing sugar</li><li>2 tbsp milk</li></ul>',
         ],
         ['a second method list', '<ol><li>Let it cool for an hour.</li></ol>'],
-        ['a stray list', '<ul><li>Serves four</li></ul>'],
     ])('refuses a card with %s after the method', (_name, extra) => {
         expect(readPastedContent(cardPage(NODE, { extra }))).toMatchObject({
             kind: 'notExtractable',
             reason: 'pageDisagreesWithSchema',
         });
+    });
+
+    // Round 8: a list before the first line the schema reads or after the last one is the card's furniture (its meta,
+    // notes, nutrition, related recipes), not a part of the recipe the schema left out, unless it is numbered (a method)
+    // or a line of it opens with an amount (an ingredient group). Rewritten: "a stray list" after the method
+    // ("Serves four") was refused; it is the shape of every notes list, so it is read now.
+    it.each([
+        [
+            'a notes list after the method',
+            '<ul><li>Make ahead: chill it overnight.</li><li>Keeps for a week.</li></ul>',
+        ],
+        ['a stray list after the method', '<ul><li>Serves four</li></ul>'],
+        ['a nutrition list after the method', '<ul><li>Calories: 250kcal</li><li>Protein: 8g</li></ul>'],
+    ])('reads a card with %s', (_name, extra) => {
+        expect(readPastedContent(cardPage(NODE, { extra }))).toMatchObject({ kind: 'extracted' });
+    });
+
+    it('reads a card with a meta list before the ingredients', () => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><h1>Test</h1><ul><li>Prep Time: 10 minutes</li><li>Yield: 4</li></ul><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
+    });
+
+    it('reads a card with a list of links anywhere in it, such as Print and Rate between the lists', () => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><ul>${items(INGREDIENTS)}</ul><ul><li><a href="#p">Print</a></li><li><a href="#r">Rate</a></li></ul><ol>${items(STEPS)}</ol></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
+    });
+
+    it('refuses a list before the ingredients whose line opens with an amount', () => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><ul><li>2 cups stock</li></ul><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
     });
 
     it('refuses an ingredient group the schema leaves out, between the ingredients and the method', () => {
@@ -297,16 +338,31 @@ describe('G-CORR on a card shaped like a recipe plugin’s', () => {
         });
     });
 
-    // ⚠️ PINNED, NOT RULED: the card's equipment, nutrition and jump-link lists are list items the schema does not hold,
-    // so the per-card rule refuses the page. Round 8 decides how such lists count; when it does, this test changes with
-    // the rule.
+    // Round 8 ruling: jump links are links, and this card's equipment list sits before its ingredients and its nutrition
+    // after its method, so none is a part of the recipe the schema left out.
     it.each([
-        ['an equipment list', { equipment: true, nutrition: false, jumps: false }],
         ['a nutrition list', { equipment: false, nutrition: true, jumps: false }],
         ['jump links', { equipment: false, nutrition: false, jumps: true }],
+        ['an equipment list before the ingredients', { equipment: true, nutrition: false, jumps: false }],
         ['all three', { equipment: true, nutrition: true, jumps: true }],
-    ])('refuses the card today when it also holds %s', (_name, lists) => {
-        expect(readPastedContent(page(lists))).toMatchObject({
+    ])('reads the card when it also holds %s', (_name, lists) => {
+        expect(readPastedContent(page(lists))).toMatchObject({ kind: 'extracted' });
+    });
+
+    // An equipment list between the ingredients and the method sits where an omitted ingredient group would, and is not
+    // told apart from one by structure: any doubt is no.
+    it('refuses the card when its equipment list sits between the ingredients and the method', () => {
+        const card = pluginStyleCard({ equipment: false, nutrition: false, jumps: false }).replace(
+            '<div class="recipe-instructions"',
+            '<div class="recipe-equipment"><h3>Equipment</h3><ul><li>Mixing bowl</li></ul></div><div class="recipe-instructions"',
+        );
+
+        expect(card).toContain('Mixing bowl');
+        expect(
+            readPastedContent(
+                makePage({ jsonLd: [NODE], body: `<article><p>A story about the recipe.</p>${card}</article>` }),
+            ),
+        ).toMatchObject({
             kind: 'notExtractable',
             reason: 'pageDisagreesWithSchema',
         });

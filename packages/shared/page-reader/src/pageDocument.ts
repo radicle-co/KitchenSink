@@ -35,6 +35,10 @@ export interface VisibleBlock {
     readonly element: number;
     /** The nearest `<li>` the block sits in, as its element number (0: none). */
     readonly item: number;
+    /** Whether that `<li>` is an item of an ordered list (`<ol>`), as a method is. */
+    readonly ordered: boolean;
+    /** Whether every letter and digit of the block sits inside a link (`<a>`): a button, a jump link, a related recipe. */
+    readonly linkOnly: boolean;
 }
 
 /** Where a block element sits among the others: numbered in document order, so its descendants are a range. */
@@ -263,6 +267,7 @@ interface Owner {
     readonly isHeading: boolean;
     readonly element: number;
     readonly item: number;
+    readonly ordered: boolean;
 }
 
 /** The end of a block element: its text is flushed, and the element that held it before is the owner again. */
@@ -273,7 +278,24 @@ class BlockEnd {
     ) {}
 }
 
-const LOOSE_TEXT: Owner = { group: 0, isHeading: false, element: 0, item: 0 };
+const LOOSE_TEXT: Owner = { group: 0, isHeading: false, element: 0, item: 0, ordered: false };
+
+/** The end of a link: the text read after it is no longer link text. */
+const LINK_END = Symbol('linkEnd');
+
+/** Whether a character is a letter or a digit: the text a link must hold all of for its block to be link-only. */
+const LETTER_OR_DIGIT = /^[\p{L}\p{N}]$/u;
+
+/** How many letters and digits `text` holds. */
+function lettersIn(text: string): number {
+    let count = 0;
+
+    for (const char of text) {
+        count += LETTER_OR_DIGIT.test(char) ? 1 : 0;
+    }
+
+    return count;
+}
 
 /**
  * The text blocks of a list of nodes, in order. One explicit stack, so depth costs memory and never the call stack.
@@ -294,6 +316,10 @@ function blocksOf(
     const groups = new Map<unknown, number>();
     let owner = LOOSE_TEXT;
     let current = '';
+    // Letters and digits of the current block, and how many of them sat inside a link.
+    let letters = 0;
+    let linkedLetters = 0;
+    let linkDepth = 0;
 
     const flush = (): void => {
         const text = collapseSpace(current);
@@ -305,13 +331,22 @@ function blocksOf(
                 isHeading: owner.isHeading,
                 element: owner.element,
                 item: owner.item,
+                ordered: owner.ordered,
+                linkOnly: letters > 0 && linkedLetters === letters,
             });
         }
 
         current = '';
+        letters = 0;
+        linkedLetters = 0;
     };
 
     const addText = (data: string): void => {
+        const count = lettersIn(data);
+
+        letters += count;
+        linkedLetters += linkDepth > 0 ? count : 0;
+
         if (!newlineBreaks) {
             current += data;
 
@@ -328,7 +363,7 @@ function blocksOf(
     };
 
     // A node to read, or the end of a block element.
-    const stack: (DomNode | BlockEnd)[] = [...roots].reverse();
+    const stack: (DomNode | BlockEnd | typeof LINK_END)[] = [...roots].reverse();
 
     let visited = 0;
     let next = stack.pop();
@@ -336,7 +371,9 @@ function blocksOf(
     for (; next !== undefined && visited < maxNodes; next = stack.pop()) {
         visited += 1;
 
-        if (next instanceof BlockEnd) {
+        if (next === LINK_END) {
+            linkDepth -= 1;
+        } else if (next instanceof BlockEnd) {
             flush();
             elements[next.element] = { parent: next.previous.element, last: elements.length - 1 };
             owner = next.previous;
@@ -355,7 +392,16 @@ function blocksOf(
                     isHeading: HEADING_TAGS.has(next.name),
                     element,
                     item: next.name === 'li' ? element : owner.item,
+                    ordered:
+                        next.name === 'li'
+                            ? next.parent !== null && 'name' in next.parent && next.parent.name === 'ol'
+                            : owner.ordered,
                 };
+            }
+
+            if (next.name === 'a') {
+                linkDepth += 1;
+                stack.push(LINK_END);
             }
 
             pushReversed(stack, shownChildren(next));

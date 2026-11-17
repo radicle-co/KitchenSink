@@ -198,6 +198,24 @@ describe('acceptRecipe: the black-and-white gate, one case per predicate and bot
         });
     });
 
+    // Round 8: a site's schema marks a group heading or a banner as an ingredient ("CRUMBLE", "MARINADE", "SHOP JAMIE'S
+    // SERVEWARE"). A line with no digit whose every cased letter is a capital is that shape, in any cased script.
+    describe('G9: no ingredient line is a heading in capitals', () => {
+        it.each(['CRUMBLE', 'MARINADE', "SHOP JAMIE'S SERVEWARE", 'FÜR DEN TEIG:', 'ΓΙΑ ΤΗ ΣΑΛΤΣΑ'])(
+            'refuses %j',
+            (line) => {
+                expect(acceptRecipe(recipeOf({ ingredientLines: ['1 cup flour', line] }), 'jsonLd')).toEqual({
+                    ok: false,
+                    reason: 'headingInIngredients',
+                });
+            },
+        );
+
+        it.each(['2 EGGS', 'BBQ sauce', 'Salt', 'A pinch of salt', '塩 少々', 'X'])('accepts %j', (line) => {
+            expect(acceptRecipe(recipeOf({ ingredientLines: ['1 cup flour', line] }), 'jsonLd')).toEqual({ ok: true });
+        });
+    });
+
     describe('G8: no title, ingredient line or step holds U+FFFD or a C1 control character, or lacks a letter or digit', () => {
         it.each([
             ['the title', { title: 'Pancakes \uFFFD' }],

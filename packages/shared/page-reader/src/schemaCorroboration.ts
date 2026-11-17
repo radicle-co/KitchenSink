@@ -93,7 +93,7 @@ const VALUE_SHAPES: Readonly<Record<CardMetaKind, (value: string) => boolean>> =
  * takes. "Prep Time: 10 minutes" is one, "Prep Time: 2 eggs", "Calories: 2 eggs" and "Category: Flour 200 g" are not.
  */
 function isMetaFact(text: string): boolean {
-    const [, label, value] = META_FACT.exec(text.trim()) ?? [];
+    const [, label, value] = META_FACT.exec(text) ?? [];
     const kind = label === undefined ? undefined : CARD_META_LABELS.get(label.trim().toLowerCase());
 
     return kind !== undefined && value !== undefined && VALUE_SHAPES[kind](value);

@@ -336,6 +336,45 @@ describe('readPastedContent over a whole synthetic page', () => {
         expect(fieldReads.count).toBeLessThan(20 * (blocks * pagesPerBlock + ids));
     });
 
+    // GATE on 57c495c49: the index fixed one lookup, but work was still a product: names written × nodes under one @id,
+    // and recipes × page nodes. Total work is linear in the containers plus all the recipes write, never a product.
+    it('reads one @id named 5,000 times, shared by every page node, in linear work', () => {
+        const blocks = 5;
+        const pagesPerBlock = 2_000;
+        const names = 5_000;
+        const pageBlocks = Array.from({ length: blocks }, () => ({
+            '@graph': Array.from({ length: pagesPerBlock }, () => ({ '@type': 'WebPage', '@id': 'x' })),
+        }));
+        const recipe = makeRecipeNode({ mainEntityOfPage: Array.from({ length: names }, () => ({ '@id': 'x' })) });
+
+        fieldReads.count = 0;
+
+        expect(readPastedContent(makePage({ jsonLd: [recipe, ...pageBlocks] }))).toMatchObject({ kind: 'extracted' });
+        expect(fieldReads.count).toBeLessThan(20 * (blocks * pagesPerBlock + names));
+    });
+
+    it('reads the date of the most recipes the cap allows, against 10,000 page nodes, in linear work', () => {
+        const blocks = 5;
+        const pagesPerBlock = 2_000;
+        const pageBlocks = Array.from({ length: blocks }, (_, block) => ({
+            '@graph': Array.from({ length: pagesPerBlock }, (_, index) =>
+                index % 2 === 0
+                    ? { '@type': 'WebPage', '@id': `b${String(block)}n${String(index)}` }
+                    : { '@type': 'Article', mainEntity: { '@id': `other${String(index)}` } },
+            ),
+        }));
+        const recipes = Array.from({ length: MAX_RECIPES_PER_PAGE }, (_, index) =>
+            makeRecipeNode({ '@id': `r${String(index)}`, name: `Recipe ${String(index)}` }),
+        );
+
+        fieldReads.count = 0;
+        readPastedContent(
+            makePage({ jsonLd: [{ '@graph': recipes }, ...pageBlocks], body: '<main><h1>Recipes</h1></main>' }),
+        );
+
+        expect(fieldReads.count).toBeLessThan(20 * (blocks * pagesPerBlock + MAX_RECIPES_PER_PAGE * 20));
+    });
+
     describe('a block nested 100,000 deep, under the byte cap', () => {
         const DEPTH = 100_000;
         const nested = `${'['.repeat(DEPTH)}"x"${']'.repeat(DEPTH)}`;

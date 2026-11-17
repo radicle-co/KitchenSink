@@ -113,93 +113,126 @@ export const isPageNode = (node: SchemaNode): boolean => typeNames(node).some((t
 /** The `@id` of a node, or `undefined`. */
 const idOf = (node: SchemaNode): unknown => scalar(field(node, '@id'));
 
-/** Whether `container` names `recipe` as its `mainEntity`: the node itself, or a node with the same `@id`. */
-function hasMainEntity(container: SchemaNode, recipe: SchemaNode): boolean {
-    const id = idOf(recipe);
-
-    return items(field(container, 'mainEntity')).some(
-        (entity) => entity === recipe || (isSchemaNode(entity) && typeof id === 'string' && idOf(entity) === id),
-    );
-}
-
 /**
  * The properties by which a recipe names the page it is on. Only a page node ({@link isPageNode}) is read from them: a
  * whole blog, site or roundup (`isPartOf`) or a part of the page (`hasPart`) states no date for the recipe.
  */
 const RECIPE_LINKS: readonly string[] = ['mainEntityOfPage', 'isPartOf'];
 
-/**
- * The page's nodes that may contain a recipe, indexed once per page so each recipe's date is read in time linear in what
- * it names: the page nodes, the nodes with a `mainEntity`, and every one of them by its `@id`.
- */
-export interface PageGraph {
-    readonly pages: readonly SchemaNode[];
-    readonly mainEntityHolders: readonly SchemaNode[];
-    readonly byId: ReadonlyMap<string, readonly SchemaNode[]>;
+/** How a node is told apart from another: its `@id`, or the node itself when it has none. */
+type NodeKey = string | SchemaNode;
+
+const keyOf = (node: SchemaNode): NodeKey => {
+    const id = idOf(node);
+
+    return typeof id === 'string' ? id : node;
+};
+
+/** The usable `datePublished` of a node, or `undefined`. */
+const dateOf = (node: SchemaNode): string | undefined => isoDate(field(node, 'datePublished'));
+
+/** Add `key` to a set that only needs to tell one from two or more. */
+function addCapped(keys: Set<NodeKey>, key: NodeKey): void {
+    if (keys.size < 2) {
+        keys.add(key);
+    }
+}
+
+/** What the nodes that name one recipe as their `mainEntity` say: the first usable date, and which page nodes they are. */
+interface Claim {
+    readonly date?: string;
+    /** At most two keys: enough to tell one page from several. */
+    readonly pageKeys: ReadonlySet<NodeKey>;
 }
 
 /**
- * Index a page's container nodes for {@link datePublishedOf}.
+ * The page's nodes that may contain a recipe, read ONCE per page into what a recipe's date needs, so each recipe then
+ * costs only lookups: total work is linear in the containers plus what the recipes write, never a product of the two.
+ */
+export interface PageGraph {
+    /** The first usable date of a page node, by its `@id`. */
+    readonly pageDateById: ReadonlyMap<string, string>;
+    /** What the nodes whose `mainEntity` names a recipe say, by that recipe: an embedded node, or an `@id`. */
+    readonly claims: ReadonlyMap<NodeKey, Claim>;
+    /** The page nodes with no `mainEntity`: at most two keys, and the first usable date among them. */
+    readonly unclaimedPageKeys: ReadonlySet<NodeKey>;
+    readonly unclaimedPageDate?: string;
+}
+
+/** The keys a `mainEntity` item names a recipe by: the embedded node, and its `@id`. */
+function entityKeys(entity: unknown): readonly NodeKey[] {
+    if (!isSchemaNode(entity)) {
+        return [];
+    }
+
+    const id = idOf(entity);
+
+    return typeof id === 'string' ? [entity, id] : [entity];
+}
+
+/**
+ * Read a page's container nodes for {@link datePublishedOf}.
  *
  * @param containers - The page's page nodes and nodes with a `mainEntity`, in page order.
- * @returns The index, built in one pass. Pure.
+ * @returns The graph, built in one pass over the containers and their `mainEntity` items. Pure.
  */
 export function pageGraphOf(containers: readonly SchemaNode[]): PageGraph {
-    const byId = new Map<string, SchemaNode[]>();
+    const pageDateById = new Map<string, string>();
+    const claims = new Map<NodeKey, { date?: string; pageKeys: Set<NodeKey> }>();
+    const unclaimedPageKeys = new Set<NodeKey>();
+    let unclaimedPageDate: string | undefined;
 
     for (const container of containers) {
+        const isPage = isPageNode(container);
         const id = idOf(container);
+        const date = dateOf(container);
+        const entities = items(field(container, 'mainEntity'));
 
-        if (typeof id === 'string') {
-            const named = byId.get(id);
+        if (isPage && typeof id === 'string' && date !== undefined && !pageDateById.has(id)) {
+            pageDateById.set(id, date);
+        }
 
-            if (named === undefined) {
-                byId.set(id, [container]);
-            } else {
-                named.push(container);
+        if (isPage && entities.length === 0) {
+            addCapped(unclaimedPageKeys, keyOf(container));
+            unclaimedPageDate ??= date;
+        }
+
+        for (const key of entities.flatMap(entityKeys)) {
+            const claim = claims.get(key) ?? { pageKeys: new Set<NodeKey>() };
+
+            claim.date ??= date;
+
+            if (isPage) {
+                addCapped(claim.pageKeys, keyOf(container));
             }
+
+            claims.set(key, claim);
         }
     }
 
     return {
-        pages: containers.filter(isPageNode),
-        mainEntityHolders: containers.filter((container) => field(container, 'mainEntity') !== undefined),
-        byId,
+        pageDateById,
+        claims,
+        unclaimedPageKeys,
+        ...(unclaimedPageDate === undefined ? {} : { unclaimedPageDate }),
     };
 }
 
-/**
- * The nodes a recipe names under `keys`, in order: each node it embeds, then the page's nodes that its `@id`, or a bare
- * address in its place, names ("mainEntityOfPage": {"@id": ".../pie"}), as JSON-LD links them. One lookup per name.
- */
-function linkedNodes(node: SchemaNode, keys: readonly string[], graph: PageGraph): readonly SchemaNode[] {
-    return keys.flatMap((key) =>
-        items(field(node, key)).flatMap((item) => {
+/** The first usable date of a page node the recipe names as `mainEntityOfPage` or `isPartOf`: embedded, or by `@id`. */
+function linkedPageDate(node: SchemaNode, graph: PageGraph): string | undefined {
+    for (const key of RECIPE_LINKS) {
+        for (const item of items(field(node, key))) {
+            const embedded = isSchemaNode(item) && isPageNode(item) ? dateOf(item) : undefined;
             const id = isSchemaNode(item) ? idOf(item) : item;
-            const named = typeof id === 'string' ? (graph.byId.get(id) ?? []) : [];
+            const date = embedded ?? (typeof id === 'string' ? graph.pageDateById.get(id) : undefined);
 
-            return [...(isSchemaNode(item) ? [item] : []), ...named];
-        }),
-    );
-}
+            if (date !== undefined) {
+                return date;
+            }
+        }
+    }
 
-/**
- * The page's one page node, when it has exactly one (counted by `@id`) that names no other node as its `mainEntity`.
- * With two or more, nothing ties either to the recipe: one may be a related post, a comment or another recipe's page.
- */
-function solePageNode(node: SchemaNode, graph: PageGraph): readonly SchemaNode[] {
-    const pages = graph.pages.filter(
-        (page) => page !== node && (field(page, 'mainEntity') === undefined || hasMainEntity(page, node)),
-    );
-    const distinct = new Set(
-        pages.map((page) => {
-            const id = idOf(page);
-
-            return typeof id === 'string' ? id : page;
-        }),
-    );
-
-    return distinct.size === 1 ? pages.slice(0, 1) : [];
+    return undefined;
 }
 
 /**
@@ -207,11 +240,13 @@ function solePageNode(node: SchemaNode, graph: PageGraph): readonly SchemaNode[]
  *
  * A date the recipe states is the answer, and one it states that cannot be read gives no date: another node's date is
  * never put in its place. Without one, the page nodes it names as `mainEntityOfPage` or `isPartOf` (embedded or by
- * `@id`) are read, then a node whose `mainEntity` is the recipe, then the page's one page node ({@link solePageNode}).
+ * `@id`) are read, then the nodes whose `mainEntity` is the recipe, then the page's one page node: read only when the
+ * page nodes that name no other node as their `mainEntity` are one page (counted by `@id`). With two or more, nothing ties
+ * either to the recipe: one may be a related post, a comment or another recipe's page.
  *
  * @param node - A JSON-LD Recipe node or a microdata item shaped like one.
- * @param graph - The page's container nodes, indexed once per page ({@link pageGraphOf}).
- * @returns The first usable `datePublished` in that order, or `undefined`. Pure.
+ * @param graph - The page's container nodes, read once per page ({@link pageGraphOf}).
+ * @returns The date, or `undefined`. A few lookups per name the recipe writes. Pure.
  */
 export function datePublishedOf(node: SchemaNode, graph: PageGraph): string | undefined {
     const stated = field(node, 'datePublished');
@@ -220,13 +255,15 @@ export function datePublishedOf(node: SchemaNode, graph: PageGraph): string | un
         return isoDate(stated);
     }
 
-    const sources = [
-        ...linkedNodes(node, RECIPE_LINKS, graph).filter((linked) => linked !== node && isPageNode(linked)),
-        ...graph.mainEntityHolders.filter((container) => container !== node && hasMainEntity(container, node)),
-        ...solePageNode(node, graph),
-    ];
+    const id = idOf(node);
+    const claimed = [graph.claims.get(node), typeof id === 'string' ? graph.claims.get(id) : undefined];
+    const pageKeys = new Set([...graph.unclaimedPageKeys, ...claimed.flatMap((claim) => [...(claim?.pageKeys ?? [])])]);
 
-    return sources.map((source) => isoDate(field(source, 'datePublished'))).find((date) => date !== undefined);
+    return (
+        linkedPageDate(node, graph) ??
+        claimed.map((claim) => claim?.date).find((date) => date !== undefined) ??
+        (pageKeys.size === 1 ? graph.unclaimedPageDate : undefined)
+    );
 }
 
 /** The items of a property, microdata's one-level lists flattened. */

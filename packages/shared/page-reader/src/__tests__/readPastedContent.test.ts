@@ -511,6 +511,15 @@ describe('readPastedContent', () => {
                         '2024-05-05',
                     ],
                     [
+                        'the first date of the page the recipe names by @id, written twice with two dates',
+                        [
+                            { ...dated('WebPage', '2024-05-05'), '@id': 'https://example.com/pie' },
+                            { ...dated('WebPage', '2004-04-04'), '@id': 'https://example.com/pie' },
+                            recipe({ mainEntityOfPage: { '@id': 'https://example.com/pie' } }),
+                        ],
+                        '2024-05-05',
+                    ],
+                    [
                         'the one page node, written twice under one @id',
                         [
                             { ...dated('WebPage', '2024-05-05'), '@id': 'https://example.com/pie' },
@@ -566,9 +575,42 @@ describe('readPastedContent', () => {
                         [dated('WebPage', '2006-06-06'), recipe({ datePublished: '2024-01-01 10:00:00' })],
                     ],
                     ['a roundup named as isPartOf', [recipe({ isPartOf: dated('CollectionPage', '2005-05-05') })]],
+                    [
+                        'a whole blog named by @id as isPartOf',
+                        [
+                            {
+                                ...dated('Blog', '2003-03-03'),
+                                '@id': 'https://example.com/blog',
+                                mainEntity: [{ '@id': 'https://example.com/other#recipe' }],
+                            },
+                            recipe({ isPartOf: { '@id': 'https://example.com/blog' } }),
+                        ],
+                    ],
+                    [
+                        'an unrelated page node beside an undated page whose mainEntity is the recipe',
+                        [
+                            { ...dated('WebPage', '2004-04-04'), '@id': 'https://example.com/other' },
+                            {
+                                '@type': 'WebPage',
+                                '@id': 'https://example.com/pie',
+                                mainEntity: { '@id': 'https://example.com/pie#recipe' },
+                            },
+                            recipe(),
+                        ],
+                    ],
                     ['a roundup as the one page node', [dated('CollectionPage', '2005-05-05'), recipe()]],
                 ])('gives no date for %s', (_name, jsonLd) => {
                     expect(evidence(makePage({ jsonLd }))).not.toHaveProperty('datePublished');
+                });
+
+                it('reads it from the page node that embeds the recipe, with no @id, as its mainEntity', () => {
+                    const embedded = credited();
+                    const page = makePage({
+                        jsonLd: [{ ...dated('Article', '2023-02-02'), mainEntity: embedded }],
+                        body: makeRecipeCard(embedded),
+                    });
+
+                    expect(evidence(page)).toMatchObject({ datePublished: '2023-02-02' });
                 });
 
                 it('reads the page the recipe names before the node whose mainEntity is the recipe', () => {

@@ -42,8 +42,8 @@ recipe write.
   `source_kind` with no matching evidence row.
 - **Clones inherit it.** A trigger copies the parent's evidence rows to a new clone. Cloning does not drop the
   evidence.
-- `source_key` is the parsed link without its `#fragment`. All other normalisation goes into `sourceKeyOf`. There is
-  one key.
+- `source_key` is the parsed link without its `#fragment`. One function builds the key, and any further normalisation
+  goes into that function, so there is one key.
 
 ### 2. `sourceConflict`: evidence keeps a recipe out of Public
 

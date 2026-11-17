@@ -414,8 +414,8 @@ later from its own menu. (C-6)
   door and needs an ADR before code. (C-11)
 - **FR-062**: A public version's text carries the licence and credit of ADR-0093 §4, and the cook's later edits are
   under the same licence. The terms of service say who owns the written steps and the cook's edits. `review.licence`
-  links to them. "Publish" is the cook's acceptance of that licence for their edits, recorded with the terms version
-  (`016` data-model §1 and §11).
+  links to them. "Publish" is the cook's acceptance of that licence for their edits, recorded as the Publish
+  confirmation row (wording `publicVersionConfirm.v1`, data-model "Columns on existing tables").
 - **FR-063**: A public version MUST show "Report a problem" (`publicPage.report`). A report hides the version until
   staff look and decide, as ADR-0093 §4 and `020-FR-082` say. 020 owns the hide, the decision and the statement of
   reasons. While it is hidden the owner sees `publicPage.hiddenOwner`, and a reader sees
@@ -614,7 +614,7 @@ Still owed:
 - **C-5. Books and magazines?** Assumed: out of v1. 004's rules stand. Owner to confirm.
 - **C-6. Bulk import?** Assumed: items save "Just for me". A public version is made later per recipe. No batch rewrite.
   Owner to confirm.
-- **C-7. Retries of a refused model result?** Assumed: one automatic retry, then `failed`, and the cook can "Try
+- **C-7. Retries of a refused model result?** Assumed: one automatic retry, then `checkRefused`, and the cook can "Try
   again" once more by hand. At most 3 writer calls per item. Owner to confirm.
 - **C-8. Ingredient lines and title on the public version?** Assumed: ingredient lines rebuilt from the matched facts,
   not the source's line text. The title is built by code from the facts, with no model call. Owner to confirm.

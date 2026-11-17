@@ -130,7 +130,7 @@ Container classes as in the paste spec §3 (narrow below 600 of content, regular
 A `pi-block` card with an H2 and its content, between the source block and the Save area.
 
 - **choice:** H2 `title`, then `explain` as body text, then the radio group (each row: label in bold, hint below,
-  the radio aligned to the first line). For For everyone or Both, the credit preview comes next. Then `credit` and
+  the radio aligned to the first line). For For everyone or Both, the credit preview comes next. Then `creditNote` and
   the `creditLink`. The selected row takes `selectedFill` with a `selectedEdge` outline.
 - **privateOnly, publicExists, publicOnly:** H2 "Who can see it", the line, the link where the state has one, the slot
   line on Free.
@@ -302,15 +302,15 @@ Every state names its copy and key. Keys are under `importMessages.choice.*` unl
 
 ### 6.1 Choice (B1)
 
-| State                        | Shown                                                                           | Keys                                                                                                                                                       |
-| ---------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Nothing chosen (Free)        | Title, explain, three rows with Free hints, credit, link. Button "Continue"     | `title`, `explain`, `private.label`, `private.hint`, `public.label`, `public.hint`, `both.label`, `both.hint`, `credit`, `creditLink`, `button.none` (new) |
-| For everyone, credit free    | Row selected, preview with both credit lines, button "Write the public version" | `creditPreview.label` (new), `credit.written`, `credit.basedOn`, `button.public`                                                                           |
-| For everyone, credit paid    | Preview with `credit.written` only                                              | as above, no `credit.basedOn`                                                                                                                              |
-| Both (Pro)                   | Pro hints, button "Save and write"                                              | `private.hintPro`, `both.hintPro`, `button.both`                                                                                                           |
-| Continue with nothing chosen | Group outlined in `danger`, alert under it, focus to the heading                | `pickOne`                                                                                                                                                  |
-| Offline while choosing       | Alert above the group, choice kept                                              | reuse `importMessages.paste.review.offline`                                                                                                                |
-| The offer changed            | Area re-rendered, line above it, nothing selected                               | `offerChanged.line` (new)                                                                                                                                  |
+| State                        | Shown                                                                           | Keys                                                                                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nothing chosen (Free)        | Title, explain, three rows with Free hints, credit, link. Button "Continue"     | `title`, `explain`, `private.label`, `private.hint`, `public.label`, `public.hint`, `both.label`, `both.hint`, `creditNote`, `creditLink`, `button.none` (new) |
+| For everyone, credit free    | Row selected, preview with both credit lines, button "Write the public version" | `creditPreview.label` (new), `credit.written`, `credit.basedOn`, `button.public`                                                                               |
+| For everyone, credit paid    | Preview with `credit.written` only                                              | as above, no `credit.basedOn`                                                                                                                                  |
+| Both (Pro)                   | Pro hints, button "Save and write"                                              | `private.hintPro`, `both.hintPro`, `button.both`                                                                                                               |
+| Continue with nothing chosen | Group outlined in `danger`, alert under it, focus to the heading                | `pickOne`                                                                                                                                                      |
+| Offline while choosing       | Alert above the group, choice kept                                              | reuse `importMessages.paste.review.offline`                                                                                                                    |
+| The offer changed            | Area re-rendered, line above it, nothing selected                               | `offerChanged.line` (new)                                                                                                                                      |
 
 ### 6.2 privateOnly (B2)
 
@@ -343,12 +343,12 @@ Slot line on Free: `private.hint`. Pro: none.
 
 ### 6.5 Dead end (B5)
 
-| State                                  | Keys                                                                                                                                                                                                                                                                                  |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Switch on, upsell, trial eligible      | Notice: `deadEnd.title`, `deadEnd.body`, `deadEnd.free`. Card: `pro.name`, `pro.trialBadge`, `pro.price`, `pro.saving`. Perks: `pro.perk.private`, `pro.perk.pantry`, `pro.perk.ai`. Terms: `pro.trial`, `pro.renews`, `pro.compare`. Actions: `notNow.note`, `pro.upgrade`, `notNow` |
-| Trial already used                     | as above without `pro.trialBadge` and `pro.trial`                                                                                                                                                                                                                                     |
-| Switch off, or `paidFeatures = hidden` | `deadEnd.title`, `deadEnd.body`, `deadEnd.free`, `deadEnd.closeNote`, `deadEnd.close`                                                                                                                                                                                                 |
-| Announcements                          | `deadEnd.closed` on Not now and Close. `pro.welcome` after a paid upgrade                                                                                                                                                                                                             |
+| State                                  | Keys                                                                                                                                                                                                                                                                                       |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Switch on, upsell, trial eligible      | Notice: `deadEnd.title`, `deadEnd.body`, `deadEnd.free`. Card: `pro.name`, `pro.trialBadge`, `pro.price`, `pro.saving`. Perks: `pro.perk.private`, `pro.perk.pantry`, `pro.perk.ai`. Terms: `pro.trial`, `pro.renews`, `pro.compare`. Actions: `notNow.note`, `pro.upgrade`, `notNowLabel` |
+| Trial already used                     | as above without `pro.trialBadge` and `pro.trial`                                                                                                                                                                                                                                          |
+| Switch off, or `paidFeatures = hidden` | `deadEnd.title`, `deadEnd.body`, `deadEnd.free`, `deadEnd.closeNote`, `deadEnd.close`                                                                                                                                                                                                      |
+| Announcements                          | `deadEnd.closed` on Not now and Close. `pro.welcome` after a paid upgrade                                                                                                                                                                                                                  |
 
 ### 6.6 Writing (B6)
 

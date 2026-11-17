@@ -160,7 +160,7 @@ packages/services/recipe-service/src/database/migrations/00NN_public_versions.sq
 packages/services/recipe-workers/src/handlers/publicVersionWorker.ts
 packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts  # Lambda, queue, DLQ, reserved concurrency
 packages/schemas/recipe                                        # generated copy (contract:generate)
-packages/clients/recipe-service-client                         # hooks for the job, publish, cancel
+packages/clients/recipe-service                                # hooks for the job, publish, cancel
 packages/apps/commise/features/recipes/src/import/choice/      # statechart, orchestration, render (web + .native)
 ```
 

@@ -16,7 +16,7 @@ in `erasureSweepCoverage`'s `RETAINED_BY_RULING` map with this reason.
 | ------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `id`                      | uuid PK              |                                                                                                                                                                                                                               |
 | `evidence_id`             | uuid NULL            | The ADR-0089 §6 evidence row, where one exists. Not a foreign key: the evidence row cascades away with its recipe, and this record outlives it.                                                                               |
-| `source_key`              | text NOT NULL        | Registrable domain (Public Suffix List, by library), (the same key `016` uses for a source).                                                                                                                                  |
+| `source_key`              | text NOT NULL        | Registrable domain (Public Suffix List, by library), (the same key `016` uses for a source). It is not the evidence record's `source_key`, which is the normalised page address (`page_key` here).                            |
 | `source_class`            | text NOT NULL        | CHECK in (`site`, `aggregator`, `paid_site`). Kept for monitoring. It changes no rule.                                                                                                                                        |
 | `classification`          | text NOT NULL        | CHECK in (`open`, `thirdParty`, `paid`).                                                                                                                                                                                      |
 | `classification_inputs`   | jsonb NOT NULL       | The signals read: statement kind, claim state, licence signal, paid signal (which of the three), publication date, signature status, list versions. Each signal is `stated`, `absent` or `unread`, and `unread` reads closed. |
@@ -96,7 +96,7 @@ ready ──Not now / flow ends──────────────▶ can
   `page_key` equal to the recipe's evidence `source_key`. Omitted for any other viewer.
 - Monitoring counts public versions per `source_key` from `recipes.source_page_key` and the source records, for the
   rate alarm only. There is no per-source ledger and there are no caps (owner ruling 2026-11-15).
-- Publish confirmation: one row in `recipe_statement_attestations` (ADR-0095): mode implicit, choice `publicConfirm`, action `create`, wording `publicVersionConfirm.v1`. Licence acceptance (FR-062) is that confirmation.
+- Publish confirmation: one row in `recipe_statement_attestations` (ADR-0095, PR #301, not merged): mode implicit, choice `publicConfirm`, action `create`, wording `publicVersionConfirm.v1`. Licence acceptance (FR-062) is that confirmation.
 
 ## Identity
 

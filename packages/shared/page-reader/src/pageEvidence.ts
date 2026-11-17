@@ -1,6 +1,6 @@
 /**
- * What a page says about WHO made a recipe, WHERE its picture is, whether it is free to read, when it was published and
- * whether it reserves itself from AI: evidence beside the recipe, never part of it.
+ * What a page says about WHO made a recipe, WHERE its picture is and WHEN it was published: evidence beside the recipe,
+ * never part of it.
  *
  * A `PageRecipe` stays exactly what becomes the import. Credit and the image address ride beside it, for the
  * source statement step, so a recipe cannot assert its own provenance.
@@ -32,28 +32,16 @@ export interface PageCredit {
     readonly license?: string;
 }
 
-/** What a page states about access and age. Every field may be absent. */
-export interface PageAccess {
-    /** schema.org `isAccessibleForFree` over every statement on the page (`isAccessibleForFreeOf`). */
-    readonly isAccessibleForFree?: boolean;
-    /** schema.org `datePublished` as written (`datePublishedOf`), when it is an ISO 8601 date or date-time with a real calendar date. */
-    readonly datePublished?: string;
-}
-
 /**
  * Evidence beside a recipe. FACTS ONLY: the reader applies no policy to any of them, and none of them changes whether a
  * recipe is read.
  */
-export interface PageEvidence extends PageAccess {
+export interface PageEvidence {
     readonly credit: PageCredit;
+    /** schema.org `datePublished` as written (`datePublishedOf`), when it is an ISO 8601 date or date-time with a real calendar date. */
+    readonly datePublished?: string;
     /** An absolute http(s) address, never fetched. ABSENT when the page names none that is usable. */
     readonly imageUrl?: string;
-    /**
-     * Whether the page reserves its content from AI and text-and-data mining: `true` for any reservation `aiOptOutOf`
-     * reads, `false` for a `tdm-reservation` of 0 and no reservation, ABSENT for no signal. Read from the page's own
-     * `<meta>` tags (an `X-Robots-Tag` only as an http-equiv meta): a paste carries no HTTP headers.
-     */
-    readonly aiOptOut?: boolean;
 }
 
 /** The longest `datePublished` read, in characters. */
@@ -66,49 +54,6 @@ const MAX_DATE_CHARS = 40;
  */
 const ISO_DATE =
     /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(?:Z|[+-](\d{2}):?(\d{2}))?)?$/u;
-
-/** schema.org's Boolean values written as an address or a compact name: `https://schema.org/False`, `schema:True`. */
-const SCHEMA_BOOLEAN = /^(?:https?:\/\/schema\.org\/|schema:)(true|false)$/u;
-
-/** How one `isAccessibleForFree` statement reads: true, false, or present and unreadable. */
-type FreeStatement = boolean | 'unreadable';
-
-/**
- * One stated boolean: `true`, `false`, the text of either in any case, schema.org's address or compact form of either,
- * or a JSON-LD value object (`{"@value": "false"}`) holding one. Anything else is present but unreadable.
- */
-function statedBoolean(raw: unknown): FreeStatement {
-    if (typeof raw === 'boolean') {
-        return raw;
-    }
-
-    const value = isSchemaNode(raw) ? field(raw, '@value') : raw;
-
-    if (typeof value === 'boolean') {
-        return value;
-    }
-
-    const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
-    const word = SCHEMA_BOOLEAN.exec(text)?.[1] ?? text;
-
-    if (word === 'true' || word === 'false') {
-        return word === 'true';
-    }
-
-    return 'unreadable';
-}
-
-/**
- * The answer from every statement: `false` when any says false; unknown (`undefined`) when none does but one cannot be
- * read, since it may be a paywall; `true` when every statement says true; `undefined` when there is none.
- */
-function freeOf(statements: readonly FreeStatement[]): boolean | undefined {
-    if (statements.includes(false)) {
-        return false;
-    }
-
-    return statements.length > 0 && statements.every((statement) => statement === true) ? true : undefined;
-}
 
 /** An ISO 8601 date as written, when its calendar date, time and zone are real ("2024-02-30" and "T23:60" are not). */
 function isoDate(value: unknown): string | undefined {
@@ -205,142 +150,6 @@ export function datePublishedOf(node: SchemaNode, containers: readonly SchemaNod
     ];
 
     return sources.map((source) => isoDate(field(source, 'datePublished'))).find((date) => date !== undefined);
-}
-
-/**
- * Whether the page is free to read, from EVERY `isAccessibleForFree` statement it makes, in any node of any JSON-LD block
- * and any microdata item. A paywall is stated on the article, a `WebPageElement` two levels down or a node named by `@id`
- * as often as on the recipe, so no statement is passed over for where it sits.
- *
- * @param statements - Every statement's value as written (a list is read item by item).
- * @param complete - Whether every statement was read: `false` when a walk cap cut the read short.
- * @returns `false` when any statement says false; unknown (`undefined`) when none does but one cannot be read or the
- *   read was cut short, since a paywall may be there; `true` when every statement says true; `undefined` when there is
- *   none. Pure.
- */
-export function isAccessibleForFreeOf(statements: readonly unknown[], complete: boolean): boolean | undefined {
-    const read = statements.flatMap((statement) => items(statement).map(statedBoolean));
-
-    return freeOf(complete ? read : [...read, 'unreadable']);
-}
-
-/** The robots tokens that reserve a page from AI, in a robots meta or header for every crawler. */
-const NO_AI_TOKENS: ReadonlySet<string> = new Set(['noai', 'noimageai']);
-
-/** The robots tokens that reserve a page from a crawler named for AI: the AI tokens, and keeping it out entirely. */
-const NAMED_AI_CRAWLER_TOKENS: ReadonlySet<string> = new Set([...NO_AI_TOKENS, 'noindex', 'none']);
-
-/**
- * Crawlers that read pages for AI training or AI answers, by the name a site writes in a robots meta (lower case). Data:
- * the agents their operators publish. A search crawler (`googlebot`, `bingbot`) is not one.
- */
-const AI_CRAWLERS: ReadonlySet<string> = new Set([
-    'gptbot',
-    'chatgpt-user',
-    'oai-searchbot',
-    'ccbot',
-    'google-extended',
-    'anthropic-ai',
-    'claudebot',
-    'claude-web',
-    'perplexitybot',
-    'bytespider',
-    'amazonbot',
-    'applebot-extended',
-    'facebookbot',
-    'meta-externalagent',
-    'cohere-ai',
-    'diffbot',
-    'imagesiftbot',
-    'omgilibot',
-    'youbot',
-]);
-
-/** A page's `<meta>` element, as its `name`, `http-equiv` and `content`. */
-export interface PageMeta {
-    readonly name?: string;
-    readonly httpEquiv?: string;
-    readonly content?: string;
-}
-
-/** The robots tokens of a value, split on spaces, commas and semicolons, lower case. */
-const robotsTokens = (value: string): readonly string[] => value.split(/[\s,;]+/u).filter((token) => token !== '');
-
-/** X-Robots-Tag directives that take a value after a colon (`max-snippet: 50`): no user agent. */
-const VALUE_DIRECTIVES: ReadonlySet<string> = new Set([
-    'max-snippet',
-    'max-image-preview',
-    'max-video-preview',
-    'unavailable_after',
-]);
-
-/** Whether a robots token reserves the page for `agent` (`undefined`: every agent). */
-const reservesFor = (agent: string | undefined, token: string): boolean =>
-    NO_AI_TOKENS.has(token) || (agent !== undefined && AI_CRAWLERS.has(agent) && NAMED_AI_CRAWLER_TOKENS.has(token));
-
-/**
- * Whether an `X-Robots-Tag` value reserves the page. A word followed by a colon (spaces allowed before it) that starts with
- * a letter names the user agent the tokens after it are for (`googlebot: noindex, gptbot: none`), unless it is a
- * directive that takes a value (`max-snippet: 50`); a number before a colon is part of a time. `noai` and `noimageai`
- * reserve for every agent (016 FR-024a); `noindex` and `none` only for an AI crawler. One pass over the tokens.
- */
-function headerReserves(value: string): boolean {
-    const tokens = robotsTokens(value.replaceAll(':', ' : '));
-    let agent: string | undefined;
-
-    for (const [index, token] of tokens.entries()) {
-        if (tokens[index + 1] === ':') {
-            agent = /^\p{L}/u.test(token) && !VALUE_DIRECTIVES.has(token) ? token : agent;
-        } else if (token !== ':' && reservesFor(agent, token)) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/** Whether a meta name is for crawlers: `robots`, or a crawler's own name (`googlebot`, `bingbot`, `gptbot`, `ccbot`). */
-const isCrawlerMeta = (key: string): boolean => /bot|spider|crawler|slurp/u.test(key) || AI_CRAWLERS.has(key);
-
-/** Whether one meta reserves the page from AI. */
-function metaReserves(key: string | undefined, equiv: string | undefined, value: string): boolean {
-    if (key === 'tdm-reservation') {
-        return value === '1';
-    }
-
-    if (key !== undefined && isCrawlerMeta(key)) {
-        return robotsTokens(value).some((token) => reservesFor(key === 'robots' ? undefined : key, token));
-    }
-
-    return equiv === 'x-robots-tag' && headerReserves(value);
-}
-
-/**
- * Whether a page reserves its content from AI and text-and-data mining (see {@link PageEvidence.aiOptOut}): a TDMRep
- * `tdm-reservation` of 1; `noai` or `noimageai` in a robots or crawler-named meta or an `X-Robots-Tag` http-equiv, for any
- * agent; or `noindex` or `none` for a named AI crawler (its own meta, or its `agent:` segment). A `noindex` for every
- * crawler or for a search crawler is about search, not AI, and is no reservation. Every meta on the page counts, including one
- * inside `<noscript>` or `<template>`: a reservation a cook cannot see still binds, so the read errs toward reserved.
- *
- * @param metas - The page's `<meta>` elements.
- * @returns `true` when any meta reserves the page; else `false` when a `tdm-reservation` of 0 says it does not; else
- *   `undefined` (no signal). Pure.
- */
-export function aiOptOutOf(metas: readonly PageMeta[]): boolean | undefined {
-    let notReserved = false;
-
-    for (const { name, httpEquiv, content } of metas) {
-        const key = name?.trim().toLowerCase();
-        const value = content?.trim().toLowerCase() ?? '';
-
-        if (metaReserves(key, httpEquiv?.trim().toLowerCase(), value)) {
-            return true;
-        }
-
-        notReserved = notReserved || (key === 'tdm-reservation' && value === '0');
-    }
-
-    return notReserved ? false : undefined;
 }
 
 /** The items of a property, microdata's one-level lists flattened. */

@@ -107,56 +107,6 @@ function parsedBlock(script: PageElement): ParsedBlock {
     }
 }
 
-/** The values of a page's JSON-LD blocks, and whether every block was read: none past the cap, and none unread. */
-interface JsonLdBlocks {
-    readonly values: readonly unknown[];
-    readonly whole: boolean;
-}
-
-/** Read the page's JSON-LD blocks, at most {@link MAX_JSON_LD_BLOCKS} of them, each within the byte and depth caps. */
-function jsonLdBlocksOf(page: PageDocument): JsonLdBlocks {
-    const scripts = page.byTag('script').filter(isJsonLdScript);
-    const blocks = scripts.slice(0, MAX_JSON_LD_BLOCKS).map(parsedBlock);
-
-    return {
-        values: blocks.flatMap((block) => (block.kind === 'json' ? [block.value] : [])),
-        whole: scripts.length <= MAX_JSON_LD_BLOCKS && blocks.every((block) => block.kind !== 'unread'),
-    };
-}
-
-/** Every `isAccessibleForFree` value a page's JSON-LD states, and whether every block was read whole. */
-export interface JsonLdStatements {
-    readonly values: readonly unknown[];
-    readonly complete: boolean;
-}
-
-/**
- * Every `isAccessibleForFree` value in every node of every JSON-LD block, inside a Recipe too, in page order.
- *
- * @param page - The parsed paste.
- * @returns The values as written, and `complete: false` when a block past the cap, a block that cannot be read or a walk
- *   cut short may hold one more. Pure.
- */
-export function jsonLdFreeStatements(page: PageDocument): JsonLdStatements {
-    const { values: blocks, whole } = jsonLdBlocksOf(page);
-    const values: unknown[] = [];
-    let complete = whole;
-
-    for (const block of blocks) {
-        const { truncated } = boundedWalk([block], (value) => {
-            if (isSchemaNode(value) && field(value, 'isAccessibleForFree') !== undefined) {
-                values.push(field(value, 'isAccessibleForFree'));
-            }
-
-            return childrenOf(value);
-        });
-
-        complete = complete && !truncated;
-    }
-
-    return { values, complete };
-}
-
 /**
  * Find the recipe in a page's JSON-LD.
  *
@@ -165,14 +115,15 @@ export function jsonLdFreeStatements(page: PageDocument): JsonLdStatements {
  *   the depth cap, or a walk hit the node cap, because a recipe (or a second one) may lie in what was not read. Pure.
  */
 export function jsonLdRecipe(page: PageDocument): RecipeExtraction {
-    const { values, whole } = jsonLdBlocksOf(page);
+    const scripts = page.byTag('script').filter(isJsonLdScript);
+    const blocks = scripts.slice(0, MAX_JSON_LD_BLOCKS).map(parsedBlock);
 
     // A block past the cap, or one too big, too deep or not JSON to read, may hold the page's own recipe.
-    if (!whole) {
+    if (scripts.length > MAX_JSON_LD_BLOCKS || blocks.some((block) => block.kind === 'unread')) {
         return TOO_COMPLEX;
     }
 
-    const walks = values.map(recipeNodesOf);
+    const walks = blocks.flatMap((block) => (block.kind === 'json' ? [recipeNodesOf(block.value)] : []));
 
     return walks.some((walk) => walk.truncated)
         ? TOO_COMPLEX

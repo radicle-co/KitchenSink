@@ -20,10 +20,7 @@ import { detectPageSource, pageAddressesOf } from './detectPageSource.js';
 import type { DetectedSource } from './detectPageSource.js';
 import { MAX_PASTE_BYTES, classifyPaste } from './pageCaps.js';
 import { parsePage } from './pageDocument.js';
-import type { PageDocument } from './pageDocument.js';
-import { jsonLdFreeStatements } from './jsonLdRecipe.js';
-import { microdataFreeStatements } from './microdataRecipe.js';
-import { aiOptOutOf, imageUrlOf, isAccessibleForFreeOf } from './pageEvidence.js';
+import { imageUrlOf } from './pageEvidence.js';
 import type { PageEvidence } from './pageEvidence.js';
 import type { ExtractionTier, PageCandidate, PageRecipe } from './pageRecipeCandidate.js';
 import { acceptRecipe } from './recipeAcceptance.js';
@@ -94,32 +91,14 @@ function notExtractable(
     };
 }
 
-/**
- * The evidence for one found recipe: its credit and access facts, its image made absolute against the detected source, and
- * the page's AI opt-out.
- */
-function evidenceOf(candidate: PageCandidate, page: PageDocument, source: DetectedSource): PageEvidence {
+/** The evidence for one found recipe: its credit, its date, and its image made absolute against the detected source. */
+function evidenceOf(candidate: PageCandidate, source: DetectedSource): PageEvidence {
     const imageUrl = imageUrlOf(candidate.imageRefs, source.kind === 'found' ? source.citation.url : undefined);
-    const aiOptOut = aiOptOutOf(
-        page.byTag('meta').map((meta) => ({
-            name: meta.attr('name'),
-            httpEquiv: meta.attr('http-equiv'),
-            content: meta.attr('content'),
-        })),
-    );
-
-    const free = jsonLdFreeStatements(page);
-    const isAccessibleForFree = isAccessibleForFreeOf(
-        [...free.values, ...microdataFreeStatements(page)],
-        free.complete,
-    );
 
     return Object.freeze({
         credit: candidate.credit,
-        ...(isAccessibleForFree === undefined ? {} : { isAccessibleForFree }),
         ...(candidate.datePublished === undefined ? {} : { datePublished: candidate.datePublished }),
         ...(imageUrl === undefined ? {} : { imageUrl }),
-        ...(aiOptOut === undefined ? {} : { aiOptOut }),
     });
 }
 
@@ -199,7 +178,7 @@ export function readPastedContent(text: string): PasteReadResult {
         ? {
               kind: 'extracted',
               recipe,
-              evidence: evidenceOf(candidate, page, source),
+              evidence: evidenceOf(candidate, source),
               source,
               tier,
               pasteDigest,

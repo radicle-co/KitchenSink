@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MAX_JSON_LD_BLOCK_BYTES, MAX_JSON_LD_BLOCKS, MAX_RECIPES_PER_PAGE, MAX_WALK_NODES } from '../pageCaps.js';
 import { parsePage } from '../pageDocument.js';
-import { jsonLdFreeStatements, jsonLdRecipe } from '../jsonLdRecipe.js';
+import { jsonLdRecipe } from '../jsonLdRecipe.js';
 import { makeJsonLdScript, makePage, makeRecipeNode } from '../__fixtures__/pageFixtures.js';
 
 const read = (...jsonLd: unknown[]) => jsonLdRecipe(parsePage(makePage({ jsonLd })));
@@ -436,37 +436,5 @@ describe('jsonLdRecipe: what the corroboration stage reads (round 5)', () => {
                 },
             ],
         });
-    });
-});
-
-describe('jsonLdFreeStatements', () => {
-    const statements = (...jsonLd: unknown[]) => jsonLdFreeStatements(parsePage(makePage({ jsonLd })));
-
-    it('collects every statement in page order: inside the recipe, nested two levels down and in a later block', () => {
-        expect(
-            statements(
-                makeRecipeNode({
-                    isAccessibleForFree: true,
-                    mainEntityOfPage: {
-                        '@type': 'WebPage',
-                        hasPart: { '@type': 'WebPageElement', isAccessibleForFree: 'False' },
-                    },
-                }),
-                { '@type': 'WebSite', isAccessibleForFree: false },
-            ),
-        ).toEqual({ values: [true, 'False', false], complete: true });
-    });
-
-    it('says the read is not complete when a block cannot be read, since it may hold a paywall', () => {
-        expect(statements('{"@type": "WebPage", "isAccessibleForFree": false', makeRecipeNode())).toMatchObject({
-            complete: false,
-        });
-    });
-
-    it('says the read is not complete when there are more blocks than the cap', () => {
-        const blocks = Array.from({ length: MAX_JSON_LD_BLOCKS + 1 }, () => ({ '@type': 'Thing' }));
-
-        expect(statements(...blocks)).toEqual({ values: [], complete: false });
-        expect(statements(...blocks.slice(1))).toEqual({ values: [], complete: true });
     });
 });

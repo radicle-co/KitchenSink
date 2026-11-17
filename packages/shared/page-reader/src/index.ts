@@ -9,7 +9,7 @@
 export { MAX_PASTE_BYTES, PASTE_CARD_THRESHOLD_CHARS, classifyPaste } from './pageCaps.js';
 export type { PasteKind } from './pageCaps.js';
 export type { DetectedSource } from './detectPageSource.js';
-export type { PageAccess, PageCredit, PageEvidence } from './pageEvidence.js';
+export type { PageCredit, PageEvidence } from './pageEvidence.js';
 export type { PageRecipe, PageRecipeStep } from './pageRecipeCandidate.js';
 export { readPastedContent } from './readPastedContent.js';
 export type { ExtractionTier } from './pageRecipeCandidate.js';

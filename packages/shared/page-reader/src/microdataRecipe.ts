@@ -127,19 +127,6 @@ const isRecipeItem = (element: PageElement): boolean =>
     words(element.attr('itemtype')).some((type) => typeNames({ '@type': type }).includes('Recipe'));
 
 /**
- * Every `isAccessibleForFree` value the page's microdata states, whatever item it sits in, in page order.
- *
- * @param page - The parsed paste.
- * @returns The values as written. Pure.
- */
-export function microdataFreeStatements(page: PageDocument): readonly unknown[] {
-    return page
-        .withAttribute('itemprop')
-        .filter((element) => words(element.attr('itemprop')).includes('isAccessibleForFree'))
-        .map((element) => valueOf(element).value);
-}
-
-/**
  * Find the recipe in a page's microdata.
  *
  * @param page - The parsed paste.

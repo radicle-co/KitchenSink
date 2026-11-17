@@ -391,9 +391,9 @@ describe('readPastedContent', () => {
             });
         });
 
-        // 003B: three facts beside the recipe, each tri-state (absent: the page states nothing). Facts only: the reader
-        // applies no policy to them, and none of them changes whether a recipe is read.
-        describe('access, date and AI opt-out facts', () => {
+        // 003B: the date beside the recipe, absent when the page states none. A fact only: the reader applies no policy to
+        // it, and it never changes whether a recipe is read. The paywall and AI opt-out facts moved to a follow-up PR.
+        describe('date facts', () => {
             const evidence = (page: string) => {
                 const result = readPastedContent(page);
 
@@ -404,250 +404,17 @@ describe('readPastedContent', () => {
                 return result.evidence;
             };
 
-            it.each([
-                [true, true],
-                ['True', true],
-                ['false', false],
-                [false, false],
-            ])('reads isAccessibleForFree %j as %j', (value, read) => {
-                expect(evidence(makePage({ jsonLd: [credited({ isAccessibleForFree: value })] }))).toMatchObject({
-                    isAccessibleForFree: read,
-                });
-            });
-
-            it.each([['yes'], [1], [{ value: true }]])('leaves isAccessibleForFree absent for %j', (value) => {
-                expect(evidence(makePage({ jsonLd: [credited({ isAccessibleForFree: value })] }))).not.toHaveProperty(
-                    'isAccessibleForFree',
-                );
-            });
-
-            // Round 9 (code-reviewer HIGH 3 on #324): a paywall is often stated on the page node, not the recipe. Both facts
-            // are read from the Recipe node, then from its container: the node whose mainEntity is the recipe, or a WebPage
-            // or Article in the same page. Any false wins, in a list too.
-            describe('read from the recipe and its container', () => {
+            it('takes datePublished from the recipe first, then from its container', () => {
                 const recipe = (overrides: Record<string, unknown> = {}) =>
                     credited({ '@id': 'https://example.com/pie#recipe', ...overrides });
+                const page = { '@type': 'WebPage', datePublished: '2023-01-01' };
 
-                it.each([
-                    [
-                        'an Article whose mainEntity is the recipe',
-                        { '@type': 'NewsArticle', isAccessibleForFree: false, mainEntity: recipe() },
-                    ],
-                    [
-                        'a WebPage in the same @graph, the text "False"',
-                        { '@graph': [{ '@type': 'WebPage', isAccessibleForFree: 'False' }, recipe()] },
-                    ],
-                    [
-                        'a node whose mainEntity names the recipe by @id',
-                        {
-                            '@graph': [
-                                {
-                                    '@type': 'Thing',
-                                    isAccessibleForFree: false,
-                                    mainEntity: { '@id': 'https://example.com/pie#recipe' },
-                                },
-                                recipe(),
-                            ],
-                        },
-                    ],
-                    [
-                        'a container that says false over a recipe that says true',
-                        {
-                            '@graph': [
-                                { '@type': 'BlogPosting', isAccessibleForFree: false },
-                                recipe({ isAccessibleForFree: true }),
-                            ],
-                        },
-                    ],
-                    ['a list holding false', { '@graph': [recipe({ isAccessibleForFree: [true, false] })] }],
-                    // Re-review of d700c5ed1, MEDIUM 4 and 5.
-                    [
-                        'the schema.org address of False',
-                        { '@graph': [recipe({ isAccessibleForFree: 'https://schema.org/False' })] },
-                    ],
-                    ['the compact schema:False', { '@graph': [recipe({ isAccessibleForFree: 'schema:False' })] }],
-                    ['a JSON-LD value object', { '@graph': [recipe({ isAccessibleForFree: { '@value': 'false' } })] }],
-                    [
-                        "the recipe's own mainEntityOfPage, over the recipe's true",
-                        recipe({
-                            isAccessibleForFree: true,
-                            mainEntityOfPage: { '@type': 'WebPage', isAccessibleForFree: false },
-                        }),
-                    ],
-                    [
-                        "the recipe's isPartOf",
-                        recipe({ isPartOf: { '@type': 'CreativeWork', isAccessibleForFree: false } }),
-                    ],
-                    [
-                        "a paywalled WebPageElement in the recipe's hasPart",
-                        recipe({
-                            isAccessibleForFree: true,
-                            hasPart: { '@type': 'WebPageElement', isAccessibleForFree: false, cssSelector: '.paywall' },
-                        }),
-                    ],
-                    [
-                        "a paywalled WebPageElement in the page node's hasPart",
-                        {
-                            '@graph': [
-                                {
-                                    '@type': 'NewsArticle',
-                                    hasPart: { '@type': 'WebPageElement', isAccessibleForFree: 'False' },
-                                },
-                                recipe(),
-                            ],
-                        },
-                    ],
-                ])('reads isAccessibleForFree false from %s', (_name, block) => {
-                    expect(evidence(makePage({ jsonLd: [block], body: makeRecipeCard(recipe()) }))).toMatchObject({
-                        isAccessibleForFree: false,
-                    });
+                expect(evidence(makePage({ jsonLd: [{ '@graph': [page, recipe()] }] }))).toMatchObject({
+                    datePublished: '2023-01-01',
                 });
-
-                it.each([
-                    ['http://schema.org/True', true],
-                    ['https://schema.org/False', false],
-                    ['schema:True', true],
-                ])('reads the schema.org form %j as %j', (value, read) => {
-                    expect(
-                        evidence(
-                            makePage({
-                                jsonLd: [recipe({ isAccessibleForFree: value })],
-                                body: makeRecipeCard(recipe()),
-                            }),
-                        ),
-                    ).toMatchObject({ isAccessibleForFree: read });
-                });
-
-                // Re-review of d700c5ed1, MEDIUM 4: a statement the reader cannot read may be a paywall, so it never lets the
-                // answer be true. The answer is unknown (absent) instead.
-                it.each([
-                    [
-                        'a container that says "no"',
-                        {
-                            '@graph': [
-                                { '@type': 'WebPage', isAccessibleForFree: 'no' },
-                                recipe({ isAccessibleForFree: true }),
-                            ],
-                        },
-                    ],
-                    [
-                        'a list holding an unreadable value',
-                        { '@graph': [recipe({ isAccessibleForFree: [true, 'paywalled'] })] },
-                    ],
-                ])('leaves isAccessibleForFree absent, not true, with %s', (_name, block) => {
-                    expect(evidence(makePage({ jsonLd: [block], body: makeRecipeCard(recipe()) }))).not.toHaveProperty(
-                        'isAccessibleForFree',
-                    );
-                });
-
-                it('reads a microdata link to the schema.org address of False', () => {
-                    const body = makeMicrodataBody(
-                        '<link itemprop="isAccessibleForFree" href="https://schema.org/False">',
-                    );
-
-                    expect(evidence(makePage({ body }))).toMatchObject({ isAccessibleForFree: false });
-                });
-
-                it('reads isAccessibleForFree true when only the container says so', () => {
-                    const block = { '@graph': [{ '@type': 'WebPage', isAccessibleForFree: true }, recipe()] };
-
-                    expect(evidence(makePage({ jsonLd: [block] }))).toMatchObject({ isAccessibleForFree: true });
-                });
-
-                // Rewritten for round 9 (re-review of cb509d1a4, HIGH 2): an Organization's false was passed over, as it is
-                // neither a page nor the recipe's container. A paywall false is lost the same way behind an `@id` or two
-                // levels down, so every isAccessibleForFree statement on the page now counts, in both tiers.
-                it.each([
-                    [
-                        'an Organization in the @graph',
-                        {
-                            '@graph': [
-                                { '@type': 'Organization', isAccessibleForFree: false },
-                                recipe({ isAccessibleForFree: true }),
-                            ],
-                        },
-                    ],
-                    [
-                        'a WebPageElement in the hasPart of the recipe’s mainEntityOfPage',
-                        recipe({
-                            isAccessibleForFree: true,
-                            mainEntityOfPage: {
-                                '@type': 'WebPage',
-                                hasPart: { '@type': 'WebPageElement', isAccessibleForFree: false },
-                            },
-                        }),
-                    ],
-                    [
-                        'a WebPageElement a flattened @graph names by @id from the WebPage’s hasPart',
-                        {
-                            '@graph': [
-                                { '@type': 'WebPage', '@id': '#page', hasPart: { '@id': '#pw' } },
-                                { '@type': 'WebPageElement', '@id': '#pw', isAccessibleForFree: false },
-                                recipe({ isAccessibleForFree: true }),
-                            ],
-                        },
-                    ],
-                    [
-                        'a node the recipe’s isPartOf names by @id',
-                        {
-                            '@graph': [
-                                { '@type': 'CreativeWork', '@id': '#cw', isAccessibleForFree: false },
-                                recipe({ isAccessibleForFree: true, isPartOf: { '@id': '#cw' } }),
-                            ],
-                        },
-                    ],
-                    [
-                        'a WebSite in the @graph',
-                        {
-                            '@graph': [
-                                { '@type': 'WebSite', isAccessibleForFree: false },
-                                recipe({ isAccessibleForFree: true }),
-                            ],
-                        },
-                    ],
-                ])('reads isAccessibleForFree false from %s, over the recipe’s true', (_name, block) => {
-                    expect(evidence(makePage({ jsonLd: [block], body: makeRecipeCard(recipe()) }))).toMatchObject({
-                        isAccessibleForFree: false,
-                    });
-                });
-
-                it('reads isAccessibleForFree false from another JSON-LD block, over the recipe’s true', () => {
-                    const page = makePage({
-                        jsonLd: [
-                            recipe({ isAccessibleForFree: true }),
-                            { '@type': 'WebPage', isAccessibleForFree: false },
-                        ],
-                        body: makeRecipeCard(recipe()),
-                    });
-
-                    expect(evidence(page)).toMatchObject({ isAccessibleForFree: false });
-                });
-
-                it('reads a microdata false elsewhere on the page over a JSON-LD recipe’s true', () => {
-                    const page = makePage({
-                        jsonLd: [recipe({ isAccessibleForFree: true })],
-                        body: `${makeRecipeCard(recipe())}<div itemscope itemtype="https://schema.org/WebPage"><meta itemprop="isAccessibleForFree" content="false"></div>`,
-                    });
-
-                    expect(evidence(page)).toMatchObject({ isAccessibleForFree: false });
-                });
-
-                it('takes datePublished from the recipe first, then from its container', () => {
-                    const page = { '@type': 'WebPage', datePublished: '2023-01-01' };
-
-                    expect(evidence(makePage({ jsonLd: [{ '@graph': [page, recipe()] }] }))).toMatchObject({
-                        datePublished: '2023-01-01',
-                    });
-                    expect(
-                        evidence(makePage({ jsonLd: [{ '@graph': [page, recipe({ datePublished: '2024-03-01' })] }] })),
-                    ).toMatchObject({ datePublished: '2024-03-01' });
-                });
-
-                it('reads isAccessibleForFree false from any microdata property on the page', () => {
-                    const body = `<div itemscope itemtype="https://schema.org/WebPage"><meta itemprop="isAccessibleForFree" content="false">${makeMicrodataBody()}</div>`;
-
-                    expect(evidence(makePage({ body }))).toMatchObject({ isAccessibleForFree: false });
-                });
+                expect(
+                    evidence(makePage({ jsonLd: [{ '@graph': [page, recipe({ datePublished: '2024-03-01' })] }] })),
+                ).toMatchObject({ datePublished: '2024-03-01' });
             });
 
             it.each(['2024-03-01', '2024-03-01T09:30:00+01:00', '2024-03-01T08:30:00Z'])(
@@ -674,98 +441,6 @@ describe('readPastedContent', () => {
                 );
             });
 
-            it.each([
-                ['a TDMRep reservation', '<meta name="tdm-reservation" content="1">', true],
-                ['a robots noai', '<meta name="robots" content="index, follow, noai">', true],
-                ['a robots noimageai', '<meta name="ROBOTS" content="noimageai">', true],
-                ['a TDMRep non-reservation', '<meta name="tdm-reservation" content="0">', false],
-                // Round 9 (code-reviewer MEDIUM 5 on #324).
-                ['a robots noai after a semicolon', '<meta name="robots" content="index;noai">', true],
-                ['an X-Robots-Tag http-equiv', '<meta http-equiv="X-Robots-Tag" content="noai, noimageai">', true],
-                [
-                    'an X-Robots-Tag naming an AI crawler',
-                    '<meta http-equiv="X-Robots-Tag" content="GPTBot: noindex">',
-                    true,
-                ],
-                ['a GPTBot meta', '<meta name="GPTBot" content="noindex, nofollow">', true],
-                ['a CCBot meta', '<meta name="ccbot" content="none">', true],
-                ['a Google-Extended meta', '<meta name="Google-Extended" content="noindex">', true],
-                // Fail-safe, documented: a meta a cook cannot see still states the page's reservation.
-                ['a robots noai inside noscript', '<noscript><meta name="robots" content="noai"></noscript>', true],
-                // Re-review of d700c5ed1, LOW 7: every agent segment of one X-Robots-Tag value is read.
-                [
-                    'an X-Robots-Tag whose second agent is an AI crawler',
-                    '<meta http-equiv="X-Robots-Tag" content="googlebot: noindex, gptbot: none">',
-                    true,
-                ],
-                // Re-review of cb509d1a4, HIGH 1: noai and noimageai reserve whatever the agent (016 FR-024a).
-                [
-                    'an X-Robots-Tag noai for a search crawler',
-                    '<meta http-equiv="X-Robots-Tag" content="googlebot: noai">',
-                    true,
-                ],
-                [
-                    'an X-Robots-Tag noimageai for bingbot',
-                    '<meta http-equiv="X-Robots-Tag" content="bingbot: noimageai">',
-                    true,
-                ],
-                [
-                    'an X-Robots-Tag noai after a search crawler segment',
-                    '<meta http-equiv="X-Robots-Tag" content="noindex, googlebot: noindex; noai">',
-                    true,
-                ],
-                [
-                    'an X-Robots-Tag with a space before the colon',
-                    '<meta http-equiv="X-Robots-Tag" content="gptbot : none">',
-                    true,
-                ],
-                ['a googlebot meta with noai', '<meta name="googlebot" content="noai">', true],
-                // Re-review of cb509d1a4, MEDIUM 4 (mutant M10): a time inside a value is no user agent, so the AI crawler
-                // named before it still owns the tokens after it.
-                [
-                    'an X-Robots-Tag noai after an unavailable_after date',
-                    '<meta http-equiv="X-Robots-Tag" content="unavailable_after: 25 Jun 2026 15:00:00 PST, noai">',
-                    true,
-                ],
-                [
-                    'an AI crawler segment whose noindex follows an unavailable_after date',
-                    '<meta http-equiv="X-Robots-Tag" content="gptbot: unavailable_after: 25 Jun 2026 15:00:00 PST, noindex">',
-                    true,
-                ],
-                [
-                    'an AI crawler segment whose noindex follows a max-snippet value',
-                    '<meta http-equiv="X-Robots-Tag" content="gptbot: max-snippet: 50, noindex">',
-                    true,
-                ],
-                [
-                    'an X-Robots-Tag noai after a directive with a value',
-                    '<meta http-equiv="X-Robots-Tag" content="max-snippet: 50, noai">',
-                    true,
-                ],
-                [
-                    'a non-reservation beside a noai',
-                    '<meta name="tdm-reservation" content="0"><meta name="robots" content="noai">',
-                    true,
-                ],
-            ])('reads %s as aiOptOut %j', (_name, head, read) => {
-                expect(evidence(makePage({ jsonLd: [credited()], head }))).toMatchObject({ aiOptOut: read });
-            });
-
-            it.each([
-                ['no signal', ''],
-                ['a robots meta with neither token', '<meta name="robots" content="index, follow">'],
-                ['an unknown reservation value', '<meta name="tdm-reservation" content="maybe">'],
-                ['a robots noindex, which is about search, not AI', '<meta name="robots" content="noindex">'],
-                ['a crawler meta that allows', '<meta name="GPTBot" content="index, follow">'],
-                ['a search crawler meta', '<meta name="googlebot" content="noindex">'],
-                [
-                    'an X-Robots-Tag noindex for a search crawler',
-                    '<meta http-equiv="X-Robots-Tag" content="googlebot: noindex">',
-                ],
-            ])('leaves aiOptOut absent with %s', (_name, head) => {
-                expect(evidence(makePage({ jsonLd: [credited()], head }))).not.toHaveProperty('aiOptOut');
-            });
-
             it('drops a colon heading in recipeIngredient before the gate (R2), in capitals or not', () => {
                 const node = makeRecipeNode({
                     recipeIngredient: ['For the sauce:', '1 cup flour', 'TOPPING 2:', '2 eggs'],
@@ -779,12 +454,11 @@ describe('readPastedContent', () => {
                 });
             });
 
-            it('reads the same recipe whatever the facts say: none of them is a reason to refuse', () => {
+            it('reads the same recipe whatever the date says: it is never a reason to refuse', () => {
                 const plain = readPastedContent(makePage({ jsonLd: [credited()] }));
                 const marked = readPastedContent(
                     makePage({
-                        jsonLd: [credited({ isAccessibleForFree: false, datePublished: '2024-03-01' })],
-                        head: '<meta name="tdm-reservation" content="1">',
+                        jsonLd: [credited({ datePublished: '2024-03-01' })],
                     }),
                 );
 

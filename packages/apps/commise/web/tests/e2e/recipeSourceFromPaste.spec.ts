@@ -2,8 +2,8 @@ import { expect, test, type Page, type Request } from '@playwright/test';
 
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
-import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { addStep, chooseCuisine, editorSection, openNewRecipe } from './utils/recipeEditor';
+import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { addStep, chooseCuisine, editorSection, openNewRecipe, openRecipeEditor } from './utils/recipeEditor';
 
 const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
 
@@ -90,7 +90,7 @@ test.describe('a pasted web link sets the recipe’s Source (ADR-0089)', () => {
             'true',
         );
         await expect(
-            photosAndPublish.getByText(/copied from a web page, and its author owns the writing/u),
+            photosAndPublish.getByText('This recipe was saved with a source, so it stays private.'),
         ).toBeVisible();
         await expect(photosAndPublish.getByRole('radio', { name: /^Private/u })).toBeChecked();
         await expect(page.getByRole('textbox', { name: /^Step 1$/u })).toHaveValue('Simmer the stock.');
@@ -286,5 +286,49 @@ test.describe('a pasted recipe asks where it is from before it goes public (ADR-
         expect(published(writes)[0]?.body).toMatchObject({
             publicConfirmation: { version: 'publicConfirm.v1', locale: 'en' },
         });
+    });
+});
+
+/**
+ * ADR-0095: taking a SAVED source off. The recipe stays held out of Public by the source the server holds, so the Public card
+ * keeps its one note; the cook is told "Source removed."; and focus goes to "Who can see it", where that note is read next. It
+ * never goes into the emptied link field, which would raise a keyboard over the note on a phone.
+ */
+test.describe('removing a saved source (ADR-0095)', () => {
+    const HELD_NOTE = 'This recipe was saved with a source, so it stays private.';
+    const WEB_ID = 'ec000000-0000-4000-8000-0000000000f4';
+
+    test('says Source removed., keeps Public unavailable with the one note, and moves focus to Who can see it', async ({
+        page,
+    }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        const saved = makeRecipeDetail({
+            id: WEB_ID,
+            ownerId: viewerId,
+            title: 'Web Stew',
+            visibility: 'private',
+            status: 'published',
+            sourceType: 'imported_public',
+            sourceKind: 'public_web',
+            sourceUrl: LINK,
+        });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [saved] });
+        await mockFoodApi(page);
+        await openRecipeEditor(page, WEB_ID);
+        const section = editorSection(page, 'Photos & publish');
+
+        // Before: the one note, on a Public card that is unavailable.
+        await expect(section.getByText(HELD_NOTE)).toBeVisible();
+        await expect(section.getByRole('radio', { name: /^Public/u })).toHaveAttribute('aria-disabled', 'true');
+
+        await section.getByRole('button', { name: 'Remove source' }).click();
+
+        await expect(page.getByText('Source removed.')).toBeVisible();
+        // After: the same note, the same unavailable card.
+        await expect(section.getByText(HELD_NOTE)).toBeVisible();
+        await expect(section.getByRole('radio', { name: /^Public/u })).toHaveAttribute('aria-disabled', 'true');
+        await expect(section.getByRole('group', { name: 'Who can see it' })).toBeFocused();
+        await expect(section.getByRole('textbox', { name: 'Source' })).not.toBeFocused();
     });
 });

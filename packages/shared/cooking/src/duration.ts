@@ -65,6 +65,12 @@ const BARE_MINUTES = String.raw`(?:\s+(?<bare>\d{1,2})(?=\s*(?:$|[.,;:!?)])))`;
 const UNREAD_TIME_AFTER = new RegExp(String.raw`^${JOINER}\d+(?:[.,]\d+)?\s*[ms](?![a-z])`, 'iu');
 const UNREAD_TIME_BEFORE = new RegExp(String.raw`(?<![\d.,])\d+(?:[.,]\d+)?\s*[ms]${JOINER}$`, 'iu');
 
+/**
+ * A rate per weight or per piece right after the span ("10 minutes per pound", "20 minutes to the pound"): the time
+ * grows with the food, so it is no wait and offers no timer. A wrong number the cook trusts is worse than no offer.
+ */
+const RATE_AFTER = /^\s*(?:per|to\s+the)(?![a-z])/iu;
+
 /** One whole span of time: amounts joined by space, comma or "and", then an optional bare minute part. */
 const SPAN = new RegExp(`${amountSource(false)}(?:${JOINER}${amountSource(false)})*${BARE_MINUTES}?`, 'giu');
 
@@ -117,7 +123,9 @@ export function readDuration(line: string): DurationReading {
 
     const at = spans[0]?.index ?? 0;
 
-    if (UNREAD_TIME_BEFORE.test(line.slice(0, at)) || UNREAD_TIME_AFTER.test(line.slice(at + span.length))) {
+    const after = line.slice(at + span.length);
+
+    if (UNREAD_TIME_BEFORE.test(line.slice(0, at)) || UNREAD_TIME_AFTER.test(after) || RATE_AFTER.test(after)) {
         return { kind: 'none' };
     }
 

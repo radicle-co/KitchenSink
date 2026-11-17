@@ -52,3 +52,21 @@ describe('times written in words, over the corpus steps a cook walks', () => {
         expect(readDuration('Ten to fifteen minutes')).toEqual({ kind: 'one', seconds: 600, highSeconds: 900 });
     });
 });
+
+describe('a rate per weight is no wait, over a step the real splitter made', () => {
+    const [step] = cookingStepsOf([
+        recipeStepSchema.parse({
+            id: '01JCOOKINGWORDSINTEG00099',
+            recipeId: RECIPE_ID,
+            stepNumber: 1,
+            instruction: 'Roast 20 minutes per pound. Rest 10 minutes. Carve 5 minutes to the pound.',
+        }),
+    ]);
+
+    it('offers only the rest, and no line of the rate reads a time', () => {
+        const lines = step?.lines ?? [];
+
+        expect(lines.map((line) => readDuration(line).kind)).toEqual(['none', 'one', 'none']);
+        expect(lines.flatMap((line) => offerSecondsOf({ line }) ?? [])).toEqual([600]);
+    });
+});

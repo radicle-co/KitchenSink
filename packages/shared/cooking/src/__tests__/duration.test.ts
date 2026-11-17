@@ -59,6 +59,42 @@ describe('readDuration', () => {
     });
 });
 
+describe('readDuration: a time that is a rate per weight or per piece is no wait', () => {
+    it.each([
+        '10 minutes per pound',
+        'Roast 10 minutes per pound.',
+        'Roast 20 minutes to the pound',
+        'Roast 1 hour per kilo',
+        'Cook 8 minutes per piece',
+        'Roast 10 to 12 minutes per pound',
+        'Roast 10 MINUTES PER POUND',
+    ])('%s gives none, so no offer and no wait', (line) => {
+        expect(readDuration(line)).toEqual({ kind: 'none' });
+        expect(offerSecondsOf({ line })).toBeUndefined();
+    });
+
+    it.each([
+        ['Bake 20 minutes. Serve per person.', 1_200],
+        ['Bake 20 minutes, then serve', 1_200],
+        ['Bake 20 minutes and a pound of potatoes', 1_200],
+        ['Bake 20 minutes perfectly', 1_200],
+        ['Bake 20 minutes to a crisp', 1_200],
+        ['Roast per pound: 20 minutes', 1_200],
+    ])('%s still gives %i s', (line, seconds) => {
+        expect(readDuration(line)).toEqual({ kind: 'one', seconds });
+    });
+});
+
+describe('readDuration rounds a fractional length to whole seconds, half up', () => {
+    it.each([
+        ['Whisk 1/8 minute', 8],
+        ['Whisk 3/8 minute', 23],
+        ['Whisk 1.5 minutes', 90],
+    ])('%s gives %i s', (line, seconds) => {
+        expect(readDuration(line)).toEqual({ kind: 'one', seconds });
+    });
+});
+
 describe('readDuration reads the number a cook wrote, or nothing', () => {
     it.each([
         ['Bake 1-1/2 hours', 5_400],

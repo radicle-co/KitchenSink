@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { planLanes } from '@kitchensink/e2e-plan';
+import { laneCosts } from '@kitchensink/e2e-plan/laneCosts';
 
 const host = vi.hoisted(() => ({ freemem: 8 * 1024 ** 3 }));
 
@@ -13,6 +14,12 @@ vi.mock('node:os', async (importOriginal) => {
 import { ANDROID_LANE_COST, createAndroidAdapter } from '../androidAdapter.js';
 import { ANDROID_LANE_SERIALS } from '../androidSerials.js';
 import type { CommandPort, LaneSpec } from '../laneTypes.js';
+
+describe('ANDROID_LANE_COST', () => {
+    it('is the laneCosts entry itself, not a copy of its figure', () => {
+        expect(ANDROID_LANE_COST).toBe(laneCosts.android);
+    });
+});
 
 const ORIGINS = {
     recipeOrigin: 'http://localhost:3000',

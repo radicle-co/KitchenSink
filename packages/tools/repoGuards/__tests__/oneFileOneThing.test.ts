@@ -131,9 +131,11 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             '`authState.errors.ts` does; one boundary, a place outside the recipe (a step, a line or a step count). ' +
             'GREW 2026-11-13 (S3a timer, plan 0110): cooking-core added `InvalidTimerDurationError` and ' +
             '`TimerAlreadyActiveError`, refusals of the same boundary: a timer length no timer can have, and a second ' +
-            'timer while the app already holds one. GREW 2026-11-16 (source statement, ADR-0095): the recipe client added ' +
-            '`InvalidVisibilityError`, the 400 that names why a visibility change was refused, which the recipe page answers ' +
-            'with a different sentence for each reason.',
+            'timer while the app already holds one. ' +
+            'SHRANK (S6.U0): `TimerAlreadyActiveError` deleted; a start at the limit is a result, not an error. ' +
+            'GREW 2026-11-16 (source statement, ADR-0095): the recipe client added `InvalidVisibilityError`, the 400 ' +
+            'that names why a visibility change was refused, which the recipe page answers with a different sentence ' +
+            'for each reason.',
         files: [
             { file: 'packages/apps/commise/features/account/src/authState.errors.ts', classes: 2, components: 0 },
             { file: 'packages/apps/commise/features/account/src/errors.ts', classes: 7, components: 0 },
@@ -141,7 +143,7 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             { file: 'packages/clients/recipe-service/src/errors.ts', classes: 22, components: 0 },
             { file: 'packages/clients/bedrock/src/errors.ts', classes: 6, components: 0 },
             { file: 'packages/clients/usda/src/errors.ts', classes: 7, components: 0 },
-            { file: 'packages/shared/cooking/src/errors.ts', classes: 5, components: 0 },
+            { file: 'packages/shared/cooking/src/errors.ts', classes: 4, components: 0 },
             { file: 'packages/services/food-service/src/foods/dao/dao.errors.ts', classes: 3, components: 0 },
             {
                 file: 'packages/services/recipe-service/src/import/dal/recipeImportItems.errors.ts',

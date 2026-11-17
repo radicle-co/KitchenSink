@@ -6,7 +6,14 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { dismissalFor, recoveringOf, syncNoticeState, unreadableShown, type SyncFacts } from '../syncNoticeState.js';
+import {
+    cookingNoticeStateOf,
+    dismissalFor,
+    recoveringOf,
+    syncNoticeState,
+    unreadableShown,
+    type SyncFacts,
+} from '../syncNoticeState.js';
 
 const COPY = {
     offlineTitle: 'You’re offline',
@@ -136,5 +143,19 @@ describe('dismissalFor', () => {
     it('⛔ follows the count down, so a reset session does not hide the next cook`s first set-aside', () => {
         expect(dismissalFor(2, 0)).toBe(0);
         expect(unreadableShown(1, dismissalFor(2, 0))).toBe(true);
+    });
+});
+
+/** Cooking mode shows the title only while offline, and nothing else ever. */
+describe('cookingNoticeStateOf', () => {
+    it('gives the title alone while offline, with no body key at all', () => {
+        const state = cookingNoticeStateOf(true, COPY);
+
+        expect(state).toEqual({ kind: 'offline', title: COPY.offlineTitle });
+        expect(state).not.toHaveProperty('body');
+    });
+
+    it('gives hidden when online: no "back online", no count', () => {
+        expect(cookingNoticeStateOf(false, COPY)).toEqual({ kind: 'hidden' });
     });
 });

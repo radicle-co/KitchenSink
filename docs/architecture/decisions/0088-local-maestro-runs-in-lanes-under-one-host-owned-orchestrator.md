@@ -125,9 +125,9 @@ read the variable alike, and `localMaestro.sh`'s one-emulator mode refuses to bo
   reader hangs up the Mac process. After a one-lane run no `adb logcat`, `qemu-system` or `emulator` process was left on
   the Mac.
 - **Planning.** `--platform both` runs Android then iOS as two turns, never both against the Mac at once (two tunnels on
-  the same Mac ports, and both lane 1s on driver port 7001). The exit code is the worse of the two. Until measured, a
-  Mac Android lane costs 5.5 CPUs and 5.5 GiB, the WSL peak. `maestro:macUsage android` measures it, and the WSL usage
-  watcher is skipped for the Mac host.
+  the same Mac ports, and both lane 1s on driver port 7001). The exit code is the worse of the two. A Mac Android lane
+  costs 3 CPUs and 5.8 GiB, measured with `maestro:macUsage android` (`macAndroid` in `laneCosts.json`), and the WSL
+  usage watcher is skipped for the Mac host.
 
 ### 6. iOS lanes run the runner on WSL and the devices on the Mac
 
@@ -170,8 +170,8 @@ The host comes from `LOCAL_MAESTRO_IOS_HOST` (the name stays for now; Android la
 
 ## Residual risk
 
-- The WSL Android lane cost is measured on one host (WSL, 20 CPUs, 2026-11-07), and the Mac's is not measured yet: it
-  uses the same 5.5 CPUs and 5.5 GiB until `maestro:macUsage android` gives a number. One flow passed on one Mac
+- The WSL Android lane cost is measured on one host (WSL, 20 CPUs, 2026-11-07), and the Mac's on one Mac (14 CPUs,
+  2026-11-08: 3 CPUs and 5.8 GiB). One flow passed on one Mac
   emulator (arm64-v8a, `-gpu host`); no full Android suite has run on the Mac yet. The release test app reached the
   loopback services through `adb reverse` in the WSL runs, so the cleartext question is answered for Android.
 - The Mac cannot host two platforms at once, so `--platform both` is slower than two machines would be. The `host` GPU

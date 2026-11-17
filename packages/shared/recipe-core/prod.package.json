@@ -105,6 +105,18 @@
             "types": "./dist/spend/spendArithmetic.d.ts",
             "default": "./dist/spend/spendArithmetic.js"
         },
+        "./step-writing/word-shingles": {
+            "types": "./dist/stepWriting/wordShingles.d.ts",
+            "default": "./dist/stepWriting/wordShingles.js"
+        },
+        "./step-writing/content-digest": {
+            "types": "./dist/stepWriting/contentDigest.d.ts",
+            "default": "./dist/stepWriting/contentDigest.js"
+        },
+        "./step-writing/fingerprint-keyring": {
+            "types": "./dist/stepWriting/fingerprintKeyring.d.ts",
+            "default": "./dist/stepWriting/fingerprintKeyring.js"
+        },
         "./parsing/parse-prompt": {
             "types": "./dist/parsing/parsePrompt.d.ts",
             "default": "./dist/parsing/parsePrompt.js"

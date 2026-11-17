@@ -40,6 +40,9 @@
         "./parsing/parse-prompt": "./src/parsing/parsePrompt.ts",
         "./parsing/parse-retry-prompt": "./src/parsing/parseRetryPrompt.ts",
         "./parsing/parse-answer": "./src/parsing/parseAnswer.ts",
+        "./step-writing/word-shingles": "./src/stepWriting/wordShingles.ts",
+        "./step-writing/content-digest": "./src/stepWriting/contentDigest.ts",
+        "./step-writing/fingerprint-keyring": "./src/stepWriting/fingerprintKeyring.ts",
         "./scaling": "./src/scaling.ts",
         "./external-url": "./src/externalUrl.ts"
     },
@@ -51,6 +54,7 @@
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",

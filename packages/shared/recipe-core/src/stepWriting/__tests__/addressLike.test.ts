@@ -32,6 +32,8 @@ describe('looksLikeAddress', () => {
         ['a variation selector supplement character', 'evil\u{E0100}.com'],
         ['a short host', 't.co'],
         ['a tight abbreviation not on the list', 'fl.oz'],
+        ['a tel scheme', 'tel:5551234'],
+        ['an sms scheme', 'sms:5551234'],
         ['a javascript scheme', 'javascript:alert(1)'],
         ['a data scheme', 'data:text/html,hi'],
         ['a scheme split by a tab', 'java\tscript:alert(1)'],

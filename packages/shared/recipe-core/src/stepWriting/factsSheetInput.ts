@@ -3,17 +3,18 @@
  *
  * The prompt is facts only, so every string a sheet carries must be a fact: a short plain name, never a sentence of
  * source wording, and a language the writer answers in. Any code that hands a sheet to the writer calls
- * {@link assertFactsSheetPlain} first.
+ * {@link toPlainFactsSheet} and sends the sheet it returns.
  *
- * Names are plain by construction: normalised to NFC, then made only of what the language's alphabet allows (see
- * `alphabet.ts`), at most {@link MAX_FACT_TEXT_CHARS} code points, and nothing the language's address rule flags. A
- * sentence runs past the length, a link fails the address rule, and markup needs an angle bracket, so none passes.
+ * Names are plain by construction: canonical (NFC, spaces folded), then made only of what the language's alphabet
+ * allows (see `alphabet.ts`), at most {@link MAX_FACT_TEXT_CHARS} code points, and nothing the language's address
+ * rule flags. A sentence runs past the length, a link fails the address rule, and markup needs an angle bracket, so
+ * none passes.
  *
  * The colon is not in the set. It is the scheme and port marker, and no ingredient name needs it.
  *
  * What a refused sheet means for the recipe is in `alphabet.ts`.
  */
-import { ALPHABET_BY_LANGUAGE, isOutputLanguage } from './alphabet.js';
+import { ALPHABET_BY_LANGUAGE, canonicalText, isOutputLanguage } from './alphabet.js';
 import { firstShapeFault } from './factsSheetShape.js';
 import { INSTRUCTION_WORDS, MAX_INGREDIENT_NAME_WORDS } from './stepLexicons.js';
 import { TIME_UNIT_WORDS } from '../timeUnitWords.js';
@@ -70,8 +71,9 @@ function readsAsStepText(name: string): boolean {
  */
 export function isPlainFactText(text: string, language: OutputLanguage = 'en'): boolean {
     const alphabet = ALPHABET_BY_LANGUAGE[language];
-    // NFC first, so a decomposed letter composes and passes, and one that cannot compose is not on the list.
-    const composed = text.normalize('NFC');
+    // Canonical first: a decomposed letter composes and passes, one that cannot compose is not on the list, and other
+    // space characters become a plain space.
+    const composed = canonicalText(text);
 
     // Code points, not UTF-16 units: an astral letter is one character of the name.
     return (
@@ -112,12 +114,14 @@ export function isFactsSheetInvalidError(error: unknown): error is FactsSheetInv
 }
 
 /**
- * Refuse a sheet that carries anything but plain facts.
+ * Parse a sheet into its plain form: the same sheet with every free text in canonical form (see `canonicalText`), or a
+ * refusal. The prompt is built from the returned sheet, so what was checked is what is sent.
  *
  * @param sheet - The facts sheet.
+ * @returns A copy whose texts are canonical.
  * @throws {FactsSheetInvalidError} On the first field that is not a plain fact. Pure.
  */
-export function assertFactsSheetPlain(sheet: FactsSheet): void {
+export function toPlainFactsSheet(sheet: FactsSheet): FactsSheet {
     const shapeFault = firstShapeFault(sheet);
 
     if (shapeFault !== null) {
@@ -130,51 +134,76 @@ export function assertFactsSheetPlain(sheet: FactsSheet): void {
         throw new FactsSheetInvalidError('language');
     }
 
-    const plain = (field: string, text: string): void => {
-        if (!isPlainFactText(text, language)) {
+    const plain = (field: string, text: string): string => {
+        const canonical = canonicalText(text);
+
+        if (!isPlainFactText(canonical, language)) {
             throw new FactsSheetInvalidError(field);
         }
+
+        return canonical;
     };
 
-    sheet.ingredientNames.forEach((name, i) => assertIngredientName(`ingredientNames[${i}]`, name, language));
-    sheet.steps.forEach((step, s) => {
-        const at = `steps[${s}]`;
+    const plainName = (field: string, text: string): string => {
+        const canonical = canonicalText(text);
 
-        step.actions.forEach((text, i) => plain(`${at}.actions[${i}]`, text));
-        step.ingredients.forEach((text, i) => {
-            assertIngredientName(`${at}.ingredients[${i}]`, text, language);
+        assertIngredientName(field, canonical, language);
+
+        return canonical;
+    };
+
+    const ingredientNames = sheet.ingredientNames.map((name, i) => plainName(`ingredientNames[${i}]`, name));
+
+    return {
+        language,
+        ingredientNames,
+        steps: sheet.steps.map((step, s) => {
+            const at = `steps[${s}]`;
 
             // A step can only name an ingredient the recipe lists, so the writer is never handed a name from nowhere.
-            if (!sheet.ingredientNames.includes(text)) {
-                throw new FactsSheetInvalidError(`${at}.ingredients[${i}]`);
-            }
-        });
-        step.equipment.forEach((text, i) => plain(`${at}.equipment[${i}]`, text));
-        step.amounts.forEach((amount, i) => {
-            if (amount.unit !== null) {
-                plain(`${at}.amounts[${i}].unit`, amount.unit);
-            }
+            const ingredients = step.ingredients.map((text, i) => {
+                const name = plainName(`${at}.ingredients[${i}]`, text);
 
-            // The writer is told which ingredient an amount measures, so it must be one the step names. Those names
-            // are checked above, so membership is the whole check.
-            if (amount.ingredient !== null && !step.ingredients.includes(amount.ingredient)) {
-                throw new FactsSheetInvalidError(`${at}.amounts[${i}].ingredient`);
-            }
-        });
-        step.durations.forEach((duration, i) => {
-            const min = `${at}.durations[${i}].minSeconds`;
-            const max = `${at}.durations[${i}].maxSeconds`;
+                if (!ingredientNames.includes(name)) {
+                    throw new FactsSheetInvalidError(`${at}.ingredients[${i}]`);
+                }
 
-            if (duration.minSeconds < 0) {
-                throw new FactsSheetInvalidError(min);
-            }
+                return name;
+            });
 
-            if (duration.minSeconds > duration.maxSeconds) {
-                throw new FactsSheetInvalidError(max);
-            }
-        });
-        step.safety.forEach((line, i) => {
-            line.facts.forEach((text, f) => plain(`${at}.safety[${i}].facts[${f}]`, text));
-        });
-    });
+            return {
+                actions: step.actions.map((text, i) => plain(`${at}.actions[${i}]`, text)),
+                ingredients,
+                equipment: step.equipment.map((text, i) => plain(`${at}.equipment[${i}]`, text)),
+                amounts: step.amounts.map((amount, i) => {
+                    // The writer is told which ingredient an amount measures, so the step must name it.
+                    if (amount.ingredient !== null && !ingredients.includes(canonicalText(amount.ingredient))) {
+                        throw new FactsSheetInvalidError(`${at}.amounts[${i}].ingredient`);
+                    }
+
+                    return {
+                        quantity: amount.quantity,
+                        unit: amount.unit === null ? null : plain(`${at}.amounts[${i}].unit`, amount.unit),
+                        ingredient: amount.ingredient === null ? null : canonicalText(amount.ingredient),
+                    };
+                }),
+                temperatures: step.temperatures.map(({ value, scale }) => ({ value, scale })),
+                durations: step.durations.map((duration, i) => {
+                    if (duration.minSeconds < 0) {
+                        throw new FactsSheetInvalidError(`${at}.durations[${i}].minSeconds`);
+                    }
+
+                    if (duration.minSeconds > duration.maxSeconds) {
+                        throw new FactsSheetInvalidError(`${at}.durations[${i}].maxSeconds`);
+                    }
+
+                    return { minSeconds: duration.minSeconds, maxSeconds: duration.maxSeconds };
+                }),
+                safety: step.safety.map((line, i) => ({
+                    category: line.category,
+                    facts: line.facts.map((text, f) => plain(`${at}.safety[${i}].facts[${f}]`, text)),
+                })),
+            };
+        }),
+    };
 }

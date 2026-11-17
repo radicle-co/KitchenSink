@@ -12,15 +12,15 @@
  * - `unsafeText`: a step holding a link, an address, markup or any character outside the language's alphabet (see
  *   `alphabet.ts`).
  *
- * This reader checks the SHAPE and the CHARACTERS of the text only. Truth to the recipe is checked later in the pipeline
- * (spec 027 FR-040, the two-way fact check).
+ * This reader checks the SHAPE and the CHARACTERS of the text only. Truth to the recipe is checked later in the
+ * pipeline (spec 027 FR-040, the two-way fact check).
  *
  * Whether each `covers` index points at a real source step, and which source steps must be covered, needs the source
  * recipe, which is not in the answer. The rewrite step that holds both checks it.
  */
 import { z } from 'zod';
 
-import { ALPHABET_BY_LANGUAGE } from './alphabet.js';
+import { ALPHABET_BY_LANGUAGE, canonicalText } from './alphabet.js';
 
 import type { OutputLanguage } from './alphabet.js';
 
@@ -85,8 +85,9 @@ export function parseStepAnswer(text: string, cap: number, language: OutputLangu
     }
 
     const { prose, addressRule } = ALPHABET_BY_LANGUAGE[language];
-    // NFC first, so a decomposed letter composes and passes. The steps handed back are the NFC text that was checked.
-    const steps = parsed.data.steps.map((step) => ({ ...step, text: step.text.normalize('NFC') }));
+    // Canonical first: a decomposed letter composes and passes, and other space characters become a plain space.
+    // The steps handed back are the canonical text that was checked.
+    const steps = parsed.data.steps.map((step) => ({ ...step, text: canonicalText(step.text) }));
 
     if (steps.some(({ text: step }) => !prose.test(step) || addressRule(step))) {
         return { refused: 'unsafeText' };

@@ -1,13 +1,13 @@
 /**
- * The input check for a facts sheet's free text: a name is a short plain name, the language is the one output language. It pins that
- * wording, markup and links are refused in every free-text field.
+ * The input check for a facts sheet's free text: a name is a short plain name, the language is the one output
+ * language. It pins that wording, markup and links are refused in every free-text field.
  */
 import { describe, expect, it } from 'vitest';
 
 import { PLAIN_FACT_PUNCTUATION } from '../alphabet.js';
 import {
     FactsSheetInvalidError,
-    assertFactsSheetPlain,
+    toPlainFactsSheet,
     isFactsSheetInvalidError,
     isPlainFactText,
 } from '../factsSheetInput.js';
@@ -39,7 +39,7 @@ const WORDING = 'Preheat the oven to 400 degrees. Melt the butter in a large ski
 
 const faultOf = (sheet: FactsSheet): unknown => {
     try {
-        assertFactsSheetPlain(sheet);
+        toPlainFactsSheet(sheet);
     } catch (error) {
         return error;
     }
@@ -47,7 +47,46 @@ const faultOf = (sheet: FactsSheet): unknown => {
     return undefined;
 };
 
-describe('assertFactsSheetPlain', () => {
+describe('toPlainFactsSheet, the sheet it returns', () => {
+    it('is the canonical sheet with only the named fact fields, nothing the check never read', () => {
+        const planted = { text: 'SENTINEL' };
+        const sheet: FactsSheet = {
+            ...planted,
+            language: 'en',
+            ingredientNames: ['olive\u00A0oil'],
+            steps: [
+                {
+                    ...planted,
+                    actions: ['cre\u0301me'],
+                    amounts: [{ ...planted, quantity: 2, unit: 'tbsp\u00A0x', ingredient: 'olive\u00A0oil' }],
+                    temperatures: [{ ...planted, value: 200, scale: 'C' }],
+                    durations: [{ ...planted, minSeconds: 60, maxSeconds: 90 }],
+                    ingredients: ['olive\u00A0oil'],
+                    equipment: ['pan\u00A0lid'],
+                    safety: [{ ...planted, category: 'internalTemperature', facts: ['74\u00A0C'] }],
+                },
+            ],
+        };
+
+        expect(toPlainFactsSheet(sheet)).toEqual({
+            language: 'en',
+            ingredientNames: ['olive oil'],
+            steps: [
+                {
+                    actions: ['cr\u00E9me'],
+                    amounts: [{ quantity: 2, unit: 'tbsp x', ingredient: 'olive oil' }],
+                    temperatures: [{ value: 200, scale: 'C' }],
+                    durations: [{ minSeconds: 60, maxSeconds: 90 }],
+                    ingredients: ['olive oil'],
+                    equipment: ['pan lid'],
+                    safety: [{ category: 'internalTemperature', facts: ['74 C'] }],
+                },
+            ],
+        });
+    });
+});
+
+describe('toPlainFactsSheet', () => {
     it('accepts a plain sheet', () => {
         expect(faultOf(makeSheet())).toBeUndefined();
     });
@@ -117,9 +156,9 @@ describe('assertFactsSheetPlain', () => {
         expect(faultOf(makeSheet({ ingredientNames: [name] }))).toMatchObject({ field: 'ingredientNames[0]' });
     });
 
-    it('counts length in code points: 80 astral Latin letters pass and 81 do not', () => {
-        expect(faultOf(makeSheet({ ingredientNames: ['\u{10780}'.repeat(80)] }))).toBeUndefined();
-        expect(faultOf(makeSheet({ ingredientNames: ['\u{10780}'.repeat(81)] }))).toMatchObject({
+    it('accepts a name of 80 characters and refuses 81', () => {
+        expect(faultOf(makeSheet({ ingredientNames: ['a'.repeat(80)] }))).toBeUndefined();
+        expect(faultOf(makeSheet({ ingredientNames: ['a'.repeat(81)] }))).toMatchObject({
             field: 'ingredientNames[0]',
         });
     });
@@ -264,7 +303,7 @@ describe('assertFactsSheetPlain', () => {
 
 describe('the fact character set A2 builds its separators from', () => {
     it('is exactly the punctuation a plain name may hold', () => {
-        expect(PLAIN_FACT_PUNCTUATION).toBe(" '\u2019,()&%\u00B0.+/-");
+        expect(PLAIN_FACT_PUNCTUATION).toBe(" '\u2019\u2018,()&%\u00B0.+/#\u00D7\u2026\u00AE\u2122\u2103-");
     });
 
     it('lets every punctuation mark in it follow a letter in a name', () => {

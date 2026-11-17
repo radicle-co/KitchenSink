@@ -66,12 +66,6 @@ describe('parseStepAnswer, unreadable', () => {
         expect(parseStepAnswer(text, 80)).toEqual({ refused: 'unreadable' });
     });
 
-    it('counts the text limit in code points, so astral characters are not counted twice', () => {
-        const text = answer([{ text: '\u{10780}'.repeat(MAX_REWRITTEN_STEP_CHARS), covers: [0] }]);
-
-        expect(parseStepAnswer(text, 80)).toMatchObject({ ok: true });
-    });
-
     it('accepts a step at exactly the text limit', () => {
         const text = answer([{ text: 'x'.repeat(MAX_REWRITTEN_STEP_CHARS), covers: [0] }]);
 

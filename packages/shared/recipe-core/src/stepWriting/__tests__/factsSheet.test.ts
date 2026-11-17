@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { buildFactsSheet, type FactsSheetReaders, type StepSourceRecipe } from '../factsSheet.js';
 import { escapeRegExp } from '../../parsing/escapeRegExp.js';
-import { FactsSheetInvalidError, MAX_FACT_TEXT_CHARS, assertFactsSheetPlain } from '../factsSheetInput.js';
+import { FactsSheetInvalidError, MAX_FACT_TEXT_CHARS, toPlainFactsSheet } from '../factsSheetInput.js';
 import { SAFETY_CATEGORIES, type FactsSheet, type FactsStep } from '../factsSheet.types.js';
 import { buildStepPrompt } from '../stepPrompt.js';
 import { ACTION_VERBS, SAFETY_RULES } from '../stepLexicons.js';
@@ -899,7 +899,7 @@ describe('ingredient names and language are plain facts', () => {
         const sheet = sheetOf(['Check that the thermometer reads 74.5°C, then add 2 tbsp butter.'], ['butter']);
 
         expect(sheet.steps[0]?.safety).toEqual([{ category: 'internalTemperature', facts: ['thermometer', '75 C'] }]);
-        expect(() => assertFactsSheetPlain(sheet)).not.toThrow();
+        expect(() => toPlainFactsSheet(sheet)).not.toThrow();
     });
 });
 

@@ -12,7 +12,7 @@
  *
  * Reachable as `@kitchensink/recipe-core/step-writing/step-prompt`.
  */
-import { assertFactsSheetPlain } from './factsSheetInput.js';
+import { toPlainFactsSheet } from './factsSheetInput.js';
 
 import type { FactsSheet } from './factsSheet.types.js';
 
@@ -89,12 +89,13 @@ export interface StepPrompt {
  * @throws {StepPromptTooLargeError} When the assembled prompt would exceed {@link MAX_STEP_PROMPT_CHARS}.
  */
 export function buildStepPrompt(sheet: FactsSheet): StepPrompt {
-    assertFactsSheetPlain(sheet);
+    // The prompt is built from the parsed sheet, so the text that was checked is the text that is sent.
+    const plain = toPlainFactsSheet(sheet);
 
     const payload = {
-        language: sheet.language,
-        ingredientNames: [...sheet.ingredientNames],
-        steps: sheet.steps.map((step, index) => ({
+        language: plain.language,
+        ingredientNames: [...plain.ingredientNames],
+        steps: plain.steps.map((step, index) => ({
             index,
             actions: [...step.actions],
             amounts: step.amounts.map(({ quantity, unit, ingredient }) => ({ quantity, unit, ingredient })),
@@ -105,7 +106,7 @@ export function buildStepPrompt(sheet: FactsSheet): StepPrompt {
             safety: step.safety.map(({ category, facts }) => ({ category, facts: [...facts] })),
         })),
     };
-    // `<` escaped as well: defence in depth. `assertFactsSheetPlain` already rejects `<`.
+    // `<` escaped as well: defence in depth. `toPlainFactsSheet` already rejects `<`.
     const userMessage = `${OPEN_TAG}${JSON.stringify(payload).replaceAll('<', '\\u003c')}${CLOSE_TAG}`;
     // Code points, not UTF-16 units: an astral character is one thing a tokenizer sees and two `.length` units.
     const observedChars = [...STEP_SYSTEM_PROMPT].length + [...userMessage].length;

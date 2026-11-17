@@ -35,7 +35,7 @@ import { ALPHABET_BY_LANGUAGE, isOutputLanguage, PLAIN_FACT_PUNCTUATION, type Ou
 import {
     FactsSheetInvalidError,
     NAME_WORD_CHARS,
-    assertFactsSheetPlain,
+    toPlainFactsSheet,
     assertIngredientName,
     wordsOf,
 } from './factsSheetInput.js';
@@ -925,7 +925,7 @@ export function buildFactsSheet(recipe: StepSourceRecipe, readers: FactsSheetRea
 
     const sheet: FactsSheet = { language: recipe.language, ingredientNames, steps };
 
-    assertFactsSheetPlain(sheet);
+    toPlainFactsSheet(sheet);
 
     return sheet;
 }

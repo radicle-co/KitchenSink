@@ -1978,6 +1978,11 @@ jobs:
             - name: Run recipe-import-core integration tests
               if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/recipe-import-core') }}
               run: npm run test:integration --workspace=@kitchensink/recipe-import-core
+            # The step-writing fingerprint against a real node:crypto HMAC hasher: the one seam its unit tier fakes.
+            # No Docker, no network. A non-unit tier is only real if CI calls it by name (§7).
+            - name: Run recipe-core integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/recipe-core') }}
+              run: npm run test:integration --workspace=@kitchensink/recipe-core
             # The page reader through its package name (`@kitchensink/page-reader`): the real htmlparser2 and tinyduration over
             # a synthetic 2 MB page with 32,000-character lines, its walks bounded by counted node visits, plus the byte cap and
             # a hostile `__proto__` key. A mocked parser cannot show a hostile page is read whole. No Docker, no network.

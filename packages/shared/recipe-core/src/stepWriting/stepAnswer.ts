@@ -4,7 +4,7 @@
  * DESIGN PATTERN: parse, don't validate, at a third-party boundary. A zod `strictObject` describes the one
  * document the prompt asked for. Anything else is refused and nothing is guessed, repaired or trimmed to fit.
  *
- * The three refusals are separate so the caller can count them (FR-066):
+ * The refusals are separate so the caller can count them (FR-066):
  * - `unreadable`: not JSON, or not the shape asked for;
  * - `outsideList`: readable parts that are not the step list, such as prose around the JSON, a code fence, or a
  *   field the prompt never asked for;
@@ -19,6 +19,8 @@
  */
 import { z } from 'zod';
 
+import { looksLikeAddress } from './addressLike.js';
+
 /** The largest `cap` a caller may pass. A bound far above any real recipe that still catches a typo. */
 export const MAX_ANSWER_CAP = 1_000;
 
@@ -28,9 +30,6 @@ export const MAX_ANSWER_CAP = 1_000;
  * control characters, and no line break.
  */
 const PLAIN_PROSE = /^[\p{L}\p{M}\p{N} .,;:!?'’"“”()\-–—/%°&。、，；：！？（）「」]+$/u;
-
-/** What reads as an address even in plain characters: a `//`, a `www.`, or a dotted domain such as `a.example`. */
-const ADDRESS_LIKE = /\/\/|www\.|\p{L}\.\p{L}{2,}/iu;
 
 /** The most text one rewritten step may hold (contract `rewrittenSteps.api.md`). */
 export const MAX_REWRITTEN_STEP_CHARS = 2_000;
@@ -88,7 +87,7 @@ export function parseStepAnswer(text: string, cap: number): StepAnswer {
         return { refused: 'overCap' };
     }
 
-    if (parsed.data.steps.some(({ text: step }) => !PLAIN_PROSE.test(step) || ADDRESS_LIKE.test(step))) {
+    if (parsed.data.steps.some(({ text: step }) => !PLAIN_PROSE.test(step) || looksLikeAddress(step))) {
         return { refused: 'unsafeText' };
     }
 

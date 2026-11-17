@@ -111,6 +111,11 @@ describe('parseStepAnswer, text that is not plain', () => {
         ['markup', 'Stir <b>well</b>.'],
         ['a markdown link', 'Stir [here](evil) well.'],
         ['a markdown emphasis', 'Stir *well*.'],
+        ['an IP address with a path', 'Open 192.168.1.1/x now.'],
+        ['a host and port', 'Open localhost:3000/x now.'],
+        ['a digit in the domain', 'Open evil.c0m/x now.'],
+        ['an ideographic full stop used as a dot', 'Open evil\u3002com/x now.'],
+        ['a full-width full stop used as a dot', 'Open evil\uFF0Ecom now.'],
         ['a template placeholder', 'Stir {{name}} well.'],
         ['a backslash escape', 'Stir\\nwell.'],
         ['a line break', 'Stir.\nThen serve.'],
@@ -124,6 +129,17 @@ describe('parseStepAnswer, text that is not plain', () => {
         const text = 'Fold 1/2 cup crème fraîche and 2.5 tbsp sugar (about 30 g) in; bake at 200 °C for 20-25 minutes!';
 
         expect(parseStepAnswer(one(text), 80)).toMatchObject({ ok: true });
+    });
+
+    it('accepts a Japanese sentence break with no space after it', () => {
+        const text =
+            '\u30D0\u30BF\u30FC\u3092\u6EB6\u304B\u3057\u307E\u3059\u3002\u6B21\u306B\u6DB2\u3092\u52A0\u3048\u307E\u3059\u3002';
+
+        expect(parseStepAnswer(one(text), 80)).toMatchObject({ ok: true });
+    });
+
+    it('accepts a time with a colon', () => {
+        expect(parseStepAnswer(one('Rest for 1:30 minutes.'), 80)).toMatchObject({ ok: true });
     });
 
     it('accepts non-Latin letters', () => {

@@ -165,6 +165,24 @@ describe('buildStepPrompt', () => {
         expect(prompt.userMessage).toContain('melt');
     });
 
+    it('never carries a field planted on a nested fact object', () => {
+        const sentinel = 'SENTINEL-nested-wording-91c4';
+        const plant = <T extends object>(fact: T): T & { text: string } => ({ ...fact, text: sentinel });
+        const step = makeStep({
+            amounts: [plant({ quantity: 2, unit: 'tbsp' })],
+            temperatures: [plant({ value: 200, scale: 'C' as const })],
+            durations: [plant({ minSeconds: 60, maxSeconds: 90 })],
+            safety: [plant({ category: 'warning' as const, facts: ['never leave it'] })],
+        });
+        const { userMessage } = buildStepPrompt(makeSheet({ steps: [step] }));
+
+        expect(userMessage).not.toContain(sentinel);
+        expect(userMessage).toContain('"quantity":2');
+        expect(userMessage).toContain('"scale":"C"');
+        expect(userMessage).toContain('"maxSeconds":90');
+        expect(userMessage).toContain('never leave it');
+    });
+
     it.each([
         ['the language', (wording: string): Partial<FactsSheet> => ({ language: wording })],
         ['an ingredient name', (wording: string): Partial<FactsSheet> => ({ ingredientNames: [wording] })],

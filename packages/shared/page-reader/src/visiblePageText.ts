@@ -55,10 +55,12 @@ export interface VisibleText {
 
 /** A list item of the card that no run read, as the card-rule policy sees it. */
 export interface CardItem {
+    /** Its text, with every run of white space one space. */
     readonly text: string;
     /**
      * It is a jump link to the lines read: all of its word material sits inside its own fragment links, and each names
-     * the `id` of an element that holds a block the runs read (`#ingredients`, `#instructions`, `#recipe`).
+     * the `id` of an element that holds a block the runs read (`#ingredients`, `#instructions`) and does not hold the item
+     * itself. So a link to the whole card, or to anything around it, is no jump link.
      */
     readonly jumpsToReadLines: boolean;
     /** It is an item of an ordered list. */
@@ -217,14 +219,15 @@ function listParentsOf(elements: readonly ElementExtent[], item: number): readon
 interface ReadAncestry {
     readonly listParents: ReadonlySet<number>;
     readonly listGrandparents: ReadonlySet<number>;
-    readonly holderIds: ReadonlySet<string>;
+    /** The ids of the read blocks' elements and their ancestors, each with its element number. */
+    readonly holderIds: ReadonlyMap<string, number>;
 }
 
 /** The {@link ReadAncestry} of the blocks in `read`, in one walk up from each. */
 function readAncestryOf(elements: readonly ElementExtent[], read: readonly BlockSpan[]): ReadAncestry {
     const listParents = new Set<number>();
     const listGrandparents = new Set<number>();
-    const holderIds = new Set<string>();
+    const holderIds = new Map<string, number>();
 
     for (const block of read) {
         if (block.item > 0) {
@@ -238,7 +241,7 @@ function readAncestryOf(elements: readonly ElementExtent[], read: readonly Block
             const id = elements[element]?.id;
 
             if (id !== undefined) {
-                holderIds.add(id);
+                holderIds.set(id, element);
             }
         }
     }
@@ -261,6 +264,11 @@ function positionOf(block: BlockSpan, span: ReadSpan): CardItem['position'] {
     return block.first > span.last ? 'after' : 'between';
 }
 
+/** Whether `holder` is a target a jump link in `block` may name: an element that holds read lines, and not `block` itself. */
+function isJumpTarget(elements: readonly ElementExtent[], holder: number | undefined, block: BlockSpan): boolean {
+    return holder !== undefined && !(holder <= block.element && block.element <= (elements[holder]?.last ?? 0));
+}
+
 /** The card item an unread list item is, as the card policy sees it. */
 function cardItemOf(
     block: BlockSpan,
@@ -275,7 +283,7 @@ function cardItemOf(
         jumpsToReadLines:
             block.fragmentLinksOnly &&
             block.fragmentTargets.length > 0 &&
-            block.fragmentTargets.every((target) => ancestry.holderIds.has(target)),
+            block.fragmentTargets.every((target) => isJumpTarget(elements, ancestry.holderIds.get(target), block)),
         ordered: block.ordered,
         position: positionOf(block, span),
         besideReadList:

@@ -353,6 +353,100 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
     });
 
+    // Round-4 re-review of 526e153b2, MEDIUM 1 and 2: a jump link is furniture only when every target holds a read line
+    // and does not contain the item itself, and its own words do not name an ingredient of the recipe. The read lines sit
+    // in `#ing`; `#page` wraps the whole card.
+    describe('a jump link before the lines', () => {
+        const jumpPage = (item: string, wrapperId?: string): string => {
+            const card = `<article><div class="jump"><div><ul>${item}</ul></div></div><div id="ing"><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`;
+
+            return makePage({
+                jsonLd: [NODE],
+                body: wrapperId === undefined ? card : `<div id="${wrapperId}">${card}</div>`,
+            });
+        };
+
+        it('reads one to the read list whose words name no ingredient', () => {
+            expect(readPastedContent(jumpPage('<li><a href="#ing">Jump to ingredients</a></li>'))).toMatchObject({
+                kind: 'extracted',
+            });
+        });
+
+        it.each([
+            [
+                'P4: an ingredient name linked to an element around the whole card',
+                '<li><a href="#page">Salt</a></li>',
+                'page',
+            ],
+            ['P4: a link to an element around the whole card', '<li><a href="#page">Back to top</a></li>', 'page'],
+            ['P17: an ingredient name linked to the read list', '<li><a href="#ing">Salt</a></li>', undefined],
+            [
+                'C2: an ingredient name in a link with a block inside it',
+                '<li><a href="#ing"><div></div>Salt</a></li>',
+                undefined,
+            ],
+            ['C2: words in a link with a block inside it', '<li><a href="#ing"><div></div>Print</a></li>', undefined],
+            [
+                'C5/C6: one link to the read list and one to no read line',
+                '<li><a href="#ing">Jump</a> <a href="#notes">Salt</a></li>',
+                undefined,
+            ],
+            [
+                'C6: an omitted line with a jump link at its end',
+                '<li>One onion <a href="#ing">see the list</a></li>',
+                undefined,
+            ],
+            [
+                'a list inside a jump link, its item holding a jump link of its own',
+                '<a href="#ing"><li>One onion <a href="#ing">here</a></li></a>',
+                undefined,
+            ],
+            [
+                'C5/C6: two links, one to no read line, no ingredient named',
+                '<li><a href="#ing">Jump</a> <a href="#notes">Print</a></li>',
+                undefined,
+            ],
+        ])('refuses %s', (_name, item, wrapperId) => {
+            expect(readPastedContent(jumpPage(item, wrapperId))).toMatchObject({
+                kind: 'notExtractable',
+                reason: 'pageDisagreesWithSchema',
+            });
+        });
+
+        it('refuses a link to an element that holds read lines and the link itself', () => {
+            const page = makePage({
+                jsonLd: [NODE],
+                body: `<article><div id="ing"><div class="jump"><div><ul><li><a href="#ing">Jump to ingredients</a></li></ul></div></div><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`,
+            });
+
+            expect(readPastedContent(page)).toMatchObject({
+                kind: 'notExtractable',
+                reason: 'pageDisagreesWithSchema',
+            });
+        });
+    });
+
+    // Round-4 re-review, HIGH 5 / D13: an omitted group after the read lines that opens with amounts is refused, in a
+    // container of its own too.
+    it('refuses an omitted group after the read lines whose lines open with amounts', () => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol><section><div><ul><li>3 tbsp butter</li><li>1 tsp salt</li></ul></div></section></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+    });
+
+    // Round-4 re-review, E6: a line shown beside the read lines, in the same container, is refused when they are paragraphs.
+    it('refuses an unread paragraph beside the read ingredient paragraphs', () => {
+        const page = makePage({
+            jsonLd: [makeRecipeNode({ recipeIngredient: ['1 cup flour', '2 eggs'], recipeInstructions: STEPS })],
+            body: `<article><div><p>1 cup flour</p><p>2 eggs</p><p>3 tbsp butter</p></div><ol>${items(STEPS)}</ol></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+    });
+
     // Re-review of cb509d1a4, LOW 5: a listed label is meta only when its value has that label's shape. A time needs a
     // duration, a count a number with at most a count word, and a text label refuses a leading amount or a measure word.
     it.each([
@@ -369,6 +463,7 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         ['a time label holding an ingredient', ['Prep Time: 2 eggs']],
         ['a time label holding a duration and an ingredient', ['Prep Time: 10 minutes, 2 eggs']],
         ['a time label holding a bare number', ['Cook Time: 2']],
+        ['a time label holding a unit and no number (D7)', ['Prep Time: minutes']],
     ])('refuses an omitted group before the lines, nested deeper than the read lists, with %s', (_name, lines) => {
         const page = makePage({
             jsonLd: [NODE],
@@ -387,6 +482,7 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         ['Russian', ['Сложность: сложно']],
         ['Russian time and count', ['Время приготовления: 1 час 30 минут', 'Выход: 4 шт']],
         ['Japanese, with a full-width colon', ['調理時間：30分']],
+        ['English, with spaces around the label (D8)', ['Prep  Time : 10 minutes', '  Servings :4']],
     ])('reads a card with a %s meta list of labelled facts before the lines', (_name, lines) => {
         const page = makePage({
             jsonLd: [NODE],

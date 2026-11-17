@@ -407,7 +407,8 @@ can always cook from the original steps.
 - The plan register (`010-FR-041b`) gains a Flow Steps entry.
 - English is the only writing language at first (`025`, English markets first). Each language is one registry entry with
   its own scripts, sentence-end rule, segmentation locale, prompt and pin, fact lexicon, wording limits, title limits and
-  golden tests. Adding one is its own change.
+  golden tests. Adding one is its own change. The registry key is the lower-case ISO 639-1 code (the primary language subtag), and the
+  003B source record stores the same code.
 - The figures in FR-004, FR-042 and FR-064 are set in the plan and measured on the evaluation set.
 - Flow Steps never change ingredient lists, servings, photos, the title, or nutrition.
 

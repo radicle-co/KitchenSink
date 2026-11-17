@@ -13,8 +13,7 @@ import { MAX_JSON_LD_BLOCK_BYTES, MAX_JSON_LD_BLOCKS, MAX_WALK_DEPTH, fitsInByte
 import type { PageDocument, PageElement } from './pageDocument.js';
 import { TOO_COMPLEX, extractionOf } from './pageRecipeCandidate.js';
 import type { RecipeExtraction } from './pageRecipeCandidate.js';
-import { isPageNode } from './pageEvidence.js';
-import { childrenOf, field, isSchemaNode, typeNames } from './schemaNode.js';
+import { childrenOf, isSchemaNode, typeNames } from './schemaNode.js';
 import type { SchemaNode } from './schemaNode.js';
 
 const JSON_LD_TYPE = 'application/ld+json';
@@ -22,17 +21,15 @@ const JSON_LD_TYPE = 'application/ld+json';
 const isJsonLdScript = (script: PageElement): boolean =>
     (script.attr('type') ?? '').split(';')[0]?.trim().toLowerCase() === JSON_LD_TYPE;
 
-/** What one block's walk found: its Recipe nodes and the nodes that may contain one, in order, and whether a cap cut the walk short. */
+/** What one block's walk found: its Recipe nodes, in order, and whether a cap cut the walk short. */
 interface BlockWalk {
     readonly nodes: readonly SchemaNode[];
-    readonly containers: readonly SchemaNode[];
     readonly truncated: boolean;
 }
 
-/** The Recipe nodes of one parsed block, and its page nodes and nodes with a `mainEntity`. It does not descend into a Recipe. */
+/** The Recipe nodes of one parsed block, in order. It does not descend into a Recipe. */
 function recipeNodesOf(root: unknown): BlockWalk {
     const nodes: SchemaNode[] = [];
-    const containers: SchemaNode[] = [];
 
     const { truncated } = boundedWalk([root], (value) => {
         if (isSchemaNode(value) && typeNames(value).includes('Recipe')) {
@@ -41,14 +38,10 @@ function recipeNodesOf(root: unknown): BlockWalk {
             return [];
         }
 
-        if (isSchemaNode(value) && (isPageNode(value) || field(value, 'mainEntity') !== undefined)) {
-            containers.push(value);
-        }
-
         return childrenOf(value);
     });
 
-    return { nodes, containers, truncated };
+    return { nodes, truncated };
 }
 
 interface DepthFrame {
@@ -130,6 +123,5 @@ export function jsonLdRecipe(page: PageDocument): RecipeExtraction {
         : extractionOf(
               walks.flatMap((walk) => walk.nodes),
               'jsonLd',
-              walks.flatMap((walk) => walk.containers),
           );
 }

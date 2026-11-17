@@ -148,6 +148,5 @@ export function microdataRecipe(page: PageDocument): RecipeExtraction {
         : extractionOf(
               reads.map((read): SchemaNode => read.item),
               'microdata',
-              [],
           );
 }

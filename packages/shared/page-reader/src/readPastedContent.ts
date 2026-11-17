@@ -22,7 +22,7 @@ import { MAX_PASTE_BYTES, classifyPaste } from './pageCaps.js';
 import { parsePage } from './pageDocument.js';
 import { imageUrlOf } from './pageEvidence.js';
 import type { PageEvidence } from './pageEvidence.js';
-import type { ExtractionTier, PageCandidate, PageRecipe } from './pageRecipeCandidate.js';
+import type { ExtractionTier, PageRecipe } from './pageRecipeCandidate.js';
 import { acceptRecipe } from './recipeAcceptance.js';
 import type { AcceptanceReason } from './recipeAcceptance.js';
 import { extractRecipe } from './recipeExtractors.js';
@@ -91,15 +91,15 @@ function notExtractable(
     };
 }
 
-/** The evidence for one found recipe: its credit, its date, and its image made absolute against the detected source. */
-function evidenceOf(candidate: PageCandidate, source: DetectedSource): PageEvidence {
-    const imageUrl = imageUrlOf(candidate.imageRefs, source.kind === 'found' ? source.citation.url : undefined);
+/** The evidence for one found recipe: its credit, and its image made absolute against the detected source. */
+function evidenceOf(
+    credit: PageEvidence['credit'],
+    imageRefs: readonly string[],
+    source: DetectedSource,
+): PageEvidence {
+    const imageUrl = imageUrlOf(imageRefs, source.kind === 'found' ? source.citation.url : undefined);
 
-    return Object.freeze({
-        credit: candidate.credit,
-        ...(candidate.datePublished === undefined ? {} : { datePublished: candidate.datePublished }),
-        ...(imageUrl === undefined ? {} : { imageUrl }),
-    });
+    return Object.freeze({ credit, ...(imageUrl === undefined ? {} : { imageUrl }) });
 }
 
 /**
@@ -178,7 +178,7 @@ export function readPastedContent(text: string): PasteReadResult {
         ? {
               kind: 'extracted',
               recipe,
-              evidence: evidenceOf(candidate, source),
+              evidence: evidenceOf(candidate.credit, candidate.imageRefs, source),
               source,
               tier,
               pasteDigest,

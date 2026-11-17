@@ -19,8 +19,7 @@ import { boundedWalk } from './boundedWalk.js';
 import { instructionOf, instructionSteps } from './instructionSteps.js';
 import type { SchemaStep } from './instructionSteps.js';
 import { isTextCut } from './pageDocument.js';
-import { creditOf, datePublishedOf, imageRefsOf, pageGraphOf } from './pageEvidence.js';
-import type { PageGraph } from './pageEvidence.js';
+import { creditOf, imageRefsOf } from './pageEvidence.js';
 import type { PageCredit } from './pageEvidence.js';
 import { durationMinutes } from './isoDuration.js';
 import { servingsOf } from './recipeYield.js';
@@ -59,8 +58,6 @@ export interface PageCandidate {
     readonly links: readonly string[];
     /** Who the node credits. */
     readonly credit: PageCredit;
-    /** When the node, or the page around it, was published (`datePublishedOf`). */
-    readonly datePublished?: string;
     /** The image addresses as written, to be resolved against the canonical address. Never fetched. */
     readonly imageRefs: readonly string[];
     /** The steps as the structured data states them, raw: what the page is asked to agree with, never the built text. */
@@ -183,7 +180,7 @@ function hasCutText(node: SchemaNode): boolean {
     return cut || truncated;
 }
 
-function candidateOf(node: SchemaNode, graph: PageGraph): CandidateRead {
+function candidateOf(node: SchemaNode): CandidateRead {
     const name = textOf(field(node, 'name'));
 
     if (name === undefined) {
@@ -234,7 +231,6 @@ function candidateOf(node: SchemaNode, graph: PageGraph): CandidateRead {
         recipe: Object.freeze(recipe),
         links: Object.freeze(links),
         credit: creditOf(node),
-        ...stated('datePublished', datePublishedOf(node, graph)),
         imageRefs: Object.freeze(imageRefsOf(node)),
         schemaSteps: Object.freeze(steps.map((step) => Object.freeze(step))),
         emptyDeclaredSteps: asList(field(node, 'recipeInstructions')).some(
@@ -255,16 +251,11 @@ function candidateOf(node: SchemaNode, graph: PageGraph): CandidateRead {
  *
  * @param nodes - Recipe nodes: JSON-LD objects, or microdata items shaped like them.
  * @param tier - The strategy that read them.
- * @param containers - The page's nodes that may contain a recipe, read for its date only (`datePublishedOf`).
  * @returns The candidates, `none` when there is no recipe node, or `tooComplex` when there are more nodes than
  *   {@link MAX_RECIPES_PER_PAGE} or a node's steps were cut short by a walk cap (a recipe with half its steps is never a
  *   candidate). Pure.
  */
-export function extractionOf(
-    nodes: readonly SchemaNode[],
-    tier: ExtractionTier,
-    containers: readonly SchemaNode[],
-): RecipeExtraction {
+export function extractionOf(nodes: readonly SchemaNode[], tier: ExtractionTier): RecipeExtraction {
     // A page with more is not one recipe's page, and a recipe past the cap is never read: say so, never drop it quietly.
     if (nodes.length > MAX_RECIPES_PER_PAGE) {
         return TOO_COMPLEX;
@@ -272,10 +263,9 @@ export function extractionOf(
 
     const seen = new Set<string>();
     const candidates: PageCandidate[] = [];
-    const graph = pageGraphOf(containers);
 
     for (const node of nodes) {
-        const { candidate, truncated } = candidateOf(node, graph);
+        const { candidate, truncated } = candidateOf(node);
 
         if (truncated) {
             return TOO_COMPLEX;

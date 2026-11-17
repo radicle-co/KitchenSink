@@ -1393,7 +1393,8 @@ describe('visibilityFieldOf', () => {
     });
 
     describe('the passive line beside Public', () => {
-        const LINE = 'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.';
+        const LINE =
+            'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.';
 
         it('is under the Public card when it is offered and the line was given', () => {
             expect(visibilityFieldOf({ ...base, facts: slots(OPEN), confirmLine: LINE }).confirmLine).toBe(LINE);

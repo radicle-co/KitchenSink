@@ -960,9 +960,7 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         await pasteSteps(`Boil the water.\nhttps://www.bbcgoodfood.com/recipes/soup`);
 
         expect(
-            within(stepsSection()).getByText(
-                'Left out the link. This recipe’s source can’t be added or changed.',
-            ),
+            within(stepsSection()).getByText('Left out the link. This recipe’s source can’t be added or changed.'),
         ).toBeTruthy();
         expect(within(stepsSection()).queryByRole('button', { name: 'Remove' })).toBeNull();
     });
@@ -987,7 +985,8 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
  * back through the editor, and the passive line is drawn exactly when the editor says it is (`confirmLineShown`).
  */
 describe('RecipeEditorSurface — the source question (ADR-0095)', () => {
-    const LINE = 'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.';
+    const LINE =
+        'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.';
 
     it('shows no sheet while no ask stands', () => {
         mount();

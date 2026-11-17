@@ -24,7 +24,11 @@ describe('sourceIsCorrectable', () => {
         ],
         ['a clone with no inherited kind (the cook may state one)', { ...OPEN, clonedFromId: 'r-1' }, true],
         ['a recipe first published (a Date) stays correctable', { ...OPEN, firstPublishedAt: AT }, true],
-        ['a recipe first published (an ISO string) stays correctable', { ...OPEN, firstPublishedAt: AT.toISOString() }, true],
+        [
+            'a recipe first published (an ISO string) stays correctable',
+            { ...OPEN, firstPublishedAt: AT.toISOString() },
+            true,
+        ],
         [
             'the curator’s public-domain text (imported_public, no kind)',
             { ...OPEN, sourceType: 'imported_public' },
@@ -74,7 +78,13 @@ describe('sourceIsCorrectable', () => {
         ],
         [
             'a published web copy INHERITED by a clone stays locked',
-            { ...OPEN, sourceType: 'imported_public', sourceKind: 'public_web', firstPublishedAt: AT, clonedFromId: 'r-1' },
+            {
+                ...OPEN,
+                sourceType: 'imported_public',
+                sourceKind: 'public_web',
+                firstPublishedAt: AT,
+                clonedFromId: 'r-1',
+            },
             false,
         ],
     ] as const)('%s', (_name, recipe, expected) => {

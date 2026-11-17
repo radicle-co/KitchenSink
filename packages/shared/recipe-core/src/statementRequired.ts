@@ -17,11 +17,7 @@
  *
  * @pattern Specification — one pure predicate, one SQL twin
  */
-import {
-    RecipeSourceType,
-    UNRECOGNISED_STATEMENT_KIND,
-    type RecipeStatementKindView,
-} from './recipe.types.js';
+import { RecipeSourceType, UNRECOGNISED_STATEMENT_KIND, type RecipeStatementKindView } from './recipe.types.js';
 import type { SourceEvidenceFacts } from './sourceConflict.js';
 
 /** The input to {@link statementRequiredOf}. Every member is REQUIRED, so a caller states each. */

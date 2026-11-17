@@ -1238,7 +1238,11 @@ describe('RecipeDetailContainer', () => {
             await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
 
             const dialog = await screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
-            expect(within(dialog).getByText('By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.')).toBeInTheDocument();
+            expect(
+                within(dialog).getByText(
+                    'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.',
+                ),
+            ).toBeInTheDocument();
             expect(setVisibilitySpy).not.toHaveBeenCalled();
             await user.click(within(dialog).getByRole('button', { name: 'Make public' }));
 

@@ -5,8 +5,8 @@
  * held once; this guard reads it and scans every string of the real message dictionaries in every locale. It goes
  * red the moment a banned word is planted in a string, and it refuses to pass over an empty scan.
  *
- * A copy source is scanned whole. 027's `recipes.flowSteps.*` keys are not written yet: the slice that creates them
- * adds the dictionary that holds them to SOURCES, so a missing file or key fails rather than being skipped.
+ * A copy source is scanned whole. A new place that holds cook-facing copy is added to SOURCES, and a missing file or
+ * export fails rather than being skipped.
  */
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';

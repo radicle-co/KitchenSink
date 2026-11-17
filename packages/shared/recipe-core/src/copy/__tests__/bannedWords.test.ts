@@ -73,14 +73,14 @@ describe('bannedCopyWordsIn', () => {
     });
 
     // CHANGED from the interim fold: cross-script look-alikes (a Cyrillic \u0435, \u0430, \u0440, a Greek \u03BF, the
-    // dotless \u0131) are NOT folded to Latin. The shared comparison form leaves them alone on purpose, because the
-    // language allowlist refuses mixed-script text upstream, before copy is ever written.
+    // dotless \u0131) are NOT folded to Latin. The shared comparison form has no confusables table, and a look-alike
+    // letter in a message dictionary is a deliberate act, not the wording slip this list exists to catch.
     it.each([
         ['a Cyrillic \u0435', 'v\u0435rified'],
         ['a Cyrillic \u0430 and \u0440', '\u0430\u0440proved'],
         ['a Greek \u03BF', 'appr\u03BFved'],
         ['a dotless \u0131', 'ver\u0131f\u0131ed'],
-    ])('does not fold %s to Latin: that is refused upstream', (_name, text) => {
+    ])('does not fold %s to Latin', (_name, text) => {
         expect(bannedCopyWordsIn(text)).toEqual([]);
     });
 

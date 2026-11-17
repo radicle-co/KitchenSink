@@ -9,11 +9,11 @@
  * rule is, never that a site, a recipe or a right was checked. English only at launch; per-locale lists come with the
  * second language.
  *
- * The matcher compares over `comparisonForm`, the one fold shared with the wording fingerprint (NFKC, invisible
- * characters and the soft hyphen removed, dashes as gaps, lower case, accents out). Separators inside an entry are
- * optional (`copyright-free`, `copyright free` and `copyrightfree` are one spelling), an entry may take a plural `s`,
- * and it must stand on word boundaries (so `verified` does not match `unverified`). Cross-script look-alikes are not
- * folded: mixed-script text is refused upstream by the language allowlist.
+ * The matcher compares over `comparisonForm`, the one fold shared with the wording fingerprint. Separators inside an
+ * entry are optional (`copyright-free`, `copyright free` and `copyrightfree` are one spelling), an entry may take a
+ * plural `s`, and it must stand on word boundaries (so `verified` does not match `unverified`). Cross-script
+ * look-alikes are not folded: the list catches wording slips in copy we write, a look-alike letter in a message
+ * dictionary is a deliberate act and not that slip, and the shared fold has no confusables table.
  */
 
 import { comparisonForm } from '../comparisonForm.js';
@@ -32,15 +32,16 @@ export const BANNED_COPY_WORDS: readonly string[] = [
 
 const WORD_CHARACTER = '\\p{L}\\p{N}';
 
-/** Between the parts of an entry: any gap, dash or minus sign, or nothing at all. */
-const SEPARATOR = '[\\s\\p{Pd}\\u2212\\u2043]*';
+/**
+ * Between the parts of an entry: a gap, a minus sign, a hyphen bullet, or nothing at all. `comparisonForm` has already
+ * turned every dash into a gap; the minus sign and the hyphen bullet are gaps only here, so the fingerprint fold must
+ * not be "aligned" with this class.
+ */
+const SEPARATOR = '[\\s\\u2212\\u2043]*';
 
 /** The pattern of one entry: its parts joined by optional separators, an optional plural, on word boundaries. */
 const patternOf = (word: string): RegExp => {
-    const parts = comparisonForm(word)
-        .split(/[\s\p{Pd}]+/u)
-        .map(escapeRegExp)
-        .join(SEPARATOR);
+    const parts = comparisonForm(word).split(/\s+/u).map(escapeRegExp).join(SEPARATOR);
 
     return new RegExp(`(?<![${WORD_CHARACTER}])${parts}s?(?![${WORD_CHARACTER}])`, 'u');
 };

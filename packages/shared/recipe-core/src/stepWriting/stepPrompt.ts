@@ -12,6 +12,8 @@
  *
  * Reachable as `@kitchensink/recipe-core/step-writing/step-prompt`.
  */
+import { assertFactsSheetPlain } from './factsSheetInput.js';
+
 import type { FactsSheet } from './factsSheet.types.js';
 
 /** The system turn. Pure data, pinned by length and digest. */
@@ -82,9 +84,12 @@ export interface StepPrompt {
  *
  * @param sheet - The facts sheet.
  * @returns The system prompt and the facts as the user turn. Pure.
+ * @throws {FactsSheetInvalidError} When a field of the sheet is not a plain fact.
  * @throws {StepPromptTooLargeError} When the assembled prompt would exceed {@link MAX_STEP_PROMPT_CHARS}.
  */
 export function buildStepPrompt(sheet: FactsSheet): StepPrompt {
+    assertFactsSheetPlain(sheet);
+
     const payload = {
         language: sheet.language,
         ingredientNames: [...sheet.ingredientNames],
@@ -99,7 +104,7 @@ export function buildStepPrompt(sheet: FactsSheet): StepPrompt {
             safety: step.safety.map(({ category, facts }) => ({ category, facts: [...facts] })),
         })),
     };
-    // `<` escaped so no fact, an ingredient name included, can spell the closing tag and end the block early.
+    // `<` escaped as well: a plain fact cannot hold one today, and the frame must stay safe if that rule loosens.
     const userMessage = `${OPEN_TAG}${JSON.stringify(payload).replaceAll('<', '\\u003c')}${CLOSE_TAG}`;
     // Code points, not UTF-16 units: an astral character is one thing a tokenizer sees and two `.length` units.
     const observedChars = [...STEP_SYSTEM_PROMPT].length + [...userMessage].length;

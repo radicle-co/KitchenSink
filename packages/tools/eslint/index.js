@@ -294,6 +294,13 @@ const PACKAGE_INTERNALS_PATTERN = {
         // recipe service's contract corpus.
         '!@kitchensink/*/parsing/parse-prompt',
         '!@kitchensink/*/parsing/parse-answer',
+        // `step-writing/*` (specs 027 and 003B): the step-writing engine's published entry points. They stay OUT of the
+        // barrel on purpose, as the parse-leg modules above do.
+        '!@kitchensink/*/step-writing',
+        '!@kitchensink/*/step-writing/facts-sheet-types',
+        '!@kitchensink/*/step-writing/facts-sheet-input',
+        '!@kitchensink/*/step-writing/step-prompt',
+        '!@kitchensink/*/step-writing/step-answer',
         // `food-service` spells the same barrel `db/schema`, not `database/*`. It
         // has no importer yet, which is exactly why the omission was invisible.
         '!@kitchensink/*/db',

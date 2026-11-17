@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { MAX_REWRITTEN_STEP_CHARS, parseStepAnswer } from '../stepAnswer.js';
+import { MAX_ANSWER_CAP, MAX_REWRITTEN_STEP_CHARS, parseStepAnswer } from '../stepAnswer.js';
 
 const answer = (steps: unknown): string => JSON.stringify({ steps });
 
@@ -26,10 +26,10 @@ describe('parseStepAnswer, readable answers', () => {
         });
     });
 
-    it('accepts surrounding whitespace and a step that covers nothing', () => {
-        expect(parseStepAnswer(`\n  ${answer([{ text: 'Serve.', covers: [] }])}  \n`, 80)).toEqual({
+    it('accepts surrounding whitespace', () => {
+        expect(parseStepAnswer(`\n  ${answer([{ text: 'Serve.', covers: [3] }])}  \n`, 80)).toEqual({
             ok: true,
-            steps: [{ text: 'Serve.', covers: [] }],
+            steps: [{ text: 'Serve.', covers: [3] }],
         });
     });
 
@@ -56,6 +56,7 @@ describe('parseStepAnswer, unreadable', () => {
         ['a step with no text', answer([{ covers: [0] }])],
         ['a step with blank text', answer([{ text: '   ', covers: [0] }])],
         ['a step with no covers', answer([{ text: 'Melt.' }])],
+        ['a step that covers nothing', answer([{ text: 'Melt.', covers: [] }])],
         ['a covers entry that is a string', answer([{ text: 'Melt.', covers: ['0'] }])],
         ['a covers entry that is fractional', answer([{ text: 'Melt.', covers: [0.5] }])],
         ['a covers entry that is negative', answer([{ text: 'Melt.', covers: [-1] }])],
@@ -96,5 +97,58 @@ describe('parseStepAnswer, order of refusals', () => {
         const tooMany = Array.from({ length: 5 }, () => ({ covers: [0] }));
 
         expect(parseStepAnswer(answer(tooMany), 3)).toEqual({ refused: 'unreadable' });
+    });
+});
+
+describe('parseStepAnswer, text that is not plain', () => {
+    const one = (text: string): string => answer([{ text, covers: [0] }]);
+
+    it.each([
+        ['a link with a scheme', 'See https://evil.example/x for more.'],
+        ['a bare address', 'Visit evil.example/x for more.'],
+        ['a www address', 'Visit www.evil.example today.'],
+        ['an email address', 'Write to a@evil.example.'],
+        ['markup', 'Stir <b>well</b>.'],
+        ['a markdown link', 'Stir [here](evil) well.'],
+        ['a markdown emphasis', 'Stir *well*.'],
+        ['a template placeholder', 'Stir {{name}} well.'],
+        ['a backslash escape', 'Stir\\nwell.'],
+        ['a line break', 'Stir.\nThen serve.'],
+        ['a control character', 'Stir\u0007 well.'],
+        ['an emoji', 'Stir well 🙂.'],
+    ])('refuses %s', (_name, text) => {
+        expect(parseStepAnswer(one(text), 80)).toEqual({ refused: 'unsafeText' });
+    });
+
+    it('accepts plain prose with fractions, decimals, degrees, accents and punctuation', () => {
+        const text = 'Fold 1/2 cup crème fraîche and 2.5 tbsp sugar (about 30 g) in; bake at 200 °C for 20-25 minutes!';
+
+        expect(parseStepAnswer(one(text), 80)).toMatchObject({ ok: true });
+    });
+
+    it('accepts non-Latin letters', () => {
+        expect(parseStepAnswer(one('バターを溶かします。'), 80)).toMatchObject({ ok: true });
+    });
+
+    it('checks every step, not only the first', () => {
+        const text = answer([
+            { text: 'Melt the butter.', covers: [0] },
+            { text: 'Visit www.evil.example now.', covers: [1] },
+        ]);
+
+        expect(parseStepAnswer(text, 80)).toEqual({ refused: 'unsafeText' });
+    });
+});
+
+describe('parseStepAnswer, the cap', () => {
+    const valid = answer([{ text: 'Melt.', covers: [0] }]);
+
+    it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, MAX_ANSWER_CAP + 1])('rejects the cap %s', (cap) => {
+        expect(() => parseStepAnswer(valid, cap)).toThrow(RangeError);
+    });
+
+    it('accepts the smallest and the largest cap', () => {
+        expect(parseStepAnswer(valid, 1)).toMatchObject({ ok: true });
+        expect(parseStepAnswer(valid, MAX_ANSWER_CAP)).toMatchObject({ ok: true });
     });
 });

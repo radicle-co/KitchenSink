@@ -11,8 +11,8 @@
  * - The timer pauses while the pointer is over the snackbar or focus is inside it (SC 2.2.1); on native, while a
  *   screen reader is running, it does not run at all.
  * - It is a polite `status` and never takes focus.
- * - `withdraw` is the one way to close a snackbar without committing it other than its own action, and it is targeted: it
- *   acts only on the snackbar its handle names (S37).
+ * - `withdraw` is the one way to close a snackbar without committing it other than its own action, and it is
+ *   targeted: it acts only on the snackbar its handle names.
  */
 import type { ReactNode } from 'react';
 

@@ -113,7 +113,7 @@ describe('msUntilExpiry', () => {
     });
 });
 
-describe('remainingMsOf and the handle (S6.SA4)', () => {
+describe('remainingMsOf and the handle', () => {
     const handle = { snackbar: true } as const;
 
     it('stores the handle the show action carries', () => {

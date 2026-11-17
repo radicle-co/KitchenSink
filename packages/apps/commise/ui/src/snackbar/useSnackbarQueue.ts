@@ -3,8 +3,8 @@
  * (`snackbarQueue.ts`) — the reducer, the one timer for the snackbar on screen, and running each committed snackbar's
  * `onTimeout` exactly once. The leaves own only where the snackbar is drawn and what pauses it.
  *
- * The queue lives in an external store (`snackbarStore.ts`) so `withdraw` can answer in the handler that asks. The clock
- * is read in the store and in the effects, never in the reducer.
+ * The queue lives in an external store (`snackbarStore.ts`) so `withdraw` can answer in the handler that asks. The
+ * clock is read in the store and in the effects, never in the reducer.
  */
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 

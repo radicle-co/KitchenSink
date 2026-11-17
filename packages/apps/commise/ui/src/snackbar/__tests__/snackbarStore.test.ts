@@ -1,6 +1,6 @@
 /**
- * The snackbar store and the targeted withdraw (S6.SA4, staff S37). A fake clock stands in for `Date.now`, and nothing
- * here renders. The store applies the pure reducer synchronously, so a handler can show and withdraw in one breath.
+ * The snackbar store and the targeted withdraw. A fake clock stands in for `Date.now`, and nothing here renders. The
+ * store applies the pure reducer synchronously, so a handler can show and withdraw in one breath.
  */
 import { describe, expect, it, vi } from 'vitest';
 
@@ -107,7 +107,7 @@ describe('the remaining time excludes paused time', () => {
 });
 
 describe('a withdrawn snackbar runs neither callback', () => {
-    it('not its onTimeout and not its action, even after it would have expired, after a later show, or after the drain', () => {
+    it('not its onTimeout and not its action, even after expiry, a later show, or the drain', () => {
         const { store, clock } = setup();
         const onTimeout = vi.fn();
         const onAction = vi.fn();

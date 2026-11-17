@@ -4,7 +4,7 @@
  *
  * It is external to React because `withdraw` must answer in the handler that asks. A reducer held in a component
  * reads only the last render, so a `show` dispatched earlier in the same handler would not be seen, and a withdraw
- * could return the time of a snackbar that is about to commit (S37).
+ * could return the time of a snackbar that is about to commit.
  *
  * @pattern Observer — a store over the pure reducer (State + Command), read by `useSnackbarQueue` through
  *     `useSyncExternalStore`
@@ -25,7 +25,7 @@ export interface SnackbarStore {
     readonly dispatch: (action: SnackbarQueueAction) => void;
     /** Shows a snackbar and returns its handle. */
     readonly show: (input: SnackbarInput) => SnackbarHandle;
-    /** S37: the remaining ms and a close without commit, only for the snackbar showing now. */
+    /** The remaining ms and a close without commit, only for the snackbar showing now. */
     readonly withdraw: (handle: SnackbarHandle) => number | undefined;
 }
 

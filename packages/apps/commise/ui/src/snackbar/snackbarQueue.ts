@@ -117,7 +117,8 @@ export function msUntilExpiry(entry: SnackbarEntry | null, now: number): number 
 }
 
 /**
- * How long a snackbar has left, not counting time it was paused: a paused one has banked its time in `remainingMs`. Pure.
+ * How long a snackbar has left, not counting time it was paused: a paused one has banked its time in `remainingMs`.
+ * Pure.
  *
  * @param entry - The snackbar.
  * @param now - The clock.

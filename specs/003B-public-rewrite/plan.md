@@ -72,7 +72,7 @@ cost and needs no ledger.
 2. `wordShingles.ts`: the measure takes shingle SETS, not text. `fingerprint(text, size, hash) → { formatVersion, hashes }`
    uses an injected, keyed, versioned hash, with `jaccard(a, b)` and `containment(part, whole)`. 027's in-memory check, 003B's stored
    check and 020's copy check run through one function. The per-sentence check is containment, not Jaccard. The text
-   fold in front of the shingles also applies the UTS #39 skeleton, so look-alike letters compare equal.
+   fold in front of the shingles is defined in 027 research R3.
 3. `027-FR-032`: no gate. A 027 replace never changes the rights label, and an imported recipe goes public only through 003B-FR-015's two doors. Otherwise "private copy, replace, set public" is a back door.
 4. `027-FR-044`: the banned-word list is one module both guards import (003B FR-064).
 5. `027-FR-043`: no credit key of its own for a public version of an imported recipe. 027 uses 003B's.

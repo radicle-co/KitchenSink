@@ -128,7 +128,7 @@ The cook can still keep the recipe and make a public version later.
 
 1. **Given** the budget is spent, **When** the cook opens the choice, **Then** only "Save my copy" is offered, with
    `budget.line`, and no writer call is made.
-2. **Given** the page carries an AI opt-out signal, **Then** only "Save my copy" is offered, with `privateOnly.line` and no
+2. **Given** the page carries a stated AI opt-out signal, **Then** only "Save my copy" is offered, with `privateOnly.line` and no
    promise of a later public version (FR-084).
 3. **Given** the writer fails after its retry (FR-031), **Then** `failed.title` and `failed.body` show with "Try again"
    and "Save my copy". On the Both path the private copy is already saved and the screen shows `failed.bodyBoth`.
@@ -262,8 +262,11 @@ later from its own menu. (C-6)
   `aiOptOut`. A clearly paid page keeps the paid rules: the FR-017 hold, and no site named. A clearly read signature
   recipe stays private only (`paidSignature`). A detected paid site, one on the paid list, is clearly paid. A signal that
   cannot be read is `unknown`: a paywall the reader cannot tell, an opt-out it cannot read, an unread signature signal,
-  or a paste that carries no signal. For `unknown` the offer takes the rewrite path to public: the choice shows with
-  `credit.written` only, no site is named, and no paid hold applies. `unknown` never maps to `privateOnly`. The paid-site
+  or a paste of a page whose domain is on the paid list that carries no paid signal. A paste from a domain not on the
+  paid list with no paid signal is free third-party (US1 scenario 2, `credit.basedOn`). For `unknown` the offer takes the rewrite path to public: the choice shows with
+  `credit.written` only, no site is named, and no paid hold applies. The offer is `{ kind: 'choice', credit: 'paid' }`,
+  where `credit: 'paid'` means `credit.written` only. It does not make the source paid, so the FR-012 private-copy rules
+  do not apply. `unknown` never maps to `privateOnly`. The paid-site
   list and the federal publisher list are approved data, drafted with sources and approved before they are seeded (task
   T084, slice B2).
 - **FR-013**: The classification MUST be one pure rule that reads the detected evidence, the cook's statement, the live
@@ -292,7 +295,7 @@ later from its own menu. (C-6)
   dialog, publishes nothing, returns focus to Publish and returns the cook to the review screen. The job stays ready until it expires as usual,
   and the cook can still take the normal private exit from review (`review.notNow`, FR-044). Nothing is saved
   automatically. Spec 016's stronger age assurance replaces this later. (C-17)
-- **FR-016a**: Each recipe this feature saves or publishes spends the one shared import allowance (ADR-0072 §8,
+- **FR-016a**: Each recipe this feature saves spends the one shared import allowance (ADR-0072 §8,
   `004-FR-061`). Making a public version spends no unit, in the same import or on the later "Share a public version"
   route: it is part of the original import (C-24). The site-wide AI ceiling still applies (FR-082). A private copy uses a slot, with or without a public version (ADR-0093 §8).
 - **FR-016b**: Identity owns the age claim. `POST /api/v1/me/age-assurance` records one `age_assurances` row (spec 016's
@@ -412,8 +415,11 @@ later from its own menu. (C-6)
   the cook's own rewrite of door two ("Adapted by you", FR-015), an edit under FR-050 or FR-052, and a title. The save
   is refused with `blocked.body`. A reversed step wrapped in U+202E is refused.
   Cook-typed public text may be in any language. The save also refuses any WORD that mixes Unicode scripts, such as a
-  Latin word with one Cyrillic letter, with `blocked.body`. A word in one script passes, so "Bibimbap (비빔밥)" is
-  accepted. The bidi check comes first, then the mixed-script check, both before any fold.
+  Latin word with one Cyrillic letter, with `blocked.body`. A word mixes scripts when its UTS #39 resolved script set
+  is empty, using augmented script sets: Han with Hiragana and Katakana, Han with Hangul, and Han with Bopomofo each
+  count as one script, and Common and Inherited characters (digits, symbols) are ignored. A word in one script passes,
+  so "Bibimbap (비빔밥)", "食べる", "350°F" and "½" are accepted. The bidi check comes first, then the mixed-script
+  check, both before any fold.
 
 #### G. Credit, label and licence
 
@@ -478,9 +484,9 @@ later from its own menu. (C-6)
 - **FR-082**: A ceiling denial MUST end the job `budgetSpent` at once, refund the reservation and never redeliver
   (`004-FR-059` pattern). An unreadable counter or a transport failure retries. A job older than 10 minutes ends
   `failed`. (C-25)
-- **FR-083**: Writer calls are bounded by the one shared import allowance (FR-016a), at most 3 calls per item (C-7), and
+- **FR-083**: Writer calls are bounded by the original import's one allowance unit (FR-016a), one public version per source page (FR-034), at most 3 calls per item (C-7), and
   the spend ceiling. There is no separate daily cap (C-15).
-- **FR-084**: A page with an AI opt-out signal (`004-FR-063`) MUST NOT be sent to the writer. Only Private is offered,
+- **FR-084**: A page with a stated AI opt-out signal (`004-FR-063`) MUST NOT be sent to the writer. Only Private is offered,
   with its own line, `privateOnly.line`, which makes no promise of a later public version. (C-16)
 - **FR-085**: "Stop" during writing MUST end the job `cancelled` and return the cook to the choice. A result that
   arrives later is dropped. A call already started is still paid from the pool. The cook never pays (FR-081). On the
@@ -642,7 +648,7 @@ Still owed:
   evidence period. It holds no personal data beyond the recipe link. Owner to confirm.
 - **C-15. Who pays and how much?** Assumed: operating cost from the one $100 pool, own call site, bounded by the one import allowance
   and 3 calls per item. No daily cap (ruled 2026-11-15). Owner to confirm.
-- **C-16. AI opt-out on the page?** Assumed: only Private is offered, with its own line and no "later" promise. Owner to confirm.
+- **C-16. Stated AI opt-out on the page?** Assumed: only Private is offered, with its own line and no "later" promise. Owner to confirm.
 - **C-17. Age?** Ruled 2026-11-17: publishing at 16 and over, checked at Publish (FR-016). The `under16` offer reason
   is not used until spec 016 adds it back. Until then this is a deliberate interim exception to `016-FR-009`, which spec 016's own age assurance closes (T150). App use at the higher of 13 and the market's digital-consent age.
 - **C-18. Rewards and sale?** Assumed: none for a public version (FR-065). Owner to confirm.

@@ -16,10 +16,32 @@ import {
     FRACTION_WORD_DENOMINATORS,
     INDEFINITE_QUALIFIERS,
     MULTIPLIER_WORDS,
+    readNumberWords,
     WHOLE_NUMBER_WORDS,
-} from '../quantityWords.js';
+} from '../numberWords.js';
 
-describe('quantityWords', () => {
+describe('numberWords', () => {
+    describe('readNumberWords', () => {
+        it.each([
+            [['ten', 'minutes'], 0, { value: 10, next: 1 }],
+            [['forty', 'five', 'minutes'], 0, { value: 45, next: 2 }],
+            [['Twenty', 'Five'], 0, { value: 25, next: 2 }],
+            [['bake', 'sixty', 'minutes'], 1, { value: 60, next: 2 }],
+            [['twenty', 'a', 'day'], 0, { value: 20, next: 1 }],
+            [['twenty', 'ten'], 0, { value: 20, next: 1 }],
+            [['ten', 'five'], 0, { value: 10, next: 1 }],
+            [['a', 'minute'], 0, { value: 1, next: 1 }],
+            [['an', 'hour'], 0, { value: 1, next: 1 }],
+            [['a', 'little', 'water'], 0, undefined],
+            [['an', 'few'], 0, undefined],
+            [['minutes'], 0, undefined],
+            [['ten'], 5, undefined],
+            [[], 0, undefined],
+        ] as const)('reads %j at %i as %j', (words, index, expected) => {
+            expect(readNumberWords(words, index)).toEqual(expected);
+        });
+    });
+
     describe('WHOLE_NUMBER_WORDS', () => {
         it.each([
             ['a', 1],

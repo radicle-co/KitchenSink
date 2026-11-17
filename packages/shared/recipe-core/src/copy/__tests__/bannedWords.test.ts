@@ -49,6 +49,10 @@ describe('bannedCopyWordsIn', () => {
         ['a hyphen bullet U+2043', 'copyright\u2043free'],
         ['a soft hyphen U+00AD', 'copyright\u00ADfree'],
         ['nothing at all', 'copyrightfree'],
+        ['an underscore', 'copyright_free'],
+        ['a slash', 'copyright/free'],
+        ['a middle dot', 'copyright\u00B7free'],
+        ['a braille blank U+2800', 'copyright\u2800free'],
         ['a hyphen with spaces around it', 'copyright - free'],
     ])('matches copyright-free spelled with %s', (_name, text) => {
         expect(bannedCopyWordsIn(text)).toEqual(['copyright-free']);
@@ -99,6 +103,12 @@ describe('bannedCopyWordsIn', () => {
         'Saved from {site}. The words and photos belong to their author.',
         'This is unverified.',
         'Disapproved of',
+        'copyright. Free recipes',
+        'copyright, free',
+        'copyright freedom',
+        'Is it legally yourself?',
+        'verifiedly',
+        'safe to publisher',
         'The recipe is copyrighted material, freed up',
         '',
     ])('finds nothing in %j', (text) => {

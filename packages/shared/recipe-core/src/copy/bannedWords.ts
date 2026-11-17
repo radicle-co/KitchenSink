@@ -33,11 +33,14 @@ export const BANNED_COPY_WORDS: readonly string[] = [
 const WORD_CHARACTER = '\\p{L}\\p{N}';
 
 /**
- * Between the parts of an entry: a gap, a minus sign, a hyphen bullet, or nothing at all. `comparisonForm` has already
+ * The characters that join the parts of a compound inside one word, as a closed list: whitespace, `_`, `/`, U+00B7,
+ * U+2800, the minus sign U+2212 and the hyphen bullet U+2043. Sentence and clause punctuation is never a joiner, so
+ * "copyright. Free" is not "copyright-free". Other dot-like joiners (U+2027, U+30FB, U+2219) are left out on
+ * purpose: the list catches wording slips in copy we write, not deliberate evasion. `comparisonForm` has already
  * turned every dash into a gap; the minus sign and the hyphen bullet are gaps only here, so the fingerprint fold must
  * not be "aligned" with this class.
  */
-const SEPARATOR = '[\\s\\u2212\\u2043]*';
+const SEPARATOR = '[\\s_/\\u00B7\\u2212\\u2043\\u2800]*';
 
 /** The pattern of one entry: its parts joined by optional separators, an optional plural, on word boundaries. */
 const patternOf = (word: string): RegExp => {

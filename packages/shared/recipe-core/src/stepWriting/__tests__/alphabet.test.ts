@@ -26,6 +26,14 @@ interface LanguageCases {
 const CASES: Record<OutputLanguage, LanguageCases> = {
     en: {
         refused: [
+            ['a dotless i', '\u0131'],
+            ['a Latin small letter iota', '\u0269'],
+            ['a long s', '\u017F'],
+            ['a kra', '\u0138'],
+            ['a small capital L', '\u029F'],
+            ['a small capital I', '\u026A'],
+            ['a Latin small capital A', '\u1D00'],
+            ['a look-alike inside a word', 'butter\u0131'],
             ['a combining mark beside a dot', 'evil\u0300.com'],
             ['a combining grapheme joiner', 'evil\u034F.com'],
             ['a Devanagari host', '\u0939\u093F\u0902\u0926\u0940.\u092D\u093E\u0930\u0924'],
@@ -42,6 +50,14 @@ const CASES: Record<OutputLanguage, LanguageCases> = {
             ['a tight dot that is not on the list', 'U.S. beef'],
         ],
         accepted: [
+            'cr\u00E8me br\u00FBl\u00E9e',
+            'jalape\u00F1o',
+            'pi\u00F1a',
+            'a\u00E7a\u00ED',
+            'sm\u00F8rrebr\u00F8d',
+            '\u0153uf',
+            'Wei\u00DFwurst',
+            '\u00C9CLAIR',
             'A.1. sauce',
             '2 fl.oz.',
             'cr\u00E8me fra\u00EEche',

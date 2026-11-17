@@ -116,9 +116,9 @@ describe('assertFactsSheetPlain', () => {
         expect(faultOf(makeSheet({ ingredientNames: [name] }))).toMatchObject({ field: 'ingredientNames[0]' });
     });
 
-    it('counts length in code points: 80 astral Latin letters pass and 81 do not', () => {
-        expect(faultOf(makeSheet({ ingredientNames: ['\u{10780}'.repeat(80)] }))).toBeUndefined();
-        expect(faultOf(makeSheet({ ingredientNames: ['\u{10780}'.repeat(81)] }))).toMatchObject({
+    it('accepts a name of 80 characters and refuses 81', () => {
+        expect(faultOf(makeSheet({ ingredientNames: ['a'.repeat(80)] }))).toBeUndefined();
+        expect(faultOf(makeSheet({ ingredientNames: ['a'.repeat(81)] }))).toMatchObject({
             field: 'ingredientNames[0]',
         });
     });

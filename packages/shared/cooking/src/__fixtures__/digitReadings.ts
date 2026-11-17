@@ -6,8 +6,9 @@ import type { DurationReading } from '../durationReading.js';
  *
  * Generated ONCE from that reader, never from a newer one. Command, run from the repository root with Node 24:
  * `npx tsx gen.ts modern.json`, where gen.ts calls main's `readDuration` over every line of GOLDEN_CORPUS_STEPS,
- * STEP_LINE_TRAPS and STEP_LINE_TRAPS_2 (`stepLinesGolden.ts`), then over the modern set (`modern.json`), and prints one
- * row per distinct line. The modern set is part of this file: it is the lines below the last public-domain one.
+ * STEP_LINE_TRAPS and STEP_LINE_TRAPS_2 (`stepLinesGolden.ts`), then over the modern set (`modern.json`), and
+ * prints one row per distinct line. The modern set is part of this file: it is the lines below the last
+ * public-domain one.
  *
  * gen.ts, in full (main's reader imported by path; the rows below are its output after prettier):
  *
@@ -23,7 +24,15 @@ import type { DurationReading } from '../durationReading.js';
  *         ...modern,
  *     ];
  *     const unique = [...new Set(lines)];
- *     const rows = unique.map((line) => `    { line: ${JSON.stringify(line)}, reading: ${JSON.stringify(readDuration(line)).replace(/"(\w+)":/g, '$1:').replace(/,/g, ', ').replace(/\{/g, '{ ').replace(/\}/g, ' }')} },`);
+ *     const json = (value: unknown): string =>
+ *         JSON.stringify(value)
+ *             .replace(/"(\w+)":/g, '$1:')
+ *             .replace(/,/g, ', ')
+ *             .replace(/\{/g, '{ ')
+ *             .replace(/\}/g, ' }');
+ *     const rows = unique.map(
+ *         (line) => `    { line: ${JSON.stringify(line)}, reading: ${json(readDuration(line))} },`,
+ *     );
  *     process.stdout.write(rows.join('\n') + '\n');
  *
  * This is the frozen digit-only reader in data form. Never edit a row: a change here changes what the test protects.

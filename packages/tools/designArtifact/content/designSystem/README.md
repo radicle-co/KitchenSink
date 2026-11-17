@@ -39,7 +39,7 @@ The real font files ship in `fonts/`: Inter 400, 500 and 600 and Manrope 600, co
 
 A centred modal blocks the whole screen, so it is rare. When the cook must stop and answer before anything else can happen, use one. Otherwise do not (owner ruling, 2026-11-17).
 
-- **Centred modal: yes.** An action that destroys something and cannot be undone. A decision before a commit that cannot be pulled back: publish, make public, buy, cancel a plan, replace a copy. An interruption the app raises and the cook must answer, such as a timer going off. Use `ConfirmDialog` for a destructive step.
+- **Centred modal: yes.** An action that destroys something and cannot be undone. A decision before a commit that other people see at once, or that spends or stops money: publish, make public, buy, cancel Pro, replace a copy. An interruption the app raises and the cook must answer, such as a timer going off. Use `ConfirmDialog` for a destructive step.
 - **Centred modal: no.** An undoable action: do it at once and offer Undo in a snackbar. Information, an outcome, a limit or a refusal: say it beside the control, or in a snackbar. An upsell or a Pro gate: an inline card where the locked feature is. A form, a picker, a list or a detail: a lighter surface below.
 - **Lighter surfaces, in order.** Inline expansion. An anchored `Popover` or `ActionMenu`. A FAB menu on phones and tablets. A side sheet on wide screens. A bottom `Sheet` on phones. A full page for long tasks. A snackbar for outcomes.
 - **Web to mobile.** A web popover or menu becomes a bottom sheet on a phone. The create action's kinds become a FAB menu. A side sheet becomes a bottom sheet. A blocking confirm stays centred everywhere.

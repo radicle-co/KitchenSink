@@ -288,7 +288,7 @@ export interface EditorMessages {
 
     /**
      * The Source row in Photos & publish (ADR-0089): the web page a recipe was copied from. `{site}` is the registrable
-     * domain of the link. Words to avoid: copyright-free, legally yours, safe to publish, we checked this, verified, approved.
+     * domain of the link. Words to avoid: the one list in `@kitchensink/recipe-core/copy/banned-words`.
      */
     readonly source: {
         readonly label: string;

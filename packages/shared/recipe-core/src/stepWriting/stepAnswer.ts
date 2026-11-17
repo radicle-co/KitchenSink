@@ -70,6 +70,17 @@ export function parseStepAnswer(text: string, cap: number, language: OutputLangu
         return { refused: looksLikeWrappedAnswer(text) ? 'outsideList' : 'unreadable' };
     }
 
+    // The cap comes first so an oversized answer is not parsed step by step.
+    if (
+        typeof json === 'object' &&
+        json !== null &&
+        'steps' in json &&
+        Array.isArray(json.steps) &&
+        json.steps.length > cap
+    ) {
+        return { refused: 'overCap' };
+    }
+
     const parsed = answerSchema.safeParse(json);
 
     if (!parsed.success) {
@@ -78,10 +89,6 @@ export function parseStepAnswer(text: string, cap: number, language: OutputLangu
 
         // A field we did not ask for beside an otherwise valid answer. Any other fault wins: it is unreadable.
         return { refused: extraKey && !otherFault ? 'outsideList' : 'unreadable' };
-    }
-
-    if (parsed.data.steps.length > cap) {
-        return { refused: 'overCap' };
     }
 
     const { prose, addressRule } = ALPHABET_BY_LANGUAGE[language];

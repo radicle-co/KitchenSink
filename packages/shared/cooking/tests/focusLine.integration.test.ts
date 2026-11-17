@@ -7,8 +7,8 @@ import type { TappedLine } from '@kitchensink/cooking-core';
 
 /**
  * The tapped focus follows its step's text through an owner's edit, across the real splitter, the real digest and the
- * real ticks. The unit tests hand `focusLineOf` a digest string. This one builds it as the cook
- * screen does: the recipe's steps parsed by recipe-core's own zod, split into lines by `cookingStepsOf`, and the digest
+ * real ticks. The unit tests hand `focusLineOf` a digest string. This one builds it from the
+ * real parts: the recipe's steps parsed by recipe-core's own zod, split into lines by `cookingStepsOf`, and the digest
  * of each walked step's instruction text taken from the kept store's function.
  */
 

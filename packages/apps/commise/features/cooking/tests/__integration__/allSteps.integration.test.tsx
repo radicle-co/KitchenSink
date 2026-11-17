@@ -1,7 +1,6 @@
 import { resolveMessages } from '@commise/i18n';
 import {
     NO_TIMER,
-    TIMER_LIMIT,
     cookingStepsOf,
     createLineTicks,
     reduceTimer,
@@ -11,8 +10,8 @@ import {
 } from '@kitchensink/cooking-core';
 import { describe, expect, it } from 'vitest';
 
-import { allStepsRowCopyOf, allStepsRowsOf } from '../../src/allSteps';
-import { cookingMessages } from '../../src/messages';
+import { allStepsRowCopyOf, allStepsRowsOf } from '../../src/allSteps.js';
+import { cookingMessages } from '../../src/messages.js';
 
 /**
  * All steps over the real reducers: the timer list is built by running `reduceTimer` commands, not
@@ -41,6 +40,7 @@ const start = (id: string, stepIndex: number, durationMs: number, nowMs: number)
     stepDigest: `s1:0000000${String(stepIndex)}`,
     name: undefined,
     durationMs,
+    // Any limit above the one under test; ten is the cook's real ceiling.
     limit: 10,
     nowMs,
 });
@@ -48,21 +48,21 @@ const start = (id: string, stepIndex: number, durationMs: number, nowMs: number)
 const run = (commands: readonly TimerCommand[]): TimerState =>
     commands.reduce<TimerState>((state, command) => reduceTimer(state, command).state, NO_TIMER);
 
-const ticks = [
+const TICKED: readonly (readonly [number, number])[] = [
     [2, 0],
     [2, 1],
     [3, 0],
     [3, 1],
     [4, 0],
-].reduce(
-    (state, [stepIndex, lineIndex]) => tickLine(state, { stepIndex: stepIndex ?? 0, lineIndex: lineIndex ?? 0 }, STEPS),
+];
+
+const ticks = TICKED.reduce(
+    (state, [stepIndex, lineIndex]) => tickLine(state, { stepIndex, lineIndex }, STEPS),
     createLineTicks(),
 );
 
 describe('All steps over the real reducers', () => {
     it('reads Done, Done, Now, All lines ticked and 2 lines left, with a done and a paused timer on step 2', () => {
-        expect(TIMER_LIMIT).toBeGreaterThanOrEqual(1);
-
         // Step 2 (index 1) has two timers: a 1-minute one that rings and a 10-minute one the cook paused. Step 3
         // (index 2) has one running.
         const timers = run([

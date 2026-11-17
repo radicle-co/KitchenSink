@@ -21,8 +21,8 @@ import { cookingMessages } from '../messages.js';
  * place those become the cook's words, with the real `en` copy.
  *
  * The fixture is five steps, steps 1 and 2 in `marks`, the session on step 3 with 2 of 4 lines ticked, step 4
- * fully ticked but not marked (so "All lines ticked" is not "Done"), and step 5 with 1 of 3 ticked. Every case
- * names the mutant it kills.
+ * fully ticked but not marked (so "All lines ticked" is not "Done"), and step 5 with 1 of 3 ticked. Where a case
+ * guards a specific mistake, its name says which.
  */
 const en = resolveMessages(cookingMessages, 'en').allSteps;
 

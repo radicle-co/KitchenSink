@@ -45,7 +45,7 @@ const sameKey = (a: LineKey, b: LineKey): boolean => a.stepIndex === b.stepIndex
 export function tickLine(ticks: LineTicks, key: LineKey, steps: readonly CookingStep[]): LineTicks {
     const lineCount = stepAt(steps, key.stepIndex).lines.length;
 
-    if (!Number.isInteger(key.lineIndex) || key.lineIndex < 0 || key.lineIndex >= lineCount) {
+    if (!isLineOf(key.lineIndex, lineCount)) {
         throw new InvalidLineIndexError(key.lineIndex, lineCount);
     }
 
@@ -78,8 +78,12 @@ export function isLineTicked(ticks: LineTicks, key: LineKey): boolean {
     return ticks.ticked.some((ticked) => sameKey(ticked, key));
 }
 
+/** Whether an index is a whole number inside a step's lines. `Number.isInteger` is not redundant: 1.5 passes the bounds. */
+const isLineOf = (lineIndex: number, lineCount: number): boolean =>
+    Number.isInteger(lineIndex) && lineIndex >= 0 && lineIndex < lineCount;
+
 /**
- * The focus line of a step: its first unticked line. Nothing jumps to a line, so the focus is never anything else.
+ * The focus line of a step when nothing was tapped: its first unticked line. `focusLineOf` adds the tapped line.
  *
  * @param ticks - The current ticks.
  * @param stepIndex - The step.
@@ -174,9 +178,7 @@ export function focusLineOf({ ticks, stepIndex, steps, stepDigest, tapped }: Foc
         tapped !== null &&
         tapped.stepIndex === stepIndex &&
         tapped.stepDigest === stepDigest &&
-        Number.isInteger(tapped.lineIndex) &&
-        tapped.lineIndex >= 0 &&
-        tapped.lineIndex < lineCount &&
+        isLineOf(tapped.lineIndex, lineCount) &&
         !isLineTicked(ticks, { stepIndex, lineIndex: tapped.lineIndex }) &&
         sameLineSet(
             ticks.ticked.filter((key) => key.stepIndex === stepIndex).map((key) => key.lineIndex),

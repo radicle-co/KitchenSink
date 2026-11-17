@@ -107,7 +107,6 @@ interface CookingGoneMessages {
     readonly home: string;
 }
 
-/** Every string the cooking surface says. */
 /** One row of All steps: its mark, and the plain text of its timers. */
 export interface CookingAllStepsMessages {
     /** The mark of the step the session is on. */
@@ -126,6 +125,7 @@ export interface CookingAllStepsMessages {
     readonly timerJoin: string;
 }
 
+/** Every string the cooking surface says. */
 export interface CookingMessages {
     readonly top: CookingTopMessages;
     readonly nav: CookingNavMessages;

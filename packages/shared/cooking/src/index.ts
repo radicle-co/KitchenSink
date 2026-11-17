@@ -59,6 +59,7 @@ export {
     reduceTimer,
     timeLeftMs,
     timerOrder,
+    isWaitingForCook,
 } from './timer.js';
 export type {
     ActiveTimer,

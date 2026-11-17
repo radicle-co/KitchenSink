@@ -9,7 +9,7 @@
  *     discriminated unions to words with exhaustive switches (Visitor).
  */
 import { pluralOf } from '@commise/i18n';
-import { allLinesTicked, tickedLineCount, timerOrder } from '@kitchensink/cooking-core';
+import { allLinesTicked, isWaitingForCook, tickedLineCount, timerOrder } from '@kitchensink/cooking-core';
 import type { ActiveTimer, CookingStep, LineTicks, TimerState } from '@kitchensink/cooking-core';
 
 import type { CookingAllStepsMessages } from './messages.js';
@@ -70,17 +70,7 @@ const markOf = (input: AllStepsInput, index: number): AllStepsMark => {
     return { kind: 'linesLeft', count: lineCount - tickedLineCount(input.lineTicks, index) };
 };
 
-const partKindOf = (timer: ActiveTimer): TimerPartKind => {
-    switch (timer.kind) {
-        case 'ringing':
-        case 'endedAway':
-            return 'done';
-        case 'running':
-            return 'running';
-        case 'paused':
-            return 'paused';
-    }
-};
+const partKindOf = (timer: ActiveTimer): TimerPartKind => (isWaitingForCook(timer) ? 'done' : timer.kind);
 
 const timerPartsOf = (input: AllStepsInput, index: number): readonly TimerPart[] => {
     const counts = new Map<TimerPartKind, number>();

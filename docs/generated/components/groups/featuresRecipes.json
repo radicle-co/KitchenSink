@@ -6,11 +6,11 @@
     "coverage": {
         "components": 209,
         "implementations": 353,
-        "props": 2439,
+        "props": 2440,
         "documentedComponents": 209,
         "implementationsWithModuleDoc": 353,
         "implementationsWithComponentDoc": 242,
-        "documentedProps": 1867,
+        "documentedProps": 1868,
         "classifiedComponents": 187,
         "componentsWithPatternTag": 99,
         "crossPlatformComponents": 144
@@ -9516,7 +9516,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The controls that sit ON the photo: back and ⋯ (D12), each a `PhotoControl` from `@commise/ui/photo-control`.\nThe hero lays them over its top edge, start to end, first in the reading order. The caller owns what they do.",
+                            "description": "The controls that sit ON the photo: back and ⋯ (D12), Back is a `HeroButton` and ⋯ is an `ActionMenu` with `appearance=\"disc\"`.\nThe hero lays them over its top edge, start to end, first in the reading order. The caller owns what they do.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -9572,7 +9572,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The controls that sit ON the photo: back and ⋯ (D12), each a `PhotoControl` from `@commise/ui/photo-control`.\nThe hero lays them over its top edge, start to end, first in the reading order. The caller owns what they do.",
+                            "description": "The controls that sit ON the photo: back and ⋯ (D12), Back is a `HeroButton` and ⋯ is an `ActionMenu` with `appearance=\"disc\"`.\nThe hero lays them over its top edge, start to end, first in the reading order. The caller owns what they do.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -35146,6 +35146,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/session/RecipeServicesTree.tsx"
                         },
                         {
+                            "name": "kept",
+                            "type": "KeptSessionStore",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The app's one kept cooking-session store (ADR-0094 section 5), scoped here to the cook.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/session/RecipeServicesTree.tsx"
+                        },
+                        {
                             "name": "store",
                             "type": "OutboxStore",
                             "typeDetail": null,
@@ -35156,11 +35165,11 @@
                         },
                         {
                             "name": "subject",
-                            "type": "string | undefined",
+                            "type": "string | null | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The signed-in cook (Clerk `userId`), or `undefined` while nobody is. Never a placeholder.",
+                            "description": "Clerk's raw `userId`: `undefined` while it loads, `null` once nobody is signed in, else the cook. Never a\nplaceholder. The kept store needs all three (ADR-0094 section 5); everything else here takes it collapsed with\n`?? undefined`.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/session/RecipeServicesTree.tsx"
                         },
                         {

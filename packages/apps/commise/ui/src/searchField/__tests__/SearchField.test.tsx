@@ -87,7 +87,7 @@ describe('SearchField (web)', () => {
 
         const clear = screen.getByRole('button', { name: 'Clear search' });
 
-        expect(tokensOf(clear)).toEqual(expect.arrayContaining(['size-11']));
+        expect(tokensOf(clear)).toEqual(expect.arrayContaining(['size-[44px]']));
 
         await user.click(clear);
 

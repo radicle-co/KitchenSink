@@ -52,7 +52,7 @@ export interface ItemIssueFacts {
     readonly outOfSlots: boolean;
     /** Whether the item spent its allowance unit. */
     readonly paid: boolean;
-    /** Whether the caller's bulk allowance has no unit left today. */
+    /** Whether the caller's one import allowance (every channel counts) has no unit left today. */
     readonly allowanceSpent: boolean;
     /** The first thing the save still needs (`importSaveGapOf`), or `null`. */
     readonly saveGap: ImportSaveGap | null;

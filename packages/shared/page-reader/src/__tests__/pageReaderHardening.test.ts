@@ -1,0 +1,395 @@
+import { describe, expect, it } from 'vitest';
+
+import { MAX_RECIPES_PER_PAGE } from '../pageCaps.js';
+import { readPastedContent } from '../readPastedContent.js';
+import { makePage, makeRecipeCard, makeRecipeNode } from '../__fixtures__/pageFixtures.js';
+
+/**
+ * Round 7: the page reader against hostile pages and against a schema that is not the whole of the card. Every case is a
+ * verdict on a WHOLE page through `readPastedContent`, because a refusal that a stage returns and a caller drops is no
+ * refusal.
+ */
+
+const INGREDIENTS = ['1 cup flour', '2 eggs', '1 tsp salt'];
+const STEPS = ['Mix the flour and eggs.', 'Add the salt.', 'Bake until golden.'];
+const NODE = makeRecipeNode({ recipeIngredient: INGREDIENTS, recipeInstructions: STEPS });
+
+const items = (lines: readonly string[]): string => lines.map((line) => `<li>${line}</li>`).join('');
+
+/** A page whose JSON-LD says `node` and whose card is written by hand from the two lists. */
+function cardPage(
+    node: Record<string, unknown>,
+    shown: { readonly ingredients?: readonly string[]; readonly steps?: readonly string[]; readonly extra?: string },
+): string {
+    return makePage({
+        jsonLd: [node],
+        body: `<article><h1>Test</h1><ul>${items(shown.ingredients ?? INGREDIENTS)}</ul><ol>${items(shown.steps ?? STEPS)}</ol>${shown.extra ?? ''}</article>`,
+    });
+}
+
+// The collapse's own work is counted in `collapseBracketGroups.test.ts`. Here, a line past the cap is refused for its
+// length, which the reader checks before it collapses anything.
+describe('a line the reader would collapse: bounded before it is read, linear when it is', () => {
+    it.each([
+        ['32,000 characters of nested brackets', `${'('.repeat(16_000)}salt${')'.repeat(16_000)}`],
+        ['32,000 characters of nested brackets around words', `${'(a'.repeat(16_000)}${')'.repeat(16_000)} salt`],
+        ['32,000 unclosed brackets', `${'['.repeat(32_000)} salt`],
+    ])('refuses an ingredient line of %s as ingredientLineTooLong', (_name, line) => {
+        const node = makeRecipeNode({ recipeIngredient: [line], recipeInstructions: STEPS });
+
+        expect(readPastedContent(makePage({ jsonLd: [node], body: makeRecipeCard(node) }))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'ingredientLineTooLong',
+        });
+    });
+
+    it('refuses a line past the cap even when cleaning would bring it under', () => {
+        // 1,050 characters of doubled groups that collapse to 750: the cap is on the line as the page writes it.
+        const line = '((ab)) '.repeat(150).trim();
+        const node = makeRecipeNode({ recipeIngredient: [line], recipeInstructions: STEPS });
+
+        expect(line.length).toBeGreaterThan(1_000);
+        expect(readPastedContent(makePage({ jsonLd: [node], body: makeRecipeCard(node) }))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'ingredientLineTooLong',
+        });
+    });
+
+    it('still reads a line at the length cap that nests 500 deep', () => {
+        const line = `${'('.repeat(496)}salt${')'.repeat(496)}`;
+        const node = makeRecipeNode({ recipeIngredient: [line], recipeInstructions: STEPS });
+
+        expect(readPastedContent(makePage({ jsonLd: [node], body: makeRecipeCard(node) }))).toMatchObject({
+            kind: 'extracted',
+            recipe: { ingredientLines: ['(salt)'] },
+        });
+    });
+});
+
+describe('a value cut short inside the decode passes is never read half', () => {
+    it('refuses a step written as entities that decode into more markup than the cap reads', () => {
+        const step = `Boil the water. ${'&lt;b&gt;x&lt;/b&gt; '.repeat(12_000)} Then add the salt.`;
+        const markup = step.replaceAll('&lt;', '<').replaceAll('&gt;', '>');
+        const node = makeRecipeNode({ recipeIngredient: INGREDIENTS, recipeInstructions: [step] });
+        const page = makePage({
+            jsonLd: [node],
+            body: `<article><ul>${items(INGREDIENTS)}</ul><ol><li>${markup}</li></ol></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageTooComplex' });
+    });
+});
+
+describe('more recipes than the page cap is never read as the first of them', () => {
+    const recipe = (index: number) => makeRecipeNode({ '@id': `r${String(index)}`, name: `Recipe ${String(index)}` });
+
+    it('refuses a page with 65 JSON-LD recipes, the last of them different', () => {
+        const same = Array.from({ length: MAX_RECIPES_PER_PAGE }, () => recipe(0));
+        const page = makePage({ jsonLd: [{ '@graph': [...same, recipe(1)] }], body: makeRecipeCard(recipe(0)) });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageTooComplex' });
+    });
+
+    it('refuses a page with 65 microdata recipes', () => {
+        const one = (index: number) =>
+            `<div itemscope itemtype="https://schema.org/Recipe"><h1 itemprop="name">R${String(index)}</h1><ul><li itemprop="recipeIngredient">1 egg</li></ul><ol><li itemprop="recipeInstructions">Boil it.</li></ol></div>`;
+        const body = Array.from({ length: MAX_RECIPES_PER_PAGE + 1 }, (_, index) => one(index)).join('');
+
+        expect(readPastedContent(makePage({ body }))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageTooComplex',
+        });
+    });
+});
+
+describe('G-CORR both ways: the card is the schema, no more and no less', () => {
+    it('reads a page whose card is its schema', () => {
+        expect(readPastedContent(cardPage(NODE, {}))).toMatchObject({ kind: 'extracted' });
+    });
+
+    it.each([
+        ['one more ingredient than the schema', { ingredients: [...INGREDIENTS, '1 cup sugar'] }],
+        ['one more ingredient, first', { ingredients: ['1 cup sugar', ...INGREDIENTS] }],
+        ['one more step than the schema', { steps: [...STEPS, 'Serve warm.'] }],
+        ['one more step, first', { steps: ['Heat the oven.', ...STEPS] }],
+    ])('refuses a page whose visible card has %s', (_name, shown) => {
+        expect(readPastedContent(cardPage(NODE, shown))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageDisagreesWithSchema',
+        });
+    });
+
+    it('refuses a schema that is only the end of a longer visible ingredient line', () => {
+        const node = makeRecipeNode({ recipeIngredient: ['flour', 'eggs', 'salt'], recipeInstructions: STEPS });
+
+        expect(
+            readPastedContent(cardPage(node, { ingredients: ['2 cups flour', '2 large eggs', '1 tsp salt'] })),
+        ).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+    });
+
+    it('refuses a schema that is only the start of a longer visible ingredient line', () => {
+        const node = makeRecipeNode({ recipeIngredient: ['1 cup flour'], recipeInstructions: STEPS });
+
+        expect(readPastedContent(cardPage(node, { ingredients: ['1 cup flour, sifted twice'] }))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageDisagreesWithSchema',
+        });
+    });
+
+    it('refuses steps that are only fragments of the visible method', () => {
+        const node = makeRecipeNode({ recipeIngredient: INGREDIENTS, recipeInstructions: ['flour and', 'for 20'] });
+
+        expect(
+            readPastedContent(cardPage(node, { steps: ['Mix the flour and eggs well.', 'Bake for 20 minutes.'] })),
+        ).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+    });
+
+    it('refuses a schema that leaves a step out of a method written in one paragraph', () => {
+        const page = makePage({
+            jsonLd: [makeRecipeNode({ recipeIngredient: INGREDIENTS, recipeInstructions: [STEPS[0], STEPS[2]] })],
+            body: `<article><ul>${items(INGREDIENTS)}</ul><p>${STEPS.join(' ')}</p></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageDisagreesWithSchema',
+        });
+    });
+
+    it('reads steps written as sentences of one paragraph, and a heading above each list', () => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><h2>Ingredients</h2><ul>${items(INGREDIENTS)}</ul><h2>Method</h2><p>${STEPS.join(' ')}</p></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
+    });
+
+    it('reads ingredient groups, each under its own heading, as the one flat list the schema holds', () => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><h3>Dough</h3><ul>${items(INGREDIENTS.slice(0, 2))}</ul><h3>Topping</h3><ul>${items(INGREDIENTS.slice(2))}</ul><ol>${items(STEPS)}</ol></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
+    });
+});
+
+describe('G-CORR per recipe card: every list in the card is the schema’s', () => {
+    // The verification review's probes: a list the schema leaves out entirely, which the per-list check could not see
+    // because no schema line sat in it. The card is the smallest element holding every line and step the schema has.
+    it.each([
+        [
+            'an ingredient group the schema leaves out',
+            '<h3>Frosting</h3><ul><li>1 cup icing sugar</li><li>2 tbsp milk</li></ul>',
+        ],
+        ['a second method list', '<ol><li>Let it cool for an hour.</li></ol>'],
+        ['a stray list', '<ul><li>Serves four</li></ul>'],
+    ])('refuses a card with %s after the method', (_name, extra) => {
+        expect(readPastedContent(cardPage(NODE, { extra }))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageDisagreesWithSchema',
+        });
+    });
+
+    it('refuses an ingredient group the schema leaves out, between the ingredients and the method', () => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><ul>${items(INGREDIENTS)}</ul><h3>Frosting</h3><ul><li>1 cup icing sugar</li></ul><ol>${items(STEPS)}</ol></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+    });
+
+    it('refuses a list the schema leaves out in a microdata card', () => {
+        const page = makePage({
+            body: [
+                '<div itemscope itemtype="https://schema.org/Recipe"><h1 itemprop="name">Test</h1><ul>',
+                INGREDIENTS.map((line) => `<li itemprop="recipeIngredient">${line}</li>`).join(''),
+                '</ul><ul><li>1 cup icing sugar</li></ul><ol>',
+                STEPS.map((step) => `<li itemprop="recipeInstructions">${step}</li>`).join(''),
+                '</ol></div>',
+            ].join(''),
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+    });
+
+    it('reads a card with a note in a paragraph, and the page’s own lists outside the card', () => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<nav><ul><li>Home</li><li>Recipes</li></ul></nav><article><h1>Test</h1><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol><p>Keeps for a week.</p></article><footer><ul><li>About</li></ul></footer>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
+    });
+
+    // The limits `schemaCorroboration.ts` names: lines the per-card rule does not see. Each is pinned so that a change to
+    // the rule changes a test, not only a comment.
+    it.each([
+        ['a table row', '<table><tr><td>Calories</td><td>250</td></tr></table>'],
+        ['a paragraph', '<p>Serve with rice.</p>'],
+        ['a line after a <br>', '<p>Serves 4<br>Keeps a week</p>'],
+    ])('does not see %s in the card that the schema leaves out', (_name, extra) => {
+        expect(readPastedContent(cardPage(NODE, { extra }))).toMatchObject({ kind: 'extracted' });
+    });
+
+    it('does not see an ingredient group rendered after the card element', () => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><h1>Test</h1><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol></article><aside><ul><li>1 cup icing sugar</li></ul></aside>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
+    });
+});
+
+/**
+ * A recipe card shaped like a common WordPress recipe plugin's: a container, an equipment list, ingredient groups whose
+ * lines are spans of amount, unit and name, an instructions list, a nutrition list, and jump links, all inside the card.
+ * Written by hand for this test: no page's HTML is copied.
+ */
+function pluginStyleCard(lists: {
+    readonly equipment: boolean;
+    readonly nutrition: boolean;
+    readonly jumps: boolean;
+}): string {
+    const ingredient = (amount: string, unit: string, name: string): string =>
+        `<li class="recipe-ingredient"><span class="amount">${amount}</span> <span class="unit">${unit}</span> <span class="name">${name}</span></li>`;
+    const step = (text: string): string =>
+        `<li class="recipe-instruction"><div class="instruction-text">${text}</div></li>`;
+
+    return [
+        '<div class="recipe-container"><div class="recipe-card">',
+        '<h2 class="recipe-name">Test</h2>',
+        lists.jumps
+            ? '<ul class="recipe-jump-links"><li><a href="#ingredients">Jump to ingredients</a></li><li><a href="#instructions">Jump to instructions</a></li></ul>'
+            : '',
+        lists.equipment
+            ? '<div class="recipe-equipment"><h3>Equipment</h3><ul><li class="equipment-item">Mixing bowl</li><li class="equipment-item">Baking tray</li></ul></div>'
+            : '',
+        '<div class="recipe-ingredients" id="ingredients"><h3>Ingredients</h3>',
+        '<div class="ingredient-group"><h4>Dough</h4><ul>',
+        ingredient('1', 'cup', 'flour'),
+        ingredient('2', '', 'eggs'),
+        '</ul></div><div class="ingredient-group"><h4>Seasoning</h4><ul>',
+        ingredient('1', 'tsp', 'salt'),
+        '</ul></div></div>',
+        `<div class="recipe-instructions" id="instructions"><h3>Instructions</h3><ul>${STEPS.map(step).join('')}</ul></div>`,
+        lists.nutrition
+            ? '<div class="recipe-nutrition"><h3>Nutrition</h3><ul><li>Calories: 250kcal</li><li>Protein: 8g</li></ul></div>'
+            : '',
+        '</div></div>',
+    ].join('');
+}
+
+describe('G-CORR on a card shaped like a recipe plugin’s', () => {
+    const page = (lists: Parameters<typeof pluginStyleCard>[0]): string =>
+        makePage({
+            jsonLd: [NODE],
+            body: `<article><p>A story about the recipe.</p>${pluginStyleCard(lists)}</article>`,
+        });
+
+    it('reads the card when it holds only what the schema holds', () => {
+        expect(readPastedContent(page({ equipment: false, nutrition: false, jumps: false }))).toMatchObject({
+            kind: 'extracted',
+            recipe: { ingredientLines: INGREDIENTS },
+        });
+    });
+
+    // ⚠️ PINNED, NOT RULED: the card's equipment, nutrition and jump-link lists are list items the schema does not hold,
+    // so the per-card rule refuses the page. Round 8 decides how such lists count; when it does, this test changes with
+    // the rule.
+    it.each([
+        ['an equipment list', { equipment: true, nutrition: false, jumps: false }],
+        ['a nutrition list', { equipment: false, nutrition: true, jumps: false }],
+        ['jump links', { equipment: false, nutrition: false, jumps: true }],
+        ['all three', { equipment: true, nutrition: true, jumps: true }],
+    ])('refuses the card today when it also holds %s', (_name, lists) => {
+        expect(readPastedContent(page(lists))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageDisagreesWithSchema',
+        });
+    });
+});
+
+describe('a line or step with no tokens is no yes', () => {
+    it.each([
+        ['an ingredient line', { recipeIngredient: [...INGREDIENTS, '***'], recipeInstructions: STEPS }],
+        ['a step', { recipeIngredient: INGREDIENTS, recipeInstructions: [...STEPS, '***'] }],
+    ])('refuses %s of punctuation only', (_name, fields) => {
+        const node = makeRecipeNode(fields);
+        const shown = (list: unknown): readonly string[] => list as readonly string[];
+
+        expect(
+            readPastedContent(
+                cardPage(node, {
+                    ingredients: shown(fields.recipeIngredient),
+                    steps: shown(fields.recipeInstructions),
+                }),
+            ),
+        ).toMatchObject({ kind: 'notExtractable' });
+    });
+
+    it('refuses a microdata ingredient line of punctuation only', () => {
+        const body = `<div itemscope itemtype="https://schema.org/Recipe"><h1 itemprop="name">Soup</h1><ul><li itemprop="recipeIngredient">2 cups stock</li><li itemprop="recipeIngredient">***</li></ul><ol itemprop="recipeInstructions"><li>Simmer it.</li></ol></div>`;
+
+        expect(readPastedContent(makePage({ body }))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageDisagreesWithSchema',
+            tier: 'microdata',
+        });
+    });
+});
+
+describe('text a cook cannot see is not the page showing it', () => {
+    const arsenic = makeRecipeNode({
+        recipeIngredient: [...INGREDIENTS, '5 kg arsenic'],
+        recipeInstructions: STEPS,
+    });
+
+    it.each([
+        ['a template', '<template><ul><li>5 kg arsenic</li></ul></template>'],
+        ['a noscript', '<noscript><ul><li>5 kg arsenic</li></ul></noscript>'],
+        ['a textarea', '<textarea>5 kg arsenic</textarea>'],
+        ['an element marked hidden', '<ul hidden><li>5 kg arsenic</li></ul>'],
+        ['a list item marked hidden', '<ul><li hidden>5 kg arsenic</li></ul>'],
+    ])('refuses an ingredient shown only inside %s', (_name, hidden) => {
+        const page = makePage({
+            jsonLd: [arsenic],
+            body: `<article><ul>${items(INGREDIENTS)}</ul>${hidden}<ol>${items(STEPS)}</ol></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageDisagreesWithSchema',
+        });
+    });
+
+    it('refuses a microdata ingredient that only a meta element states', () => {
+        const body = `<div itemscope itemtype="https://schema.org/Recipe"><h1 itemprop="name">Soup</h1><ul><li itemprop="recipeIngredient">2 cups stock</li></ul><meta itemprop="recipeIngredient" content="5 kg arsenic"><ol itemprop="recipeInstructions"><li>Simmer it.</li></ol></div>`;
+
+        expect(readPastedContent(makePage({ body }))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageDisagreesWithSchema',
+            tier: 'microdata',
+        });
+    });
+
+    it('refuses a microdata ingredient inside a hidden element', () => {
+        const body = `<div itemscope itemtype="https://schema.org/Recipe"><h1 itemprop="name">Soup</h1><ul><li itemprop="recipeIngredient">2 cups stock</li></ul><ul hidden><li itemprop="recipeIngredient">5 kg arsenic</li></ul><ol itemprop="recipeInstructions"><li>Simmer it.</li></ol></div>`;
+
+        expect(readPastedContent(makePage({ body }))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageDisagreesWithSchema',
+        });
+    });
+});
+
+describe('a JSON-LD block that does not parse is unread, not skipped', () => {
+    it("does not let a second block's recipe win when the first block is broken", () => {
+        const page = makePage({ jsonLd: ['{"@type": "Recipe", broken', NODE], body: makeRecipeCard(NODE) });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageTooComplex' });
+    });
+});

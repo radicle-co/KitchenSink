@@ -8,7 +8,7 @@
  * @pattern Facade over {@link MacSession} and `bin/mac/androidLaneHost.sh`
  * @sideEffect Runs commands on the Mac: boots and kills emulators, copies the APK, opens a tunnel.
  */
-import type { LaneCost } from '@kitchensink/e2e-plan';
+import { laneCosts } from '@kitchensink/e2e-plan/laneCosts';
 
 import type { AndroidHost } from './androidHost.js';
 import { consolePort } from './androidSerials.js';
@@ -16,15 +16,6 @@ import { tunnelsFromManifest } from './iosLane.js';
 import type { LaneSpec, RunContext } from './laneTypes.js';
 import type { LocalSettings } from './localSettings.js';
 import { MacSession, macPathsOf, remote, type MacShell } from './macSession.js';
-
-/**
- * What a Mac Android lane costs, measured with `maestro:macUsage android` on a two-lane full run (2026-11-08, 75 minutes, the
- * 14-cpu Mac, host GPU): a lane's emulator and Maestro JVM used 0.65 to 0.68 cpus on average, p95 1.2, with bursts to 2.5 to
- * 2.7, and peaked at 5.47 to 5.71 GiB resident. The cpu figure is the burst rounded up and the memory the largest peak
- * rounded up. It counts only a lane's own processes (the GPU work runs in Metal), which is what the planner's margin on free
- * memory is for.
- */
-const MAC_ANDROID_LANE_COST: LaneCost = { cpus: 3, memBytes: Math.round(5.8 * 1024 ** 3) };
 
 const HEX = /^[0-9a-f]+$/u;
 
@@ -63,7 +54,7 @@ export function createMacAndroidHost(options: MacAndroidHostOptions): AndroidHos
 
     return {
         abi,
-        laneCost: MAC_ANDROID_LANE_COST,
+        laneCost: laneCosts.macAndroid,
         hostFacts: () => session.facts(),
         prepare: async (run: RunContext, apk: string, key: string) => {
             if (!HEX.test(key)) {

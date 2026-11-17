@@ -121,7 +121,7 @@ describe('ImportViewBuilder', () => {
 
             await builder.build(makePrincipal({ roles: [...roles] }), makeHeader(), { limit: 100 });
 
-            expect(stateOf.mock.calls[0]?.[2]).toStrictEqual({ channel: 'bulk', isPremium, principalKind: 'real' });
+            expect(stateOf.mock.calls[0]?.[2]).toStrictEqual({ isPremium, principalKind: 'real' });
         },
     );
 
@@ -130,7 +130,7 @@ describe('ImportViewBuilder', () => {
 
         await builder.build(makePrincipal({ principalKind: 'test' }), makeHeader(), { limit: 100 });
 
-        expect(stateOf.mock.calls[0]?.[2]).toStrictEqual({ channel: 'bulk', isPremium: false, principalKind: 'test' });
+        expect(stateOf.mock.calls[0]?.[2]).toStrictEqual({ isPremium: false, principalKind: 'test' });
     });
 
     it('reads a cursor at the count as done (null) and a Save-and-leave header as closed', async () => {

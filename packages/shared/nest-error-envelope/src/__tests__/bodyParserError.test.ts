@@ -43,7 +43,6 @@ function parserError(type: string, status: number, extra: Record<string, unknown
 describe('normalizeBodyParserError', () => {
     it.each([
         ['entity.too.large', 413, HttpStatus.PAYLOAD_TOO_LARGE, 'TOO_BIG', BODY_TOO_LARGE_MESSAGE],
-        ['entity.parse.failed', 400, HttpStatus.BAD_REQUEST, 'VALIDATION_FAILED', BODY_NOT_PARSEABLE_MESSAGE],
         [
             'encoding.unsupported',
             415,
@@ -70,6 +69,21 @@ describe('normalizeBodyParserError', () => {
             expect(normalizeBodyParserError(error, VOCABULARY)).toEqual({ status: answer, body: { code, message } });
         },
     );
+
+    // ⛔ `VALIDATION_FAILED` PROMISES `details.fields` in every service's published schema (`foodErrorSchema`,
+    // `recipeApiErrorSchema`), so a body that is not valid JSON must carry it or the typed parse fails at the client.
+    it('answers entity.parse.failed as 400 with the validation code and a constant details.fields', () => {
+        const error = parserError('entity.parse.failed', 400, { body: `{"title": "${MARKER}` });
+
+        expect(normalizeBodyParserError(error, VOCABULARY)).toEqual({
+            status: HttpStatus.BAD_REQUEST,
+            body: {
+                code: 'VALIDATION_FAILED',
+                message: BODY_NOT_PARSEABLE_MESSAGE,
+                details: { fields: ['body: not valid JSON'] },
+            },
+        });
+    });
 
     it('never puts the parser’s text or the request body on the wire', () => {
         const error = parserError('entity.parse.failed', 400, { body: `{"title": "${MARKER}` });

@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { APP_SOURCE_EXCLUDED, appSourceModules, classTokensOf, stringLikeTexts } from './appSources.js';
+import { APP_SOURCE_EXCLUDED, appSourceModules, classTokensOf, splitToken, stringLikeTexts } from './appSources.js';
 
 describe('appSourceModules', () => {
     const modules = appSourceModules();
@@ -90,5 +90,29 @@ describe('classTokensOf', () => {
         expect(classTokensOf('flex hover:bg-', true)).toEqual(['flex']);
         expect(classTokensOf('flex hover:bg-surface-muted ', true)).toEqual(['flex', 'hover:bg-surface-muted']);
         expect(classTokensOf('flex hover:bg-surface-muted', false)).toEqual(['flex', 'hover:bg-surface-muted']);
+    });
+});
+
+describe('splitToken', () => {
+    it('splits a token into its variant chain and its utility', () => {
+        expect(splitToken('md:focus-visible:ring-2')).toEqual({
+            variants: ['md', 'focus-visible'],
+            base: 'ring-2',
+        });
+        expect(splitToken('flex')).toEqual({ variants: [], base: 'flex' });
+    });
+
+    it('reads Tailwind important modifier at either end, and never as part of the utility', () => {
+        expect(splitToken('!size-11')).toEqual({ variants: [], base: 'size-11' });
+        expect(splitToken('size-11!')).toEqual({ variants: [], base: 'size-11' });
+        expect(splitToken('md:ring-2!')).toEqual({ variants: ['md'], base: 'ring-2' });
+        expect(splitToken('size-11')).toEqual({ variants: [], base: 'size-11' });
+        expect(splitToken('md:!ring-2')).toEqual({ variants: ['md'], base: 'ring-2' });
+        expect(splitToken("content-['hi!']")).toEqual({ variants: [], base: "content-['hi!']" });
+    });
+
+    it('does not split on a colon inside a bracketed variant or value', () => {
+        expect(splitToken('[&:hover]:size-11')).toEqual({ variants: ['[&:hover]'], base: 'size-11' });
+        expect(splitToken('bg-[url(a:b)]')).toEqual({ variants: [], base: 'bg-[url(a:b)]' });
     });
 });

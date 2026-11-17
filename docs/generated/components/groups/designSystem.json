@@ -4,16 +4,16 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 94,
-        "implementations": 152,
-        "props": 976,
-        "documentedComponents": 94,
-        "implementationsWithModuleDoc": 152,
-        "implementationsWithComponentDoc": 138,
-        "documentedProps": 879,
-        "classifiedComponents": 87,
-        "componentsWithPatternTag": 94,
-        "crossPlatformComponents": 58
+        "components": 93,
+        "implementations": 150,
+        "props": 970,
+        "documentedComponents": 93,
+        "implementationsWithModuleDoc": 150,
+        "implementationsWithComponentDoc": 136,
+        "documentedProps": 873,
+        "classifiedComponents": 86,
+        "componentsWithPatternTag": 93,
+        "crossPlatformComponents": 57
     },
     "components": [
         {
@@ -10593,243 +10593,6 @@
             ]
         },
         {
-            "id": "designSystem/photoControl/PhotoControl",
-            "name": "PhotoControl",
-            "group": "designSystem",
-            "packageName": "@commise/ui",
-            "layer": "design-system",
-            "dir": "packages/apps/commise/ui/src/photoControl",
-            "kind": "presentational",
-            "patterns": [
-                "Adapter over `expo-glass-effect`, with a solid fallback where the platform has no glass"
-            ],
-            "platforms": [
-                "web",
-                "native"
-            ],
-            "crossPlatform": true,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "PhotoControl",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/ui/src/photoControl/PhotoControl.tsx",
-                    "dir": "packages/apps/commise/ui/src/photoControl",
-                    "moduleDoc": "@commise/ui/photo-control — the web design-system {@link PhotoControl} (see `props.ts`): a solid 44 px\n`photoChip` disc with an `ink` glyph and a visible focus ring. No backdrop blur, by D12.\n\nPresentational: props → JSX.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/ui/photo-control — the web design-system {@link PhotoControl} (see `props.ts`): a solid 44 px"
-                        }
-                    ],
-                    "description": "The web control over a photo.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "icon",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"house\"",
-                                "\"bookOpen\"",
-                                "\"compass\"",
-                                "\"plus\"",
-                                "\"clipboardPaste\"",
-                                "\"ellipsis\"",
-                                "\"chevronLeft\"",
-                                "\"x\"",
-                                "\"search\"",
-                                "\"copyPlus\"",
-                                "\"trash\"",
-                                "\"clock\"",
-                                "\"users\"",
-                                "\"flame\"",
-                                "\"star\"",
-                                "\"lock\"",
-                                "\"globe\"",
-                                "\"pencilLine\"",
-                                "\"timer\"",
-                                "\"sun\"",
-                                "\"check\"",
-                                "\"arrowUp\"",
-                                "\"imagePlus\"",
-                                "\"listPlus\"",
-                                "\"chevronsLeft\"",
-                                "\"slidersHorizontal\"",
-                                "\"rotateCcw\"",
-                                "\"chevronDown\"",
-                                "\"eye\"",
-                                "\"user\"",
-                                "\"minus\"",
-                                "\"chevronRight\"",
-                                "\"chevronUp\"",
-                                "\"refreshCw\"",
-                                "\"logIn\"",
-                                "\"logOut\"",
-                                "\"userPlus\"",
-                                "\"userX\"",
-                                "\"save\"",
-                                "\"settings\"",
-                                "\"camera\"",
-                                "\"image\"",
-                                "\"triangleAlert\"",
-                                "\"info\"",
-                                "\"calendar\"",
-                                "\"shoppingCart\"",
-                                "\"chartColumn\"",
-                                "\"bell\"",
-                                "\"menu\"",
-                                "\"list\"",
-                                "\"layoutGrid\"",
-                                "\"cookingPot\"",
-                                "\"listChecks\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The glyph on the disc. Decorative: the control's name is `label`.",
-                            "declaredIn": "packages/apps/commise/ui/src/photoControl/props.ts"
-                        },
-                        {
-                            "name": "label",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The control's accessible name, localised by the caller (\"Back\", \"More actions\").",
-                            "declaredIn": "packages/apps/commise/ui/src/photoControl/props.ts"
-                        },
-                        {
-                            "name": "onPress",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Called on a press.",
-                            "declaredIn": "packages/apps/commise/ui/src/photoControl/props.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                },
-                {
-                    "name": "PhotoControl",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/ui/src/photoControl/PhotoControl.native.tsx",
-                    "dir": "packages/apps/commise/ui/src/photoControl",
-                    "moduleDoc": "@commise/ui/photo-control — the native design-system {@link PhotoControl} (see `props.ts`): regular,\nuntinted, interactive Liquid Glass on iOS 26, and a solid `photoChip` disc everywhere else, in the system's theme.\n\nPresentational: props → JSX. Which device it is on is read, not decided.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/ui/photo-control — the native design-system {@link PhotoControl} (see `props.ts`): regular,"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Adapter over `expo-glass-effect`, with a solid fallback where the platform has no glass"
-                        }
-                    ],
-                    "description": "The native control over a photo.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "icon",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"house\"",
-                                "\"bookOpen\"",
-                                "\"compass\"",
-                                "\"plus\"",
-                                "\"clipboardPaste\"",
-                                "\"ellipsis\"",
-                                "\"chevronLeft\"",
-                                "\"x\"",
-                                "\"search\"",
-                                "\"copyPlus\"",
-                                "\"trash\"",
-                                "\"clock\"",
-                                "\"users\"",
-                                "\"flame\"",
-                                "\"star\"",
-                                "\"lock\"",
-                                "\"globe\"",
-                                "\"pencilLine\"",
-                                "\"timer\"",
-                                "\"sun\"",
-                                "\"check\"",
-                                "\"arrowUp\"",
-                                "\"imagePlus\"",
-                                "\"listPlus\"",
-                                "\"chevronsLeft\"",
-                                "\"slidersHorizontal\"",
-                                "\"rotateCcw\"",
-                                "\"chevronDown\"",
-                                "\"eye\"",
-                                "\"user\"",
-                                "\"minus\"",
-                                "\"chevronRight\"",
-                                "\"chevronUp\"",
-                                "\"refreshCw\"",
-                                "\"logIn\"",
-                                "\"logOut\"",
-                                "\"userPlus\"",
-                                "\"userX\"",
-                                "\"save\"",
-                                "\"settings\"",
-                                "\"camera\"",
-                                "\"image\"",
-                                "\"triangleAlert\"",
-                                "\"info\"",
-                                "\"calendar\"",
-                                "\"shoppingCart\"",
-                                "\"chartColumn\"",
-                                "\"bell\"",
-                                "\"menu\"",
-                                "\"list\"",
-                                "\"layoutGrid\"",
-                                "\"cookingPot\"",
-                                "\"listChecks\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The glyph on the disc. Decorative: the control's name is `label`.",
-                            "declaredIn": "packages/apps/commise/ui/src/photoControl/props.ts"
-                        },
-                        {
-                            "name": "label",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The control's accessible name, localised by the caller (\"Back\", \"More actions\").",
-                            "declaredIn": "packages/apps/commise/ui/src/photoControl/props.ts"
-                        },
-                        {
-                            "name": "onPress",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Called on a press.",
-                            "declaredIn": "packages/apps/commise/ui/src/photoControl/props.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "designSystem/pinnedSearch/PinnedSearchOverlay",
             "name": "PinnedSearchOverlay",
             "group": "designSystem",
@@ -11021,7 +10784,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/popover/Popover.tsx",
                     "dir": "packages/apps/commise/ui/src/popover",
-                    "moduleDoc": "@commise/ui/popover — the web `Popover`: a non-modal dialog anchored to its trigger. A presentational\ndesign-system primitive: it holds only its own open state, and its content and actions come from the caller.\n\nRadix Popover owns the APG behaviour: the trigger carries `aria-haspopup=\"dialog\"`, `aria-expanded` and\n`aria-controls`; Escape and an outside press close the panel. Escape and Close return focus to the trigger, and an\noutside press leaves it where the cook put it (Radix's own rule, which `onDismissed` leaves in force).\nThe panel flips and shifts to stay on screen (`collisionPadding`), so at 320 px it never causes horizontal scroll, and\nit keeps clear of the page's own chrome by reading the `PopupInsetsContext` reader as it opens (finding D2).\n\n- The trigger is 44 × 44 px (spec §3, 2.5.8) and its glyph is `aria-hidden`: `triggerLabel` alone names it.\n- ⛔ No transition classes: the panel appears and disappears without motion, so `prefers-reduced-motion` has\n  nothing to suppress.\n- `'use client'`: it holds its open state, and the feature leaf that renders it is reachable from App Router\n  server pages through the feature package's index (caught by `next build`, not by typecheck).\n- A host's focus request (`focusRequested`) is the one reason this leaf holds a ref: `.focus()` has no declarative\n  form. The request is a level the host clears on acknowledgement, so a trigger that mounts while it stands still\n  takes it.",
+                    "moduleDoc": "@commise/ui/popover — the web `Popover`: a non-modal dialog anchored to its trigger. A presentational\ndesign-system primitive: it holds only its own open state, and its content and actions come from the caller.\n\nRadix Popover owns the APG behaviour: the trigger carries `aria-haspopup=\"dialog\"`, `aria-expanded` and\n`aria-controls`; Escape and an outside press close the panel. Escape and Close return focus to the trigger, and an\noutside press leaves it where the cook put it (Radix's own rule, which `onDismissed` leaves in force).\nThe panel flips and shifts to stay on screen (`collisionPadding`), so at 320 px it never causes horizontal scroll, and\nit keeps clear of the page's own chrome by reading the `PopupInsetsContext` reader as it opens (finding D2).\n\n- The trigger is the attention line, at least 32 px tall (2.5.8 asks 24). Its glyph is `aria-hidden`, and\n  `triggerLabel` names it and contains the visible words.\n- ⛔ No transition classes: the panel appears and disappears without motion, so `prefers-reduced-motion` has\n  nothing to suppress.\n- `'use client'`: it holds its open state, and the feature leaf that renders it is reachable from App Router\n  server pages through the feature package's index (caught by `next build`, not by typecheck).\n- A host's focus request (`focusRequested`) is the one reason this leaf holds a ref: `.focus()` has no declarative\n  form. The request is a level the host clears on acknowledgement, so a trigger that mounts while it stands still\n  takes it.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -11189,9 +10952,9 @@
                             "name": "triggerText",
                             "type": "string",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "Words drawn beside the glyph, in the `attention` role: the trigger becomes a read row's attention line (\"⚠ Choose\na match\", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC\n2.5.3). Absent, the trigger is the 44 px glyph button.",
+                            "description": "Words drawn beside the glyph, in the `attention` role: the trigger is a read row's attention line (\"⚠ Choose a\nmatch\", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC\n2.5.3).",
                             "declaredIn": "packages/apps/commise/ui/src/popover/props.ts"
                         }
                     ],
@@ -11211,7 +10974,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/popover/Popover.native.tsx",
                     "dir": "packages/apps/commise/ui/src/popover",
-                    "moduleDoc": "@commise/ui/popover — the native `Popover`: a trigger that opens the design-system `Sheet`. A presentational\ndesign-system primitive: it holds only its own open state, and its content and actions come from the caller.\n\nA phone has no room to anchor a panel beside a row, so the job is kept and the mechanism moves to a bottom sheet\n(`ingredientStatusExplanation.md` §8e \"moved\"). Opened by a tap, never a long-press or hover (plan 002 R32).\n\n- The trigger is a `button` with `aria-expanded` (RN's alias for `accessibilityState.expanded`), 48 × 48 dp (spec §3, 2.5.8); its glyph is hidden\n  from assistive tech, so `triggerLabel` alone names it.\n- The `Sheet` moves the screen-reader cursor to its title when it shows, and leaves the return to its host because\n  React Native cannot read where the cursor was. This leaf is that host: each close advances a counter, and\n  `useScreenReaderFocusOnSignal` moves the cursor back to the trigger.\n- A host's focus request (`focusRequested`) moves the screen-reader cursor to the trigger through the same node\n  handle, and is acknowledged once taken.",
+                    "moduleDoc": "@commise/ui/popover — the native `Popover`: a trigger that opens the design-system `Sheet`. A presentational\ndesign-system primitive: it holds only its own open state, and its content and actions come from the caller.\n\nA phone has no room to anchor a panel beside a row, so the job is kept and the mechanism moves to a bottom sheet\n(`ingredientStatusExplanation.md` §8e \"moved\"). Opened by a tap, never a long-press or hover (plan 002 R32).\n\n- The trigger is a `button` with `aria-expanded` (RN's alias for `accessibilityState.expanded`), at least 48 dp tall\n  (spec §3, 2.5.8); its glyph is hidden from assistive tech, so `triggerLabel` alone names it.\n- The `Sheet` moves the screen-reader cursor to its title when it shows, and leaves the return to its host because\n  React Native cannot read where the cursor was. This leaf is that host: each close advances a counter, and\n  `useScreenReaderFocusOnSignal` moves the cursor back to the trigger.\n- A host's focus request (`focusRequested`) moves the screen-reader cursor to the trigger through the same node\n  handle, and is acknowledged once taken.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -11375,9 +11138,9 @@
                             "name": "triggerText",
                             "type": "string",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "Words drawn beside the glyph, in the `attention` role: the trigger becomes a read row's attention line (\"⚠ Choose\na match\", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC\n2.5.3). Absent, the trigger is the 44 px glyph button.",
+                            "description": "Words drawn beside the glyph, in the `attention` role: the trigger is a read row's attention line (\"⚠ Choose a\nmatch\", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC\n2.5.3).",
                             "declaredIn": "packages/apps/commise/ui/src/popover/props.ts"
                         }
                     ],

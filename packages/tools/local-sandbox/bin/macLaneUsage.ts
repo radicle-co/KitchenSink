@@ -1,8 +1,8 @@
 /**
  * `npm run maestro:macUsage --workspace=@kitchensink/local-sandbox` — watches the Mac while iOS lanes run and, on
  * SIGINT or SIGTERM, prints each lane's mean CPUs and peak memory. Start it next to `test:e2e:ios` (it needs the lane
- * Simulators to exist, so start it once the first lane has booted). The numbers feed `IPHONE_LANE_COST` and `IPAD_LANE_COST` in
- * `src/maestroLanes/iosAdapter.ts`.
+ * Simulators to exist, so start it once the first lane has booted). The numbers feed `iphone` and `ipad` in
+ * `packages/tools/e2ePlan/src/laneCosts.json`; record the measurement beside them in `laneCosts.ts`.
  *
  * It reads and prints only. Every `ps` sample is also appended to `<state>/macLaneUsage.tsv`.
  *

@@ -19,14 +19,11 @@
  * Storage, locks and ids are resolved at first use, so a server render that imports this touches nothing.
  */
 import { endDeviceSession as endStoredDeviceSession } from '@commise/features-recipes';
-import { createTabCopyProbe, createWebStorageStore, type LockManagerLike } from '@kitchensink/sync';
+import { createTabCopyProbe, createWebStorageStore } from '@kitchensink/sync';
 
+import { browserLocks } from '@/components/recipes/browserLocks';
+import { webKeptSessionStore } from '@/components/recipes/keptSessionStore';
 import { webRecentSearchStore } from '@/lib/recentSearchStore';
-
-/** The browser's Web Locks, or `undefined` where the origin is not secure or the browser predates them. */
-function browserLocks(): LockManagerLike | undefined {
-    return typeof navigator !== 'undefined' && 'locks' in navigator ? navigator.locks : undefined;
-}
 
 /** The web's one store for the cook's editor work: the tab's session storage. */
 export const webDeviceStore = createWebStorageStore(() => window.sessionStorage, {
@@ -38,12 +35,13 @@ export const webDeviceStore = createWebStorageStore(() => window.sessionStorage,
 });
 
 /**
- * End a cook's device session in this tab: their drafts, their outbox, both quarantines, every cook mark, and their
+ * End a cook's device session in this tab: their drafts, their outbox, both quarantines, every cook mark, their kept
+ * cooking session (`localStorage`, shared across tabs), and their
  * recent searches (kept in `localStorage`, by owner ruling 2026-10-17 in `docs/design/uiOverhaul/ownerDecisions.md`).
  *
  * @param subject - The cook who was signed in (Clerk `userId`), or `undefined` when nobody was.
  * @sideEffect Removes keys from session storage, through each store's own writer.
  */
 export function endDeviceSession(subject: string | undefined): Promise<void> {
-    return endStoredDeviceSession(webDeviceStore, subject, webRecentSearchStore);
+    return endStoredDeviceSession(webDeviceStore, subject, webRecentSearchStore, webKeptSessionStore);
 }

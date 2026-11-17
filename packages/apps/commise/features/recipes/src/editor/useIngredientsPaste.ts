@@ -31,6 +31,7 @@ import type { SourceLinkExtraction } from '@kitchensink/recipe-core';
 
 import type { DraftKeep } from './saveStatus.js';
 import { useAppFocused } from '../hooks/useAppFocused.js';
+import { systemNow, useDayClock } from './useDayClock.js';
 import { usePasteAnnouncement } from './usePasteAnnouncement.js';
 import { usePasteIntoIngredients } from './usePasteIntoIngredients.js';
 import { usePasteListSheet, type PasteListSheet } from './usePasteListSheet.js';
@@ -61,6 +62,8 @@ export interface UseIngredientsPasteOptions {
     readonly autoBind: boolean;
     /** A link line the pasted text carried (ADR-0089): it sets the recipe's Source rather than becoming an ingredient. */
     readonly onSource: (extraction: SourceLinkExtraction) => void;
+    /** The clock the daily limit's notice is read at; the device's when not given. */
+    readonly now?: () => Date;
 }
 
 /** What the publish action reads of the paste's lines that have no food yet. */
@@ -137,8 +140,10 @@ export function useIngredientsPaste(options: UseIngredientsPasteOptions): Ingred
         copy: { lineTooLong: m.pasteRefusalLineTooLong, tooManyLines: m.pasteRefusalTooManyLines },
         onSource: options.onSource,
     });
+    const now = useDayClock(options.now ?? systemNow);
     const presentation = usePasteMatchView({
         matching,
+        now,
         lineCount: options.lineKeys.length,
         keep: options.keep,
         quota: paste.quota,

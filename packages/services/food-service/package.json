@@ -41,6 +41,7 @@
         "@kitchensink/messaging": "*",
         "@kitchensink/metric-dimensions": "*",
         "@kitchensink/nest-error-envelope": "*",
+        "@kitchensink/nest-http-setup": "*",
         "@kitchensink/observability-scrubbers": "*",
         "@kitchensink/queue-check": "*",
         "@kitchensink/rds-iam-auth": "*",

@@ -9,3 +9,7 @@ export { useRecipeServiceClients } from './useRecipeServiceClients.js';
 export type { RecipeServiceClients, UseRecipeServiceClientsOptions } from './useRecipeServiceClients.js';
 export { RecipeServicesTree } from './RecipeServicesTree.js';
 export type { RecipeServicesTreeProps } from './RecipeServicesTree.js';
+export { createKeptSessionStore } from './kept/keptSessionStore.js';
+export type { KeptSessionStore, KeptSessionStoreDeps, KeptSnapshot } from './kept/keptSessionStore.js';
+export { KEPT_KEY_PREFIX } from './kept/keptRecord.js';
+export type { ExclusiveRunner, KeptPort, WriteOutcome } from './kept/keptPort.js';

@@ -147,7 +147,10 @@ describe('bootServiceApp', () => {
             booted = await bootServiceApp({
                 loadAppModule: () => Promise.resolve({ AppModule: ProbeModule }),
                 doubles,
-                httpSetup: { nestOptions: { bodyParser: false }, configure: () => undefined },
+                httpSetup: {
+                    nestOptions: (options) => ({ ...options, bodyParser: false }),
+                    configure: () => undefined,
+                },
             });
 
             await expect((await postJson(booted.baseUrl)).json()).resolves.toEqual({ body: null });
@@ -158,7 +161,7 @@ describe('bootServiceApp', () => {
                 loadAppModule: () => Promise.resolve({ AppModule: ProbeModule }),
                 doubles,
                 httpSetup: {
-                    nestOptions: { bodyParser: false },
+                    nestOptions: (options) => ({ ...options, bodyParser: false }),
                     configure: (app) => {
                         app.use(
                             (_req: unknown, res: { setHeader: (k: string, v: string) => void }, next: () => void) => {

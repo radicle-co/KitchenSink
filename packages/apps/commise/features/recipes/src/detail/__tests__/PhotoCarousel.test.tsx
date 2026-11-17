@@ -104,7 +104,7 @@ describe('PhotoCarousel (web) — touch targets (44px floor)', () => {
 
         // `size-10` (40px) misses the floor; the overlay control is touch-only chrome so it stays 44px
         // everywhere (there is no desktop-density reason to shrink it).
-        expect(close.className).toContain('size-11');
+        expect(close.className).toContain('size-[44px]');
         expect(close.className).not.toContain('size-10');
     });
 
@@ -119,7 +119,7 @@ describe('PhotoCarousel (web) — touch targets (44px floor)', () => {
 
         // The DOT stays visually 10px; the hit area around it is what grows — so the strip still reads as
         // dots while being tappable.
-        expect(dot.className).toContain('size-11');
+        expect(dot.className).toContain('size-[44px]');
         expect(dot.className).toContain('sm:size-4');
         expect(dot.querySelector('[class*="size-2.5"]')).not.toBeNull();
     });

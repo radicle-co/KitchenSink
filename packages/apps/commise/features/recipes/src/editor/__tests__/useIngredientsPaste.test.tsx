@@ -9,7 +9,7 @@
  * lines and the publish sheet its facts.
  */
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { makePasteIntoIngredients, makePasteMatching } from '../../__fixtures__/pasteMatching.js';
 import { makeIngredientRowEditor } from '../../__fixtures__/index.js';
@@ -53,6 +53,7 @@ const render = (
     initiallyOpen = false,
     hold: Hold = createHold(),
     matching: Partial<PasteMatching> = {},
+    now?: () => Date,
 ) => {
     doubles.paste = makePasteIntoIngredients({ sessionKey: 'job-1', ...over });
     doubles.matching = makePasteMatching(matching);
@@ -72,6 +73,7 @@ const render = (
                 keep: 'tabSession',
                 autoBind: true,
                 onSource: vi.fn(),
+                now,
             }),
         ),
     };
@@ -219,6 +221,80 @@ describe('useIngredientsPaste — what it hands the field group', () => {
             resetsAt: '2026-10-27T08:00:00.000Z',
         });
         expect(result.current.view.matching?.notice).toHaveProperty('timeZone');
+    });
+
+    it('reads the notice at the injected clock’s instant', () => {
+        const at = new Date('2026-10-26T14:00:00.000Z');
+        const { result } = render(
+            { quota: { resetsAt: '2026-10-27T08:00:00.000Z' } },
+            2,
+            false,
+            createHold(),
+            {},
+            () => at,
+        );
+
+        expect(result.current.view.matching?.notice).toMatchObject({ now: at.toISOString() });
+    });
+
+    describe('a notice left on screen past midnight', () => {
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        // ⛔ "Tomorrow" becomes "today" at the cook's midnight, with no render to prompt it: the hook reads the clock again
+        // there, so a notice left open overnight does not keep yesterday's word.
+        it('⛔ reads the clock again just after the device’s midnight, and not before', () => {
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+            vi.setSystemTime(new Date(2026, 9, 26, 23, 59, 0));
+            const { result } = render(
+                { quota: { resetsAt: '2026-10-28T08:00:00.000Z' } },
+                2,
+                false,
+                createHold(),
+                {},
+                () => new Date(),
+            );
+
+            const nowOf = (): string | undefined => {
+                const notice = result.current.view.matching?.notice;
+
+                return notice?.kind === 'quota' ? notice.now : undefined;
+            };
+
+            act(() => {
+                vi.advanceTimersByTime(59_000);
+            });
+            expect(nowOf()).toBe(new Date(2026, 9, 26, 23, 59, 0).toISOString());
+
+            act(() => {
+                vi.advanceTimersByTime(2_000);
+            });
+            expect(new Date(nowOf() ?? '').getDate()).toBe(27);
+        });
+
+        it('⛔ clears the midnight timer on unmount, so the clock is not read again', () => {
+            vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+            vi.setSystemTime(new Date(2026, 9, 26, 23, 59, 0));
+            const clock = vi.fn(() => new Date());
+            const { unmount } = render(
+                { quota: { resetsAt: '2026-10-28T08:00:00.000Z' } },
+                2,
+                false,
+                createHold(),
+                {},
+                clock,
+            );
+            const readsWhileMounted = clock.mock.calls.length;
+
+            unmount();
+            act(() => {
+                vi.advanceTimersByTime(2 * 60_000);
+            });
+
+            expect(vi.getTimerCount()).toBe(0);
+            expect(clock).toHaveBeenCalledTimes(readsWhileMounted);
+        });
     });
 
     it('offline with lines on the list shows the offline notice naming where the draft is kept', () => {

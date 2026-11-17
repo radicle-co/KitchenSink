@@ -23,6 +23,7 @@ import path from 'node:path';
 import { splitColorOpacitySuffix } from '@tamagui/style-grammar/runtime';
 import ts from 'typescript';
 
+import { splitToken } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
 import type { StyledExportsOf } from './tamaguiElements.js';
 import { styleSiteFindings } from './tamaguiStyleSites.js';
@@ -124,9 +125,8 @@ export const realUnthemedColourNames = (): ReadonlySet<string> =>
 
 /** Whether one class token is a colour utility over an unthemed colour, or a `dark:` variant. */
 function classFinding(token: string, names: ReadonlySet<string>): ColourFinding | null {
-    const parts = token.split(':');
-    const variants = parts.slice(0, -1);
-    const utility = (parts.at(-1) ?? '').replace(/^!|!$/gu, '').replace(/^-/u, '');
+    const { variants, base } = splitToken(token);
+    const utility = base.replace(/^-/u, '');
 
     if (variants.includes('dark')) {
         return { kind: 'dark-variant', text: token };

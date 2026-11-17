@@ -550,6 +550,11 @@ Full matrix + enforcement: **`docs/CODING_STANDARDS.md §7.1`**.
 
 ## Active Spec Kit features
 
+- **003B Public Versions**: `specs/003B-public-rewrite/`. Planned, not built. It sits behind one per-market switch with
+  no test door: do not build a second step-writing engine (ADR-0093, `agentNotes.md`).
+- **027 Flow Steps**: `specs/027-rewritten-steps/`. Planned, not built. A replace never changes the rights label, and
+  only 003B's Publish makes an imported recipe public (`agentNotes.md`).
+
 **003A Signed-out Reading** — plan: [`specs/003A-signed-out-reading/plan.md`](specs/003A-signed-out-reading/plan.md)
 
 The first delivery slice of 021: one public recipe, read signed out, on web and native. Planned, not built. Three rules

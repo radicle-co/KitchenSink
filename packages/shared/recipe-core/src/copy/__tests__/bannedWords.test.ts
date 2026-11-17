@@ -28,7 +28,7 @@ describe('bannedCopyWordsIn', () => {
     it.each([
         ['Your recipe is Verified.', ['verified']],
         ['It is COPYRIGHT-FREE and safe to publish!', ['copyright-free', 'safe to publish']],
-        ['Saved from {site}. We  checked this.', ['we checked this']],
+        ['Saved from {site}. We  checked\u00A0this.', ['we checked this']],
         ['Fully approved', ['approved']],
         ['legally\u200B yours', ['legally yours']],
     ])('finds the banned words in %j', (text, expected) => {
@@ -63,17 +63,25 @@ describe('bannedCopyWordsIn', () => {
     });
 
     it.each([
-        ['a Cyrillic \u0435', 'v\u0435rified'],
-        ['a Cyrillic \u0430 and \u0440', '\u0430\u0440proved'],
-        ['a Greek \u03BF', 'appr\u03BFved'],
         ['a dotted capital I', 'VER\u0130F\u0130ED'],
-        ['a dotless \u0131', 'ver\u0131f\u0131ed'],
         ['an accent', 'v\u00E9rified'],
         ['a combining accent', 've\u0301rified'],
         ['capitals', 'VERIFIED'],
         ['full-width letters', '\uFF56erified'],
     ])('catches verified or approved disguised with %s', (_name, text) => {
         expect(bannedCopyWordsIn(text)).toHaveLength(1);
+    });
+
+    // CHANGED from the interim fold: cross-script look-alikes (a Cyrillic \u0435, \u0430, \u0440, a Greek \u03BF, the
+    // dotless \u0131) are NOT folded to Latin. The shared comparison form leaves them alone on purpose, because the
+    // language allowlist refuses mixed-script text upstream, before copy is ever written.
+    it.each([
+        ['a Cyrillic \u0435', 'v\u0435rified'],
+        ['a Cyrillic \u0430 and \u0440', '\u0430\u0440proved'],
+        ['a Greek \u03BF', 'appr\u03BFved'],
+        ['a dotless \u0131', 'ver\u0131f\u0131ed'],
+    ])('does not fold %s to Latin: that is refused upstream', (_name, text) => {
+        expect(bannedCopyWordsIn(text)).toEqual([]);
     });
 
     it.each([

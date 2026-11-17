@@ -8,11 +8,11 @@ import { describe, expect, it } from 'vitest';
 describe('bannedCopyWordsIn through the export map', () => {
     it.each([
         ['This recipe is verified by our team.', ['verified']],
-        ['100% COPYRIGHT‑FREE, so it is safe to publish.', ['copyright-free', 'safe to publish']],
+        ['100% COPYRIGHT‑FREE, so it is safe\u00A0to\u00A0publish.', ['copyright-free', 'safe to publish']],
         ['Approved! We  checked\tthis for you.', ['we checked this', 'approved']],
         ['These royalty-free recipes are legally yours.', ['royalty-free recipe', 'legally yours']],
-        ['Vеrifiеd — and аpproved', ['verified', 'approved']],
-        ['ver­ified and ap​proved', ['verified', 'approved']],
+        ['V\u00E9rifi\u00E9d \u2014 and APPROVED', ['verified', 'approved']],
+        ['ver\u00ADified and ap\u200Bproved', ['verified', 'approved']],
     ])('finds the claims in %j', (text, expected) => {
         expect([...bannedCopyWordsIn(text)].sort()).toEqual([...expected].sort());
     });

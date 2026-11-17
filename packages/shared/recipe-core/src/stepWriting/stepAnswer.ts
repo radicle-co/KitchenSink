@@ -35,7 +35,9 @@ const PLAIN_PROSE = /^[\p{L}\p{M}\p{N} .,;:!?'’"“”()\-–—/%°&+。、�
 export const MAX_REWRITTEN_STEP_CHARS = 2_000;
 
 const stepSchema = z.strictObject({
-    text: z.string().refine((text) => text.trim() !== '' && [...text].length <= MAX_REWRITTEN_STEP_CHARS),
+    text: z
+        .string()
+        .refine((text) => withoutJoiners(text).trim() !== '' && [...text].length <= MAX_REWRITTEN_STEP_CHARS),
     covers: z.array(z.number().int().nonnegative()).min(1),
 });
 

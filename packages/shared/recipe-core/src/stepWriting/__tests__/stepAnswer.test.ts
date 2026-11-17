@@ -56,6 +56,8 @@ describe('parseStepAnswer, unreadable', () => {
         ['a step that is a string', answer(['Melt the butter.'])],
         ['a step with no text', answer([{ covers: [0] }])],
         ['a step with blank text', answer([{ text: '   ', covers: [0] }])],
+        ['a step of spaces and a zero-width non-joiner', answer([{ text: ' \u200C ', covers: [0] }])],
+        ['a step of only joiners', answer([{ text: '\u200C\u200D', covers: [0] }])],
         ['a step with no covers', answer([{ text: 'Melt.' }])],
         ['a step that covers nothing', answer([{ text: 'Melt.', covers: [] }])],
         ['a covers entry that is a string', answer([{ text: 'Melt.', covers: ['0'] }])],

@@ -27,6 +27,9 @@ const CJK_CHARACTER = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{S
 /** Abbreviations whose dots are not a domain, when nothing word-like follows. */
 const ABBREVIATION = /\b(?:e\.g|i\.e|a\.m|p\.m)\.(?![\p{L}\p{N}])/giu;
 
+/** Tab, line feed and carriage return: URL parsers drop them, so `java\tscript:` is still a scheme. */
+const LINE_BREAKS = /[\t\n\r]/gu;
+
 /** A URL scheme and its colon. */
 const SCHEME = /\b(?:javascript|data|vbscript|file|https?|ftp|mailto|blob|tel|sms):/iu;
 
@@ -61,7 +64,7 @@ function foldDisguisedDots(text: string): string {
 export function looksLikeAddress(text: string): boolean {
     const folded = foldDisguisedDots(text.normalize('NFKC').replace(DEFAULT_IGNORABLE, '')).replace(ABBREVIATION, ' ');
 
-    return SCHEME.test(folded) || ADDRESS.test(folded);
+    return SCHEME.test(folded.replace(LINE_BREAKS, '')) || ADDRESS.test(folded);
 }
 
 /**

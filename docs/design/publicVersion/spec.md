@@ -371,7 +371,7 @@ Slot line on Free: `private.hint`. Pro: none.
 | State                        | Copy and keys                     | Actions                                                                  |
 | ---------------------------- | --------------------------------- | ------------------------------------------------------------------------ |
 | Wording too close            | `blocked.body`                    | `flag.rewrite`, `review.notNow`                                          |
-| Rewrite needed               | `rewriteNeeded.body` (new, §7.2)  | `blocked.rewrite` ("Write it again"), `review.notNow`                    |
+| Rewrite needed               | `rewriteNeeded.body` (new, §7.2)  | `flag.rewrite` ("Write it again"), `review.notNow`                       |
 | Failed, For everyone         | `failed.title`, `failed.body`     | reuse `importMessages.wizard.retry`, `button.private`. No slot: dead end |
 | Failed, Both                 | `failed.title`, `failed.bodyBoth` | reuse `importMessages.wizard.retry`, "Done" (`failed.done`, new)         |
 | Budget spent during the flow | `budget.line`                     | `button.private`. Both: "Done" (`failed.done`)                           |

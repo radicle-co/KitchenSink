@@ -5,7 +5,7 @@
 feature takes 003B. It is not part of `003-usda-food-data` or `003A`.)
 **Created**: 2026-11-15
 **Status**: Draft. Planned, not built. Each clarification is ruled where marked, and the rest are assumed and wait for the owner (see Clarifications,
-C-1 to C-27). It sits behind one per-market switch (FR-090).
+C-1 to C-29). It sits behind one per-market switch (FR-090).
 **Input**: Owner rulings, 2026-11-15. A cook's private copy of an imported recipe keeps the site's wording. The import
 process writes new steps for every public-facing recipe from a source that Commise cannot show as it is. The cook
 chooses Private, Public or Both at import. A paid site's recipe can go public only as a page Commise writes in full, under the paid-site rules. Facts cards are
@@ -656,3 +656,8 @@ Still owed:
   Owner to confirm.
 - **C-27. When is a page key released?** Assumed: on delete, a 020 rejection or a publisher
   opt-out, as FR-034a lists. Owner to confirm.
+- **C-28. A Free cook with no slots, where a public version already exists?** Open. The screen shows the
+  `publicExists.*` line and then the dead end, but the offer carries no slot fact. Owner to rule: the offer gains a slot
+  fact, or the server answers `deadEnd`.
+- **C-29. One key, two strings?** Open. `review.notNow` reads "Keep it just for me" on the public path and "Don’t
+  publish" on the Both path. Owner to rule: two keys, or one ICU `select`.

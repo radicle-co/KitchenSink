@@ -24,7 +24,7 @@ write, against a hashed fingerprint of the source taken at import. The source te
 **Language/Version**: TypeScript 5.x strict, Node 24.
 **Primary Dependencies**: NestJS 11 (recipe-service), Drizzle ORM, zod + `nestjs-zod`. AWS SDK v3 Bedrock Runtime
 `Converse` through `gatedConverse` (recipe-workers), and SQS. TanStack Query, Tamagui (mobile), Next.js 16 (web).
-**Storage**: recipe PostgreSQL 18. Two new tables, new columns on `recipes` and on the import item, widened CHECKs.
+**Storage**: recipe PostgreSQL 18. Two new tables, new columns on `recipes` and on the import item, widened CHECKs (the source type, the item choice, and the allowance channel `publicVersion`).
 Expand-only (ADR-0035), with the house two-step CHECK migration pair.
 **Testing**: vitest unit and integration (database mocked, DD12), LOCAL e2e for the migration and the publish
 transaction, worker tests, Playwright, Maestro, and k6 by hand.
@@ -203,4 +203,4 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 - **Shared pool.** The first operating-cost consumer that a cook's choice triggers. It competes with parse and match
   until ADR-0024 §6's split lands.
 - **Unmerged dependencies.** The evidence record of ADR-0089 §6 is not built. The source record shape can still move.
-- **Open owner rulings.** C-1 to C-27, and the conflicts list in the spec.
+- **Open owner rulings.** C-1 to C-29, and the conflicts list in the spec.

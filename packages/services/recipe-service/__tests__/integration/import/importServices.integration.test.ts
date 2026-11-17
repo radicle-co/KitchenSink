@@ -160,7 +160,7 @@ beforeEach(() => {
         }
     }
 
-    const header = makeHeader();
+    const header = makeHeader({ visibility: 'private' });
 
     imports.findHeader.mockResolvedValue(header);
     imports.countsByStage.mockResolvedValue({ total: 1, received: 0, parsing: 0, matched: 1, saved: 0, refused: 0 });

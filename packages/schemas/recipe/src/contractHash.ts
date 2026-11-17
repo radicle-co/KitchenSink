@@ -16,4 +16,4 @@
  * BOTH the service and the schema package, so a consumer pinned to an older schema package can
  * detect that the service it is talking to has moved ahead of it.
  */
-export const CONTRACT_HASH = '28f49d56215eb777df3c4bb326336d21c8a49dbbf01682ae7dd8942b78b3769e';
+export const CONTRACT_HASH = '74dee4ba05590dc709edaf2c8ba82ee152183c8c62ff8954b1fb92c812010f16';

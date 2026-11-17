@@ -13,10 +13,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 const OWNER = '01JCONCURRENT0OWNER0000AAA';
 
 const CREATE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Concurrent Base',
     servings: 2,
     prepTimeMinutes: 5,

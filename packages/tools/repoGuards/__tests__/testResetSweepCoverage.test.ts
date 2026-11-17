@@ -9,7 +9,8 @@
  * the other. Erasure is SCOPED and one-shot: it keeps truly-public recipes pseudonymized, and it deliberately retains
  * the two ingredient-correction tables by owner ruling (ADR-0027). The purge is TOTAL and repeatable: a test-pool slot
  * must start its next run from an empty world, so a test principal's truly-public recipe, its corrections and its
- * analytics all have to go. A user-bearing table added tomorrow therefore needs TWO decisions — how erasure treats it
+ * analytics all have to go. The one table it cannot empty is the append-only statement record, whose rows it relabels
+ * to an `erased_` token instead. A user-bearing table added tomorrow therefore needs TWO decisions — how erasure treats it
  * and how the purge treats it — and a gate that only asks the first lets the second default to "leave it", which is
  * exactly the leak the test pool exists to prevent: a stale fixture from run N silently shaping run N+1, or a test
  * principal's data surviving into a real user's search results.
@@ -40,6 +41,7 @@ import { describe, expect, it } from 'vitest';
 import {
     migrationsOf,
     readSource,
+    statementTextsIn,
     sweptTablesIn,
     userBearingTablesAfter,
     userBearingTablesEver,
@@ -98,7 +100,7 @@ const EXEMPT_FROM_TEST_RESET: ReadonlyMap<string, string> = new Map([
  * user-bearing table is forced to make BOTH decisions. Measured at 13 on 2026-09-13 (ADR-0040's 0044 and 0045 took
  * it from 11). Red on a legitimate addition is the accepted cost — raise it in that same change.
  */
-const EXPECTED_USER_BEARING_TABLES = 15;
+const EXPECTED_USER_BEARING_TABLES = 16;
 
 describe('test-principal purge coverage (ADR-0040)', () => {
     it('mutates every user-bearing table, or exempts it for a written reason', () => {
@@ -118,6 +120,20 @@ describe('test-principal purge coverage (ADR-0040)', () => {
         // ⛔ A table here is a test principal's data that a reset leaves behind with no decision about it. Add a
         // statement to the purge, or an exemption SAYING why a test-pool reset must leave it — never neither.
         expect(owned.filter((table) => !purged.has(table) && !EXEMPT_FROM_TEST_RESET.has(table))).toEqual([]);
+    });
+
+    it('⛔ relabels the append-only statement records and never deletes them', () => {
+        // `recipe_statement_attestations` is append-only: the trigger (0090) refuses every DELETE and admits a swap of
+        // `account_id` to an `erased_` token for a registered test principal whose reset is running. A purge that
+        // deleted the rows would fail at the database on its first run, and one that left them would keep a test
+        // principal's id in a table the reset claims to empty. Either way the gate above cannot tell, because both
+        // `UPDATE` and `DELETE FROM` count as "mutated".
+        const statements = statementTextsIn(readSource(PURGE_FILE), PURGE_FUNCTION).map((text) => text.trim());
+
+        expect(
+            statements.filter((text) => /^update recipe_statement_attestations\s+set account_id/i.test(text)),
+        ).toHaveLength(1);
+        expect(statements.filter((text) => /^delete from recipe_statement_attestations\b/i.test(text))).toEqual([]);
     });
 
     it('carries no exemption for a table that no longer bears a user column', () => {

@@ -24,7 +24,7 @@ import {
     varchar,
     type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import { RECIPE_SOURCE_KINDS } from '@kitchensink/recipe-core';
+import { RECIPE_SOURCE_KINDS, RECIPE_STATEMENT_KINDS, type RecipeStatementKind } from '@kitchensink/recipe-core';
 import type {
     RecipeDifficulty,
     RecipeMealType,
@@ -141,6 +141,11 @@ export const recipes = pgTable(
         // statement, which includes the curator's public-domain text. The vocabulary is recipe-core's, as the import
         // tables' is; `public_web` is only ever stored with `imported_public` and an address (CHECK below).
         sourceKind: text('source_kind').$type<RecipeSourceKind>(),
+        // What the cook STATED (0087): `authored` ("I wrote this") or `source` (a stated source, whichever `source_kind` says). NULL:
+        // no statement. recipe-core's vocabulary, as `recipe_import_items.statement_kind` uses; CHECKs below.
+        statementKind: text('statement_kind').$type<RecipeStatementKind>(),
+        // When the cook's client first said content was pasted (0087). Written with COALESCE(content_pasted_at, now()): never cleared.
+        contentPastedAt: timestamp('content_pasted_at', { withTimezone: true }),
         sourceUrl: text('source_url'),
         sourceAttribution: text('source_attribution'),
         clonedFromId: uuid('cloned_from_id').references((): AnyPgColumn => recipes.id),
@@ -229,6 +234,22 @@ export const recipes = pgTable(
                 OR (${table.sourceKind} = 'public_web' AND ${table.sourceType} = 'imported_public' AND ${table.sourceUrl} IS NOT NULL)
                 OR (${table.sourceKind} = 'book' AND ${table.sourceType} = 'imported_physical')
                 OR (${table.sourceKind} = 'paid_site' AND ${table.sourceType} = 'imported_paid')`,
+        ),
+        check('recipes_statement_kind_check', inArray(table.statementKind, [...RECIPE_STATEMENT_KINDS])),
+        // "I wrote this" belongs only to a recipe with no source of its own (0087).
+        check(
+            'recipes_statement_authored_is_own',
+            sql`${table.statementKind} IS DISTINCT FROM 'authored' OR (${table.sourceType} = 'user_created' AND ${table.sourceKind} IS NULL)`,
+        ),
+        // "From another person" is the same: it states no source, so it belongs to a cook-written recipe with no kind (0087).
+        check(
+            'recipes_statement_from_person_is_own',
+            sql`${table.statementKind} IS DISTINCT FROM 'fromPerson' OR (${table.sourceType} = 'user_created' AND ${table.sourceKind} IS NULL)`,
+        ),
+        // A stated source kind is paired with the `source` statement, and only it (0087).
+        check(
+            'recipes_statement_kind_pairs_source_kind',
+            sql`(${table.sourceKind} IS NULL) = (${table.statementKind} IS DISTINCT FROM 'source')`,
         ),
         index('idx_recipes_search_vector').using('gin', table.searchVector),
         // T118: partial owner index — every read path filters `deleted_at IS NULL`, so the plain index is

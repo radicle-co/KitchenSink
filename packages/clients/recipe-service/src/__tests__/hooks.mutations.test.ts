@@ -575,8 +575,21 @@ describe('useSetRecipeVisibility', () => {
         act(() => result.current.mutate({ id: PROBE_RECIPE_ID, visibility: 'public' }));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(setRecipeVisibility).toHaveBeenCalledWith(PROBE_RECIPE_ID, 'public');
+        expect(setRecipeVisibility).toHaveBeenCalledWith(PROBE_RECIPE_ID, 'public', undefined);
         expect(result.current.data).toEqual(updated);
+    });
+
+    it('passes the extras its caller gives through to the client', async () => {
+        const { result, client } = renderMutation(() => useSetRecipeVisibility());
+        const setRecipeVisibility = vi
+            .spyOn(client, 'setRecipeVisibility')
+            .mockResolvedValue(makeRecipeDetail({ id: PROBE_RECIPE_ID, visibility: 'public' }));
+        const extras = { publicConfirmation: { version: 'publicConfirm.v1', locale: 'en' } } as const;
+
+        act(() => result.current.mutate({ id: PROBE_RECIPE_ID, visibility: 'public', extras }));
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+        expect(setRecipeVisibility).toHaveBeenLastCalledWith(PROBE_RECIPE_ID, 'public', extras);
     });
 
     it('invalidates every recipe list, search, and every collection — but NOT the detail or the version list (DA3)', async () => {

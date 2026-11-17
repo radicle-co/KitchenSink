@@ -19,9 +19,15 @@ import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 import type { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { recipeDetailSchema } from '@kitchensink/schema-recipe';
 
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
+import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import type { RecipeRow } from '../../../src/database/schema/index.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
@@ -175,6 +181,13 @@ beforeAll(async () => {
             { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
             // The byline read model (plan 2026-10-15-010 D8): a cook it has never seen, so writes use the claims.
             { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
+            {
+                provide: RecipeSourceEvidenceDal,
+                useValue: {
+                    insert: async () => undefined,
+                    list: async () => [],
+                },
+            },
         ],
     });
 });
@@ -209,6 +222,7 @@ describe('a never-published draft records no version (ADR-0058, integration)', (
         const published = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 2,
             status: 'published',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(published.status).toBe(200);
@@ -229,6 +243,7 @@ describe('a never-published draft records no version (ADR-0058, integration)', (
         const created = await call('POST', '/api/v1/recipes', {
             ...DRAFT_BODY,
             status: undefined,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             cuisine: 'Southern',
             ingredients: [{ ingredientId: BRISKET.lookupId, quantity: { kind: 'exact', value: 1 }, unit: 'g' }],
             steps: [{ instruction: 'Cook.' }],
@@ -248,7 +263,11 @@ describe('a never-published draft records no version (ADR-0058, integration)', (
         const created = recipeDetailSchema.parse(await (await call('POST', '/api/v1/recipes', DRAFT_BODY)).json());
         const published = recipeDetailSchema.parse(
             await (
-                await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, status: 'published' })
+                await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+                    expectedVersion: 1,
+                    status: 'published',
+                    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+                })
             ).json(),
         );
         const redrafted = recipeDetailSchema.parse(

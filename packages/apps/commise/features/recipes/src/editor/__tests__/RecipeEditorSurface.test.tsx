@@ -10,6 +10,7 @@
  * features alone (E1, plan 2026-10-14-009 D14); the app's close and "My recipes" hand-offs are the ones the view calls.
  * Real hooks over the type-checked fake client, as `useRecipeEditorSession.test.tsx` has them.
  */
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { LocaleProvider } from '@commise/i18n/react';
 import { makeQuietFoodClient } from '@commise/test-utils';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
@@ -147,7 +148,9 @@ function mount(over: Partial<HarnessProps> = {}, client = createFakeRecipeServic
             <QueryClientProvider client={queryClient}>
                 <RecipeServiceProvider client={client}>
                     <FoodServiceProvider client={makeQuietFoodClient()} subject="user_cook">
-                        <Harness {...props} />
+                        <SnackbarHost>
+                            <Harness {...props} />
+                        </SnackbarHost>
                     </FoodServiceProvider>
                 </RecipeServiceProvider>
             </QueryClientProvider>
@@ -795,18 +798,21 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         const publicCard = within(section()).getByRole('radio', { name: /^public/i });
 
         expect(publicCard.getAttribute('aria-disabled')).toBe('true');
-        expect(within(section()).getByText(/copied from a web page, and its author owns the writing/u)).toBeTruthy();
+        expect(within(section()).getByText('This recipe was saved with a source, so it stays private.')).toBeTruthy();
         expect(within(section()).getByRole<HTMLInputElement>('radio', { name: /^private/i }).checked).toBe(true);
     });
 
-    it('Remove puts the cook’s own choice back and returns focus to the empty field', async () => {
+    // REWRITTEN for the designer's approval fixes: Remove used to land the cook in the emptied link field, which raised the
+    // keyboard over the sheet's note. The field is left alone, and focus goes to "Who can see it" so the note is read next.
+    it('Remove puts the cook’s own choice back and moves focus to "Who can see it", not to the emptied field', async () => {
         mount({ seed: { recipe: neverPublished() } });
         const user = await pasteSteps(`Boil the water.\n${LINK}`);
 
         await user.click(screen.getByRole('button', { name: 'Remove source' }));
 
         expect(sourceField().value).toBe('');
-        expect(document.activeElement).toBe(sourceField());
+        expect(document.activeElement).not.toBe(sourceField());
+        expect(document.activeElement).toBe(within(section()).getByRole('group', { name: 'Who can see it' }));
         expect(
             within(section())
                 .getByRole('radio', { name: /^public/i })
@@ -865,7 +871,8 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         expect(within(dialog).getByRole('button', { name: 'Publish as public' })).toBeTruthy();
     });
 
-    it('a published web copy: the Source is read only, with the site as a link', () => {
+    // Rewritten by the 2026-11-15 owner ruling: a published web copy used to be read only. The first publish locks nothing.
+    it('a published web copy: the Source is still a field the cook can change', () => {
         mount({
             seed: {
                 recipe: makeRecipeDetail({
@@ -881,11 +888,32 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
             },
         });
 
+        expect(within(section()).getByRole('textbox', { name: 'Source' })).toBeTruthy();
+        expect(within(section()).queryByText('The source of this recipe can’t be changed.')).toBeNull();
+    });
+
+    it('a published clone that inherited a web copy: the Source is read only, with the site as a link', () => {
+        mount({
+            seed: {
+                recipe: makeRecipeDetail({
+                    id: 'rec_1',
+                    status: RecipeStatus.PUBLISHED,
+                    firstPublishedAt: '2026-11-01T00:00:00.000Z',
+                    clonedFromId: '00000000-0000-4000-8000-0000000000c1',
+                    visibility: RecipeVisibility.PRIVATE,
+                    sourceType: 'imported_public',
+                    sourceKind: 'public_web',
+                    sourceUrl: LINK,
+                    cuisine: 'Italian',
+                }),
+            },
+        });
+
         expect(within(section()).queryByRole('textbox', { name: 'Source' })).toBeNull();
         expect(
             within(section()).getByRole('link', { name: 'allrecipes.com (opens in a new tab)' }).getAttribute('href'),
         ).toBe(LINK);
-        expect(within(section()).getByText('The source can’t be changed after publishing.')).toBeTruthy();
+        expect(within(section()).getByText('The source of this recipe can’t be changed.')).toBeTruthy();
     });
     const stepsSection = () =>
         screen.getByRole('heading', { level: 2, name: 'Steps' }).closest('section') as HTMLElement;
@@ -906,13 +934,15 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         expect(document.activeElement).toBe(within(stepsSection()).getByRole('button', { name: 'Paste steps' }));
     });
 
-    it('the row’s own Remove still lands the cook in the empty Source field', async () => {
+    // REWRITTEN for the designer's approval fixes: it said the cook lands in the empty Source field.
+    it('the row’s own Remove lands the cook on "Who can see it", with the held note beside it, and never in the Source field', async () => {
         mount({ seed: { recipe: neverPublished() } });
         const user = await pasteSteps(`Boil the water.\n${LINK}`);
 
         await user.click(within(section()).getByRole('button', { name: 'Remove source' }));
 
-        expect(document.activeElement).toBe(sourceField());
+        expect(document.activeElement).toBe(within(section()).getByRole('group', { name: 'Who can see it' }));
+        expect(document.activeElement).not.toBe(sourceField());
     });
 
     it('a locked source says so under Paste steps when a link is pasted, and offers no Remove', async () => {
@@ -922,6 +952,7 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
                     id: 'rec_1',
                     status: RecipeStatus.PUBLISHED,
                     firstPublishedAt: '2026-11-01T00:00:00.000Z',
+                    clonedFromId: '00000000-0000-4000-8000-0000000000c1',
                     visibility: RecipeVisibility.PRIVATE,
                     sourceType: 'imported_public',
                     sourceKind: 'public_web',
@@ -934,9 +965,7 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         await pasteSteps(`Boil the water.\nhttps://www.bbcgoodfood.com/recipes/soup`);
 
         expect(
-            within(stepsSection()).getByText(
-                'Left out the link. A published recipe’s source can’t be added or changed.',
-            ),
+            within(stepsSection()).getByText('Left out the link. This recipe’s source can’t be added or changed.'),
         ).toBeTruthy();
         expect(within(stepsSection()).queryByRole('button', { name: 'Remove' })).toBeNull();
     });
@@ -953,5 +982,58 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         await user.tab();
 
         expect(within(section()).getByText(/That isn’t a web link/u)).toBeTruthy();
+    });
+});
+
+/**
+ * ADR-0095: the editor's source question. The sheet is a render of what the editor stands (`statementAsk`), its answers go
+ * back through the editor, and the passive line is drawn exactly when the editor says it is (`confirmLineShown`).
+ */
+describe('RecipeEditorSurface — the source question (ADR-0095)', () => {
+    const LINE =
+        'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.';
+
+    it('shows no sheet while no ask stands', () => {
+        mount();
+
+        expect(screen.queryByRole('dialog', { name: 'Where is this recipe from?' })).toBeNull();
+    });
+
+    it('opens the sheet with the five editor answers while the editor asks', async () => {
+        mount({ editorOver: { statementAsk: true } });
+
+        const sheet = await screen.findByRole('dialog', { name: 'Where is this recipe from?' });
+
+        expect(within(sheet).getAllByRole('radio')).toHaveLength(5);
+    });
+
+    it('Confirm hands the editor the answer, and Close dismisses without answering', async () => {
+        const user = userEvent.setup();
+        const answerStatement = vi.fn();
+        const dismissStatement = vi.fn();
+        mount({ editorOver: { statementAsk: true, answerStatement, dismissStatement } });
+
+        const sheet = await screen.findByRole('dialog', { name: 'Where is this recipe from?' });
+        await user.click(within(sheet).getByRole('radio', { name: /I wrote this|my own/iu }));
+        await user.click(within(sheet).getByRole('button', { name: 'Publish' }));
+
+        expect(answerStatement).toHaveBeenCalledWith(
+            expect.objectContaining({ statement: expect.objectContaining({ kind: 'authored' }) }),
+        );
+
+        await user.click(within(sheet).getByRole('button', { name: 'Close' }));
+
+        expect(dismissStatement).toHaveBeenCalledTimes(1);
+    });
+
+    it('draws the passive line only when the editor says it is shown', () => {
+        const { unmount } = mount({ editorOver: { confirmLineShown: true } });
+
+        expect(screen.getByText(LINE)).toBeTruthy();
+
+        unmount();
+        mount({ editorOver: { confirmLineShown: false } });
+
+        expect(screen.queryByText(LINE)).toBeNull();
     });
 });

@@ -307,6 +307,8 @@ export interface EditorMessages {
         /** `{site}` is the Source that was kept. */
         readonly keptExisting: string;
         readonly remove: string;
+        /** Said politely when a source the server holds is taken off (ADR-0095). */
+        readonly removed: string;
         readonly locked: string;
         /** The paste note when the source is locked and a pasted link was left out. */
         readonly lockedLeftOut: string;
@@ -347,8 +349,11 @@ export interface EditorMessages {
          * card's accessible description. The same words the import statement gives for the same fact.
          */
         readonly publicRefused: string;
-        /** The same under the Public card of a recipe copied from a web page, whose author owns the writing (ADR-0089). */
-        readonly publicRefusedWebSource: string;
+        /**
+         * Under the Public card of a recipe a source holds out of Public (a web copy, and a recorded source after the cook
+         * removes it), and on the recipe page when the server holds it so (ADR-0095): the ONE key for every one of them.
+         */
+        readonly publicHeldBySource: string;
         /** A downgraded cook holds more private recipes than slots (`{count}`, `{total}` are the server's numbers). */
         readonly overLimit: string;
         /** The link under `overLimit`, where paid features are shown: opens the Premium sheet. */
@@ -619,8 +624,9 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             ownSiteLeftOut: 'Left out a Commise link. It isn’t a source.',
             keptExisting: 'Kept {site} as the source. The other link was left out.',
             remove: 'Remove source',
-            locked: 'The source can’t be changed after publishing.',
-            lockedLeftOut: 'Left out the link. A published recipe’s source can’t be added or changed.',
+            removed: 'Source removed.',
+            locked: 'The source of this recipe can’t be changed.',
+            lockedLeftOut: 'Left out the link. This recipe’s source can’t be added or changed.',
             linkOnly:
                 'That’s only a link. Paste the recipe’s text too. You can put the link in Source, under Photos & publish.',
             openLinkWeb: '{site} (opens in a new tab)',
@@ -640,8 +646,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             slotsLoading: 'Checking your private slots…',
             slotsDraft: 'A private draft uses no slot. Publishing it uses one.',
             publicRefused: 'Not for this recipe. Its source is a book or a paid site, not a public web page.',
-            publicRefusedWebSource:
-                'Not for this recipe. It’s copied from a web page, and its author owns the writing.',
+            publicHeldBySource: 'This recipe was saved with a source, so it stays private.',
             overLimit:
                 'You have {count} private recipes and {total} private slots. They stay private. To make another recipe private, first bring your private recipes under {total}.',
             aboutPremium: 'About Pro',

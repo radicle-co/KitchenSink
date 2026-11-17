@@ -1219,7 +1219,12 @@ describe('RecipeDetailContainer', () => {
             await vi.waitFor(() => expect(row).toHaveAttribute('aria-checked', 'false'));
         });
 
-        it('makes a granted owner’s private recipe public from the menu, at once', async () => {
+        /**
+         * REWRITTEN for ADR-0095: Make public from the menu always opens the confirm first (it carries the passive
+         * "anyone can see it" line), and the confirm sends the public confirmation with the write. It no longer goes
+         * straight through.
+         */
+        it('makes a granted owner’s private recipe public from the menu, after the confirm', async () => {
             const user = userEvent.setup();
             useUserProfileMock.mockReturnValue(profileWith('granted'));
             const client = renderOwnerDetail(RecipeVisibility.PRIVATE, { slots: 'unlimited' });
@@ -1232,10 +1237,24 @@ describe('RecipeDetailContainer', () => {
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
 
-            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
-            expect(screen.queryByRole('alertdialog', { name: 'Make this recipe public?' })).toBeNull();
+            const dialog = await screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
+            expect(
+                within(dialog).getByText(
+                    'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.',
+                ),
+            ).toBeInTheDocument();
+            expect(setVisibilitySpy).not.toHaveBeenCalled();
+            await user.click(within(dialog).getByRole('button', { name: 'Make public' }));
+
+            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC, {
+                publicConfirmation: { version: 'publicConfirm.v1', locale: 'en' },
+            });
         });
 
+        /**
+         * REWRITTEN for ADR-0095: Make public always runs through the confirm, so a failed change is said inside the
+         * confirm, which stays up to try again (the header slot is for a failure with no dialog open).
+         */
         it('surfaces a failed visibility change rather than snapping back silently (B17)', async () => {
             const user = userEvent.setup();
             useUserProfileMock.mockReturnValue(profileWith('granted'));
@@ -1244,11 +1263,12 @@ describe('RecipeDetailContainer', () => {
 
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
+            const dialog = await screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
+            await user.click(within(dialog).getByRole('button', { name: 'Make public' }));
 
-            // §6.4: the generic failure shares the slot under the rating and visibility line, not the foot of the page.
             expect(
-                (await screen.findByText('We couldn’t change who can see this recipe. Try again.')).closest('header'),
-            ).not.toBeNull();
+                await within(dialog).findByText('We couldn’t change who can see this recipe. Try again.'),
+            ).toBeInTheDocument();
         });
 
         /**
@@ -1299,7 +1319,9 @@ describe('RecipeDetailContainer', () => {
 
                 await user.click(within(dialog).getByRole('button', { name: 'Make public' }));
 
-                expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
+                expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC, {
+                    publicConfirmation: { version: 'publicConfirm.v1', locale: 'en' },
+                });
                 await vi.waitFor(() =>
                     expect(screen.queryByRole('alertdialog', { name: 'Make this recipe public?' })).toBeNull(),
                 );
@@ -1309,7 +1331,8 @@ describe('RecipeDetailContainer', () => {
         // DELETED with ADR-0077 section 6: "an imported public-web recipe goes public at once because Private costs Pro" tested the
         // removed Pro rule. Its replacement is the third row of the table above (the slots words for that recipe).
 
-        it('Pro (no slots to free) makes a private recipe public at once', async () => {
+        /** REWRITTEN for ADR-0095: Pro has no slot to free, so the confirm carries only the passive line, then sends. */
+        it('Pro (no slots to free) is asked with the passive line, then makes the recipe public', async () => {
             const user = userEvent.setup();
             useUserProfileMock.mockReturnValue(profileWith('granted'));
             const client = renderOwnerDetail(RecipeVisibility.PRIVATE, { slots: 'unlimited' });
@@ -1322,8 +1345,13 @@ describe('RecipeDetailContainer', () => {
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
 
-            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
-            expect(screen.queryByRole('alertdialog')).toBeNull();
+            const dialog = await screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
+            expect(setVisibilitySpy).not.toHaveBeenCalled();
+            await user.click(within(dialog).getByRole('button', { name: 'Make public' }));
+
+            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC, {
+                publicConfirmation: { version: 'publicConfirm.v1', locale: 'en' },
+            });
         });
 
         it('Keep private closes the confirm and sends nothing', async () => {
@@ -1504,7 +1532,7 @@ describe('RecipeDetailContainer', () => {
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
-            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
+            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE, undefined);
             expect(screen.queryByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeNull();
         });
 
@@ -1519,7 +1547,7 @@ describe('RecipeDetailContainer', () => {
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
-            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
+            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE, undefined);
             expect(screen.queryByRole('dialog', { name: 'Keep more recipes private' })).toBeNull();
             expect(screen.queryByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeNull();
         });
@@ -1535,7 +1563,7 @@ describe('RecipeDetailContainer', () => {
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
-            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
+            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE, undefined);
             expect(
                 await screen.findByText('Not available. All 50 of your private slots are in use.'),
             ).toBeInTheDocument();
@@ -1553,7 +1581,7 @@ describe('RecipeDetailContainer', () => {
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
-            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
+            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE, undefined);
             expect(screen.queryByRole('dialog', { name: 'Keep more recipes private' })).toBeNull();
             expect(screen.queryByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeNull();
         });

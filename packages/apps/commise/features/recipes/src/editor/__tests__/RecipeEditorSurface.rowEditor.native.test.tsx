@@ -11,6 +11,7 @@
  * write's answer re-keys the draft's lines. It did not reproduce the device loss, so what closed the sheet there is
  * outside jsdom's reach (key events, focus).
  */
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { LocaleProvider } from '@commise/i18n/react';
 import { makeQuietFoodClient, dialogTitled, queryDialogTitled } from '@commise/test-utils';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
@@ -141,13 +142,15 @@ function mount(arrival?: EditorArrival) {
             <QueryClientProvider client={queryClient}>
                 <RecipeServiceProvider client={createFakeRecipeServiceClient()}>
                     <FoodServiceProvider client={makeQuietFoodClient()} subject="user_cook">
-                        <BackInterceptProvider onUnhandled={() => false}>
-                            <Harness
-                                seed={{ recipe: STORED }}
-                                port={port}
-                                {...(arrival === undefined ? {} : { arrival })}
-                            />
-                        </BackInterceptProvider>
+                        <SnackbarHost>
+                            <BackInterceptProvider onUnhandled={() => false}>
+                                <Harness
+                                    seed={{ recipe: STORED }}
+                                    port={port}
+                                    {...(arrival === undefined ? {} : { arrival })}
+                                />
+                            </BackInterceptProvider>
+                        </SnackbarHost>
                     </FoodServiceProvider>
                 </RecipeServiceProvider>
             </QueryClientProvider>

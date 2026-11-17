@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { recipeVisibilitySchema } from '@kitchensink/recipe-core';
 
+import type { SetRecipeVisibilityExtras } from '../client.js';
 import { recipeServiceKeys } from '../queries.js';
 import { useRecipeServiceClient } from './recipeServiceProvider.js';
 
@@ -56,7 +57,8 @@ export function useSetRecipeVisibility() {
 
     return useMutation({
         mutationKey: RECIPE_VISIBILITY_MUTATION_KEY,
-        mutationFn: (vars: RecipeVisibilityVariables) => client.setRecipeVisibility(vars.id, vars.visibility),
+        mutationFn: (vars: RecipeVisibilityVariables & { readonly extras?: SetRecipeVisibilityExtras }) =>
+            client.setRecipeVisibility(vars.id, vars.visibility, vars.extras),
         onSuccess: async (data, vars) => {
             // Cancel any in-flight `recipe(id)` GET before writing through, so a stale detail fetch settling
             // after this visibility change cannot clobber the fresh response (symmetric with the other hooks).

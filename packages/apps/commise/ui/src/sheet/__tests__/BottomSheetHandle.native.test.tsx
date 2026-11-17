@@ -9,7 +9,7 @@
  * The swipe hook is stood in for by one that hands the zone a DOM touch handler, so "inside the swipe zone" is
  * observable: a touch that starts on the handle must reach the same element the title row's touches reach.
  */
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { Text } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -38,11 +38,21 @@ import { BottomSheetPanel } from '../BottomSheetPanel.native.js';
 afterEach(() => {
     cleanup();
     swipe.touched.mockClear();
+    Reflect.deleteProperty(document.documentElement, 'clientWidth');
 });
 
-function renderPanel(): void {
+/** Resize the window: react-native-web's `Dimensions` reads the root element's width on a resize event. */
+function windowWidth(width: number): void {
+    Object.defineProperty(document.documentElement, 'clientWidth', { value: width, configurable: true });
+    act(() => {
+        window.dispatchEvent(new Event('resize'));
+    });
+}
+
+function renderPanel(presentation?: 'sheet' | 'dialog'): void {
     render(
         <BottomSheetPanel
+            {...(presentation === undefined ? {} : { presentation })}
             title="Add to plan"
             closeLabel="Close"
             size="content"
@@ -128,6 +138,34 @@ describe('BottomSheetPanel (native) — the grab handle', () => {
         renderPanel();
 
         expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy();
+    });
+});
+
+/**
+ * The designer's approval fixes: a centred dialog (a `dialog` presentation from the tablet width) has no bottom to drag from, so
+ * it draws no grab handle. This is the shared sheet's own rule, so it holds for every sheet that is centred.
+ */
+describe('BottomSheetPanel (native) — the handle on a centred dialog', () => {
+    it('draws no handle for a dialog on a tablet width', () => {
+        windowWidth(834);
+        renderPanel('dialog');
+
+        expect(() => handle()).toThrow('The sheet draws no grab handle.');
+        expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy();
+    });
+
+    it('keeps the handle for a dialog on a phone, where it is a bottom sheet', () => {
+        windowWidth(402);
+        renderPanel('dialog');
+
+        expect(handle()).toBeTruthy();
+    });
+
+    it('keeps the handle for a sheet that is not a dialog, even on a tablet width', () => {
+        windowWidth(834);
+        renderPanel('sheet');
+
+        expect(handle()).toBeTruthy();
     });
 });
 

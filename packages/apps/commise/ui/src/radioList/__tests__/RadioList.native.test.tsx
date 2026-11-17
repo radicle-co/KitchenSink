@@ -5,6 +5,7 @@ import { fireEvent } from '@testing-library/dom';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RadioList } from '../RadioList.native.js';
 import type { RadioListOption, RadioListProps } from '../props.js';
+import { dimmedOpacity } from '../../tokens/scale.js';
 import { touchFloor } from '../../layout/touchFloor.native.js';
 import { withPlatformOs } from '../../testing/platformOs.native.js';
 
@@ -46,6 +47,46 @@ describe('RadioList (native)', () => {
         expect(radios.map((radio) => radio.getAttribute('aria-checked'))).toEqual(['false', 'false', 'false']);
         expect(radios[0]?.textContent).toContain('Whole milk');
         expect(radios[2]?.textContent).toContain('No nutrition for this line');
+    });
+
+    it('disabled: every radio reports it, and a press changes nothing', () => {
+        const { onChange, group } = renderList({ disabled: true });
+
+        const radios = within(group).getAllByRole('radio');
+
+        expect(radios.every((radio) => radio.getAttribute('aria-disabled') === 'true')).toBe(true);
+        fireEvent.click(radios[0] as HTMLElement);
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    // The designer's approval fixes: a list that cannot be used LOOKS it, at the one dim every unavailable native control takes.
+    it('disabled: every row dims to the design system’s one disabled opacity, and an enabled list does not', () => {
+        const { group } = renderList({ disabled: true });
+
+        expect(
+            within(group)
+                .getAllByRole('radio')
+                .map((radio) => getComputedStyle(radio).opacity),
+        ).toEqual([String(dimmedOpacity), String(dimmedOpacity), String(dimmedOpacity)]);
+
+        cleanup();
+        const enabled = renderList();
+
+        expect(
+            within(enabled.group)
+                .getAllByRole('radio')
+                .some((radio) => getComputedStyle(radio).opacity === String(dimmedOpacity)),
+        ).toBe(false);
+    });
+
+    it('is not disabled by default', () => {
+        const { group } = renderList();
+
+        expect(
+            within(group)
+                .getAllByRole('radio')
+                .some((radio) => radio.getAttribute('aria-disabled') === 'true'),
+        ).toBe(false);
     });
 
     it('⛔ checks nothing with no value', () => {

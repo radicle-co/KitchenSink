@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 209,
-        "implementations": 353,
-        "props": 2440,
-        "documentedComponents": 209,
-        "implementationsWithModuleDoc": 353,
-        "implementationsWithComponentDoc": 242,
-        "documentedProps": 1868,
-        "classifiedComponents": 187,
-        "componentsWithPatternTag": 99,
-        "crossPlatformComponents": 144
+        "components": 210,
+        "implementations": 355,
+        "props": 2455,
+        "documentedComponents": 210,
+        "implementationsWithModuleDoc": 355,
+        "implementationsWithComponentDoc": 244,
+        "documentedProps": 1883,
+        "classifiedComponents": 188,
+        "componentsWithPatternTag": 100,
+        "crossPlatformComponents": 145
     },
     "components": [
         {
@@ -151,7 +151,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/actions/RecipeMakePublicDialog.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/actions",
-                    "moduleDoc": "@commise/features-recipes — \"Make this recipe public?\", the confirm a downgraded owner sees before a private\nrecipe goes public (UX SPECIFY 2026-10-15; plan 2026-10-14-009 Q5). One component for both platforms: the design\nsystem's `ConfirmDialog` resolves to its Radix leaf on web and its `DialogFrame` leaf on native.\n\nMaking a private recipe public is destructive in the design system's sense — anyone may save a copy of a public\nrecipe — so the primitive is used as it is (public is NOT final, owner ruling 2026-10-26, and the body never says it\nis): the danger-filled\n\"Make public\" against \"Keep private\", where focus opens. The body says the cost plainly, per reason\n(`makePublicConsequence`). ⛔ Nothing here sells: no Premium button and no third choice (DSA Art. 25; the\ndeceptive-pattern rule) — under `upsell` the body states the fact and the ⋯ menu's Make private is where Premium is.\n\nPresentational: props → JSX, no data, no mutation, no effect of its own.",
+                    "moduleDoc": "@commise/features-recipes — \"Make this recipe public?\", the confirm a downgraded owner sees before a private\nrecipe goes public (UX SPECIFY 2026-10-15; plan 2026-10-14-009 Q5). One component for both platforms: the design\nsystem's `ConfirmDialog` resolves to its Radix leaf on web and its `DialogFrame` leaf on native.\n\nMaking a private recipe public is destructive in the design system's sense — anyone may save a copy of a public\nrecipe — so the primitive is used as it is (public is NOT final, owner ruling 2026-10-26, and the body never says it\nis): the danger-filled\n\"Make public\" against \"Keep private\", where focus opens. The body says the cost plainly, per reason\n(`makePublicConsequence`). ⛔ Nothing here sells: no Premium button and no third choice (DSA Art. 25; the\ndeceptive-pattern rule) — under `upsell` the body states the fact and the ⋯ menu's Make private is where Premium is.\n\nADR-0095: the dialog always carries the passive line the confirmation records: as the body when there is nothing to free,\nelse as a second paragraph under the cost.\n\nPresentational: props → JSX, no data, no mutation, no effect of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -178,11 +178,14 @@
                         },
                         {
                             "name": "consequence",
-                            "type": "\"frees\"",
-                            "typeDetail": null,
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"frees\"",
+                                "\"confirm\""
+                            ],
                             "required": true,
                             "defaultValue": null,
-                            "description": "Why going public costs the cook something: the body's words (`recipeMakePublicConsequence`, never `none` here).",
+                            "description": "What the body says. `frees`: going public frees a private slot (`recipeMakePublicConsequence`), said first, then the\npassive line as a second paragraph. `confirm`: there is nothing to free, so the passive line itself is the body. The\ndialog always opens, because the line is what the cook confirms (ADR-0095).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
                         },
                         {
@@ -377,6 +380,200 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/actions/SourceStatementSheet",
+            "name": "SourceStatementSheet",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/actions",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the design-system `Sheet` — the ask's words and its one dismiss path on the house sheet",
+                "Adapter over the design-system `Sheet` — the platform expression of the web leaf"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "SourceStatementSheet",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/actions/SourceStatementSheet.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/actions",
+                    "moduleDoc": "@commise/features-recipes/actions — `SourceStatementSheet` (web): \"Where is this recipe from?\", asked before a\npasted recipe goes public (ADR-0095). A centred dialog (a bottom sheet on a narrow screen) on the design-system `Sheet`,\nwith the answers as a `RadioList`, the one field the chosen answer reveals, and a pinned footer saying what the answer does\nbefore the cook confirms.\n\nClose, Escape and the scrim all mean the dismiss (Keep as draft, or Cancel): nothing is sent. While the change is in flight\n(the recipe page) none of them does, and the list and the dismiss are disabled. The confirm is drawn as unavailable, and\nstays focusable, until an answer is chosen.\n\nPresentational: props in, markup out. What it draws is `sheetViewOf`'s, shared with the native leaf\n(`./SourceStatementSheet.native.tsx`); the state is `useStatementSheet`'s.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/actions — `SourceStatementSheet` (web): \"Where is this recipe from?\", asked before a"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `Sheet` — the ask's words and its one dismiss path on the house sheet"
+                        }
+                    ],
+                    "description": "The source-statement dialog.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "dispatch",
+                            "type": "(action: StatementSheetAction) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Report what the cook did.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        },
+                        {
+                            "name": "onConfirm",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook pressed the confirm.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        },
+                        {
+                            "name": "onDismiss",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Keep as draft, or Cancel: nothing is sent. EVERY way out calls this (Close, Escape, the scrim, a swipe, Android Back),\nand none does while the change is in flight.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the sheet is shown; closed, it renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        },
+                        {
+                            "name": "state",
+                            "type": "StatementSheetState",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the cook has done in this opening.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        },
+                        {
+                            "name": "surface",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"editor\"",
+                                "\"recipePage\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Where it is asked: the editor offers five answers and \"Publish\", the recipe page four and \"Make public\".",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "SourceStatementSheet",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/actions/SourceStatementSheet.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/actions",
+                    "moduleDoc": "@commise/features-recipes/actions — `SourceStatementSheet` (native): the React Native leaf of\n`./SourceStatementSheet.tsx`, on the same props, the same view model (`sheetViewOf`) and the same words. A bottom sheet on a\nphone and a centred dialog from the tablet width, on the design-system `Sheet`. Styled with Tamagui only (ADR-0080).\n\nWhat differs from web, and why:\n- The effect line is pinned in the footer, above the buttons, so it is read before the confirm at any text size; the body\n  scrolls and the title and footer stay put.\n- The two footer buttons are equal shares; their labels wrap and are never clipped.\n- React Native has no `aria-describedby`: a field's error is its accessibility hint (`error`) as well as drawn, and the message\n  above the field is an assertive live region, so it is spoken as it appears.\n- The platform back route is the dismiss, and does nothing while the change is in flight.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/actions — `SourceStatementSheet` (native): the React Native leaf of"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `Sheet` — the platform expression of the web leaf"
+                        }
+                    ],
+                    "description": "The source-statement sheet.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "dispatch",
+                            "type": "(action: StatementSheetAction) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Report what the cook did.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        },
+                        {
+                            "name": "onConfirm",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook pressed the confirm.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        },
+                        {
+                            "name": "onDismiss",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Keep as draft, or Cancel: nothing is sent. EVERY way out calls this (Close, Escape, the scrim, a swipe, Android Back),\nand none does while the change is in flight.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the sheet is shown; closed, it renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        },
+                        {
+                            "name": "state",
+                            "type": "StatementSheetState",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the cook has done in this opening.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        },
+                        {
+                            "name": "surface",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"editor\"",
+                                "\"recipePage\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Where it is asked: the editor offers five answers and \"Publish\", the recipe page four and \"Make public\".",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
                         "orchestration": false
                     }
                 }
@@ -8756,11 +8953,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes/detail — the three dialogs only a recipe's owner meets: the Premium sheet for a Private\nthey may not have, the make-public confirm, and the delete confirm. Written once; the leaves are platform pairs, so\nthe bundler resolves each to its web or native form. Each app places the result where its page wants it (web: beside\nthe page; mobile: in the view's scroll footer).\n\n⛔ None of them lives in the ⋯ menu: they are siblings of it, so they survive the menu closing while they are open.",
+                    "moduleDoc": "@commise/features-recipes/detail — the dialogs only a recipe's owner meets: the Premium sheet for a Private\nthey may not have, the make-public confirm, the source-statement sheet, and the delete confirm. Written once; the leaves are platform pairs, so\nthe bundler resolves each to its web or native form. Each app places the result where its page wants it (web: beside\nthe page; mobile: in the view's scroll footer).\n\n⛔ None of them lives in the ⋯ menu: they are siblings of it, so they survive the menu closing while they are open.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes/detail — the three dialogs only a recipe's owner meets: the Premium sheet for a Private"
+                            "text": "@commise/features-recipes/detail — the dialogs only a recipe's owner meets: the Premium sheet for a Private"
                         }
                     ],
                     "description": "The owner-only dialogs of the recipe page: presentational, props → JSX.",
@@ -8802,6 +8999,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx"
+                        },
+                        {
+                            "name": "statement",
+                            "type": "SourceStatementSheetProps",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "\"Where is this recipe from?\", asked before a recipe that owes a statement goes public (ADR-0095).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx"
                         },
                         {
@@ -13077,10 +13283,10 @@
                             "name": "role",
                             "type": "enum",
                             "typeDetail": [
-                                "\"none\"",
                                 "\"note\"",
                                 "\"grid\"",
                                 "\"row\"",
+                                "\"none\"",
                                 "\"status\"",
                                 "\"list\"",
                                 "\"group\"",
@@ -23089,7 +23295,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeSourceField.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `RecipeSourceField` (web): the Source row in Photos & publish (ADR-0089), the web\npage a recipe was copied from. A presentational render of the row's state (`sourceRowOf`): the editor's session owns the text, the\npaste's caption and the focus request, and this leaf holds none.\n\nA single-line URL field under its label, with the hint or status under it (the hint when empty, \"Copied from a public web\npage · {site}\" when filled) and a \"Remove source\" text button once there is text. A published recipe's source is locked\n(ADR-0023 section 1b): the site is then a link that opens in a new tab, with the address and the reason, and no field.\nThe status, the paste's caption and the error are all named by the field's `aria-describedby`.\n\nThe native leaf is `./RecipeSourceField.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeSourceField` (web): the Source row in Photos & publish (ADR-0089), the web\npage a recipe was copied from. A presentational render of the row's state (`sourceRowOf`): the editor's session owns the text, the\npaste's caption and the focus request, and this leaf holds none.\n\nA single-line URL field under its label, with the hint or status under it (the hint when empty, \"Copied from a public web\npage · {site}\" when filled) and a \"Remove source\" text button once there is text. A locked source\n(ADR-0023 section 1b): the site is then a link that opens in a new tab, with the address and the reason, and no field.\nThe status, the paste's caption and the error are all named by the field's `aria-describedby`.\n\nThe native leaf is `./RecipeSourceField.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -23106,30 +23312,12 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "focusRequested",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The field is asked for focus (after Remove): a level, which stands until {@link onFocusHandled}.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
-                        },
-                        {
                             "name": "onChange",
                             "type": "(text: string) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "The cook typed in the field.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
-                        },
-                        {
-                            "name": "onFocusHandled",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The field took a requested focus.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
                         },
                         {
@@ -23193,30 +23381,12 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "focusRequested",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The field is asked for focus (after Remove): a level, which stands until {@link onFocusHandled}.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
-                        },
-                        {
                             "name": "onChange",
                             "type": "(text: string) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "The cook typed in the field.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
-                        },
-                        {
-                            "name": "onFocusHandled",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The field took a requested focus.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
                         },
                         {
@@ -23306,12 +23476,30 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "confirmLine",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The passive line under the Public card, when this screen draws it: what was sent is what was shown.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
                             "name": "facts",
                             "type": "RecipePrivateFacts",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "What Private is decided from (`recipePrivateGate`): the recipe's rule, the cook's slot standing and their\npaid-feature state.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "focusSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "0",
+                            "description": "A counter the host advances when the cook has done something that makes this group the next thing to read: taking a saved\nsource off, which leaves the held note here. Focus moves to the group (web), or the screen-reader cursor to its first card\n(native), only when the counter CHANGES; text focus is never taken, so no keyboard comes up.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -23374,6 +23562,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Why the server refuses a change to private for this cook, if it is KNOWN to (`privateRefusalOf` over the\nprofile's own answer). REQUIRED: a kept draft's Private is shown as Public, and why, only under a known refusal.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "publicHeld",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whether a recorded source holds the recipe out of Public (ADR-0095): Public is refused with the held note.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -23407,7 +23604,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeVisibilityField.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (native): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), the React Native leaf of `./RecipeVisibilityField.tsx`, on the\nsame props and the same rule (`visibilityChoice`): a radio group of two 56 pt cards; under `upsell` Private asks for\nthe upsell instead of changing the value, and for a downgraded owner Public on a private recipe asks to confirm\n(`onConfirmPublic`), its card saying beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5).\n\nColours come from the theme at render, so both colour schemes paint (owner D15).",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (native): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), the React Native leaf of `./RecipeVisibilityField.tsx`, on the\nsame props and the same rule (`visibilityChoice`): a radio group of two 56 pt cards; under `upsell` Private asks for\nthe upsell instead of changing the value, and for a downgraded owner Public on a private recipe asks to confirm\n(`onConfirmPublic`), its card saying beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5).\n\nStyled with Tamagui only (ADR-0080): the card is a themed frame inside the `Pressable` that owns the press and the\naccessibility, so both colour schemes paint from tokens (owner D15). An unavailable card takes the opaque muted role\nand no opacity (`colors.ts` rule 3), the one treatment the web leaf shares.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -23424,12 +23621,30 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "confirmLine",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The passive line under the Public card, when this screen draws it: what was sent is what was shown.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
                             "name": "facts",
                             "type": "RecipePrivateFacts",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "What Private is decided from (`recipePrivateGate`): the recipe's rule, the cook's slot standing and their\npaid-feature state.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "focusSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "0",
+                            "description": "A counter the host advances when the cook has done something that makes this group the next thing to read: taking a saved\nsource off, which leaves the held note here. Focus moves to the group (web), or the screen-reader cursor to its first card\n(native), only when the counter CHANGES; text focus is never taken, so no keyboard comes up.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -23492,6 +23707,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Why the server refuses a change to private for this cook, if it is KNOWN to (`privateRefusalOf` over the\nprofile's own answer). REQUIRED: a kept draft's Private is shown as Public, and why, only under a known refusal.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "publicHeld",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whether a recorded source holds the recipe out of Public (ADR-0095): Public is refused with the held note.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -28879,10 +29103,10 @@
                             "name": "role",
                             "type": "enum",
                             "typeDetail": [
-                                "\"none\"",
                                 "\"note\"",
                                 "\"grid\"",
                                 "\"row\"",
+                                "\"none\"",
                                 "\"status\"",
                                 "\"list\"",
                                 "\"group\"",
@@ -30277,10 +30501,10 @@
                             "name": "role",
                             "type": "enum",
                             "typeDetail": [
-                                "\"none\"",
                                 "\"note\"",
                                 "\"grid\"",
                                 "\"row\"",
+                                "\"none\"",
                                 "\"status\"",
                                 "\"list\"",
                                 "\"group\"",
@@ -31476,10 +31700,10 @@
                             "name": "role",
                             "type": "enum",
                             "typeDetail": [
-                                "\"none\"",
                                 "\"note\"",
                                 "\"grid\"",
                                 "\"row\"",
+                                "\"none\"",
                                 "\"status\"",
                                 "\"list\"",
                                 "\"group\"",
@@ -32675,10 +32899,10 @@
                             "name": "role",
                             "type": "enum",
                             "typeDetail": [
-                                "\"none\"",
                                 "\"note\"",
                                 "\"grid\"",
                                 "\"row\"",
+                                "\"none\"",
                                 "\"status\"",
                                 "\"list\"",
                                 "\"group\"",

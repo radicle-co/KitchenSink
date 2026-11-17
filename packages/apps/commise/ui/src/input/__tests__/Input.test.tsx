@@ -87,6 +87,14 @@ describe('Input + FieldLabel (web)', () => {
         expect(tokensOf(field)).toContain('aria-invalid:border-danger');
     });
 
+    // The message sits under an invalid field, so a focus that scrolls the field clear of a pinned footer must leave room for
+    // it too: only an invalid field reserves that margin (at 320 px the message wraps to several lines).
+    it('an invalid field keeps room under it for its message when focus scrolls it into view', () => {
+        render(<Input id="email" value="" onChangeText={vi.fn()} invalid describedBy="email-error" />);
+
+        expect(tokensOf(screen.getByRole('textbox'))).toContain('aria-invalid:scroll-mb-24');
+    });
+
     it('passes the keyboard, autofill and return-key hints through', () => {
         render(
             <Input

@@ -52,7 +52,10 @@ export interface KeptSessionStoreDeps {
 
 interface StoreState {
     readonly subject: string | undefined;
-    /** Bumped by `clear` and by every change of subject; a queued operation holding an older one is dropped (ADR-0094 section 4). */
+    /**
+     * Bumped by `clear` and by every change of subject; a queued operation holding an older one is dropped (ADR-0094
+     * section 4).
+     */
     readonly generation: number;
     readonly snapshot: KeptSnapshot;
 }
@@ -75,13 +78,17 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
     let reportedWriteFailure = false;
     let reportedPortFailure = false;
     let subscribedExternal = false;
-    /** After a failed write only: the document memory holds, valid while storage still holds `fromRev` (ADR-0094 section 3). */
+    /**
+     * After a failed write only: the document memory holds, valid while storage still holds `fromRev` (ADR-0094 section
+     * 3).
+     */
     let pending: PendingWrite | undefined;
     /**
      * Commands applied in memory while storage could not be read (so nothing was written), each with the instant the
-     * cook made it: a pause or a last-touch replayed later must keep the time the cook acted, not the replay time. The next successful locked
-     * dispatch replays them on top of what storage then holds, so a change made during a transient failure is not lost
-     * (ADR-0094 section 6). Dropped on sign-out and on a change of cook, so it never reaches another record.
+     * cook made it: a pause or a last-touch replayed later must keep the time the cook acted, not the replay time. The
+     * next successful locked dispatch replays them on top of what storage then holds, so a change made during a
+     * transient failure is not lost (ADR-0094 section 6). Dropped on sign-out and on a change of cook, so it never reaches
+     * another record.
      */
     let unsaved: readonly UnsavedCommand[] = [];
     /** The last raw string this store read or wrote, so a re-read can tell a different record from the same one. */

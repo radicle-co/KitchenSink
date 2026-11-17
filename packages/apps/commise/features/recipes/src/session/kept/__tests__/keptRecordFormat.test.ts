@@ -120,7 +120,10 @@ const FIELD_SOURCES = {
     endedAway: { reducer: [...COMMON, 'endedAt'], recordOnly: ['announcedAt'] },
 } as const;
 
-/** The reducer holds these and the record does not: `name` has no stored label (R8a) and `undo` is held in memory. */
+/**
+ * The reducer holds these and the record does not: `name` has no stored label (ADR-0094 section 2) and `undo` is held
+ * in memory.
+ */
 const NOT_STORED = ['name', 'undo'] as const;
 
 /** The four states of a timer, in the order the record lists them. */

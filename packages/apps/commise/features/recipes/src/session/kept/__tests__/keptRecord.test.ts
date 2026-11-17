@@ -75,7 +75,7 @@ describe('parseKeptDocument', () => {
     });
 
     // v1 is a one-way door (ADR 0094 section 2): the reducer's `durationMs`, `run` and `ordinal` are required on every
-    // state, so a timer that lacks one, or holds one the reducer could never hold, is dropped and reported (R4-B3).
+    // state, so a timer that lacks one, or holds one the reducer could never hold, is dropped and reported.
     describe.each([
         ['a running timer', makeTimer],
         ['a paused timer', makePaused],
@@ -110,7 +110,7 @@ describe('parseKeptDocument', () => {
         });
     });
 
-    it('drops a timer with no stepDigest, keeps the document and the others (B1)', () => {
+    it('drops a timer with no stepDigest, keeps the document and the others', () => {
         const { stepDigest: _digest, ...bad } = makeTimer({ id: timerId(1) });
         const good = makeTimer({ id: timerId(2) });
         const parsed = ok(rawKeptDocument({ timers: [bad, good] }));
@@ -147,7 +147,7 @@ describe('parseKeptDocument', () => {
         expect(parsed.droppedTimerIds).toEqual([timerId(1)]);
     });
 
-    it('drops a timer that carries a label (R8a: no typed label is ever stored)', () => {
+    it('drops a timer that carries a label (no typed label is ever stored)', () => {
         const labelled = { ...makeTimer(), label: 'pasta' };
         const parsed = ok(rawKeptDocument({ timers: [labelled] }));
 
@@ -161,7 +161,7 @@ describe('parseKeptDocument', () => {
         expect(parsed.doc.timers).toEqual([]);
     });
 
-    it('keeps the first of two timers with one id and drops the rest (qse-r2 3)', () => {
+    it('keeps the first of two timers with one id and drops the rest ', () => {
         const first = makeTimer({ ordinal: 1 });
         const second = makeTimer({ ordinal: 2 });
         const parsed = ok(JSON.stringify(makeDoc({ timers: [first, second] })));

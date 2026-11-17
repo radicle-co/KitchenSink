@@ -60,11 +60,17 @@ const timerBase = {
     ordinal: z.int().positive(),
     /** Which run of the timer this is, the key `ended` is told once for (cooking-core `TimerBase.run`). */
     run: z.int().positive(),
-    /** The length of the current run, in the bounds `reduceTimer` accepts, so a timer the reducer would refuse is not stored. */
+    /**
+     * The length of the current run, in the bounds `reduceTimer` accepts, so a timer the reducer would refuse is not
+     * stored.
+     */
     durationMs: z.int().refine(isValidTimerMs),
 };
 
-/** `ringing` and `endedAway` carry the instant the timer ended. The reducer ends a timer at its own end, so no second instant is stored. */
+/**
+ * `ringing` and `endedAway` carry the instant the timer ended. The reducer ends a timer at its own end, so no second
+ * instant is stored.
+ */
 const endedShape = { ...timerBase, endedAt: isoInstant };
 
 /**

@@ -81,7 +81,7 @@ describe('scope and hydrate', () => {
         expect(data.has(KEY_A)).toBe(false);
     });
 
-    it("R7b: sign-out removes every cook's key, including one another tab wrote after sign-in", async () => {
+    it("sign-out removes every cook's key, including one another tab wrote after sign-in", async () => {
         const stored = serializeKeptDocument(makeDoc({ entries: { r1: makeCooking() } }));
         const { store, data } = setup({ [KEY_A]: stored });
 
@@ -92,7 +92,7 @@ describe('scope and hydrate', () => {
         expect([...data.keys()]).toEqual([]);
     });
 
-    it('RT4: ended session, live session and a stale page entry leave only the live one, in one write', async () => {
+    it('ended session, live session and a stale page entry leave only the live one, in one write', async () => {
         const old = iso(T0 - 25 * HOUR);
         const stored = serializeKeptDocument(
             makeDoc({
@@ -161,7 +161,7 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         expect(report).toHaveBeenCalledTimes(1);
     });
 
-    it('a change made while reads fail is kept and joins the record once reads recover (KTD5)', async () => {
+    it('a change made while reads fail is kept and joins the record once reads recover (ADR-0094 section 6)', async () => {
         const { store, data, state } = setup({ [KEY_A]: stored });
 
         state.failReads = true;

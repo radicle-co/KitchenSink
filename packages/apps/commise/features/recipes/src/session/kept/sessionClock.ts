@@ -1,6 +1,6 @@
 /**
- * @module The kept record's idle and end policy (ADR-0094 section 8). Pure: the clock is an argument, and no background job
- * runs. The schema refuses an unparseable instant before these functions run, so they assume valid instants.
+ * @module The kept record's idle and end policy (ADR-0094 section 8). Pure: the clock is an argument, and no background
+ * job runs. The schema refuses an unparseable instant before these functions run, so they assume valid instants.
  *
  * @pattern Specification — two predicates over a session or a timer and a clock.
  */
@@ -24,9 +24,9 @@ function endOf(timer: Exclude<KeptTimer, { state: 'paused' }>): number {
  * @param entry - The recipe's kept entry.
  * @param recipeTimers - That recipe's timers (with several, the latest instant counts).
  * @param now - ISO instant.
- * @returns `resumeStraight`, `askFirst` (idle from 4 h) or `ended` (idle from 24 h). Idle runs from the later of the last
- * touch and every timer's end; a paused timer adds nothing; a clock that went back counts idle as 0. Every boundary is
- * "at or after". A `page` entry is only `resumeStraight` or `ended`, 24 h after its last touch.
+ * @returns `resumeStraight`, `askFirst` (idle from 4 h) or `ended` (idle from 24 h). Idle runs from the later of the
+ * last touch and every timer's end; a paused timer adds nothing; a clock that went back counts idle as 0. Every
+ * boundary is "at or after". A `page` entry is only `resumeStraight` or `ended`, 24 h after its last touch.
  */
 export function sessionClock(entry: KeptEntry, recipeTimers: readonly KeptTimer[], now: string): SessionClockVerdict {
     const anchor =

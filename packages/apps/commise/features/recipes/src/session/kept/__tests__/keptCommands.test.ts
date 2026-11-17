@@ -30,7 +30,7 @@ const applied = (outcome: KeptOutcome): KeptDocument => {
     return outcome.doc;
 };
 
-describe('absent-entry rule (KTD5)', () => {
+describe('absent-entry rule (ADR-0094 section 6)', () => {
     const doc = makeDoc({ entries: { other: makeCooking() } });
 
     it.each<KeptCommand>([
@@ -58,7 +58,7 @@ describe('absent-entry rule (KTD5)', () => {
     });
 });
 
-describe('page ticks and R11a', () => {
+describe('page ticks', () => {
     it('ticks and unticks on a page entry and on a cooking entry, idempotently', () => {
         const page = makeDoc({ entries: { r1: makePage({ ticks: ['salt'] }) } });
         const ticked = applied(run(page, { type: 'tickPage', recipeId: 'r1', ingredientId: 'butter', ticked: true }));
@@ -164,7 +164,7 @@ describe('session commands', () => {
         );
     });
 
-    it('finish removes the entry and keeps the timers (S3 R12a)', () => {
+    it('finish removes the entry and keeps the timers (ADR-0094 section 2)', () => {
         const next = applied(run(doc, { type: 'finish', recipeId: 'r1' }));
 
         expect(next.entries['r1']).toBeUndefined();
@@ -180,7 +180,7 @@ describe('session commands', () => {
     });
 });
 
-describe('rebind (B1, B6, KTD7)', () => {
+describe('rebind (ADR-0094 section 9)', () => {
     const stepsNow = ['a', 'c', 'd', 'e'].map(digestOf);
 
     it('with no steps (gone or noSteps) it changes nothing (redteam r3 c)', () => {
@@ -189,7 +189,7 @@ describe('rebind (B1, B6, KTD7)', () => {
         expect(run(doc, { type: 'rebind', recipeId: 'r1', stepDigests: [] })).toEqual({ kind: 'unchanged' });
     });
 
-    it('marks and line ticks move with their single step; one with no single match is dropped (KTD7)', () => {
+    it('marks and line ticks move with their single step; one with no single match is dropped (ADR-0094 section 9)', () => {
         const entry = makeCooking({
             step: { index: 2, digest: digestOf('c') },
             marks: [
@@ -213,7 +213,7 @@ describe('rebind (B1, B6, KTD7)', () => {
     });
 });
 
-describe('End then Undo (KTD13, r3-undo)', () => {
+describe('End then Undo (ADR-0094 section 8)', () => {
     const entry = makeCooking({ step: step(2), ticks: ['butter'], lastTouch: iso(T0) });
     const timer = makeTimer({ recipeId: 'r1', stepIndex: 2, stepDigest: step(2).digest, ordinal: 2 });
     const before = makeDoc({ entries: { r1: entry }, timers: [timer] });
@@ -283,7 +283,7 @@ describe('End then Undo (KTD13, r3-undo)', () => {
     });
 });
 
-describe('prune (RT4)', () => {
+describe('prune', () => {
     const old = iso(T0 - 25 * HOUR);
 
     it('removes an ended session with its timers and a 24 h-old page entry, keeps a live session, in one result', () => {

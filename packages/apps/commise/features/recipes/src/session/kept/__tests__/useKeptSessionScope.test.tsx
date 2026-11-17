@@ -18,7 +18,7 @@ function makeStore(scope: KeptSessionStore['scope'] = () => Promise.resolve()) {
     return { store, spy };
 }
 
-describe('useKeptSessionScope (KTD4)', () => {
+describe('useKeptSessionScope (ADR-0094 section 5)', () => {
     it.each([undefined, null, 'user_a'])('hands the store the raw value %s', (subject) => {
         const { store, spy } = makeStore();
 

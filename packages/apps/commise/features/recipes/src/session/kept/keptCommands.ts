@@ -28,7 +28,10 @@ export type KeptCommand =
     /** Removes the entry and its timers. */
     | { readonly type: 'endSession'; readonly recipeId: string }
     | { readonly type: 'restoreSession'; readonly snapshot: EndedSnapshot }
-    /** Moves a recipe's step, marks and line ticks onto the recipe's current steps (ADR-0094 section 9). The timers move in the S4a timer unit, through the reducer's `rematch`. */
+    /**
+     * Moves a recipe's step, marks and line ticks onto the recipe's current steps (ADR-0094 section 9). The timers move
+     * in the S4a timer unit, through the reducer's `rematch`.
+     */
     | { readonly type: 'rebind'; readonly recipeId: string; readonly stepDigests: readonly string[] }
     | { readonly type: 'prune' };
 

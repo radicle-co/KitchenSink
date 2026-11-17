@@ -15,7 +15,7 @@ import {
 
 const S = 1000;
 
-describe('sessionClock (KTD6)', () => {
+describe('sessionClock (ADR-0094 section 8)', () => {
     const entry = makeCooking();
     const at = (ms: number) => iso(T0 + ms);
 

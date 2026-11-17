@@ -6,9 +6,9 @@
 export type WriteOutcome = { readonly ok: true } | { readonly ok: false; readonly error: unknown };
 
 /**
- * One device's key/value storage. Values are strings. `write` never throws: it answers `{ ok: false }`. `read`, `remove`
- * and `keys` MAY throw or reject (blocked web storage throws synchronously): the store reports that once, treats the
- * record as unreadable, keeps the session in memory and writes nothing over what it could not read.
+ * One device's key/value storage. Values are strings. `write` never throws: it answers `{ ok: false }`. `read`,
+ * `remove` and `keys` MAY throw or reject (blocked web storage throws synchronously): the store reports that once,
+ * treats the record as unreadable, keeps the session in memory and writes nothing over what it could not read.
  */
 export interface KeptPort {
     read(key: string): Promise<string | null>;

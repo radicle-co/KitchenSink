@@ -875,12 +875,9 @@ except ImportWizardStep and ImportStatements, which are redrawn in place at Ipad
 | ImportWizardStep      | Drop the Public option for a web page and Private "needs Pro". Private only, as ADR-0089 §5 says.                                                                                                         |
 | ImportStatements      | Drop "needs Pro". The web-page rows are private only.                                                                                                                                                     |
 
-**Copy change of 2026-11-17, web done, mobile deferred.** The owner ruled that the private copy never stores the
+**Copy change of 2026-11-17, done on web and mobile.** The owner ruled that the private copy never stores the
 page's photos, so `editor.source.rightsLabel` now reads "Saved from {site}. The words belong to their author. Private to
-you." Every `recipeImportingWeb` board carries it. The `recipeImportingMobile` boards of the ImportLinkPrivateOnly,
-ImportStatements, ImportWizardStep, ImportReviewDraft, ImportPasteReview, ImportPasteSaved and ImportPasteSlotsFull
-families still show the earlier line, "The words and photos belong to their author.", and take the new copy in the
-mobile round. The author line (`editor.source.authorLabel`) is drawn on the boards that show the read-only statement (S33, S44,
+you." Every `recipeImportingWeb` board and every `recipeImportingMobile` board that shows the line carries it. The author line (`editor.source.authorLabel`) is drawn on the boards that show the read-only statement (S33, S44,
 S46). The other web boards that show the attribution line, ImportPasteReview (W10) among them, add it at their next
 redraw.
 

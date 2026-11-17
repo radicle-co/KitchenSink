@@ -1,182 +1,105 @@
-# Product Specification: Commise — Recipe Importing
+# Product Specification: Recipe Importing (004)
 
-**Branch**: `004-recipe-importing`
-**Regenerated**: 2026-08-02
-**Status**: Approved (owner decisions D-001..D-004 recorded)
-**Source**: [spec.md](../spec.md)
+**Source**: [spec.md](../spec.md). The spec holds every rule. This file states the product goal and the story map, and
+cites the spec for each rule.
 
----
+## Product goal
 
-## Vision
+A cook brings a recipe they already have elsewhere into Commise in under a minute, from a link, a paste, a file or a
+social post. The cook keeps a private copy in the source's own wording, with the source named. A recipe from someone
+else reaches the public by one of two routes only:
 
-Bring a recipe from anywhere into Commise in under a minute — correctly attributed, never duplicated, and
-**never fabricated**.
+- the **Commise-written version**, which Commise writes and the cook confirms (`FR-065`, `003B-FR-015` door one), or
+- the cook's own rewrite in their own words, labelled **"Adapted by you"** (`003B-FR-015` door two, `016-FR-015i`).
+  This route is not open for a paid-site recipe.
 
-**Tagline**: "Import fast. Attribute correctly. Never invent."
+The cook's own recipes ("I wrote this") publish as the cook's own work.
 
-**Core principles**
+## Principles
 
-- Imported-public recipes carry durable source attribution.
-- One source URL converges to one canonical recipe.
-- Parse quality is transparent and correctable **before** anything is saved.
-- Policy constraints are explained to users, not delivered as opaque backend rejections.
-- **The system never fills in a value the source did not state.** A missing servings count is shown as missing,
-  not guessed. This is the principle that shapes the entire flow.
+- **The import never invents a value.** A missing yield, time or cuisine holds the item until the cook gives it
+  (`FR-015`, `FR-021`). An ingredient line that cannot be parsed is kept as written (`FR-020`).
+- **The cook never reviews the extraction.** The cook makes only the choices that only the cook can make: where the
+  recipe is from, Private, Public or Both, what to do about a recipe already held, and the food matches (`FR-064`).
+- **One pipeline, one allowance.** Every channel goes through the same import pipeline and spends the same import
+  allowance (`FR-064`, `FR-067`).
+- **The source stays named.** The private copy shows the source author's name, and the source survives the page being
+  deleted (`FR-010`, `FR-017`, `FR-066`).
 
----
+## Who it is for
 
-## The product decision that shapes everything: review before save
+- **The collector.** Has recipes on blogs, in notes apps and in another recipe app. Wants them in one place without
+  retyping. Served by link, paste and file import.
+- **The social cook.** Finds recipes in short videos and posts. Served by the social import of `FR-009`.
+- **The creator.** Imports recipes from their own site or account and wants them credited as their own. Served by
+  statement 1a and the later ownership claim (`FR-014a`, `FR-055`).
 
-Extraction from the open web is unreliable in a specific, predictable way — structured markup usually gives you
-a title, ingredients, and steps, but frequently omits servings and times, and always gives ingredients as free
-text ("2 cups flour") where the product needs structure.
+## Plans and limits
 
-There were two options:
+- Every channel is open to Free and paid cooks. No import channel needs Pro (`FR-028`).
+- The import allowance is 200 recipes a rolling day on Free and 1,000 on a paid plan (`FR-067`).
+- A recipe kept private uses one of a Free cook's 50 private slots. Pro has no limit (`FR-028`, `001-FR-003`).
 
-| Option                      | What the user gets                                                  | Why rejected / chosen                                                                                  |
-| --------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Save immediately, fix later | One click, then a recipe that quietly claims "1 serving, 0 minutes" | **Rejected.** The fabricated values are indistinguishable from real ones. Users would cook from them.  |
-| **Review, then save**       | One extra step, then a recipe that is actually correct              | **Chosen.** The gaps are visible exactly where the user can fix them, and only complete recipes exist. |
+## Story map
 
-Every channel — URL, Instagram, file, photo — produces a **draft**. Confirming the draft creates the recipe.
-This also collapses what would otherwise be two different flows (photo import needed a review step regardless)
-into one the user learns once.
+Each story is one cook outcome, with one example. "Gated" means that the story is specified and waits on the named
+gate.
 
----
+### Must have
 
-## Personas
+| ID     | Story                                                                                     | Example                                                                                                                                                         | Spec                                         |
+| ------ | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| US-401 | As a cook, I import a recipe from a web page link, so I do not retype it.                 | Sam pastes a blog link into Link. Sam's phone reads the page, Sam chooses Private, finishes the food matches and saves. The recipe keeps the blog's wording.    | `FR-008`, `FR-064`, `FR-066`                 |
+| US-415 | As a cook, I paste a recipe page or plain text, so a recipe with no link still comes in.  | Ana pastes a recipe from a notes app. No device tier reads it, so the server AI fallback finds the title, ingredient lines and steps in Ana's own lines.        | `FR-052`, `FR-056`, `FR-057`, `FR-061`       |
+| US-411 | As a cook, I import one file or a whole export from another app.                          | Lee uploads an export with 300 recipes. Each recipe becomes one item. Two fail with a reason, and the other 298 are saved.                                      | `FR-019`, `FR-026`, `FR-027`                 |
+| US-410 | As a cook, I say where each recipe is from, and the label follows from what I say.        | Mia pastes a recipe from a cookbook and chooses "From a cookbook or magazine". She cites the book. Her copy stays private.                                      | `FR-014a`, `FR-011`, `FR-052`                |
+| US-416 | As a cook, a source the app guesses is only a question to me.                             | The paste holds a web address. The app suggests it as the source. The item waits under "Needs your statement" until Jo confirms or clears it.                   | `FR-060`                                     |
+| US-417 | As a cook, I choose Private, Public or Both at import.                                    | Ravi imports a free blog recipe and chooses Both. He keeps his private copy, and the public recipe is the Commise-written version.                              | `FR-065`, `FR-066`. Public is gated on 003B. |
+| US-418 | As a cook, I publish my own rewrite of an imported recipe as "Adapted by you".            | Kim rewrites the steps in her own words. The rewrite passes the similarity check and review, and it goes public as "Adapted by you".                            | `003B-FR-015`, `FR-054`                      |
+| US-407 | As a cook, a page I already hold does not pile up as copies.                              | Tom imports a page he imported last week. He chooses Duplicate, Replace or Cancel. His only copy is public, so he sees "Import as a new copy" and Cancel.       | `FR-008`, `SC-005`                           |
+| US-419 | As a cook, a bulk import skips recipes already in my library unless I ask for a new copy. | Lee's export holds 12 recipes whose web addresses are already in his library. Each shows "Already in your library" and is skipped. He switches one to a copy.   | `FR-068`                                     |
+| US-408 | As a cook, I fill in what the source left out, and nothing is guessed for me.             | A page has no yield. The item is held as "needs servings" until Sam enters 4.                                                                                   | `FR-015`, `FR-020`, `FR-021`                 |
+| US-409 | As a cook, a failed import tells me why and what to do next.                              | A page answers 404. Sam sees that the page cannot be reached and is offered the paste path. No recipe is saved.                                                 | `FR-016`, `FR-058`, `FR-059`, `FR-063`       |
+| US-420 | As a cook, I know when my allowance or my private slots run out, and when they come back. | A Free cook imports a file past the day's 200. The rest wait and resume after the time shown.                                                                   | `FR-022`, `FR-067`, `FR-028`                 |
+| US-403 | As a cook, I always see where an imported recipe came from, on web and on mobile.         | Sam's private copy names the blog's author. The Commise-written public version names and links the site, with "Not affiliated."                                 | `FR-010`, `FR-066`                           |
+| US-413 | As a cook, my recipe stays when its source page is deleted.                               | The blog removes the page. Sam's recipe stays, and its source shows as unverifiable.                                                                            | `FR-017`                                     |
+| US-421 | As a creator, I mark a recipe as mine, at import or later.                                | Dee imports from her own blog and chooses "This is my recipe, from my site or account". The label is "Written by you". A recipe saved earlier can claim it too. | `FR-014a` (1a), `FR-055`                     |
 
-### Primary — P5 Morgan (Discovery Seeker)
+### Must have, gated
 
-Browses food blogs and newsletters constantly; the window to act is short. Wants to capture a recipe from any
-URL and trust the result is complete enough to cook from.
+| ID     | Story                                                                                   | Example                                                                                                                   | Spec     | Gate                     |
+| ------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------ |
+| US-402 | As a cook, I import a recipe from a public TikTok, Instagram, YouTube or Facebook post. | Ana shares a TikTok link. Her phone reads the public video briefly and keeps nothing. Her private copy names the creator. | `FR-009` | Official-API path: D-002 |
+| US-422 | As a cook, my private copy keeps the page's main photo.                                 | Sam's phone saves the blog's main photo to his private copy. A public version never uses a source photo.                  | `FR-008` | D-020                    |
+| US-423 | As a reader of a food blog, I tap "Save to Commise" and the recipe comes in.            | Ana taps the button under a recipe card, signs in and taps Save. One import of that page starts.                          | `FR-053` | D-019                    |
 
-**Goals**: one-paste import from any food blog · accurate ingredient and step capture · attribution preserved
-so the original is one tap away · a clear signal when a parse is partial · no duplicate pile-up.
-**Pain points**: scrapers silently dropping half an ingredient list · staring at a spinner with no signal that
-a site blocked the request · attribution vanishing after the first edit.
-**How this feature answers**: the draft shows exactly which fields came through and which did not, so "partial
-parse" is a visible, fixable state rather than a silent data loss.
+### Should have
 
-### Secondary — P3 Riley (Family Meal Planner)
+| ID     | Story                                                                     | Example                                                                                      | Spec     |
+| ------ | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------- |
+| US-412 | As a cook, an import I never finish is cleaned up, so my list stays tidy. | An item held for servings is never completed. It is deleted 30 days after the last activity. | `FR-018` |
 
-Finds recipes through links shared in group chats. The workflow is paste-link-and-go; friction kills the habit.
+### Could have
 
-**Goals**: paste a link and get a usable draft in seconds · import from an Instagram caption · never accumulate
-duplicates · fix one missed ingredient without losing the rest.
-**Pain points**: social links failing silently · duplicate copies with no merge path · "import failed" with no
-next step.
-**How this feature answers**: distinct, actionable errors per failure kind; duplicates resolve to the existing
-recipe with a clone offer rather than creating a second copy.
+| ID     | Story                                                             | Example                                                                   | Spec              |
+| ------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------------- |
+| US-414 | As an admin, I add a paid site to the paid list without a deploy. | An admin adds a domain. The next server fetch for that domain is skipped. | `FR-014`, `D-004` |
 
-### Tertiary — P11 Robin (Recipe Creator)
+### Withdrawn ids
 
-Runs a food blog; imports published recipes to study and adapt. Attribution and policy clarity are
-professional necessities, not preferences.
-
-**Goals**: import a published recipe with attribution locked in · understand immediately when a source is
-policy-blocked rather than merely broken · clone into a personal variant with the original credited · paste
-from a cookbook and be told the visibility consequence **before** saving.
-**Pain points**: tools stripping attribution after the first edit, creating accidental plagiarism risk · no
-distinction between "blocked" and "failed" · paid-source rules surfacing only after publishing.
-**How this feature answers**: provenance is decided at import and enforced by the shipped visibility policy;
-the attestation flow states the consequence at the point of entry.
-
----
-
-## Tier availability (D-014)
-
-Creating a recipe that is not public requires a subscription — applied consistently, including where the
-privacy is imposed by policy rather than chosen by the user.
-
-| Channel                      | Result                                                                                                                                                      | Free | Premium |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ------- |
-| URL import                   | private copy; public only as a Commise-written version (amended 2026-11-15, spec `FR-065`)                                                                  | ✅   | ✅      |
-| Instagram import _(gated)_   | private copy; public only as a Commise-written version (amended 2026-11-15, spec `FR-065`)                                                                  | ✅   | ✅      |
-| File / migration import      | `user_created`                                                                                                                                              | ✅   | ✅      |
-| Photo (OCR) import           | **private** by policy                                                                                                                                       | ❌   | ✅      |
-| Cookbook / paid-source paste | verbatim copy **stays private**. The cook can publish an Adapted version. Its public form is a Commise-written version (amended 2026-11-15; no facts cards) | ❌   | ✅      |
-| Setting any recipe private   | private                                                                                                                                                     | ❌   | ✅      |
-
-Free-tier users see the upgrade path rather than a failure, and the gated channels are not offered to them at
-all — no affordance that cannot succeed. Two consequences worth stating: OCR spend is confined to paying users
-(retiring the cost concern D-001 opened), and **migration stays free**, because a user's own export file is
-their own content, not third-party material.
-
-## Epics
-
-1. **Ingestion** — URL, Instagram, file, and photo channels.
-2. **Draft review** — completion, correction, confidence, and the attestation guardrail.
-3. **Attribution & policy** — source display, provenance classification, paywall enforcement.
-4. **Recovery & accessibility** — typed errors with next steps, full keyboard and screen-reader support,
-   never colour-only state.
-
----
-
-## MoSCoW Story Map
-
-### Must Have
-
-| ID     | Story                                                                                                                                   | Requirements                                            |
-| ------ | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| US-401 | As a signed-in user, I can submit a public recipe URL and receive a parsed draft, so I don't retype a recipe.                           | `004-FR-008` · REQ-001..004                             |
-| US-403 | As a user, I always see source URL, author, and platform on imported public recipes — on web and on mobile.                             | `004-FR-010` · REQ-016                                  |
-| US-404 | As a user, imported-public recipes are public by default and can only become private through the clone + substantive-edit premium flow. | `004-FR-011` · REQ-014, REQ-015                         |
-| US-405 | As a user, I can photograph a physical recipe and save it as a private recipe.                                                          | `004-FR-012`, `004-FR-013` · REQ-007                    |
-| US-406 | As a user, I get a clear, specific rejection when a source is paywalled.                                                                | `004-FR-014` · REQ-017..020                             |
-| US-407 | As a user, when a source was already imported, I'm taken to the existing recipe with a clone option, not a duplicate.                   | `004-FR-008` · REQ-003, REQ-004                         |
-| US-408 | As a user, I review and complete the parsed recipe before it is saved, so nothing is guessed on my behalf.                              | `004-FR-015`, `004-FR-020`, `004-FR-021` · REQ-008..013 |
-| US-409 | As a user, an import failure tells me what went wrong and what to try next.                                                             | `004-FR-016` · REQ-024                                  |
-| US-410 | As a user pasting from a cookbook, I declare the source, cite it, and am told the visibility consequence before saving.                 | `004-FR-014a` · REQ-021..023                            |
-| US-411 | As a user, I can import a recipe from a JSON, YAML, or Markdown file.                                                                   | `004-FR-019` · REQ-006                                  |
-
-**US-408 moved from Should Have to Must Have.** It was previously optional; the shipped schema makes it
-load-bearing — without it, imports either fail on good sources or fabricate values.
-
-**US-405 is Must Have at launch** per owner decision D-001 (previously contradictory: Must Have in the product
-spec, P3 in the plan, unresolved for three months).
-
-### Must Have — gated
-
-| ID     | Story                                                                           | Requirements           | Gate                                                                                             |
-| ------ | ------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| US-402 | As a user, I can import from an Instagram post whose caption contains a recipe. | `004-FR-009` · REQ-005 | Requires an approved Meta application (D-002). Ships **disabled**; release is not blocked on it. |
-
-### Should Have
-
-| ID     | Story                                                                                             | Requirements           |
-| ------ | ------------------------------------------------------------------------------------------------- | ---------------------- |
-| US-412 | As a user, my unconfirmed drafts are kept for a while and then cleaned up, so my list stays tidy. | `004-FR-018` · REQ-026 |
-| US-413 | As a user, an imported recipe survives its source being deleted, and tells me the source is gone. | `004-FR-017` · REQ-025 |
-
-### Could Have
-
-| ID     | Story                                                                   | Requirements    |
-| ------ | ----------------------------------------------------------------------- | --------------- |
-| US-414 | As an admin, I can add a paywalled domain without waiting for a deploy. | REQ-019 (D-004) |
-
-_US-414 is Could Have from a **user**'s perspective and P1 from an **operational** one — it is the difference
-between a same-day and a same-release response to a publisher complaint. Built in T-017._
-
----
+| ID     | Was                                            | Now                                                                              |
+| ------ | ---------------------------------------------- | -------------------------------------------------------------------------------- |
+| US-404 | Imported-public recipes are public by default. | Withdrawn. The cook chooses Private, Public or Both (US-417).                    |
+| US-405 | Photo import as a private recipe.              | Moved to spec 011 (`FR-012`, D-001).                                             |
+| US-406 | A paid-site page is refused.                   | Withdrawn. A paid-site recipe is kept privately and is never refused (`FR-014`). |
 
 ## Out of scope
 
-- Headless-browser rendering for JavaScript-only recipe sites (reported as "no recipe found", not silently empty).
-- Automatic legal classification of paid-source content — the user attests, heuristics only flag (D-003).
-- RDFa extraction (C-007 — negligible recipe usage, no maintained parser).
-- Re-hosting source imagery or full article prose.
+- Photo and OCR import. Spec 011 owns it (`FR-012`).
+- Rendering JavaScript-only pages. Such a page reads as "no recipe found" (spec edge cases).
+- The rewrite itself and its checks. Spec 003B owns them.
 
----
+## Cross-platform
 
-## Cross-platform commitment
-
-Every story above ships to **web and mobile in the same release** (`CODING_STANDARDS §14.1`). No
-single-platform waiver is claimed. Photo import is mobile-primary but its draft review, attribution, and error
-handling are identical on both.
-
-## Traceability guardrail
-
-Every story maps to a requirement in [spec.md](../spec.md). Stories US-411..US-414
-are **new in this revision** and correspond to requirements that were always implied but never written down
-(file import, draft expiry, source-deleted handling, blocklist administration).
+Every story ships to web and mobile in the same release (`CODING_STANDARDS.md` §14). One recorded exception: web
+HTML paste goes live before the mobile paste row, which waits for the AI fallback (`FR-062`).

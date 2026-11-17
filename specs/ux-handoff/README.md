@@ -4,7 +4,7 @@
 **Status**: Ready for UX discovery and low-/mid-fidelity mockups; high-fidelity design remains gated by open decisions listed in [05-open-decisions.md](./05-open-decisions.md).
 **Last updated**: 2026-05-10
 
-This package is the portfolio-level UX source of truth for Commise. Feature-level product specs, journeys, and wireframes are distributed across `specs/001-*` through `specs/014-*`; `001`–`010` have split-out journeys and wireframes, while `011`–`014` currently keep journey/mockup context inside their product specs. UX should use this directory as the starting point, then drill into the linked feature specs for detail.
+This package is the portfolio-level UX source of truth for Commise. Feature-level product specs, journeys, and wireframes are distributed across `specs/001-*` through `specs/014-*`; `001`–`010` have split-out journeys and wireframes (except `004`, whose design source is `004-recipe-importing/designSource.md`), while `011`–`014` currently keep journey/mockup context inside their product specs. UX should use this directory as the starting point, then drill into the linked feature specs for detail.
 
 For executive strategy, market, business-case, and readiness framing, use the companion [executive product packet](../executive/README.md).
 

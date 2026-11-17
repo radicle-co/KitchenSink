@@ -12,7 +12,7 @@
  * Only linear whitespace and newline splits run over page text, and no pattern can backtrack.
  */
 import { MAX_TOKEN_COMPARISONS, MAX_VISIBLE_NODES, MAX_VISIBLE_TOKENS } from './pageCaps.js';
-import { type ElementExtent, type PageDocument, type VisibleBlock } from './pageDocument.js';
+import type { ElementExtent, PageDocument, VisibleBlock } from './pageDocument.js';
 import { tokensOf } from './pageTokens.js';
 
 /** Whether a run was found, was not, or could not be looked for within the page's comparison budget. */
@@ -419,7 +419,7 @@ export const DEFAULT_VISIBLE_CAPS: VisibleCaps = Object.freeze({
 /** The tokens of `blocks`, or `undefined` when they pass `maxTokens`: a page that long is never half read. */
 function tokenizedBlocks(
     blocks: readonly VisibleBlock[],
-    { elements }: Pick<Tokenized, 'elements'>,
+    elements: readonly ElementExtent[],
     maxTokens: number,
 ): Tokenized | undefined {
     const tokens: string[] = [];
@@ -486,7 +486,7 @@ export function visibleTextOf(page: PageDocument, caps: VisibleCaps = DEFAULT_VI
         return { kind: 'tooComplex' };
     }
 
-    const tokenized = tokenizedBlocks(blocks, { elements }, caps.maxTokens);
+    const tokenized = tokenizedBlocks(blocks, elements, caps.maxTokens);
 
     return tokenized === undefined ? { kind: 'tooComplex' } : { kind: 'ok', text: textOfTokens(tokenized) };
 }

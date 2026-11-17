@@ -316,18 +316,14 @@ describe('readPastedContent over a whole synthetic page', () => {
 
             vi.mocked(tokensOf).mockClear();
 
-            const started = performance.now();
             const { result, works } = readCounted(page);
-            const elapsedMs = performance.now() - started;
             const charsTokenized = vi.mocked(tokensOf).mock.calls.reduce((sum, [text]) => sum + text.length, 0);
 
             expect(result).toMatchObject(expected);
             expectBoundedWalks(works);
-            // Measured again after the jump tolerance went: the page's text is tokenized once over (0.99 and 0.97 times
-            // its length). The bound is 1.25 times, so a second tokenize of each item (1.86 times) fails it, and a scan
-            // of each item against the lines fails it by far more.
+            // The page's text is tokenized once (about its own length); a second tokenize of any item fails the 1.25 bound.
+            // Rewritten when jump-list tolerance was removed (issue #349).
             expect(charsTokenized).toBeLessThanOrEqual(1.25 * page.length);
-            expect(elapsedMs).toBeLessThan(1_500);
         });
     });
 

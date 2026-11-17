@@ -336,9 +336,7 @@ function blocksOf(
         current = '';
     };
 
-    const addText = (node: DomText): void => {
-        const { data } = node;
-
+    const addText = (data: string): void => {
         if (!newlineBreaks) {
             current += data;
 
@@ -372,7 +370,7 @@ function blocksOf(
             };
             owner = next.previous;
         } else if (isText(next)) {
-            addText(next);
+            addText(next.data);
         } else if (isTag(next) && !isHiddenElement(next)) {
             if (BLOCK_TAGS.has(next.name)) {
                 const element = elements.length;

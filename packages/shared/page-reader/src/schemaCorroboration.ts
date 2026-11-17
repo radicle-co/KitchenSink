@@ -16,18 +16,18 @@
  * does, so "flour" is not "2 cups flour"), the steps are read in order, a list the lines sit in has no line the schema
  * leaves out, and the recipe CARD (the smallest element holding every line and step read) has no list item the schema
  * leaves out but its furniture ({@link isCardFurniture}: outside the read lines and beside no read list, an unnumbered
- * item with no leading amount that comes after the lines, or before them is a meta fact), so a schema
- * missing a line, an ingredient group or a second method is
- * caught as surely as a page missing one. The per-card rule counts only list items (`<li>`), so it does not see three
- * kinds of line unless the schema reads a sibling of theirs: a table row (`<tr>`, as in an ingredient or nutrition
- * table), a paragraph or a `<br>`-separated line, and anything outside the card, such as an ingredient group a theme
- * renders after the card element. ⚠️ Nor does it see an omitted ingredient group after the read lines when no line of it
- * opens with an amount ("Salt to taste"), nor one after them nested a level deeper than the read lists: accepted risks
- * of the furniture policy, each pinned by a test. Text a cook cannot see (a template, a `noscript`, a `textarea`, anything `hidden`, an inline `display:none`, a closed `<details>`, a `<meta>`)
- * is no part of the page; text hidden by a CSS class is, because a paste has no stylesheet to say so. A line or step with no
- * letter or digit never agrees. A recipe whose data the page does not show is a no, never a wrong yes (precision first). It
- * reads each step's RAW text (`schemaSteps`), never the built instruction, so a heading the reader adds can never make a
- * correct page disagree with itself.
+ * item with no leading amount that comes after the lines, or before them is a meta fact), so a schema missing a line,
+ * an ingredient group or a second method is caught as surely as a page missing one. The per-card rule counts only list
+ * items (`<li>`), so it does not see three kinds of line unless the schema reads a sibling of theirs: a table row
+ * (`<tr>`, as in an ingredient or nutrition table), a paragraph or a `<br>`-separated line, and anything outside the
+ * card, such as an ingredient group a theme renders after the card element. ⚠️ Nor does it see an omitted ingredient
+ * group after the read lines when no line of it opens with an amount ("Salt to taste"), nor one after them nested a
+ * level deeper than the read lists: accepted risks of the furniture policy, each pinned by a test. Text a cook cannot
+ * see (a template, a `noscript`, a `textarea`, anything `hidden`, an inline `display:none`, a closed `<details>`, a
+ * `<meta>`) is no part of the page; text hidden by a CSS class is, because a paste has no stylesheet to say so. A line
+ * or step with no letter or digit never agrees. A recipe whose data the page does not show is a no, never a wrong yes
+ * (precision first). It reads each step's RAW text (`schemaSteps`), never the built instruction, so a heading the
+ * reader adds can never make a correct page disagree with itself.
  *
  * The same page text answers R3: a step's `name` is a heading only where the page shows it ({@link withShownStepNames}).
  */

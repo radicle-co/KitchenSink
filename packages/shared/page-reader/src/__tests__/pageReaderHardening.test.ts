@@ -242,9 +242,8 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
     });
 
-    // Rewritten for round 9 (re-review of cb509d1a4, MEDIUM 3): "Print" and "Jump to recipe" linked to #p and #r, which
-    // name no element on the page, and read as furniture. A jump link counts only when its target holds the lines read
-    // (the passing case is the test below with #ingredients and #instructions), so this card is refused now.
+    // Before the read lines, only a meta fact is card furniture. A jump link ("Print", "Jump to recipe") is not one, so a
+    // card with one is refused, whether or not its target exists (issue #349 may bring tolerance back on a spec tree).
     it('refuses a card whose links before the lines jump to targets that hold no line it reads', () => {
         const page = makePage({
             jsonLd: [NODE],
@@ -285,12 +284,9 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         });
     });
 
-    // Round 9 (code-reviewer HIGH 2 on #324): an amount written as words ("A pinch of", "Half a", "One") is no leading
-    // amount, so an omitted group before the lines read as furniture. Before the lines, an unread item is furniture only
-    // when it is a jump link (`href="#..."`) or a meta fact under a label on the closed list (`cardMetaLabels.ts`).
-    // Re-review of d700c5ed1 (CRITICAL 1): the open "Label: value" rule read a group whose units the English unit list
-    // does not know. Every label off the closed list is refused now. Re-review HIGH 2 and HIGH 3: a link to another page
-    // is no jump link, so a linked group, or a line with one linked word, is refused too.
+    // An amount written as words ("A pinch of", "Half a", "One") is no leading amount, so an omitted group before the
+    // lines must not read as furniture. Before the lines, an unread item is furniture only when it is a meta fact under a
+    // label on the closed list (`cardMetaLabels.ts`). Every other item is refused, a linked one too.
     it.each([
         ['an amount written as words', ['A pinch of saffron', 'Half a lemon', 'One onion']],
         ['no amount at all', ['Salt to taste', 'Fresh herbs']],
@@ -325,8 +321,7 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
     });
 
-    // Re-review of cb509d1a4, MEDIUM 3: a jump link is furniture only when it is a block's own link to the element that
-    // holds the lines read. A line wrapped in a link to anywhere else, or a list opened inside a jump link, is refused.
+    // A jump link is no furniture: a line wrapped in a link, or a list opened inside one, is refused.
     it.each([
         ['a line wrapped in a fragment link', '<ul><li><a href="#x">One onion</a></li></ul>'],
         ['a line whose words are two fragment links', '<ul><li><a href="#a">One</a> <a href="#b">onion</a></li></ul>'],
@@ -383,31 +378,8 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
             ['a phrase only part of which is a link', '<li>Jump to <a href="#ing">recipe</a></li>'],
             ['a link with a block inside it', '<li><a href="#ing"><div></div>Ingredients</a></li>'],
             ['a link to no element', '<li><a href="#nowhere">Jump to recipe</a></li>'],
-            ['a link to a percent-encoded id', '<li><a href="#ing%20x">Ingredients</a></li>'],
-            ['a link with a tab in its href', '<li><a href="#in\tg">Ingredients</a></li>'],
-            ['a link opened inside a link', '<li><a href="#ing">Jump <b><a href="#ing">to</a></b> recipe</a></li>'],
         ])('refuses a card whose jump item is %s', (_name, item) => {
             expect(readPastedContent(cardWith(item))).toMatchObject(refused);
-        });
-
-        it.each([
-            ['the id given first to an inline element', '<span id="ing">x</span>', '<div id="ing">'],
-            ['the id given first to a hidden element', '<div hidden id="ing">x</div>', '<div id="ing">'],
-            ['a read list with no id at all', '', '<div>'],
-        ])('refuses it with %s', (_name, carrier, listOpen) => {
-            const page = cardWith('<li><a href="#ing">Ingredients</a></li>', `${carrier}${listOpen}`);
-
-            expect(readPastedContent(page)).toMatchObject(refused);
-        });
-
-        it('refuses it on a page with a base element', () => {
-            const page = cardWith(
-                '<li><a href="#ing">Ingredients</a></li>',
-                '<div id="ing">',
-                '<base href="https://o.example/">',
-            );
-
-            expect(readPastedContent(page)).toMatchObject(refused);
         });
     });
 
@@ -646,14 +618,11 @@ describe('G-CORR on a card shaped like a recipe plugin’s', () => {
         });
     });
 
-    // Rewritten for round 9 (code-reviewer HIGH 2 on #324): an equipment list before the ingredients ("Mixing bowl") was
-    // read as furniture. It is not a meta fact under a label on the closed list (`cardMetaLabels.ts`), and it cannot be told from an omitted group whose amounts are words
-    // ("One onion"), so any doubt is no: the card is refused.
-    it.each([
-        ['an equipment list before the ingredients', { equipment: true, nutrition: false, jumps: false }],
-        ['all three', { equipment: true, nutrition: true, jumps: true }],
-    ])('refuses the card when it also holds %s', (_name, lists) => {
-        expect(readPastedContent(page(lists))).toMatchObject({
+    // An equipment list before the ingredients ("Mixing bowl") is no meta fact under a label on the closed list
+    // (`cardMetaLabels.ts`), and cannot be told from an omitted group whose amounts are words ("One onion"), so any doubt
+    // is no: the card is refused.
+    it('refuses the card when it also holds an equipment list before the ingredients', () => {
+        expect(readPastedContent(page({ equipment: true, nutrition: false, jumps: false }))).toMatchObject({
             kind: 'notExtractable',
             reason: 'pageDisagreesWithSchema',
         });

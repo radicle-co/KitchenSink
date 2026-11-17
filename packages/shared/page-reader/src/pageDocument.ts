@@ -283,8 +283,8 @@ class BlockEnd {
 const LOOSE_TEXT: Owner = { group: 0, isHeading: false, element: 0, item: 0, ordered: false };
 
 /**
- * The owner of the text inside block element `node`, numbered `element`, in the list numbered `group`, with
- * A list item starts an item, numbered when its list is an `<ol>`.
+ * The owner of the text inside block element `node`, numbered `element`, in the list numbered `group`. A list item
+ * starts an item, numbered when its list is an `<ol>`.
  */
 function blockOwner(node: DomElement, previous: Owner, element: number, group: number): Owner {
     const isItem = node.name === 'li';

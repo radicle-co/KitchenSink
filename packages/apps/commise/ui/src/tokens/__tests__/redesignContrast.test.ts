@@ -70,9 +70,10 @@ function pairsOf(name: string, theme: Theme): readonly Pair[] {
         pair('inverseAction on inverse', theme.inverseAction, theme.inverse, TEXT),
     );
 
-    // A secondary button's action glyph (`glyphTone="action"`) stays actionText while pressed, so it must be seen on the
-    // surfaced button's resting `paper` fill AND on the press fill of every light-family surface (SC 1.4.11). The
-    // `inverse` press is out of this register's scope: it is the inverse ink over the inverse fill, for inverse content.
+    // A secondary button's action glyph (`glyphTone="action"`) stays actionText while pressed, so it must be seen
+    // on the surfaced button's resting `paper` fill AND on the press fill of every light-family surface (SC 1.4.11).
+    // The `inverse` press is out of this register's scope: it is the inverse ink over the inverse fill, for inverse
+    // content.
     pairs.push(pair('actionText glyph on a secondary button at rest (paper)', theme.actionText, theme.paper, NON_TEXT));
     const presses = pressFillsOf(theme, name === 'dark' ? 'dark' : 'light');
 

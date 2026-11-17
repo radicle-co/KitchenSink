@@ -64,12 +64,10 @@ export const Button: FC<ButtonProps> = (props) => {
     const descriptionId = useId();
     useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
 
+    const glyphClass = buttonGlyphClass(variant, glyphToneOf(props));
     const glyph =
         busy || icon !== undefined ? (
-            <span
-                aria-hidden="true"
-                className={`inline-flex shrink-0 items-center ${buttonGlyphClass(variant, glyphToneOf(props))}`.trimEnd()}
-            >
+            <span aria-hidden="true" className={`inline-flex shrink-0 items-center ${glyphClass}`.trimEnd()}>
                 {busy || icon === undefined ? <Spinner className="animate-spin" /> : <Icon name={icon} size={20} />}
             </span>
         ) : null;

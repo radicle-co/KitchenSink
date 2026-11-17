@@ -12,7 +12,7 @@ import { useContext, type JSX } from 'react';
 import { Text } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SyncProvider } from '@commise/query/sync';
+import { SyncProvider, useSyncQueue } from '@commise/query/sync';
 import { appendToQuarantine, createMemoryOutboxStore, storeKeyFor } from '@kitchensink/sync';
 
 import { AuthGate } from '../../src/components/AuthGate.js';
@@ -208,25 +208,57 @@ describe('AuthGate — the cooking form of the notice', () => {
         expect(screen.getByText('You’re offline')).toBe(title);
     });
 
-    it('hides syncing while cooking, and shows it again in the app form', async () => {
-        const store = createMemoryOutboxStore();
+    it('⛔ hides "Back online" and the syncing line while cooking, and shows them again in the app form', async () => {
+        // One write is pending, and its send never resolves, so reconnecting leaves it syncing: the app form says so.
         const send = vi.fn(() => new Promise<never>(() => undefined));
+
+        const Writer = (): JSX.Element => {
+            const queue = useSyncQueue();
+
+            return (
+                <Text
+                    onPress={() => {
+                        void queue.submit({
+                            entity: 'recipe',
+                            intentKind: 'update',
+                            localId: 'r1',
+                            dependsOn: [],
+                            payload: {},
+                        });
+                    }}
+                >
+                    save a change
+                </Text>
+            );
+        };
+
         act(() => {
             onlineManager.setOnline(false);
         });
         render(
-            <SyncProvider subject="user_a" send={send} store={store}>
+            <SyncProvider subject="user_a" send={send} store={createMemoryOutboxStore()}>
                 <AuthGate>
                     <Navigator />
+                    <Writer />
                 </AuthGate>
             </SyncProvider>,
         );
+        await act(async () => {
+            fireEvent.click(screen.getByText('save a change'));
+        });
         fireEvent.click(screen.getByText('open cooking'));
-        act(() => {
+
+        await act(async () => {
             onlineManager.setOnline(true);
         });
 
+        expect(send).toHaveBeenCalled();
         expect(screen.queryByText('Back online')).toBeNull();
         expect(screen.queryByText(/Syncing/u)).toBeNull();
+
+        fireEvent.click(screen.getByText('open tabs'));
+
+        expect(screen.getByText('Back online')).toBeTruthy();
+        expect(screen.getByText('Syncing 1 change…')).toBeTruthy();
     });
 });

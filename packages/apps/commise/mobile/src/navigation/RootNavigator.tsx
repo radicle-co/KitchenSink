@@ -78,8 +78,8 @@ export function RootNavigator(): JSX.Element {
             <NavigationContainer
                 ref={navigationRef}
                 theme={theme}
-                // `onReady` reports the route a fresh container opened on, so a gate that outlived a sign-out never keeps
-                // the last session's focus.
+                // `onReady` reports the route a fresh container opened on, so a gate that outlived a sign-out never
+                // keeps the last session's focus.
                 onReady={() => reportFocusedRoot(focusedRootRouteOf(navigationRef.getRootState()))}
                 onStateChange={(state) => {
                     setOnTabs(focusedRootRouteOf(state) === 'Tabs');

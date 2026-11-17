@@ -927,7 +927,7 @@
             "packageName": "@commise/features-cooking",
             "layer": "feature",
             "dir": "packages/apps/commise/features/cooking/src",
-            "kind": "presentational",
+            "kind": "orchestration",
             "patterns": [
                 "Dependency Injection — the route supplies the notice; the frame only reads it"
             ],
@@ -943,7 +943,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingNoticeSlot.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingNoticeSlot — the one place on the web cooking surface where the route's offline notice is drawn.\n\nCooking mode's package does not import `@commise/query`, so it cannot mount the notice itself. The route (which does)\nhands the notice in through this slot, and `CookingFrame`, the one frame every cooking screen draws, puts it first in\nthe surface, above the top bar. That gives exactly one notice on Before you start, a step, All steps, Done and the\nloading and notice screens, with no prop threaded through them. Without a provider the slot is empty.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingNoticeSlot — the one place on the web cooking surface where the route's offline notice is drawn.\n\nCooking mode's package does not import `@commise/query`, so it cannot mount the notice itself. The route (which does)\nhands the notice in through this slot, and `CookingFrame`, the one frame every cooking screen draws, puts it first in\nthe surface, above the top bar, with no prop threaded through the screens. Without a provider the slot is empty.\n\nOrchestration: it supplies a value to its subtree and draws no markup of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -972,8 +972,8 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]

@@ -4,7 +4,8 @@
  *
  * `AuthGate` sits above the navigator, so it cannot read the route. The navigator reports the focused root route
  * through an event handler (`onReady`, `onStateChange`) into this context, and the gate derives the notice's form
- * from the name during render. There is no effect and no ref, and no screen registers itself.
+ * from the name during render. There is no effect, and no screen registers itself. The gate keeps no ref: `onReady`
+ * reads the first state from the navigator's own `navigationRef`.
  *
  * @pattern Observer — the navigator reports each change of the focused root route; the gate subscribes by providing
  *     the callback

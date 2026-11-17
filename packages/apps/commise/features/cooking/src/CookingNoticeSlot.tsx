@@ -5,10 +5,9 @@
  *
  * Cooking mode's package does not import `@commise/query`, so it cannot mount the notice itself. The route (which does)
  * hands the notice in through this slot, and `CookingFrame`, the one frame every cooking screen draws, puts it first in
- * the surface, above the top bar. That gives exactly one notice on Before you start, a step, All steps, Done and the
- * loading and notice screens, with no prop threaded through them. Without a provider the slot is empty.
+ * the surface, above the top bar, with no prop threaded through the screens. Without a provider the slot is empty.
  *
- * Presentational: props → JSX.
+ * Orchestration: it supplies a value to its subtree and draws no markup of its own.
  *
  * @pattern Dependency Injection — the route supplies the notice; the frame only reads it
  */

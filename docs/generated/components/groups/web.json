@@ -943,7 +943,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/CookingNoticeMount.tsx",
                     "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook",
-                    "moduleDoc": "The cook route's offline notice: the one `SyncNoticeHost` in its cooking form (title only while offline, quiet on\nreconnect), handed to the cooking surface's notice slot, which draws it first inside the surface, above the top bar.\nThe route and the segment's loading frame both wrap their screen in it, so a cook offline sees one notice on every\ncooking screen.\n\nOrchestration: it reads the app's offline copy and mounts the host, and draws no markup of its own.",
+                    "moduleDoc": "The cook route's offline notice: the one `SyncNoticeHost` in its cooking form (title only while offline, quiet on\nreconnect), handed to the cooking surface's notice slot, which draws it first inside the surface, above the top bar.\n\nOrchestration: it reads the app's offline copy and mounts the host, and draws no markup of its own.",
                     "moduleTags": [
                         {
                             "name": "pattern",

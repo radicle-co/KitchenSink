@@ -14,7 +14,9 @@ import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { NotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
+import { SyncProvider, useSyncQueue } from '@commise/query/sync';
 import { renderWithRecipeClient } from '@commise/test-utils';
+import { createMemoryOutboxStore } from '@kitchensink/sync';
 import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -525,18 +527,53 @@ describe('CookingRoute: the offline notice', () => {
         expect(screen.queryByText(OFFLINE)).toBeNull();
     });
 
-    it('goes quiet on reconnect, with no "Back online" in cooking mode', async () => {
+    it('⛔ says nothing of syncing in cooking mode when it reconnects with a write still going out', async () => {
+        // One write is pending and its send never resolves, so reconnecting leaves it syncing: the app form would say
+        // "Back online" and "Syncing 1 change…" for it, and cooking mode says neither.
+        const send = vi.fn(() => new Promise<never>(() => undefined));
+
+        const Writer = (): ReactNode => {
+            const queue = useSyncQueue();
+
+            return (
+                <button
+                    type="button"
+                    onClick={() => {
+                        void queue.submit({
+                            entity: 'recipe',
+                            intentKind: 'update',
+                            localId: 'r1',
+                            dependsOn: [],
+                            payload: {},
+                        });
+                    }}
+                >
+                    save a change
+                </button>
+            );
+        };
+
         act(() => {
             onlineManager.setOnline(false);
         });
-        render(cooking(true));
+        render(
+            <SyncProvider subject="user_a" send={send} store={createMemoryOutboxStore()}>
+                {cooking(true)}
+                <Writer />
+            </SyncProvider>,
+        );
         await screen.findByRole('button', { name: 'Exit cooking mode' });
+        await userEvent.click(screen.getByRole('button', { name: 'save a change' }));
 
-        act(() => {
+        await act(async () => {
             onlineManager.setOnline(true);
         });
 
+        await waitFor(() => {
+            expect(send).toHaveBeenCalled();
+        });
         expect(screen.queryByText(OFFLINE)).toBeNull();
-        expect(screen.queryByText(/back online/iu)).toBeNull();
+        expect(screen.queryByText('Back online')).toBeNull();
+        expect(screen.queryByText(/Syncing/u)).toBeNull();
     });
 });

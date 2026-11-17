@@ -3,8 +3,6 @@
 /**
  * The cook route's offline notice: the one `SyncNoticeHost` in its cooking form (title only while offline, quiet on
  * reconnect), handed to the cooking surface's notice slot, which draws it first inside the surface, above the top bar.
- * The route and the segment's loading frame both wrap their screen in it, so a cook offline sees one notice on every
- * cooking screen.
  *
  * Orchestration: it reads the app's offline copy and mounts the host, and draws no markup of its own.
  *

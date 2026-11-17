@@ -492,6 +492,76 @@
       "w": 390,
       "h": 1200,
       "title": "Recipe importing, library results (web, 390)"
+    },
+    "ImportPasteReplaceReviewWeb1280.dc.html": {
+      "x": 47600,
+      "y": 260,
+      "w": 1280,
+      "h": 843,
+      "title": "Recipe importing, paste replace review (web, 1280)"
+    },
+    "ImportPasteReplaceDraftWeb1280.dc.html": {
+      "x": 48960,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe importing, paste replace a draft (web, 1280)"
+    },
+    "ImportPasteCopiesWeb1280.dc.html": {
+      "x": 50320,
+      "y": 260,
+      "w": 1280,
+      "h": 2657,
+      "title": "Recipe importing, paste copies list (web, 1280)"
+    },
+    "ImportPasteReplaceConflictWeb1280.dc.html": {
+      "x": 51680,
+      "y": 260,
+      "w": 1280,
+      "h": 856,
+      "title": "Recipe importing, paste replace conflict (web, 1280)"
+    },
+    "ImportPasteHeldWeb390.dc.html": {
+      "x": 10340,
+      "y": 9265,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, paste held from public (web, 390)"
+    },
+    "ImportPasteReplaceReviewWeb390.dc.html": {
+      "x": 10810,
+      "y": 9265,
+      "w": 390,
+      "h": 1566,
+      "title": "Recipe importing, paste replace review (web, 390)"
+    },
+    "ImportPasteReplaceDraftWeb390.dc.html": {
+      "x": 11280,
+      "y": 9265,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, paste replace a draft (web, 390)"
+    },
+    "ImportPasteCopiesWeb390.dc.html": {
+      "x": 11750,
+      "y": 9265,
+      "w": 390,
+      "h": 1465,
+      "title": "Recipe importing, paste copies list (web, 390)"
+    },
+    "ImportPasteReplaceConflictWeb390.dc.html": {
+      "x": 12220,
+      "y": 9265,
+      "w": 390,
+      "h": 1754,
+      "title": "Recipe importing, paste replace conflict (web, 390)"
+    },
+    "ImportPasteReviewHoldsWeb390.dc.html": {
+      "x": 12690,
+      "y": 9265,
+      "w": 390,
+      "h": 3587,
+      "title": "Recipe importing, paste review holds (web, 390)"
     }
   },
   "order": [
@@ -563,7 +633,17 @@
     "ImportStatementsWeb390.dc.html",
     "ImportLimitReachedWeb390.dc.html",
     "ImportLibraryProgressWeb390.dc.html",
-    "ImportLibraryResultsWeb390.dc.html"
+    "ImportLibraryResultsWeb390.dc.html",
+    "ImportPasteReplaceReviewWeb1280.dc.html",
+    "ImportPasteReplaceDraftWeb1280.dc.html",
+    "ImportPasteCopiesWeb1280.dc.html",
+    "ImportPasteReplaceConflictWeb1280.dc.html",
+    "ImportPasteHeldWeb390.dc.html",
+    "ImportPasteReplaceReviewWeb390.dc.html",
+    "ImportPasteReplaceDraftWeb390.dc.html",
+    "ImportPasteCopiesWeb390.dc.html",
+    "ImportPasteReplaceConflictWeb390.dc.html",
+    "ImportPasteReviewHoldsWeb390.dc.html"
   ],
   "notes": {
     "row0": {

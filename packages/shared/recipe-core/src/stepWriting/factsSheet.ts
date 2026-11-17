@@ -239,6 +239,12 @@ function readTemperatures(text: string): { temperatures: PlacedTemperature[]; re
 interface IngredientMatcher {
     readonly name: string;
     readonly matcher: RegExp;
+    /**
+     * Any run of the name's words but the first, anchored where it is tried (sticky) and ending at a phrase edge ("Cheddar"
+     * and "cheese" for "shredded Cheddar cheese"). `null` for a name of one word. An amount directly before it counts as
+     * the edge on its left.
+     */
+    readonly runAfterAmount: RegExp | null;
 }
 
 /** Format (`\p{Cf}`) and default-ignorable characters, as a regex class body. */
@@ -343,6 +349,18 @@ function ingredientMatchersOf(names: readonly string[]): IngredientMatcher[] {
         const tokens = name.split(/[\s-]+/u).filter((token) => token !== '');
         const run = (from: number): string => `${tokens.slice(from).map(tokenPattern).join(PHRASE_JOINER)}(?:e?s)?`;
         const runs = tokens.slice(1).map((_token, index) => run(index + 1));
+        // Every run of consecutive words that does not start at the first word, longest first.
+        const innerRuns = tokens
+            .slice(1)
+            .flatMap((_token, start) =>
+                tokens.slice(start + 1).map((_end, length) =>
+                    tokens
+                        .slice(start + 1, tokens.length - length)
+                        .map(tokenPattern)
+                        .join(PHRASE_JOINER),
+                ),
+            )
+            .map((words) => `${words}(?:e?s)?`);
         const partial = runs.length === 0 ? '' : `|${RUN_BEFORE}(?:${runs.join('|')})${RUN_AFTER}`;
 
         return {
@@ -351,6 +369,7 @@ function ingredientMatchersOf(names: readonly string[]): IngredientMatcher[] {
                 `${NOT_LETTER_OR_DIGIT_BEFORE}(?:${run(0)})${NOT_LETTER_OR_DIGIT_AFTER}${partial}`,
                 'giu',
             ),
+            runAfterAmount: runs.length === 0 ? null : new RegExp(`(?:${innerRuns.join('|')})${RUN_AFTER}`, 'iuy'),
         };
     });
 }
@@ -680,6 +699,25 @@ const PLUS_TIE = /^\s+plus\s+$/iu;
 const canMeasure = (read: ReadAmount): boolean => read.timeUnit === null && !read.isLength && !read.hyphenSized;
 
 /**
+ * The one ingredient whose last words follow the amount directly ("1 cup Cheddar" for "shredded Cheddar cheese"), or
+ * `null` when none does, or two names do. The amount stands as the edge on the left of the run.
+ */
+function nameAfterAmount(read: ReadAmount, matchers: readonly IngredientMatcher[], text: string): string | null {
+    const from = read.end + (/^\s*(?:of\s+(?:the\s+)?)?/iu.exec(text.slice(read.end))?.[0].length ?? 0);
+    const found = matchers.filter(({ runAfterAmount }) => {
+        if (runAfterAmount === null) {
+            return false;
+        }
+
+        runAfterAmount.lastIndex = from;
+
+        return runAfterAmount.test(text);
+    });
+
+    return found.length === 1 ? (found[0]?.name ?? null) : null;
+}
+
+/**
  * The amounts of a step. An amount is tied to an ingredient only in the shape `NUM [UNIT] [of [the]] NAME`, with nothing
  * in between, or as the first part of `NUM UNIT plus NUM UNIT NAME`, where both parts are tied. A time, a length, a
  * hyphenated size and any other shape stay untied: a missing tie is safe, a wrong one is published. A time is an amount
@@ -692,17 +730,21 @@ function amountsOf(
     reads: readonly ReadAmount[],
     unread: ReadonlySet<ReadAmount>,
     mentions: readonly Mention[],
+    matchers: readonly IngredientMatcher[],
     text: string,
 ): { amounts: FactAmount[]; untiedMeasures: number } {
     const ties = reads.map((read): string | null => {
+        if (!canMeasure(read)) {
+            return null;
+        }
+
         const mention = mentions.find((each) => each.start >= read.end);
 
         return mention !== undefined &&
-            canMeasure(read) &&
             DIRECT_TIE.test(text.slice(read.end, mention.start)) &&
             NAME_ENDS.test(text.slice(mention.end))
             ? mention.name
-            : null;
+            : nameAfterAmount(read, matchers, text);
     });
 
     for (let index = reads.length - 2; index >= 0; index -= 1) {
@@ -860,7 +902,7 @@ export function buildFactsSheet(recipe: StepSourceRecipe, readers: FactsSheetRea
             .sort((a, b) => a.at - b.at)
             .map(({ duration }) => duration);
 
-        const { amounts, untiedMeasures } = amountsOf(reads, unread, mentions, text);
+        const { amounts, untiedMeasures } = amountsOf(reads, unread, mentions, matchers, text);
 
         // Two or more measures the sheet cannot tie leave the writer free to attach them wrongly: refuse the sheet.
         if (untiedMeasures >= MAX_UNTIED_MEASURES_EXCLUSIVE) {
@@ -872,7 +914,10 @@ export function buildFactsSheet(recipe: StepSourceRecipe, readers: FactsSheetRea
             amounts,
             temperatures: temperatures.map(({ value, scale }) => ({ value, scale })),
             durations,
-            ingredients: [...new Set(mentions.map((mention) => mention.name))],
+            // An amount may tie to a name its run stands for ("1 cup Cheddar"), so the step names it too.
+            ingredients: [
+                ...new Set([...mentions.map((mention) => mention.name), ...amounts.flatMap((a) => a.ingredient ?? [])]),
+            ],
             equipment: [...new Set(equipment.map(({ item }) => item))],
             safety: safetyOf(text, temperatures),
         };

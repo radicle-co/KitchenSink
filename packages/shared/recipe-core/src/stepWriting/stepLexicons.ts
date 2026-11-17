@@ -201,7 +201,7 @@ export const EQUIPMENT: readonly string[] = [
 ];
 
 /** The most words an ingredient name has. A longer line is a sentence, not a name. */
-export const MAX_INGREDIENT_NAME_WORDS = 8;
+export const MAX_INGREDIENT_NAME_WORDS = 12;
 
 /**
  * Words an ingredient name never holds, lower case: they join the steps of a method. A name holding one is step text.

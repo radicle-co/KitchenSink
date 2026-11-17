@@ -316,21 +316,26 @@ describe('the ingredient an amount measures', () => {
 describe('ingredient names that read as step text', () => {
     it.each([
         ['an instruction', 'stir then whisk until smooth'],
-        ['nine words', 'one two three four five six seven eight nine'],
+        ['thirteen words', 'one two three four five six seven eight nine ten eleven twelve thirteen'],
         ['a time', 'rest 10 minutes'],
     ])('refuses %s in a name field of a hand-built sheet', (_what, name) => {
         expect(faultOf(makeSheet({ ingredientNames: [name] }))).toMatchObject({ field: 'ingredientNames[0]' });
     });
 
-    it('keeps eight words, a name with the word minute, and a hyphenated timed product name', () => {
-        for (const name of ['one two three four five six seven eight', 'Minute rice', 'quick 1-minute oats']) {
+    it('keeps twelve words, the long real names, a name with the word minute, and a hyphenated timed product name', () => {
+        for (const name of [
+            'one two three four five six seven eight nine ten eleven twelve',
+            'sea salt and freshly ground black pepper to taste',
+            'Minute rice',
+            'quick 1-minute oats',
+        ]) {
             expect(faultOf(makeSheet({ ingredientNames: [name] }))).toBeUndefined();
         }
     });
 
     it.each([
         ['an instruction', 'stir then whisk until smooth'],
-        ['nine words', 'one two three four five six seven eight nine'],
+        ['thirteen words', 'one two three four five six seven eight nine ten eleven twelve thirteen'],
         ['a time', 'rest 10 minutes'],
     ])('refuses %s in the ingredients a step names', (_what, name) => {
         const [base] = makeSheet().steps;

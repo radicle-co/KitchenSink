@@ -254,6 +254,30 @@ describe('amounts', () => {
         expect(first?.ingredient).toBeNull();
     });
 
+    it('ties an amount to a run of the last words of a name that follows it directly', () => {
+        expect(stepOf('Add 1 cup Cheddar, then stir.', ['shredded Cheddar cheese']).amounts).toEqual([
+            { quantity: 1, unit: 'cup', ingredient: 'shredded Cheddar cheese' },
+        ]);
+        expect(stepOf('Season with 1 1/2 teaspoons salt, pepper and paprika.', ['kosher salt']).amounts).toEqual([
+            { quantity: 1.5, unit: 'teaspoon', ingredient: 'kosher salt' },
+        ]);
+        expect(stepOf('Cut 3 tablespoons butter into cubes.', ['cold salted butter']).amounts).toEqual([
+            { quantity: 3, unit: 'tablespoon', ingredient: 'cold salted butter' },
+        ]);
+        expect(stepOf('Stir in 3 tablespoons of the butter.', ['cold salted butter']).amounts[0]?.ingredient).toBe(
+            'cold salted butter',
+        );
+    });
+
+    it('does not tie a run of last words that two names share, or one that starts a longer phrase', () => {
+        expect(stepOf('Add 1 cup broth.', ['chicken broth', 'beef broth']).amounts[0]?.ingredient).toBeNull();
+        expect(stepOf('Stir in 3 tablespoons of the bacon gravy.', ['crisp bacon']).amounts[0]?.ingredient).toBeNull();
+        expect(stepOf('Stir in 3 tablespoons of the bacon gravy.', ['bacon']).amounts[0]?.ingredient).toBeNull();
+        expect(
+            stepOf('Add 1 cup finely chopped Cheddar.', ['shredded Cheddar cheese']).amounts[0]?.ingredient,
+        ).toBeNull();
+    });
+
     it('leaves an amount untied when the name it reaches is the start of a longer phrase', () => {
         expect(stepOf('Stir in 3 tablespoons of the bacon gravy.', ['bacon']).amounts).toEqual([
             { quantity: 3, unit: 'tablespoon', ingredient: null },
@@ -836,7 +860,7 @@ describe('ingredient names and language are plain facts', () => {
 
     it.each([
         ['an instruction', 'Stir the butter in then whisk until smooth'],
-        ['a sentence of nine words', 'one two three four five six seven eight nine'],
+        ['a sentence of thirteen words', 'one two three four five six seven eight nine ten eleven twelve thirteen'],
         ['a time', 'butter melted for 10 minutes'],
         ['a short time', 'rest 10 mins'],
         ['a method word', 'preheat oven'],
@@ -845,8 +869,14 @@ describe('ingredient names and language are plain facts', () => {
         expect(() => sheetOf([], [name])).toThrow(/ingredientLines\[0\]/u);
     });
 
-    it('keeps a name of eight words, a name with the word minute, and a timed product name', () => {
-        const names = ['one two three four five six seven eight', 'Minute rice', 'quick 1-minute oats'];
+    it('keeps a name of twelve words, the long real names of the corpus, a name with the word minute, and a timed product name', () => {
+        const names = [
+            'one two three four five six seven eight nine ten eleven twelve',
+            'sea salt and freshly ground black pepper to taste',
+            'freshly ground white pepper or freshly ground black pepper',
+            'Minute rice',
+            'quick 1-minute oats',
+        ];
 
         expect(namesOf(names)).toEqual(names);
     });

@@ -842,22 +842,22 @@ stacked. The confirm dialog puts its buttons side by side at 768, as it does at 
 
 ### 12.2 `recipeImportingMobile`
 
-| #   | Board                    | States shown                               | Sizes                                    |
-| --- | ------------------------ | ------------------------------------------ | ---------------------------------------- |
-| M1  | ImportAddRecipe (redraw) | P1                                         | Iphone390, Android384, Ipad834, Ipad1194 |
-| M2  | ImportPasteEmpty         | S1, keyboard closed                        | Iphone390, Android384, Ipad834, Ipad1194 |
-| M3  | ImportPasteKeyboard      | S3 with the keyboard open, Import above it | Iphone390, Android384                    |
-| M4  | ImportPasteTextCard      | S5                                         | Iphone390, Android384                    |
-| M5  | ImportPastePageCard      | S4                                         | Iphone390, Ipad1194                      |
-| M6  | ImportPasteWaiting       | S6, S7                                     | Iphone390                                |
-| M7  | ImportPasteRefused       | S25, S26                                   | Iphone390, Ipad834                       |
-| M8  | ImportPasteErrors        | S23, S27                                   | Iphone390                                |
-| M9  | ImportPastePickOne       | S29                                        | Iphone390, Ipad1194                      |
-| M10 | ImportPasteDuplicate     | S30, S31                                   | Iphone390, Ipad834                       |
-| M11 | ImportPasteReview        | S8, S10, S40                               | Iphone390, Android384, Ipad834, Ipad1194 |
-| M12 | ImportPasteReviewHolds   | S9, S15                                    | Iphone390, Android384, Ipad1194          |
-| M13 | ImportPasteSlotsFull     | S17                                        | Iphone390                                |
-| M14 | ImportPasteSaved         | S35, S41 ("In review" and the held line)   | Iphone390, Ipad834                       |
+| #   | Board                    | States shown                                    | Sizes                                    |
+| --- | ------------------------ | ----------------------------------------------- | ---------------------------------------- |
+| M1  | ImportAddRecipe (redraw) | P1                                              | Iphone390, Android384, Ipad834, Ipad1194 |
+| M2  | ImportPasteEmpty         | S1, keyboard closed                             | Iphone390, Android384, Ipad834, Ipad1194 |
+| M3  | ImportPasteKeyboard      | S3 with the keyboard open, Import above it      | Iphone390, Android384                    |
+| M4  | ImportPasteTextCard      | S5                                              | Iphone390, Android384                    |
+| M5  | ImportPastePageCard      | S4                                              | Iphone390, Ipad1194                      |
+| M6  | ImportPasteWaiting       | S6, S7                                          | Iphone390                                |
+| M7  | ImportPasteRefused       | S25, S26                                        | Iphone390, Ipad834                       |
+| M8  | ImportPasteErrors        | S23, S27                                        | Iphone390                                |
+| M9  | ImportPastePickOne       | S29                                             | Iphone390, Ipad1194                      |
+| M10 | ImportPasteDuplicate     | S30, S31                                        | Iphone390, Ipad834                       |
+| M11 | ImportPasteReview        | S8, S10, S40                                    | Iphone390, Android384, Ipad834, Ipad1194 |
+| M12 | ImportPasteReviewHolds   | S9, S15                                         | Iphone390, Android384, Ipad1194          |
+| M13 | ImportPasteSlotsFull     | S17                                             | Iphone390                                |
+| M14 | ImportPasteSaved         | S35, S41 (Private, In review and the held line) | Iphone390, Ipad834                       |
 
 ### 12.3 Redrawn this round (D13)
 
@@ -873,6 +873,15 @@ except ImportWizardStep and ImportStatements, which are redrawn in place at Ipad
 | ImportPasteText       | Drop the source choice on the paste screen and "Make a draft". It becomes P2 (S1) with "Import recipe". The source moves to review.                                                                       |
 | ImportWizardStep      | Drop the Public option for a web page and Private "needs Pro". Private only, as ADR-0089 §5 says.                                                                                                         |
 | ImportStatements      | Drop "needs Pro". The web-page rows are private only.                                                                                                                                                     |
+
+**Copy change of 2026-11-17, web done, mobile deferred.** The owner ruled that the private copy never stores the
+page's photos, so `editor.source.rightsLabel` now reads "Saved from {site}. The words belong to their author. Private to
+you." Every `recipeImportingWeb` board carries it. The `recipeImportingMobile` boards of the ImportLinkPrivateOnly,
+ImportStatements, ImportWizardStep, ImportReviewDraft, ImportPasteReview, ImportPasteSaved and ImportPasteSlotsFull
+families still show the earlier line, "The words and photos belong to their author.", and take the new copy in the
+mobile round. The author line (`privateCopy.author`) is drawn on the boards that show the read-only statement (S33, S44,
+S46). The other web boards that show the attribution line, ImportPasteReview (W10) among them, add it at their next
+redraw.
 
 **Further drift, flagged and not in this round's count.** All five `ImportWizardStates` boards and all five
 `ImportStatements` boards (Web1280, Web390, Iphone390, Android384, Ipad820) keep an `aria-disabled` Public radio on the

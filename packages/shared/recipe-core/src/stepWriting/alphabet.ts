@@ -10,7 +10,8 @@
  * Both doors, the sheet check and the answer reader, normalise to NFC, fold every space character to a plain space
  * (see {@link canonicalText}), and then accept only what the allowlist names, with at least one letter or digit.
  * For English that is a to z, a closed list of accented letters, the digits 0 to 9, the vulgar fractions, and the
- * punctuation sets below. Combining marks, other scripts, full-width forms, joiners and hidden characters are not in it.
+ * punctuation sets below. Combining marks, other scripts, full-width forms, joiners and hidden characters are not in
+ * it.
  * A decomposed `é` composes under NFC and passes. A combining mark that does not compose has no place to hide, because
  * it is not on the list.
  *
@@ -43,7 +44,7 @@ export function isOutputLanguage(value: unknown): value is OutputLanguage {
 /**
  * What a plain name may hold besides letters and digits: space, apostrophes and the single curly quotes, comma,
  * parentheses, ampersand, percent, degree, full stop, plus, slash, number sign, multiplication sign, ellipsis,
- * registered and trade mark signs, degree Celsius, and hyphen. The hyphen stays last so the set reads as a regex class.
+ * registered and trade mark signs, degree Celsius, and hyphen.
  * Other space characters are folded to a plain space before the check, not allowed as characters.
  */
 export const PLAIN_FACT_PUNCTUATION = " '\u2019\u2018,()&%\u00B0.+/#\u00D7\u2026\u00AE\u2122\u2103-";
@@ -80,7 +81,10 @@ const classBody = (characters: string): string => characters.replace(/[()[\]{}/|
 /** Somewhere in the text there is a letter, a digit or a fraction, so punctuation alone is never a name or a step. */
 const SOMETHING_TO_READ = `(?=.*[${LATIN_LETTER}${DIGIT_OR_FRACTION}])`;
 
-/** A name starts with a letter, digit, fraction, apostrophe or number sign (`'nduja`, `#2 can`), then holds only the name set. */
+/**
+ * A name starts with a letter, digit, fraction, apostrophe or number sign (`'nduja`, `#2 can`), then holds only the
+ * name set.
+ */
 const ENGLISH_NAME = new RegExp(
     `^${SOMETHING_TO_READ}[${LATIN_LETTER}${DIGIT_OR_FRACTION}'\u2019\u2018#][${LATIN_LETTER}${DIGIT_OR_FRACTION}${classBody(PLAIN_FACT_PUNCTUATION)}]*$`,
     'v',

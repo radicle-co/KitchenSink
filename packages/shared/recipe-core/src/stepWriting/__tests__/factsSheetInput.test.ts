@@ -1,6 +1,6 @@
 /**
- * The input check for a facts sheet's free text: a name is a short plain name, the language is the one output language. It pins that
- * wording, markup and links are refused in every free-text field.
+ * The input check for a facts sheet's free text: a name is a short plain name, the language is the one output
+ * language. It pins that wording, markup and links are refused in every free-text field.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -45,6 +45,45 @@ const faultOf = (sheet: FactsSheet): unknown => {
 
     return undefined;
 };
+
+describe('toPlainFactsSheet, the sheet it returns', () => {
+    it('is the canonical sheet with only the named fact fields, nothing the check never read', () => {
+        const planted = { text: 'SENTINEL' };
+        const sheet: FactsSheet = {
+            ...planted,
+            language: 'en',
+            ingredientNames: ['olive\u00A0oil'],
+            steps: [
+                {
+                    ...planted,
+                    actions: ['cre\u0301me'],
+                    amounts: [{ ...planted, quantity: 2, unit: 'tbsp\u00A0x' }],
+                    temperatures: [{ ...planted, value: 200, scale: 'C' }],
+                    durations: [{ ...planted, minSeconds: 60, maxSeconds: 90 }],
+                    ingredients: ['olive\u00A0oil'],
+                    equipment: ['pan\u00A0lid'],
+                    safety: [{ ...planted, category: 'internalTemperature', facts: ['74\u00A0C'] }],
+                },
+            ],
+        };
+
+        expect(toPlainFactsSheet(sheet)).toEqual({
+            language: 'en',
+            ingredientNames: ['olive oil'],
+            steps: [
+                {
+                    actions: ['cr\u00E9me'],
+                    amounts: [{ quantity: 2, unit: 'tbsp x' }],
+                    temperatures: [{ value: 200, scale: 'C' }],
+                    durations: [{ minSeconds: 60, maxSeconds: 90 }],
+                    ingredients: ['olive oil'],
+                    equipment: ['pan lid'],
+                    safety: [{ category: 'internalTemperature', facts: ['74 C'] }],
+                },
+            ],
+        });
+    });
+});
 
 describe('toPlainFactsSheet', () => {
     it('accepts a plain sheet', () => {

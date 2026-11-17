@@ -12,8 +12,8 @@
  * - `unsafeText`: a step holding a link, an address, markup or any character outside the language's alphabet (see
  *   `alphabet.ts`).
  *
- * This reader checks the SHAPE and the CHARACTERS of the text only. Truth to the recipe is checked later in the pipeline
- * (spec 027 FR-040, the two-way fact check).
+ * This reader checks the SHAPE and the CHARACTERS of the text only. Truth to the recipe is checked later in the
+ * pipeline (spec 027 FR-040, the two-way fact check).
  *
  * Whether each `covers` index points at a real source step, and which source steps must be covered, needs the source
  * recipe, which is not in the answer. The rewrite step that holds both checks it.

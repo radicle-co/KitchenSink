@@ -5,9 +5,10 @@
  * source wording, and a language the writer answers in. Any code that hands a sheet to the writer calls
  * {@link toPlainFactsSheet} and sends the sheet it returns.
  *
- * Names are plain by construction: canonical (NFC, spaces folded), then made only of what the language's alphabet allows (see
- * `alphabet.ts`), at most {@link MAX_FACT_TEXT_CHARS} code points, and nothing the language's address rule flags. A
- * sentence runs past the length, a link fails the address rule, and markup needs an angle bracket, so none passes.
+ * Names are plain by construction: canonical (NFC, spaces folded), then made only of what the language's alphabet
+ * allows (see `alphabet.ts`), at most {@link MAX_FACT_TEXT_CHARS} code points, and nothing the language's address
+ * rule flags. A sentence runs past the length, a link fails the address rule, and markup needs an angle bracket, so
+ * none passes.
  *
  * The colon is not in the set. It is the scheme and port marker, and no ingredient name needs it.
  *
@@ -96,14 +97,14 @@ export function toPlainFactsSheet(sheet: FactsSheet): FactsSheet {
             const at = `steps[${s}]`;
 
             return {
-                ...step,
                 actions: step.actions.map((text, i) => plain(`${at}.actions[${i}]`, text)),
                 ingredients: step.ingredients.map((text, i) => plain(`${at}.ingredients[${i}]`, text)),
                 equipment: step.equipment.map((text, i) => plain(`${at}.equipment[${i}]`, text)),
                 amounts: step.amounts.map((amount, i) => ({
-                    ...amount,
+                    quantity: amount.quantity,
                     unit: amount.unit === null ? null : plain(`${at}.amounts[${i}].unit`, amount.unit),
                 })),
+                temperatures: step.temperatures.map(({ value, scale }) => ({ value, scale })),
                 durations: step.durations.map((duration, i) => {
                     if (duration.minSeconds < 0) {
                         throw new FactsSheetInvalidError(`${at}.durations[${i}].minSeconds`);
@@ -113,10 +114,10 @@ export function toPlainFactsSheet(sheet: FactsSheet): FactsSheet {
                         throw new FactsSheetInvalidError(`${at}.durations[${i}].maxSeconds`);
                     }
 
-                    return duration;
+                    return { minSeconds: duration.minSeconds, maxSeconds: duration.maxSeconds };
                 }),
                 safety: step.safety.map((line, i) => ({
-                    ...line,
+                    category: line.category,
                     facts: line.facts.map((text, f) => plain(`${at}.safety[${i}].facts[${f}]`, text)),
                 })),
             };

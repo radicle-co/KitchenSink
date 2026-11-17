@@ -163,7 +163,7 @@ export function accessOf(node: SchemaNode, containers: readonly SchemaNode[]): P
     const free = sources.flatMap((source) =>
         items(field(source, 'isAccessibleForFree')).flatMap((value) => statedBoolean(value) ?? []),
     );
-    const isAccessibleForFree = free.includes(false) ? false : free.includes(true) ? true : undefined;
+    const isAccessibleForFree = free.length === 0 ? undefined : !free.includes(false);
     const datePublished = sources
         .map((source) => isoDate(field(source, 'datePublished')))
         .find((date) => date !== undefined);

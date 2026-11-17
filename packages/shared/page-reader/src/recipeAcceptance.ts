@@ -16,7 +16,7 @@
  * | G6 | no step is an amount and a canonical unit in at most 8 words (an ingredient in the method)        | `ingredientsInSteps`  |
  * | G7 | no line is in both the ingredients and the steps (a range read twice)                             | `ingredientsInSteps`  |
  * | G8 | no title, ingredient line or step holds U+FFFD or a C1 control character (U+0080 to U+009F), and none of them is without a letter, mark or digit (`isWordMaterial`) | `garbledText`         |
- * | G9 | no ingredient line is a heading: it ends in a colon with no amount, or is in capitals with no digit or measure | `headingInIngredients` |
+ * | G9 | no ingredient line is a heading in capitals: no digit, no measure word, every cased letter (two at least) a capital | `headingInIngredients` |
  *
  * The first predicate that fails, in table order, is the reason. Every predicate here is language-neutral except G6's unit
  * test and G9's measure test, which read English units: a page it cannot read gives no, never a wrong yes (precision first). The step LIMITS
@@ -102,9 +102,6 @@ function sentenceEnds(line: string): number {
 /** A digit in any script. */
 const DIGIT = /^\p{N}$/u;
 
-/** Whether a line ends in a colon, ASCII or full-width. */
-const endsInColon = (line: string): boolean => line.endsWith(':') || line.endsWith('\uFF1A');
-
 /** Whether every cased letter of `line` is a capital, with two capitals at least, and no digit. */
 function isCapitalsOnly(line: string): boolean {
     let capitals = 0;
@@ -121,20 +118,12 @@ function isCapitalsOnly(line: string): boolean {
 }
 
 /**
- * G9: whether an ingredient line is a heading. It is one when it ends in a colon and opens with no amount ("For the
- * sauce:", "TOPPING 2:"), or when it is in capitals with no digit and names no measure ("CRUMBLE", "SHOP JAMIE'S
- * SERVEWARE"). A script with no case has no capitals. ⚠️ A one-word ingredient in capitals ("SALT") reads as a heading:
- * with no food lexicon it cannot be told from "FROSTING", so it is refused (pinned by a test).
+ * G9: whether an ingredient line is a heading in capitals: no digit, and it names no measure ("CRUMBLE", "SHOP JAMIE'S
+ * SERVEWARE"). A script with no case has no capitals. A heading that ends in a colon is extraction's (R2,
+ * `pageRecipeCandidate.ts`), which drops it before this gate. ⚠️ A one-word ingredient in capitals ("SALT") reads as a
+ * heading: with no food lexicon it cannot be told from "FROSTING", so it is refused (pinned by a test).
  */
-function isHeadingLine(line: string): boolean {
-    const trimmed = line.trim();
-
-    if (endsInColon(trimmed)) {
-        return readCooksMeasure(trimmed).quantity.kind === 'absent';
-    }
-
-    return isCapitalsOnly(trimmed) && !namesAMeasure(trimmed);
-}
+const isCapitalsHeading = (line: string): boolean => isCapitalsOnly(line.trim()) && !namesAMeasure(line);
 
 /** G8: whether `text` holds U+FFFD (a decoder's replacement) or a C1 control character (U+0080 to U+009F). One pass. */
 function isGarbled(text: string): boolean {
@@ -150,7 +139,7 @@ function isGarbled(text: string): boolean {
 }
 
 /** G8: whether `text` has no word material in it ("***", a zero-width space, emoji alone): nothing a cook can read. */
-const hasNoLetterOrDigit = (text: string): boolean => !Array.from(text).some(isWordMaterial);
+const hasNoWordMaterial = (text: string): boolean => !Array.from(text).some(isWordMaterial);
 
 /** A step without its section label ("For the glaze: 1 cup sugar" → "1 cup sugar"). */
 function withoutSectionLabel(step: string): string {
@@ -221,11 +210,11 @@ const PREDICATES: readonly Predicate[] = [
         reason: 'garbledText',
         fails: ({ recipe, steps }) =>
             [recipe.title, ...recipe.ingredientLines, ...steps].some(isGarbled) ||
-            [recipe.title, ...recipe.ingredientLines, ...steps].some(hasNoLetterOrDigit),
+            [recipe.title, ...recipe.ingredientLines, ...steps].some(hasNoWordMaterial),
     },
     {
         reason: 'headingInIngredients',
-        fails: ({ recipe }) => recipe.ingredientLines.some(isHeadingLine),
+        fails: ({ recipe }) => recipe.ingredientLines.some(isCapitalsHeading),
     },
 ];
 

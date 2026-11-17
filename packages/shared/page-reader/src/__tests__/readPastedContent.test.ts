@@ -558,6 +558,19 @@ describe('readPastedContent', () => {
                 expect(evidence(makePage({ jsonLd: [credited()], head }))).not.toHaveProperty('aiOptOut');
             });
 
+            it('drops a colon heading in recipeIngredient before the gate (R2), in capitals or not', () => {
+                const node = makeRecipeNode({
+                    recipeIngredient: ['For the sauce:', '1 cup flour', 'TOPPING 2:', '2 eggs'],
+                    recipeInstructions: ['Mix the flour and eggs.', 'Bake until golden.'],
+                });
+                const body = `<article><h1>${String(node['name'])}</h1><h3>For the sauce:</h3><ul><li>1 cup flour</li></ul><h3>TOPPING 2:</h3><ul><li>2 eggs</li></ul><ol><li>Mix the flour and eggs.</li><li>Bake until golden.</li></ol></article>`;
+
+                expect(readPastedContent(makePage({ jsonLd: [node], body }))).toMatchObject({
+                    kind: 'extracted',
+                    recipe: { ingredientLines: ['1 cup flour', '2 eggs'] },
+                });
+            });
+
             it('reads the same recipe whatever the facts say: none of them is a reason to refuse', () => {
                 const plain = readPastedContent(makePage({ jsonLd: [credited()] }));
                 const marked = readPastedContent(

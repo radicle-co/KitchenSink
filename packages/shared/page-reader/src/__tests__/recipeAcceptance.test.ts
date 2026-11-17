@@ -211,15 +211,9 @@ describe('acceptRecipe: the black-and-white gate, one case per predicate and bot
             },
         );
 
-        // Round 9 (code-reviewer MEDIUM 4 on #324): a line that ends in a colon and opens with no amount is a heading in any
-        // case ("For the sauce:", "TOPPING 2:"). A line in capitals is one only when it holds no digit and no measure word.
-        it.each(['For the sauce:', 'TOPPING 2:', 'Für den Teig：'])('refuses the colon heading %j', (line) => {
-            expect(acceptRecipe(recipeOf({ ingredientLines: ['1 cup flour', line] }), 'jsonLd')).toEqual({
-                ok: false,
-                reason: 'headingInIngredients',
-            });
-        });
-
+        // Round 9 (code-reviewer MEDIUM 4 on #324): a line in capitals is a heading only when it holds no digit and names
+        // no measure. A heading that ends in a colon is dropped by extraction (R2), before the gate: see
+        // `readPastedContent.test.ts`.
         // ⚠️ TRADE-OFF, pinned: a one-word ingredient in capitals reads as a heading. With no food lexicon the reader cannot
         // tell "SALT" from "FROSTING", so the recipe is refused (a false no, which precision first allows).
         it('refuses a one-word ingredient line in capitals, as it cannot be told from a heading', () => {

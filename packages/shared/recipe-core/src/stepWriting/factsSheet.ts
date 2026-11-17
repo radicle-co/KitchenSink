@@ -222,6 +222,10 @@ const HIDDEN = String.raw`\p{Cf}\p{Default_Ignorable_Code_Point}`;
  */
 const OUTSIDE_PLAIN_NAME = new RegExp(`[^\\p{L}\\p{M}\\p{N}${escapeRegExp(PLAIN_FACT_PUNCTUATION)}]`, 'gu');
 
+/** A whole emoji sequence: the pictograph with any presentation selector, skin tone or joined part. Decoration. */
+// Built from a string: the `v` flag needs ES2024, which the engine runs on (see `alphabet.ts`) and this package's target does not name.
+const EMOJI_SEQUENCE = new RegExp(String.raw`\p{RGI_Emoji}`, 'gv');
+
 /** A hidden character anywhere in a text. Not global, so `test` keeps no position between calls. */
 const HAS_HIDDEN_CHARACTER = new RegExp(`[${HIDDEN}]`, 'u');
 
@@ -258,12 +262,15 @@ function nameOfLine(
     const field = `ingredientLines[${index}]`;
 
     for (const raw of [line.displayText ?? '', line.name ?? '']) {
+        // An emoji is decoration, not a fact: the whole sequence goes, then the name is checked.
+        const undecorated = raw.replaceAll(EMOJI_SEQUENCE, ' ');
+
         // Refused before any cleaning: cleaning would split the name or drop the character, text the cook never wrote.
-        if (HAS_HIDDEN_CHARACTER.test(raw)) {
+        if (HAS_HIDDEN_CHARACTER.test(undecorated)) {
             throw new FactsSheetInvalidError(field);
         }
 
-        const name = plainNameOf(raw);
+        const name = plainNameOf(undecorated);
 
         if (name === '') {
             continue;

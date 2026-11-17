@@ -642,6 +642,19 @@ describe('ingredient names and language are plain facts', () => {
         expect(buildStepPrompt(sheet).userMessage).not.toContain('n\u0303');
     });
 
+    it('drops a whole emoji sequence from a name as decoration, then checks the name', () => {
+        const cook = '\u{1F468}\u200D\u{1F373}';
+        const names = ['\u{1F336}\uFE0F chilli', '\u{1F9C8} butter', `${cook} flour`, '\u{1F44D}\u{1F3FD} salt'];
+
+        expect(namesOf(names)).toEqual(['chilli', 'butter', 'flour', 'salt']);
+    });
+
+    it('still refuses a hidden character that is not inside an emoji sequence, emoji beside it or not', () => {
+        for (const name of ['\u{1F336}\uFE0F chi\u200Blli', 'chilli\uFE0F', 'chi\u200D\u{1F336}']) {
+            expect(() => sheetOf([], [name])).toThrow(FactsSheetInvalidError);
+        }
+    });
+
     it('reads a step with hidden characters in it as the step without them', () => {
         expect(stepOf('Add 2\u200Bcups flour.', ['flour']).amounts).toEqual([
             { quantity: 2, unit: 'cup', ingredient: 'flour' },

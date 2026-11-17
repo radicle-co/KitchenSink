@@ -72,4 +72,13 @@ describe('SyncNotice (web)', () => {
 
         expect(region.textContent).toContain('Back online');
     });
+
+    it('⛔ shows the title alone when an offline state has no body: no empty row', () => {
+        render(<SyncNotice state={{ kind: 'offline', title: 'You’re offline' }} regionLabel={LABEL} />);
+
+        const region = screen.getByRole('status', { name: LABEL });
+
+        expect(screen.getByText('You’re offline')).toBeTruthy();
+        expect(region.querySelectorAll('p')).toHaveLength(1);
+    });
 });

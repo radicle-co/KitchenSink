@@ -34,10 +34,25 @@ function assertLane(lane: number): void {
     }
 }
 
-export function laneSimulatorName(lane: number): string {
+/** The device class of a run's iOS lanes: every lane of a run is one class, so the classes never share a lane number. */
+export const IOS_DEVICES = ['iphone', 'ipad'] as const;
+
+export type IosDevice = (typeof IOS_DEVICES)[number];
+
+/** The Simulator name prefix of each class. `laneHost.sh` holds the same two prefixes, and a test holds them equal. */
+const SIMULATOR_PREFIX: Readonly<Record<IosDevice, string>> = {
+    iphone: 'ks-maestro-lane-',
+    ipad: 'ks-maestro-ipad-',
+};
+
+export function isIosDevice(raw: string): raw is IosDevice {
+    return IOS_DEVICES.some((device) => device === raw);
+}
+
+export function laneSimulatorName(lane: number, device: IosDevice): string {
     assertLane(lane);
 
-    return `ks-maestro-lane-${String(lane)}`;
+    return `${SIMULATOR_PREFIX[device]}${String(lane)}`;
 }
 
 export function macHostFromEnv(env: Readonly<Record<string, string | undefined>>): string {

@@ -52,7 +52,7 @@ produced a second representation of one fact, violating DRY-on-knowledge.
 
 **Finding**: `GET /api/v1/account/export` exists — `recipe-service/src/account/` with `account.schema.ts`
 (authored zod), `export.service.ts`, `export.dal.ts`, `export.mappers.ts`, a dedicated `ExportRateLimit`, and
-`__fixtures__`. It is documented as the GDPR Art. 15 / Art. 20 export of the caller's own recipe-domain data
+`__fixtures__`. It is documented as the account data export of the caller's own recipe-domain data
 and covers `RecipeExport`, `CollectionExport`, `CollectionMembershipExport`, `PhotoExport`, `RatingExport`,
 `VersionExport`, `AuthorHandleExport`.
 
@@ -125,7 +125,7 @@ require preferring user-supplied bytes.
 (channel classification). Video import is accepted as permanently `operator-performed retrieval`.
 
 **Open, non-blocking**: whether transient decode-for-extraction is a reproduction at all. Closer to
-text-and-data-mining than to serving a thumbnail; the same DSM Art. 4 / machine-readable-reservation question
+text-and-data-mining than to serving a thumbnail; the same machine-readable data-mining reservation question
 session `911043cd` raised against `004-FR-023`. **Must be answered before tiers 3–4 ship, not before build.**
 
 ---

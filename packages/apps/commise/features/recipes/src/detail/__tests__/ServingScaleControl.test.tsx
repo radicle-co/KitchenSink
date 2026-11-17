@@ -149,7 +149,7 @@ describe('ServingScaleControl (web)', () => {
         render(<ServingScaleControl servings={4} baseServings={4} onServingsChange={vi.fn()} />);
 
         for (const name of ['Fewer servings', 'More servings']) {
-            expect(screen.getByRole('button', { name }).className.split(' ')).toContain('size-11');
+            expect(screen.getByRole('button', { name }).className.split(' ')).toContain('size-[44px]');
         }
     });
 });

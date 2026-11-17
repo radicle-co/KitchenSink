@@ -28,6 +28,7 @@ import { DrizzleProvider } from '../../../src/database/database.module.js';
 import type { RecipeDrizzle } from '../../../src/database/client.js';
 import { recipes, recipeVersions } from '../../../src/database/schema/index.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite saves as. */
 const OWNER = '01JVERSIONS0ATOMIC000000CC';
@@ -36,6 +37,7 @@ const OWNER = '01JVERSIONS0ATOMIC000000CC';
 const TITLE = 'Atomicity Probe Recipe';
 
 const CREATE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: TITLE,
     servings: 2,
     prepTimeMinutes: 5,
@@ -182,7 +184,11 @@ describe('a recipe save and its version row are atomic (integration)', () => {
         const publishRes = await fetch(`${baseUrl}/api/v1/recipes/${clone.id}`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ expectedVersion: clone.currentVersion, status: 'published' }),
+            body: JSON.stringify({
+                expectedVersion: clone.currentVersion,
+                status: 'published',
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+            }),
         });
 
         expect(

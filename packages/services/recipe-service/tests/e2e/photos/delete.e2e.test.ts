@@ -26,6 +26,7 @@ import { recipePhotoThumbnailKey } from '@kitchensink/recipe-core';
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { PHOTOS_CDN, type CdnInvalidationPort } from '../../../src/photos/photos.service.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates recipes + photos as. */
 const OWNER = '01JPHOTODELETEOWNER00000AA';
@@ -39,6 +40,7 @@ const REAL_PNG_BYTES = new Uint8Array(
 );
 
 const RECIPE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Photo Delete Integration Recipe',
     servings: 2,
     prepTimeMinutes: 5,

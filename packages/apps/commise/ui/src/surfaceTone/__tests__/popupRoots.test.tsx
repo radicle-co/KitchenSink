@@ -73,7 +73,13 @@ describe('a web popup states its own surface, whatever it was opened from', () =
 
         render(
             <Surface tone="muted">
-                <Popover triggerLabel="About Kale" triggerIcon="info" title="Kale" closeLabel="Close details for Kale">
+                <Popover
+                    triggerLabel="About Kale"
+                    triggerIcon="info"
+                    triggerText="About"
+                    title="Kale"
+                    closeLabel="Close details for Kale"
+                >
                     <button type="button">In the popover</button>
                 </Popover>
             </Surface>,

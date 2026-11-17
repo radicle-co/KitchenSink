@@ -24,9 +24,6 @@ import { stepFrom, type StepperProps } from './props.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 
-/** The least width of the count, so a one-digit value does not move the buttons beside it. */
-const VALUE_MIN_WIDTH = 32;
-
 /** The native design-system stepper. */
 export const Stepper: FC<StepperProps> = ({
     id,
@@ -95,7 +92,7 @@ export const Stepper: FC<StepperProps> = ({
                 style={styles.row}
             >
                 {stepButton(-1, decreaseLabel, 'minus')}
-                <Text typeRole="body" minWidth={VALUE_MIN_WIDTH} textAlign="center">
+                <Text typeRole="body" minWidth={nativeTokens.spacing[5]} textAlign="center">
                     <Text typeRole="figureInline">{value}</Text>
                 </Text>
                 {stepButton(1, increaseLabel, 'plus')}
@@ -109,7 +106,7 @@ export const Stepper: FC<StepperProps> = ({
 
 const styles = StyleSheet.create({
     stack: { gap: nativeTokens.spacing[1] },
-    row: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[3] },
+    row: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
     step: {
         alignItems: 'center',
         justifyContent: 'center',

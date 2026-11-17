@@ -89,14 +89,14 @@ the attestation flow states the consequence at the point of entry.
 Creating a recipe that is not public requires a subscription — applied consistently, including where the
 privacy is imposed by policy rather than chosen by the user.
 
-| Channel                      | Result                                                                                                                                | Free | Premium |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---- | ------- |
-| URL import                   | public, attributed                                                                                                                    | ✅   | ✅      |
-| Instagram import _(gated)_   | public, attributed                                                                                                                    | ✅   | ✅      |
-| File / migration import      | `user_created`                                                                                                                        | ✅   | ✅      |
-| Photo (OCR) import           | **private** by policy                                                                                                                 | ❌   | ✅      |
-| Cookbook / paid-source paste | verbatim copy **stays private**. The cook can publish an Adapted version, and a facts card is possible (amended 2026-11-03, ADR-0082) | ❌   | ✅      |
-| Setting any recipe private   | private                                                                                                                               | ❌   | ✅      |
+| Channel                      | Result                                                                                                                                                      | Free | Premium |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ------- |
+| URL import                   | private copy; public only as a Commise-written version (amended 2026-11-15, spec `FR-065`)                                                                  | ✅   | ✅      |
+| Instagram import _(gated)_   | private copy; public only as a Commise-written version (amended 2026-11-15, spec `FR-065`)                                                                  | ✅   | ✅      |
+| File / migration import      | `user_created`                                                                                                                                              | ✅   | ✅      |
+| Photo (OCR) import           | **private** by policy                                                                                                                                       | ❌   | ✅      |
+| Cookbook / paid-source paste | verbatim copy **stays private**. The cook can publish an Adapted version. Its public form is a Commise-written version (amended 2026-11-15; no facts cards) | ❌   | ✅      |
+| Setting any recipe private   | private                                                                                                                                                     | ❌   | ✅      |
 
 Free-tier users see the upgrade path rather than a failure, and the gated channels are not offered to them at
 all — no affordance that cannot succeed. Two consequences worth stating: OCR spend is confined to paying users
@@ -177,6 +177,6 @@ handling are identical on both.
 
 ## Traceability guardrail
 
-Every story maps to a requirement in [spec.md](../spec.md) and `v-model/requirements.md`. Stories US-411..US-414
+Every story maps to a requirement in [spec.md](../spec.md). Stories US-411..US-414
 are **new in this revision** and correspond to requirements that were always implied but never written down
 (file import, draft expiry, source-deleted handling, blocklist administration).

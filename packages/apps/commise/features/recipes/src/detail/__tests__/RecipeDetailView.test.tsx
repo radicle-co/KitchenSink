@@ -1361,6 +1361,8 @@ describe('RecipeDetailView (web) — hero cover (mockup screenRecipeDetail)', ()
 });
 
 describe('RecipeDetailView (web) — touch targets (44px floor)', () => {
+    // REWRITTEN for designer D64/D65 (issue #287): the step toggle holds a number, so it is a circle with a 44 px
+    // minimum in px that grows with its text, not the rem `size-11` square it was.
     it('gives the step toggle a 44px target and every ingredient row 44px (REWRITTEN for owner C5 + T1: it was 48)', () => {
         render(
             <RecipeDetailView
@@ -1371,7 +1373,9 @@ describe('RecipeDetailView (web) — touch targets (44px floor)', () => {
         );
 
         for (const toggle of screen.getAllByRole('button', { name: /^Mark step \d+ as current$/u })) {
-            expect(toggle.className).toContain('size-11');
+            expect(toggle.className).toContain('min-h-[44px]');
+            expect(toggle.className).toContain('min-w-[44px]');
+            expect(toggle.className).toContain('aspect-square');
         }
 
         for (const row of screen.getAllByRole('checkbox')) {

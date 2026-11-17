@@ -61,6 +61,7 @@ import {
     ImportItemAlreadySavedError,
     ImportItemLockedError,
     ImportQuotaExceededError,
+    InvalidVisibilityError,
     PrivateSlotsFullError,
     ParseJobExpiredError,
     VersionLineUnrestorableError,
@@ -143,6 +144,7 @@ import {
     rebindIngredientLineRequestSchema,
     restoreVersionResponseSchema,
     setRatingRequestSchema,
+    invalidVisibilityReasonSchema,
     setRecipeVisibilityRequestSchema,
     updateCollectionRequestSchema,
     updateRecipeRequestSchema,
@@ -164,6 +166,7 @@ import type {
     RecipeSearchQuery,
     RestoreVersionResponse,
     SetRatingRequest,
+    SetRecipeVisibilityRequest,
     TestResetAcceptedResponse,
     TestResetJobResponse,
     UpdateRecipeRequest,
@@ -197,6 +200,12 @@ function withoutTrailingSlashes(url: string): string {
  * p99, so it only ever fires on a genuine hang.
  */
 export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+
+/**
+ * The wording a screen showed the cook when it made a recipe public: the Public confirmation and the statement. A caller
+ * passes only what its screen showed. The client never supplies a wording of its own.
+ */
+export type SetRecipeVisibilityExtras = Pick<SetRecipeVisibilityRequest, 'publicConfirmation' | 'statement'>;
 
 /** Construction options, the back-off of a refused bearer's replay among them. */
 export interface RecipeServiceClientOptions extends IdentitySyncBackoffOptions {
@@ -496,15 +505,22 @@ export class RecipeServiceClient {
      *
      * @param id - The recipe id.
      * @param visibility - The new visibility.
+     * @param extras - The wording the cook was shown on the screen that made this write: the Public confirmation and the
+     * statement. Sent exactly as given. Making a published recipe public without a confirmation is refused by the service
+     * (`400 INVALID_VISIBILITY`, `PUBLIC_CONFIRMATION_REQUIRED`), because a wording is sent only when a screen showed it.
      * @returns The updated recipe.
      * @throws {ForbiddenError} when not the owner; {@link BadRequestError} on an invalid value.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async setRecipeVisibility(id: string, visibility: RecipeVisibility): Promise<RecipeDetail> {
+    public async setRecipeVisibility(
+        id: string,
+        visibility: RecipeVisibility,
+        extras: SetRecipeVisibilityExtras = {},
+    ): Promise<RecipeDetail> {
         const res = await this.send(
             'PATCH',
             `/api/v1/recipes/${encodeURIComponent(id)}/visibility`,
-            this.request('setRecipeVisibility', setRecipeVisibilityRequestSchema, { visibility }),
+            this.request('setRecipeVisibility', setRecipeVisibilityRequestSchema, { visibility, ...extras }),
         );
 
         return this.expect(res, 200, recipeDetailSchema);
@@ -1757,8 +1773,13 @@ export class RecipeServiceClient {
                 return new PrivateFoodsOnPublicRecipeError(body.details.lines, body.message);
             case 'PUBLISH_REQUIREMENTS_UNMET':
                 return new PublishRequirementsUnmetError(body.details.missing, body.message);
-            case 'VALIDATION_FAILED':
+            // The reason is parsed, not cast: a reason this client does not know reads as none, never as a throw.
             case 'INVALID_VISIBILITY':
+                return new InvalidVisibilityError(
+                    body.message,
+                    invalidVisibilityReasonSchema.safeParse(body.details?.reason).data,
+                );
+            case 'VALIDATION_FAILED':
             case 'COLLECTION_NOT_CLONED':
             case 'UNKNOWN_INGREDIENT':
                 return new BadRequestError(body.message, body.code);
@@ -1805,6 +1826,7 @@ export class RecipeServiceClient {
             case 'MAX_PHOTOS_EXCEEDED':
             case 'ARCHIVE_PENDING':
             case 'IMPORT_ID_IN_USE': // ADR-0072 §1: no surface branches on it; it keeps its 409 and its code.
+            case 'IMPORT_STORAGE_FULL': // ADR-0072 §2: the bulk client reads the code; it keeps its 409.
             case 'COLLECTION_LIMIT_REACHED':
             case 'PHOTO_PROCESSING_FAILED':
             case 'ARCHIVE_DLQ':

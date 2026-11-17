@@ -1,11 +1,9 @@
-import Fraction from 'fraction.js';
-
 import {
     FRACTION_WORD_DENOMINATORS,
-    INDEFINITE_QUALIFIERS,
     MULTIPLIER_WORDS,
-    WHOLE_NUMBER_WORDS,
-} from './quantityWords.js';
+    readNumberWords,
+} from '@kitchensink/recipe-core/parsing/number-words';
+import Fraction from 'fraction.js';
 
 /**
  * The reading of a line's LEADING quantity phrase.
@@ -48,9 +46,6 @@ const QUANTITY_WINDOW_CHARS = 64;
  * which is what lets `"-30 minutes"` read as negative while `"15-20 minutes"` still splits into two terms.
  */
 const TOKEN_PATTERN = /\d+\/\d+|-?\d+(?:\.\d+)?|[^\s\-–—]+/g;
-
-/** Values that may be followed by a unit word to form a compound number (`"forty-five"` = 45). */
-const TENS_VALUES: ReadonlySet<number> = new Set([20, 30, 40, 50, 60, 70, 80, 90]);
 
 interface Token {
     readonly text: string;
@@ -119,10 +114,6 @@ function isNumeralToken(token: Token | undefined): boolean {
     return token !== undefined && /^-?\d/.test(token.text);
 }
 
-function wordValue(token: Token | undefined): number | undefined {
-    return token === undefined ? undefined : WHOLE_NUMBER_WORDS.get(token.text.toLowerCase());
-}
-
 /**
  * Reads `"1 1/2"`, `"1½"`, `"2/3"`, `"1.5"`, `"3"` and `"-30"` — the notations `fraction.js` parses
  * natively, plus the MIXED numeral whose fraction part is a single vulgar-fraction character.
@@ -155,43 +146,15 @@ function readNumeral(tokens: readonly Token[], index: number): Reading | null {
     return { value: whole, next: index + 1 };
 }
 
-/**
- * Reads a whole-number word, including a compound like `"forty-five"` (tens + unit).
- *
- * `a`/`an` are excluded from the unit half of a compound, so `"twenty a"` cannot read as 21.
- */
+/** Reads a whole-number word, including a compound like `"forty-five"`, as the exact fraction of its value. */
 function readWholeWord(tokens: readonly Token[], index: number): Reading | null {
-    const token = tokens[index];
-    const base = wordValue(token);
+    // The reader looks one token ahead (the unit half of a compound), so two tokens are all it is given.
+    const read = readNumberWords(
+        tokens.slice(index, index + 2).map((token) => token.text),
+        0,
+    );
 
-    if (token === undefined || base === undefined) {
-        return null;
-    }
-
-    // `a`/`an` state a count of one only when they are not introducing an indefinite amount.
-    if (base === 1 && /^an?$/i.test(token.text)) {
-        const following = tokens[index + 1];
-
-        if (following !== undefined && INDEFINITE_QUALIFIERS.has(following.text.toLowerCase())) {
-            return null;
-        }
-    }
-
-    const nextToken = tokens[index + 1];
-    const nextValue = wordValue(nextToken);
-
-    if (
-        TENS_VALUES.has(base) &&
-        nextToken !== undefined &&
-        nextValue !== undefined &&
-        nextValue >= 1 &&
-        nextValue <= 9 &&
-        !/^an?$/i.test(nextToken.text)
-    ) {
-        return { value: new Fraction(base + nextValue), next: index + 2 };
-    }
-
-    return { value: new Fraction(base), next: index + 1 };
+    return read === undefined ? null : { value: new Fraction(read.value), next: index + read.next };
 }
 
 /** Reads `"half"`, `"one-half"`, `"two thirds"`, `"3/4"`-as-words — a count word times a unit fraction. */

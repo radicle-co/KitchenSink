@@ -68,12 +68,6 @@ export const MANDATED: readonly Mandate[] = [
             'path (e.g. `extensions/product-forge/scripts/gate-risk.js` does `require("./lib-yaml")`); it is vendored',
     },
     {
-        pattern: /^v-model-config\.yml$/u,
-        mandatedBy:
-            'the Spec Kit v-model extension — `.specify/extensions/v-model/commands/system-design.md`: "Load ' +
-            '`v-model-config.yml` (if it exists at the repository root)"',
-    },
-    {
         pattern: /^specs\/[^/]+\/(\.forge-status\.yml|sync-report\.json)$/u,
         mandatedBy:
             'the Spec Kit product-forge extension — `scripts/lib-paths.js` finds a feature by ' +

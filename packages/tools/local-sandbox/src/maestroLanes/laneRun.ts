@@ -181,7 +181,7 @@ async function planPlatform(deps: LaneRunDeps, request: LaneRunRequest, platform
         flows,
         owed,
         selector,
-        lanes: laneSpecs({ platform, count, stateDir: deps.stateDir, deviceFor: adapter.deviceFor }),
+        lanes: laneSpecs({ platform, count, stateDir: deps.stateDir, deviceFor: (index) => adapter.deviceFor(index) }),
     };
 }
 

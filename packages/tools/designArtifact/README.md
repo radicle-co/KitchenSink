@@ -13,11 +13,11 @@ Motion on the native side is not the device's. The native leaves run on Tamagui'
 
 The Design System's link is in `docs/design/canvases/registry.json` (id `designSystem`), with every screen canvas. It is private to the owner.
 
-⛔ Do not publish `dist/canvas/project` to any artifact. The screen canvases are edited live, and their source is the live canvas, not this build (`docs/design/canvases/README.md`). The board canvas this package builds once went to the link that now holds "Commise Screens: Home". If you publish it there, the stale-file step below deletes that canvas's boards and the owner's work on them.
+⛔ Do not publish `dist/canvas/project` to any artifact. The screen canvases have their own source in `docs/design/canvases/<folder>/` and publish only from `main` (`docs/design/canvases/README.md`), not from this build. The board canvas this package builds once went to the link that now holds "Commise Screens: Home". If you publish it there, the stale-file step below deletes that canvas's boards and the owner's work on them.
 
 ## Regenerate the artifacts
 
-"Regenerate the design system" means: build from the current sources and publish the Design System. The screen canvases are not regenerated. They are edited live (`docs/design/canvases/README.md`).
+"Regenerate the design system" means: build from the current sources and publish the Design System. The screen canvases are not regenerated. Their source is `docs/design/canvases/<folder>/`, published from `main` (`docs/design/canvases/README.md`).
 
 Only the claude.ai Artifact tool can publish. A person runs steps 1 to 3 and then asks Claude Code to "regenerate the design system". An AI agent does every step.
 

@@ -136,7 +136,7 @@ Internal/operational roles — not user personas. See `specs/cross-feature-consi
 
 | Role                       | Responsibilities                                                                                                                                   |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Compliance Reviewer**    | Reviews course content for copyright compliance; approves or rejects flagged uploads; coordinates DMCA takedown responses.                         |
+| **Compliance Reviewer**    | Reviews course content for copyright compliance; approves or rejects flagged uploads; coordinates takedown responses.                              |
 | **Support/Admin Operator** | Handles creator/student disputes (refund requests, access issues); executes course takedowns on policy violations; manages educator account flags. |
 
 ---

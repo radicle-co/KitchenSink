@@ -8,7 +8,11 @@
  */
 import { isCookable } from '@kitchensink/cooking-core';
 import { RecipeSourceType, RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
-import { PrivateFoodsOnPublicRecipeError, PrivateSlotsFullError } from '@kitchensink/recipe-service-client';
+import {
+    InvalidVisibilityError,
+    PrivateFoodsOnPublicRecipeError,
+    PrivateSlotsFullError,
+} from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -53,6 +57,8 @@ interface Mounted {
      * the controller's effects, so an effect-driven callback reads the previous render there; this reads the committed one.
      */
     readonly rendered: { readonly current: ReturnType<typeof useRecipeDetailController> | undefined };
+    /** What the controller reported to the error seam. */
+    readonly reportError: ReturnType<typeof vi.fn>;
 }
 
 function mount(
@@ -67,6 +73,8 @@ function mount(
         readonly saving?: boolean;
         /** What the server says about the cook's private slots (ADR-0073). Defaults to a slot free. */
         readonly slots?: { readonly used: number; readonly limit: number } | 'unlimited';
+        /** The host's connectivity reading. Defaults to online. */
+        readonly offline?: boolean;
     } = {},
 ): Mounted {
     const client = createFakeRecipeServiceClient();
@@ -79,6 +87,7 @@ function mount(
     const backend = memoryCookMarksBackend();
     const marks: { current: CookMarksBinding | undefined } = { current: undefined };
     const nav = { onVersions: vi.fn(), onCloned: vi.fn(), onDeleted: vi.fn(), onOpenFood: vi.fn() };
+    const reportError = vi.fn();
     const rendered: { current: ReturnType<typeof useRecipeDetailController> | undefined } = { current: undefined };
     const wrapper = ({ children }: { readonly children: ReactNode }) => (
         <QueryClientProvider client={queryClient}>
@@ -105,6 +114,8 @@ function mount(
                 profile: over.profile ?? settledProfile(undefined),
                 finishRefused: over.finishRefused ?? false,
                 saving: over.saving ?? false,
+                offline: over.offline ?? false,
+                reportError,
                 ...(over.refusalArrived === undefined ? {} : { refusalArrived: over.refusalArrived }),
                 ...(over.onFinishRefusalSeen === undefined ? {} : { onFinishRefusalSeen: over.onFinishRefusalSeen }),
                 nav,
@@ -115,7 +126,7 @@ function mount(
         { wrapper },
     );
 
-    return { result, nav, client, marks, rendered };
+    return { result, nav, client, marks, rendered, reportError };
 }
 
 describe('useRecipeDetailController — who the viewer is', () => {
@@ -293,7 +304,10 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
         },
     );
 
-    it('Pro goes public at once - no slots to free, nothing to say', async () => {
+    // REWRITTEN for ADR-0095: Make public used to go straight through when there was nothing to free. It now always opens a
+    // dialog, because the passive line the confirmation records must be on screen when the cook confirms. The dialog's body
+    // is the line itself (`confirm`), and the write carries the confirmation.
+    it('Pro (nothing to free) still asks first: the dialog says the passive line, and confirming sends it', async () => {
         const { result, client } = mount({
             sessionClaims: { external_id: OWNER },
             profile: settledProfile(OWNER, 'granted'),
@@ -307,9 +321,17 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
         await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
         await waitFor(() => {
             act(() => result.current.menu?.items.find((item) => item.id === 'makePublic')?.onSelect());
-            expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
+            expect(result.current.dialogs.makePublic).toMatchObject({ open: true, consequence: 'confirm' });
         });
-        expect(result.current.dialogs.makePublic.open).toBe(false);
+        expect(setVisibility).not.toHaveBeenCalled();
+
+        await act(async () => {
+            result.current.dialogs.makePublic.onConfirm();
+        });
+
+        expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC, {
+            publicConfirmation: { version: 'publicConfirm.v1', locale: 'en' },
+        });
     });
 
     it('offers Clear checks once the cook has marked something, and clears them', () => {
@@ -624,6 +646,204 @@ describe('useRecipeDetailController — Make public refused for a private food (
         const { result } = mount({ sessionClaims: { external_id: OWNER }, profile: settledProfile(OWNER) });
 
         expect(result.current.dialogs.privateFoods).toBeUndefined();
+    });
+});
+
+/**
+ * ADR-0095: Make public on a recipe that owes a statement asks where it is from, in a sheet; a held recipe offers no Make
+ * public at all; offline is a reason, not a dead row; and each reason a `400 INVALID_VISIBILITY` names is answered once.
+ */
+describe('useRecipeDetailController — where the recipe is from (ADR-0095)', () => {
+    const owner = {
+        sessionClaims: { external_id: OWNER },
+        profile: settledProfile(OWNER, 'upsell'),
+    };
+    const PRIVATE = { visibility: RecipeVisibility.PRIVATE };
+    const makePublicItem = (mounted: Mounted) =>
+        mounted.result.current.menu?.items.find((item) => item.id === 'makePublic');
+
+    it('opens the statement sheet, not the confirm, when the server says a statement is owed', () => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, publicNeedsStatement: true } });
+
+        act(() => makePublicItem(mounted)?.onSelect());
+
+        expect(mounted.result.current.dialogs.statement).toMatchObject({ open: true, surface: 'recipePage' });
+        expect(mounted.result.current.dialogs.makePublic.open).toBe(false);
+    });
+
+    it('opens the confirm, not the sheet, when nothing is owed', () => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, publicNeedsStatement: false } });
+
+        act(() => makePublicItem(mounted)?.onSelect());
+
+        expect(mounted.result.current.dialogs.statement.open).toBe(false);
+        expect(mounted.result.current.dialogs.makePublic.open).toBe(true);
+    });
+
+    it('"I wrote this" sends public with the statement and NO separate confirmation, and closes on success', async () => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, publicNeedsStatement: true } });
+        const setVisibility = vi
+            .spyOn(mounted.client, 'setRecipeVisibility')
+            .mockResolvedValue(makeRecipeDetail({ id: 'rec_1', visibility: RecipeVisibility.PUBLIC }));
+
+        act(() => makePublicItem(mounted)?.onSelect());
+        act(() => mounted.result.current.dialogs.statement.dispatch({ type: 'choose', answer: 'authored' }));
+        await act(async () => mounted.result.current.dialogs.statement.onConfirm());
+
+        expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC, {
+            statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } },
+        });
+        await waitFor(() => expect(mounted.result.current.dialogs.statement.open).toBe(false));
+    });
+
+    it('a third-party answer sends PRIVATE with its statement', async () => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, publicNeedsStatement: true } });
+        const setVisibility = vi
+            .spyOn(mounted.client, 'setRecipeVisibility')
+            .mockResolvedValue(makeRecipeDetail({ id: 'rec_1', visibility: RecipeVisibility.PRIVATE }));
+
+        act(() => makePublicItem(mounted)?.onSelect());
+        act(() => mounted.result.current.dialogs.statement.dispatch({ type: 'choose', answer: 'fromPerson' }));
+        await act(async () => mounted.result.current.dialogs.statement.onConfirm());
+
+        expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE, {
+            statement: { kind: 'fromPerson', wording: { version: 'statementFromPerson.v1', locale: 'en' } },
+        });
+    });
+
+    it('Cancel closes the sheet and sends nothing', () => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, publicNeedsStatement: true } });
+        const setVisibility = vi.spyOn(mounted.client, 'setRecipeVisibility');
+
+        act(() => makePublicItem(mounted)?.onSelect());
+        act(() => mounted.result.current.dialogs.statement.onDismiss());
+
+        expect(mounted.result.current.dialogs.statement.open).toBe(false);
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    it('a failed answer says so inside the sheet, and Confirm retries', async () => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, publicNeedsStatement: true } });
+        vi.spyOn(mounted.client, 'setRecipeVisibility').mockRejectedValue(new Error('offline'));
+
+        act(() => makePublicItem(mounted)?.onSelect());
+        act(() => mounted.result.current.dialogs.statement.dispatch({ type: 'choose', answer: 'authored' }));
+        await act(async () => mounted.result.current.dialogs.statement.onConfirm());
+
+        await waitFor(() => expect(mounted.result.current.dialogs.statement.state.status).toBe('failed'));
+    });
+
+    it('offers NO Make public on a recipe the server holds out of Public, and says why', () => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, publicNeedsCheck: true } });
+
+        expect(makePublicItem(mounted)).toBeUndefined();
+        expect(mounted.result.current.visibilityNotice).toBe(
+            'This recipe was saved with a source, so it stays private.',
+        );
+    });
+
+    it('keeps Make public in the menu but unavailable while offline, saying why, and runs nothing', () => {
+        const mounted = mount({ ...owner, recipe: PRIVATE, offline: true });
+
+        expect(makePublicItem(mounted)?.unavailable).toBe('You’re offline. Try again when you’re back online.');
+        expect(mounted.result.current.dialogs.makePublic.open).toBe(false);
+    });
+
+    describe('the four reasons a 400 INVALID_VISIBILITY names', () => {
+        async function refusedWith(reason: ConstructorParameters<typeof InvalidVisibilityError>[1]) {
+            const mounted = mount({ ...owner, recipe: PRIVATE });
+            vi.spyOn(mounted.client, 'setRecipeVisibility').mockRejectedValue(
+                new InvalidVisibilityError('refused', reason),
+            );
+            const invalidate = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+
+            act(() => makePublicItem(mounted)?.onSelect());
+            await act(async () => mounted.result.current.dialogs.makePublic.onConfirm());
+
+            return { mounted, invalidate };
+        }
+
+        it('STATEMENT_REQUIRED opens the sheet and closes the confirm', async () => {
+            const { mounted } = await refusedWith('STATEMENT_REQUIRED');
+
+            await waitFor(() => expect(mounted.result.current.dialogs.statement.open).toBe(true));
+            expect(mounted.result.current.dialogs.makePublic.open).toBe(false);
+            expect(mounted.reportError).not.toHaveBeenCalled();
+        });
+
+        /** A Make public the server refuses with STATEMENT_REQUIRED; the NEXT write is `next`. */
+        async function askedForStatement(next: () => Promise<RecipeDetail>) {
+            const mounted = mount({ ...owner, recipe: PRIVATE });
+            const write = vi
+                .spyOn(mounted.client, 'setRecipeVisibility')
+                .mockRejectedValueOnce(new InvalidVisibilityError('refused', 'STATEMENT_REQUIRED'))
+                .mockImplementation(next);
+
+            act(() => makePublicItem(mounted)?.onSelect());
+            await act(async () => mounted.result.current.dialogs.makePublic.onConfirm());
+            await waitFor(() => expect(mounted.result.current.dialogs.statement.open).toBe(true));
+
+            return { mounted, write };
+        }
+
+        it('dismissing the refusal-opened sheet leaves the confirm closed', async () => {
+            const { mounted } = await askedForStatement(() => new Promise(() => undefined));
+
+            act(() => mounted.result.current.dialogs.statement.onDismiss());
+
+            expect(mounted.result.current.dialogs.statement.open).toBe(false);
+            expect(mounted.result.current.dialogs.makePublic.open).toBe(false);
+        });
+
+        it('answering the refusal-opened sheet keeps it open and busy, with the confirm closed, while the write is in flight', async () => {
+            const { mounted, write } = await askedForStatement(() => new Promise(() => undefined));
+
+            act(() => mounted.result.current.dialogs.statement.dispatch({ type: 'choose', answer: 'authored' }));
+            await act(async () => mounted.result.current.dialogs.statement.onConfirm());
+
+            await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
+            expect(mounted.result.current.dialogs.statement.open).toBe(true);
+            expect(mounted.result.current.dialogs.statement.state.status).toBe('busy');
+            expect(mounted.result.current.dialogs.makePublic.open).toBe(false);
+        });
+
+        it('a successful answer closes both', async () => {
+            const { mounted } = await askedForStatement(() =>
+                Promise.resolve(makeRecipeDetail({ id: 'rec_1', visibility: RecipeVisibility.PUBLIC })),
+            );
+
+            act(() => mounted.result.current.dialogs.statement.dispatch({ type: 'choose', answer: 'authored' }));
+            await act(async () => mounted.result.current.dialogs.statement.onConfirm());
+
+            await waitFor(() => expect(mounted.result.current.dialogs.statement.open).toBe(false));
+            expect(mounted.result.current.dialogs.makePublic.open).toBe(false);
+        });
+
+        it('SOURCE_CONFLICT closes the dialog, reads the recipe again, and says the recipe is held', async () => {
+            const { mounted, invalidate } = await refusedWith('SOURCE_CONFLICT');
+
+            await waitFor(() => expect(mounted.result.current.dialogs.makePublic.open).toBe(false));
+            expect(invalidate).toHaveBeenCalledWith(
+                expect.objectContaining({ queryKey: expect.arrayContaining(['rec_1']) }),
+            );
+            expect(mounted.result.current.visibilityNotice).toBe(
+                'This recipe was saved with a source, so it stays private.',
+            );
+        });
+
+        it.each(['PUBLIC_CONFIRMATION_REQUIRED', 'FROM_PERSON_PRIVATE_ONLY'] as const)(
+            '%s is a client bug: the generic failure is said, and it is reported',
+            async (reason) => {
+                const { mounted } = await refusedWith(reason);
+
+                await waitFor(() => expect(mounted.reportError).toHaveBeenCalledTimes(1));
+                expect(mounted.reportError).toHaveBeenCalledWith(
+                    expect.objectContaining({ reason }),
+                    expect.objectContaining({ operation: 'recipeVisibility' }),
+                );
+                expect(mounted.result.current.dialogs.makePublic.error).toBe(true);
+            },
+        );
     });
 });
 

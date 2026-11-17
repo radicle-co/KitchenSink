@@ -73,7 +73,7 @@ would have left a false defence in the spec.
 - `FR-015f` — erasure strips identity from surviving clones and keeps a non-identifying lineage marker,
   reasoning that the recipe text is generally not personal data while the attribution is.
 
-**One accepted risk is recorded, not solved**: a clone of a public recipe defaulting to public repeats the
+**One accepted trade-off is recorded, not solved**: a clone of a public recipe defaulting to public repeats the
 public-by-default pattern `FR-038` and feature `015` exist to remove. Weaker here — the content was already
 public, so what is newly exposed is the cloner's association with it — but not nothing.
 
@@ -82,10 +82,10 @@ public, so what is newly exposed is the cloner's association with it — but not
 Applying the cross-spec amendments surfaced that **two governance rules already owned ground this feature was
 restating**, which `GR-014` `AC-014-b` and the project's DRY rule both forbid.
 
-| Was in 016                                                          | Moved to                           | Result                                                                                                                                                                                                                                                |
-| ------------------------------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FR-015a`–`FR-015f` — cloning, derived copies, deletion and erasure | **`GR-014` AC-014-g/h/i** (v3.5.0) | GR-014 owns the audience and sharing model. 016 keeps only two requirements that are legal posture rather than sharing model: the licence must cover surviving derived copies, and the modification rule must never be cited as a copyright defence   |
-| `FR-045`–`FR-047` — AI transparency                                 | **`GR-010` AC-010-e/f** (v3.5.0)   | GR-010 already mandated the disclosure and put the component in Feature 005. 016 now cites it and contributes what GR-010 predated — Art. 50(2) machine-readable marking, and the correction that Art. 50 has been applicable since **2 August 2026** |
+| Was in 016                                                          | Moved to                           | Result                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FR-015a`–`FR-015f` — cloning, derived copies, deletion and erasure | **`GR-014` AC-014-g/h/i** (v3.5.0) | GR-014 owns the audience and sharing model. 016 keeps only two requirements that are legal posture rather than sharing model: the licence must cover surviving derived copies, and the modification rule must never be cited as a copyright defence                                   |
+| `FR-045`–`FR-047` — AI transparency                                 | **`GR-010` AC-010-e/f** (v3.5.0)   | GR-010 already mandated the disclosure and put the component in Feature 005. 016 now cites it and contributes what GR-010 predated — machine-readable AI marking machine-readable marking, and the correction that the AI disclosure rule has been applicable since **2 August 2026** |
 
 Consequences: 69 FRs → **65**; two new amendments **A-9** and **A-10**; every `FR-015x` citation in 016, 001
 and 004 repointed, because those IDs now mean different things.
@@ -103,8 +103,8 @@ cross-feature citation rows.
 ### Iteration 5 — the video conflict 017 raised (2026-08-22)
 
 `017-recime-parity` blocked its US1 on a conflict with this feature and was right to. `FR-027c` read "no
-derived renditions … a thumbnail is a copy", and a **sampled video frame is a reproduction of a protected
-audiovisual work** — so read literally, 016 forbade the video-import wedge 017 is built on. C-016-002 had
+derived renditions … a thumbnail is a copy", and a **sampled video frame is a reproduction** — so read
+literally, 016 forbade the video-import wedge 017 is built on. C-016-002 had
 reasoned entirely about photographs and never considered video.
 
 **Resolved here, because it is 016's rule.** The line is not photo-versus-video; it is **persisted or served**
@@ -112,12 +112,6 @@ versus **transient and extractive**. `FR-027c` restated on that axis; `FR-027f` 
 under four guardrails; `FR-027g` forbids the tempting shortcut of promoting an extracted frame to the recipe
 image; `FR-027h` forbids retaining the source media. `SC-005` widened to cover frames, stills, audio and
 source media.
-
-**The basis is recorded as TDM, not the transient-copy exception**, and that was a correction to my first
-instinct: InfoSoc Art. 5(1) looks like the fit but _Infopaq_ reads it narrowly and "no independent economic
-significance" fails for a commercial extraction pipeline. DSM Art. 4 TDM is purpose-built and reaches
-commercial actors. Its machine-readable-reservation condition is the **same** open question `004-FR-023`
-already carries — escalated in `FR-050` because it is now load-bearing for video, not just URL import.
 
 FR count 65 → **68**.
 
@@ -146,18 +140,14 @@ NOT applied.
 find: `FR-017` carried the DSA's "timely, diligent" with nothing measurable behind it, and `FR-017a` now
 tiers it.
 
-**Q5 was answered with a question — "what do laws say about this?" — and that was the right challenge.** The
-recommendation had been offered without its basis. The basis: no statute sets a retention minimum; 17 U.S.C.
-§507(b) sets the 3-year floor; GDPR Art. 17(3)(e) is what permits survival past erasure and its scope is the
-claim period, which sets the ceiling; and DSA Art. 24(5)'s database duty does not reach us under Art. 19(1).
+**Q5's answer set 3 years**, the period in which a claim about a decision can still be brought.
 
 ### Iteration 7: open library rulings (2026-11-03, ADR-0082)
 
 The owner's rulings of 2026-11-03 changed 016 in place. `FR-015k` is new and is the one authority for the
 public-domain gate. `FR-010`, `FR-012`, `FR-015d`, `FR-012b`, `FR-015c`, `FR-015g`, `FR-015i`, `FR-015j`, `FR-018`, `FR-019`,
 `FR-024a`, `FR-025`, `FR-027f`, `FR-027h`, `FR-028`, `FR-029a`, `FR-030`, `FR-030a`, `FR-033`, `FR-034`, `FR-048c`,
-`FR-050`, `SC-011`, findings 3 and 4, Layer 4 and User Story 2 were amended. Each carries its amendment note and
-the line "Counsel review is owed before launch". No requirement ID was renumbered. The checklist items still pass.
+`FR-050`, `SC-011`, findings 3 and 4, Layer 4 and User Story 2 were amended. Each carries its amendment note. No requirement ID was renumbered. The checklist items still pass.
 Each new rule has a measurable check in [quickstart.md](../quickstart.md) slice 7.
 
 ## Notes
@@ -170,14 +160,6 @@ Each new rule has a measurable check in [quickstart.md](../quickstart.md) slice 
   the same rule in three places. Amending one and not the others is the drift failure the project's DRY rule
   exists to prevent, so they are a single unit of work.
 - **Two prerequisites live outside software** and no requirement here can satisfy them: a registered
-  designated agent (`FR-025`) and counsel-drafted documents. `FR-050` carries the list of items needing
-  counsel's confirmation, each naming what breaks if the assumption is wrong.
-- **One assumption is load-bearing and is stated, not proven**: that the operator is a US-formed entity with
-  no EU establishment. It is what makes the EU sui generis database right unavailable (Directive 96/9/EC
-  Art. 11) and it is the basis of `FR-031`. If an EU entity is ever created, Layer 3 of the research section
-  reopens and `FR-031` changes.
-- **Research provenance is marked in the spec.** Layers 2–5 of the corpus-ownership research were verified
-  against sources on 2026-08-22. The findings carried forward from the 2026-08-21 session — _Publications
-  Int'l v. Meredith_, moral rights under Berne Art. 6bis and Australia's Copyright Act Part IX, and the DSM
-  Art. 4 TDM reservation — were reasoned from and **not re-verified**. That distinction is stated in the spec
-  and must not be flattened.
+  designated agent (`FR-025`) and the drafted documents. `FR-050` requires each item to be confirmed before launch.
+- **One assumption is stated, not proven**: that the operator is a US-formed entity with no EU establishment. It is
+  the basis of `FR-031`. If an EU entity is ever created, `FR-031` changes.

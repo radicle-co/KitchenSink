@@ -105,7 +105,21 @@ for (const colorScheme of SCHEMES) {
                 .getByRole('button', { name: 'Publish anyway' })
                 .click();
 
-            await publishWrite;
+            // ADR-0095: the list was pasted, so after the open choices the cook is asked where the recipe is from, and
+            // nothing is published until they answer.
+            const source = page.getByRole('dialog', { name: 'Where is this recipe from?' });
+
+            await expect(source).toBeVisible();
+            await source.getByRole('radio', { name: 'I wrote this' }).click();
+            await source.getByRole('button', { name: 'Publish', exact: true }).click();
+
+            const published = await publishWrite;
+
+            expect(published.postDataJSON()).toMatchObject({
+                contentPasted: true,
+                statement: { kind: 'authored' },
+            });
+            expect(published.postDataJSON()).not.toHaveProperty('publicConfirmation');
         });
     });
 }

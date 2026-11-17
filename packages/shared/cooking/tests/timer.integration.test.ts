@@ -2,12 +2,15 @@ import {
     MAX_TIMER_MS,
     MIN_TIMER_MS,
     NO_TIMER,
+    TIMER_LIMIT,
+    alarmQueue,
     cookingStepsOf,
     offerSecondsOf,
     readDuration,
     reduceTimer,
     stepPlace,
     timeLeftMs,
+    timerOrder,
     type TimerState,
 } from '@kitchensink/cooking-core';
 import { recipeStepSchema } from '@kitchensink/recipe-core';
@@ -49,6 +52,34 @@ const offerOn = (stepIndex: number) =>
     });
 
 describe('the timer over real recipe steps', () => {
+    it('answers a start at the limit with a refusal in the result, through the public surface', () => {
+        const first = reduceTimer(NO_TIMER, {
+            kind: 'start',
+            id: 'a',
+            recipeId: RECIPE_ID,
+            stepIndex: 0,
+            stepDigest: 's1:00000000',
+            name: undefined,
+            durationMs: MIN_TIMER_MS,
+            limit: TIMER_LIMIT,
+            nowMs: 0,
+        });
+        const second = reduceTimer(first.state, {
+            kind: 'start',
+            id: 'b',
+            recipeId: RECIPE_ID,
+            stepIndex: 0,
+            stepDigest: 's1:00000000',
+            name: undefined,
+            durationMs: MIN_TIMER_MS,
+            limit: TIMER_LIMIT,
+            nowMs: 0,
+        });
+
+        expect(second.refused).toBe('limit');
+        expect(second.state).toBe(first.state);
+    });
+
     it('skips the blank step, so the timer names the step index the cook walks', () => {
         expect(cooking).toHaveLength(4);
         expect(stepPlace(3, cooking).position).toBe(4);
@@ -73,12 +104,22 @@ describe('the timer over real recipe steps', () => {
             ended.push(...result.events.map((event) => `${event.id}:${event.run}`));
         };
 
-        send({ kind: 'start', id: 't1', recipeId: RECIPE_ID, stepIndex: 1, name: undefined, durationMs, nowMs: 0 });
+        send({
+            kind: 'start',
+            id: 't1',
+            recipeId: RECIPE_ID,
+            stepIndex: 1,
+            stepDigest: 's1:00000001',
+            name: undefined,
+            durationMs,
+            limit: TIMER_LIMIT,
+            nowMs: 0,
+        });
         send({ kind: 'pause', id: 't1', nowMs: 1_000_000 });
         send({ kind: 'cancel', id: 't1', nowMs: 1_500_000 });
-        send({ kind: 'restore', nowMs: 1_600_000 });
+        send({ kind: 'restore', limit: TIMER_LIMIT, nowMs: 1_600_000 });
 
-        expect(state.timer).toMatchObject({ kind: 'paused', stepIndex: 1, remainingMs: durationMs - 1_000_000 });
+        expect(state.timers[0]).toMatchObject({ kind: 'paused', stepIndex: 1, remainingMs: durationMs - 1_000_000 });
 
         send({ kind: 'resume', id: 't1', nowMs: 2_000_000 });
         send({ kind: 'ring', nowMs: 2_000_000 + durationMs - 1_000_000 - 1 });
@@ -88,7 +129,9 @@ describe('the timer over real recipe steps', () => {
         send({ kind: 'ring', nowMs: 99_000_000 });
 
         expect(ended).toEqual(['t1:1']);
-        expect(timeLeftMs(state.timer, 99_000_000)).toBe(0);
+        expect(timeLeftMs(state.timers[0], 99_000_000)).toBe(0);
+        expect(alarmQueue(state).map((timer) => timer.id)).toEqual(['t1']);
+        expect(timerOrder(state)).toEqual([{ kind: 'live', timer: state.timers[0] }]);
     });
 });
 
@@ -106,9 +149,14 @@ describe('the duration reader over the golden cookbook steps', () => {
         (step) => step.lines,
     );
 
-    /** An independent, deliberately plain check that a line states some number of a time unit. */
+    /**
+     * An independent, deliberately plain check that a line states some number of a time unit, in digits or in words.
+     * The words are the cook's own plain ones, written here and not read from the reader's lexicon.
+     */
     const statesATime = (line: string) =>
-        /[\d½¼¾⅓⅔]\s*(?:-\s*)?(?:hours?|hrs?|h|minutes?|mins?|seconds?|secs?)(?![a-z])/iu.test(line);
+        /(?:[\d½¼¾⅓⅔]|\b(?:an?|half|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty))\s*(?:-\s*)?(?:hours?|hrs?|h|minutes?|mins?|seconds?|secs?)(?![a-z])/iu.test(
+            line,
+        );
 
     it('has real lines to read, some of which state a time', () => {
         expect(lines.length).toBeGreaterThan(50);

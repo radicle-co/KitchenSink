@@ -47,6 +47,21 @@ import {
 } from '@kitchensink/recipe-core';
 
 /**
+ * The `details.reason` values an `INVALID_VISIBILITY` answer can carry: the stable keys a client branches on. The server
+ * reads these same constants when it builds the answer, so the published set and the sent set cannot differ.
+ */
+export const INVALID_VISIBILITY_REASONS = [
+    'SOURCE_CONFLICT',
+    'STATEMENT_REQUIRED',
+    'PUBLIC_CONFIRMATION_REQUIRED',
+    'FROM_PERSON_PRIVATE_ONLY',
+    'API_WRITER_CONFIRMATION_FORBIDDEN',
+] as const;
+
+/** The same set as a schema, so a sender names a reason as `.enum.STATEMENT_REQUIRED` and a reordered list cannot swap two. */
+export const invalidVisibilityReasonSchema = z.enum(INVALID_VISIBILITY_REASONS);
+
+/**
  * The structured error envelope — the ONLY body a non-2xx response from this service carries.
  *
  * Shared VERBATIM with the food and identity services (ARCH-PS-2), so one client-side handler covers all three.
@@ -153,6 +168,8 @@ export const recipeErrorCodeSchema = z.enum([
     'IMPORT_ITEM_LOCKED',
     /** ADR-0072 §1 — the client-minted import id is already the caller's import, with different choices. */
     'IMPORT_ID_IN_USE',
+    /** The cook holds as many unpaid import bytes as one cook may (ADR-0072 §2). A 409, and not a 413: a smaller chunk does not help. */
+    'IMPORT_STORAGE_FULL',
 
     // ── Auth and account-lifecycle codes, which are NOT recipe-domain errors ──
     /** No, invalid, expired, or wrong-authorized-party bearer token. */
@@ -327,6 +344,17 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
         .loose(),
     z
         .object({
+            code: z.literal('INVALID_VISIBILITY'),
+            message: z.string(),
+            /**
+             * OPTIONAL: a plain refusal carries only the attempted visibility and source type. A refusal a client can act on
+             * names `reason`, one of {@link INVALID_VISIBILITY_REASONS}.
+             */
+            details: z.object({ reason: invalidVisibilityReasonSchema.optional() }).loose().optional(),
+        })
+        .loose(),
+    z
+        .object({
             code: z.literal('MAX_PHOTOS_EXCEEDED'),
             message: z.string(),
             /** The per-recipe photo cap. */
@@ -338,7 +366,6 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
     bare('RECIPE_NOT_FOUND'),
     bare('RECIPE_TOMBSTONED'),
     bare('NOT_OWNER'),
-    bare('INVALID_VISIBILITY'),
     bare('PHOTO_PROCESSING_FAILED'),
     bare('ARCHIVE_PENDING'),
     bare('ARCHIVE_DLQ'),
@@ -350,6 +377,7 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
     bare('PARSE_JOB_EXPIRED'),
     bare('IMPORT_NOT_FOUND'),
     bare('IMPORT_ID_IN_USE'),
+    bare('IMPORT_STORAGE_FULL'),
     bare('UNAUTHORIZED'),
     bare('IDENTITY_SYNC_PENDING'),
     bare('FORBIDDEN'),

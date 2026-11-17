@@ -3,7 +3,9 @@
  *
  * ⛔ THE OWNER'S BAR, AS A PURE FUNCTION: "clearly notifying a user that they are offline and what
  * data/recipe hasn't been synced with the servers". Both halves — the condition AND the count — are required,
- * so both are decided here rather than in a component where they could drift apart.
+ * so both are decided here rather than in a component where they could drift apart. The one exception is the cooking
+ * form (`docs/design/offlineNotice.md` §9, the cooking form), which shows the title alone and is decided by
+ * {@link cookingNoticeStateOf}.
  *
  * ⛔ RECONNECTING IS ITS OWN STATE. Without it the notice would disappear the moment connectivity returned,
  * while the writes were still in flight — telling the cook everything had synced before it had.
@@ -55,6 +57,11 @@ export interface SyncNoticeCopy {
     readonly unreadableDismiss: string;
 }
 
+/** What the app form shows: unlike the leaf's state, an offline notice here always carries its body. */
+export type AppNoticeState =
+    | Exclude<SyncNoticeState, { readonly kind: 'offline' }>
+    | (Extract<SyncNoticeState, { readonly kind: 'offline' }> & { readonly body: string });
+
 /** Substitute the one placeholder these strings carry. */
 function withCount(template: string, count: number): string {
     return template.replace('{count}', String(count));
@@ -67,7 +74,7 @@ function withCount(template: string, count: number): string {
  * @param copy - The app's localized strings.
  * @returns The notice state. Pure.
  */
-export function syncNoticeState(facts: SyncFacts, copy: SyncNoticeCopy): SyncNoticeState {
+export function syncNoticeState(facts: SyncFacts, copy: SyncNoticeCopy): AppNoticeState {
     if (facts.offline) {
         // Every record is still on the device and unsent, a parked one included: the owner's bar is to say what has not
         // synced. Only "syncing" excludes a parked record, for that one is not going out.
@@ -90,6 +97,19 @@ export function syncNoticeState(facts: SyncFacts, copy: SyncNoticeCopy): SyncNot
     }
 
     return { kind: 'hidden' };
+}
+
+/**
+ * What the notice shows in cooking mode: offline gives the title only; every other fact,
+ * "back online" and syncing included, gives hidden. The count is not shown while cooking. Pure. See
+ * `docs/design/offlineNotice.md` §9, the cooking form.
+ *
+ * @param offline - Whether the device is offline.
+ * @param copy - The offline title.
+ * @returns The notice state.
+ */
+export function cookingNoticeStateOf(offline: boolean, copy: Pick<SyncNoticeCopy, 'offlineTitle'>): SyncNoticeState {
+    return offline ? { kind: 'offline', title: copy.offlineTitle } : { kind: 'hidden' };
 }
 
 /**

@@ -136,7 +136,13 @@ describe.each(['light', 'dark'] as const)('in the %s theme, under a muted surfac
         press.pressed = true;
         render(
             <Surface tone="muted">
-                <Popover triggerLabel="About Kale" triggerIcon="info" title="Kale" closeLabel="Close details">
+                <Popover
+                    triggerLabel="About Kale"
+                    triggerIcon="info"
+                    triggerText="About"
+                    title="Kale"
+                    closeLabel="Close details"
+                >
                     <></>
                 </Popover>
             </Surface>,

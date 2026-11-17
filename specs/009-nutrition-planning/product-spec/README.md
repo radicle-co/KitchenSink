@@ -28,7 +28,6 @@ This directory contains the Product Forge v1.3.0 product specification artifacts
 - [metrics.md](./metrics.md) — story-level measurable signals
 - [../spec.md](../spec.md) — canonical FR/NFR reference (`FR-036..FR-039`)
 - [../plan.md](../plan.md) — implementation architecture and contracts
-- [../v-model/requirements.md](../v-model/requirements.md) — normalized REQ IDs
 
 ---
 

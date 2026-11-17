@@ -158,6 +158,43 @@ export const recipeSourceKindViewSchema = z.preprocess(
 );
 
 /**
+ * What the cook stated about a recipe, stored as `recipes.statement_kind` (ADR-0072 section 9, ADR-0095): `authored` is "I wrote
+ * this", `source` is any stated source (a web page, a book, a paid site; `source_kind` says which), and `fromPerson` is "from
+ * another person" (no source kind: the recipe is the cook's own label and may not be public). `NULL` is no statement. The ONE
+ * statement of the vocabulary: the database CHECK mirrors it.
+ */
+export const RECIPE_STATEMENT_KINDS = ['authored', 'source', 'fromPerson'] as const;
+
+/** One statement kind. */
+export type RecipeStatementKind = (typeof RECIPE_STATEMENT_KINDS)[number];
+
+/** Runtime validator for {@link RecipeStatementKind}. Closed: every request and the database use it. */
+export const recipeStatementKindSchema = z.enum(RECIPE_STATEMENT_KINDS);
+
+/** What a reader makes of a statement kind it does not know (a newer server's). The server never sends it. */
+export const UNRECOGNISED_STATEMENT_KIND = 'unrecognised';
+
+/** A statement kind as a reader holds it: a known kind, or {@link UNRECOGNISED_STATEMENT_KIND}. */
+export type RecipeStatementKindView = RecipeStatementKind | typeof UNRECOGNISED_STATEMENT_KIND;
+
+/**
+ * The tolerant wire read of a statement kind: a known kind is itself, any other STRING is {@link UNRECOGNISED_STATEMENT_KIND},
+ * and a value that is not a string still fails. A preprocess, not a transform, because the contract fingerprint describes the
+ * output side and records a transform as unrepresentable (the same shape as `recipeSourceKindViewSchema`).
+ */
+export const recipeStatementKindViewSchema = z.preprocess(
+    (value) =>
+        typeof value === 'string' && !(RECIPE_STATEMENT_KINDS as readonly string[]).includes(value)
+            ? UNRECOGNISED_STATEMENT_KIND
+            : value,
+    z
+        .enum([...RECIPE_STATEMENT_KINDS, UNRECOGNISED_STATEMENT_KIND])
+        .describe(
+            `${UNRECOGNISED_STATEMENT_KIND} is client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.`,
+        ),
+);
+
+/**
  * Allowed recipe difficulty values (CR-001 / FR-001b).
  */
 export const RecipeDifficulty = {
@@ -822,6 +859,23 @@ export interface RecipeDetail extends Recipe {
      */
     viewerRating?: number;
     /**
+     * What the cook stated about the recipe (`authored` for "I wrote this", `source` for a stated web page, book or paid
+     * site), ABSENT when nothing was stated. ⛔ OWNER-ONLY, like the two flags below: it is the cook's own attestation, and
+     * it is never sent to anyone else. A client reads a newer server's kind as `unrecognised`.
+     */
+    statementKind?: RecipeStatementKindView;
+    /**
+     * Whether Public is refused for this recipe because a third-party source was once stated for it (`sourceConflictOf`).
+     * ⛔ OWNER-ONLY and ABSENT for every other viewer: it would reveal that a source was once stated, even after the cook
+     * cleared it. The Public card shows a refusal, with no promise of a review.
+     */
+    publicNeedsCheck?: boolean;
+    /**
+     * Whether the cook must still say "I wrote this" before this recipe may be left published and Public
+     * (`statementRequiredOf`). ⛔ OWNER-ONLY and ABSENT for every other viewer, for the same reason as `publicNeedsCheck`.
+     */
+    publicNeedsStatement?: boolean;
+    /**
      * On a CLONE response only — how many lines KEPT their binding to a food the cloner may not see (plan 002:
      * a clone no longer unbinds them, so each reads `RESOLVED_UNAVAILABLE` with no name). The one-time clone
      * banner's number. Absent on every other read and on a clone with no such line.
@@ -1107,6 +1161,10 @@ export const recipeDetailSchema = recipeSchema.extend({
     // 1..5 whole stars; absent (never 0) when the viewer has not rated — see the RecipeDetail.viewerRating
     // docstring. The schema is non-strict, so without this line the client would silently STRIP the field.
     viewerRating: z.number().int().min(1).max(5).optional(),
+    // The owner-only statement facts — see the interface docstring. Non-strict schema: without these lines a client would STRIP them.
+    statementKind: recipeStatementKindViewSchema.optional(),
+    publicNeedsCheck: z.boolean().optional(),
+    publicNeedsStatement: z.boolean().optional(),
     // U13 — see the interface docstring. Non-strict schema: without this line a client would STRIP it.
     clonePrivateFoodLineCount: nonNegativeIntSchema.optional(),
     // ADR-0030 §8 — same stripping hazard as the two lines above; absent = UNKNOWN, zeros = never.
@@ -1650,6 +1708,13 @@ export const RecipeErrorCode = {
      * details. (An id some OTHER cook holds is `IMPORT_NOT_FOUND`: a different answer would confirm the id exists.)
      */
     IMPORT_ID_IN_USE: 'IMPORT_ID_IN_USE',
+    /**
+     * ADR-0072 §2 — the cook already holds as many UNPAID import bytes as one cook may (`IMPORT_MAX_UNPAID_BYTES`): the recipes
+     * of every import that have not yet spent an allowance unit. A 409 with no details, and NOT a `413`: a client halves its
+     * chunk on `413`, and a smaller chunk does not help here. What helps is payment (an `advance`) or deleting an import. The
+     * size of a FILE is never capped; the bytes a cook may hold waiting to be paid for are.
+     */
+    IMPORT_STORAGE_FULL: 'IMPORT_STORAGE_FULL',
 } as const;
 
 /**
@@ -1699,6 +1764,7 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.PRIVATE_FOODS_ON_PUBLIC_RECIPE,
     RecipeErrorCode.IMPORT_ITEM_LOCKED,
     RecipeErrorCode.IMPORT_ID_IN_USE,
+    RecipeErrorCode.IMPORT_STORAGE_FULL,
 ]);
 
 /**

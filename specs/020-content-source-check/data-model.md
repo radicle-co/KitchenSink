@@ -415,7 +415,7 @@ CREATE INDEX recipe_source_decisions_hold_hash ON recipe_source_decisions (text_
     WHERE text_fingerprint IS NOT NULL;
 ```
 
-- Two automated-means facts, because DSA Art. 17(3)(c) asks about both: was the content found by automated means, and
+- Two automated-means facts, because a statement of reasons states both: was the content found by automated means, and
   was the decision taken by them. A person's hold after a check referral is `automated_detection = true`,
   `automated_decision = false`.
 - **A rejection carries one reason** (spec FR-027, owner ruling 2026-10-26): `book`, `paidSite`, `notYours`,

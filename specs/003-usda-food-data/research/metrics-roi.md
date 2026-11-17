@@ -1,7 +1,7 @@
 # Metrics and ROI: USDA Food Data Integration
 
 **Branch**: `003-usda-food-data` | **Date**: 2026-05-09
-**Status**: Complete | **Sources**: [spec.md](../spec.md), [plan.md](../plan.md), [v-model/requirements.md](../v-model/requirements.md)
+**Status**: Complete | **Sources**: [spec.md](../spec.md), [plan.md](../plan.md)
 
 _Updated 2026-06-20: synced to the clarified design (Postgres-as-queue / rolling-window / demotion)._
 _Updated 2026-06-28: reconciled to the source-agnostic stabilization baseline (SC-005 split into read/serve throughput + new SC-014 first-time resolution rate; local-store-serve framing; golden-record `id`)._

@@ -4,7 +4,7 @@
  * paste's caption and the focus request, and this leaf holds none.
  *
  * A single-line URL field under its label, with the hint or status under it (the hint when empty, "Copied from a public web
- * page · {site}" when filled) and a "Remove source" text button once there is text. A published recipe's source is locked
+ * page · {site}" when filled) and a "Remove source" text button once there is text. A locked source
  * (ADR-0023 section 1b): the site is then a link that opens in a new tab, with the address and the reason, and no field.
  * The status, the paste's caption and the error are all named by the field's `aria-describedby`.
  *
@@ -25,14 +25,7 @@ import { describedByOf, sourceFieldId } from './fieldIds.js';
 import type { RecipeSourceFieldProps } from './sourceFieldProps.js';
 
 /** The Source row. */
-export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({
-    row,
-    onChange,
-    onRemove,
-    onTouched,
-    focusRequested,
-    onFocusHandled,
-}) => {
+export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({ row, onChange, onRemove, onTouched }) => {
     const { source: m } = useMessages(editorMessages);
 
     if (row.kind === 'hidden') {
@@ -81,8 +74,6 @@ export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({
                     pasted ? sourceNoteId : undefined,
                     error === undefined ? undefined : sourceErrorId,
                 )}
-                focusRequested={focusRequested}
-                onFocusRequestHandled={onFocusHandled}
                 onChangeText={onChange}
                 onSubmit={onTouched}
             />

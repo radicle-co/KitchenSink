@@ -1,0 +1,8 @@
+# Canvas images are stored with Git LFS (ADR-0092); this uploads them. Without it a push sends pointers whose images
+# nobody can fetch. husky runs this file through its generated shim (`npm install` writes .husky/_/pre-push).
+if command -v git-lfs >/dev/null 2>&1; then
+    exec git lfs pre-push "$@"
+fi
+
+echo "warning: git-lfs is not installed, so canvas images will NOT upload. Install it, then push again." >&2
+exit 0

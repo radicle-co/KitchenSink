@@ -28,6 +28,7 @@ import type { IngredientQuantity } from '@kitchensink/recipe-core';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates recipes as. */
 const OWNER = '01JU8QTYRT0WNER000000000AA';
@@ -56,6 +57,7 @@ interface VersionBody {
 
 /** A create body carrying exactly one ingredient line with the given quantity. */
 const bodyWith = (quantity: IngredientQuantity, unit?: string): Record<string, unknown> => ({
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: `U8 quantity round trip ${Date.now()}-${Math.random()}`,
     description: 'Created by the U8 quantity round-trip spec.',
     servings: 4,

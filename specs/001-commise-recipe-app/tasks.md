@@ -751,7 +751,7 @@ MASTER PROGRAM ORDER there.
 ## Airtight path to public (added 2026-11-03, owner ruling, ADR-0082)
 
 These tasks carry 020 section K (`020-FR-057` to `020-FR-074`) into the code 001 owns. Each is test-first: the failing
-tests in every tier come before the code. Counsel review is owed before launch (`016-FR-050`).
+tests in every tier come before the code.
 
 - [ ] T191 Make 020's hold a REQUIRED input of the read rule. Files: `packages/services/recipe-service/src/recipes/domain/recipeVisibility.ts`, `recipes/dal/recipePredicates.ts`
     - **Implements**: `020-FR-057`, `020-FR-059`, the `020-FR-018` correction (four SQL predicates, not three)
@@ -768,15 +768,7 @@ tests in every tier come before the code. Counsel review is owed before launch (
       A restored digest a person did not approve answers `403 SOURCE_CHECK_NOT_APPROVED` on a change to public.
     - **Tests**: unit, integration, LOCAL e2e (the trigger nulls the digest on restore), deployed e2e (a signed-out
       read of a restored, held recipe answers not-available).
-- [ ] T193 An aggregator-site import gets no public facts card. Files: `packages/services/recipe-service/src/recipes/domain/`, the aggregator-site list as configuration _(added 2026-11-03, owner ruling O6, ADR-0082)_
-    - **Implements**: C-004 as amended, `016-FR-030a`, `021-FR-014e`, `004-FR-014b`
-    - **Depends on**: T191, `016` plan L082-10
-    - **Acceptance**: [House rule] Choosing Public for a recipe whose source host is on the aggregator list makes no
-      facts card. The recipe stays Private (using a slot for a free cook), or the cook publishes it as "Adapted by you".
-      The denial happens before any count. A bulk import applies the same rule per recipe. Counsel review is owed
-      before launch (`016-FR-050`).
-    - **Tests**: unit (the policy denies an aggregator host and allows another site), integration (single and bulk
-      import), LOCAL e2e (no `source_card_events` row is written for an aggregator).
+- [ ] T193 Withdrawn. Owner ruling, 2026-11-15: no facts cards (ADR-0093), so there is no card for an aggregator site to be denied. An imported recipe goes public only as a Commise-written version (`021-FR-003`, spec 003B, planned).
 - [ ] T194 While an edit to a public recipe is checked, public reads serve the last approved version. Files: `packages/services/recipe-service/src/recipes/`, `versions/` _(added 2026-11-03, owner ruling O10, ADR-0082)_
     - **Implements**: FR-007b as amended, `020-FR-064`, `021-FR-007`
     - **Depends on**: T191, T192, 020 plan K082-11

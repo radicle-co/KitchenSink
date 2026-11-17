@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import type { SQSHandler, SQSRecord } from 'aws-lambda';
 
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
@@ -150,6 +152,13 @@ const s3 = new S3Client({});
  * or read straight from the DB, so this is the interior belt to the boundary's braces.
  */
 const isValidOwnerId = (value: unknown): value is string => typeof value === 'string' && value.trim() !== '';
+
+/**
+ * A fresh `erased_` token (`erased_` and 32 hex characters), derived from nothing, that stands in for one account's id.
+ *
+ * @sideEffect Reads the system's random source.
+ */
+const erasedAccountToken = (): string => `erased_${randomBytes(16).toString('hex')}`;
 
 /**
  * Strict owner-id guard for the untrusted MESSAGE boundary: the id must be a valid ULID — the exact format
@@ -572,6 +581,11 @@ export interface EraseRecipeRowsResult {
  *     P of a private source Q → P kept, Q removed, P→Q dangles), which `owner_id <> ownerId` would miss and
  *     the delete would then FK-fail. Rows in the removed set are NOT detached: they are deleted by the same
  *     statement as their source, and the NO ACTION check at end-of-statement sees both already gone.
+ *  5a. **Statement attestations (migrations 0088 and 0090)**, before the delete. EVERY row of the account is kept (an attestation
+ *     is kept while its recipe is public plus 6 years), so `account_id` is replaced by ONE random `erased_` token for this
+ *     erasure on all of them, a removed recipe's included. Step 6's foreign key then empties `recipe_id` and `recipe_ref` keeps
+ *     the id. Only the account moves, which is the UPDATE the table's append-only trigger admits while this account's erasure
+ *     job is queued or running.
  *  6. **Scoped recipe delete.** `DELETE FROM recipes WHERE id = ANY(removed)` — NOT `WHERE owner_id`, so
  *     truly-public + donated recipes survive. No `deleted_at` filter: a tombstoned owner-only recipe is
  *     erased too (retention is not reachability). Cascades to `recipe_steps`, `ingredients` (the LINES),
@@ -681,6 +695,9 @@ export const eraseRecipeRows = async (
     publishRecipeIds: readonly string[],
 ): Promise<EraseRecipeRowsResult> => {
     const pseudonym = pseudonymizedAuthorHandle(ownerId);
+    // ONE random token for this erasure (migration 0088): every attestation row of the account gets the same one (all are kept), it is
+    // derived from nothing, and it is stored nowhere else, so it links the rows to each other and to no one.
+    const attestationAccountToken = erasedAccountToken();
     // The election is bound as a single jsonb parameter (NOT `= ANY($1::uuid[])` over a JS array, which
     // drizzle list-EXPANDS into `ANY($1, $2, …)` — invalid for ANY). `jsonb_array_elements_text` turns the
     // one bound json string back into a set of ids the flip matches with `id IN (…)`; an empty election
@@ -718,6 +735,17 @@ export const eraseRecipeRows = async (
         //    say which; they are bound as ONE jsonb parameter like the election, so the rule is not copied here and no SQL
         //    text is spliced. A NULL kind is the empty string in the key, so it is never an unknown. Such an elected recipe is removed with the owner-only set below, exactly as one that holds a
         //    private food is. (Until now a donated book or paid-site recipe was published.)
+        //    ⛔ AND ONLY a recipe the evidence rule does not hold (`sourceConflictOf`, recipe-core): a recipe whose cook stated
+        //    a third-party source and then cleared it reads as their own, and a donation would publish it as such. It follows
+        //    the private-only path: removed with the owner-only set. The private-only half is the bound keys just above; the
+        //    evidence half is the database function `recipe_holds_third_party_source` (migration 0086), the same shape as
+        //    `recipe_holds_private_food`, so neither rule is copied here and no SQL text is spliced.
+        //    ⛔ AND ONLY a recipe whose cook owes no statement (`statementRequiredOf`, recipe-core): pasted content the
+        //    cook never said was theirs would be published as theirs by a donation, so it is removed with the owner-only
+        //    set. The database function is `recipe_needs_statement` (migration 0087); it adds no SQL parameter.
+        //    ⛔ AND ONLY a recipe the cook did not say is another person's (`fromPersonOf`, recipe-core): a donation publishes
+        //    it, and "from another person" is private at every route. The database function is `recipe_is_from_person`
+        //    (migration 0087), a separate rule from the statement rule on purpose, and it adds no SQL parameter either.
         await tx.execute(sql`
             UPDATE recipes
             SET visibility = 'public', status = 'published', updated_at = now()
@@ -726,6 +754,9 @@ export const eraseRecipeRows = async (
               AND NOT recipe_holds_private_food(id)
               AND (source_type || ':' || COALESCE(source_kind, ''))
                   NOT IN (SELECT jsonb_array_elements_text(${privateOnlyKeysJson}::jsonb))
+              AND NOT recipe_holds_third_party_source(id)
+              AND NOT recipe_needs_statement(id)
+              AND NOT recipe_is_from_person(id)
         `);
 
         // 2. The removed set = the owner's rows that are NOT truly-public (owner-only, non-donated). Captured
@@ -755,6 +786,19 @@ export const eraseRecipeRows = async (
             SET cloned_from_id = NULL, updated_at = now()
             WHERE cloned_from_id IN (SELECT id FROM recipes WHERE ${ownerOnly})
               AND id NOT IN (SELECT id FROM recipes WHERE ${ownerOnly})
+        `);
+
+        // 5a. Statement attestations (migrations 0088 and 0090) — BEFORE the recipe delete, and for EVERY row of the account. An
+        //     attestation is kept while its recipe is public plus 6 years (ADR-0095 section 6), so the rows of a recipe step 6
+        //     removes stay too: its foreign key empties `recipe_id` (`ON DELETE SET NULL`) and `recipe_ref` keeps the id. Only the
+        //     account moves, to this erasure's one token (the append-only trigger admits exactly that UPDATE, and only while this
+        //     account's erasure job is queued or running, which is the job the claim above holds), so what was chosen, in which
+        //     wording and locale, and when, is kept and by whom is not. `account_id = ownerId` makes a replay a no-op: swapped
+        //     rows no longer match.
+        await tx.execute(sql`
+            UPDATE recipe_statement_attestations
+            SET account_id = ${attestationAccountToken}
+            WHERE account_id = ${ownerId}
         `);
 
         // 6. Scoped recipe delete — the removed set (owner-only, post-flip), NOT owner-wide, so truly-public +
@@ -874,8 +918,9 @@ export const eraseRecipeRows = async (
 
 /**
  * Purge EVERYTHING a registered test principal owns in the recipe database, atomically (ADR-0040). No public
- * carve-out, no donate election, no pseudonymization: a test-pool slot must start its next run from an empty world,
- * so every user-keyed row is DELETED. The caller has already claimed the `test_reset_jobs` row and re-checked the
+ * carve-out, no donate election: a test-pool slot must start its next run from an empty world, so every user-keyed row
+ * is DELETED, except the statement records (migration 0090), which the database refuses to delete and which are
+ * relabelled to one `erased_` token instead. The caller has already claimed the `test_reset_jobs` row and re-checked the
  * `test_principals` registry; this function only removes rows.
  *
  * ⛔ Keep this a `const` bound to an arrow function. `testResetSweepCoverage.test.ts` reads the purge's statement set
@@ -892,6 +937,9 @@ export const eraseRecipeRows = async (
  *     user's clone pointing at one of the principal's recipes makes step 3 throw. Every one of the principal's
  *     recipes is deleted, so the survivors are exactly `owner_id <> principal` — unlike erasure, which has to guard
  *     on the removed SET because it keeps some of the owner's own recipes.
+ *  2b. **Statement records** — `UPDATE recipe_statement_attestations SET account_id` to one random `erased_` token. The
+ *     append-only trigger refuses every DELETE and admits this swap for a registered test principal while its reset
+ *     is running. The record stays, and who made it does not. Before step 3, while the rows still name their recipes.
  *  3. **Every recipe** — `DELETE FROM recipes WHERE owner_id`: public and private, published and draft, tombstoned
  *     and live. Cascades (0001/0004/0010) to steps, ingredient lines, photos, versions (so `recipe_versions.created_by`
  *     goes with them — mutations are owner-only), collection memberships — including in OTHER users' collections —
@@ -969,6 +1017,9 @@ export const purgeTestPrincipalRows = async (
         )
     `;
 
+    // ONE random token for this reset: every statement record of the principal moves to it (step 2b).
+    const resetAccountToken = erasedAccountToken();
+
     await db.transaction(async (tx) => {
         // 1. Ratings on anyone's recipes; the statement trigger re-derives every survivor's aggregate.
         await tx.execute(sql`DELETE FROM recipe_ratings WHERE user_id = ${ownerId}`);
@@ -979,6 +1030,16 @@ export const purgeTestPrincipalRows = async (
             SET cloned_from_id = NULL, updated_at = now()
             WHERE cloned_from_id IN (SELECT id FROM recipes WHERE owner_id = ${ownerId})
               AND owner_id <> ${ownerId}
+        `);
+
+        // 2b. The principal's statement records are relabelled, never deleted: the append-only trigger (0090) refuses every
+        //     DELETE and admits this swap only while the principal's reset job is running, which the caller's claim guarantees.
+        //     The account moves to ONE random token, so the record of what was chosen stays and who chose it does not. Before
+        //     step 3, while the rows still name their recipes. `account_id = ownerId` makes a replay a no-op.
+        await tx.execute(sql`
+            UPDATE recipe_statement_attestations
+            SET account_id = ${resetAccountToken}
+            WHERE account_id = ${ownerId}
         `);
 
         // 3. Every recipe — no visibility/status carve-out, no tombstone filter. Cascades the recipe graph.

@@ -83,6 +83,21 @@ describe('ConfirmDialog (native)', () => {
         expect(resolvedStyle(line, 'fontSize')).toBe(`${String(nativeTokens.type.meta.fontSize)}px`);
     });
 
+    it('draws a note as a second muted paragraph under the body, in the body role', () => {
+        render(<ConfirmDialog {...baseProps({ note: 'Anyone can see a public recipe.' })} />);
+
+        const note = screen.getByText('Anyone can see a public recipe.');
+
+        expect(resolvedColour(note, 'color')).toBe(rgb(rolesFor('light').inkMuted));
+        expect(resolvedStyle(note, 'fontSize')).toBe(resolvedStyle(screen.getByText(baseProps().body), 'fontSize'));
+    });
+
+    it('draws no note paragraph when none is given', () => {
+        render(<ConfirmDialog {...baseProps()} />);
+
+        expect(screen.queryByText('Anyone can see a public recipe.')).toBeNull();
+    });
+
     it('renders nothing while closed', () => {
         render(<ConfirmDialog {...baseProps({ open: false })} />);
 

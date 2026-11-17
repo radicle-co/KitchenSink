@@ -14,7 +14,7 @@
       "x": 0,
       "y": 260,
       "w": 390,
-      "h": 1578,
+      "h": 1622,
       "title": "Home (mobile, iPhone 390)"
     },
     "HomeLoadingIphone390.dc.html": {
@@ -49,14 +49,14 @@
       "x": 2350,
       "y": 260,
       "w": 390,
-      "h": 1678,
+      "h": 1758,
       "title": "Home, two cooking sessions (mobile, iPhone 390)"
     },
     "HomeAndroid384.dc.html": {
       "x": 0,
       "y": 2598,
       "w": 384,
-      "h": 1564,
+      "h": 1632,
       "title": "Home (mobile, Android 384)"
     },
     "HomeLoadingAndroid384.dc.html": {
@@ -91,7 +91,7 @@
       "x": 2320,
       "y": 2598,
       "w": 384,
-      "h": 1664,
+      "h": 1792,
       "title": "Home, two cooking sessions (mobile, Android 384)"
     },
     "HomeIpad820.dc.html": {
@@ -133,7 +133,7 @@
       "x": 4500,
       "y": 4922,
       "w": 820,
-      "h": 1185,
+      "h": 1265,
       "title": "Home, two cooking sessions (mobile, iPad 820)"
     }
   },

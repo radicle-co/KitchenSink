@@ -67,7 +67,7 @@ counting them as failures would create pressure to weaken the blocklist.
 | ID  | Metric                                      | Target    | Why                                                    |
 | --- | ------------------------------------------- | --------- | ------------------------------------------------------ |
 | S-1 | Duplicate public recipes per source         | **0**     | SC-005; a non-zero value means the unique index failed |
-| S-2 | Imported-public recipes lacking attribution | **0**     | Legal exposure (HAZ-015/023)                           |
+| S-2 | Imported-public recipes lacking attribution | **0**     | Attribution rule broken (HAZ-015/023)                  |
 | S-3 | `imported_paid` recipes made public         | **0**     | Never permitted (REQ-CN-003)                           |
 | S-4 | OCR images outliving their draft            | **0**     | Privacy (HAZ-035)                                      |
 | S-5 | SSRF guard rejections                       | (observe) | A sudden rise indicates probing, not a bug             |

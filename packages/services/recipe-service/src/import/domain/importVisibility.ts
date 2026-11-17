@@ -10,13 +10,14 @@
  * read under the per-user lock inside `create` (ADR-0073), and a free cook out of slots pauses the import through the port
  * in `privateSlots.port.ts`. Reading a slot count here, outside that transaction, is the race ADR-0073 forbids.
  */
-import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeVisibility, fromPersonOf } from '@kitchensink/recipe-core';
 
 import { isPremiumPrincipal, type Principal } from '../../auth/principal.js';
 import type { ContainmentSubject } from '../../common/containmentPolicy.js';
 import { evaluateVisibility } from '../../recipes/domain/visibilityPolicy.js';
 import type { ImportVisibility } from '../dal/recipeImports.dal.js';
 import { resolveStatementProvenance } from '../../recipes/domain/provenancePolicy.js';
+import { evidenceListOf, sourceConflictOfEvidence } from '../../recipes/domain/sourceEvidence.js';
 import type { KnownImportStatement } from './importStatement.js';
 
 /** What the policy needs to know about the cook. */
@@ -50,6 +51,13 @@ export function visibilityRefusedFor(
     statement: KnownImportStatement,
     requested: ImportVisibility,
 ): boolean {
+    // ⛔ An import saves Private only, until the paste import carries wordings and writes the attestation rows (ADR-0095 section 4).
+    // A Public choice is refused here, so the item waits for the cook to choose Private. Nothing is changed for them: a save that
+    // quietly turned Public into Private would be a recipe the cook did not ask for.
+    if (requested === 'public') {
+        return true;
+    }
+
     const provenance = resolveStatementProvenance(statement);
 
     // A web statement whose link is not a usable source sets no label at all: refused either way, so it is never saved.
@@ -57,6 +65,7 @@ export function visibilityRefusedFor(
         return true;
     }
 
+    // The evidence the save will write for this statement (a new recipe has no other), so the question is the one the save asks.
     const decision = evaluateVisibility({
         principalKind: facts.principalKind,
         containment: facts.containment,
@@ -64,7 +73,10 @@ export function visibilityRefusedFor(
         sourceKind: provenance.sourceKind,
         isPremium: facts.isPremium,
         hasAvailablePrivateSlot: true,
-        requested: requested === 'public' ? RecipeVisibility.PUBLIC : RecipeVisibility.PRIVATE,
+        requested: RecipeVisibility.PRIVATE,
+        sourceConflict: sourceConflictOfEvidence(evidenceListOf(provenance, 'importFile'), provenance),
+        // `attestedFromPerson: false` — an import makes a new recipe, which has no past attestation to count.
+        fromPerson: fromPersonOf({ statementKind: provenance.statementKind, attestedFromPerson: false }),
     });
 
     return !decision.allowed;

@@ -1,4 +1,4 @@
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 const { mockCaptureException } = vi.hoisted(() => ({ mockCaptureException: vi.fn() }));
 
@@ -89,6 +89,69 @@ describe('ApiExceptionFilter', () => {
                 message: 'Recipe version conflict',
                 details: { currentVersion: 3, conflictingVersion: 2 },
             });
+        });
+    });
+
+    describe("the body parser's refusals", () => {
+        afterEach(() => {
+            vi.restoreAllMocks();
+        });
+
+        // body-parser throws an `http-errors` object, which is NOT a Nest HttpException: without its own arm it fell to the
+        // 500 fallback, and the import's clients (which halve a chunk on 413) never saw the status they branch on.
+        it('answers 413 PAYLOAD_TOO_LARGE with a constant message', () => {
+            const { host, captured } = makeHost();
+            const error = Object.assign(new Error('request entity too large'), {
+                status: 413,
+                statusCode: 413,
+                type: 'entity.too.large',
+                expose: true,
+            });
+
+            filter.catch(error, host);
+
+            expect(captured.statusCode).toBe(HttpStatus.PAYLOAD_TOO_LARGE);
+            expect(captured.body).toEqual({ code: 'PAYLOAD_TOO_LARGE', message: 'The request body is too large.' });
+        });
+
+        // `entity.parse.failed` carries the RAW REQUEST TEXT as `body`; the 500 fallback logged the thrown object and
+        // captured it in Sentry, so one client bug wrote a cook's recipe text into the logs and opened an issue.
+        it.each([
+            ['entity.parse.failed', 400, 'VALIDATION_FAILED', HttpStatus.BAD_REQUEST],
+            ['charset.unsupported', 415, 'UNSUPPORTED_MEDIA_TYPE', HttpStatus.UNSUPPORTED_MEDIA_TYPE],
+            ['encoding.unsupported', 415, 'UNSUPPORTED_MEDIA_TYPE', HttpStatus.UNSUPPORTED_MEDIA_TYPE],
+        ])('⛔ answers %s as a %i and no body text reaches the logger or Sentry', (type, status, code, answer) => {
+            const MARKER = 'MARKER-pasted-recipe-text-77c1';
+            const { host, captured } = makeHost();
+            const logged = [
+                vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined),
+                vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined),
+                vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined),
+            ];
+            mockCaptureException.mockClear();
+            const error = Object.assign(new SyntaxError(`Unexpected token in ${MARKER}`), {
+                status,
+                statusCode: status,
+                type,
+                expose: true,
+                body: `{"title": "${MARKER}`,
+            });
+
+            filter.catch(error, host);
+
+            expect(captured.statusCode).toBe(answer);
+            expect(captured.body).toMatchObject({ code });
+            expect(mockCaptureException).not.toHaveBeenCalled();
+            expect(logged[0]).not.toHaveBeenCalled();
+            expect(JSON.stringify([captured.body, ...logged.map((spy) => spy.mock.calls)])).not.toContain(MARKER);
+        });
+
+        it('does not treat another error that merely carries a 413 as one', () => {
+            const { host, captured } = makeHost();
+
+            filter.catch(Object.assign(new Error('x'), { status: 413 }), host);
+
+            expect(captured.statusCode).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
         });
     });
 

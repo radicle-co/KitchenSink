@@ -34,6 +34,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useAuth } from '../hooks/useAuth';
+import { noticeFormOf, ReportFocusedRootRouteContext } from '../navigation/focusedRootRoute';
 import { mobileMessages } from '../i18n/messages';
 import type { PendingSignUp } from '../hooks/useSocialSignIn';
 import { CompleteSignUpScreen } from '../screens/CompleteSignUpScreen';
@@ -97,6 +98,8 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
     const blockCopy = useMessages(authBlockMessages);
     const { state } = useAuth();
     const offline = useMessages(offlineNoticeMessages);
+    // Which root route the navigator says is focused: it picks the notice's form, derived during render.
+    const [focusedRoot, setFocusedRoot] = useState<string | undefined>(undefined);
 
     switch (state.status) {
         case 'loading':
@@ -128,8 +131,8 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
         case 'authenticated':
             return (
                 <View style={styles.app}>
-                    <SyncNoticeHost copy={offline} />
-                    {children}
+                    <SyncNoticeHost copy={offline} form={noticeFormOf(focusedRoot)} />
+                    <ReportFocusedRootRouteContext value={setFocusedRoot}>{children}</ReportFocusedRootRouteContext>
                 </View>
             );
     }

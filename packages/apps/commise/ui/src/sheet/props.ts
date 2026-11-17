@@ -73,6 +73,11 @@ export interface SheetProps {
     readonly presentation?: 'sheet' | 'dialog';
     /** Pinned under the title, outside the scroll region. ⛔ With a toolbar, `children` holds no text input. */
     readonly toolbar?: SheetToolbar;
+    /**
+     * The host has a change in flight that this sheet asked for, so the whole sheet is waiting: web `aria-busy` on the dialog,
+     * native `aria-busy` on its dialog view. It changes nothing on screen by itself; the host dims what it disables.
+     */
+    readonly busy?: boolean;
     /** The scroll region. */
     readonly children: ReactNode;
     /**

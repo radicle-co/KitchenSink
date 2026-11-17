@@ -15,10 +15,15 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { RecipeErrorCode, RecipeVisibility, type RecipeSourceType } from '@kitchensink/recipe-core';
+import { RecipeErrorCode, type RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import type { Principal } from '../../auth/principal.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../__fixtures__/index.js';
 import { CURATOR_IMPORT_SCOPE } from '../recipes.schema.js';
 import type { LockedRecipeFacts, RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
@@ -49,6 +54,7 @@ function principal(overrides: Partial<Principal> = {}): Principal {
 const premium = (): Principal => principal({ roles: ['premium'] });
 
 const CREATE_DTO: CreateRecipeDto = {
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Soup',
     cuisine: 'Thai',
     servings: 2,
@@ -287,6 +293,9 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
             status,
             sourceType,
             sourceKind: null,
+            statementKind: null,
+            contentPastedAt: null,
+            clonedFromId: null,
         }));
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(found),
@@ -303,7 +312,7 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
 
         const response = await serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined);
 
-        expect(setVisibility).toHaveBeenCalledWith('r-1', 'private', FAKE_TX);
+        expect(setVisibility).toHaveBeenCalledWith('r-1', 'private', FAKE_TX, undefined);
         expect(response.visibility).toBe('private');
     });
 
@@ -368,7 +377,7 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
             await expect(
                 serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined),
             ).resolves.toBeDefined();
-            expect(setVisibility).toHaveBeenCalledWith('r-1', 'private', FAKE_TX);
+            expect(setVisibility).toHaveBeenCalledWith('r-1', 'private', FAKE_TX, undefined);
         },
     );
 
@@ -410,6 +419,9 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
             status: 'published',
             sourceType: 'imported_public',
             sourceKind: 'public_web',
+            statementKind: 'source',
+            contentPastedAt: null,
+            clonedFromId: null,
         });
 
         const error = await refusalOf(
@@ -425,7 +437,9 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
         const { dal, lockAndCountPrivateSlots, setVisibility } = holding(60, 'private');
         setVisibility.mockResolvedValue(aggregate({ visibility: 'public' }));
 
-        await serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PUBLIC, undefined);
+        await serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PUBLIC, undefined, {
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
 
         expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
     });
@@ -514,7 +528,11 @@ describe('RecipesService.clone - a clone is a draft, so it uses no slot (ADR-007
  * under the per-user lock, because set-visibility does not bump the version and so the pre-transaction read can be stale.
  */
 describe('RecipesService.update - publishing a private draft takes a slot (ADR-0073 sections 3 and 12)', () => {
-    const PATCH = { expectedVersion: 1, status: 'published' } as const;
+    const PATCH = {
+        expectedVersion: 1,
+        status: 'published',
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+    } as const;
 
     function draftHolding(
         used: number,
@@ -535,6 +553,9 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
             ...facts,
             sourceType,
             sourceKind: null,
+            statementKind: null,
+            contentPastedAt: null,
+            clonedFromId: null,
         }));
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(found),
@@ -613,6 +634,9 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
                 status: 'draft',
                 sourceType: 'user_created',
                 sourceKind: null,
+                statementKind: null,
+                contentPastedAt: null,
+                clonedFromId: null,
             })),
         });
 

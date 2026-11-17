@@ -7,7 +7,7 @@
 import { nativeTokens } from '@commise/ui/native';
 import { PRESS_SCALE } from '@commise/ui/press-scale';
 import { withPlatformOs } from '@commise/ui/testing/platform-os';
-import { pressScaleOf, render } from '@commise/ui/testing/tamagui';
+import { ARIA_HIDDEN_CONTENT, pressScaleOf, render, resolvedStyle } from '@commise/ui/testing/tamagui';
 import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -143,5 +143,23 @@ describe('CookingLineRow (native)', () => {
             // The row is a Pressable around the laid-out row, so the floor is the least height it holds anywhere.
             expect(`${String(tallestMinHeight(screen.getByRole('checkbox', { name: LINE })))}px`).toBe(height);
         });
+    });
+
+    // The glyph owns its slot and its size by the role of the line it labels, so the row passes that role and adds no
+    // slot of its own: a 28 pt focus line draws a 22 box in a 36 slot, and a body line an 18 box in a 28 slot.
+    it.each([
+        ['focus', '22px', '36px'],
+        ['other', '18px', '28px'],
+    ] as const)('draws the box and slot of the %s line by the role of its text', (emphasis, box, slot) => {
+        const { container } = render(<CookingLineRow line={lineOf(false, vi.fn())} emphasis={emphasis} />);
+        const drawn = container.querySelector(ARIA_HIDDEN_CONTENT);
+        const glyphSlot = drawn?.parentElement;
+
+        if (!drawn || !glyphSlot) {
+            throw new Error('The row draws no check box.');
+        }
+
+        expect(resolvedStyle(drawn, 'width')).toBe(box);
+        expect(resolvedStyle(glyphSlot, 'height')).toBe(slot);
     });
 });

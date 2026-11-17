@@ -53,6 +53,7 @@ describe('the colour reader', () => {
         ['a kebab palette class', `const c = 'text-ocean-dark';`, ['raw-colour-class']],
         ['a variant and an opacity', `const c = 'hover:bg-seafoam/10';`, ['raw-colour-class']],
         ['an important, negative-free utility', `const c = '!text-white';`, ['raw-colour-class']],
+        ['a suffix important utility', `const c = 'md:text-white!';`, ['raw-colour-class']],
         ['a semantic class', `const c = 'bg-card ring-border';`, ['raw-colour-class', 'raw-colour-class']],
         ['a Tailwind default scale', `const c = 'text-red-500';`, ['raw-colour-class']],
         ['an arbitrary hex class', `const c = 'bg-[#123456]';`, ['hex-literal', 'raw-colour-class']],

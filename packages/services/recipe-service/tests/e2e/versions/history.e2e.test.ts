@@ -14,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** A seeded catalog ingredient (Flour) from the baseline global setup. */
 const FLOUR_ID = '00000000-0000-4000-8000-0000000000aa';
@@ -31,6 +32,7 @@ interface RecipeBody {
 }
 
 const CREATE_BODY = {
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Original Title',
     servings: 2,
     prepTimeMinutes: 5,

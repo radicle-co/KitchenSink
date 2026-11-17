@@ -1,7 +1,7 @@
 # Metrics and ROI: Commise Recipe Management Core
 
 **Branch**: `001-commise-recipe-app` | **Date**: 2026-05-09
-**Status**: Complete | **Sources**: [spec.md](../spec.md) (NFR-008..011), [plan.md](../plan.md), [v-model/requirements.md](../v-model/requirements.md)
+**Status**: Complete | **Sources**: [spec.md](../spec.md) (NFR-008..011), [plan.md](../plan.md)
 
 ---
 

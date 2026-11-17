@@ -46,6 +46,7 @@ import {
     useRecipeDetailController,
 } from '@commise/features-recipes/detail';
 import { useMessages } from '@commise/i18n/react';
+import { useIsOffline } from '@commise/query';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { useSyncQueue } from '@commise/query/sync';
@@ -63,6 +64,7 @@ import { View } from 'react-native';
 
 import { useSessionClaims } from '../hooks/useSessionClaims.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
+import { reportErrorToSentry } from '../observability/sentryErrorReporter.js';
 import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Props for {@link RecipeDetailScreen}. */
@@ -235,6 +237,8 @@ function SettledRecipeDetail({
         profile,
         finishRefused: finishRefused === true,
         saving,
+        offline: useIsOffline(),
+        reportError: reportErrorToSentry,
         ...(refusalArrived === undefined ? {} : { refusalArrived }),
         ...(onFinishRefusalSeen === undefined ? {} : { onFinishRefusalSeen }),
         nav: {

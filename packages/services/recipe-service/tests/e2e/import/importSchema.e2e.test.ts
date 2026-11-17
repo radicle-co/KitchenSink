@@ -42,7 +42,7 @@ const UNIQUE_VIOLATION = '23505';
 
 type Columns = Record<string, unknown>;
 
-describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 to 0085)', () => {
+describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 to 0085, 0089)', () => {
     let pool: pg.Pool;
 
     beforeAll(async () => {
@@ -200,6 +200,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 t
                 'parse_generation',
                 'parse_job_id',
                 'payload',
+                'payload_bytes',
                 'prep_time_minutes',
                 'recipe_id',
                 'refusal',
@@ -254,6 +255,50 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 t
                 'unit',
                 'verification_key',
             ]);
+        });
+
+        it('⛔ payload_bytes is a STORED generated column equal to octet_length(payload::text), and NULL once the payload is shed (0089)', async () => {
+            const meta = await pool.query(
+                `SELECT is_generated, generation_expression, is_nullable, data_type FROM information_schema.columns
+                  WHERE table_name = 'recipe_import_items' AND column_name = 'payload_bytes'`,
+            );
+
+            expect(meta.rows).toEqual([
+                {
+                    is_generated: 'ALWAYS',
+                    generation_expression: expect.stringMatching(/octet_length\(\(payload\)::text\)/u) as unknown,
+                    is_nullable: 'YES',
+                    data_type: 'integer',
+                },
+            ]);
+
+            const importId = await newImport();
+            // Multi-byte text, so a character count or a bytea length would disagree with the stored text's byte length.
+            const row = await insert(
+                'recipe_import_items',
+                receivedItem(importId, 0, { payload: JSON.stringify({ title: 'Crème brûlée 🍮' }) }),
+            );
+            const expected = await pool.query(
+                `SELECT octet_length(payload::text) AS n FROM recipe_import_items WHERE import_id = $1 AND ordinal = 0`,
+                [importId],
+            );
+
+            expect(row['payload_bytes']).toBe((expected.rows[0] as { n: number }).n);
+            expect(row['payload_bytes']).toBeGreaterThan(Buffer.byteLength('Crème brûlée 🍮'));
+
+            const saved = await insert('recipe_import_items', {
+                import_id: importId,
+                ordinal: 1,
+                title: 'Soup',
+                stage: 'saved',
+                allowance_spent_at: new Date(),
+                matched_at: new Date(),
+                saved_at: new Date(),
+                statement_kind: 'authored',
+                recipe_id: RECIPE_A,
+            });
+
+            expect(saved['payload_bytes']).toBeNull();
         });
 
         it('ingredients gained exactly bound_by and import_line_id', async () => {

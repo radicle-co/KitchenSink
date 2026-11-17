@@ -1,7 +1,7 @@
 import { webTypeRoles } from '@commise/ui/tokens/typography';
 import { describe, expect, it } from 'vitest';
 
-import { FOCUS_LINE_TYPE } from '../focusLineType.js';
+import { FOCUS_LINE_TYPE, LINE_TYPE } from '../focusLineType.js';
 
 /** The camelCase role name as a kebab-case class stem: `largeTitle` is `large-title`. */
 const kebab = (role: string): string => role.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
@@ -31,4 +31,26 @@ describe('FOCUS_LINE_TYPE', () => {
         expect(kebab('readingLarge')).toBe('reading-large');
         expect(kebab('largeTitle')).toBe('large-title');
     });
+});
+
+/**
+ * The one map from a line's emphasis to its type, which both cooking rows read: the native role and the web class it
+ * pairs with. A row passes the native role to its check box too, so the box and its slot are drawn for the text.
+ */
+describe('LINE_TYPE', () => {
+    it('sets the focus line in the focus type and every other line in readingBody', () => {
+        expect(LINE_TYPE.focus).toBe(FOCUS_LINE_TYPE);
+        expect(LINE_TYPE.other.nativeTypeRole).toBe('readingBody');
+    });
+
+    it.each(Object.entries(LINE_TYPE))(
+        "pairs the %s line's web class with the kebab-case of its native role, and the design system emits it",
+        (_emphasis, { nativeTypeRole, webClassName }) => {
+            const stem = webClassName.slice('text-'.length);
+
+            expect(webClassName.startsWith('text-')).toBe(true);
+            expect(stem).toBe(kebab(nativeTypeRole));
+            expect(Object.keys(webTypeRoles)).toContain(stem);
+        },
+    );
 });

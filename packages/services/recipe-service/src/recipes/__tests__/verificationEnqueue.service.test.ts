@@ -55,7 +55,12 @@ import { fakeFoodLookupsDal, makeRootArm } from '../../ingredients/__fixtures__/
 import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
 import { canonicalIngredientName } from '../../ingredients/domain/ingredientName.js';
 import type { FoodRefsGateway } from '../../ingredients/foodRefs.gateway.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../__fixtures__/index.js';
 import { fakeLineVerificationsDal } from '../__fixtures__/lineVerificationsDal.fixture.js';
 import type { LineVerificationsDal } from '../dal/lineVerifications.dal.js';
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
@@ -63,6 +68,7 @@ import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
 import { FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
 import type { RecipeTx } from '../../database/unitOfWork.js';
+import { fakeRecipesDal as sharedFakeRecipesDal } from '../__fixtures__/recipesDal.fixture.js';
 import { makeRecipesService } from '../__fixtures__/recipesService.fixture.js';
 
 /** A `FoodNutritionGateway` double: this suite is not about nutrition, so it degrades honestly. */
@@ -132,15 +138,19 @@ function aggregate(overrides: { sourceLine?: string | null; quantity?: string; u
 }
 
 function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal {
+    const findById = overrides.findById ?? vi.fn<RecipesDal['findById']>();
+
     return {
         create: vi.fn().mockResolvedValue(aggregate()),
-        findById: vi.fn(),
+        findById,
         findAll: vi.fn(),
         update: vi.fn(),
         softDelete: vi.fn(),
         ...overrides,
         // ADR-0073: a cook with no private recipes. ADR-0029 section 4: no private foods in the database by default.
         lockAndCountPrivateSlots: vi.fn(async () => 0),
+        // An edit of a PUBLISHED recipe reads its facts under the row lock (the statement rule): the shared double reads the same row.
+        lockSlotFacts: sharedFakeRecipesDal({ findById }).lockSlotFacts,
         privateFoodLines: vi.fn(async () => []),
         transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
     } as unknown as RecipesDal;
@@ -181,6 +191,7 @@ function makeService(
 
 /** A create body. `sourceLine: null` means the cook AUTHORED the line — the field is simply not sent. */
 const createDto = (sourceLine: string | null = SOURCE_LINE): CreateRecipeDto => ({
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Bread',
     cuisine: 'French',
     servings: 2,

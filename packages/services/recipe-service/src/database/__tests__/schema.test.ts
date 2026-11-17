@@ -127,6 +127,9 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             visibility: { type: 'text', notNull: true },
             source_type: { type: 'text', notNull: true },
             source_kind: { type: 'text', notNull: false },
+            // 0087 — what the cook stated, and when the client first said content was pasted. Both nullable, no default.
+            statement_kind: { type: 'text', notNull: false },
+            content_pasted_at: { type: 'timestampwithtimezone', notNull: false },
             source_url: { type: 'text', notNull: false },
             source_attribution: { type: 'text', notNull: false },
             cloned_from_id: { type: 'uuid', notNull: false },
@@ -285,6 +288,8 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             // item still names itself after the payload is shed and its draft deleted.
             title: { type: 'text', notNull: true },
             payload: { type: 'jsonb', notNull: false },
+            // Generated (0089): `octet_length(payload::text)`, so the unpaid-byte cap sums it instead of serialising payloads.
+            payload_bytes: { type: 'integer', notNull: false },
             stage: { type: 'text', notNull: true },
             review: { type: 'text', notNull: true },
             parse_job_id: { type: 'uuid', notNull: false },

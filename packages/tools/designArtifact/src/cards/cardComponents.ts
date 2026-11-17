@@ -64,7 +64,6 @@ import type { EnterTransition } from '@commise/ui/motion';
 import type { OfflineReadSlot } from '@commise/ui/offline-notice';
 import type { OptionLabel } from '@commise/ui/option-label';
 import type { PendingBar } from '@commise/ui/pending-bar';
-import type { PhotoControl } from '@commise/ui/photo-control';
 import type { Popover } from '@commise/ui/popover';
 import type { PressScale } from '@commise/ui/press-scale';
 import type { ProgressBar } from '@commise/ui/progress-bar';
@@ -162,7 +161,6 @@ export interface CardComponents {
     readonly OfflineReadSlot: typeof OfflineReadSlot;
     readonly OptionLabel: typeof OptionLabel;
     readonly PendingBar: typeof PendingBar;
-    readonly PhotoControl: typeof PhotoControl;
     readonly Popover: typeof Popover;
     readonly PressScale: typeof PressScale;
     readonly ProgressBar: typeof ProgressBar;

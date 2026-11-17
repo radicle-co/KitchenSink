@@ -9,6 +9,9 @@
  * sync notice. The host keeps the count at which the cook dismissed as derived state, with no effect and no ref
  * (`specSharedSystem.md` §17).
  *
+ * The host has two forms, chosen by its mount, and the leaves stay mode-free: `cooking` shows the
+ * title only while offline and nothing else.
+ *
  * @pattern Orchestration — it reads the queue's facts, maps them through pure Specifications, and hands the result
  *     to presentational leaves; it renders no markup of its own.
  */
@@ -17,6 +20,7 @@ import { useState, type FC } from 'react';
 
 import { useIsOffline } from './useIsOffline.js';
 import {
+    cookingNoticeStateOf,
     dismissalFor,
     recoveringOf,
     syncNoticeState,
@@ -29,10 +33,12 @@ import { useSyncQueue } from './syncProvider.js';
 export interface SyncNoticeHostProps {
     /** The app's localized strings. */
     readonly copy: SyncNoticeCopy & { readonly regionLabel: string };
+    /** `app` (default): the full notice. `cooking`: title only while offline, nothing else. */
+    readonly form?: 'app' | 'cooking';
 }
 
 /** Renders the app-wide connectivity + unsynced-work notice. */
-export const SyncNoticeHost: FC<SyncNoticeHostProps> = ({ copy }) => {
+export const SyncNoticeHost: FC<SyncNoticeHostProps> = ({ copy, form = 'app' }) => {
     const offline = useIsOffline();
     const { pendingCount, failures, unreadableCount } = useSyncQueue();
     const parkedCount = failures.length;
@@ -53,8 +59,12 @@ export const SyncNoticeHost: FC<SyncNoticeHostProps> = ({ copy }) => {
         setDismissedAt(keptDismissal);
     }
 
-    const unreadable = unreadableShown(unreadableCount, keptDismissal);
-    const state = syncNoticeState({ offline, pendingCount, parkedCount, wasOffline: recovering }, copy);
+    // The unreadable-work card is not drawn while cooking, but its dismissal is kept for the app form.
+    const cooking = form === 'cooking';
+    const unreadable = !cooking && unreadableShown(unreadableCount, keptDismissal);
+    const state = cooking
+        ? cookingNoticeStateOf(offline, copy)
+        : syncNoticeState({ offline, pendingCount, parkedCount, wasOffline: recovering }, copy);
 
     return (
         <SyncNoticeStack active={unreadable || state.kind !== 'hidden'}>

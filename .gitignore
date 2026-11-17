@@ -199,3 +199,6 @@ yalc.lock
 
 # trace-mcp per-repo state (guard mode, install date)
 .trace-mcp/
+
+# husky hook shims, written by `npx husky`
+/.husky/_/

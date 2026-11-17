@@ -1,14 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_SNACKBAR_MS } from '../props.js';
-import { INITIAL_SNACKBAR_STATE, msUntilExpiry, snackbarReducer, type SnackbarState } from '../snackbarQueue.js';
+import {
+    INITIAL_SNACKBAR_STATE,
+    msUntilExpiry,
+    remainingMsOf,
+    snackbarReducer,
+    type SnackbarState,
+} from '../snackbarQueue.js';
 
 /**
  * The snackbar queue — a pure reducer that owns the ONE-AT-A-TIME rule and the timer's arithmetic; the host only
  * dispatches and runs what the reducer has settled.
  */
 const show = (state: SnackbarState, message: string, now: number, extra: object = {}): SnackbarState =>
-    snackbarReducer(state, { type: 'show', input: { message, ...extra }, now });
+    snackbarReducer(state, { type: 'show', input: { message, ...extra }, handle: { snackbar: true }, now });
 
 describe('snackbarReducer', () => {
     it('shows a snackbar, running from now for its default duration', () => {
@@ -104,5 +110,34 @@ describe('msUntilExpiry', () => {
 
         expect(msUntilExpiry(paused.current, 20)).toBeNull();
         expect(msUntilExpiry(null, 20)).toBeNull();
+    });
+});
+
+describe('remainingMsOf and the handle', () => {
+    const handle = { snackbar: true } as const;
+
+    it('stores the handle the show action carries', () => {
+        const state = snackbarReducer(INITIAL_SNACKBAR_STATE, {
+            type: 'show',
+            input: { message: 'A' },
+            handle,
+            now: 0,
+        });
+
+        expect(state.current?.handle).toBe(handle);
+    });
+
+    it('reads the time left while running, and the banked time while paused', () => {
+        const running = snackbarReducer(INITIAL_SNACKBAR_STATE, {
+            type: 'show',
+            input: { message: 'A' },
+            handle,
+            now: 0,
+        });
+        const entry = running.current;
+        const paused = snackbarReducer(running, { type: 'pause', id: entry?.id ?? -1, now: 2000 }).current;
+
+        expect(entry === null ? NaN : remainingMsOf(entry, 1000)).toBe(5000);
+        expect(paused === null ? NaN : remainingMsOf(paused, 99_000)).toBe(4000);
     });
 });

@@ -49,8 +49,6 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
     onChange,
     onRemove,
     onTouched,
-    focusRequested,
-    onFocusHandled,
     onOpen = openExternalUrl,
 }) => {
     const { source: m } = useMessages(editorMessages);
@@ -103,8 +101,6 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
                 autoCorrect={false}
                 autoComplete="off"
                 {...(error === undefined ? {} : { error })}
-                focusRequested={focusRequested}
-                onFocusRequestHandled={onFocusHandled}
                 onChangeText={onChange}
                 onSubmit={onTouched}
             />

@@ -15,7 +15,7 @@ import { NestFactory } from '@nestjs/core';
 import { NestRoutedLogger } from '@kitchensink/service-logging';
 import { CONTRACT_HASH as SCHEMA_PACKAGE_CONTRACT_HASH } from '@kitchensink/schema-recipe';
 
-import { buildCorsPolicy } from './config/cors.js';
+import { RECIPE_HTTP_SETUP } from './config/httpSetup.js';
 import { CONTRACT_HASH } from './contract/contractHash.js';
 import { assertContractHashesAgree } from './contract/contractSkew.js';
 import { DrizzleProvider, type RecipeDrizzle } from './database/database.module.js';
@@ -42,25 +42,12 @@ async function bootstrap(): Promise<void> {
     // in the shared `kitchensink-log-drain` (ADR-0042), and `info`/`warn` keep reaching CloudWatch — which
     // is the half its predecessor in identity got wrong, writing nothing to stdout and therefore DELETING
     // every line on any run with no DSN.
-    const app = await NestFactory.create(AppModule, { logger: new NestRoutedLogger() });
+    const app = await NestFactory.create(AppModule, RECIPE_HTTP_SETUP.nestOptions({ logger: new NestRoutedLogger() }));
 
-    // Cross-origin browser calls from the web app need CORS. The origin allowlist is DERIVED from the same
-    // Clerk `azp` boundary the token check uses (`config/cors.ts`), per environment, and DENIES when nothing
-    // is configured. The resolved mode is logged because "which posture is live" was previously unobservable:
-    // an empty `CLERK_AUTHORIZED_PARTIES` list silently became `origin: true` — reflect any origin — on
-    // sandbox and on every `pr-{N}`.
-    const cors = buildCorsPolicy({
-        nodeEnv: process.env['NODE_ENV'],
-        authorizedPartiesRaw: process.env['CLERK_AUTHORIZED_PARTIES'],
-        previewBaseDomain: process.env['CLERK_AZP_PATTERN'],
-        previewMode: process.env['CLERK_AZP_PREVIEW_MODE'],
-    });
-
-    app.enableCors(cors.options);
+    // CORS, then the JSON parser, then the refusal link, in that order (`config/httpSetup.ts`).
+    RECIPE_HTTP_SETUP.configure(app);
 
     const logger = new Logger('bootstrap');
-
-    logger.log(`CORS origin mode: ${cors.mode}`);
 
     // DRIFT LAYER 4 (Schema) — is the database this process is about to serve from actually current for
     // this release? The pipeline migrates ahead of this deploy (ADR-0035), so on the ordinary release path

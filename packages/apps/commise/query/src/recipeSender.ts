@@ -25,6 +25,7 @@ import { isSessionSubjectChangedError, isTokenMintFailedError } from '@commise/f
 import {
     isInvalidRequestError,
     isPrivateFoodsOnPublicRecipeError,
+    isInvalidVisibilityError,
     isPrivateSlotsFullError,
     isRecipeNotFoundError,
     isRecipeServiceClientError,
@@ -193,6 +194,12 @@ function failureFor(error: unknown): RecipeSendResult {
             answer: { kind: 'recipePrivateFoods', lines: error.lines },
             drop: true,
         };
+    }
+
+    // ⛔ A WRITE THAT OWES THE SOURCE QUESTION travels as data too: the editor opens the sheet and sends the draft again with
+    // the answer, where a bare 400 would park behind a Try again that sends the same refusal. Dropped, never parked.
+    if (isInvalidVisibilityError(error) && error.reason === 'STATEMENT_REQUIRED') {
+        return { outcome: 'failed', status: 400, answer: { kind: 'recipeStatementRequired' }, drop: true };
     }
 
     if (isInvalidRequestError(error)) {

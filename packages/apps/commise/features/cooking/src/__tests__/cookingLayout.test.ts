@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { COOKING_COLUMN, NARROW_ROW, NOTICE_COLUMN, SHORT_SCREEN } from '../cookingLayout.js';
+import { COOKING_COLUMN, NARROW_ROW, NOTICE_COLUMN, PREVIEW_IN_BODY, SHORT_SCREEN } from '../cookingLayout.js';
 
 /**
  * Tailwind builds only class text it can find in a scanned file, so each width is written once WITH its complete class
@@ -32,6 +32,17 @@ describe('the cooking surface widths', () => {
         expect(SHORT_SCREEN.maxHeightRem * 16).toBe(SHORT_SCREEN.maxHeightPx);
         expect(SHORT_SCREEN.previewWebClassName).toBe('[@container(height<43.75rem)]:line-clamp-1');
         expect(SHORT_SCREEN.previewWebClassName).toContain(`<${String(SHORT_SCREEN.maxHeightRem)}rem`);
+    });
+
+    it('moves the Next preview into the scrolling step under 40 rem tall, a container height in rem for web and text units for native', () => {
+        expect(PREVIEW_IN_BODY.maxHeightRem).toBe(40);
+        expect(PREVIEW_IN_BODY.maxHeightPx).toBe(640);
+        // A rem is 16 px at 100% text, so the two numbers are one height; at 200% text the web rule fires at 1,280 px.
+        expect(PREVIEW_IN_BODY.maxHeightRem * 16).toBe(PREVIEW_IN_BODY.maxHeightPx);
+        expect(PREVIEW_IN_BODY.footWebClassName).toBe('[@container(height<40rem)]:hidden');
+        expect(PREVIEW_IN_BODY.bodyWebClassName).toBe('hidden [@container(height<40rem)]:flex');
+        expect(PREVIEW_IN_BODY.footWebClassName).toContain(`<${String(PREVIEW_IN_BODY.maxHeightRem)}rem`);
+        expect(PREVIEW_IN_BODY.bodyWebClassName).toContain(`<${String(PREVIEW_IN_BODY.maxHeightRem)}rem`);
     });
 
     it('keeps the centred column wider than the notice column', () => {

@@ -16,6 +16,7 @@ import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 import { makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
+import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import {
     RECIPES_DAL,
@@ -85,6 +86,13 @@ beforeAll(async () => {
             { provide: FoodLookupsDal, useValue: { findByIds: async () => new Map() } },
             { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
             { provide: AuthorHandlesDal, useValue: { findByline } },
+            {
+                provide: RecipeSourceEvidenceDal,
+                useValue: {
+                    insert: async () => undefined,
+                    list: async () => [],
+                },
+            },
         ],
     });
 });

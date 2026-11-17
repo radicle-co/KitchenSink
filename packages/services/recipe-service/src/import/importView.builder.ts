@@ -73,8 +73,8 @@ export class ImportViewBuilder {
             this.items.findPage(header.id, page.after, page.limit + 1),
             this.imports.countsByStage(header.id),
             this.allowance.stateOf(this.db, header.userId, {
-                channel: 'bulk',
                 isPremium: isPremiumPrincipal(principal),
+                principalKind: principal.principalKind,
             }),
             this.imports.verdictFingerprint(header.id),
             this.isOutOfSlots(principal, header),

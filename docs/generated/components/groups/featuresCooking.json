@@ -4,15 +4,15 @@
     "packageName": "@commise/features-cooking",
     "layer": "feature",
     "coverage": {
-        "components": 12,
-        "implementations": 24,
-        "props": 85,
-        "documentedComponents": 12,
-        "implementationsWithModuleDoc": 24,
-        "implementationsWithComponentDoc": 24,
-        "documentedProps": 74,
-        "classifiedComponents": 12,
-        "componentsWithPatternTag": 7,
+        "components": 13,
+        "implementations": 25,
+        "props": 88,
+        "documentedComponents": 13,
+        "implementationsWithModuleDoc": 25,
+        "implementationsWithComponentDoc": 25,
+        "documentedProps": 77,
+        "classifiedComponents": 13,
+        "componentsWithPatternTag": 8,
         "crossPlatformComponents": 12
     },
     "components": [
@@ -272,7 +272,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingFrame — the web cooking surface: full screen, outside AppShell, because cooking is a\nfocused task.\n\nOne centred column at every band: the top bar pinned at the top, the foot pinned at the bottom (the\nNext preview above the actions), and only the body between them scrolls, so a focus line taller than the screen at\nthe largest text never pushes the place or Back / Next away. The foot keeps a gap above it, so a line cut off at the\nbottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the\nshort-screen height rule, and is busy while the recipe loads.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingFrame — the web cooking surface: full screen, outside AppShell, because cooking is a\nfocused task.\n\nOne centred column at every band: the top bar pinned at the top, the foot pinned at the bottom (the\nNext preview above the actions), and only the body between them scrolls, so a focus line taller than the screen at\nthe largest text never pushes the place or Back / Next away. The foot keeps a gap above it, so a line cut off at the\nbottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the\nshort-screen height rule, and is busy while the recipe loads.\n\nThe route's offline notice (`CookingNoticeSlot`) is the first thing in the centred column, above the top bar and\nstarting where it starts.\n\nPresentational: props → JSX, plus the notice slot it reads from context.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -470,7 +470,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingLineRow.native.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingLineRow — one line of a cooking step on native: the whole row is ONE checkbox, named by the\nline's own text, at least the platform touch floor tall, with the box drawn by the design system's glyph in a slot as\ntall as the line, so the box sits on the first line however the text wraps.\n\nThe press is the house `PressScale` with the checkbox role and its checked state, so a held row shrinks like every other\nhouse control and a screen reader says \"checked\" or \"not checked\". The row is not given a name: its text is the name,\nso stating it again would be a second stop saying the same thing.\n\nThe focus line is set in the role named by `FOCUS_LINE_TYPE`, the one seam both platforms read, and every other line in\n`readingBody`.\n\nPresentational: props → JSX, apart from taking the screen-reader cursor when the screen asks (`focusRequested`).",
+                    "moduleDoc": "CookingLineRow — one line of a cooking step on native: the whole row is ONE checkbox, named by the\nline's own text, at least the platform touch floor tall, with the box drawn by the design system's glyph, which owns its slot and its size\nby the role of the line, so the box sits on the first line however the text wraps.\n\nThe press is the house `PressScale` with the checkbox role and its checked state, so a held row shrinks like every other\nhouse control and a screen reader says \"checked\" or \"not checked\". The row is not given a name: its text is the name,\nso stating it again would be a second stop saying the same thing.\n\nThe focus line is set in the role named by `LINE_TYPE.focus`, the one seam both platforms read, and every other line in\n`readingBody`.\n\nPresentational: props → JSX, apart from taking the screen-reader cursor when the screen asks (`focusRequested`).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -830,7 +830,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingNextPreview.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingNextPreview — the web Next preview: the next step, pinned in the foot above Back and Next while a\nline of this step is unticked. Under a cooking-frame height of 43.75 rem its line\nshows on one line, ending in an ellipsis; the clamp is visual only, so a screen reader still reads the whole line.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingNextPreview — the web Next preview: the next step, pinned in the foot above Back and Next while a\nline of this step is unticked. Under a cooking-frame height of 43.75 rem its line\nshows on one line, ending in an ellipsis; the clamp is visual only, so a screen reader still reads the whole line.\nUnder 40 rem it leaves the foot for the end of the scrolling step: the same text is drawn there, whole, and the\nframe's height shows one copy.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -842,6 +842,18 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "place",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"body\"",
+                                "\"foot\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Which of the two copies this is: the foot's, or the scrolling step's. The frame's height shows one of them.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingNextPreview.tsx"
+                        },
                         {
                             "name": "preview",
                             "type": "CookingPreviewView",
@@ -904,6 +916,64 @@
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingNoticeSlot",
+            "name": "CookingNoticeSlot",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "orchestration",
+            "patterns": [
+                "Dependency Injection — the route supplies the notice; the frame only reads it"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingNoticeSlot",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingNoticeSlot.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingNoticeSlot — the one place on the web cooking surface where the route's offline notice is drawn.\n\nCooking mode's package does not import `@commise/query`, so it cannot mount the notice itself. The route (which does)\nhands the notice in through this slot, and `CookingFrame`, the one frame every cooking screen draws, puts it first in\nthe surface, above the top bar, with no prop threaded through the screens. Without a provider the slot is empty.\n\nOrchestration: it supplies a value to its subtree and draws no markup of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingNoticeSlot — the one place on the web cooking surface where the route's offline notice is drawn."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Dependency Injection — the route supplies the notice; the frame only reads it"
+                        }
+                    ],
+                    "description": "Supplies the notice to every `CookingFrame` below.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "notice",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The notice the frame draws above its top bar.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingNoticeSlot.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]
@@ -1163,6 +1233,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Exit, Back on step 1 and Back to the recipe: to the recipe page.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingSessionScreen.native.tsx"
+                        },
+                        {
+                            "name": "previewInBody",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Under 640 tall, in text: the Next preview is the last item of the scrolling step, not the foot's.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/CookingSessionScreen.native.tsx"
                         },
                         {

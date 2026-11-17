@@ -178,6 +178,16 @@ const scrim = (): Element => {
 };
 
 describe('Sheet (native)', () => {
+    // The designer's approval fixes: a host with a change in flight says so on the sheet itself, not only on its confirm.
+    it('marks its dialog busy while the host says it is busy, and not otherwise', () => {
+        renderSheet({ busy: true });
+        expect(dialog().getAttribute('aria-busy')).toBe('true');
+
+        cleanup();
+        renderSheet();
+        expect(dialog().getAttribute('aria-busy')).not.toBe('true');
+    });
+
     it('renders nothing while closed', () => {
         renderSheet({ open: false });
 

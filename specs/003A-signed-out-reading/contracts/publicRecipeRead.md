@@ -19,12 +19,12 @@
 
 Every answer is `Cache-Control: no-store`. The web page owns caching (research R5), so no layer caches the API.
 
-| Case                                                             | Status | Body                                    |
-| ---------------------------------------------------------------- | ------ | --------------------------------------- |
-| Open                                                             | `200`  | `PublicRecipeView`                      |
-| Not available: every closed case, a malformed id, a missing id   | `404`  | `{ "code": "NOT_AVAILABLE" }`, one body |
-| Author standing unknown, or a facts card whose food names failed | `503`  | `{ "code": "UNAVAILABLE" }`             |
-| Past the edge rate limit (production)                            | `429`  | the edge's body, with `Retry-After`     |
+| Case                                                           | Status | Body                                    |
+| -------------------------------------------------------------- | ------ | --------------------------------------- |
+| Open                                                           | `200`  | `PublicRecipeView`                      |
+| Not available: every closed case, a malformed id, a missing id | `404`  | `{ "code": "NOT_AVAILABLE" }`, one body |
+| Author standing unknown                                        | `503`  | `{ "code": "UNAVAILABLE" }`             |
+| Past the edge rate limit (production)                          | `429`  | the edge's body, with `Retry-After`     |
 
 The `404` body is the same bytes for every closed case. It never says why.
 
@@ -45,10 +45,8 @@ public shape, because the public schema lists its own keys.
 
 ```ts
 // Reading aid. The zod schema in the service is the authority.
-type PublicRecipeView =
-    | { form: 'full'; recipe: PublicFull }
-    | { form: 'factsCard'; card: PublicFactsCard }
-    | { form: 'sourceCard'; card: PublicSourceCard };
+// Amended 2026-11-15 (owner ruling, ADR-0093): the factsCard and sourceCard forms are withdrawn with facts cards.
+type PublicRecipeView = { form: 'full'; recipe: PublicFull };
 
 interface PublicFacts {
     id: string; // UUID
@@ -81,31 +79,15 @@ interface PublicFull extends PublicFacts {
     steps: { position: number; instruction: string; timerSeconds?: number }[];
     missingNutritionCount: number;
     licence: PublicLicence; // REQUIRED. No 016 value exists yet, so `full` cannot be built until 016 ships
-    credit?: PublicCredit; // adapted, family, public domain basis, or a clone source while it is open
-}
-
-interface PublicFactsCard extends PublicFacts {
-    ingredients: { position: number; quantity: Quantity | null; unit: string | null; foodName: string }[];
-    unreadLineCount: number; // 2026-11-04 ruling
-    ownerNotes?: string; // the owner's own words only (021-FR-014a)
-    source:
-        | { kind: 'web'; siteName: string; url: string }
-        | { kind: 'book'; title: string; author?: string; publisher?: string }
-        | { kind: 'paidSite'; siteName: string };
-}
-
-interface PublicSourceCard {
-    id: string;
-    slug: string;
-    title: string;
-    source: { siteName: string; url: string };
+    credit?: PublicCredit; // adapted, family, public domain basis, a clone source while it is open, or a
+    // Commise-written version's disclosure and free-site domain (021-FR-014)
 }
 ```
 
 **Never present**: `ownerId`, `clonedFromId`, `currentVersion`, `status`, `visibility`, `sourceType`, `boundBy`, binding
 provenance, `sourceLine` and `sourcePhrase` (the verbatim pasted or imported line is owner-only,
-`transcriptionDisclosure.ts`, ADR-0082 §2), `foodId`, `impact`, `viewerRating`, raters, comments, collections and version history. A facts card never
-carries `displayText`, `note`, `preparation`, `description`, step text or a source photo (`021-FR-014b`). The
+`transcriptionDisclosure.ts`, ADR-0082 §2), `foodId`, `impact`, `viewerRating`, raters, comments, collections and version history. A Commise-written
+version never carries the wording of the cook's private copy or a source photo (`021-FR-014`). The
 allowlist tests fail when any other key appears.
 
 **No author for an erased cook.** A recipe whose author standing is `erased` carries no author field and never the
@@ -114,7 +96,7 @@ projected for anyone until 012's creator profiles ship.
 
 **Comments (owner ruling 2026-11-09, spec Q6).** Comments are not built yet. In the release that ships them,
 `PublicFull` gains `comments`, picked from the comments schema: each comment's text, its date and its commenter's
-display name, never a user id (spec FR-025). A facts card never carries comments. Adding the field is growth of the
+display name, never a user id (spec FR-025). Adding the field is growth of the
 contract, which this contract allows.
 
 **Clients**: web and native switch exhaustively over `form`.

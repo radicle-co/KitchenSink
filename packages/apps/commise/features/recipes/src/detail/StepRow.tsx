@@ -14,6 +14,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { TOUCH_TARGET_CLASS } from '@commise/ui/touch-target';
 import type { FC } from 'react';
 
 import { fillTemplate } from '@commise/i18n';
@@ -40,7 +41,7 @@ export const StepRow: FC<StepRowProps> = ({ step, current, onToggle }) => {
                 aria-pressed={current}
                 aria-label={fillTemplate(detail.stepToggleLabel, { step: step.stepNumber })}
                 onClick={() => onToggle(step.stepNumber)}
-                className={`flex size-11 shrink-0 items-center justify-center rounded-full after:absolute after:inset-0 after:content-[''] ${FOCUS_RING_CLASS.offset}`}
+                className={`flex ${TOUCH_TARGET_CLASS.min} aspect-square shrink-0 items-center justify-center rounded-full after:absolute after:inset-0 after:content-[''] ${FOCUS_RING_CLASS.offset}`}
             >
                 <span
                     data-numeral

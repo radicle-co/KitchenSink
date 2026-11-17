@@ -9,6 +9,9 @@
  * that every refusal reaches the wire as the published envelope.
  *
  * Whether the real database stores and constrains the columns is the LOCAL e2e tier's (`recipeSourceKind.e2e.test.ts`).
+ *
+ * 0087: the provenance expectations here were rewritten to prove the NEW behaviour, a fifth resolved column `statementKind`
+ * (`source` for a stated web copy, `null` for no statement); the statement rule's own routes are `statementRule.integration.test.ts`.
  */
 import 'reflect-metadata';
 
@@ -18,7 +21,12 @@ import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import type { RecipeRow } from '../../../src/database/schema/index.js';
@@ -31,6 +39,8 @@ import {
     RECIPE_PHOTOS_DAL,
     RECIPE_RATINGS_DAL,
 } from '../../../src/recipes/recipes.tokens.js';
+import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
+import type { NewRecipeSourceEvidenceRow, RecipeSourceEvidenceRow } from '../../../src/database/schema/index.js';
 import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.dal.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import type { Principal } from '../../../src/auth/principal.js';
@@ -52,7 +62,11 @@ const BASIL: FoodLookupArm = {
     createdAt: AT,
 };
 const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
-const STATEMENT = { kind: 'public_web', citation: LINK } as const;
+const STATEMENT = {
+    kind: 'public_web',
+    citation: LINK,
+    wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+} as const;
 
 /** The recipe the double holds. Each test sets it. */
 let stored: RecipeRow;
@@ -65,12 +79,12 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
     };
 }
 
-const create = vi.fn(async (input: Partial<RecipeRow>) => {
+const create = vi.fn(async (input: Partial<RecipeRow>, _tx?: unknown) => {
     stored = makeRecipeRow({ ...input, id: RECIPE_ID, ownerId: COOK });
 
     return aggregateOf(stored);
 });
-const update = vi.fn(async (_id: string, patch: UpdateRecipeInput) => {
+const update = vi.fn(async (_id: string, patch: UpdateRecipeInput, _tx?: unknown) => {
     stored = {
         ...stored,
         ...(patch.provenance === undefined ? {} : patch.provenance),
@@ -80,6 +94,34 @@ const update = vi.fn(async (_id: string, patch: UpdateRecipeInput) => {
 
     return aggregateOf(stored);
 });
+
+/**
+ * The evidence table as a double: stateful, so a statement written by one request is read by the next, which is the whole
+ * of the rule under test. `insertEvidence` records the transaction it was handed, so a test can prove it is the write's own.
+ */
+let evidence: RecipeSourceEvidenceRow[] = [];
+const insertEvidence = vi.fn(async (_tx: unknown, row: NewRecipeSourceEvidenceRow) => {
+    evidence.push({
+        id: `e-${String(evidence.length + 1)}`,
+        sourceUrl: null,
+        sourceKey: null,
+        sourceDomain: null,
+        sourceKind: null,
+        citation: null,
+        pasteDigest: null,
+        creditAuthors: null,
+        creditPublisher: null,
+        creditCopyrightNotice: null,
+        creditCopyrightHolder: null,
+        creditLicense: null,
+        imageUrl: null,
+        recordedAt: AT,
+        ...row,
+    });
+});
+const listEvidence = vi.fn(async (recipeId: string, _tx?: unknown) =>
+    evidence.filter((row) => row.recipeId === recipeId),
+);
 
 /** The row as a concurrent write left it, when a test stages a race: what the row lock reads instead of `stored`. */
 let underLock: RecipeRow | undefined;
@@ -142,11 +184,20 @@ beforeAll(async () => {
                             status: row.status,
                             sourceType: row.sourceType,
                             sourceKind: row.sourceKind,
+                            statementKind: row.statementKind,
+                            contentPastedAt: row.contentPastedAt,
                         };
                     },
                     setVisibility,
                     clearPublicFoodOwners: async () => undefined,
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
+                },
+            },
+            {
+                provide: RecipeSourceEvidenceDal,
+                useValue: {
+                    insert: insertEvidence,
+                    list: listEvidence,
                 },
             },
             {
@@ -178,6 +229,7 @@ beforeAll(async () => {
 
 afterEach(() => {
     underLock = undefined;
+    evidence = [];
     vi.clearAllMocks();
 });
 
@@ -212,7 +264,11 @@ describe('POST /api/v1/recipes — a statement makes a private web copy', () => 
         const response = await call('POST', '/api/v1/recipes', {
             ...DRAFT_BODY,
             visibility: 'private',
-            statement: { kind: 'public_web', citation: `${page}.` },
+            statement: {
+                kind: 'public_web',
+                citation: `${page}.`,
+                wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+            },
         });
 
         expect(response.status).toBe(201);
@@ -275,7 +331,11 @@ describe('POST /api/v1/recipes — a statement makes a private web copy', () => 
         const response = await call('POST', '/api/v1/recipes', {
             ...DRAFT_BODY,
             visibility: 'private',
-            statement: { kind: 'public_web', citation: 'https://commise.app/recipes/1' },
+            statement: {
+                kind: 'public_web',
+                citation: 'https://commise.app/recipes/1',
+                wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+            },
         });
 
         expect(await refusalOf(response)).toMatchObject({ status: 400, code: 'VALIDATION_FAILED' });
@@ -283,7 +343,7 @@ describe('POST /api/v1/recipes — a statement makes a private web copy', () => 
     });
 });
 
-describe('PATCH /api/v1/recipes/{id} — the source can be settled until the first publish (ADR-0058, ADR-0089)', () => {
+describe('PATCH /api/v1/recipes/{id} — the source can be settled, also after the first publish (ADR-0089, ADR-0093 section 8)', () => {
     it('sets a statement on a never-published draft, and the public draft becomes private in the same write', async () => {
         stored = makeRecipeRow({ id: RECIPE_ID, ownerId: COOK, status: 'draft', visibility: 'public' });
 
@@ -302,6 +362,7 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled until the fir
                     sourceUrl: LINK,
                     sourceAttribution: 'allrecipes.com',
                     sourceKind: 'public_web',
+                    statementKind: 'source',
                 },
             }),
             expect.anything(),
@@ -354,7 +415,13 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled until the fir
         expect(update).toHaveBeenCalledWith(
             RECIPE_ID,
             expect.objectContaining({
-                provenance: { sourceType: 'user_created', sourceUrl: null, sourceAttribution: null, sourceKind: null },
+                provenance: {
+                    sourceType: 'user_created',
+                    sourceUrl: null,
+                    sourceAttribution: null,
+                    sourceKind: null,
+                    statementKind: null,
+                },
             }),
             expect.anything(),
         );
@@ -369,23 +436,38 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled until the fir
         expect(update.mock.calls[0]?.[1]).not.toHaveProperty('provenance');
     });
 
-    it('refuses a statement after the first publish with 403 FORBIDDEN, details.reason SOURCE_LOCKED, writing nothing', async () => {
-        stored = makeRecipeRow({ id: RECIPE_ID, ownerId: COOK, status: 'published', cuisine: 'Italian' });
+    // Rewritten by the 2026-11-15 owner ruling (ADR-0093 section 8): this case asserted 403 SOURCE_LOCKED for CHANGING a
+    // stated source after the first publish. The cook's statement stays editable, so it now proves the change is written and
+    // the recipe is made Private in the same write.
+    it('CHANGES a held statement after the first publish: 200, the web source is written and the recipe goes Private', async () => {
+        stored = makeRecipeRow({
+            id: RECIPE_ID,
+            ownerId: COOK,
+            status: 'published',
+            visibility: 'public',
+            cuisine: 'Italian',
+            statementKind: 'authored',
+        });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 1,
             statement: STATEMENT,
         });
 
-        expect(await refusalOf(response)).toMatchObject({
-            status: 403,
-            code: 'FORBIDDEN',
-            details: { reason: 'SOURCE_LOCKED' },
-        });
-        expect(update).not.toHaveBeenCalled();
+        expect(response.status).toBe(200);
+        expect(update).toHaveBeenCalledWith(
+            RECIPE_ID,
+            expect.objectContaining({
+                visibility: 'private',
+                provenance: expect.objectContaining({ sourceKind: 'public_web', statementKind: 'source' }),
+            }),
+            expect.anything(),
+        );
     });
 
-    it('also refuses clearing a statement after the first publish, and a re-drafted recipe stays locked', async () => {
+    // Rewritten by the 2026-11-15 owner ruling: it asserted 403 for clearing a statement after the first publish, and for a
+    // re-drafted recipe. Neither is locked now: the first publish is not part of the lock.
+    it('clears a statement after the first publish, also on a re-drafted recipe, leaving visibility alone', async () => {
         stored = makeRecipeRow({
             id: RECIPE_ID,
             ownerId: COOK,
@@ -396,6 +478,32 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled until the fir
             sourceUrl: LINK,
             sourceAttribution: 'allrecipes.com',
             visibility: 'private',
+        });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: null });
+
+        expect(response.status).toBe(200);
+        expect(update).toHaveBeenCalledWith(
+            RECIPE_ID,
+            expect.objectContaining({ provenance: expect.objectContaining({ sourceKind: null, statementKind: null }) }),
+            expect.anything(),
+        );
+        expect(update.mock.calls[0]?.[1]).not.toHaveProperty('visibility');
+    });
+
+    it('still refuses a published clone that inherited a web source with 403 SOURCE_LOCKED, writing nothing', async () => {
+        stored = makeRecipeRow({
+            id: RECIPE_ID,
+            ownerId: COOK,
+            status: 'published',
+            firstPublishedAt: AT,
+            clonedFromId: '00000000-0000-4000-8000-0000000000c1',
+            sourceType: 'imported_public',
+            sourceKind: 'public_web',
+            sourceUrl: LINK,
+            sourceAttribution: 'allrecipes.com',
+            visibility: 'private',
+            cuisine: 'Italian',
         });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: null });
@@ -487,7 +595,9 @@ describe('RecipesService.create with the bulk import’s provenance (ADR-0089)',
     }
 
     it('REFUSES a public save of a public_web item, and writes nothing', async () => {
-        await expect(createWith({ visibility: 'public' })).rejects.toMatchObject({ code: 'INVALID_VISIBILITY' });
+        await expect(
+            createWith({ visibility: 'public', publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN }),
+        ).rejects.toMatchObject({ code: 'INVALID_VISIBILITY' });
         expect(create).not.toHaveBeenCalled();
     });
 
@@ -516,7 +626,10 @@ describe('PATCH /api/v1/recipes/{id}/visibility — judged on the source under t
             sourceUrl: LINK,
         };
 
-        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
 
         expect((await refusalOf(response)).code).toBe('INVALID_VISIBILITY');
         expect(setVisibility).not.toHaveBeenCalled();
@@ -525,7 +638,10 @@ describe('PATCH /api/v1/recipes/{id}/visibility — judged on the source under t
     it('makes the same cook-written recipe public when the row under the lock is unchanged', async () => {
         stored = makeRecipeRow({ id: RECIPE_ID, ownerId: COOK, status: 'published', visibility: 'private' });
 
-        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
 
         expect(response.status).toBe(200);
         expect(setVisibility).toHaveBeenCalledOnce();
@@ -557,5 +673,184 @@ describe('POST /api/v1/recipes/{id}/clone — the kind travels with the source',
             }),
             expect.anything(),
         );
+    });
+});
+
+/**
+ * THE EVIDENCE RULE: a recipe that EVER had a third-party source stated may not be Public, even
+ * after the cook clears the statement. This block is the named path, one request at a time, over the real pipeline with the
+ * evidence table as a stateful double. Private is never refused by it.
+ */
+describe('the evidence rule: a cleared source does not make a copied recipe the cook’s own work', () => {
+    /** The draft a cook reaches by stating a link, then clearing it: cook-written on its face, with evidence behind it. */
+    function clearedDraft(over: Partial<RecipeRow> = {}): RecipeRow {
+        return makeRecipeRow({ id: RECIPE_ID, ownerId: COOK, status: 'draft', visibility: 'private', ...over });
+    }
+
+    function webEvidence(): void {
+        evidence.push({
+            id: 'e-0',
+            recipeId: RECIPE_ID,
+            capture: 'editorLink',
+            sourceUrl: LINK,
+            sourceKey: LINK,
+            sourceDomain: 'allrecipes.com',
+            sourceKind: 'public_web',
+            citation: null,
+            pasteDigest: null,
+            creditAuthors: null,
+            creditPublisher: null,
+            creditCopyrightNotice: null,
+            creditCopyrightHolder: null,
+            creditLicense: null,
+            imageUrl: null,
+            recordedAt: AT,
+        });
+    }
+
+    it('THE NAMED PATH: state a web source, clear it, then ask for Public: 400 INVALID_VISIBILITY, reason SOURCE_CONFLICT', async () => {
+        const created = await call('POST', '/api/v1/recipes', {
+            ...DRAFT_BODY,
+            visibility: 'private',
+            statement: STATEMENT,
+        });
+        expect(created.status).toBe(201);
+
+        const cleared = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: null });
+        expect(cleared.status).toBe(200);
+        // The recipe now reads as the cook's own...
+        expect(stored).toMatchObject({ sourceType: 'user_created', sourceKind: null, sourceUrl: null });
+
+        const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
+
+        expect(await refusalOf(asked)).toMatchObject({
+            status: 400,
+            code: 'INVALID_VISIBILITY',
+            details: { reason: 'SOURCE_CONFLICT' },
+        });
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    it('also refuses to PUBLISH a public draft that raced there, with the same reason, writing nothing', async () => {
+        stored = clearedDraft({ visibility: 'public', cuisine: 'Italian' });
+        webEvidence();
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            status: 'published',
+        });
+
+        expect(await refusalOf(response)).toMatchObject({
+            status: 400,
+            code: 'INVALID_VISIBILITY',
+            details: { reason: 'SOURCE_CONFLICT' },
+        });
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('lets the same recipe be PRIVATE: the rule never refuses Private', async () => {
+        stored = clearedDraft({ visibility: 'public' });
+        webEvidence();
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'private' });
+
+        expect(response.status).toBe(200);
+        expect(setVisibility).toHaveBeenCalledWith(RECIPE_ID, 'private', expect.anything(), undefined);
+    });
+
+    it('lands the CLONE of such a recipe private, and the original is untouched', async () => {
+        stored = clearedDraft({ status: 'published', visibility: 'public', cuisine: 'Italian' });
+        webEvidence();
+
+        const response = await call('POST', `/api/v1/recipes/${RECIPE_ID}/clone`, {});
+
+        expect(response.status).toBe(201);
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'private' }), expect.anything());
+    });
+
+    it('a recipe that never had a source can be made Public (the control, so the refusal is the evidence’s)', async () => {
+        stored = clearedDraft();
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
+
+        expect(response.status).toBe(200);
+        expect(setVisibility).toHaveBeenCalledOnce();
+    });
+
+    it('the clone of a recipe that never had a source is Public, as before', async () => {
+        stored = clearedDraft({ status: 'published', visibility: 'public' });
+
+        await call('POST', `/api/v1/recipes/${RECIPE_ID}/clone`, {});
+
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'public' }), expect.anything());
+    });
+
+    it('writes the evidence row in the SAME transaction as the create that states the source', async () => {
+        await call('POST', '/api/v1/recipes', { ...DRAFT_BODY, visibility: 'private', statement: STATEMENT });
+
+        expect(insertEvidence).toHaveBeenCalledOnce();
+        expect(insertEvidence.mock.calls[0]?.[0]).toBe(create.mock.calls[0]?.[1]);
+        expect(insertEvidence.mock.calls[0]?.[1]).toMatchObject({
+            recipeId: RECIPE_ID,
+            capture: 'editorLink',
+            sourceUrl: LINK,
+            sourceDomain: 'allrecipes.com',
+            sourceKind: 'public_web',
+        });
+    });
+
+    it('writes the evidence row in the same transaction as a PATCH that applies a statement', async () => {
+        stored = clearedDraft();
+
+        await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: STATEMENT });
+
+        expect(insertEvidence).toHaveBeenCalledOnce();
+        expect(insertEvidence.mock.calls[0]?.[0]).toBe(update.mock.calls[0]?.[2]);
+        expect(insertEvidence.mock.calls[0]?.[1]).toMatchObject({ recipeId: RECIPE_ID, capture: 'editorLink' });
+    });
+
+    it('writes NO evidence for a recipe with no statement, for a clear, or for an unrelated PATCH', async () => {
+        await call('POST', '/api/v1/recipes', { ...DRAFT_BODY });
+        stored = clearedDraft({ sourceType: 'imported_public', sourceKind: 'public_web', sourceUrl: LINK });
+        await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: null });
+        await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 2, title: 'Soup 2' });
+
+        expect(insertEvidence).not.toHaveBeenCalled();
+    });
+
+    it('writes the import’s evidence as importFile, in the create’s transaction', async () => {
+        const provenance = resolveStatementProvenance({ kind: 'book', citation: 'Joy of Cooking' });
+
+        if (provenance === undefined) {
+            throw new Error('test setup: the statement must resolve');
+        }
+
+        await booted.app.get(RecipesService).create(
+            {
+                userId: COOK,
+                sub: `test:${COOK}`,
+                scopes: [],
+                permissions: [],
+                roles: [],
+                principalKind: 'real',
+                containment: 'enforce',
+            },
+            createRecipeRequestSchema.parse({ ...DRAFT_BODY, visibility: 'private' }),
+            undefined,
+            { provenance, lineOrigins: [{ kind: 'cook' }] },
+        );
+
+        expect(insertEvidence.mock.calls[0]?.[0]).toBe(create.mock.calls[0]?.[1]);
+        expect(insertEvidence.mock.calls[0]?.[1]).toMatchObject({
+            capture: 'importFile',
+            sourceKind: 'book',
+            citation: 'Joy of Cooking',
+        });
     });
 });

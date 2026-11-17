@@ -602,71 +602,134 @@
       "x": 18800,
       "y": 9096,
       "w": 390,
-      "h": 3300,
+      "h": 3372,
       "title": "Recipe detail, cooking in progress (web, 390)"
-    },
-    "RecipeFactsWeb1280.dc.html": {
-      "x": 51680,
-      "y": 260,
-      "w": 1280,
-      "h": 1792,
-      "title": "Recipe detail, facts card, proposal (web, 1280)"
-    },
-    "RecipeFactsBookWeb1280.dc.html": {
-      "x": 53040,
-      "y": 260,
-      "w": 1280,
-      "h": 1792,
-      "title": "Recipe detail, facts card, from a book, proposal (web, 1280)"
-    },
-    "RecipeSourceCardWeb1280.dc.html": {
-      "x": 54400,
-      "y": 260,
-      "w": 1280,
-      "h": 1792,
-      "title": "Recipe detail, source card, proposal (web, 1280)"
-    },
-    "RecipeFactsSaveCopyWeb1280.dc.html": {
-      "x": 55760,
-      "y": 260,
-      "w": 1280,
-      "h": 1104,
-      "title": "Recipe detail, make public? (web, 1280)"
-    },
-    "RecipeFactsWeb390.dc.html": {
-      "x": 19270,
-      "y": 9096,
-      "w": 390,
-      "h": 3424,
-      "title": "Recipe detail, facts card, proposal (web, 390)"
-    },
-    "RecipeFactsBookWeb390.dc.html": {
-      "x": 19740,
-      "y": 9096,
-      "w": 390,
-      "h": 3424,
-      "title": "Recipe detail, facts card, from a book, proposal (web, 390)"
-    },
-    "RecipeSourceCardWeb390.dc.html": {
-      "x": 20210,
-      "y": 9096,
-      "w": 390,
-      "h": 3424,
-      "title": "Recipe detail, source card, proposal (web, 390)"
-    },
-    "RecipeFactsSaveCopyWeb390.dc.html": {
-      "x": 20680,
-      "y": 9096,
-      "w": 390,
-      "h": 1832,
-      "title": "Recipe detail, make public? (web, 390)"
     },
     "RecipeDetailExitSnackbarS3bWeb.dc.html": {
       "x": 0,
       "y": 12980,
       "w": 2800,
-      "h": 2230,
+      "h": 3884,
       "title": "Recipe detail, S3b exit-from-cooking-mode snackbar (web)"
+    },
+    "RecipeDetailDockS4bWeb.dc.html": {
+      "x": 0,
+      "y": 17284,
+      "w": 2800,
+      "h": 5298,
+      "title": "Recipe detail, S4b timer dock (web: 1280, 1024, 768, 390, 320 at 200%)"
+    },
+    "RecipePublicVersionWeb1280.dc.html": {
+      "x": 0,
+      "y": 23002,
+      "w": 1280,
+      "h": 1742,
+      "title": "Recipe detail, public version, a reader (web, 1280)"
+    },
+    "RecipePublicVersionOwnerWeb1280.dc.html": {
+      "x": 1360,
+      "y": 23002,
+      "w": 1280,
+      "h": 1755,
+      "title": "Recipe detail, public version, its owner (web, 1280)"
+    },
+    "RecipePublicVersionStatesWeb1280.dc.html": {
+      "x": 2720,
+      "y": 23002,
+      "w": 1280,
+      "h": 2114,
+      "title": "Recipe detail, public version, states (web, 1280)"
+    },
+    "RecipePublicVersionHiddenWeb1280.dc.html": {
+      "x": 0,
+      "y": 25236,
+      "w": 1280,
+      "h": 600,
+      "title": "Recipe detail, public version, hidden after a report (owner) (web, 1280)"
+    },
+    "RecipePublicVersionHiddenReaderWeb1280.dc.html": {
+      "x": 1360,
+      "y": 25236,
+      "w": 1280,
+      "h": 720,
+      "title": "Recipe detail, public version, hidden (reader) (web, 1280)"
+    },
+    "RecipePrivateImportMenuWeb1280.dc.html": {
+      "x": 2720,
+      "y": 25236,
+      "w": 1280,
+      "h": 844,
+      "title": "Recipe detail, private import, more menu (web, 1280)"
+    },
+    "RecipePrivateImportShareLineWeb1280.dc.html": {
+      "x": 0,
+      "y": 26200,
+      "w": 1280,
+      "h": 1715,
+      "title": "Recipe detail, private import, share-a-public-version answers (web, 1280)"
+    },
+    "RecipePublicVersionReaderMenuWeb1280.dc.html": {
+      "x": 1360,
+      "y": 26200,
+      "w": 1280,
+      "h": 844,
+      "title": "Recipe detail, public version, reader more menu (web, 1280)"
+    },
+    "RecipePublicVersionWeb390.dc.html": {
+      "x": 0,
+      "y": 28475,
+      "w": 390,
+      "h": 3177,
+      "title": "Recipe detail, public version, a reader (web, 390)"
+    },
+    "RecipePublicVersionOwnerWeb390.dc.html": {
+      "x": 470,
+      "y": 28475,
+      "w": 390,
+      "h": 3146,
+      "title": "Recipe detail, public version, its owner (web, 390)"
+    },
+    "RecipePublicVersionStatesWeb390.dc.html": {
+      "x": 940,
+      "y": 28475,
+      "w": 390,
+      "h": 2410,
+      "title": "Recipe detail, public version, states (web, 390)"
+    },
+    "RecipePublicVersionHiddenWeb390.dc.html": {
+      "x": 1410,
+      "y": 28475,
+      "w": 390,
+      "h": 600,
+      "title": "Recipe detail, public version, hidden after a report (owner) (web, 390)"
+    },
+    "RecipePublicVersionHiddenReaderWeb390.dc.html": {
+      "x": 1880,
+      "y": 28475,
+      "w": 390,
+      "h": 900,
+      "title": "Recipe detail, public version, hidden (reader) (web, 390)"
+    },
+    "RecipePrivateImportMenuWeb390.dc.html": {
+      "x": 2350,
+      "y": 28475,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, private import, more menu (web, 390)"
+    },
+    "RecipePrivateImportShareLineWeb390.dc.html": {
+      "x": 2820,
+      "y": 28475,
+      "w": 390,
+      "h": 2025,
+      "title": "Recipe detail, private import, share-a-public-version answers (web, 390)"
+    },
+    "RecipePublicVersionReaderMenuWeb390.dc.html": {
+      "x": 3290,
+      "y": 28475,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, public version, reader more menu (web, 390)"
     }
   },
   "order": [
@@ -755,15 +818,24 @@
     "RecipeVersionPreviewStatesWeb390.dc.html",
     "RecipeVersionCompareWeb390.dc.html",
     "RecipeDetailCookingWeb390.dc.html",
-    "RecipeFactsWeb1280.dc.html",
-    "RecipeFactsBookWeb1280.dc.html",
-    "RecipeSourceCardWeb1280.dc.html",
-    "RecipeFactsSaveCopyWeb1280.dc.html",
-    "RecipeFactsWeb390.dc.html",
-    "RecipeFactsBookWeb390.dc.html",
-    "RecipeSourceCardWeb390.dc.html",
-    "RecipeFactsSaveCopyWeb390.dc.html",
-    "RecipeDetailExitSnackbarS3bWeb.dc.html"
+    "RecipeDetailExitSnackbarS3bWeb.dc.html",
+    "RecipeDetailDockS4bWeb.dc.html",
+    "RecipePublicVersionWeb1280.dc.html",
+    "RecipePublicVersionOwnerWeb1280.dc.html",
+    "RecipePublicVersionStatesWeb1280.dc.html",
+    "RecipePublicVersionHiddenWeb1280.dc.html",
+    "RecipePublicVersionHiddenReaderWeb1280.dc.html",
+    "RecipePrivateImportMenuWeb1280.dc.html",
+    "RecipePrivateImportShareLineWeb1280.dc.html",
+    "RecipePublicVersionReaderMenuWeb1280.dc.html",
+    "RecipePublicVersionWeb390.dc.html",
+    "RecipePublicVersionOwnerWeb390.dc.html",
+    "RecipePublicVersionStatesWeb390.dc.html",
+    "RecipePublicVersionHiddenWeb390.dc.html",
+    "RecipePublicVersionHiddenReaderWeb390.dc.html",
+    "RecipePrivateImportMenuWeb390.dc.html",
+    "RecipePrivateImportShareLineWeb390.dc.html",
+    "RecipePublicVersionReaderMenuWeb390.dc.html"
   ],
   "notes": {
     "row0": {
@@ -798,6 +870,27 @@
       "x": 0,
       "y": 12720,
       "text": "Recipe detail: S3b exit snackbar (plan 0111)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nRecipeDetailDockS4bWeb": {
+      "x": 0,
+      "y": 17024,
+      "text": "Recipe detail: S4b timer dock on the recipe page",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowPV100": {
+      "x": 0,
+      "y": 22742,
+      "text": "Recipe detail, public version: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowPV101": {
+      "x": 0,
+      "y": 28215,
+      "text": "Recipe detail, public version: web 390",
       "kind": "title1",
       "maxW": 2400
     }

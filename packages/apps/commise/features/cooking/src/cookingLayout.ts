@@ -33,3 +33,17 @@ export const SHORT_SCREEN = {
     maxHeightRem: 43.75,
     previewWebClassName: '[@container(height<43.75rem)]:line-clamp-1',
 } as const;
+
+/**
+ * Under 40 rem tall, the Next preview leaves the pinned foot and becomes the last item of the scrolling step, so Back and
+ * Next keep the room. Web asks the HEIGHT OF THE COOKING FRAME (a size container), in rem, so the rule also fires when
+ * the cook enlarges the text. It draws the preview in both places and the container query shows one, so the server HTML
+ * and the first client render agree and no script reads a size. Each class is written whole and holds its number.
+ * Native reads `maxHeightPx` against the window height divided by the text scale. The preview is moved whole, never cut.
+ */
+export const PREVIEW_IN_BODY = {
+    maxHeightPx: 640,
+    maxHeightRem: 40,
+    footWebClassName: '[@container(height<40rem)]:hidden',
+    bodyWebClassName: 'hidden [@container(height<40rem)]:flex',
+} as const;

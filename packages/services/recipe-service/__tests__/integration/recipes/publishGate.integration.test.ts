@@ -16,9 +16,15 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
+import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import type { RecipeRow } from '../../../src/database/schema/index.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
@@ -100,6 +106,7 @@ async function call(method: string, path: string, body: unknown): Promise<Respon
 
 /** A create body with a line and a step; `status` absent, so it publishes. */
 const PUBLISH_BODY = {
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Pesto',
     servings: 2,
     prepTimeMinutes: 5,
@@ -131,6 +138,15 @@ beforeAll(async () => {
                     findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
                     // ADR-0029 section 4: the database holds no private food in these suites.
                     privateFoodLines: async () => [],
+                    // A write that leaves the recipe published judges it under the row lock (0087): the stored row, unchanged.
+                    lockSlotFacts: async () => ({
+                        visibility: stored.visibility,
+                        status: stored.status,
+                        sourceType: stored.sourceType,
+                        sourceKind: stored.sourceKind,
+                        statementKind: stored.statementKind,
+                        contentPastedAt: stored.contentPastedAt,
+                    }),
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
                 },
             },
@@ -158,6 +174,13 @@ beforeAll(async () => {
             { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
             // The byline read model (plan 2026-10-15-010 D8): a cook it has never seen, so writes use the claims.
             { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
+            {
+                provide: RecipeSourceEvidenceDal,
+                useValue: {
+                    insert: async () => undefined,
+                    list: async () => [],
+                },
+            },
         ],
     });
 });

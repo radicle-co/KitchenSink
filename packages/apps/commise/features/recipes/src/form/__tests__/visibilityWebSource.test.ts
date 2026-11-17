@@ -24,14 +24,14 @@ const facts = (
 const base = { saved: RecipeVisibility.PUBLIC, draft: RecipeVisibility.PUBLIC, refusal: undefined, messages: v };
 
 describe('visibilityFieldOf for a web copy', () => {
-    it('shows Private even though the cook chose Public, and refuses the Public card with the web-source reason', () => {
+    // REWRITTEN for the designer's approval fixes: a web copy says the ONE "saved with a source" note, the same words the
+    // card says once the source is removed, so the cook reads one sentence before and after.
+    it('shows Private even though the cook chose Public, and refuses the Public card with the one source note', () => {
         const model = visibilityFieldOf({ ...base, facts: facts('privateOnly'), webSource: true });
 
         expect(model.shown).toBe(RecipeVisibility.PRIVATE);
         expect(model.options[0].refused).toBe(true);
-        expect(model.options[0].note).toBe(
-            'Not for this recipe. It’s copied from a web page, and its author owns the writing.',
-        );
+        expect(model.options[0].note).toBe('This recipe was saved with a source, so it stays private.');
         expect(model.options[1].refused).toBe(false);
     });
 
@@ -44,7 +44,7 @@ describe('visibilityFieldOf for a web copy', () => {
         });
 
         expect(model.shown).toBe(RecipeVisibility.PRIVATE);
-        expect(model.options[0].note).toBe(v.publicRefusedWebSource);
+        expect(model.options[0].note).toBe(v.publicHeldBySource);
     });
 
     it('keeps the book and paid-site reason for a recipe that is not a web copy', () => {

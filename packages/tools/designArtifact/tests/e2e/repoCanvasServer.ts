@@ -9,6 +9,7 @@
 import { readFile } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 
+import { CANVAS_ASSETS_DIR, isLfsPointer, lfsPullCommand } from '../../src/publish/gitCanvasHistory.js';
 import { hostWrap } from './artifactServer.js';
 import { TYPES, startStaticServer } from './staticServer.js';
 import type { StaticResponse, StaticServer } from './staticServer.js';
@@ -41,6 +42,14 @@ async function respond(config: RepoCanvasServerConfig, url: URL): Promise<Static
 
     if (bytes === undefined) {
         return notFound;
+    }
+
+    if (match[2].startsWith(`${CANVAS_ASSETS_DIR}/`) && isLfsPointer(bytes)) {
+        return {
+            status: 500,
+            type: TYPES['.txt'] ?? '',
+            body: `${match[2]} is an LFS pointer. Run: ${lfsPullCommand(match[1])}`,
+        };
     }
 
     const type = TYPES[extname(file)] ?? 'application/octet-stream';

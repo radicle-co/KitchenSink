@@ -37,6 +37,7 @@ import { bootRecipeApp, type BootedRecipeApp } from './harness.js';
 import { asPrincipal } from '../support/asPrincipal.js';
 import { deleteBindingsMatching } from '../support/bindingCleanup.js';
 import { recipeDb } from '../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -101,6 +102,7 @@ describe('create → public discovery (e2e, assembled app)', () => {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 title,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 description: 'Created through the API by the discovery round-trip spec.',
                 visibility,
                 status,

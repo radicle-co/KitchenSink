@@ -11,7 +11,6 @@
 - **Launch plan authority**: [`v1-launch-plan.md`](../v1-launch-plan.md)
 - **Product spec**: [`product-spec/product-spec.md`](./product-spec/product-spec.md)
 - **Research baseline**: [`research.md`](./research.md)
-- **V-Model baseline**: [`v-model/`](./v-model/)
 
 Feature 012 is assigned to M7 per the canonical launch ladder in [`v1-launch-plan.md`](../v1-launch-plan.md) and must be sequenced after 1.0 GA stability (`M6`) while preserving v1 traceability and governance compliance.
 
@@ -29,7 +28,7 @@ Planned implementation adds one API package (`@kitchensink/creator-profiles-serv
 
 ## Architecture Summary
 
-Implementation follows the V-Model decomposition in [`v-model/system-design.md`](./v-model/system-design.md) and [`v-model/architecture-design.md`](./v-model/architecture-design.md):
+Implementation follows this decomposition:
 
 1. **Profile lifecycle** (`SYS-001/002`): handle claim/update/deactivate, uniqueness checks, cooldown and reservation policy.
 2. **Public read surface** (`SYS-003`): SSR payload builder for `/@handle` with SEO metadata and public recipe/collection projection.
@@ -37,7 +36,7 @@ Implementation follows the V-Model decomposition in [`v-model/system-design.md`]
 4. **Collections curation** (`SYS-006`): owner-managed ordered collections with public-only recipe membership constraints.
 5. **Embed delivery** (`SYS-007`): static HTML fragment endpoint with cache headers for CDN.
 6. **Analytics pipeline** (`SYS-008`): scheduled aggregation snapshots and owner-only read endpoint.
-7. **Moderation/compliance + security/privacy** (`SYS-009/011`): suspension, DMCA workflow hooks, blocked-user restrictions, and erasure propagation.
+7. **Moderation/compliance + security/privacy** (`SYS-009/011`): suspension, takedown workflow hooks, blocked-user restrictions, and erasure propagation.
 8. **Monetization delegation** (`SYS-010`): integration boundary only; billing and payment stay in feature 010.
 
 ---
@@ -223,4 +222,3 @@ Rollback strategy: disable feature flag for profile claim and follow writes, pre
 - Product spec: [`product-spec/product-spec.md`](./product-spec/product-spec.md)
 - Launch sequencing authority: [`../v1-launch-plan.md`](../v1-launch-plan.md)
 - Governance authority: [`../governance-rules.md`](../governance-rules.md)
-- V-Model design/test baseline: [`v-model/`](./v-model/)

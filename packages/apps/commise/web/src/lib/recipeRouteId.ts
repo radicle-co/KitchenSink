@@ -1,5 +1,5 @@
 /**
- * @module lib/recipeRouteId — the recipe routes' id boundary. `/recipes/[id]` (and its `/edit` and `/versions`) answer
+ * @module lib/recipeRouteId — the recipe routes' id boundary. `/recipes/[id]` and every route below it answer
  * only for a recipe id, and a recipe id is a UUID: the recipe-service contract's own shape for one
  * (`addRecipeToCollectionRequestSchema.recipeId`; the service's routes take `ParseUUIDPipe`). Anything else in that
  * segment — `/recipes/parse`, a typo, a `local:` reference — is not a recipe.

@@ -32,6 +32,8 @@ import { fileURLToPath } from 'node:url';
 
 import ts from 'typescript';
 
+import { localsOf, valueBindingsOf, type ModuleBindings } from './moduleBindings.js';
+
 /** Repo root — this file sits at `packages/tools/repoGuards/__tests__`, so the root is four levels up. */
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
@@ -365,6 +367,114 @@ export function literalText(node: ts.Expression | undefined): string | undefined
     }
 
     return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) ? node.text : undefined;
+}
+
+/**
+ * The module a node names, for every way a module is pulled in: `import … from`, `export … from`, `require(…)`
+ * and `import(…)`. Pure.
+ *
+ * @param node - Any node.
+ * @returns The specifier, or `undefined` when the node pulls in no module.
+ */
+export function moduleNamedBy(node: ts.Node): string | undefined {
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier !== undefined) {
+        return literalText(node.moduleSpecifier);
+    }
+
+    if (
+        ts.isCallExpression(node) &&
+        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+            (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+    ) {
+        return literalText(node.arguments[0]);
+    }
+
+    return undefined;
+}
+
+/** The package whose `jsonBodyHttpSetup` always calls `enableCors`. */
+const SHARED_SETUP_PACKAGE = '@kitchensink/nest-http-setup';
+
+/**
+ * Whether a node is a call of the shared package's `jsonBodyHttpSetup`: a call of a name imported from it, under any
+ * local name, or of the export through a namespace import. A name that is not imported from the package is not. Pure.
+ *
+ * @param node - The node.
+ * @param bindings - The file's value imports of the shared package.
+ * @returns `true` for such a call.
+ */
+function callsSharedSetup(node: ts.Node, bindings: ModuleBindings): boolean {
+    if (!ts.isCallExpression(node)) {
+        return false;
+    }
+
+    const callee = node.expression;
+
+    if (ts.isIdentifier(callee)) {
+        return localsOf(bindings, 'jsonBodyHttpSetup').has(callee.text);
+    }
+
+    return (
+        ts.isPropertyAccessExpression(callee) &&
+        callee.name.text === 'jsonBodyHttpSetup' &&
+        ts.isIdentifier(callee.expression) &&
+        bindings.namespaces.has(callee.expression.text)
+    );
+}
+
+/**
+ * Whether a source turns CORS on by any route Nest or Express offers: `app.enableCors(…)`,
+ * `NestFactory.create(…, { cors: … })`, an import of the `cors` middleware, or a call to `jsonBodyHttpSetup(…)`
+ * (`@kitchensink/nest-http-setup`, resolved through the import binding, so a renamed or namespace import is found and a
+ * local function of the same name is not), whose `configure` always calls `enableCors` — so a service built on it
+ * carries no `.enableCors(` of its own. Read through the parser, so a comment
+ * or a string that names `enableCors` is not a call. The one authority for this question: the bearer-only guard and
+ * the deploy smoke-depth guard (`packages/infra/global`) both ask it. Pure.
+ *
+ * @param source - The file to read.
+ * @returns `true` when the file enables CORS.
+ */
+export function enablesCors(source: SourceFile): boolean {
+    const parsed = parse(source);
+    const setupBindings = valueBindingsOf(parsed, (specifier) => specifier === SHARED_SETUP_PACKAGE);
+    let enables = false;
+
+    visit(parsed, (node) => {
+        if (moduleNamedBy(node) === 'cors') {
+            enables = true;
+        }
+
+        if (callsSharedSetup(node, setupBindings)) {
+            enables = true;
+        }
+
+        if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) {
+            return;
+        }
+
+        if (node.expression.name.text === 'enableCors') {
+            enables = true;
+        }
+
+        // `create`'s options object, and only there: `{ cors: true }` anywhere else is just an object.
+        if (node.expression.name.text === 'create') {
+            for (const argument of node.arguments) {
+                if (
+                    ts.isObjectLiteralExpression(argument) &&
+                    argument.properties.some(
+                        (property) =>
+                            property.name !== undefined &&
+                            ts.isIdentifier(property.name) &&
+                            property.name.text === 'cors',
+                    )
+                ) {
+                    enables = true;
+                }
+            }
+        }
+    });
+
+    return enables;
 }
 
 /**

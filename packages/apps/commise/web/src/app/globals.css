@@ -21,6 +21,9 @@
 @source "../../../features/recipes/src/**/*.{ts,tsx}";
 /* A test file spells classes in prose; it must never build a utility. */
 @source not "../../../features/recipes/src/**/__tests__/**";
+/* Cooking mode renders from the shared @commise/features-cooking building blocks. */
+@source "../../../features/cooking/src/**/*.{ts,tsx}";
+@source not "../../../features/cooking/src/**/__tests__/**";
 /* The account surfaces (profile, danger zone, erase and close dialogs) render from @commise/features-account. */
 @source "../../../features/account/src/**/*.{ts,tsx}";
 /* The cross-feature surfaces (Home, route boundaries) render from @commise/features-core. */

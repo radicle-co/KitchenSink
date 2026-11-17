@@ -76,7 +76,7 @@ describe('a web popup states its own surface, whatever it was opened from', () =
                 <Popover
                     triggerLabel="About Kale"
                     triggerIcon="info"
-                    triggerText="No match found"
+                    triggerText="About"
                     title="Kale"
                     closeLabel="Close details for Kale"
                 >

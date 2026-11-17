@@ -24,7 +24,7 @@ const renderPopover = (overrides: Partial<PopoverProps> = {}): void => {
             <Popover
                 triggerLabel="About Kale"
                 triggerIcon="info"
-                triggerText="No match found"
+                triggerText="About"
                 title="Kale"
                 closeLabel="Close details for Kale"
                 {...overrides}
@@ -144,7 +144,7 @@ describe('Popover (web)', () => {
                 <Popover
                     triggerLabel="About Kale"
                     triggerIcon="info"
-                    triggerText="No match found"
+                    triggerText="About"
                     title="Kale"
                     closeLabel="Close Kale"
                 >
@@ -167,7 +167,7 @@ describe('Popover (web)', () => {
             <Popover
                 triggerLabel="About Kale"
                 triggerIcon="info"
-                triggerText="No match found"
+                triggerText="About"
                 title="Kale"
                 closeLabel="Close Kale"
             >
@@ -214,7 +214,7 @@ describe('Popover (web)', () => {
                 <Popover
                     triggerLabel="About Kale"
                     triggerIcon="info"
-                    triggerText="No match found"
+                    triggerText="About"
                     title="Kale"
                     closeLabel="Close Kale"
                     describedBy="status-word"
@@ -234,7 +234,7 @@ describe('Popover (web)', () => {
                 <Popover
                     triggerLabel="About Kale"
                     triggerIcon="info"
-                    triggerText="No match found"
+                    triggerText="About"
                     title="Kale"
                     closeLabel="Close Kale"
                 >
@@ -243,7 +243,7 @@ describe('Popover (web)', () => {
                 <Popover
                     triggerLabel="About Leek"
                     triggerIcon="info"
-                    triggerText="No match found"
+                    triggerText="About"
                     title="Leek"
                     closeLabel="Close Leek"
                 >
@@ -269,7 +269,7 @@ describe('Popover (web) — a focus request', () => {
             <Popover
                 triggerLabel="About Kale"
                 triggerIcon="info"
-                triggerText="No match found"
+                triggerText="About"
                 title="Kale"
                 closeLabel="Close Kale"
                 focusRequested={focusRequested}
@@ -322,7 +322,7 @@ const DismissingHost: FC<{ readonly onDismissed: () => void }> = ({ onDismissed 
             <Popover
                 triggerLabel="About Kale"
                 triggerIcon="info"
-                triggerText="No match found"
+                triggerText="About"
                 title="Kale"
                 closeLabel="Close details for Kale"
                 onDismissed={() => {
@@ -335,7 +335,7 @@ const DismissingHost: FC<{ readonly onDismissed: () => void }> = ({ onDismissed 
             <Popover
                 triggerLabel="About Garlic"
                 triggerIcon="info"
-                triggerText="No match found"
+                triggerText="About"
                 title="Garlic"
                 closeLabel="Close details for Garlic"
                 focusRequested={requested}
@@ -400,7 +400,15 @@ describe('Popover (web) — a text trigger', () => {
         expect(button.getAttribute('aria-haspopup')).toBe('dialog');
     });
 
-    it('opens the same panel as the glyph trigger', async () => {
+    it('is at least 32 px tall, so a short word is still a target', () => {
+        renderPopover({ triggerLabel: 'Choose a match for Kale', triggerText: 'Choose a match' });
+
+        expect(screen.getByRole('button', { name: 'Choose a match for Kale' }).classList.contains('min-h-8')).toBe(
+            true,
+        );
+    });
+
+    it('opens the same panel as any trigger', async () => {
         const user = userEvent.setup();
         renderPopover({ triggerLabel: 'Choose a match for Kale', triggerText: 'Choose a match' });
 

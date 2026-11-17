@@ -95,9 +95,20 @@ describe('classTokensOf', () => {
 
 describe('splitToken', () => {
     it('splits a token into its variant chain and its utility', () => {
-        expect(splitToken('md:focus-visible:ring-2')).toEqual({ variants: ['md', 'focus-visible'], base: 'ring-2' });
+        expect(splitToken('md:focus-visible:ring-2')).toEqual({
+            variants: ['md', 'focus-visible'],
+            base: 'ring-2',
+        });
         expect(splitToken('flex')).toEqual({ variants: [], base: 'flex' });
-        expect(splitToken('!size-11')).toEqual({ variants: [], base: '!size-11' });
+    });
+
+    it('reads Tailwind important modifier at either end, and never as part of the utility', () => {
+        expect(splitToken('!size-11')).toEqual({ variants: [], base: 'size-11' });
+        expect(splitToken('size-11!')).toEqual({ variants: [], base: 'size-11' });
+        expect(splitToken('md:ring-2!')).toEqual({ variants: ['md'], base: 'ring-2' });
+        expect(splitToken('size-11')).toEqual({ variants: [], base: 'size-11' });
+        expect(splitToken('md:!ring-2')).toEqual({ variants: ['md'], base: 'ring-2' });
+        expect(splitToken("content-['hi!']")).toEqual({ variants: [], base: "content-['hi!']" });
     });
 
     it('does not split on a colon inside a bracketed variant or value', () => {

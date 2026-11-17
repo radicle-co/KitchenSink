@@ -10954,7 +10954,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Words drawn beside the glyph, in the `attention` role: the trigger is a read row's attention line (\"⚠ Choose a\nmatch\", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC\n2.5.3). Required: the glyph-only trigger had no caller and is gone (designer D67).",
+                            "description": "Words drawn beside the glyph, in the `attention` role: the trigger is a read row's attention line (\"⚠ Choose a\nmatch\", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC\n2.5.3).",
                             "declaredIn": "packages/apps/commise/ui/src/popover/props.ts"
                         }
                     ],
@@ -11140,7 +11140,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Words drawn beside the glyph, in the `attention` role: the trigger is a read row's attention line (\"⚠ Choose a\nmatch\", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC\n2.5.3). Required: the glyph-only trigger had no caller and is gone (designer D67).",
+                            "description": "Words drawn beside the glyph, in the `attention` role: the trigger is a read row's attention line (\"⚠ Choose a\nmatch\", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC\n2.5.3).",
                             "declaredIn": "packages/apps/commise/ui/src/popover/props.ts"
                         }
                     ],

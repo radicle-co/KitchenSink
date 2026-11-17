@@ -24,7 +24,7 @@ export interface PopoverProps {
     /**
      * Words drawn beside the glyph, in the `attention` role: the trigger is a read row's attention line ("⚠ Choose a
      * match", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC
-     * 2.5.3). Required: the glyph-only trigger had no caller and is gone (designer D67).
+     * 2.5.3).
      */
     readonly triggerText: string;
     /** The panel's heading: it names the web dialog and titles the native sheet. */

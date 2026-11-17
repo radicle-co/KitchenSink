@@ -73,7 +73,7 @@ export interface Offender {
  */
 export function isOffScaleClass(token: string): boolean {
     const { base } = splitToken(token);
-    const match = RADIUS_UTILITY.exec(base.replace(/^!/u, ''));
+    const match = RADIUS_UTILITY.exec(base);
 
     if (match === null) {
         return false;

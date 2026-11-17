@@ -9516,7 +9516,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The controls that sit ON the photo: back and ⋯ (D12), each a `PhotoControl` from `@commise/ui/photo-control`.\nThe hero lays them over its top edge, start to end, first in the reading order. The caller owns what they do.",
+                            "description": "The controls that sit ON the photo: back and ⋯ (D12), Back is a `HeroButton` and ⋯ is an `ActionMenu` with `appearance=\"disc\"`.\nThe hero lays them over its top edge, start to end, first in the reading order. The caller owns what they do.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -9572,7 +9572,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The controls that sit ON the photo: back and ⋯ (D12), each a `PhotoControl` from `@commise/ui/photo-control`.\nThe hero lays them over its top edge, start to end, first in the reading order. The caller owns what they do.",
+                            "description": "The controls that sit ON the photo: back and ⋯ (D12), Back is a `HeroButton` and ⋯ is an `ActionMenu` with `appearance=\"disc\"`.\nThe hero lays them over its top edge, start to end, first in the reading order. The caller owns what they do.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {

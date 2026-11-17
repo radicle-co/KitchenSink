@@ -152,14 +152,17 @@ interface Tokenized {
     readonly blocks: readonly BlockSpan[];
     /** The block elements of the body, by number (`VisibleBlock.element`). */
     readonly elements: readonly ElementExtent[];
-    /** What each `id` of the body names, as a browser follows it (`VisibleRead.firstIds`). */
+    /** The first shown element of the body with each `id` (`VisibleRead.firstIds`). */
     readonly firstIds: ReadonlyMap<string, number>;
+    /** The ids no other element of the document carries (`PageDocument.uniqueIds`). */
+    readonly uniqueIds: ReadonlySet<string>;
 }
 
 interface BlockSpan {
     readonly text: string;
     readonly fragmentLinksOnly: boolean;
     readonly fragmentTargets: readonly string[];
+    readonly fostered: boolean;
     readonly ordered: boolean;
     readonly first: number;
     readonly last: number;
@@ -226,20 +229,33 @@ interface ReadAncestry {
     readonly listParents: ReadonlySet<number>;
     readonly listGrandparents: ReadonlySet<number>;
     readonly holders: ReadonlySet<number>;
+    /** The elements that hold a read block a browser would move out of its table (foster parenting). */
+    readonly fosterHolders: ReadonlySet<number>;
     readonly elementById: ReadonlyMap<string, number>;
+    readonly uniqueIds: ReadonlySet<string>;
 }
 
 /** The {@link ReadAncestry} of the blocks in `read`: one walk up from each, stopped at an ancestor already held. */
 function readAncestryOf(
     elements: readonly ElementExtent[],
     elementById: ReadonlyMap<string, number>,
+    uniqueIds: ReadonlySet<string>,
     read: readonly BlockSpan[],
 ): ReadAncestry {
     const listParents = new Set<number>();
     const listGrandparents = new Set<number>();
     const holders = new Set<number>();
+    const fosterHolders = new Set<number>();
 
     for (const block of read) {
+        for (
+            let element = block.element;
+            block.fostered && element > 0 && !fosterHolders.has(element);
+            element = parentIn(elements, element)
+        ) {
+            fosterHolders.add(element);
+        }
+
         if (block.item > 0) {
             const [parent, grandparent] = listParentsOf(elements, block.item);
 
@@ -252,7 +268,7 @@ function readAncestryOf(
         }
     }
 
-    return { listParents, listGrandparents, holders, elementById };
+    return { listParents, listGrandparents, holders, fosterHolders, elementById, uniqueIds };
 }
 
 /** The first and the last token the read blocks span. */
@@ -271,8 +287,9 @@ function positionOf(block: BlockSpan, span: ReadSpan): CardItem['position'] {
 }
 
 /**
- * Whether `target`, an id, is one a jump link in `block` may name: the first element with that id holds read lines,
- * and does not hold `block` itself.
+ * Whether `target`, an id, is one a jump link in `block` may name: exactly one element of the document carries it, a
+ * shown block element the body walk met, that holds read lines no browser moves out of a table, and does not hold `block`
+ * itself. Any other id (one in the head, on a hidden element or on `<html>`) is met by no shown block, so it refuses.
  */
 function isJumpTarget(
     elements: readonly ElementExtent[],
@@ -284,9 +301,11 @@ function isJumpTarget(
 
     // The `?? 0` cannot fire: `holder` is an element number from `elements` (DD19).
     return (
+        ancestry.uniqueIds.has(target) &&
         holder !== undefined &&
         holder !== UNUSABLE_ID &&
         ancestry.holders.has(holder) &&
+        !ancestry.fosterHolders.has(holder) &&
         !(holder <= block.element && block.element <= (elements[holder]?.last ?? 0))
     );
 }
@@ -315,7 +334,7 @@ function cardItemOf(
 
 /** Whether the blocks that runs were read from leave a line of their list, or a list item of their card, unread. */
 function leavesLinesUnread(
-    { blocks, elements, firstIds }: Tokenized,
+    { blocks, elements, firstIds, uniqueIds }: Tokenized,
     covered: Uint8Array,
     tolerates: (item: CardItem) => boolean,
 ): boolean {
@@ -341,7 +360,7 @@ function leavesLinesUnread(
 
     const card = cardOf(elements, read);
     const cardLast = elements[card]?.last ?? 0;
-    const ancestry = readAncestryOf(elements, firstIds, read);
+    const ancestry = readAncestryOf(elements, firstIds, uniqueIds, read);
     const span: ReadSpan = { first: read[0]?.first ?? 0, last: read.at(-1)?.last ?? 0 };
 
     // Loose text (group 0) is not a list: any other block is a line of the list its siblings are. A list item inside the
@@ -469,7 +488,7 @@ export const DEFAULT_VISIBLE_CAPS: VisibleCaps = Object.freeze({
 /** The tokens of `blocks`, or `undefined` when they pass `maxTokens`: a page that long is never half read. */
 function tokenizedBlocks(
     blocks: readonly VisibleBlock[],
-    { elements, firstIds }: Pick<Tokenized, 'elements' | 'firstIds'>,
+    { elements, firstIds, uniqueIds }: Pick<Tokenized, 'elements' | 'firstIds' | 'uniqueIds'>,
     maxTokens: number,
 ): Tokenized | undefined {
     const tokens: string[] = [];
@@ -491,6 +510,7 @@ function tokenizedBlocks(
                 text: block.text,
                 fragmentLinksOnly: block.fragmentLinksOnly,
                 fragmentTargets: block.fragmentTargets,
+                fostered: block.fostered,
                 ordered: block.ordered,
                 first,
                 last: tokens.length - 1,
@@ -510,7 +530,7 @@ function tokenizedBlocks(
         blockEnds[span.last] = 1;
     });
 
-    return { tokens, blockStarts, blockEnds, blocks: spans, elements, firstIds };
+    return { tokens, blockStarts, blockEnds, blocks: spans, elements, firstIds, uniqueIds };
 }
 
 /**
@@ -538,7 +558,7 @@ export function visibleTextOf(page: PageDocument, caps: VisibleCaps = DEFAULT_VI
         return { kind: 'tooComplex' };
     }
 
-    const tokenized = tokenizedBlocks(blocks, { elements, firstIds }, caps.maxTokens);
+    const tokenized = tokenizedBlocks(blocks, { elements, firstIds, uniqueIds: page.uniqueIds() }, caps.maxTokens);
 
     return tokenized === undefined ? { kind: 'tooComplex' } : { kind: 'ok', text: textOfTokens(tokenized) };
 }

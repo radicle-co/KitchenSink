@@ -46,6 +46,11 @@ export interface VisibleBlock {
     readonly fragmentLinksOnly: boolean;
     /** The targets of the fragment links opened in the block, without the `#` (`ingredients` for `#ingredients`). */
     readonly fragmentTargets: readonly string[];
+    /**
+     * Whether some of the block's text sits in a table, a table body, head, foot or row with no cell or caption between: a
+     * browser moves such content out in front of the table (foster parenting), so the markup's nesting is not its place.
+     */
+    readonly fostered: boolean;
 }
 
 /** Where a block element sits among the others: numbered in document order, so its descendants are a range. */
@@ -65,11 +70,11 @@ export interface VisibleRead {
     /** Every block element read, by number; 0 is the root of the read. */
     readonly elements: readonly ElementExtent[];
     /**
-     * Each `id` the walk met, with the element a browser follows for it: the FIRST element that carries it, in document
-     * order, whatever it is. That is the number of a shown block element, or {@link UNUSABLE_ID} when it is an inline
-     * element or one the cook cannot see (hidden, a template itself, a closed `<details>`'s other children). The element
-     * is looked up in no other way, so a duplicate id further down never wins. Only the body is read: an id in the head is
-     * not seen.
+     * Each `id` the walk met on a SHOWN element of the body, with the first such element, in document order: the number of
+     * a block element, or {@link UNUSABLE_ID} for an inline one (a link to it has no lines to jump to). An id on an element
+     * the cook cannot see (hidden, a template, a closed `<details>`'s other children), or outside the body, is not here. So
+     * this map alone says nothing about which element a browser follows: it is trusted only for an id that
+     * {@link PageDocument.uniqueIds} lists, which no other element of the document carries.
      */
     readonly firstIds: ReadonlyMap<string, number>;
     readonly truncated: boolean;
@@ -105,6 +110,13 @@ export interface PageDocument {
     byTag(tag: string): readonly PageElement[];
     /** Every element that carries this attribute (even an empty one), in document order. */
     withAttribute(name: string): readonly PageElement[];
+    /**
+     * The ids that occur on exactly one element of the document, compared exactly (no trim, no case fold), the head, the
+     * `<html>` and `<body>` elements included and the content of a `<template>` not. EMPTY when the page has a `<base>`
+     * (a `#id` link is then read against another address) or a declarative shadow root (`shadowrootmode`, legacy
+     * `shadowroot`): the reader models neither, so no id is one it can vouch for.
+     */
+    uniqueIds(): ReadonlySet<string>;
     /**
      * The page's size in nodes, and the node visits every read of it has made so far: the work a test holds bounded in
      * place of a time budget. A lookup is a map read and costs none.
@@ -221,10 +233,6 @@ const isSummary = (node: DomNode): boolean => isTag(node) && node.name === 'summ
 const shownChildren = (element: DomElement): readonly DomNode[] =>
     isClosedDetails(element) ? element.children.filter(isSummary) : element.children;
 
-/** The children a cook does not see (they are still in the page, and an `id` of theirs is still followed). */
-const hiddenChildren = (element: DomElement): readonly DomNode[] =>
-    isClosedDetails(element) ? element.children.filter((child) => !isSummary(child)) : [];
-
 /** The most times {@link plainText} reads a value again to undo an earlier encoding. */
 const MAX_DECODE_PASSES = 2;
 
@@ -311,50 +319,84 @@ const LOOSE_TEXT: Owner = { group: 0, isHeading: false, element: 0, item: 0, ord
 /** The end of a fragment link: the text read after it is no longer that link's text. */
 const FRAGMENT_LINK_END = Symbol('fragmentLinkEnd');
 
-/** The target of `element` when it is a link to a fragment of the same page (`<a href="#...">`), without the `#`. */
+/** The most a C0 control or a space is: U+0020. */
+const LAST_STRIPPED_CODE = 0x20;
+
+/**
+ * `href` as the URL parser (URL Standard, basic URL parser) sees it: leading and trailing C0 controls and spaces
+ * removed, then every tab, carriage return and line feed. A no-break space is not stripped. A loop over the characters,
+ * never a regular expression over page text.
+ */
+function urlInput(href: string): string {
+    let start = 0;
+    let end = href.length;
+
+    while (start < end && href.charCodeAt(start) <= LAST_STRIPPED_CODE) {
+        start += 1;
+    }
+
+    while (end > start && href.charCodeAt(end - 1) <= LAST_STRIPPED_CODE) {
+        end -= 1;
+    }
+
+    return [...href.slice(start, end)].filter((char) => char !== '\t' && char !== '\n' && char !== '\r').join('');
+}
+
+/**
+ * The target of `element` when it is a link to a fragment of the same page (`<a href="#...">`), without the `#`. A target
+ * that is empty (the top of the page) or holds a `%` (a browser percent-decodes it when no id spells it, HTML Standard
+ * 7.4.6.4) is none: no id is ever vouched for by it.
+ */
 function fragmentTargetOf(element: DomElement): string | undefined {
     if (element.name !== 'a') {
         return undefined;
     }
 
-    const href = (element.attribs['href'] ?? '').trim();
+    const href = urlInput(element.attribs['href'] ?? '');
+    const target = href.startsWith('#') ? href.slice(1) : undefined;
 
-    return href.startsWith('#') ? href.slice(1) : undefined;
+    return target === '' || target?.includes('%') ? undefined : target;
 }
 
-/**
- * Record the `id` of every element of `roots` and below (but nothing inside a template) as {@link UNUSABLE_ID}, unless one
- * before it carries it already: elements the cook cannot see, which a browser follows all the same.
- *
- * @returns The nodes read, which is `budget` when the read stopped there.
- */
-function unseenIds(roots: readonly DomNode[], ids: Map<string, number>, budget: number): number {
-    const stack: DomNode[] = [...roots].reverse();
-    let visited = 0;
+const TABLE_PARTS: ReadonlySet<string> = new Set(['table', 'tbody', 'thead', 'tfoot', 'tr']);
+const TABLE_CELLS: ReadonlySet<string> = new Set(['td', 'th', 'caption']);
 
-    for (let next = stack.pop(); next !== undefined; next = stack.pop()) {
-        if (visited >= budget) {
-            return visited;
+/**
+ * Whether text inside `element` is foster parented: its nearest table part or cell ancestor is a table part
+ * (HTML Standard 13.2.6.1). One climb per element, remembered in `memo`, so a page costs one step per element.
+ */
+function isFostered(element: DomElement, memo: Map<DomElement, boolean>): boolean {
+    const path: DomElement[] = [];
+    let fostered = false;
+
+    for (
+        let at: DomElement | null = element;
+        at !== null;
+        at = at.parent !== null && isTag(at.parent) ? at.parent : null
+    ) {
+        const known = memo.get(at);
+
+        if (known !== undefined) {
+            fostered = known;
+            break;
         }
 
-        visited += 1;
+        path.push(at);
 
-        if (isTag(next)) {
-            noteId(next, UNUSABLE_ID, ids);
-
-            // Nothing inside a template is in the page.
-            if (next.name !== 'template') {
-                pushReversed(stack, next.children);
-            }
+        if (TABLE_CELLS.has(at.name) || TABLE_PARTS.has(at.name)) {
+            fostered = TABLE_PARTS.has(at.name);
+            break;
         }
     }
 
-    return visited;
+    path.forEach((step) => memo.set(step, fostered));
+
+    return fostered;
 }
 
-/** Record the `id` of `node` as carried by `element`, unless an earlier element already carries it. */
+/** Record the `id` of `node` as carried by `element`, unless an earlier element already carries it. Compared exactly. */
 function noteId(node: DomElement, element: number, ids: Map<string, number>): void {
-    const id = node.attribs['id']?.trim();
+    const id = node.attribs['id'];
 
     if (id && !ids.has(id)) {
         ids.set(id, element);
@@ -407,7 +449,7 @@ function blocksOf(
     const blocks: VisibleBlock[] = [];
     const elements: ElementExtent[] = [{ parent: -1, last: 0 }];
     const firstIds = new Map<string, number>();
-    let unseenCut = false;
+    const fosterMemo = new Map<DomElement, boolean>();
     const groups = new Map<unknown, number>();
     let owner = LOOSE_TEXT;
     let current = '';
@@ -416,6 +458,8 @@ function blocksOf(
     let fragmentLetters = 0;
     let fragmentDepth = 0;
     let targets: string[] = [];
+    let fostered = false;
+    let nestedLink = false;
 
     const flush = (): void => {
         const text = collapseSpace(current);
@@ -428,19 +472,25 @@ function blocksOf(
                 element: owner.element,
                 item: owner.item,
                 ordered: owner.ordered,
-                fragmentLinksOnly: letters > 0 && fragmentLetters === letters,
+                fragmentLinksOnly: letters > 0 && fragmentLetters === letters && !nestedLink,
                 fragmentTargets: targets,
+                fostered,
             });
         }
 
         current = '';
+        fostered = false;
+        nestedLink = false;
         letters = 0;
         fragmentLetters = 0;
         targets = [];
     };
 
-    const addText = (data: string): void => {
+    const addText = (node: DomText): void => {
+        const { data } = node;
         const count = lettersIn(data);
+
+        fostered ||= count > 0 && node.parent !== null && isTag(node.parent) && isFostered(node.parent, fosterMemo);
 
         letters += count;
         fragmentLetters += fragmentDepth > owner.linkBase ? count : 0;
@@ -458,15 +508,6 @@ function blocksOf(
 
             current += line;
         });
-    };
-
-    // The ids of what the cook cannot see, read within what is left of the node budget.
-    const unseen = (nodes: readonly DomNode[]): void => {
-        const left = maxNodes - visited;
-        const read = unseenIds(nodes, firstIds, left);
-
-        visited += read;
-        unseenCut ||= read >= left;
     };
 
     // A node to read, or the end of a block element.
@@ -489,10 +530,8 @@ function blocksOf(
             };
             owner = next.previous;
         } else if (isText(next)) {
-            addText(next.data);
-        } else if (isTag(next) && isHiddenElement(next)) {
-            unseen([next]);
-        } else if (isTag(next)) {
+            addText(next);
+        } else if (isTag(next) && !isHiddenElement(next)) {
             noteId(next, BLOCK_TAGS.has(next.name) ? elements.length : UNUSABLE_ID, firstIds);
 
             if (BLOCK_TAGS.has(next.name)) {
@@ -505,6 +544,9 @@ function blocksOf(
                 owner = blockOwner(next, owner, element, groups.get(next.parent) ?? 0, fragmentDepth);
             }
 
+            // A browser closes the open link when another opens, so what each covers there is not what this tree says.
+            nestedLink ||= next.name === 'a' && fragmentDepth > 0;
+
             const target = fragmentTargetOf(next);
 
             if (target !== undefined) {
@@ -513,7 +555,6 @@ function blocksOf(
                 stack.push(FRAGMENT_LINK_END);
             }
 
-            unseen(hiddenChildren(next));
             pushReversed(stack, shownChildren(next));
         }
     }
@@ -521,7 +562,7 @@ function blocksOf(
     flush();
     elements[0] = { parent: -1, last: elements.length - 1 };
 
-    return { blocks, elements, firstIds, truncated: next !== undefined || unseenCut, visited };
+    return { blocks, elements, firstIds, truncated: next !== undefined, visited };
 }
 
 /**
@@ -662,14 +703,28 @@ export function parsePage(html: string): PageDocument {
     const byAttribute = new Map<string, DomElement[]>();
     const stack: DomNode[] = [...root.children].reverse();
     const meter: WorkMeter = { visits: 0 };
+    // How many elements carry each id, and the nodes inside a template: they are not in the document tree.
+    const idCounts = new Map<string, number>();
+    const inTemplate = new Set<DomNode>();
     let nodes = 0;
 
     for (let next = stack.pop(); next !== undefined; next = stack.pop()) {
         nodes += 1;
 
         if (isTag(next)) {
+            const id = next.attribs['id'];
+
             filed(byTagName, next.name, next);
             Object.keys(next.attribs).forEach((name) => filed(byAttribute, name, next));
+
+            if (id && !inTemplate.has(next)) {
+                idCounts.set(id, (idCounts.get(id) ?? 0) + 1);
+            }
+
+            if (next.name === 'template' || inTemplate.has(next)) {
+                next.children.forEach((child) => inTemplate.add(child));
+            }
+
             pushReversed(stack, next.children);
         }
     }
@@ -679,8 +734,18 @@ export function parsePage(html: string): PageDocument {
     const viewsOf = (index: Map<string, DomElement[]>, key: string): readonly PageElement[] =>
         (index.get(key) ?? []).flatMap((element) => elementView(element, meter) ?? []);
 
+    // Read from the raw indexes, not through `viewsOf`: its meter is no part of the answer, and an empty read must never
+    // be mistaken for a page without a `<base>`.
+    const modelled = !byTagName.has('base') && !byAttribute.has('shadowrootmode') && !byAttribute.has('shadowroot');
+    let unique: ReadonlySet<string> | undefined;
+
     return {
         truncated,
+        uniqueIds: () => {
+            unique ??= new Set(modelled ? [...idCounts].flatMap(([id, count]) => (count === 1 ? [id] : [])) : []);
+
+            return unique;
+        },
         byTag: (tag) => viewsOf(byTagName, tag),
         withAttribute: (name) => viewsOf(byAttribute, name),
         work: () => ({ nodes, visits: meter.visits }),

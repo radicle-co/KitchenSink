@@ -313,9 +313,9 @@ describe('readPastedContent over a whole synthetic page', () => {
 
         expect(result).toMatchObject({ kind: 'extracted' });
         expectBoundedWalks(works);
-        // Measured: the page's text is tokenized once over (about 0.97 times its length). A second scan of each item
-        // doubles it, and a scan of each item against the lines tokenizes them again, 340 times over.
-        expect(charsTokenized).toBeLessThanOrEqual(2 * page.length);
+        // Measured: the page's text is tokenized once over (0.97 times its length). The bound is 1.25 times, so a second
+        // tokenize of each item (1.86 times) fails it, and a scan of each item against the lines fails it by far more.
+        expect(charsTokenized).toBeLessThanOrEqual(1.25 * page.length);
         expect(elapsedMs).toBeLessThan(1_500);
     });
 

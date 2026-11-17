@@ -148,7 +148,12 @@ describe('Stepper (native)', () => {
         render(<Servings />);
 
         const group = screen.getByRole('group', { name: 'Servings' });
-        const count = within(group).getByText('2');
+        // The digit is an inline `figureInline` run inside the sized `body` Text, and only that outer box takes a width.
+        const count = within(group).getByText('2').parentElement;
+
+        if (count === null) {
+            throw new Error('The count has no outer box');
+        }
 
         expect(getComputedStyle(group).gap).toBe('8px');
         expect(getComputedStyle(count).minWidth).toBe('24px');

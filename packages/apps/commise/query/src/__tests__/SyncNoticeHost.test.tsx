@@ -188,10 +188,11 @@ describe('SyncNoticeHost — cooking form', () => {
         expect(screen.getByRole('status', { name: 'Sync status' }).querySelectorAll('p')).toHaveLength(1);
     });
 
-    it('⛔ draws nothing while syncing after an offline spell', () => {
+    it('⛔ reconnecting is quiet: no "Back online" and no syncing message at any point', () => {
         world.offline = true;
         world.pendingCount = 2;
         const view = render(cooking());
+        expect(screen.getByText('You’re offline')).toBeTruthy();
 
         world.offline = false;
         view.rerender(cooking());
@@ -201,17 +202,15 @@ describe('SyncNoticeHost — cooking form', () => {
         expect(screen.getByRole('status', { name: 'Sync status' }).textContent).toBe('');
     });
 
-    it('⛔ never says "Back online" at any point of a reconnect', () => {
-        world.offline = true;
-        world.pendingCount = 1;
-        const view = render(cooking());
-        expect(screen.getByText('You’re offline')).toBeTruthy();
+    it('⛔ a dismissal made in the app form survives a switch to cooking and back', () => {
+        world.unreadableCount = 1;
+        const view = show();
+        fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
 
-        world.offline = false;
         view.rerender(cooking());
+        view.rerender(<SyncNoticeHost copy={copy} />);
 
-        expect(screen.queryByText('Back online')).toBeNull();
-        expect(screen.getByRole('status', { name: 'Sync status' }).textContent).toBe('');
+        expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull();
     });
 
     it('⛔ draws no unreadable-work card while cooking, and the app form shows it again afterwards', () => {

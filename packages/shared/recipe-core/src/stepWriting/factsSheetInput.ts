@@ -13,8 +13,7 @@
  */
 import { escapeRegExp } from '../parsing/escapeRegExp.js';
 
-import { hasInvisibleCharacter, looksLikeAddress } from './addressLike.js';
-import { SAFETY_CATEGORIES } from './factsSheet.types.js';
+import { hasInvisibleCharacter, looksLikeAddress, withoutJoiners } from './addressLike.js';
 import { firstShapeFault } from './factsSheetShape.js';
 
 import type { FactsSheet } from './factsSheet.types.js';
@@ -30,7 +29,7 @@ export const PLAIN_FACT_PUNCTUATION = " '\u2019,()&%\u00B0.+/-";
 
 /** A name starts with a letter, mark, number or apostrophe (`'nduja`), then holds only the set above. */
 const PLAIN_FACT_TEXT = new RegExp(
-    `^[\\p{L}\\p{M}\\p{N}'\u2019][\\p{L}\\p{M}\\p{N}\\u200C\\u200D${escapeRegExp(PLAIN_FACT_PUNCTUATION)}]*$`,
+    `^[\\p{L}\\p{M}\\p{N}'\u2019][\\p{L}\\p{M}\\p{N}${escapeRegExp(PLAIN_FACT_PUNCTUATION)}]*$`,
     'u',
 );
 
@@ -47,7 +46,7 @@ export function isPlainFactText(text: string): boolean {
     // Code points, not UTF-16 units: an astral letter is one character of the name.
     return (
         [...text].length <= MAX_FACT_TEXT_CHARS &&
-        PLAIN_FACT_TEXT.test(text) &&
+        PLAIN_FACT_TEXT.test(withoutJoiners(text)) &&
         !hasInvisibleCharacter(text) &&
         !looksLikeAddress(text)
     );
@@ -105,12 +104,6 @@ export function assertFactsSheetPlain(sheet: FactsSheet): void {
                 plain(`${at}.amounts[${i}].unit`, amount.unit);
             }
         });
-        step.temperatures.forEach((temperature, i) => {
-            // The sheet is stored as jsonb and read back, so the type alone does not hold at runtime.
-            if (temperature.scale !== 'C' && temperature.scale !== 'F') {
-                throw new FactsSheetInvalidError(`${at}.temperatures[${i}].scale`);
-            }
-        });
         step.durations.forEach((duration, i) => {
             const min = `${at}.durations[${i}].minSeconds`;
             const max = `${at}.durations[${i}].maxSeconds`;
@@ -124,10 +117,6 @@ export function assertFactsSheetPlain(sheet: FactsSheet): void {
             }
         });
         step.safety.forEach((line, i) => {
-            if (!SAFETY_CATEGORIES.some((category) => category === line.category)) {
-                throw new FactsSheetInvalidError(`${at}.safety[${i}].category`);
-            }
-
             line.facts.forEach((text, f) => plain(`${at}.safety[${i}].facts[${f}]`, text));
         });
     });

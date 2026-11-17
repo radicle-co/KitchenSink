@@ -172,6 +172,12 @@ describe('parseStepAnswer, text that is not plain', () => {
         });
     });
 
+    it('accepts a word with several joiners', () => {
+        const text = '\u0645\u06CC\u200C\u062E\u0648\u0631\u0645\u200C\u0647\u0627';
+
+        expect(parseStepAnswer(one(text), 80)).toMatchObject({ ok: true });
+    });
+
     it('accepts a time with a colon', () => {
         expect(parseStepAnswer(one('Rest for 1:30 minutes.'), 80)).toMatchObject({ ok: true });
     });

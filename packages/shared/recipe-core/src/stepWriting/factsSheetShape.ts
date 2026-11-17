@@ -1,28 +1,33 @@
 /**
- * The structural shape of a facts sheet, for a sheet read back from storage.
+ * The shape of a facts sheet, for a sheet read back from storage, tied to the `FactsSheet` type by annotation so a new
+ * field fails to compile until the shape names it.
  *
  * The sheet is kept as jsonb, so the type alone does not hold at runtime: a field can be missing, null or the wrong
- * type. The shape checks types only. Which strings are plain facts, and which values are in range, is for
+ * type, and an enum can hold another value. Which strings are plain facts, and which numbers are in range, is for
  * `assertFactsSheetPlain`. Extra properties are allowed here, because the prompt names the fields it reads and ignores
  * the rest.
  */
 import { z } from 'zod';
 
+import { SAFETY_CATEGORIES } from './factsSheet.types.js';
+
+import type { FactsSheet } from './factsSheet.types.js';
+
 const text = z.string();
 const texts = z.array(text);
 
-const factsSheetShape = z.object({
+const factsSheetShape: z.ZodType<FactsSheet> = z.object({
     language: text,
     ingredientNames: texts,
     steps: z.array(
         z.object({
             actions: texts,
             amounts: z.array(z.object({ quantity: z.number(), unit: text.nullable() })),
-            temperatures: z.array(z.object({ value: z.number(), scale: text })),
+            temperatures: z.array(z.object({ value: z.number(), scale: z.enum(['C', 'F']) })),
             durations: z.array(z.object({ minSeconds: z.number(), maxSeconds: z.number() })),
             ingredients: texts,
             equipment: texts,
-            safety: z.array(z.object({ category: text, facts: texts })),
+            safety: z.array(z.object({ category: z.enum(SAFETY_CATEGORIES), facts: texts })),
         }),
     ),
 });
@@ -42,9 +47,5 @@ export function firstShapeFault(sheet: unknown): string | null {
 
     const path = parsed.error.issues[0]?.path ?? [];
 
-    return path.length === 0
-        ? 'sheet'
-        : path
-              .map((part, i) => (typeof part === 'number' ? `[${part}]` : `${i === 0 ? '' : '.'}${String(part)}`))
-              .join('');
+    return path.length === 0 ? 'sheet' : z.core.toDotPath(path);
 }

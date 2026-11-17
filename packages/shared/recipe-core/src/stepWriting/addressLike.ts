@@ -17,8 +17,8 @@
 /** Characters Unicode marks as default-ignorable: invisible, and free to sit inside a word. */
 const DEFAULT_IGNORABLE = /\p{Default_Ignorable_Code_Point}/gu;
 
-/** The two joiners real scripts need (Persian, Indic). The detector strips them, the plain-text doors allow them. */
-const JOINERS = /[‌‍]/u;
+/** The two joiners real scripts need (Persian, Indic): zero-width non-joiner and zero-width joiner. */
+const JOINERS = /\u200C|\u200D/gu;
 
 const IDEOGRAPHIC_FULL_STOP = '。';
 
@@ -65,11 +65,22 @@ export function looksLikeAddress(text: string): boolean {
 }
 
 /**
+ * The text without the two joiners real scripts need. The plain-text doors check what is left, so each joiner is
+ * allowed anywhere and no other invisible character is.
+ *
+ * @param text - Raw text.
+ * @returns The text with every zero-width non-joiner and joiner removed. Pure.
+ */
+export function withoutJoiners(text: string): string {
+    return text.replace(JOINERS, '');
+}
+
+/**
  * Whether the text holds a default-ignorable character other than the two joiners real scripts need.
  *
  * @param text - Raw text.
  * @returns True when it does. Pure.
  */
 export function hasInvisibleCharacter(text: string): boolean {
-    return text.replace(JOINERS, '').search(DEFAULT_IGNORABLE) !== -1;
+    return withoutJoiners(text).search(DEFAULT_IGNORABLE) !== -1;
 }

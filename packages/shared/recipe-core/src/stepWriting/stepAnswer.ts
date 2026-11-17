@@ -19,13 +19,10 @@
  */
 import { z } from 'zod';
 
-import { hasInvisibleCharacter, looksLikeAddress } from './addressLike.js';
+import { hasInvisibleCharacter, looksLikeAddress, withoutJoiners } from './addressLike.js';
 
 /** The largest `cap` a caller may pass. A bound far above any real recipe that still catches a typo. */
 export const MAX_ANSWER_CAP = 1_000;
-
-/** The two joiners real scripts need (Persian, Indic). They are Cf, so the check sets them aside before the class. */
-const JOINERS = /\u200C|\u200D/gu;
 
 /**
  * What a written step may contain: letters, marks, numbers, spaces and the punctuation of plain recipe prose.
@@ -93,7 +90,7 @@ export function parseStepAnswer(text: string, cap: number): StepAnswer {
     if (
         parsed.data.steps.some(
             ({ text: step }) =>
-                !PLAIN_PROSE.test(step.replace(JOINERS, '')) || hasInvisibleCharacter(step) || looksLikeAddress(step),
+                !PLAIN_PROSE.test(withoutJoiners(step)) || hasInvisibleCharacter(step) || looksLikeAddress(step),
         )
     ) {
         return { refused: 'unsafeText' };

@@ -104,7 +104,6 @@ describe('the engine round trip, with a stub writer', () => {
 
         const sent = `${received[0]?.systemPrompt ?? ''}${received[0]?.userMessage ?? ''}`;
 
-        expect(sent).not.toContain(SENTINEL);
         expect(sent).not.toContain('SENTINEL');
         expect(sent).toContain('chicken thigh');
         expect(sent).toContain('"maxSeconds":1200');

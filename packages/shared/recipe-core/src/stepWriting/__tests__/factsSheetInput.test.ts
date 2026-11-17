@@ -75,6 +75,7 @@ describe('assertFactsSheetPlain', () => {
         'St. Louis ribs',
         '2.5% milk',
         "'nduja",
+        '\u0645\u06CC\u200C\u062E\u0648\u0631\u0645\u200C\u0647\u0627',
         'salt + pepper',
         'chicken (boneless/skinless)',
         'oz.',

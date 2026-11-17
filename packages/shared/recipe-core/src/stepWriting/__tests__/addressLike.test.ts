@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { hasInvisibleCharacter, looksLikeAddress } from '../addressLike.js';
+import { hasInvisibleCharacter, looksLikeAddress, withoutJoiners } from '../addressLike.js';
 
 describe('looksLikeAddress', () => {
     it.each([
@@ -89,10 +89,23 @@ describe('hasInvisibleCharacter', () => {
         },
     );
 
+    it('lets any number of joiners through, and still catches an invisible character after them', () => {
+        expect(hasInvisibleCharacter('\u0645\u06CC\u200C\u062E\u0648\u0631\u0645\u200C\u0647\u0627')).toBe(false);
+        expect(hasInvisibleCharacter('a\u200Cb\u200Dc\u200Cd')).toBe(false);
+        expect(hasInvisibleCharacter('a\u200Cb\u200Cc\u2060')).toBe(true);
+    });
+
     it('lets the joiners that real scripts need through, and plain text', () => {
         expect(hasInvisibleCharacter('\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645')).toBe(false);
         expect(hasInvisibleCharacter('\u0915\u094D\u200D\u0937')).toBe(false);
         expect(hasInvisibleCharacter('Stir, then serve.')).toBe(false);
         expect(hasInvisibleCharacter('')).toBe(false);
+    });
+});
+
+describe('withoutJoiners', () => {
+    it('removes every zero-width non-joiner and joiner and nothing else', () => {
+        expect(withoutJoiners('a\u200Cb\u200Dc\u200Cd e\u2060')).toBe('abcd e\u2060');
+        expect(withoutJoiners('')).toBe('');
     });
 });

@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import { contentDigestInput } from '@kitchensink/recipe-core/step-writing/content-digest';
 import { parseFingerprintKeyring } from '@kitchensink/recipe-core/step-writing/fingerprint-keyring';
-import { keyedShingleHash } from '@kitchensink/recipe-core/step-writing/node-keyed-hash';
+import { hasherFor } from '@kitchensink/recipe-core/step-writing/node-keyed-hash';
 import {
     containment,
     fingerprint,
@@ -26,13 +26,7 @@ const ring = parseFingerprintKeyring(SECRET);
 
 /** The fingerprint of `text` under key `version` of the ring, through the production hasher. */
 function fingerprintUnder(text: string, version: number): Fingerprint {
-    const key = ring.keys.get(version);
-
-    if (key === undefined) {
-        throw new Error(`the test keyring has no key ${version}`);
-    }
-
-    return fingerprint(text, 5, keyedShingleHash(key), version);
+    return fingerprint(text, 5, hasherFor(ring, version));
 }
 
 describe('fingerprint with the production keyed hasher', () => {
@@ -78,9 +72,29 @@ describe('fingerprint with the production keyed hasher', () => {
         expect(containment(fingerprintUnder('Beat in the e\u200Bggs one at a time.', 2), source)).toBe(1);
     });
 
-    it('still sees a copied sentence written with a Cyrillic look-alike letter', () => {
+    it('does not see through a Cyrillic look-alike letter: cross-script text is refused upstream, not folded here', () => {
         const source = fingerprintUnder(SOURCE, 2);
-        expect(containment(fingerprintUnder('Beat in the \u0435ggs one at a time.', 2), source)).toBe(1);
+        expect(containment(fingerprintUnder('Beat in the \u0435ggs one at a time.', 2), source)).toBeLessThan(1);
+    });
+
+    it('refuses to compare a 2-word fingerprint with a 5-word one', () => {
+        const title = fingerprint('Cream the butter', 2, hasherFor(ring, 2));
+        let caught: unknown;
+
+        try {
+            jaccard(title, fingerprintUnder(SOURCE, 2));
+        } catch (error) {
+            caught = error;
+        }
+
+        expect(isFingerprintMismatchError(caught)).toBe(true);
+    });
+
+    it('catches a source copied as short steps, through the whole-recipe measure', () => {
+        const steps = ['Cream the butter.', 'Add the sugar.', 'Beat in eggs.', 'Fold in flour.'];
+        const copied = ['cream the butter', 'ADD the sugar', 'Beat in eggs!', 'fold in flour'];
+
+        expect(jaccard(fingerprintUnder(steps.join(' '), 2), fingerprintUnder(copied.join(' '), 2))).toBe(1);
     });
 });
 

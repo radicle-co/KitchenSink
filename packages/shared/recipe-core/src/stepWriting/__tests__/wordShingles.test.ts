@@ -1,6 +1,6 @@
 /**
- * The wording fingerprint: lower-cased, punctuation-stripped word shingles reduced to a versioned set of keyed
- * hashes. The hash is injected, so every test here reads what was hashed through an identity-style stand-in.
+ * The wording fingerprint: word shingles over the shared comparison form, reduced to a versioned set of keyed hashes.
+ * The hash is injected, so every test here reads what was hashed through a deterministic stand-in.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -11,14 +11,15 @@ import {
     isFingerprintMismatchError,
     jaccard,
     wordShingles,
-    type KeyedHash,
+    type KeyedHasher,
 } from '../wordShingles.js';
 
 /** A deterministic stand-in: a polynomial over the shingle's code units, shifted by a per-key salt. */
-const hasherWithSalt =
-    (salt: bigint): KeyedHash =>
-    (shingle) =>
-        [...shingle].reduce((acc, ch) => (acc * 131n + BigInt(ch.codePointAt(0) ?? 0)) % 2n ** 63n, salt);
+const hasherWithSalt = (salt: bigint, keyVersion = 1): KeyedHasher => ({
+    keyVersion,
+    hash: (shingle) =>
+        [...shingle].reduce((acc, ch) => (acc * 131n + BigInt(ch.codePointAt(0) ?? 0)) % 2n ** 63n, salt),
+});
 
 const hash = hasherWithSalt(7n);
 
@@ -74,65 +75,65 @@ describe('wordShingles', () => {
 describe('fingerprint', () => {
     it('pins the format version at 1', () => {
         expect(FINGERPRINT_FORMAT_VERSION).toBe(1);
-        expect(fingerprint('a b c', 2, hash, 1).formatVersion).toBe(1);
+        expect(fingerprint('a b c', 2, hash).formatVersion).toBe(1);
     });
 
     it('gives the same set for the same text, regardless of case and punctuation', () => {
-        const a = fingerprint('Mix the flour and water.', 2, hash, 1);
-        const b = fingerprint('mix the FLOUR, and water', 2, hash, 1);
+        const a = fingerprint('Mix the flour and water.', 2, hash);
+        const b = fingerprint('mix the FLOUR, and water', 2, hash);
         expect(b.hashes).toEqual(a.hashes);
     });
 
     it('changes the set when the words are in a different order', () => {
-        const forward = fingerprint('a b c d e f', 5, hash, 1);
-        const backward = fingerprint('f e d c b a', 5, hash, 1);
+        const forward = fingerprint('a b c d e f', 5, hash);
+        const backward = fingerprint('f e d c b a', 5, hash);
         expect(jaccard(forward, backward)).toBe(0);
     });
 
     it('collapses a repeated shingle to one member', () => {
-        expect(fingerprint('a b a b a b', 2, hash, 1).hashes.size).toBe(2);
+        expect(fingerprint('a b a b a b', 2, hash).hashes.size).toBe(2);
     });
 
     it('changes the set when one word changes', () => {
-        const a = fingerprint('mix the flour and the water', 2, hash, 1);
-        const b = fingerprint('mix the sugar and the water', 2, hash, 1);
+        const a = fingerprint('mix the flour and the water', 2, hash);
+        const b = fingerprint('mix the sugar and the water', 2, hash);
         expect(b.hashes).not.toEqual(a.hashes);
         expect(jaccard(a, b)).toBeLessThan(1);
         expect(jaccard(a, b)).toBeGreaterThan(0);
     });
 
     it('gives a different set under a different key', () => {
-        const a = fingerprint('mix the flour and water', 2, hasherWithSalt(1n), 1);
-        const b = fingerprint('mix the flour and water', 2, hasherWithSalt(2n), 1);
+        const a = fingerprint('mix the flour and water', 2, hasherWithSalt(1n));
+        const b = fingerprint('mix the flour and water', 2, hasherWithSalt(2n));
         expect(b.hashes).not.toEqual(a.hashes);
     });
 
     it('records the key version it was taken under', () => {
-        expect(fingerprint('a b c', 2, hash, 3).keyVersion).toBe(3);
+        expect(fingerprint('a b c', 2, hasherWithSalt(7n, 3)).keyVersion).toBe(3);
+        expect(fingerprint('a b c', 2, hash).shingleSize).toBe(2);
+        expect(fingerprint('a b c', 5, hash).shingleSize).toBe(5);
     });
 
     it.each([0, -1, 1.5, 32768, Number.NaN])('refuses key version %s', (version) => {
-        expect(() => fingerprint('a b c', 2, hash, version)).toThrow(/key version/);
+        expect(() => fingerprint('a b c', 2, hasherWithSalt(7n, version))).toThrow(/key version/);
     });
 
     it('hashes the lower-cased, joined shingle and nothing else', () => {
         const seen: string[] = [];
-        fingerprint(
-            'Add Salt, then stir',
-            2,
-            (s) => {
+        fingerprint('Add Salt, then stir', 2, {
+            keyVersion: 1,
+            hash: (s) => {
                 seen.push(s);
 
                 return 1n;
             },
-            1,
-        );
+        });
         expect(seen).toEqual(['add salt', 'salt then', 'then stir']);
     });
 });
 
 describe('jaccard and containment', () => {
-    const set = (...n: bigint[]) => ({ formatVersion: 1, keyVersion: 1, hashes: new Set(n) });
+    const set = (...n: bigint[]) => ({ formatVersion: 1, keyVersion: 1, shingleSize: 5, hashes: new Set(n) });
 
     it('measures overlap over the union for jaccard', () => {
         expect(jaccard(set(1n, 2n, 3n), set(2n, 3n, 4n))).toBe(2 / 4);
@@ -159,7 +160,7 @@ describe('jaccard and containment', () => {
 });
 
 describe('measures refuse fingerprints that cannot be compared', () => {
-    const base = { formatVersion: 1, keyVersion: 1, hashes: new Set([1n, 2n]) };
+    const base = { formatVersion: 1, keyVersion: 1, shingleSize: 5, hashes: new Set([1n, 2n]) };
 
     const refusal = (run: () => unknown): unknown => {
         try {
@@ -174,6 +175,7 @@ describe('measures refuse fingerprints that cannot be compared', () => {
     it.each([
         ['key version', { ...base, keyVersion: 2 }],
         ['format version', { ...base, formatVersion: 2 }],
+        ['shingle size', { ...base, shingleSize: 2 }],
     ])('throws a typed error on a %s mismatch, from both measures, instead of scoring 0', (_name, other) => {
         expect(isFingerprintMismatchError(refusal(() => jaccard(base, other)))).toBe(true);
         expect(isFingerprintMismatchError(refusal(() => containment(base, other)))).toBe(true);
@@ -197,34 +199,51 @@ describe('measures refuse fingerprints that cannot be compared', () => {
 
 describe('the persisted fold (fingerprint format 1)', () => {
     /**
-     * Known answers for the whole text form: NFKC, invisibles removed, the `confusables` fold, lower case. The fold
-     * is part of what a stored fingerprint means, so any change to it, including a data change in the package, must
-     * fail here and force a new FINGERPRINT_FORMAT_VERSION. It strips accents and maps other scripts by shape on
-     * purpose: it is a matcher, and a collision can only refuse a text that already matches its own source.
+     * Known answers for the whole text form: the shared comparison form, then every run of other punctuation as a
+     * gap. The fold is part of what a stored fingerprint means, so any change to it must fail here and force a new
+     * FINGERPRINT_FORMAT_VERSION. Cross-script look-alikes are NOT folded: the language allowlist refuses them upstream.
      */
     it.each([
         ['Caf\u00E9 cr\u00E8me', ['cafe creme']],
-        ['Stra\u00DFe', ['strabe']],
-        ['\u041F\u0440\u0438\u0432\u0435\u0442 \u043C\u0438\u0440', ['npnbet mnp']],
-        ['\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC', ['eaanvlka']],
+        ['Stra\u00DFe', ['stra\u00DFe']],
+        [
+            '\u041F\u0440\u0438\u0432\u0435\u0442 \u043C\u0438\u0440',
+            ['\u043F\u0440\u0438\u0432\u0435\u0442 \u043C\u0438\u0440'],
+        ],
         ['\uFF25ggs \u2460', ['eggs 1']],
+        ["Don\u00B4t stop, it's well-done", ['dont stop its well done']],
     ])('shingles %j as %j', (text, expected) => {
         expect(wordShingles(text, 5)).toEqual(expected);
     });
-});
 
-describe('look-alike letters', () => {
-    it('reads a Cyrillic letter that looks Latin as the Latin letter', () => {
-        expect(wordShingles('beat in the \u0435ggs one at a time', 5)).toEqual(
+    it('does not fold a Cyrillic look-alike to Latin', () => {
+        expect(wordShingles('beat in the \u0435ggs one at a time', 5)).not.toEqual(
             wordShingles('beat in the eggs one at a time', 5),
         );
     });
 
-    it('reads a Greek capital and a full-width letter as the Latin letter, in any case', () => {
-        expect(wordShingles('\u0392utter \uFF45ggs', 2)).toEqual(wordShingles('butter eggs', 2));
-    });
-
     it('still tells two different words apart', () => {
         expect(wordShingles('flour water', 2)).not.toEqual(wordShingles('sugar water', 2));
+    });
+});
+
+describe('windows run across sentence and step boundaries', () => {
+    it('cuts windows over the steps joined in order, so no sentence is a window of its own', () => {
+        expect(wordShingles('Mix well. Add eggs. Stir now.', 5)).toEqual([
+            'mix well add eggs stir',
+            'well add eggs stir now',
+        ]);
+    });
+
+    it('still trips the whole-recipe measure for a source copied as sentences of four words or fewer', () => {
+        const steps = ['Mix the flour well.', 'Add two eggs now.', 'Stir until quite smooth.', 'Bake for an hour.'];
+        const copy = ['mix the flour, well', 'ADD two eggs now', 'Stir until quite smooth', 'bake for an hour!'];
+        const source = fingerprint(steps.join(' '), 5, hash);
+        const copied = fingerprint(copy.join(' '), 5, hash);
+
+        expect(jaccard(source, copied)).toBe(1);
+        // Each step alone is under the window, so a per-sentence check has nothing to compare: it is skipped by name,
+        // and this whole-recipe measure is the one that catches the copy.
+        expect(steps.every((step) => wordShingles(step, 5).length === 1)).toBe(true);
     });
 });

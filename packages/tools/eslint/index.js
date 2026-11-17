@@ -279,6 +279,9 @@ const PACKAGE_INTERNALS_PATTERN = {
         // does not hold.
         '!@kitchensink/*/spend',
         '!@kitchensink/*/spend/spend-arithmetic',
+        // `comparison-form` — the one text fold both sides of a wording comparison pass through; a second copy would
+        // change what a stored fingerprint means.
+        '!@kitchensink/*/comparison-form',
         // `step-writing/*` — the wording fingerprint, the content digest input and the keyring parse. Each will be read
         // by more than one deployable (the service's wording guard, the worker, the digest in both), and a second copy
         // of any of them would drift from a PERSISTED value.

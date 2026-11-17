@@ -6,7 +6,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { keyedShingleHash } from '../nodeKeyedHash.js';
+import { isFingerprintKeyringError, parseFingerprintKeyring } from '../fingerprintKeyring.js';
+import { hasherFor, keyedShingleHash } from '../nodeKeyedHash.js';
 
 const KEY = 'k'.repeat(32);
 
@@ -36,5 +37,29 @@ describe('keyedShingleHash', () => {
     it('refuses an empty key rather than hashing under nothing', () => {
         expect(() => keyedShingleHash('')).toThrow(/key/);
         expect(() => keyedShingleHash(new Uint8Array())).toThrow(/key/);
+    });
+});
+
+describe('hasherFor', () => {
+    const ring = parseFingerprintKeyring(JSON.stringify({ current: 2, k1: 'k'.repeat(32), k2: 'm'.repeat(32) }));
+
+    it('returns the key version together with the hash made from that version key', () => {
+        const hasher = hasherFor(ring, 1);
+        expect(hasher.keyVersion).toBe(1);
+        expect(hasher.hash('add salt')).toBe(-8453062395423499775n);
+        expect(hasherFor(ring, 2).keyVersion).toBe(2);
+        expect(hasherFor(ring, 2).hash('add salt')).not.toBe(hasher.hash('add salt'));
+    });
+
+    it('throws a typed keyring error for a version the ring does not hold', () => {
+        let caught: unknown;
+
+        try {
+            hasherFor(ring, 3);
+        } catch (error) {
+            caught = error;
+        }
+
+        expect(isFingerprintKeyringError(caught)).toBe(true);
     });
 });

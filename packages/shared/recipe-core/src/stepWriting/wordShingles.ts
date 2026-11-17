@@ -1,43 +1,39 @@
 /**
  * THE WORDING FINGERPRINT: word shingles reduced to a versioned set of keyed hashes.
  *
- * DESIGN PATTERN: **value object + Port**. A {@link Fingerprint} is an immutable set with a format version, and the
- * keyed hash is injected as a {@link KeyedHash} Port, so this module is pure and `recipe-core` takes no crypto
- * dependency. Callers supply a keyed hash (an HMAC under the current key of the keyring) and compare fingerprints,
- * never text, which is what lets a stored fingerprint measure closeness to a text that is no longer held.
+ * DESIGN PATTERN: **value object + Port**. A {@link Fingerprint} is an immutable set with its format, key version and
+ * shingle size, and the keyed hash is injected as a {@link KeyedHasher} Port, so this module is pure and `recipe-core`
+ * takes no crypto dependency. Callers compare fingerprints, never text, which is what lets a stored fingerprint
+ * measure closeness to a text that is no longer held.
  *
- * Text goes through the package's one text canonical form (`sanitizeFoodName`: NFKC, invisible characters removed,
- * controls as spaces), so composed and decomposed accents are one word, an invisible character never splits a word,
- * and a stored fingerprint matches text typed or pasted in either form. A combining mark never splits a word.
+ * Text goes through `comparisonForm` (the one fold, applied to both sides), then every run of other punctuation is a
+ * gap. Shingles are words joined by one space. A text shorter than the window yields one shingle of all its words, an
+ * empty text none.
  *
- * Look-alike letters are then folded to the Latin letter they imitate (the `confusables` package, pinned to an exact
- * version), so a Cyrillic `е` in "eggs" cannot hide a copy. The fold is wider than look-alikes: it also strips
- * accents (`café` is `cafe`) and maps other scripts letter by letter by shape, so two different non-Latin words can
- * collide. That is accepted: a check only compares a text with its own source's fingerprint, so a collision can only
- * refuse a text that already matches that source letter for letter after the fold, never miss a copy. It runs before
- * lower-casing and only here: the content digest does not use it (see `contentDigest.ts`). Its output is part of what
- * a stored fingerprint means, and `wordShingles.test.ts` pins it with known answers.
- *
- * Shingles are lower-cased words with punctuation stripped, joined by one space. Apostrophes are removed so
- * "don't" stays one word. A text shorter than the window yields one shingle of all its words. That shingle matches
- * only a source that held exactly those words as a whole short text: a short sentence is NOT found inside a longer
- * source, whose windows are full-size. An empty text yields none.
+ * Windows run across sentence and step boundaries: callers pass the source steps joined in order, so no sentence is a
+ * window of its own. A sentence of fewer words than the window is therefore skipped by name, with no check of its own;
+ * the whole-recipe measure ({@link jaccard}) is what catches a source copied as short sentences.
  *
  * Both measures return 0 for empty input: no evidence of overlap is not an overlap. Both REFUSE two fingerprints of
- * different format or key version with a {@link FingerprintMismatchError}: that is "not comparable", never 0.
+ * a different format, key version or shingle size with a {@link FingerprintMismatchError}: that is "not comparable",
+ * never 0.
  */
 
-import { remove } from 'confusables';
-
-import { sanitizeFoodName } from '../foodName.js';
+import { comparisonForm } from '../comparisonForm.js';
 import { FINGERPRINT_KEY_VERSION_MAX, isFingerprintKeyVersion } from './fingerprintKeyring.js';
 
 /** A keyed hash of one shingle, as a signed 64-bit integer. */
 export type KeyedHash = (shingle: string) => bigint;
 
+/** A keyed hash together with the version of the key it was made from, so the two cannot be given apart. */
+export interface KeyedHasher {
+    readonly keyVersion: number;
+    readonly hash: KeyedHash;
+}
+
 /**
  * The format of {@link Fingerprint}. Stored beside it; bump it when the shingling or the measure changes, and when the
- * text fold changes, including a data change in the `confusables` package (which is pinned for that reason).
+ * text fold (`comparisonForm`) changes.
  */
 export const FINGERPRINT_FORMAT_VERSION = 1;
 
@@ -53,10 +49,11 @@ export type ShingleSize = 2 | 5;
 export interface Fingerprint {
     readonly formatVersion: number;
     readonly keyVersion: number;
+    readonly shingleSize: number;
     readonly hashes: ReadonlySet<bigint>;
 }
 
-/** Raised when two fingerprints were taken under a different format or key and so cannot be compared. */
+/** Raised when two fingerprints were taken under a different format, key or shingle size and so cannot be compared. */
 export class FingerprintMismatchError extends Error {
     constructor(message: string) {
         super(message);
@@ -71,13 +68,11 @@ export function isFingerprintMismatchError(error: unknown): error is Fingerprint
 }
 
 /**
- * The lower-cased, punctuation-stripped word windows of `text`, in reading order, duplicates kept.
+ * The word windows of `text` over the comparison form, in reading order, duplicates kept.
  */
 export function wordShingles(text: string, size: ShingleSize): string[] {
-    const words = remove(sanitizeFoodName(text))
-        .toLowerCase()
-        .replace(/['’]/gu, '')
-        .replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ')
+    const words = comparisonForm(text)
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
         .split(' ')
         .filter((word) => word !== '');
 
@@ -95,7 +90,7 @@ export function wordShingles(text: string, size: ShingleSize): string[] {
 /**
  * The fingerprint of `text`: each shingle through `hash`, collapsed to a set.
  */
-export function fingerprint(text: string, size: ShingleSize, hash: KeyedHash, keyVersion: number): Fingerprint {
+export function fingerprint(text: string, size: ShingleSize, { keyVersion, hash }: KeyedHasher): Fingerprint {
     if (!isFingerprintKeyVersion(keyVersion)) {
         throw new RangeError(
             `A fingerprint needs a key version that is an integer from 1 to ${FINGERPRINT_KEY_VERSION_MAX}.`,
@@ -105,6 +100,7 @@ export function fingerprint(text: string, size: ShingleSize, hash: KeyedHash, ke
     return {
         formatVersion: FINGERPRINT_FORMAT_VERSION,
         keyVersion,
+        shingleSize: size,
         hashes: new Set(wordShingles(text, size).map((shingle) => hash(shingle))),
     };
 }
@@ -114,10 +110,10 @@ export function fingerprint(text: string, size: ShingleSize, hash: KeyedHash, ke
  * "not copied" when the truth is "not comparable".
  */
 function assertComparable(a: Fingerprint, b: Fingerprint): void {
-    if (a.formatVersion !== b.formatVersion || a.keyVersion !== b.keyVersion) {
+    if (a.formatVersion !== b.formatVersion || a.keyVersion !== b.keyVersion || a.shingleSize !== b.shingleSize) {
         throw new FingerprintMismatchError(
-            `Fingerprints differ in format (${a.formatVersion}, ${b.formatVersion}) ` +
-                `or key version (${a.keyVersion}, ${b.keyVersion}).`,
+            `Fingerprints differ in format (${a.formatVersion}, ${b.formatVersion}), ` +
+                `key version (${a.keyVersion}, ${b.keyVersion}) or shingle size (${a.shingleSize}, ${b.shingleSize}).`,
         );
     }
 }

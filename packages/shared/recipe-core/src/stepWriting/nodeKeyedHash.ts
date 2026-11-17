@@ -15,7 +15,8 @@
  */
 import { createHmac } from 'node:crypto';
 
-import type { KeyedHash } from './wordShingles.js';
+import { FingerprintKeyringError, type FingerprintKeyring } from './fingerprintKeyring.js';
+import type { KeyedHash, KeyedHasher } from './wordShingles.js';
 
 /**
  * Build the keyed hash for one key.
@@ -30,4 +31,23 @@ export function keyedShingleHash(key: string | Uint8Array): KeyedHash {
     }
 
     return (shingle) => createHmac('sha256', key).update(shingle.normalize('NFC'), 'utf8').digest().readBigInt64BE(0);
+}
+
+/**
+ * The hasher for one key version of a keyring, with the version attached, so a fingerprint always records the key it
+ * was made under.
+ *
+ * @param ring - The parsed keyring.
+ * @param version - The key version to use.
+ * @returns The version and its {@link KeyedHash}. Pure given the ring.
+ * @throws {FingerprintKeyringError} when the ring holds no key for `version`.
+ */
+export function hasherFor(ring: FingerprintKeyring, version: number): KeyedHasher {
+    const key = ring.keys.get(version);
+
+    if (key === undefined) {
+        throw new FingerprintKeyringError(`Fingerprint keyring has no key for key version ${version}.`);
+    }
+
+    return { keyVersion: version, hash: keyedShingleHash(key) };
 }

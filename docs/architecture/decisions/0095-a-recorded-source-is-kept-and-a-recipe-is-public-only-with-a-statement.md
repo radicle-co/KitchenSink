@@ -181,6 +181,11 @@ An attestation is kept while its recipe is public, plus 6 years. Then it is dele
 
 **Owed:** the purge job.
 
+**Known limit.** The two exceptions to append-only trust tables the service itself writes. The service role writes
+`test_principals` and `test_reset_jobs`, and it starts erasure jobs. So the service role could mark an account as a test
+account and reset it, which deletes that account's records. It could also start an erasure job and move an account's
+records to a token. The triggers stop mistakes in the code. They do not stop a service that is taken over.
+
 ### 7. Deploy order
 
 The schema runs ahead of the service (ADR-0035). In the time between the migration and the service deploy:

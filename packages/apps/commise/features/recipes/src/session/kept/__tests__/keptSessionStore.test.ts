@@ -1,7 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { makeFakeLocks, makeFakePort } from '../__fixtures__/fakeKeptPort.js';
-import { HOUR, iso, makeCooking, makeDoc, makePage, makeTimer, T0, timerId } from '../__fixtures__/keptFixtures.js';
+import {
+    HOUR,
+    iso,
+    makeCooking,
+    makeDoc,
+    makePage,
+    makeTimer,
+    T0,
+    timerId,
+    writtenDocument,
+} from '../__fixtures__/keptFixtures.js';
 import { isKeptTimersDroppedError } from '../keptErrors.js';
 import { keptKeyFor, serializeKeptDocument, type KeptDocument } from '../keptRecord.js';
 import { createKeptSessionStore, type KeptSnapshot } from '../keptSessionStore.js';
@@ -160,7 +170,7 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         state.failReads = false;
         await store.dispatch({ ...tick, ingredientId: 'salt' });
 
-        const written = JSON.parse(data.get(KEY_A) ?? '{}');
+        const written = writtenDocument(data.get(KEY_A));
 
         expect(Object.keys(written.entries)).toEqual(['r1']);
         expect(written.entries.r1.ticks).toEqual(expect.arrayContaining(['butter', 'salt']));
@@ -180,9 +190,7 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
 
         await store.dispatch({ ...tick, ingredientId: 'salt' });
 
-        expect(JSON.parse(data.get(KEY_A) ?? '{}').entries.r1.ticks).toEqual(
-            expect.arrayContaining(['butter', 'salt']),
-        );
+        expect(writtenDocument(data.get(KEY_A)).entries.r1.ticks).toEqual(expect.arrayContaining(['butter', 'salt']));
     });
 
     it('a direct switch of cook drops the old cook`s unsaved changes: they never replay into the new record', async () => {
@@ -195,7 +203,7 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         state.failReads = false;
         await store.dispatch({ ...tick, ingredientId: 'salt' });
 
-        const written = JSON.parse(data.get(keptKeyFor('B')) ?? '{}');
+        const written = writtenDocument(data.get(keptKeyFor('B')));
 
         expect(written.entries.r1.ticks).toEqual(['salt']);
     });
@@ -218,7 +226,7 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         fake.state.failReads = false;
         await store.dispatch(tick);
 
-        const written = JSON.parse(fake.data.get(KEY_A) ?? '{}');
+        const written = writtenDocument(fake.data.get(KEY_A));
 
         expect(written.entries.r2.lastTouch).toBe(iso(T0));
         expect(written.entries.r1.lastTouch).toBe(iso(T0 + 2 * 60_000));
@@ -235,7 +243,7 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         await store.scope('A');
         await store.dispatch({ ...tick, ingredientId: 'salt' });
 
-        expect(JSON.parse(data.get(KEY_A) ?? '{}').entries.r1.ticks).toEqual(['salt']);
+        expect(writtenDocument(data.get(KEY_A)).entries.r1.ticks).toEqual(['salt']);
     });
 
     it('a re-read that throws leaves the session as it was', async () => {
@@ -312,7 +320,7 @@ describe('dispatch', () => {
 
         expect(outcome.kind).toBe('applied');
         expect(listener).toHaveBeenCalledTimes(1);
-        expect(JSON.parse(data.get(KEY_A) ?? '{}')).toMatchObject({ rev: 1, entries: { r1: { ticks: ['butter'] } } });
+        expect(writtenDocument(data.get(KEY_A))).toMatchObject({ rev: 1, entries: { r1: { ticks: ['butter'] } } });
     });
 
     it('a tick dispatched while loading is applied after the hydrate (mutant: dropped)', async () => {
@@ -322,7 +330,7 @@ describe('dispatch', () => {
 
         await Promise.all([scoping, dispatching]);
 
-        expect(JSON.parse(data.get(KEY_A) ?? '{}')).toMatchObject({ rev: 5, entries: { r1: { ticks: ['butter'] } } });
+        expect(writtenDocument(data.get(KEY_A))).toMatchObject({ rev: 5, entries: { r1: { ticks: ['butter'] } } });
     });
 
     it('write failure: the snapshot keeps the change and one report is made across two failures', async () => {

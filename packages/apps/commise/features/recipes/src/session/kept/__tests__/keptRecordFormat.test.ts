@@ -5,7 +5,14 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import type { EndedAwayTimer, PausedTimer, RingingTimer, RunningTimer, TimerBase } from '@kitchensink/cooking-core';
+import type {
+    ActiveTimer,
+    EndedAwayTimer,
+    PausedTimer,
+    RingingTimer,
+    RunningTimer,
+    TimerBase,
+} from '@kitchensink/cooking-core';
 
 import { keptTimerSchema, parseKeptDocument, serializeKeptDocument, type KeptDocument } from '../keptRecord.js';
 
@@ -135,14 +142,14 @@ const BASE_HOMES = {
 
 /**
  * Every field of each cooking-core timer kind, classified. `satisfies Record<keyof ...>` makes a field added to the
- * reducer with no entry here fail `tsc`, and not only this test.
+ * reducer with no entry here fail `tsc`, and so does a new timer kind with no entry, and not only this test.
  */
 const REDUCER_HOMES = {
     running: { ...BASE_HOMES, kind: 'stored', endsAt: 'stored' } satisfies Record<keyof RunningTimer, FieldHome>,
     paused: { ...BASE_HOMES, kind: 'stored', remainingMs: 'stored' } satisfies Record<keyof PausedTimer, FieldHome>,
     ringing: { ...BASE_HOMES, kind: 'stored', endedAt: 'stored' } satisfies Record<keyof RingingTimer, FieldHome>,
     endedAway: { ...BASE_HOMES, kind: 'stored', endedAt: 'stored' } satisfies Record<keyof EndedAwayTimer, FieldHome>,
-};
+} satisfies Record<ActiveTimer['kind'], Readonly<Record<string, FieldHome>>>;
 
 describe('every v1 timer field has a classified source', () => {
     const everyField = {

@@ -60,8 +60,8 @@ describe('nativeKeptSessionStore', () => {
             nativeKeptSessionStore.dispatch({ type: 'tickPage', recipeId: 'r1', ingredientId: 'salt', ticked: true }),
         ]);
 
-        const stored = JSON.parse(asyncStorage.store.get('cook.v2.user_a') ?? '{}');
+        const stored: unknown = JSON.parse(asyncStorage.store.get('cook.v2.user_a') ?? '{}');
 
-        expect(stored.entries.r1.ticks).toEqual(['butter', 'salt']);
+        expect(stored).toMatchObject({ entries: { r1: { ticks: ['butter', 'salt'] } } });
     });
 });

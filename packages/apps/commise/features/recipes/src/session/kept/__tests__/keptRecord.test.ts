@@ -11,6 +11,7 @@ import {
     makePage,
     makePaused,
     makeTimer,
+    rawKeptDocument,
     T0,
     timerId,
 } from '../__fixtures__/keptFixtures.js';
@@ -42,10 +43,7 @@ describe('parseKeptDocument', () => {
         ['a JSON array', '[]'],
         ['the wrong version', JSON.stringify({ ...makeDoc(), v: 2 })],
         ['an unknown document key', JSON.stringify({ ...makeDoc(), extra: 1 })],
-        [
-            'an entry with an unknown key',
-            JSON.stringify(makeDoc({ entries: { r1: { ...makeCooking(), note: 'x' } as never } })),
-        ],
+        ['an entry with an unknown key', rawKeptDocument({ entries: { r1: { ...makeCooking(), note: 'x' } } })],
         ['an entry of an unknown kind', JSON.stringify({ ...makeDoc(), entries: { r1: { kind: 'other' } } })],
         ['a negative rev', JSON.stringify({ ...makeDoc(), rev: -1 })],
         ['a bad lastTouch', JSON.stringify(makeDoc({ entries: { r1: makePage({ lastTouch: 'yesterday' }) } }))],
@@ -115,7 +113,7 @@ describe('parseKeptDocument', () => {
     it('drops a timer with no stepDigest, keeps the document and the others (B1)', () => {
         const { stepDigest: _digest, ...bad } = makeTimer({ id: timerId(1) });
         const good = makeTimer({ id: timerId(2) });
-        const parsed = ok(JSON.stringify(makeDoc({ timers: [bad as never, good] })));
+        const parsed = ok(rawKeptDocument({ timers: [bad, good] }));
 
         expect(parsed.doc.timers).toEqual([good]);
         expect(parsed.droppedTimerIds).toEqual([timerId(1)]);
@@ -142,7 +140,7 @@ describe('parseKeptDocument', () => {
         ['a timer of an unknown state', { ...makeTimer(), state: 'frozen' }],
     ])('drops %s, beside one good timer', (_name, bad) => {
         const good = makeTimer({ id: timerId(2) });
-        const parsed = ok(JSON.stringify(makeDoc({ entries: { r1: makeCooking() }, timers: [bad as never, good] })));
+        const parsed = ok(rawKeptDocument({ entries: { r1: makeCooking() }, timers: [bad, good] }));
 
         expect(parsed.doc.timers).toEqual([good]);
         expect(parsed.doc.entries['r1']).toEqual(makeCooking());
@@ -151,7 +149,7 @@ describe('parseKeptDocument', () => {
 
     it('drops a timer that carries a label (R8a: no typed label is ever stored)', () => {
         const labelled = { ...makeTimer(), label: 'pasta' };
-        const parsed = ok(JSON.stringify(makeDoc({ timers: [labelled as never] })));
+        const parsed = ok(rawKeptDocument({ timers: [labelled] }));
 
         expect(parsed.doc.timers).toEqual([]);
         expect(parsed.droppedTimerIds).toEqual([timerId(1)]);
@@ -173,7 +171,7 @@ describe('parseKeptDocument', () => {
     });
 
     it('drops an unreadable timer without an id and still parses the document', () => {
-        const parsed = ok(JSON.stringify(makeDoc({ timers: [42 as never, makeTimer()] })));
+        const parsed = ok(rawKeptDocument({ timers: [42, makeTimer()] }));
 
         expect(parsed.doc.timers).toHaveLength(1);
         expect(parsed.droppedTimerIds).toEqual([]);

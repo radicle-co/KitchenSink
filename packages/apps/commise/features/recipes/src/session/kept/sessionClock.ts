@@ -6,8 +6,8 @@
  */
 import type { KeptEntry, KeptTimer } from './keptRecord.js';
 
-export const ASK_AFTER_MS = 4 * 60 * 60 * 1000;
-export const END_AFTER_MS = 24 * 60 * 60 * 1000;
+const ASK_AFTER_MS = 4 * 60 * 60 * 1000;
+const END_AFTER_MS = 24 * 60 * 60 * 1000;
 
 export type SessionClockVerdict = 'resumeStraight' | 'askFirst' | 'ended';
 

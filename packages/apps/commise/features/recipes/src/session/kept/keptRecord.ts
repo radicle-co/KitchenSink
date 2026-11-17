@@ -5,7 +5,7 @@
  *
  * @pattern Repository — the document schema and its parse/serialize pair are the persistence boundary.
  */
-import { MAX_TIMER_MS, MIN_TIMER_MS } from '@kitchensink/cooking-core';
+import { isValidTimerMs, type StepRef } from '@kitchensink/cooking-core';
 import { z } from 'zod';
 
 export const KEPT_RECORD_VERSION = 1;
@@ -21,7 +21,10 @@ export const keptKeyFor = (clerkUserId: string): string => `${KEPT_KEY_PREFIX}${
 
 const isoInstant = z.iso.datetime({ offset: true });
 
-const stepRefSchema = z.strictObject({ index: z.int().nonnegative(), digest: z.string().min(1) });
+const stepRefSchema = z.strictObject({
+    index: z.int().nonnegative(),
+    digest: z.string().min(1),
+}) satisfies z.ZodType<StepRef>;
 
 const lineTickSchema = z.strictObject({
     stepIndex: z.int().nonnegative(),
@@ -58,7 +61,7 @@ const timerBase = {
     /** Which run of the timer this is, the key `ended` is told once for (cooking-core `TimerBase.run`). */
     run: z.int().positive(),
     /** The length of the current run, in the bounds `reduceTimer` accepts, so a timer the reducer would refuse is not stored. */
-    durationMs: z.int().min(MIN_TIMER_MS).max(MAX_TIMER_MS),
+    durationMs: z.int().refine(isValidTimerMs),
 };
 
 /** `ringing` and `endedAway` carry the instant the timer ended. The reducer ends a timer at its own end, so no second instant is stored. */

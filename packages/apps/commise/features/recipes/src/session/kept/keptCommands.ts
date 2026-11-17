@@ -158,6 +158,7 @@ function restoreSession(doc: KeptDocument, c: Extract<KeptCommand, { type: 'rest
 
     return applied(doc, {
         entries: withEntry(doc, snapshot.recipeId, entry),
+        // The timer limit is not applied here: T3 applies it through `reduceTimer`'s `restore` (ADR-0094 section 2).
         timers: [...doc.timers, ...snapshot.timers],
     });
 }

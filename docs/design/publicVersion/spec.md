@@ -35,7 +35,7 @@ Settled before this spec. It specifies them and does not reopen them.
 | V7  | The credit discloses AI: `Steps written by Commise with AI, checked by {cook}.` A free site adds the domain line. A paid site names no site.                                                              | 003B agent notes, copy v3     |
 | V8  | The dead end shows the free ways out first, then Pro with its real terms. "Upgrade to Pro" opens the payment page at Pro, with both billing periods shown and neither chosen. "Not now" is the same size. | 003B `FR-073`, `FR-074`       |
 | V9  | With 010's switch off, or `account.paidFeatures = hidden`, no paid plan is named: the dead end has one "Close" button.                                                                                    | 003B `FR-075`, 010 `FR-042j`  |
-| V10 | Publishing is for cooks 16 or over. The app asks once, at the first Publish.                                                                                                                              | 003B `FR-016`, copy v3        |
+| V10 | Publishing is for cooks 16 or over. The app asks when Publish answers `403 ageConfirmNeeded` (X7).                                                                                                        | 003B `FR-016`, copy v3        |
 | V11 | Every state ships on web and mobile in the same release.                                                                                                                                                  | 003B `FR-091`                 |
 | V12 | The paste spec's sizes hold: web 1280 with breakpoints 1024 and 768, and web below 840 behaves like a phone (paste D14).                                                                                  | Paste spec D14, owner P5      |
 
@@ -98,7 +98,7 @@ choice says it in the hint of each option, and the credit preview shows the cook
 
 ```
 P5 Review (paste spec) ── visibility area = offer ──┬─ choice ─ Continue ─┬─ Just for me ─────────────► P6 Recipe detail (private)
-                                                     │                     ├─ For everyone ─► P7 Writing ─► P8 Review ─ Publish ─► [P10 age, first time] ─► P6 Recipe detail (public)
+                                                     │                     ├─ For everyone ─► P7 Writing ─► P8 Review ─ Publish ─► [P10 on 403] ─► P6 Recipe detail (public)
                                                      │                     └─ Both ─ (copy saved) ─► P7 Writing ─► P8 Review ─ Publish ─► … ─► P6 (private copy, with link)
                                                      ├─ privateOnly ─ Save my copy ─► P6 (private)
                                                      ├─ publicExists ─ Save my copy ─► P6 (private)       (no slot: dead end)
@@ -283,7 +283,7 @@ visibility area's render component and the button. The client never computes an 
 - **Show my copy / Hide my copy.** A disclosure. Its state is not kept across visits.
 - **Edit steps.** Turns the steps into fields. The button becomes "Done editing" (reuse the editor's key).
 - **Write it again.** Starts a new attempt of the same job (up to 3). Returns to P7.
-- **Publish.** First publish of this cook's account: P10 first. Then `POST …/publish` with the edited title and steps.
+- **Publish.** `POST …/publish` with the edited title and steps. A `403 ageConfirmNeeded` answer opens P10 (X7).
   `422 flags` shows the flags group. `422 tooSimilar` shows B8 blocked. `422 rewriteNeeded` shows B8 rewriteNeeded.
   `409 privateCopyChanged` (Both) shows the flags group's rewrite action with `flag.fix` (no new string).
 - **Keep it just for me / `Don't publish` / Cancel import.** For everyone: saves the private copy (a slot) and ends the
@@ -390,8 +390,8 @@ Every one of these is `role="alert"`, and focus moves to the screen's heading or
 
 ### 6.10 Age question (B10)
 
-`ageConfirm.title`, `ageConfirm.body`, `ageConfirm.yes`, `ageConfirm.notNow`, recorded as `ageConfirm.v1`. Shown once
-per account, at the first Publish. "Not now" and Escape close it, publish nothing and return focus to Publish.
+`ageConfirm.title`, `ageConfirm.body`, `ageConfirm.yes`, `ageConfirm.notNow`, recorded as `ageConfirm.v1`. Shown when
+Publish answers `403 ageConfirmNeeded` (X7). "Not now" and Escape close it, publish nothing and return focus to Publish.
 
 ---
 

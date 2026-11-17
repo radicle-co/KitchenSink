@@ -38,6 +38,21 @@ describe('contentDigestInput', () => {
         expect(contentDigestInput(decomposed)).toBe(contentDigestInput(composed));
     });
 
+    it('is not changed by an edit that only adds an invisible character', () => {
+        expect(contentDigestInput({ ...base, steps: ['Boil\u200B the wa\u00ADter.', 'Add the pasta.'] })).toBe(
+            contentDigestInput(base),
+        );
+    });
+
+    it('keeps case and look-alike letters apart, which the shingles fold: a digest must change when the words do', () => {
+        expect(contentDigestInput({ ...base, steps: ['boil the water.', 'Add the pasta.'] })).not.toBe(
+            contentDigestInput(base),
+        );
+        expect(contentDigestInput({ ...base, steps: ['Boil the w\u0430ter.', 'Add the pasta.'] })).not.toBe(
+            contentDigestInput(base),
+        );
+    });
+
     it('changes when the order of steps changes', () => {
         expect(contentDigestInput({ ...base, steps: [...base.steps].reverse() })).not.toBe(contentDigestInput(base));
     });

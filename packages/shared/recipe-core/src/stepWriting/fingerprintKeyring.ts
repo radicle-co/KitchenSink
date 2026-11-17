@@ -10,7 +10,16 @@
 import { z } from 'zod';
 
 const MIN_KEY_LENGTH = 16;
-const KEY_NAME = /^k([1-9]\d*)$/u;
+/** The largest key version: the stored `fingerprint_key_version` is a smallint. */
+export const FINGERPRINT_KEY_VERSION_MAX = 32_767;
+
+/** Whether `value` is a usable key version: an integer from 1 to {@link FINGERPRINT_KEY_VERSION_MAX}. */
+export function isFingerprintKeyVersion(value: unknown): value is number {
+    return Number.isInteger(value) && (value as number) >= 1 && (value as number) <= FINGERPRINT_KEY_VERSION_MAX;
+}
+
+// At most five digits and no leading zero, so the name is read as an exact small integer, never a rounded one.
+const KEY_NAME = /^k([1-9]\d{0,4})$/u;
 
 /** A parsed keyring. `keys` always holds `current`. */
 export interface FingerprintKeyring {
@@ -32,7 +41,9 @@ export function isFingerprintKeyringError(error: unknown): error is FingerprintK
     return error instanceof FingerprintKeyringError;
 }
 
-const RingSchema = z.object({ current: z.number().int().positive() }).catchall(z.string().min(MIN_KEY_LENGTH));
+const RingSchema = z
+    .object({ current: z.number().int().min(1).max(FINGERPRINT_KEY_VERSION_MAX) })
+    .catchall(z.string().min(MIN_KEY_LENGTH));
 
 /**
  * Parse the keyring secret string.
@@ -62,11 +73,13 @@ export function parseFingerprintKeyring(json: string): FingerprintKeyring {
     for (const [name, key] of Object.entries(named)) {
         const match = KEY_NAME.exec(name);
 
-        if (match?.[1] === undefined) {
+        const version = Number(match?.[1]);
+
+        if (!isFingerprintKeyVersion(version)) {
             throw new FingerprintKeyringError('Fingerprint keyring has a key with an unexpected name.');
         }
 
-        keys.set(Number(match[1]), key);
+        keys.set(version, key);
     }
 
     if (!keys.has(current)) {

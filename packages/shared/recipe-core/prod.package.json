@@ -105,18 +105,6 @@
             "types": "./dist/spend/spendArithmetic.d.ts",
             "default": "./dist/spend/spendArithmetic.js"
         },
-        "./step-writing/word-shingles": {
-            "types": "./dist/stepWriting/wordShingles.d.ts",
-            "default": "./dist/stepWriting/wordShingles.js"
-        },
-        "./step-writing/content-digest": {
-            "types": "./dist/stepWriting/contentDigest.d.ts",
-            "default": "./dist/stepWriting/contentDigest.js"
-        },
-        "./step-writing/fingerprint-keyring": {
-            "types": "./dist/stepWriting/fingerprintKeyring.d.ts",
-            "default": "./dist/stepWriting/fingerprintKeyring.js"
-        },
         "./parsing/parse-prompt": {
             "types": "./dist/parsing/parsePrompt.d.ts",
             "default": "./dist/parsing/parsePrompt.js"
@@ -131,6 +119,7 @@
         }
     },
     "dependencies": {
+        "confusables": "^1.1.1",
         "numeric-quantity": "^3.3.1",
         "tldts": "^7.4.11",
         "zod": "^4.6.7"

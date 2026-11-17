@@ -43,10 +43,12 @@
         "./step-writing/word-shingles": "./src/stepWriting/wordShingles.ts",
         "./step-writing/content-digest": "./src/stepWriting/contentDigest.ts",
         "./step-writing/fingerprint-keyring": "./src/stepWriting/fingerprintKeyring.ts",
+        "./step-writing/node-keyed-hash": "./src/stepWriting/nodeKeyedHash.ts",
         "./scaling": "./src/scaling.ts",
         "./external-url": "./src/externalUrl.ts"
     },
     "dependencies": {
+        "confusables": "^1.1.1",
         "numeric-quantity": "^3.3.1",
         "tldts": "^7.4.11",
         "zod": "^4.6.7"

@@ -5,11 +5,15 @@
  * the digest and in what order; the caller hashes the returned string (SHA-256, hex), so `recipe-core` stays free
  * of a crypto dependency and the service and the worker cannot drift on the preimage.
  *
- * Text is NFC-normalised, as in `parsing/parseKey.ts`, so the same words typed with composed or decomposed accents
- * share a digest. Whitespace is collapsed and empty lines dropped, so an edit that changes no words changes no digest. Step order
+ * Text goes through `sanitizeFoodName`, the same function the wording shingles start from, so composed and decomposed
+ * accents and invisible characters never change a digest. The shingles then go further (look-alike letters folded,
+ * case dropped, punctuation stripped) and the digest deliberately does not: the shingles decide whether two texts are
+ * ALIKE, the digest decides whether a text CHANGED, so two different words must never share one. Whitespace is collapsed and empty lines dropped, so an edit that changes no words changes no digest. Step order
  * is meaningful and kept. Steps and ingredient lines are separate lists, because a step names ingredients and an
  * ingredient rename must change the digest. `v` versions the format.
  */
+
+import { sanitizeFoodName } from '../foodName.js';
 
 /** The saved content a digest covers. Taken from the server row, never a device draft. */
 export interface ContentDigestParts {
@@ -19,7 +23,7 @@ export interface ContentDigestParts {
 }
 
 const tidy = (lines: readonly string[]): string[] =>
-    lines.map((line) => line.normalize('NFC').replace(/\s+/gu, ' ').trim()).filter((line) => line !== '');
+    lines.map((line) => sanitizeFoodName(line)).filter((line) => line !== '');
 
 /**
  * The canonical JSON string to hash. Property order is fixed here, not by the caller.
@@ -27,7 +31,7 @@ const tidy = (lines: readonly string[]): string[] =>
 export function contentDigestInput({ steps, ingredientLines, language }: ContentDigestParts): string {
     return JSON.stringify({
         v: 1,
-        lang: language.normalize('NFC').trim(),
+        lang: sanitizeFoodName(language),
         steps: tidy(steps),
         ingredients: tidy(ingredientLines),
     });

@@ -1,5 +1,5 @@
 /**
- * @module The kept store (plan 0003 KTD2 to KTD5, blueprint S57): reads and writes the kept record through a port,
+ * @module The kept store (ADR-0094 sections 3 to 6): reads and writes the kept record through a port,
  * one exclusive section per write, and hands React a stable snapshot. Every rule over the record is in
  * {@link applyKeptCommand}; this module only orders reads and writes safely.
  *
@@ -8,6 +8,7 @@
  */
 import type { ErrorReporter } from '@commise/features-core';
 
+import { chooseBase, replay, type PendingWrite, type UnsavedCommand } from './chooseBase.js';
 import { applyKeptCommand, type KeptCommand, type KeptOutcome } from './keptCommands.js';
 import { KeptTimersDroppedError } from './keptErrors.js';
 import type { ExclusiveRunner, KeptPort } from './keptPort.js';
@@ -23,7 +24,7 @@ import {
 export type KeptSnapshot =
     /** No subject: readers show no session and nothing is written. */
     | { readonly status: 'signedOut' }
-    /** Hydrating: readers are held (R2a, KTD2). */
+    /** Hydrating: readers are held (ADR-0094 section 3). */
     | { readonly status: 'loading' }
     | { readonly status: 'ready'; readonly doc: KeptDocument };
 
@@ -31,10 +32,10 @@ export interface KeptSessionStore {
     /** Stable identity between changes; never writes. */
     getSnapshot(): KeptSnapshot;
     subscribe(listener: () => void): () => void;
-    /** `undefined` is loading, `null` is signed out, a string is the cook (KTD4). */
+    /** `undefined` is loading, `null` is signed out, a string is the cook (ADR-0094 section 5). */
     scope(subject: string | null | undefined): Promise<void>;
     dispatch(command: KeptCommand): Promise<KeptOutcome>;
-    /** Ends this device's record for `subject` through the store's own writer (KTD3). */
+    /** Ends this device's record for `subject` through the store's own writer (ADR-0094 section 4). */
     clear(subject: string | undefined): Promise<void>;
     /** Reads the stored record and notifies if it changed; never writes. */
     reread(): Promise<void>;
@@ -51,7 +52,7 @@ export interface KeptSessionStoreDeps {
 
 interface StoreState {
     readonly subject: string | undefined;
-    /** Bumped by `clear` and by every change of subject; a queued operation holding an older one is dropped (KTD3). */
+    /** Bumped by `clear` and by every change of subject; a queued operation holding an older one is dropped (ADR-0094 section 4). */
     readonly generation: number;
     readonly snapshot: KeptSnapshot;
 }
@@ -74,15 +75,15 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
     let reportedWriteFailure = false;
     let reportedPortFailure = false;
     let subscribedExternal = false;
-    /** After a failed write only: the document memory holds, valid while storage still holds `fromRev` (KTD2). */
-    let pending: { readonly fromRev: number; readonly doc: KeptDocument } | undefined;
+    /** After a failed write only: the document memory holds, valid while storage still holds `fromRev` (ADR-0094 section 3). */
+    let pending: PendingWrite | undefined;
     /**
      * Commands applied in memory while storage could not be read (so nothing was written), each with the instant the
      * cook made it: a pause or a last-touch replayed later must keep the time the cook acted, not the replay time. The next successful locked
      * dispatch replays them on top of what storage then holds, so a change made during a transient failure is not lost
-     * (KTD5). Dropped on sign-out and on a change of cook, so it never reaches another record.
+     * (ADR-0094 section 6). Dropped on sign-out and on a change of cook, so it never reaches another record.
      */
-    let unsaved: readonly { readonly command: KeptCommand; readonly at: string }[] = [];
+    let unsaved: readonly UnsavedCommand[] = [];
     /** The last raw string this store read or wrote, so a re-read can tell a different record from the same one. */
     let lastRaw: string | null | undefined;
 
@@ -224,14 +225,6 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
         }
     };
 
-    /** The document after each earlier unsaved command that still applies to it, in the order they were made. */
-    const replay = (doc: KeptDocument, commands: typeof unsaved): KeptDocument =>
-        commands.reduce((acc, { command, at }) => {
-            const next = applyKeptCommand(acc, command, at);
-
-            return next.kind === 'applied' ? next.doc : acc;
-        }, doc);
-
     const clear = async (subject: string | undefined): Promise<void> => {
         // Clearing another cook (a switch of cook ends the old one's session) must not reset the cook now scoped.
         if (subject === undefined || subject === state.subject || state.subject === undefined) {
@@ -303,18 +296,14 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
             // Storage is the truth. The one exception: our own write failed and nobody has written since, so storage
             // still holds the rev it held then (an absent or unreadable key is rev 0, and every real record is 1 or
             // more). Otherwise an absent key means empty, never memory, or a record another tab cleared would come back
-            // (KTD3).
+            // (ADR-0094 section 4).
             const read = locked ? await attempt(() => port.read(key)) : undefined;
             const writable = read?.ok === true;
             const stored = read?.ok === true ? parseKeptDocument(read.value) : undefined;
-            const storedDoc = stored?.kind === 'ok' ? stored.doc : EMPTY_KEPT_DOCUMENT;
-            const held = pending;
-            const useHeld = held !== undefined && storedDoc.rev === held.fromRev;
             const memory = state.snapshot.status === 'ready' ? state.snapshot.doc : EMPTY_KEPT_DOCUMENT;
-            const stable = stored === undefined ? memory : useHeld ? held.doc : storedDoc;
-            const base = writable ? replay(stable, unsaved) : stable;
+            const { base, storedRev, clearPending } = chooseBase({ stored, pending, memory, unsaved, writable });
 
-            if (stored !== undefined && !useHeld) {
+            if (clearPending) {
                 pending = undefined;
             }
 
@@ -327,7 +316,7 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
 
             if (writable) {
                 unsaved = [];
-                await persist(key, outcome.doc, storedDoc.rev);
+                await persist(key, outcome.doc, storedRev);
             } else if (locked) {
                 unsaved = [...unsaved, { command, at }];
             }

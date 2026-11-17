@@ -1,5 +1,5 @@
 /**
- * @module The kept record's idle and end policy (plan 0003 KTD6). Pure: the clock is an argument, and no background job
+ * @module The kept record's idle and end policy (ADR-0094 section 8). Pure: the clock is an argument, and no background job
  * runs. The schema refuses an unparseable instant before these functions run, so they assume valid instants.
  *
  * @pattern Specification — two predicates over a session or a timer and a clock.

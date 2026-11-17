@@ -1,6 +1,6 @@
 /**
  * Step digests: a change detector for one step's text, so a saved position follows its step when a recipe is edited
- * (plan 0003 KTD7, S57). Pure, synchronous, no I/O.
+ * (ADR-0094 section 9). Pure, synchronous, no I/O.
  *
  * The hash is FNV-1a 32 over the UTF-8 bytes of the normalized text, not a hash library: it has published reference
  * vectors, runs on Hermes and in browsers, and only has to tell one recipe's few dozen steps apart. It is not a

@@ -1,5 +1,5 @@
 /**
- * @module Every change to the kept record, as a value (plan 0003 KTD5, blueprint S57). The store runs a command
+ * @module Every change to the kept record, as a value (ADR-0094 section 6). The store runs a command
  * inside its exclusive section against the document as re-read, so a stale tab can never overwrite another tab's work.
  *
  * @pattern Command — a discriminated union applied by one pure reducer with an exhaustive switch (the Visitor).
@@ -9,7 +9,7 @@ import { matchStep, matchStepStrict } from '@kitchensink/cooking-core';
 import { sessionClock, timerClock } from './sessionClock.js';
 import type { CookingEntry, KeptDocument, KeptEntry, KeptTimer, LineTickRef, StepMark } from './keptRecord.js';
 
-/** The snapshot End keeps in memory for Undo (KTD13). */
+/** The snapshot End keeps in memory for Undo (ADR-0094 section 8). */
 export interface EndedSnapshot {
     readonly recipeId: string;
     readonly entry: CookingEntry;
@@ -23,12 +23,12 @@ export type KeptCommand =
     | { readonly type: 'resetSession'; readonly recipeId: string; readonly step: StepMark }
     | { readonly type: 'setStep'; readonly recipeId: string; readonly step: StepMark }
     | { readonly type: 'tickLine'; readonly recipeId: string; readonly line: LineTickRef; readonly ticked: boolean }
-    /** Keeps the recipe's timers (S3 R12a). */
+    /** Keeps the recipe's timers (ADR-0094 section 2). */
     | { readonly type: 'finish'; readonly recipeId: string }
     /** Removes the entry and its timers. */
     | { readonly type: 'endSession'; readonly recipeId: string }
     | { readonly type: 'restoreSession'; readonly snapshot: EndedSnapshot }
-    /** Moves a recipe's step, marks and line ticks onto the recipe's current steps (KTD7). The timers move in the S4a timer unit, through the reducer's `rematch`. */
+    /** Moves a recipe's step, marks and line ticks onto the recipe's current steps (ADR-0094 section 9). The timers move in the S4a timer unit, through the reducer's `rematch`. */
     | { readonly type: 'rebind'; readonly recipeId: string; readonly stepDigests: readonly string[] }
     | { readonly type: 'prune' };
 
@@ -36,7 +36,7 @@ export type KeptOutcome =
     | { readonly kind: 'applied'; readonly doc: KeptDocument }
     /** No write: a no-op, or a stale command dropped. */
     | { readonly kind: 'unchanged' }
-    /** `startSession` over an existing cooking entry (D45): nothing written, open at this step. */
+    /** `startSession` over an existing cooking entry (ADR-0094 section 2): nothing written, open at this step. */
     | { readonly kind: 'joined'; readonly step: StepMark };
 
 const UNCHANGED: KeptOutcome = { kind: 'unchanged' };

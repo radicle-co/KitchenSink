@@ -1,5 +1,5 @@
 /**
- * @module The kept record, v1 (plan 0003 KTD1): one versioned document per user holding the cook's page ticks,
+ * @module The kept record, v1 (ADR-0094 section 2): one versioned document per user holding the cook's page ticks,
  * cooking sessions and timers. The format is a one-way door once a client has written it, so every read goes through a
  * strict zod parse. It holds ids, positions, digests, servings and instants only: no label, no recipe text.
  *
@@ -69,7 +69,7 @@ const endedShape = { ...timerBase, endedAt: isoInstant };
 
 /**
  * A timer is a union on `state`, each state with exactly the instants it needs, so a running timer with no end cannot
- * be written. No label field: a strict object refuses one (R8a).
+ * be written. No label field: a strict object refuses one (ADR-0094 section 2).
  */
 export const keptTimerSchema = z.discriminatedUnion('state', [
     z.strictObject({ ...timerBase, state: z.literal('running'), endsAt: isoInstant }),
@@ -80,7 +80,7 @@ export const keptTimerSchema = z.discriminatedUnion('state', [
         pausedAt: isoInstant,
     }),
     z.strictObject({ ...endedShape, state: z.literal('ringing') }),
-    /** `announcedAt` is S4b's, written only for the ended-away announcement (plan 0004 KTD7). */
+    /** `announcedAt` is S4b's, written only for the ended-away announcement (ADR-0094 section 2). */
     z.strictObject({ ...endedShape, state: z.literal('endedAway'), announcedAt: isoInstant.optional() }),
 ]);
 
@@ -111,7 +111,7 @@ export const EMPTY_KEPT_DOCUMENT: KeptDocument = { v: 1, rev: 0, entries: {}, ti
 
 export type ParsedKept =
     | { readonly kind: 'absent' }
-    /** The store removes the key (R2a). */
+    /** The store removes the key (ADR-0094 section 3). */
     | { readonly kind: 'invalid' }
     | { readonly kind: 'ok'; readonly doc: KeptDocument; readonly droppedTimerIds: readonly string[] };
 

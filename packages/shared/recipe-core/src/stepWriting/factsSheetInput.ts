@@ -11,8 +11,7 @@
  *
  * The colon is not in the set. It is the scheme and port marker, and no ingredient name needs it.
  *
- * Product behaviour, fail-closed: a name with a tight dot not on the abbreviation list (`U.S. beef`), or in another
- * script (`梅`, `ঘি`), refuses the whole sheet. The recipe then stays private, and no rewrite is made.
+ * What a refused sheet means for the recipe is in `alphabet.ts`.
  */
 import { ALPHABET_BY_LANGUAGE, isOutputLanguage } from './alphabet.js';
 import { firstShapeFault } from './factsSheetShape.js';

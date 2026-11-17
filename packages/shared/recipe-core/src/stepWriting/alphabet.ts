@@ -13,13 +13,13 @@
  * A decomposed `é` composes under NFC and passes. A combining mark that does not compose has no place to hide, because
  * it is not on the list.
  *
- * Why not a link-detection library such as linkify-it: its fuzzy mode flags only hosts on known top-level domains, so
- * `evil.cooking` and `evil.zip` would pass. The allowlist plus the small address rule in `addressLike.ts` does not
- * depend on a domain list.
+ * The address rule, and why it is not a link-detection library, is in `addressLike.ts`.
  *
  * Product behaviour, fail-closed: a name that holds a tight dot not on the abbreviation list (`U.S. beef`), or an
  * ingredient name in another script (`梅`, `ঘি`), refuses the whole sheet. The recipe then stays private, and no
  * rewrite is made.
+ *
+ * Node-only: the `v` flag needs ES2024, and the engine runs in the worker, not in an app.
  */
 import { looksLikeAddress } from './addressLike.js';
 

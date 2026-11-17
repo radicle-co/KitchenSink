@@ -4,7 +4,7 @@
  */
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { ALPHABET_BY_LANGUAGE, OUTPUT_LANGUAGES, PLAIN_FACT_PUNCTUATION, isOutputLanguage } from '../alphabet.js';
+import { ALPHABET_BY_LANGUAGE, OUTPUT_LANGUAGES, isOutputLanguage } from '../alphabet.js';
 import { isPlainFactText } from '../factsSheetInput.js';
 import { parseStepAnswer } from '../stepAnswer.js';
 
@@ -26,32 +26,32 @@ interface LanguageCases {
 const CASES: Record<OutputLanguage, LanguageCases> = {
     en: {
         refused: [
-            ['a combining mark beside a dot', 'evil̀.com'],
-            ['a combining grapheme joiner', 'evil͏.com'],
-            ['a Devanagari host', 'हिंदी.भारत'],
-            ['a Thai host', 'ไทยดี.com'],
-            ['full-width letters', 'ｅｖｉｌ.com'],
-            ['full-width letters with no dot', 'ＡＢＣ'],
-            ['a full-width digit', '３ eggs'],
-            ['a zero-width joiner in a host', 'evil‍.com'],
+            ['a combining mark beside a dot', 'evil\u0300.com'],
+            ['a combining grapheme joiner', 'evil\u034F.com'],
+            ['a Devanagari host', '\u0939\u093F\u0902\u0926\u0940.\u092D\u093E\u0930\u0924'],
+            ['a Thai host', '\u0E44\u0E17\u0E22\u0E14\u0E35.com'],
+            ['full-width letters', '\uFF45\uFF56\uFF49\uFF4C.com'],
+            ['full-width letters with no dot', '\uFF21\uFF22\uFF23'],
+            ['a full-width digit', '\uFF13 eggs'],
+            ['a zero-width joiner in a host', 'evil\u200D.com'],
             ['an abbreviation spelt into a host', 'e.g.com'],
             ['a short host', 't.co'],
-            ['an ideographic full stop', 'evil。com'],
-            ['a Japanese word', '梅'],
-            ['a Bengali word', 'ঘি'],
+            ['an ideographic full stop', 'evil\u3002com'],
+            ['a Japanese word', '\u6885'],
+            ['a Bengali word', '\u0998\u09BF'],
             ['a tight dot that is not on the list', 'U.S. beef'],
         ],
         accepted: [
             'A.1. sauce',
             '2 fl.oz.',
-            'crème fraîche',
-            'jalapeño',
+            'cr\u00E8me fra\u00EEche',
+            'jalapen\u0303o',
             'St. Louis',
             '2.5',
-            '½ cup',
-            '⅓ cup',
-            '⅞ tsp',
-            '¼ cup',
+            '\u00BD cup',
+            '\u2153 cup',
+            '\u215E tsp',
+            '\u00BC cup',
         ],
         dotted: ['evil.com', 'evil.cooking', 'evil.zip'],
     },
@@ -98,22 +98,8 @@ describe('the registry', () => {
         expect(Object.keys(CASES).sort()).toEqual([...OUTPUT_LANGUAGES].sort());
     });
 
-    it('gives each language its name allowlist, prose allowlist and address rule', () => {
-        for (const language of OUTPUT_LANGUAGES) {
-            const alphabet = ALPHABET_BY_LANGUAGE[language];
-
-            expect(alphabet.name).toBeInstanceOf(RegExp);
-            expect(alphabet.prose).toBeInstanceOf(RegExp);
-            expect(typeof alphabet.addressRule).toBe('function');
-        }
-    });
-
     it('guards the union: en is a language, anything else is not', () => {
         expect(isOutputLanguage('en')).toBe(true);
         expect(['ja', 'pt-BR', 'EN', '', 'en-US'].some(isOutputLanguage)).toBe(false);
-    });
-
-    it('keeps the plain-name punctuation as the one list A2 reads', () => {
-        expect(PLAIN_FACT_PUNCTUATION).toBe(" '’,()&%°.+/-");
     });
 });

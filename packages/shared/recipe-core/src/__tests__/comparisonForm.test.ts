@@ -245,7 +245,7 @@ describe('comparisonForm', () => {
         });
 
         it('stripping marks is lossy for scripts that carry vowels in marks (known collision)', () => {
-            // Devanagari ka + vowel sign i collapses to bare ka. Harmless for the allowlisted languages.
+            // Devanagari ka + vowel sign i collapses to bare ka: stripping marks is lossy for scripts that carry vowels in marks.
             expect(comparisonForm('\u{915}\u{93F}')).toBe(comparisonForm('\u{915}'));
         });
     });

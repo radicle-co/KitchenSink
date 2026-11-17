@@ -259,6 +259,29 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         expect(readPastedContent(cardPage(NODE, { extra }))).toMatchObject({ kind: 'extracted' });
     });
 
+    // code-reviewer, round 8. PINNED REFUSAL: when every section of a card is wrapped once, a notes list in its own one
+    // wrapper shares a grandparent (the card) with the read lists, so it counts as beside them and the card is refused.
+    it('refuses a card whose notes list is wrapped once, like its read sections', () => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><div class="ingredients"><ul>${items(INGREDIENTS)}</ul></div><div class="method"><ol>${items(STEPS)}</ol></div><div class="notes"><ul><li>Keeps for a week.</li></ul></div></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+    });
+
+    // ⚠️ ACCEPTED RISK, pinned (code-reviewer, round 8): the beside test compares lists at the same depth only. An omitted
+    // group after the method, one level deeper than the read lists (wrapped with its heading), unnumbered and with no
+    // leading amount, reads as furniture.
+    it('reads, as furniture, an omitted group after the method nested one level deeper than the read lists', () => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><ul>${items(INGREDIENTS)}</ul><div class="method"><ol>${items(STEPS)}</ol><div class="group"><h4>Glaze</h4><ul><li>Brush with milk.</li></ul></div></div></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
+    });
+
     it('refuses a list before the ingredients whose line opens with an amount', () => {
         const page = makePage({
             jsonLd: [NODE],

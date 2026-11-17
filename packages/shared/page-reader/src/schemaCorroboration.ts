@@ -21,7 +21,8 @@
  * kinds of line unless the schema reads a sibling of theirs: a table row (`<tr>`, as in an ingredient or nutrition
  * table), a paragraph or a `<br>`-separated line, and anything outside the card, such as an ingredient group a theme
  * renders after the card element. ⚠️ Nor does it see an omitted ingredient group before or after the read lines when no
- * line of it opens with an amount ("Salt to taste"): an accepted risk of the furniture policy, pinned by a test. Text a
+ * line of it opens with an amount ("Salt to taste"), nor one nested a level deeper than the read lists: accepted risks
+ * of the furniture policy, each pinned by a test. Text a
  * cook cannot
  * see (a template, a `noscript`, a `textarea`, anything `hidden`, an inline `display:none`, a closed `<details>`, a `<meta>`)
  * is no part of the page; text hidden by a CSS class is, because a paste has no stylesheet to say so. A line or step with no

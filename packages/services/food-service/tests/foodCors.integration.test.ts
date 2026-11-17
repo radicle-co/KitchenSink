@@ -138,6 +138,7 @@ describe('food CORS on the real routes (booted Nest, persistence doubled)', () =
             permissions: [],
             roles: [],
             testPrincipal: false,
+            publishAgeMet: false,
         }));
 
         for (let request = 1; request <= SEARCH_PER_USER_LIMIT; request += 1) {

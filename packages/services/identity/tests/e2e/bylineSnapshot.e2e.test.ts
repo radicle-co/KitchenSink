@@ -254,6 +254,7 @@ describe('the byline snapshot (real Postgres)', () => {
                 roles: [],
                 permissions: [],
                 testPrincipal: false,
+                publishAgeMet: false,
             });
             const row = await profileOf(created.userId);
 
@@ -278,6 +279,7 @@ describe('the byline snapshot (real Postgres)', () => {
                 roles: [],
                 permissions: [],
                 testPrincipal: false,
+                publishAgeMet: false,
             });
 
             expect(resolved.userId).toBe(userId);
@@ -296,6 +298,7 @@ describe('the byline snapshot (real Postgres)', () => {
                 roles: [],
                 permissions: [],
                 testPrincipal: false,
+                publishAgeMet: false,
             });
             const row = await profileOf(created.userId);
 

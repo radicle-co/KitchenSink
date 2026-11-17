@@ -36,7 +36,14 @@ describe('ClerkAuthService', () => {
     });
 
     it('delegates to the shared verifier with the configured jwtKey + parsed azp allowlist', async () => {
-        mockVerify.mockResolvedValue({ sub: 'user_1', scopes: [], permissions: [], roles: [], testPrincipal: false });
+        mockVerify.mockResolvedValue({
+            sub: 'user_1',
+            scopes: [],
+            permissions: [],
+            roles: [],
+            testPrincipal: false,
+            publishAgeMet: false,
+        });
 
         const claims = await new ClerkAuthService().verify('the-token');
 
@@ -53,7 +60,14 @@ describe('ClerkAuthService', () => {
 
     it('forwards an empty azp allowlist when the env var is unset (the shared verifier skips the azp check)', async () => {
         delete process.env['CLERK_AUTHORIZED_PARTIES'];
-        mockVerify.mockResolvedValue({ sub: 'user_2', scopes: [], permissions: [], roles: [], testPrincipal: false });
+        mockVerify.mockResolvedValue({
+            sub: 'user_2',
+            scopes: [],
+            permissions: [],
+            roles: [],
+            testPrincipal: false,
+            publishAgeMet: false,
+        });
 
         await new ClerkAuthService().verify('t');
 
@@ -72,7 +86,14 @@ describe('ClerkAuthService', () => {
 
     // ADR-0081: the shared verifier decides; this adapter only names the request and maps the outcome to HTTP.
     it('names the request to the verifier, so a suspended account can still reach the erasure route', async () => {
-        mockVerify.mockResolvedValue({ sub: 'user_3', scopes: [], permissions: [], roles: [], testPrincipal: false });
+        mockVerify.mockResolvedValue({
+            sub: 'user_3',
+            scopes: [],
+            permissions: [],
+            roles: [],
+            testPrincipal: false,
+            publishAgeMet: false,
+        });
         const request = { method: 'POST', path: '/api/v1/users/me/erasure' };
 
         await new ClerkAuthService().verify('t', request);

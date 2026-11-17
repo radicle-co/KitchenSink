@@ -42,9 +42,18 @@ function principalFor(token: string): {
     permissions: string[];
     roles: readonly Role[];
     testPrincipal: boolean;
+    publishAgeMet: boolean;
 } {
     if (token === 'user') {
-        return { sub: 'user_1', userId: USER_ULID, scopes: [], permissions: [], roles: [], testPrincipal: false };
+        return {
+            sub: 'user_1',
+            userId: USER_ULID,
+            scopes: [],
+            permissions: [],
+            roles: [],
+            testPrincipal: false,
+            publishAgeMet: false,
+        };
     }
 
     throw new ClerkVerificationError();

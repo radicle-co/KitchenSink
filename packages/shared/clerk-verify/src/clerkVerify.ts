@@ -23,6 +23,7 @@ import {
     isSuspendedMark,
     type RequestTarget,
 } from './accountSuspension.js';
+import { AGE_FLOOR_METADATA_KEY, parsePublishAgeMet } from './publishAge.js';
 import { ROLES_METADATA_KEY, parseRoles, scopesForRoles, type Role } from './roles.js';
 
 /** The subset of Clerk session/M2M-token claims consumers read. */
@@ -75,6 +76,12 @@ export interface VerifiedClerkClaims {
      * that builds a principal from these claims has to decide what a test principal means to it.
      */
     readonly testPrincipal: boolean;
+    /**
+     * Whether the cook has met the publish age floor: publishing needs age 16 or over. Read from the signed
+     * `public_metadata.ageFloorMet` by `parsePublishAgeMet`; false when absent or malformed. REQUIRED so every
+     * consumer that builds a principal from these claims has to supply it.
+     */
+    readonly publishAgeMet: boolean;
 }
 
 /** Verification configuration: the public PEM key and the `azp` allowlist (both non-secret, FR-042). */
@@ -422,5 +429,6 @@ export async function verifyClerkToken(
         // ⛔ Strict `=== true`, never truthiness: a stringly-typed `'true'` written by a careless admin script
         // must not be read as a marker any more than a forged top-level claim is (ADR-0040).
         testPrincipal: publicMetadata['testPrincipal'] === true,
+        publishAgeMet: parsePublishAgeMet(publicMetadata[AGE_FLOOR_METADATA_KEY]),
     };
 }

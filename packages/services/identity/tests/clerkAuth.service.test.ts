@@ -61,6 +61,7 @@ describe('ClerkAuthService', () => {
             roles: [],
             // ADR-0040: no `public_metadata.testPrincipal === true` on this token, so it is a real user.
             testPrincipal: false,
+            publishAgeMet: false,
         });
     });
 

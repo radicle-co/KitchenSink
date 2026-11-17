@@ -108,10 +108,19 @@ function principalFor(token: string): {
     permissions: string[];
     roles: readonly Role[];
     testPrincipal: boolean;
+    publishAgeMet: boolean;
 } {
     switch (token) {
         case 'user':
-            return { sub: 'user_1', userId: USER_ULID, scopes: [], permissions: [], roles: [], testPrincipal: false };
+            return {
+                sub: 'user_1',
+                userId: USER_ULID,
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: false,
+                publishAgeMet: false,
+            };
         case 'admin':
             return {
                 sub: 'admin_1',
@@ -120,6 +129,7 @@ function principalFor(token: string): {
                 permissions: [],
                 roles: [],
                 testPrincipal: false,
+                publishAgeMet: false,
             };
         case 'm2m':
             return {
@@ -129,6 +139,7 @@ function principalFor(token: string): {
                 permissions: [],
                 roles: [],
                 testPrincipal: false,
+                publishAgeMet: false,
             };
         case 'flooder':
             return {
@@ -138,11 +149,19 @@ function principalFor(token: string): {
                 permissions: [],
                 roles: [],
                 testPrincipal: false,
+                publishAgeMet: false,
             };
         case 'user_nosync':
             // A verified user token whose external_id has not been backfilled yet (first-token race):
             // no `userId`, and the sub is not `svc_*` → the enqueue paths DEFER (CR-002/U1).
-            return { sub: 'user_2', scopes: [], permissions: [], roles: [], testPrincipal: false };
+            return {
+                sub: 'user_2',
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: false,
+                publishAgeMet: false,
+            };
         default:
             throw new ClerkVerificationError();
     }

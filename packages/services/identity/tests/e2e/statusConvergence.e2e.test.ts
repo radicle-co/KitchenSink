@@ -209,6 +209,7 @@ describe('status convergence (integration)', () => {
                 permissions: [],
                 roles: [],
                 testPrincipal: false,
+                publishAgeMet: false,
             });
 
         it('a closure (deleteUserMe) bumps the version once and leaves the account owed', async () => {

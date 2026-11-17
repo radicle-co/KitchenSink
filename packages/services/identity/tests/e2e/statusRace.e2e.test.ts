@@ -82,6 +82,7 @@ describe('status races (LOCAL e2e — real Postgres)', () => {
             permissions: [],
             roles: [],
             testPrincipal: false,
+            publishAgeMet: false,
         });
     };
 

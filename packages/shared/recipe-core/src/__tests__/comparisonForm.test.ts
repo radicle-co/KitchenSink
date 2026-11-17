@@ -123,7 +123,7 @@ describe('comparisonForm', () => {
             expect(comparisonForm('a\u{3164}b')).toBe(comparisonForm('a\u{1160}b'));
         });
 
-        it('step 4 before step 5: dotted capital I lowers to i + U+0307 and the dot is then stripped', () => {
+        it('dotted capital I folds to a plain i (lower case gives i + U+0307, and the dot is stripped)', () => {
             expect(comparisonForm('\u{130}')).toBe('i');
         });
 
@@ -163,11 +163,15 @@ describe('comparisonForm', () => {
 
     describe('step 0: apostrophe-like characters that NFKC would turn into a space plus a mark', () => {
         // NFKC maps U+00B4 to U+0020 U+0301, so left alone "don´t" would split into "don t". Step 0 runs BEFORE NFKC
-        // and maps U+00B4, U+1FBF and U+1FFE (the apostrophe-likes found to decompose that way) to an ASCII
-        // apostrophe, which step 6 then removes. REWRITTEN: this block pinned "don´t" to "don t"; it now pins "dont".
+        // and maps U+00B4, U+0384, U+1FBD, U+1FBF, U+1FFD and U+1FFE (the apostrophe-likes found to decompose that way)
+        // to an ASCII apostrophe, which step 6 then removes. REWRITTEN: this block pinned "don´t" to "don t"; it now
+        // pins "dont".
         it.each([
             ['U+00B4 acute accent', 'don\u{B4}t'],
+            ['U+0384 Greek tonos', 'don\u0384t'],
+            ['U+1FBD Greek koronis', 'don\u1FBDt'],
             ['U+1FBF Greek psili', 'don\u1FBFt'],
+            ['U+1FFD Greek oxia', 'don\u1FFDt'],
             ['U+1FFE Greek dasia', 'don\u1FFEt'],
         ] as const)('%s joins the word like an ASCII apostrophe', (_label, input) => {
             expect(comparisonForm(input)).toBe('dont');
@@ -205,8 +209,9 @@ describe('comparisonForm', () => {
     });
 
     describe('not folded by design', () => {
-        // The language allowlist refuses mixed-script and non-Latin text upstream, so comparisonForm does not
-        // spend a confusables table on it. These tests document the boundary: look-alikes stay DISTINCT.
+        // comparisonForm has no confusables table, so look-alike letters and bidi controls are not folded. The input
+        // door for cook-typed public text must refuse them. These tests document the boundary: look-alikes stay
+        // DISTINCT.
         it.each([
             ['Cyrillic a vs Latin a', '\u{430}', 'a'],
             ['Cyrillic e vs Latin e', '\u{435}', 'e'],

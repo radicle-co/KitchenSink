@@ -201,7 +201,7 @@ describe('the persisted fold (fingerprint format 1)', () => {
     /**
      * Known answers for the whole text form: the shared comparison form, then every run of other punctuation as a
      * gap. The fold is part of what a stored fingerprint means, so any change to it must fail here and force a new
-     * FINGERPRINT_FORMAT_VERSION. Cross-script look-alikes are NOT folded: the language allowlist refuses them upstream.
+     * FINGERPRINT_FORMAT_VERSION. Look-alike letters are NOT folded: the input door for cook-typed public text must refuse them.
      */
     it.each([
         ['Caf\u00E9 cr\u00E8me', ['cafe creme']],

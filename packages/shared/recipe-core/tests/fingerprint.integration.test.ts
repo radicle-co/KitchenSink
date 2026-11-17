@@ -72,7 +72,7 @@ describe('fingerprint with the production keyed hasher', () => {
         expect(containment(fingerprintUnder('Beat in the e\u200Bggs one at a time.', 2), source)).toBe(1);
     });
 
-    it('does not see through a Cyrillic look-alike letter: cross-script text is refused upstream, not folded here', () => {
+    it('does not see through a Cyrillic look-alike letter: it is not folded here, so the input door must refuse it', () => {
         const source = fingerprintUnder(SOURCE, 2);
         expect(containment(fingerprintUnder('Beat in the \u0435ggs one at a time.', 2), source)).toBeLessThan(1);
     });

@@ -8,11 +8,12 @@
  * The steps, in order:
  *
  * 0. An apostrophe-like character that NFKC would turn into a space plus a mark becomes an ASCII apostrophe. Checked
- *    one by one with `normalize('NFKC')`, three do: U+00B4 acute accent (to a space and U+0301), U+1FBF Greek psili
- *    (to a space and U+0313) and U+1FFE Greek dasia (to a space and U+0314). Left alone, "don´t" would split into
- *    "don t". The other candidates need no step 0: U+FF07 maps to an ASCII apostrophe in NFKC, U+1FEF and U+FF40
- *    map to the grave accent, and U+02B9, U+02BB, U+02BC, U+02BD, U+02C8, U+0060, U+2018, U+2019, U+201B, U+2032 and
- *    U+2035 do not decompose at all.
+ *    one by one with `normalize('NFKC')`, six do: U+00B4 acute accent and U+0384 Greek tonos (each to a space and
+ *    U+0301), U+1FFD Greek oxia (to a space and U+0301), U+1FBD Greek koronis and U+1FBF Greek psili (each to a space
+ *    and U+0313) and U+1FFE Greek dasia (to a space and U+0314). Left alone, "don´t" would split into "don t". The
+ *    other candidates need no step 0: U+FF07 maps to an ASCII apostrophe in NFKC, U+1FEF and U+FF40 map to the grave
+ *    accent, and U+02B9, U+02BB, U+02BC, U+02BD, U+02C8, U+0060, U+2018, U+2019, U+201B, U+2032 and U+2035 do not
+ *    decompose at all.
  * 1. NFKC.
  * 2. The Hangul fillers (U+115F, U+1160, U+3164, U+FFA0), `\p{Z}`, `\p{Cc}` and `\p{Pd}` become a space. The fillers
  *    are also default-ignorable, so this must run before step 3 or two words would join.
@@ -24,15 +25,15 @@
  *
  * Whitespace is NOT collapsed: the shingler splits on whitespace runs.
  *
- * NOT folded, by design: look-alike letters of another script (a Cyrillic а, a Greek ο, the dotless ı). The language
- * allowlist refuses mixed-script and non-Latin text upstream, so this fold spends no confusables table on it. Stripping
- * marks is lossy for scripts that carry vowels in marks; that too is outside the allowlisted languages.
+ * NOT folded, by design: look-alike letters (a Cyrillic а, a Greek ο, the Latin dotless ı) and bidi controls. This
+ * fold has no confusables table, so the input door for cook-typed public text must refuse them. Stripping marks is
+ * lossy for scripts that carry vowels in marks.
  *
  * Any change to this fold changes what a stored fingerprint means and needs a new `FINGERPRINT_FORMAT_VERSION`.
  */
 
-/** U+00B4, U+1FBF and U+1FFE: apostrophe-likes whose NFKC form is a space plus a mark. */
-const SPACING_APOSTROPHES = /[\u{B4}\u{1FBF}\u{1FFE}]/gu;
+/** Apostrophe-likes whose NFKC form is a space plus a mark (see step 0). */
+const SPACING_APOSTROPHES = /[\u{B4}\u{384}\u{1FBD}\u{1FBF}\u{1FFD}\u{1FFE}]/gu;
 
 /** The Hangul fillers, any separator, any control and any dash: all a word gap. */
 const SEPARATORS = /[\u{115F}\u{1160}\u{3164}\u{FFA0}\p{Z}\p{Cc}\p{Pd}]/gu;

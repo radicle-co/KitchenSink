@@ -618,8 +618,8 @@ Both.
 
 ## 15. Open questions
 
-1. **Lead:** apply the rulings in §0.2, except X5. This stays open until
-   `git grep -E 'exists\.|paid\.|hidden\.(owner|reader)|publicPending' origin/main -- specs/003B-public-rewrite` finds nothing.
+1. **Lead:** apply the rulings in §0.2, except X5. This stays open until the 003B lead merges X1 to X4
+   and X6 to main.
 2. **Lead:** the new strings in §7.2.
 3. **Design system owner:** `ButtonPair` and the `RadioList` selected fill (§8.3).
 4. **010 owner:** the mobile store sheet opening at Pro with both periods shown (§4, Upgrade).

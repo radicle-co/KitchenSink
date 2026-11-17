@@ -29,6 +29,7 @@ Rules:
 5. Keep the order of the actions. You may merge or split steps, and you may reorder only where the facts allow it.
 6. Write every sentence yourself. Do not ask for, guess or reconstruct any original wording.
 7. Each step is one or two plain sentences. No titles, no numbering, no notes, no commentary.
+8. An amount whose "ingredient" is set goes directly before that ingredient's name, with only "of" or "of the" between; two amounts of the same ingredient may share one name, joined by "plus" ("1 cup plus 2 tbsp flour"). An amount whose "ingredient" is null never goes before an ingredient name, directly or with "of" or "of the" between.
 
 Answer with this JSON and nothing else:
 {"steps":[{"text":"string","covers":[0]}]}
@@ -40,7 +41,7 @@ Answer with this JSON and nothing else:
  * SHA-256 of {@link STEP_SYSTEM_PROMPT} in UTF-8. The engine's prompt version: the audit trail records it
  * beside the model id.
  */
-export const STEP_PROMPT_SHA256 = 'a6025c88aa2a7dbd9aff53349660823c88bb1229ecc329f750476df5162eb1e4';
+export const STEP_PROMPT_SHA256 = '09aba3ac66ce71299a7e81c5388b8e53a9e877e69b31de99e85d4e4ad9645c84';
 
 /**
  * The hard input cap in code points over the assembled prompt (ADR-0024 layer 1): the system turn plus the facts.

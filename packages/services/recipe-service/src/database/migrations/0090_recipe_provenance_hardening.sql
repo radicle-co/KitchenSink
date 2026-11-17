@@ -54,7 +54,7 @@ ALTER TABLE recipe_statement_attestations
 CREATE INDEX recipe_statement_attestations_ref_idx ON recipe_statement_attestations (recipe_ref, recorded_at);
 
 COMMENT ON TABLE recipe_statement_attestations IS
-    'Append-only record of every statement a cook made about a recipe and every Public confirmation, one row per act. UPDATE raises, except the foreign key emptying recipe_id of a recipe that is gone, and the swap of account_id to an erased_ token while an erasure job is queued or running for that account, or while a reset is running for an account that is a registered test principal. DELETE always raises. recipe_ref keeps the recipe id after the recipe is deleted.';
+    'Append-only record of every statement a cook made about a recipe and every Public confirmation, one row per act, and the one row copied onto a clone of a recipe held as from another person. The copied row keeps the source row''s account_id, which can differ from the clone''s owner. UPDATE raises, except the foreign key emptying recipe_id of a recipe that is gone, and the swap of account_id to an erased_ token while an erasure job is queued or running for that account, or while a reset is running for an account that is a registered test principal. DELETE always raises. recipe_ref keeps the recipe id after the recipe is deleted.';
 
 -- ── 0088: the attestation guard ─────────────────────────────────────────────────────────────────────────────────────────────
 

@@ -144,15 +144,15 @@ copies no attestations, with one exception: the "from another person" fact (see 
   A statement of `null` cannot clear it: the write is refused with `403 SOURCE_LOCKED`. A recipe whose statement is empty but
   that has a past `fromPerson` attestation row counts as `fromPerson` too. The rule is `fromPersonOf` in `recipe-core`, and its SQL
   twin is `recipe_is_from_person`.
+  Spec 016 §15 adds the `family` and `adapted` kinds later. Then this choice sets one of them.
     - **It is sticky.** Once the cook says "from another person", the recipe and its clones stay out of Public until
       the cook makes an explicit statement that replaces it: "I wrote this" or a source. Saying "I wrote this", then
       clearing the statement, holds the recipe as another person's again. This is the cautious choice, and it is on purpose.
     - **A clone carries the fact.** When a recipe is held as "from another person" and its clone starts with no statement,
-      migration `0090` copies the source's latest `fromPerson` row to the clone. The account, choice, wording, locale and
-      time are kept, and the row names the clone. So the clone is held at every route to Public, and erasure does not donate
+      migration `0090` copies the source's latest `fromPerson` row to the clone. The account, mode, choice, wording, locale,
+      action and time are kept, and the row names the clone. So the clone is held at every route to Public, and erasure does not donate
       it. We chose the copy over reading the `cloned_from_id` chain because the clone then stands alone: deleting the source
-      later changes nothing, and the one SQL rule stays one rule. No other attestation is copied. Spec 016 §15 adds
-      the `family` and `adapted` kinds later. Then this choice sets one of them.
+      later changes nothing, and the one SQL rule stays one rule. No other attestation is copied.
 - Set-visibility takes a `statement`. Make public with an answer is one write.
 - **An explicit "I wrote this" in the same write meets the Public-confirmation duty.** Its own attestation row records
   the stronger act, so that write needs no `publicConfirmation`.

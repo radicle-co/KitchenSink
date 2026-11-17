@@ -19,8 +19,8 @@ import { boundedWalk } from './boundedWalk.js';
 import { instructionOf, instructionSteps } from './instructionSteps.js';
 import type { SchemaStep } from './instructionSteps.js';
 import { isTextCut } from './pageDocument.js';
-import { accessOf, creditOf, imageRefsOf } from './pageEvidence.js';
-import type { PageAccess, PageCredit } from './pageEvidence.js';
+import { creditOf, datePublishedOf, imageRefsOf } from './pageEvidence.js';
+import type { PageCredit } from './pageEvidence.js';
 import { durationMinutes } from './isoDuration.js';
 import { servingsOf } from './recipeYield.js';
 import { readCooksMeasure } from '@kitchensink/recipe-core/parsing/measure-reader';
@@ -58,8 +58,8 @@ export interface PageCandidate {
     readonly links: readonly string[];
     /** Who the node credits. */
     readonly credit: PageCredit;
-    /** What the node states about access and age. */
-    readonly access: PageAccess;
+    /** When the node, or the page around it, was published (`datePublishedOf`). */
+    readonly datePublished?: string;
     /** The image addresses as written, to be resolved against the canonical address. Never fetched. */
     readonly imageRefs: readonly string[];
     /** The steps as the structured data states them, raw: what the page is asked to agree with, never the built text. */
@@ -233,7 +233,7 @@ function candidateOf(node: SchemaNode, containers: readonly SchemaNode[]): Candi
         recipe: Object.freeze(recipe),
         links: Object.freeze(links),
         credit: creditOf(node),
-        access: accessOf(node, containers),
+        ...stated('datePublished', datePublishedOf(node, containers)),
         imageRefs: Object.freeze(imageRefsOf(node)),
         schemaSteps: Object.freeze(steps.map((step) => Object.freeze(step))),
         emptyDeclaredSteps: asList(field(node, 'recipeInstructions')).some(
@@ -254,7 +254,7 @@ function candidateOf(node: SchemaNode, containers: readonly SchemaNode[]): Candi
  *
  * @param nodes - Recipe nodes: JSON-LD objects, or microdata items shaped like them.
  * @param tier - The strategy that read them.
- * @param containers - The page's nodes that may contain a recipe, read for its access facts only (`accessOf`).
+ * @param containers - The page's nodes that may contain a recipe, read for its date only (`datePublishedOf`).
  * @returns The candidates, `none` when there is no recipe node, or `tooComplex` when there are more nodes than
  *   {@link MAX_RECIPES_PER_PAGE} or a node's steps were cut short by a walk cap (a recipe with half its steps is never a
  *   candidate). Pure.

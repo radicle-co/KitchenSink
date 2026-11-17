@@ -56,8 +56,11 @@ export interface VisibleText {
 /** A list item of the card that no run read, as the card-rule policy sees it. */
 export interface CardItem {
     readonly text: string;
-    /** All of its word material sits inside fragment links (`href="#..."`): a jump link to the same page. */
-    readonly fragmentLinksOnly: boolean;
+    /**
+     * It is a jump link to the lines read: all of its word material sits inside its own fragment links, and each names
+     * the `id` of an element that holds a block the runs read (`#ingredients`, `#instructions`, `#recipe`).
+     */
+    readonly jumpsToReadLines: boolean;
     /** It is an item of an ordered list. */
     readonly ordered: boolean;
     /** Where it sits against the blocks the runs read: before the first, after the last, or between. */
@@ -151,6 +154,7 @@ interface Tokenized {
 interface BlockSpan {
     readonly text: string;
     readonly fragmentLinksOnly: boolean;
+    readonly fragmentTargets: readonly string[];
     readonly ordered: boolean;
     readonly first: number;
     readonly last: number;
@@ -246,6 +250,19 @@ function leavesLinesUnread(
         }
     }
 
+    // The ids of the elements that hold a block the runs read: each read block's element and its ancestors.
+    const readHolders = new Set<string>();
+
+    for (const block of read) {
+        for (let element = block.element; element > 0; element = parentOf(element)) {
+            const id = elements[element]?.id;
+
+            if (id !== undefined) {
+                readHolders.add(id);
+            }
+        }
+    }
+
     const besideReadList = (item: number): boolean => {
         const [parent, grandparent] = listParents(item);
 
@@ -262,7 +279,10 @@ function leavesLinesUnread(
                 block.item <= cardLast &&
                 !tolerates({
                     text: block.text,
-                    fragmentLinksOnly: block.fragmentLinksOnly,
+                    jumpsToReadLines:
+                        block.fragmentLinksOnly &&
+                        block.fragmentTargets.length > 0 &&
+                        block.fragmentTargets.every((target) => readHolders.has(target)),
                     ordered: block.ordered,
                     position: positionOf(block),
                     besideReadList: besideReadList(block.item),
@@ -406,6 +426,7 @@ function tokenizedBlocks(
             spans.push({
                 text: block.text,
                 fragmentLinksOnly: block.fragmentLinksOnly,
+                fragmentTargets: block.fragmentTargets,
                 ordered: block.ordered,
                 first,
                 last: tokens.length - 1,

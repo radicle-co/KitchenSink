@@ -107,6 +107,42 @@ function parsedBlock(script: PageElement): ParsedBlock {
     }
 }
 
+/** Every `isAccessibleForFree` value a page's JSON-LD states, and whether every block was read whole. */
+export interface JsonLdStatements {
+    readonly values: readonly unknown[];
+    readonly complete: boolean;
+}
+
+/**
+ * Every `isAccessibleForFree` value in every node of every JSON-LD block, inside a Recipe too, in page order.
+ *
+ * @param page - The parsed paste.
+ * @returns The values as written, and `complete: false` when a block past the cap, a block that cannot be read or a walk
+ *   cut short may hold one more. Pure.
+ */
+export function jsonLdFreeStatements(page: PageDocument): JsonLdStatements {
+    const scripts = page.byTag('script').filter(isJsonLdScript);
+    const blocks = scripts.slice(0, MAX_JSON_LD_BLOCKS).map(parsedBlock);
+    const values: unknown[] = [];
+    let complete = scripts.length <= MAX_JSON_LD_BLOCKS && blocks.every((block) => block.kind !== 'unread');
+
+    for (const block of blocks) {
+        if (block.kind === 'json') {
+            const { truncated } = boundedWalk([block.value], (value) => {
+                if (isSchemaNode(value) && field(value, 'isAccessibleForFree') !== undefined) {
+                    values.push(field(value, 'isAccessibleForFree'));
+                }
+
+                return childrenOf(value);
+            });
+
+            complete = complete && !truncated;
+        }
+    }
+
+    return { values, complete };
+}
+
 /**
  * Find the recipe in a page's JSON-LD.
  *

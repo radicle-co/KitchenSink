@@ -39,10 +39,13 @@ export interface VisibleBlock {
     /** Whether that `<li>` is an item of an ordered list (`<ol>`), as a method is. */
     readonly ordered: boolean;
     /**
-     * Whether all of the block's word material sits inside fragment links (`<a href="#...">`): a jump link to a part of
-     * the same page ("Jump to recipe", "Print"). A link to another page is not one, so a linked ingredient is not.
+     * Whether all of the block's word material sits inside fragment links (`<a href="#...">`) opened in the block itself:
+     * a jump link to a part of the same page ("Jump to recipe"). A link to another page is not one, and neither is a block
+     * that a link opened around it holds (`<a href="#r"><ul><li>…`).
      */
     readonly fragmentLinksOnly: boolean;
+    /** The targets of the fragment links opened in the block, without the `#` (`ingredients` for `#ingredients`). */
+    readonly fragmentTargets: readonly string[];
 }
 
 /** Where a block element sits among the others: numbered in document order, so its descendants are a range. */
@@ -51,6 +54,8 @@ export interface ElementExtent {
     readonly parent: number;
     /** The number of its last descendant: the block elements inside it are numbered from its own up to this. */
     readonly last: number;
+    /** Its `id`, when it has one: the target a fragment link names. */
+    readonly id?: string;
 }
 
 /** A body's visible text: its blocks, the block elements they sit in, and whether the read was cut short. */
@@ -272,6 +277,8 @@ interface Owner {
     readonly element: number;
     readonly item: number;
     readonly ordered: boolean;
+    /** How many fragment links were open when the block element opened: only a link opened inside it is its own. */
+    readonly linkBase: number;
 }
 
 /** The end of a block element: its text is flushed, and the element that held it before is the owner again. */
@@ -282,13 +289,17 @@ class BlockEnd {
     ) {}
 }
 
-const LOOSE_TEXT: Owner = { group: 0, isHeading: false, element: 0, item: 0, ordered: false };
+const LOOSE_TEXT: Owner = { group: 0, isHeading: false, element: 0, item: 0, ordered: false, linkBase: 0 };
 
 /** The end of a fragment link: the text read after it is no longer that link's text. */
 const FRAGMENT_LINK_END = Symbol('fragmentLinkEnd');
 
-/** Whether a link goes to a fragment of the same page: its `href` starts with `#`. */
-const isFragmentLink = (element: DomElement): boolean => (element.attribs['href'] ?? '').trim().startsWith('#');
+/** The target of a link to a fragment of the same page (its `href` starts with `#`), without the `#`; else `undefined`. */
+function fragmentTargetOf(element: DomElement): string | undefined {
+    const href = (element.attribs['href'] ?? '').trim();
+
+    return href.startsWith('#') ? href.slice(1) : undefined;
+}
 
 /** How many characters of word material (`isWordMaterial`) `text` holds. */
 function lettersIn(text: string): number {
@@ -316,14 +327,15 @@ function blocksOf(
     maxNodes = MAX_WALK_NODES,
 ): VisibleRead & { readonly visited: number } {
     const blocks: VisibleBlock[] = [];
-    const elements: { parent: number; last: number }[] = [{ parent: -1, last: 0 }];
+    const elements: ElementExtent[] = [{ parent: -1, last: 0 }];
     const groups = new Map<unknown, number>();
     let owner = LOOSE_TEXT;
     let current = '';
-    // Word material of the current block, and how much of it sat inside fragment links.
+    // Word material of the current block, how much of it sat inside its own fragment links, and their targets.
     let letters = 0;
     let fragmentLetters = 0;
     let fragmentDepth = 0;
+    let targets: string[] = [];
 
     const flush = (): void => {
         const text = collapseSpace(current);
@@ -337,19 +349,21 @@ function blocksOf(
                 item: owner.item,
                 ordered: owner.ordered,
                 fragmentLinksOnly: letters > 0 && fragmentLetters === letters,
+                fragmentTargets: targets,
             });
         }
 
         current = '';
         letters = 0;
         fragmentLetters = 0;
+        targets = [];
     };
 
     const addText = (data: string): void => {
         const count = lettersIn(data);
 
         letters += count;
-        fragmentLetters += fragmentDepth > 0 ? count : 0;
+        fragmentLetters += fragmentDepth > owner.linkBase ? count : 0;
 
         if (!newlineBreaks) {
             current += data;
@@ -379,7 +393,11 @@ function blocksOf(
             fragmentDepth -= 1;
         } else if (next instanceof BlockEnd) {
             flush();
-            elements[next.element] = { parent: next.previous.element, last: elements.length - 1 };
+            elements[next.element] = {
+                ...elements[next.element],
+                parent: next.previous.element,
+                last: elements.length - 1,
+            };
             owner = next.previous;
         } else if (isText(next)) {
             addText(next.data);
@@ -388,7 +406,9 @@ function blocksOf(
                 const element = elements.length;
 
                 flush();
-                elements.push({ parent: owner.element, last: element });
+                const id = next.attribs['id']?.trim();
+
+                elements.push({ parent: owner.element, last: element, ...(id ? { id } : {}) });
                 stack.push(new BlockEnd(owner, element));
                 groups.set(next.parent, groups.get(next.parent) ?? groups.size + 1);
                 owner = {
@@ -400,11 +420,15 @@ function blocksOf(
                         next.name === 'li'
                             ? next.parent !== null && 'name' in next.parent && next.parent.name === 'ol'
                             : owner.ordered,
+                    linkBase: fragmentDepth,
                 };
             }
 
-            if (next.name === 'a' && isFragmentLink(next)) {
+            const target = next.name === 'a' ? fragmentTargetOf(next) : undefined;
+
+            if (target !== undefined) {
                 fragmentDepth += 1;
+                targets.push(target);
                 stack.push(FRAGMENT_LINK_END);
             }
 

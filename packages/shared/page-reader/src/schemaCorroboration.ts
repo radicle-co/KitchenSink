@@ -33,10 +33,10 @@
  */
 import { readCooksMeasure } from '@kitchensink/recipe-core/parsing/measure-reader';
 
-import { CARD_META_LABELS } from './cardMetaLabels.js';
+import { CARD_META_LABELS, type CardMetaKind, COUNT_WORDS, DURATION_JOINS, DURATION_WORDS } from './cardMetaLabels.js';
 import { instructionOf } from './instructionSteps.js';
 import type { ExtractionTier, PageCandidate, PageRecipe } from './pageRecipeCandidate.js';
-import { tokensOf } from './pageTokens.js';
+import { namesAMeasure, tokensOf } from './pageTokens.js';
 import type { CardItem, VisibleText, VisibleTextResult } from './visiblePageText.js';
 
 /** Why the page and its structured data are not taken together as one recipe. */
@@ -54,14 +54,39 @@ const AGREES: Corroboration = Object.freeze({ ok: true });
 
 const refusal = (reason: CorroborationReason): Corroboration => Object.freeze({ ok: false, reason });
 
-/** A meta fact's label: the text before its first colon (ASCII or full-width), bounded, so the test is linear. */
-const META_LABEL = /^([^:\uFF1A]{1,40})[:\uFF1A]\s*\S/u;
+/** A meta fact: its label, the text before its first colon (ASCII or full-width), bounded so the test is linear, and its value. */
+const META_FACT = /^([^:\uFF1A]{1,40})[:\uFF1A]\s*(\S.*)$/su;
 
-/** Whether `text` is a meta fact under a label on the closed list ({@link CARD_META_LABELS}): "Prep Time: 10 minutes". */
+/** Whether `token` is part of a number: a run of digits, or the `.`, `,`, `/` or `-` that `tokensOf` keeps inside one. */
+const isNumberPart = (token: string): boolean => /^\d/u.test(token) || ['.', ',', '/', '-'].includes(token);
+
+/** Whether `tokens` are numbers and these words alone, with one number at least. */
+const isNumbersWith = (tokens: readonly string[], words: ReadonlySet<string>): boolean =>
+    tokens.some((token) => /^\d/u.test(token)) && tokens.every((token) => isNumberPart(token) || words.has(token));
+
+const DURATION_TOKENS: ReadonlySet<string> = new Set([...DURATION_WORDS, ...DURATION_JOINS]);
+
+/** The value shape each label kind takes: a duration with one unit at least, a count, or text with no amount or measure. */
+const VALUE_SHAPES: Readonly<Record<CardMetaKind, (value: string) => boolean>> = {
+    time: (value) => {
+        const tokens = tokensOf(value);
+
+        return isNumbersWith(tokens, DURATION_TOKENS) && tokens.some((token) => DURATION_WORDS.has(token));
+    },
+    count: (value) => isNumbersWith(tokensOf(value), COUNT_WORDS),
+    text: (value) => readCooksMeasure(value).quantity.kind === 'absent' && !namesAMeasure(value),
+};
+
+/**
+ * Whether `text` is a meta fact: a label on the closed list ({@link CARD_META_LABELS}) and a value of the shape that label
+ * takes. "Prep Time: 10 minutes" is one, "Prep Time: 2 eggs", "Calories: 2 eggs" and "Category: Flour 200 g" are not.
+ */
 function isMetaFact(text: string): boolean {
-    const label = META_LABEL.exec(text.trim())?.[1];
+    const [, label, value] = META_FACT.exec(text.trim()) ?? [];
+    const kind =
+        label === undefined ? undefined : CARD_META_LABELS.get(label.trim().replace(/\s+/gu, ' ').toLowerCase());
 
-    return label !== undefined && CARD_META_LABELS.has(label.trim().replace(/\s+/gu, ' ').toLowerCase());
+    return kind !== undefined && value !== undefined && VALUE_SHAPES[kind](value);
 }
 
 /**
@@ -70,9 +95,9 @@ function isMetaFact(text: string): boolean {
  * group), when its list sits beside a list the schema reads (a group the schema left out), when it is numbered (a
  * second method) or when it opens with an amount (an ingredient). Past those checks:
  * - an item after the last read line is furniture (notes, nutrition, related recipes);
- * - an item before the first read line is furniture only when it is a jump link to the same page (`href="#..."`) or a
- *   meta fact under a label on the closed list ({@link isMetaFact}). Any other item there, a link to another page
- *   included, may be an omitted group ("One onion", "Eggs: 2", "Мука: 200 г"), so the card is refused.
+ * - an item before the first read line is furniture only when it is a jump link to the element that holds the lines read
+ *   (`href="#ingredients"`) or a meta fact: a label on the closed list and a value of that label's shape
+ *   ({@link isMetaFact}). Any other item there, a link to another page included, may be an omitted group ("One onion", "Eggs: 2", "Мука: 200 г"), so the card is refused.
  * Any doubt is no.
  */
 function isCardFurniture(item: CardItem): boolean {
@@ -85,7 +110,7 @@ function isCardFurniture(item: CardItem): boolean {
         return false;
     }
 
-    return item.position === 'after' || item.fragmentLinksOnly || isMetaFact(item.text);
+    return item.position === 'after' || item.jumpsToReadLines || isMetaFact(item.text);
 }
 
 /** G-CORR over a page's visible text: the card the cook reads is the ingredient lines and the steps, no more and no less. */

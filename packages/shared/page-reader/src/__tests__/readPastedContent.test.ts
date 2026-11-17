@@ -554,10 +554,82 @@ describe('readPastedContent', () => {
                     expect(evidence(makePage({ jsonLd: [block] }))).toMatchObject({ isAccessibleForFree: true });
                 });
 
-                it('does not read a node that is neither a page nor the recipe’s container', () => {
-                    const block = { '@graph': [{ '@type': 'Organization', isAccessibleForFree: false }, recipe()] };
+                // Rewritten for round 9 (re-review of cb509d1a4, HIGH 2): an Organization's false was passed over, as it is
+                // neither a page nor the recipe's container. A paywall false is lost the same way behind an `@id` or two
+                // levels down, so every isAccessibleForFree statement on the page now counts, in both tiers.
+                it.each([
+                    [
+                        'an Organization in the @graph',
+                        {
+                            '@graph': [
+                                { '@type': 'Organization', isAccessibleForFree: false },
+                                recipe({ isAccessibleForFree: true }),
+                            ],
+                        },
+                    ],
+                    [
+                        'a WebPageElement in the hasPart of the recipe’s mainEntityOfPage',
+                        recipe({
+                            isAccessibleForFree: true,
+                            mainEntityOfPage: {
+                                '@type': 'WebPage',
+                                hasPart: { '@type': 'WebPageElement', isAccessibleForFree: false },
+                            },
+                        }),
+                    ],
+                    [
+                        'a WebPageElement a flattened @graph names by @id from the WebPage’s hasPart',
+                        {
+                            '@graph': [
+                                { '@type': 'WebPage', '@id': '#page', hasPart: { '@id': '#pw' } },
+                                { '@type': 'WebPageElement', '@id': '#pw', isAccessibleForFree: false },
+                                recipe({ isAccessibleForFree: true }),
+                            ],
+                        },
+                    ],
+                    [
+                        'a node the recipe’s isPartOf names by @id',
+                        {
+                            '@graph': [
+                                { '@type': 'CreativeWork', '@id': '#cw', isAccessibleForFree: false },
+                                recipe({ isAccessibleForFree: true, isPartOf: { '@id': '#cw' } }),
+                            ],
+                        },
+                    ],
+                    [
+                        'a WebSite in the @graph',
+                        {
+                            '@graph': [
+                                { '@type': 'WebSite', isAccessibleForFree: false },
+                                recipe({ isAccessibleForFree: true }),
+                            ],
+                        },
+                    ],
+                ])('reads isAccessibleForFree false from %s, over the recipe’s true', (_name, block) => {
+                    expect(evidence(makePage({ jsonLd: [block], body: makeRecipeCard(recipe()) }))).toMatchObject({
+                        isAccessibleForFree: false,
+                    });
+                });
 
-                    expect(evidence(makePage({ jsonLd: [block] }))).not.toHaveProperty('isAccessibleForFree');
+                it('reads isAccessibleForFree false from another JSON-LD block, over the recipe’s true', () => {
+                    const page = makePage({
+                        jsonLd: [
+                            recipe({ isAccessibleForFree: true }),
+                            { '@type': 'WebPage', isAccessibleForFree: false },
+                        ],
+                        body: makeRecipeCard(recipe()),
+                    });
+
+                    expect(evidence(page)).toMatchObject({ isAccessibleForFree: false });
+                });
+
+                it('reads a microdata false elsewhere on the page over a JSON-LD recipe’s true', () => {
+                    const page = makePage({
+                        jsonLd: [recipe({ isAccessibleForFree: true })],
+                        body: `${makeRecipeCard(recipe())}<div itemscope itemtype="https://schema.org/WebPage"><meta itemprop="isAccessibleForFree" content="false"></div>`,
+                    });
+
+                    expect(evidence(page)).toMatchObject({ isAccessibleForFree: false });
                 });
 
                 it('takes datePublished from the recipe first, then from its container', () => {
@@ -624,6 +696,45 @@ describe('readPastedContent', () => {
                 [
                     'an X-Robots-Tag whose second agent is an AI crawler',
                     '<meta http-equiv="X-Robots-Tag" content="googlebot: noindex, gptbot: none">',
+                    true,
+                ],
+                // Re-review of cb509d1a4, HIGH 1: noai and noimageai reserve whatever the agent (016 FR-024a).
+                [
+                    'an X-Robots-Tag noai for a search crawler',
+                    '<meta http-equiv="X-Robots-Tag" content="googlebot: noai">',
+                    true,
+                ],
+                [
+                    'an X-Robots-Tag noimageai for bingbot',
+                    '<meta http-equiv="X-Robots-Tag" content="bingbot: noimageai">',
+                    true,
+                ],
+                [
+                    'an X-Robots-Tag noai after a search crawler segment',
+                    '<meta http-equiv="X-Robots-Tag" content="noindex, googlebot: noindex; noai">',
+                    true,
+                ],
+                [
+                    'an X-Robots-Tag with a space before the colon',
+                    '<meta http-equiv="X-Robots-Tag" content="gptbot : none">',
+                    true,
+                ],
+                ['a googlebot meta with noai', '<meta name="googlebot" content="noai">', true],
+                // Re-review of cb509d1a4, MEDIUM 4 (mutant M10): a time inside a value is no user agent, so the AI crawler
+                // named before it still owns the tokens after it.
+                [
+                    'an X-Robots-Tag noai after an unavailable_after date',
+                    '<meta http-equiv="X-Robots-Tag" content="unavailable_after: 25 Jun 2026 15:00:00 PST, noai">',
+                    true,
+                ],
+                [
+                    'an AI crawler segment whose noindex follows an unavailable_after date',
+                    '<meta http-equiv="X-Robots-Tag" content="gptbot: unavailable_after: 25 Jun 2026 15:00:00 PST, noindex">',
+                    true,
+                ],
+                [
+                    'an AI crawler segment whose noindex follows a max-snippet value',
+                    '<meta http-equiv="X-Robots-Tag" content="gptbot: max-snippet: 50, noindex">',
                     true,
                 ],
                 [

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { MAX_IMAGE_URL_CHARS } from '../pageCaps.js';
-import { creditOf, imageRefsOf, imageUrlOf } from '../pageEvidence.js';
+import { creditOf, imageRefsOf, imageUrlOf, isAccessibleForFreeOf } from '../pageEvidence.js';
 
 describe('creditOf', () => {
     it('reads authors, publisher, copyright notice, copyright holder and license', () => {
@@ -157,5 +157,18 @@ describe('imageUrlOf', () => {
 
     it('returns nothing for no addresses', () => {
         expect(imageUrlOf([], base)).toBeUndefined();
+    });
+});
+
+describe('isAccessibleForFreeOf', () => {
+    it.each([
+        ['every statement true', [true, 'True', 'https://schema.org/True'], true, true],
+        ['any statement false, in a list too', [true, ['true', 'false']], true, false],
+        ['a statement it cannot read', [true, 'maybe'], true, undefined],
+        ['no statement', [], true, undefined],
+        ['every statement true, but the read was cut short', [true], false, undefined],
+        ['a false, though the read was cut short', [true, false], false, false],
+    ])('answers %s', (_name, statements, complete, expected) => {
+        expect(isAccessibleForFreeOf(statements, complete)).toBe(expected);
     });
 });

@@ -242,13 +242,16 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
     });
 
-    it('reads a card with a list of links before the lines, in a container of its own, such as jump links', () => {
+    // Rewritten for round 9 (re-review of cb509d1a4, MEDIUM 3): "Print" and "Jump to recipe" linked to #p and #r, which
+    // name no element on the page, and read as furniture. A jump link counts only when its target holds the lines read
+    // (the passing case is the test below with #ingredients and #instructions), so this card is refused now.
+    it('refuses a card whose links before the lines jump to targets that hold no line it reads', () => {
         const page = makePage({
             jsonLd: [NODE],
             body: `<article><div class="jump"><div><ul><li><a href="#p">Print</a></li><li><a href="#r">Jump to recipe</a></li></ul></div></div><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol></article>`,
         });
 
-        expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
     });
 
     // Rewritten for round 9 (code-reviewer HIGH 1 on #324): a list of links was furniture anywhere, so a linked sub-recipe
@@ -322,10 +325,59 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
     });
 
+    // Re-review of cb509d1a4, MEDIUM 3: a jump link is furniture only when it is a block's own link to the element that
+    // holds the lines read. A line wrapped in a link to anywhere else, or a list opened inside a jump link, is refused.
+    it.each([
+        ['a line wrapped in a fragment link', '<ul><li><a href="#x">One onion</a></li></ul>'],
+        ['a line whose words are two fragment links', '<ul><li><a href="#a">One</a> <a href="#b">onion</a></li></ul>'],
+        ['a list opened inside a jump link', '<a href="#recipe"><ul><li>One onion</li><li>Salt to taste</li></ul></a>'],
+        [
+            'a list opened inside a jump link, with a jump link of its own',
+            '<a href="#recipe"><ul><li>One onion <a href="#recipe">here</a></li></ul></a>',
+        ],
+    ])('refuses an omitted group before the lines, nested deeper than the read lists, with %s', (_name, group) => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article id="recipe"><div class="group"><div>${group}</div></div><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+    });
+
+    it('reads a card with jump links before the lines to the elements that hold them', () => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><div class="jump"><div><ul><li><a href="#ingredients">Jump to ingredients</a></li><li><a href="#instructions">Jump to instructions</a></li></ul></div></div><div id="ingredients"><ul>${items(INGREDIENTS)}</ul></div><div id="instructions"><ol>${items(STEPS)}</ol></div></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
+    });
+
+    // Re-review of cb509d1a4, LOW 5: a listed label is meta only when its value has that label's shape. A time needs a
+    // duration, a count a number with at most a count word, and a text label refuses a leading amount or a measure word.
+    it.each([
+        ['a text label holding an amount and a unit', ['Category: Flour 200 g']],
+        ['a count label holding an ingredient', ['Calories: 2 eggs']],
+        ['a Russian count label holding an ingredient', ['Выход: 2 яйца']],
+        ['a text label holding a leading amount', ['Keywords: 2 eggs, 1 onion']],
+        ['a time label holding an ingredient', ['Prep Time: 2 eggs']],
+        ['a time label holding a duration and an ingredient', ['Prep Time: 10 minutes, 2 eggs']],
+        ['a time label holding a bare number', ['Cook Time: 2']],
+    ])('refuses an omitted group before the lines, nested deeper than the read lists, with %s', (_name, lines) => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><div class="group"><div><ul>${items(lines)}</ul></div></div><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+    });
+
     it.each([
         ['English', ['Prep Time: 10 minutes', 'Category: Dessert', 'Diet: Gluten-Free, Vegetarian']],
+        ['English time and count', ['Total Time: 1 hour and 10 minutes', 'Servings: 4-6 people', 'Calories: 350 kcal']],
         ['Italian', ['Tempo totale: 3h e 20 min', 'Calorie: 778']],
         ['Russian', ['Сложность: сложно']],
+        ['Russian time and count', ['Время приготовления: 1 час 30 минут', 'Выход: 4 порции']],
         ['Japanese, with a full-width colon', ['調理時間：30分']],
     ])('reads a card with a %s meta list of labelled facts before the lines', (_name, lines) => {
         const page = makePage({

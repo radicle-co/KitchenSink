@@ -32,11 +32,11 @@ export interface PageCredit {
     readonly license?: string;
 }
 
-/** What a recipe and the page around it state about access and age (`accessOf`). Every field may be absent. */
+/** What a page states about access and age. Every field may be absent. */
 export interface PageAccess {
-    /** schema.org `isAccessibleForFree`: `true` or `false` as stated (a boolean, or the text "true" or "false"). */
+    /** schema.org `isAccessibleForFree` over every statement on the page (`isAccessibleForFreeOf`). */
     readonly isAccessibleForFree?: boolean;
-    /** schema.org `datePublished` as written, when it is an ISO 8601 date or date-time with a real calendar date. */
+    /** schema.org `datePublished` as written (`datePublishedOf`), when it is an ISO 8601 date or date-time with a real calendar date. */
     readonly datePublished?: string;
 }
 
@@ -178,37 +178,42 @@ function linkedNodes(node: SchemaNode, keys: readonly string[]): readonly Schema
 }
 
 /**
- * Read what a Recipe node, and the page around it, state about access and age.
+ * When a Recipe node, or the page around it, was published.
  *
  * The recipe is read first, then the nodes it embeds as `mainEntityOfPage`, `isPartOf` and `hasPart`, then its
- * containers: a node whose `mainEntity` is the recipe, then a page node ({@link isPageNode}); for `isAccessibleForFree`
- * also each container's `hasPart` (a `WebPageElement`, Google's paywall markup). `isAccessibleForFree` is `false` when
- * any statement says false (in a list too); unknown when one cannot be read ("no"), since it may be a paywall; `true`
- * only when every statement says true. `datePublished` is the first usable one in that order.
+ * containers: a node whose `mainEntity` is the recipe, then a page node ({@link isPageNode}).
  *
  * @param node - A JSON-LD Recipe node or a microdata item shaped like one.
  * @param containers - The page's other nodes that may contain it: page nodes and nodes with a `mainEntity`. Any other
  *   node is passed over.
- * @returns The facts; a field no source states usably is absent. Pure.
+ * @returns The first usable `datePublished` in that order, or `undefined`. Pure.
  */
-export function accessOf(node: SchemaNode, containers: readonly SchemaNode[]): PageAccess {
-    const pageNodes = [
+export function datePublishedOf(node: SchemaNode, containers: readonly SchemaNode[]): string | undefined {
+    const sources = [
+        node,
+        ...linkedNodes(node, RECIPE_LINKS),
         ...containers.filter((container) => container !== node && hasMainEntity(container, node)),
         ...containers.filter((container) => container !== node && isPageNode(container)),
     ];
-    const sources = [node, ...linkedNodes(node, RECIPE_LINKS), ...pageNodes];
-    const statements = [...sources, ...pageNodes.flatMap((page) => linkedNodes(page, ['hasPart']))].flatMap((source) =>
-        items(field(source, 'isAccessibleForFree')).map(statedBoolean),
-    );
-    const isAccessibleForFree = freeOf(statements);
-    const datePublished = sources
-        .map((source) => isoDate(field(source, 'datePublished')))
-        .find((date) => date !== undefined);
 
-    return Object.freeze({
-        ...(isAccessibleForFree === undefined ? {} : { isAccessibleForFree }),
-        ...(datePublished === undefined ? {} : { datePublished }),
-    });
+    return sources.map((source) => isoDate(field(source, 'datePublished'))).find((date) => date !== undefined);
+}
+
+/**
+ * Whether the page is free to read, from EVERY `isAccessibleForFree` statement it makes, in any node of any JSON-LD block
+ * and any microdata item. A paywall is stated on the article, a `WebPageElement` two levels down or a node named by `@id`
+ * as often as on the recipe, so no statement is passed over for where it sits.
+ *
+ * @param statements - Every statement's value as written (a list is read item by item).
+ * @param complete - Whether every statement was read: `false` when a walk cap cut the read short.
+ * @returns `false` when any statement says false; unknown (`undefined`) when none does but one cannot be read or the
+ *   read was cut short, since a paywall may be there; `true` when every statement says true; `undefined` when there is
+ *   none. Pure.
+ */
+export function isAccessibleForFreeOf(statements: readonly unknown[], complete: boolean): boolean | undefined {
+    const read = statements.flatMap((statement) => items(statement).map(statedBoolean));
+
+    return freeOf(complete ? read : [...read, 'unreadable']);
 }
 
 /** The robots tokens that reserve a page from AI, in a robots meta or header for every crawler. */
@@ -261,23 +266,24 @@ const VALUE_DIRECTIVES: ReadonlySet<string> = new Set([
     'unavailable_after',
 ]);
 
+/** Whether a robots token reserves the page for `agent` (`undefined`: every agent). */
+const reservesFor = (agent: string | undefined, token: string): boolean =>
+    NO_AI_TOKENS.has(token) || (agent !== undefined && AI_CRAWLERS.has(agent) && NAMED_AI_CRAWLER_TOKENS.has(token));
+
 /**
- * Whether an `X-Robots-Tag` value reserves the page. A word that ends in a colon and starts with a letter names the user
- * agent the tokens after it are for (`googlebot: noindex, gptbot: none`), unless it is a directive that takes a value.
- * Tokens for every agent reserve with an AI token; tokens for a named AI crawler also with `noindex` or `none`; tokens
- * for any other agent never. One pass over the tokens, so it is linear.
+ * Whether an `X-Robots-Tag` value reserves the page. A word followed by a colon (spaces allowed before it) that starts with
+ * a letter names the user agent the tokens after it are for (`googlebot: noindex, gptbot: none`), unless it is a
+ * directive that takes a value (`max-snippet: 50`); a number before a colon is part of a time. `noai` and `noimageai`
+ * reserve for every agent (016 FR-024a); `noindex` and `none` only for an AI crawler. One pass over the tokens.
  */
 function headerReserves(value: string): boolean {
+    const tokens = robotsTokens(value.replaceAll(':', ' : '));
     let agent: string | undefined;
 
-    for (const token of robotsTokens(value.replaceAll(':', ': '))) {
-        const name = token.endsWith(':') ? token.slice(0, -1) : undefined;
-
-        if (name !== undefined) {
-            agent = /^\p{L}/u.test(name) && !VALUE_DIRECTIVES.has(name) ? name : agent;
-        } else if (
-            agent === undefined ? NO_AI_TOKENS.has(token) : AI_CRAWLERS.has(agent) && NAMED_AI_CRAWLER_TOKENS.has(token)
-        ) {
+    for (const [index, token] of tokens.entries()) {
+        if (tokens[index + 1] === ':') {
+            agent = /^\p{L}/u.test(token) && !VALUE_DIRECTIVES.has(token) ? token : agent;
+        } else if (token !== ':' && reservesFor(agent, token)) {
             return true;
         }
     }
@@ -285,18 +291,17 @@ function headerReserves(value: string): boolean {
     return false;
 }
 
+/** Whether a meta name is for crawlers: `robots`, or a crawler's own name (`googlebot`, `bingbot`, `gptbot`, `ccbot`). */
+const isCrawlerMeta = (key: string): boolean => /bot|spider|crawler|slurp/u.test(key) || AI_CRAWLERS.has(key);
+
 /** Whether one meta reserves the page from AI. */
 function metaReserves(key: string | undefined, equiv: string | undefined, value: string): boolean {
     if (key === 'tdm-reservation') {
         return value === '1';
     }
 
-    if (key === 'robots') {
-        return robotsTokens(value).some((token) => NO_AI_TOKENS.has(token));
-    }
-
-    if (key !== undefined && AI_CRAWLERS.has(key)) {
-        return robotsTokens(value).some((token) => NAMED_AI_CRAWLER_TOKENS.has(token));
+    if (key !== undefined && isCrawlerMeta(key)) {
+        return robotsTokens(value).some((token) => reservesFor(key === 'robots' ? undefined : key, token));
     }
 
     return equiv === 'x-robots-tag' && headerReserves(value);
@@ -304,9 +309,9 @@ function metaReserves(key: string | undefined, equiv: string | undefined, value:
 
 /**
  * Whether a page reserves its content from AI and text-and-data mining (see {@link PageEvidence.aiOptOut}): a TDMRep
- * `tdm-reservation` of 1, a robots meta or `X-Robots-Tag` http-equiv with `noai` or `noimageai`, or a meta (or an
- * `X-Robots-Tag` `agent:` prefix) naming an AI crawler that keeps it out (`noai`, `noimageai`, `noindex`, `none`). A
- * plain robots `noindex` is about search, not AI, and is no reservation. Every meta on the page counts, including one
+ * `tdm-reservation` of 1; `noai` or `noimageai` in a robots or crawler-named meta or an `X-Robots-Tag` http-equiv, for any
+ * agent; or `noindex` or `none` for a named AI crawler (its own meta, or its `agent:` segment). A `noindex` for every
+ * crawler or for a search crawler is about search, not AI, and is no reservation. Every meta on the page counts, including one
  * inside `<noscript>` or `<template>`: a reservation a cook cannot see still binds, so the read errs toward reserved.
  *
  * @param metas - The page's `<meta>` elements.

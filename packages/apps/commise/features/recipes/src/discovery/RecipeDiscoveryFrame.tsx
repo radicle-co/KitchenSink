@@ -41,7 +41,7 @@ import { surfaceToneClass, PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useState } from 'react';
 import type { FC, ReactNode } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { DiscoverySortMenu } from './DiscoverySortMenu.js';
 import { discoveryMessages } from './messages.js';
 import {

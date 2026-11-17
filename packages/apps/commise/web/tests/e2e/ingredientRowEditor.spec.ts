@@ -5,7 +5,14 @@ import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
 import { mockRebind } from './utils/rebindApi';
 import { E2E_CATALOG_FOOD, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { ingredientOpen, ingredientRow, openIngredientEditor, openRecipeEditor } from './utils/recipeEditor';
+import {
+    INLINE_EDITOR_VIEWPORT,
+    SHEET_EDITOR_VIEWPORT,
+    ingredientOpen,
+    ingredientRow,
+    openIngredientEditor,
+    openRecipeEditor,
+} from './utils/recipeEditor';
 
 /**
  * The ingredient row editor's stories on a saved recipe (plan 002 V1 B7), through the real web app with the recipe
@@ -90,11 +97,12 @@ async function openIngredientsSection(page: Page): Promise<void> {
 }
 
 test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', () => {
-    // The designer's retake of PR #166 and issue #176: the editor reads the SAME container rule as the food page. At 620 px
-    // the column's content is 572 px, under the 600 `regular` threshold, so the row editor is the phone sheet, "Name on
-    // the recipe" and "Note" stack full width, and Done draws full width.
+    // The designer's retake of PR #166 and issue #176. At 620 px the column's content is 572 px (35.75 rem), under the 43 rem
+    // the inline editor needs (`inlineEditorFit.ts`), so the row editor is the phone sheet, "Name on
+    // the recipe" and "Note" stack full width. The footer is the Cancel / Done pair (`DialogActions`, side by side from a
+    // 400 px container): at 390 it stacks and Done fills; at 620 both sit on one row, Done last at the end edge.
     for (const width of [390, 620]) {
-        test(`at ${String(width)} px the row editor is the phone sheet: Name and Note stack, and Done fills`, async ({
+        test(`at ${String(width)} px the row editor is the phone sheet: Name and Note stack, and Cancel and Done end it`, async ({
             page,
         }) => {
             await page.setViewportSize({ width, height: 900 });
@@ -112,10 +120,23 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
             const name = await sheet.getByLabel('Name on the recipe').boundingBox();
             const note = await sheet.getByLabel('Note', { exact: true }).boundingBox();
             const done = await sheet.getByRole('button', { name: 'Done', exact: true }).boundingBox();
+            const cancel = await sheet.getByRole('button', { name: 'Cancel', exact: true }).boundingBox();
 
             expect(note?.y ?? 0).toBeGreaterThan((name?.y ?? 0) + (name?.height ?? 0) - 1);
             expect(Math.round(note?.width ?? 0)).toBe(Math.round(name?.width ?? -1));
-            expect(Math.round(done?.width ?? 0)).toBeGreaterThanOrEqual(Math.round(name?.width ?? Infinity));
+
+            if (width < 400) {
+                // Stacked: Done on top, both as wide as the fields.
+                expect(Math.round(done?.width ?? 0)).toBeGreaterThanOrEqual(Math.round(name?.width ?? Infinity));
+                expect(done?.y ?? Infinity).toBeLessThan(cancel?.y ?? 0);
+            } else {
+                // One row: Cancel then Done, Done's end edge at the fields' end edge.
+                expect(Math.round(cancel?.y ?? -1)).toBe(Math.round(done?.y ?? -2));
+                expect((cancel?.x ?? Infinity) + (cancel?.width ?? 0)).toBeLessThanOrEqual(done?.x ?? 0);
+                expect(
+                    Math.abs((done?.x ?? 0) + (done?.width ?? 0) - ((name?.x ?? 0) + (name?.width ?? 0))),
+                ).toBeLessThan(2);
+            }
         });
     }
 
@@ -136,6 +157,8 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
     test('US7 Change food: one rebind at the stored position, and the amount, unit, preparation and section stay', async ({
         page,
     }) => {
+        // The re-bound line's editor is read in a window tall enough for it, where it opens inline in its row.
+        await page.setViewportSize(INLINE_EDITOR_VIEWPORT);
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const store = await mockRecipeApi(page, { viewerId, recipes: [savedRecipe(viewerId, garlicLine)] });
@@ -161,6 +184,7 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
         await expect(ingredientRow(page.getByRole('list', { name: 'For the sauce' }), PEPPER.name)).toBeVisible();
         const fields = await openIngredientEditor(page, PEPPER.name);
 
+        await expect(page.getByRole('dialog')).toHaveCount(0);
         await expect(fields.getByLabel('Amount', { exact: true })).toHaveValue('2');
         await expect(fields.getByRole('combobox', { name: 'Unit' })).toHaveValue('clove');
         await expect(fields.getByLabel('Preparation')).toHaveValue('minced');
@@ -183,6 +207,8 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
     test('A-011: the Unit field has a visible label, and a size word draws no "Unrecognized unit" note', async ({
         page,
     }) => {
+        // The Unit field is the same in both frames; a short laptop window gets the sheet, so that is the one read here.
+        await page.setViewportSize(SHEET_EDITOR_VIEWPORT);
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, recipes: [savedRecipe(viewerId, garlicLine)] });
@@ -190,6 +216,8 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
 
         await openIngredientsSection(page);
         const fields = await openIngredientEditor(page, 'Garlic');
+
+        await expect(page.getByRole('dialog', { name: 'Garlic' })).toBeVisible();
         const unit = fields.getByRole('combobox', { name: 'Unit' });
 
         await expect(fields.getByText('Unit', { exact: true })).toBeVisible();

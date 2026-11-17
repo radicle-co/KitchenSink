@@ -54,7 +54,11 @@ export function packagesMissingDistIgnore(packages: readonly PackageFacts[]): re
 
 /** Tracked files, from the index (a new file must be staged before a local guard run). */
 function tracked(pattern: string): readonly string[] {
-    return execFileSync('git', ['ls-files', '--', pattern], { cwd: repoRoot, encoding: 'utf8' })
+    return execFileSync('git', ['ls-files', '--', pattern], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        maxBuffer: 1024 * 1024 * 64,
+    })
         .split('\n')
         .filter((file) => file !== '');
 }

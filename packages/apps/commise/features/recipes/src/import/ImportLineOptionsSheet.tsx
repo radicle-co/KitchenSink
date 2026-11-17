@@ -15,7 +15,7 @@ import { LiveRegion } from '@commise/ui/live-region';
 import { Sheet } from '@commise/ui/sheet';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { lineTextOf } from '../ingredientMatching/matchLine.js';
 import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.js';

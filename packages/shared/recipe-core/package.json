@@ -57,7 +57,6 @@
         "format:check": "prettier --check ."
     },
     "devDependencies": {
-        "@aws-sdk/client-bedrock-runtime": "^3.935.0",
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",

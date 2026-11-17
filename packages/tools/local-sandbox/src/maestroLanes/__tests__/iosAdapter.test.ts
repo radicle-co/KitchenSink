@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { IosAdapter, type IosShell } from '../iosAdapter.js';
+import type { IosDevice } from '../iosLane.js';
 
 const MANIFEST = [
     'platform=ios',
@@ -70,7 +71,9 @@ const options = (
     shell: IosShell,
     env: Record<string, string | undefined> = { LOCAL_MAESTRO_IOS_HOST: 'me@mac' },
     settings = SETTINGS,
+    device: IosDevice = 'iphone',
 ) => ({
+    device,
     shell,
     env,
     repoRoot: '/repo',
@@ -88,6 +91,41 @@ describe('IosAdapter', () => {
         const { cpus, memBytes } = new IosAdapter(options(makeShell().shell)).laneCost;
         expect(cpus).toBe(1);
         expect(memBytes).toBe(Math.round(2.1 * 1024 ** 3));
+    });
+
+    it('names an iPad lane device and sends the iPad class to the Mac, always explicitly', async () => {
+        const adapter = (device: IosDevice, recorder: Recorder) =>
+            new IosAdapter(options(recorder.shell, undefined, SETTINGS, device));
+        expect(adapter('ipad', makeShell()).deviceFor(2)).toBe('ks-maestro-ipad-2');
+        expect(adapter('iphone', makeShell()).deviceFor(2)).toBe('ks-maestro-lane-2');
+
+        for (const device of ['iphone', 'ipad'] as const) {
+            const recorder = makeShell({
+                'content-key': 'abc\n',
+                'testApp.manifest': MANIFEST,
+                'ensure 2': 'UDID-2\n',
+            });
+            const lanes = adapter(device, recorder);
+            await lanes.prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
+            await lanes.startDevice({
+                platform: 'ios',
+                index: 2,
+                count: 2,
+                device: lanes.deviceFor(2),
+                driverPort: 7002,
+                stateDir: '/s/lanes/ios-2',
+                fixtureEnvFile: '/s/lanes/ios-2/fixture.env',
+            });
+            expect(recorder.commands.join('\n')).toContain(`laneHost.sh ensure 2 ${device}`);
+        }
+    });
+
+    it('costs an iPad lane what the 2026-11-15 runs measured: peak 2.10 GiB and under one cpu busy', () => {
+        // Measured with maestro:macUsage ipad: mean 0.4 to 0.6 cpus per lane, peak resident 1.87 to 2.10 GiB, over a
+        // one-lane run and a two-lane run on the Mac.
+        const { cpus, memBytes } = new IosAdapter(options(makeShell().shell, undefined, SETTINGS, 'ipad')).laneCost;
+        expect(cpus).toBe(1);
+        expect(memBytes).toBe(Math.round(2.2 * 1024 ** 3));
     });
 
     it('refuses to be built without a Mac host', () => {
@@ -169,7 +207,7 @@ describe('IosAdapter', () => {
             fixtureEnvFile: '/s/lanes/ios-2/fixture.env',
         });
         const joined = recorder.commands.join('\n');
-        expect(joined).toContain('laneHost.sh ensure 2');
+        expect(joined).toContain('laneHost.sh ensure 2 iphone');
         expect(joined).toContain('laneHost.sh erase UDID-2');
         expect(joined).toContain('laneHost.sh boot UDID-2');
         expect(joined).toContain('laneHost.sh install UDID-2 ksIos/apps/abc');
@@ -201,6 +239,36 @@ describe('IosAdapter', () => {
         expect(call?.line).toContain('/repo/packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh');
         expect(call?.env?.['MAESTRO_IOS_UDID']).toBe('UDID-1');
         expect(call?.env?.['PATH']?.startsWith('/s/shims:')).toBe(true);
+    });
+
+    it('switches the Apple Intelligence banner off after the AutoFill step (its reboot comes first) and before any flow', async () => {
+        const calls: string[] = [];
+        const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST, 'ensure 1': 'UDID-1\n' });
+        const shell: IosShell = {
+            ...recorder.shell,
+            run: (command, args, env) => {
+                calls.push([command, ...args].join(' '));
+
+                return recorder.shell.run(command, args, env);
+            },
+        };
+        const adapter = new IosAdapter(options(shell));
+        await adapter.prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
+        await adapter.startDevice({
+            platform: 'ios',
+            index: 1,
+            count: 1,
+            device: adapter.deviceFor(1),
+            driverPort: 7001,
+            stateDir: '/s/lanes/ios-1',
+            fixtureEnvFile: '/s/lanes/ios-1/fixture.env',
+        });
+        const setup = calls.find((c) => c.includes('maestro_disable_apple_intelligence_banner_ios')) ?? '';
+
+        // One `&&` chain: the banner step runs only after AutoFill's shutdown and reboot succeed.
+        expect(setup).toMatch(
+            /maestro_disable_password_autofill_ios && maestro_disable_apple_intelligence_banner_ios/u,
+        );
     });
 
     it('hands the runner the lane Simulator, skips its own install and puts the shims first on PATH', async () => {

@@ -95,7 +95,8 @@ export const PressScale: FC<PressScaleProps> = ({
                 aria-busy={busy || undefined}
                 // The same dual-channel reasoning as `aria-busy` above, for disclosure state.
                 aria-expanded={expanded}
-                // And for a switch's state: `accessibilityState.checked` reaches the device, `aria-checked` the DOM.
+                // And for a switch's or a checkbox's state: `accessibilityState.checked` reaches the device, `aria-checked`
+                // the DOM.
                 aria-checked={checked}
             >
                 {typeof children === 'function' ? children({ pressed }) : children}

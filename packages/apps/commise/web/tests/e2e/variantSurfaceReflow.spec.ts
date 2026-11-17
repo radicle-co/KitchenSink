@@ -1,4 +1,4 @@
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import type { RecipeIngredientView, RecipeSnapshot } from '@kitchensink/recipe-core';
 
 import { signInWithTicket } from './utils/auth';
@@ -7,6 +7,7 @@ import { mockFoodApi } from './utils/foodApi';
 import { openNutritionRow } from './utils/nutritionRow';
 import { makeRecipeDetail, makeRecipeVersion, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { openRecipeEditor } from './utils/recipeEditor';
+import { applyTextScale, textScaleOf } from './utils/textScale';
 
 /**
  * Curated U15 — no read surface scrolls sideways (`docs/design/ingredientSpecialization.md` §S10, §S18, E2).
@@ -21,22 +22,6 @@ import { openRecipeEditor } from './utils/recipeEditor';
  * KTD-16 roots. "No sideways scroll" is checked on the page and on every open dialog's own scroll box, because a
  * fixed dialog with `overflow-y: auto` scrolls inside itself while the page stays still.
  */
-
-/** The root font scale a reflow project sets in its `metadata` (1 when absent). */
-function textScaleOf(testInfo: TestInfo): number {
-    const scale: unknown = testInfo.project.metadata['textScale'];
-
-    return typeof scale === 'number' ? scale : 1;
-}
-
-/** Apply the project's text scale to the page as it stands; the style survives client-side navigation. */
-async function applyTextScale(page: Page, testInfo: TestInfo): Promise<void> {
-    const scale = textScaleOf(testInfo);
-
-    if (scale !== 1) {
-        await page.addStyleTag({ content: `html { font-size: ${String(scale * 100)}% !important; }` });
-    }
-}
 
 /** Assert that neither the page nor any open dialog scrolls sideways. */
 async function expectNoSidewaysScroll(page: Page): Promise<void> {
@@ -181,7 +166,7 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
     test('the recipe read view, with its variant lines and the nutrition note', async ({ page }, testInfo) => {
         await seed(page);
         await page.goto(route(`/recipes/${RECIPE_ID}`));
-        await applyTextScale(page, testInfo);
+        await applyTextScale(page, textScaleOf(testInfo));
 
         await expect(page.getByRole('heading', { name: 'Reflow Roast' })).toBeVisible();
         await expect(
@@ -198,7 +183,7 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
     test('the recipe editor’s ingredient step, with its variant lines', async ({ page }, testInfo) => {
         await seed(page);
         await openRecipeEditor(page, RECIPE_ID);
-        await applyTextScale(page, testInfo);
+        await applyTextScale(page, textScaleOf(testInfo));
 
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
 
@@ -210,7 +195,7 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
     test('the ambiguity review, open', async ({ page }, testInfo) => {
         await seed(page);
         await page.goto(route(`/recipes/${RECIPE_ID}`));
-        await applyTextScale(page, testInfo);
+        await applyTextScale(page, textScaleOf(testInfo));
 
         await page.getByRole('button', { name: /Review ingredient matches$/u }).click();
         await expect(page.getByRole('button', { name: 'Pepper, black, ground' })).toBeVisible();
@@ -220,7 +205,7 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
     test('the version preview', async ({ page }, testInfo) => {
         await seed(page);
         await page.goto(route(`/recipes/${RECIPE_ID}/versions`));
-        await applyTextScale(page, testInfo);
+        await applyTextScale(page, textScaleOf(testInfo));
 
         await page.getByRole('button', { name: 'More actions for version 1' }).click();
         await page.getByRole('menuitem', { name: 'Preview' }).click();
@@ -234,7 +219,7 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
         await page.goto(
             route('/discover?foodId=food_boneless_skinless_chicken_breasts&foodName=boneless+skinless+chicken+breasts'),
         );
-        await applyTextScale(page, testInfo);
+        await applyTextScale(page, textScaleOf(testInfo));
 
         await page.getByRole('button', { name: 'Filters, 1 active' }).click();
         const sheet = page.getByRole('dialog', { name: 'Filters' });
@@ -249,7 +234,7 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
     test('the Paste a list sheet', async ({ page }, testInfo) => {
         await seed(page);
         await page.goto(route('/recipes/new?paste=1#ingredients'));
-        await applyTextScale(page, testInfo);
+        await applyTextScale(page, textScaleOf(testInfo));
 
         const sheet = page.getByRole('dialog', { name: 'Paste a list' });
         await sheet
@@ -268,7 +253,7 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
             .getByRole('textbox', { name: 'Ingredient lines' })
             .fill('2 lb beef brisket, flat half, separable lean and fat, 1/8-inch trim, select, braised');
         await sheet.getByRole('button', { name: 'Add 1 ingredient' }).click();
-        await applyTextScale(page, testInfo);
+        await applyTextScale(page, textScaleOf(testInfo));
 
         // The pasted lines are the matched-line list (ADR-0071), an unnamed list inside the Ingredients region; the name
         // `Ingredients` belongs to the region, not to the list.

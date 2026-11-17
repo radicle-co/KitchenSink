@@ -45,8 +45,8 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 > as an exception. To a signed-out visitor the page lists only recipes that are **open to the web** (`021-FR-002`):
 > recipes that carry an open rights label: Written by you, Adapted by you, From a family member or friend, Public
 > domain, and clones of those. _(Amended 2026-11-03, owner ruling, ADR-0082. Was: "recipes the cook wrote, never
-> imported ones". A linked facts card is never listed on a creator page. Counsel review is owed before launch
-> (`016-FR-050`).)_ _(amended 2026-11-03, owner ruling O7, ADR-0082)_ Decided: the page lists recipes the cook wrote or adapted (and their clones where the label
+> imported ones". *(Amended 2026-11-15, ADR-0093.)* A Commise-written version of an import is never listed on a
+> creator page.)_ _(amended 2026-11-03, owner ruling O7, ADR-0082)_ Decided: the page lists recipes the cook wrote or adapted (and their clones where the label
 > carries), and still lists family and public domain recipes by the existing open-recipe rule. It lists no facts
 > card, to anyone. This was an open question. A signed-in visitor sees every public recipe the creator owns. Public
 > collection pages stay behind sign-in until the owner answers 021's Q2 (`021-FR-008`). 021 owns the page's search,
@@ -118,7 +118,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-007** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md))_ Profile pages MUST be server-side rendered with `<title>`, `<meta description>`, and Open Graph tags populated from `CreatorProfile` fields. Indexing, `ProfilePage` structured data, canonical addresses and sitemaps follow `021-FR-020` to `021-FR-029a`. A page with no indexable recipe answers `noindex` (`021-FR-025`). The HTML response is the same for every viewer and sets no cookie (`021-FR-012`).
 
-- **FR-008** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md). Amended 2026-10-29, owner ruling, 021 Q2)_ The public profile page MUST display: avatar, display name, bio, follower count, public collections, and a paginated list of public recipes. To a signed-out visitor it lists only recipes that are open to the web (`021-FR-002`) under every open label (written, adapted, family, public domain, clone), each showing its label (_(amended 2026-11-03, owner ruling O7, ADR-0082)_: never a facts card, signed in or out), and its licence where the cook chose CC BY 4.0 (`016-FR-010`, schema.org `license` on the recipe page, owned by 021), at most 24 per page, and its public collections, each readable signed out on its own address (`021-FR-015`, `021-FR-008`). A collection a chef sells MUST show a signed-out visitor at most its title, cover, price and the chef's own description, never its recipes (`026-FR-015`). The avatar address carries no user id (`021-FR-071`). _(Was, 2026-10-27: "and no public collections until 021's Q2 is answered".)_
+- **FR-008** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md). Amended 2026-10-29, owner ruling, 021 Q2)_ The public profile page MUST display: avatar, display name, bio, follower count, public collections, and a paginated list of public recipes. To a signed-out visitor it lists only recipes that are open to the web (`021-FR-002`) under every open label (written, adapted, family, public domain, clone), each showing its label (_(amended 2026-11-03, owner ruling O7, ADR-0082, amended 2026-11-15)_: never a Commise-written version of an import, signed in or out), and its licence where the cook chose CC BY 4.0 (`016-FR-010`, schema.org `license` on the recipe page, owned by 021), at most 24 per page, and its public collections, each readable signed out on its own address (`021-FR-015`, `021-FR-008`). A collection a chef sells MUST show a signed-out visitor at most its title, cover, price and the chef's own description, never its recipes (`026-FR-015`). The avatar address carries no user id (`021-FR-071`). _(Was, 2026-10-27: "and no public collections until 021's Q2 is answered".)_
 
 - **FR-009** Follower lists MUST NOT be publicly visible; only the aggregate `followerCount` is exposed.
 
@@ -142,11 +142,11 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 ### Content Publishing (FR-017 … FR-019)
 
-- **FR-017** A creator MUST be able to organise recipes into named collections, each public or private (max 20 collections per creator in v1; max 60-char name, max 200-char description). _(Amended 2026-11-03, owner ruling, ADR-0082.)_ A public collection's description is public text, so 020 checks it (`020-FR-071`). A hit hides the description, not the page, until a person decides. A cover the creator uploads is checked as a photo. The shipped schema allows a 1000-character description (`collections.schema.ts`), against this 200. Counsel review is owed before launch (`016-FR-050`).
+- **FR-017** A creator MUST be able to organise recipes into named collections, each public or private (max 20 collections per creator in v1; max 60-char name, max 200-char description). _(Amended 2026-11-03, owner ruling, ADR-0082.)_ A public collection's description is public text, so 020 checks it (`020-FR-071`). A hit hides the description, not the page, until a person decides. A cover the creator uploads is checked as a photo. The shipped schema allows a 1000-character description (`collections.schema.ts`), against this 200.
 
 - **FR-018** Collections MUST support manual ordering of recipes; the order MUST be persisted and returned in API responses.
 
-- **FR-019** Only recipes with `visibility = public` (owned by 001) and authored by the creator MAY be added to a collection. _(Amended 2026-11-03, owner ruling O14, ADR-0082.)_ This holds for a PUBLIC collection. A PRIVATE collection MAY hold the creator's private recipes, and a collection for sale MUST hold only sellable recipes (FR-034b). A FREE public collection MAY also hold a facts card or another person's recipe that the open-recipe rule allows (`021-FR-002`, O14d). A paid collection never holds one.
+- **FR-019** Only recipes with `visibility = public` (owned by 001) and authored by the creator MAY be added to a collection. _(Amended 2026-11-03, owner ruling O14, ADR-0082.)_ This holds for a PUBLIC collection. A PRIVATE collection MAY hold the creator's private recipes, and a collection for sale MUST hold only sellable recipes (FR-034b). A FREE public collection MAY also hold a Commise-written version (amended 2026-11-15) or another person's recipe that the open-recipe rule allows (`021-FR-002`, O14d). A paid collection never holds one.
 
 ### Moderation (FR-020 … FR-022)
 
@@ -154,7 +154,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-021** A suspended creator MUST receive an in-app notification stating the reason and an appeal path.
 
-- **FR-022** DMCA takedown requests targeting a creator's recipe MUST be routable to the Compliance Reviewer role; the affected recipe MUST be unpublished within 24 hours of a valid notice. _(Amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md).)_ The route is 016's one notice mechanism (`016-FR-026`). Every public page carries a Report link to it (`021-FR-045`). A removal reaches every public surface within 021's purge bound (`021-FR-061`).
+- **FR-022** Takedown requests targeting a creator's recipe MUST be routable to the Compliance Reviewer role; the affected recipe MUST be unpublished within 24 hours of a valid notice. _(Amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md).)_ The route is 016's one notice mechanism (`016-FR-026`). Every public page carries a Report link to it (`021-FR-045`). A removal reaches every public surface within 021's purge bound (`021-FR-061`).
 
 ### Analytics (FR-023 … FR-025)
 
@@ -209,33 +209,31 @@ retired IDs below.
   buyers and subscribers lose in-app access, get a 30-day download of the last approved version, and get no refund
   (`018-FR-029e`, `018-FR-029i`). A public recipe or
   collection MUST NOT be for sale (`018-FR-029c`), and reading a public one is never paid for (O14a, `021`).
-- **FR-034b** [Law] Only content the creator owns MAY be sold (O14d). That is "Written by you", "Adapted by you" in the
+- **FR-034b** Only content the creator owns MAY be sold (O14d). That is "Written by you", "Adapted by you" in the
   creator's own words, and a family recipe whose giver's permission covers selling. It MUST NOT be an
-  `imported_public`, `imported_physical` or `imported_paid` copy, a facts card, public-domain curator text, or anything
-  holding another person's text, because selling is distribution (17 U.S.C. §106(3), `016-FR-029a`). A collection for
-  sale MUST hold only sellable recipes, and adding a non-sellable recipe MUST be refused. A facts card or another
-  person's recipe MAY sit only in a FREE public collection. 012 MUST NOT put an `isPremium` flag on collection
-  membership. The one eligibility rule is owned by 018 (`018-FR-027`), and 012 reads it. [House rule] Counsel review is
-  owed before launch (`016-FR-050`).
+  `imported_public`, `imported_physical` or `imported_paid` copy, a Commise-written version of an import (2026-11-15), public-domain curator text, or anything
+  holding another person's text (`016-FR-029a`). A collection for
+  sale MUST hold only sellable recipes, and adding a non-sellable recipe MUST be refused. A Commise-written version or
+  another person's recipe MAY sit only in a FREE public collection. 012 MUST NOT put an `isPremium` flag on collection
+  membership. The one eligibility rule is owned by 018 (`018-FR-027`), and 012 reads it.
   _(amended 2026-11-03, owner ruling O16, ADR-0082)_ A recipe the creator imported from their own page with "This is
   my recipe, from my site or account" (`004-FR-014a` statement 1a) is "Written by you", so it is sellable when kept
   private. The creator page lists it like any recipe the creator wrote when it is public and 020 allows it
-  (`021-FR-002`). Neither reads the site claim. A recipe is public or for sale, never both (`018-FR-029c`). Counsel
-  review is owed before launch (`016-FR-050`).
+  (`021-FR-002`). Neither reads the site claim. A recipe is public or for sale, never both (`018-FR-029c`).
 - **FR-034c** Every sold recipe MUST pass 020's hold before it is listed and before it is delivered, because selling is a
   door to others like publishing (O14e, `020-FR-057`). A held recipe MUST NOT be listed. _(amended 2026-11-03, owner ruling O15b,
   ADR-0082. Was: a buyer's copy carries its source's checked-content digest.)_ A buyer reads the same recipe through the
   same hold. An edit to a sold recipe re-runs the hold, and buyers see the last approved version meanwhile
-  (`018-FR-029d`, `020-FR-064`). [House rule] Counsel review is owed before launch (`016-FR-050`).
+  (`018-FR-029d`, `020-FR-064`).
 - **FR-034d** _(added 2026-11-03, owner ruling, ADR-0082 §9)_ The sale page of a recipe or collection MUST offer two
   products by these names. **Purchase** gives the sold version, to read in the app and to download and keep
   (`018-FR-029`, `018-FR-029a`). **Subscribe** gives the live view of the creator's current versions while the
   subscription runs, and nothing after it ends (`018-FR-029h`). Each button MUST say what it gives, before payment
   (`018-FR-046`). The copy goes through the localization path. 012 holds no billing logic (FR-034a). A
   subscription covers everything the creator sells while it is active, and the chef club is this subscription (owner
-  ruling 2026-11-03, `018` FQ-018-4). [House rule] A subscription is an access grant on
+  ruling 2026-11-03, `018` FQ-018-4). A subscription is an access grant on
   private items for sale. It is not the paid follow tier that FR-038 retired, because following stays free and no
-  public recipe is withheld. Counsel review is owed before launch (`016-FR-050`).
+  public recipe is withheld.
 - _(Note 2026-11-03, owner ruling, ADR-0082 §9.)_ A profile can show the creator's linked social accounts. Linking
   proves ownership of that account's posts through the platform's own sign-in, and is specified in `026-FR-061`. 012
   shows the link only. It does not verify it.

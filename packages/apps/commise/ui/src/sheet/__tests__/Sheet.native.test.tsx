@@ -289,6 +289,31 @@ describe('Sheet (native)', () => {
         expect(onOpenChange).toHaveBeenCalledWith(false);
     });
 
+    // `screenReaderLanding`: where the cursor lands on open. `title` is the default (asserted just below); `content` leaves the
+    // cursor to the content's own focus request (a notice), so the sheet moves it nowhere.
+    it.each([
+        ['title', 1],
+        ['content', 0],
+        [undefined, 1],
+    ] as const)('screenReaderLanding %s moves the cursor %i time(s) when the Modal shows', (landing, moves) => {
+        render(
+            <Sheet
+                open
+                onOpenChange={vi.fn()}
+                title="Edit details"
+                closeLabel="Close"
+                size="content"
+                {...(landing === undefined ? {} : { screenReaderLanding: landing })}
+            >
+                <Text>Body</Text>
+            </Sheet>,
+        );
+
+        act(() => state.modal?.onShow?.({} as never));
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledTimes(moves);
+    });
+
     it('moves screen-reader focus to the title when the Modal shows, and on every reopen', () => {
         const onOpenChange = vi.fn();
         const sheet = (open: boolean) => (

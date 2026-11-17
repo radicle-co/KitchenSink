@@ -24,7 +24,7 @@ import { useMessages } from '@commise/i18n/react';
 import { HorizontalScroller } from '@commise/ui/horizontal-scroller';
 import { useContext, type FC, type ReactNode } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { discoveryMessages } from './messages.js';
 import { RailContext } from './railContext.js';
 import { RAIL_CARD_MAX_PX, RAIL_GAP_PX } from './railScroll.js';

@@ -22,7 +22,7 @@ import { StateNotice } from '@commise/ui/state-notice';
 import { StatusBadge } from '@commise/ui/status-badge';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { figureText } from './foodEditComparison.js';
 import { foodPageCopyOf, type FoodShownState } from './foodPageCopy.js';
 import type { FoodPageViewProps } from './foodPageViewProps.js';

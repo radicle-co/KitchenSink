@@ -22,6 +22,7 @@ import {
 import { privateRuleForDraft, type RecipePrivateFacts } from '../../actions/recipePrivateGate.js';
 import { editorMessages } from '../../editor/messages.js';
 
+import { captureLineFields } from '../lineFieldsMemento.js';
 import { mintedLineKey, seedLineKey } from '../lineKey.js';
 import { makeRecipeFormValues, withLineKeys, withLineKey } from '../../__fixtures__/index.js';
 import { recipeFormMessages, type RecipeFormMessages } from '../messages.js';
@@ -1001,6 +1002,48 @@ describe('applyDraftAction — one entry point, every draft transition', () => {
         applyDraftAction(before, { kind: 'setMealType', value: undefined });
 
         expect(before).toEqual(snapshot);
+    });
+});
+
+/**
+ * `restoreIngredientFields` — the row editor's Cancel. Addressed by key; puts back only the six edited fields, so a
+ * food change made meanwhile (a rebind) survives, and a missing key changes nothing.
+ */
+describe('restoreIngredientFields (row editor Cancel)', () => {
+    const lines = withLineKeys([
+        { ingredientId: 'ing_a', name: 'A', quantity: 2, unit: 'cup', isUserEntered: false },
+        { ingredientId: 'ing_b', name: 'B', quantity: 1, isUserEntered: false },
+    ]);
+    const values = makeRecipeFormValues({ ingredients: lines });
+    const memento = captureLineFields(lines[0]!);
+
+    it('restores the keyed line’s fields and leaves its sibling alone', () => {
+        const edited = applyDraftAction(values, {
+            kind: 'updateIngredientAt',
+            index: 0,
+            patch: { quantity: 9, note: 'x' },
+        });
+        const next = applyDraftAction(edited, { kind: 'restoreIngredientFields', key: lines[0]!.key, memento });
+
+        expect(next.ingredients[0]).toEqual(lines[0]);
+        expect(next.ingredients[1]).toBe(edited.ingredients[1]);
+    });
+
+    it('does not undo a rebind', () => {
+        const rebound = applyDraftAction(values, {
+            kind: 'rebindIngredient',
+            key: lines[0]!.key,
+            binding: { ingredientId: 'ing_new', name: 'New', isUserEntered: false, resolutionStatus: 'RESOLVED' },
+        });
+        const next = applyDraftAction(rebound, { kind: 'restoreIngredientFields', key: lines[0]!.key, memento });
+
+        expect(next.ingredients[0]).toMatchObject({ ingredientId: 'ing_new', name: 'New' });
+    });
+
+    it('changes nothing for a key no line holds', () => {
+        const next = applyDraftAction(values, { kind: 'restoreIngredientFields', key: seedLineKey(9, 9), memento });
+
+        expect(next).toBe(values);
     });
 });
 

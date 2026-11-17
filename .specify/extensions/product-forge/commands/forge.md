@@ -3,7 +3,7 @@ name: speckit.product-forge.forge
 description: >
   Full lifecycle orchestrator for Product Forge v1.6.0. Drives a feature from idea to
   shipped, measured code through the phase map selected by `feature_mode`
-  (express / lite / standard / v-model) with human-in-the-loop gates, cross-artifact
+  (express / lite / standard) with human-in-the-loop gates, cross-artifact
   sync-verify between transitions, and a complete gate audit trail.
   Standard phases: research → product-spec → revalidation → bridge → plan → tasks →
   pre-impl-review → implement → code-review → verify → test-plan → test-run → release-readiness.
@@ -158,13 +158,12 @@ intake step before fixing the mode (see [docs/policy.md §4.0](../docs/policy.md
    likely touched, UI present?, schema/contract changes?).
 2. Present a structured **`Track`** prompt (see
    [interaction-prompts.md](../docs/templates/interaction-prompts.md)) recommending
-   one of `express | lite | standard | v-model`, with the recommended option first.
+   one of `express | lite | standard`, with the recommended option first.
    When the classification is inconclusive, fall back to the personal
    `default_track_hint` from config (default `"standard"`) as the **pre-selected
    default** in the prompt. The hint is advisory only — a confident classification
    recommendation still wins, and the user can always override.
-3. Write the chosen value to **`feature_mode`** (`express | lite | standard |
-   v-model`). "Track" is just the user-facing word for the choice at intake; the
+3. Write the chosen value to **`feature_mode`** (`express | lite | standard`). "Track" is just the user-facing word for the choice at intake; the
    persisted field is `feature_mode` (express is a first-class mode value — see
    [docs/schema.md](../docs/schema.md)). There is no separate `track` field.
 
@@ -320,85 +319,38 @@ Before executing any phase, resolve the feature mode:
    field, write to `.forge-status.yml`, and confirm with the user that
    changing mode mid-feature is intentional.
 4. **Validate.** The resolved value MUST be one of
-   `"express" | "lite" | "standard" | "v-model"`. If anything else (typo, unknown
+   `"express" | "lite" | "standard"`. If anything else (typo, unknown
    literal, non-string) appears — either in the status file, config
    default, or `--mode=` override — abort immediately with:
-   *"Invalid feature_mode: '{value}'. Expected one of express, lite, standard,
-   v-model. Fix .forge-status.yml or .product-forge/config.yml and
+   *"Invalid feature_mode: '{value}'. Expected one of express, lite, standard. Fix .forge-status.yml or .product-forge/config.yml and
    re-run."* Do NOT silently fall through to standard. The same
    validation applies to every `phases.<name>.status` read during
    pre-flight — see [docs/runtime.md §4](../docs/runtime.md#4-step-2--pre-flight-check).
-5. If resolved mode is `v-model`, run the V-Model detection step
-   (see §"V-Model detection" below) before proceeding.
-
-### V-Model detection
-
-V-Model mode requires the external [V-Model Extension Pack](../docs/v-model-integration.md)
-(`leocamello/spec-kit-v-model`, ≥0.5.0). It is declared as an optional
-extension in this plugin's `extension.yml` but NOT bundled.
-
-Detection:
-1. Check whether the command `speckit.v-model.requirements` is available.
-2. If present: read its version (from the extension's manifest) and verify `>=0.5.0`.
-
-Behaviour:
-
-| Detection result | Action |
-|------------------|--------|
-| Present, version OK | Proceed with the v-model phase map below. Read optional `v-model-config.yml` (domain selection) if it exists. |
-| Present, version below required | Abort. Print: *"V-Model plugin version {X} detected; Product Forge needs ≥0.5.0. Upgrade with: `specify extension update v-model`."* |
-| Not installed | Abort. Print: *"V-Model mode requires the V-Model Extension Pack. Install with:*<br>`specify extension add v-model --from https://github.com/leocamello/spec-kit-v-model/archive/refs/tags/v0.5.0.zip`<br>*Re-run after install. See docs/v-model-integration.md."* |
-
-Do NOT fall back to standard mode. Regulated / safety-critical work
-must not silently degrade.
-
-Lite mode cannot be escalated to v-model mid-feature — v-model requires
-artifacts that lite never produced. If a user requests v-model on a lite
-feature, reject and suggest creating a new feature in v-model mode.
 
 ### Phase execution map by mode
 
-| Phase | express | lite | standard | v-model |
-|-------|:-------:|:----:|:--------:|:-------:|
-| 0. Problem Discovery | — | opt | opt | opt |
-| 1. Research | — | — | ✅ | ✅ |
-| 2. Product Spec | ✅ (minimal) | ✅ (light) | ✅ | ✅ |
-| 2H. Design System Harvest | — | — | opt (conditional on UI features) | opt |
-| 3. Revalidation | — | — | ✅ | ✅ |
-| 4. Bridge → SpecKit | — | — | ✅ | ✅ |
-| 4.5. i18n Harvest | — | — | opt (conditional on multi-locale) | opt |
-| 5. Plan | ✅ (inline) | ✅ | ✅ | ✅ |
-| 5B. Tasks | — | — | ✅ | ✅ |
-| 5.5. Migration Plan | — | — | opt (conditional on schema changes) | opt |
-| 5C. Pre-Impl Review | — | — | opt | opt |
-| 6. Implement | ✅ | ✅ | ✅ | ✅ |
-| 6B. Code Review | — | — | opt | opt |
-| 7. Verify Full | ✅ | ✅ | ✅ | ✅ |
-| 8A. Test Plan | — | — | opt | opt |
-| 8B. Test Run | — | — | opt | opt |
-| 9. Release Readiness | — | — | opt | opt |
-| 9.5. Monitoring Setup | — | — | opt | opt |
-| 9B. Experiment Design | — | — | opt (conditional on experiment flag) | opt |
-| 10. Spec Merge | — | — | opt | opt |
-| V1 Requirements (`speckit.v-model.requirements`) | — | — | — | ✅ (replaces Phase 2) |
-| V2 Hazard analysis (`speckit.v-model.hazard-analysis`) | — | — | — | opt (safety-critical domain) |
-| V3 Acceptance test plan (`speckit.v-model.acceptance`) | — | — | — | ✅ |
-| V4 System design (`speckit.v-model.system-design`) | — | — | — | ✅ |
-| V5 System test (`speckit.v-model.system-test`) | — | — | — | ✅ |
-| V6 Architecture design (`speckit.v-model.architecture-design`) | — | — | — | ✅ |
-| V7 Integration test (`speckit.v-model.integration-test`) | — | — | — | ✅ |
-| V8 Module design (`speckit.v-model.module-design`) | — | — | — | ✅ |
-| V9 Unit test (`speckit.v-model.unit-test`) | — | — | — | ✅ |
-| V10 Trace checkpoint (`speckit.v-model.trace`) | — | — | — | ✅ (automatic between level pairs) |
-| V11 Peer review (`speckit.v-model.peer-review`) | — | — | — | opt (any artifact) |
-| V12 Test results (`speckit.v-model.test-results`) | — | — | — | ✅ (after Phase 8B) |
-| V13 Audit report (`speckit.v-model.audit-report`) | — | — | — | ✅ (gates Phase 9) |
-
-In v-model mode, our Phase 2 (product-spec), Phase 3 (revalidation),
-Phase 4 (bridge), and Phase 5 (plan) are replaced by the V-Model
-progression V1 → V9 with V10 trace checkpoints between each level pair.
-See [docs/v-model-integration.md](../docs/v-model-integration.md) for
-the full orchestration contract.
+| Phase | express | lite | standard |
+|-------|:-------:|:----:|:--------:|
+| 0. Problem Discovery | — | opt | opt |
+| 1. Research | — | — | ✅ |
+| 2. Product Spec | ✅ (minimal) | ✅ (light) | ✅ |
+| 2H. Design System Harvest | — | — | opt (conditional on UI features) |
+| 3. Revalidation | — | — | ✅ |
+| 4. Bridge → SpecKit | — | — | ✅ |
+| 4.5. i18n Harvest | — | — | opt (conditional on multi-locale) |
+| 5. Plan | ✅ (inline) | ✅ | ✅ |
+| 5B. Tasks | — | — | ✅ |
+| 5.5. Migration Plan | — | — | opt (conditional on schema changes) |
+| 5C. Pre-Impl Review | — | — | opt |
+| 6. Implement | ✅ | ✅ | ✅ |
+| 6B. Code Review | — | — | opt |
+| 7. Verify Full | ✅ | ✅ | ✅ |
+| 8A. Test Plan | — | — | opt |
+| 8B. Test Run | — | — | opt |
+| 9. Release Readiness | — | — | opt |
+| 9.5. Monitoring Setup | — | — | opt |
+| 9B. Experiment Design | — | — | opt (conditional on experiment flag) |
+| 10. Spec Merge | — | — | opt |
 
 In lite mode, phases marked `—` are set to `status: "not_applicable"` on
 `.forge-status.yml`. They do NOT receive `gates[]` entries and do NOT
@@ -902,7 +854,7 @@ When all active phases are complete:
 ✅ Product Forge Complete: {Feature Name}
 
 📦 Artifacts (only those produced by this feature's mode):
-  research/             — {N} research documents              (standard / v-model)
+  research/             — {N} research documents              (standard)
   product-spec/         — {N} product spec documents
   spec.md               — SpecKit specification               (standard mode)
   plan.md               — Technical plan

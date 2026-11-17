@@ -1,5 +1,5 @@
 /**
- * `npm run maestro:lanes -- --platform android|ios|both [--lanes <n>] [--flows <f...>]` — the local Maestro lane
+ * `npm run maestro:lanes -- --platform android|ios|both [--lanes <n>] [--flows <f...>] [--ios-device iphone|ipad]` — the local Maestro lane
  * orchestrator: N emulators, each running one run-mode `runMaestroFlows.sh` lane against the local sandbox, under one
  * host-owned set of shared services. `FULL_SUITE=1` runs the whole suite; with no `--flows` the impact selector picks.
  *
@@ -32,6 +32,7 @@ import { createAndroidAdapter } from '../src/maestroLanes/androidAdapter.js';
 import { consolePort } from '../src/maestroLanes/androidSerials.js';
 import { createMacAndroidHost } from '../src/maestroLanes/macAndroidHost.js';
 import { IosAdapter } from '../src/maestroLanes/iosAdapter.js';
+import type { IosDevice } from '../src/maestroLanes/iosLane.js';
 import { createIosShell } from '../src/maestroLanes/iosShell.js';
 import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/hostLock.js';
 import { parseLaneArgs, platformTurns, type LaneArgs } from '../src/maestroLanes/lanePlanning.js';
@@ -158,9 +159,9 @@ function killGroup(pid: number): void {
  * The adapter for a platform. iOS and the Mac's Android refuse to build without `LOCAL_MAESTRO_IOS_HOST` (the variable's name
  * is kept for now: it names the Mac). Android runs on the Mac unless `LOCAL_MAESTRO_ANDROID_ON=wsl`.
  */
-function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings): DeviceAdapter {
+function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings, iosDevice: IosDevice): DeviceAdapter {
     if (platform === 'ios') {
-        return new IosAdapter({ shell: createIosShell(), env, repoRoot: REPO_ROOT, settings });
+        return new IosAdapter({ device: iosDevice, shell: createIosShell(), env, repoRoot: REPO_ROOT, settings });
     }
 
     const commands: CommandPort = {
@@ -503,7 +504,7 @@ async function main(argv: readonly string[]): Promise<number> {
     process.on('SIGTERM', abort);
 
     const deps: LaneRunDeps = {
-        adapterFor: (platform) => adapterFor(platform, base, settings),
+        adapterFor: (platform) => adapterFor(platform, base, settings, args.iosDevice),
         stateDir: STATE_DIR,
         // Sorts by age, and holds no `:` or `.` (a folder name on the Mac side of an rsync too).
         runStamp: new Date().toISOString().replace(/[:.]/gu, '-'),

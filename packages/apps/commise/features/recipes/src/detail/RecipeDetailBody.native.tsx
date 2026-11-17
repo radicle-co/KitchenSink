@@ -12,9 +12,10 @@
  * It renders the page's ONE scroller. Every section is a direct child of the scroll content, one flat list. There is no
  * section switch: the page is one scroll, and "Screen on" is a labelled row in the page, drawn once.
  *
- * Left out until their features ship (`designAnswers.md` section
- * "2026-11-02: card, Home header and Recipe detail build questions", bullets "8 comments" row and "Start cooking"):
- * the comments row and "Start cooking".
+ * Left out until its feature ships (`designAnswers.md` section
+ * "2026-11-02: card, Home header and Recipe detail build questions", bullet "8 comments" row): the comments row. Start
+ * cooking is drawn, on its own row under the fact tiles, only when the recipe can be cooked and the app bound the cooking
+ * route.
  *
  * This is the PURE render half. Its orchestration shell, `RecipeDetailView.native.tsx`, binds the session state and
  * measures the layout, because a file does ONE thing (CODING_STANDARDS §1).
@@ -27,8 +28,9 @@ import { KeepAwakeToggle } from '@commise/ui/keep-awake';
 import { LiveRegion } from '@commise/ui/live-region';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { useScreenReaderFocusOnMount, useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
+import type { RecipeIngredientView } from '@kitchensink/recipe-core';
 import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
-import type { FC, ReactElement } from 'react';
+import type { FC, ReactElement, ReactNode } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Text } from '@commise/ui/text';
 
@@ -46,12 +48,20 @@ import { DetailStatusRow } from './DetailStatusRow.native.js';
 import { PinnedServingsRow } from './ingredientFrames.native.js';
 import { IngredientRuns } from './IngredientRuns.native.js';
 import { detailStyles as styles } from './detailStyles.native.js';
-import { allLinesFoodRemoved, detailNoticeState, type RecipeDetailBodyNativeProps } from './model.js';
+import { lineDisplayName } from './lineName.js';
+import {
+    allLinesFoodRemoved,
+    detailNoticeState,
+    reviewControlAddressOf,
+    type RecipeDetailBodyNativeProps,
+} from './model.js';
 import { pinnedBarFactsOf } from './pinnedBarFacts.js';
 import { PinnedIngredientsBar } from './PinnedIngredientsBar.native.js';
 import { RecipeHero } from './RecipeHero.native.js';
 import { RecipeSourceLine } from './RecipeSourceLine.native.js';
+import { ReviewLineButton } from './ReviewLineButton.native.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
+import { StartCookingRow } from './StartCookingRow.js';
 
 /** "Servings", the first thing in the opened list: it takes the screen-reader cursor when the list opens. */
 const PinnedServingsLabel: FC<{ readonly text: string }> = ({ text }) => {
@@ -78,6 +88,8 @@ const PinnedServingsLabel: FC<{ readonly text: string }> = ({ text }) => {
 export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     recipe,
     headerActions,
+    canStartCooking,
+    onStartCooking,
     heroControls,
     scrollFooter,
     rating,
@@ -88,6 +100,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     onOpenDataSources,
     dataSourcesReturnFocusSignal,
     onEditSection,
+    onReviewLine,
     onViewVersions,
     viewerIsOwner,
     visibilityNotice,
@@ -102,7 +115,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     onScroll,
     pinnedIngredients,
 }) => {
-    const { detail, duration, card } = useMessages(recipeMessages);
+    const { detail, duration, card, ingredientLineName } = useMessages(recipeMessages);
     const locale = useLocale();
     const bylineCopy = useMessages(bylineMessages);
     const owner = viewerIsOwner === true;
@@ -120,6 +133,19 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     const tags = [...recipe.dietaryFlags, ...recipe.tags];
     const twoColumns = layout.columns === 'two';
     const editSection = owner ? onEditSection : undefined;
+
+    // The owner's way from a line that needs review to that line in the editor; another cook keeps the plain badge.
+    const reviewAction = (position: number, ingredient: RecipeIngredientView): ReactNode => {
+        const address = reviewControlAddressOf(recipe, position, { owner, canOpenEditor: onReviewLine !== undefined });
+
+        return address === undefined || onReviewLine === undefined ? undefined : (
+            <ReviewLineButton
+                food={lineDisplayName(ingredient, ingredientLineName)}
+                onPress={() => onReviewLine(address)}
+            />
+        );
+    };
+
     const ingredients = (
         <DetailIngredientsSection
             recipe={recipe}
@@ -132,6 +158,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
             saysRecovered={saysRecovered}
             onEdit={editSection === undefined ? undefined : () => editSection('ingredients')}
             twoColumns={twoColumns}
+            reviewAction={reviewAction}
         />
     );
     const steps = (
@@ -198,6 +225,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                 tiles={detailStatCells(scaled, recipe.difficulty, { detail, duration, card })}
                 layout={layout}
             />
+            {canStartCooking === true && onStartCooking !== undefined && <StartCookingRow onPress={onStartCooking} />}
             {/* The action row: the host's text action (Edit recipe, Save a copy), then Screen on, a quiet action with the sun glyph. */}
             <View style={styles.actions}>
                 {headerActions}
@@ -308,6 +336,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                         checked={marks.checkedLines}
                         allRemoved={allLinesFoodRemoved(recipe.ingredients)}
                         onToggle={marks.toggleLine}
+                        reviewAction={reviewAction}
                     />
                 </PinnedIngredientsBar>
             )}

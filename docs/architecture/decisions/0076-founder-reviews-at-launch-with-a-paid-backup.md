@@ -107,7 +107,7 @@ Until the hire starts, the backup works more hours at the hourly rate.
 - **The backup is not on call around the clock.** A 4-hour-a-week employee can miss a 3am page on a holiday. A
   page that nobody answers ends in an overdue notice, which is visible, alerted and counted, never silent.
 - **On-call terms are part of the hire.** Whether time spent reachable for a page is paid depends on the backup's
-  location and contract. Counsel or the payroll provider settles it before the backup starts.
+  location and contract. It is settled with the payroll provider before the backup starts.
 - **The trigger's numbers are a first setting.** They come from the path-to-success analysis and from `016-SC-015`,
   not from measured Commise load. Shadow mode and the first weeks of real load can show that they need to move. Moving
   them is a change to `016-FR-053i`, not to this ADR.

@@ -10,9 +10,9 @@
  * @pattern Presentation Model — the paste flow's summary, notice and pane derived once for both platform leaves
  * @pattern Visitor — an exhaustive switch with no default branch over the notice union
  */
+import { fillTemplate, pluralOf } from '@commise/i18n';
+
 import type { DraftKeep } from '../editor/saveStatus.js';
-import { fillTemplate } from '../format/fillTemplate.js';
-import { pluralOf } from '../format/plural.js';
 import {
     isOpenLine,
     lineTextOf,
@@ -36,7 +36,7 @@ export type PasteMatchNotice =
     /** Offline: the check waits, choices are kept where the draft is (D7). */
     | { readonly kind: 'offline'; readonly keep: DraftKeep }
     /** The daily limit (004 FR-022): the lines are kept as written until it resets in the cook's time zone. */
-    | { readonly kind: 'quota'; readonly resetsAt: string; readonly timeZone: string }
+    | { readonly kind: 'quota'; readonly resetsAt: string; readonly now: string; readonly timeZone: string }
     /** The month's AI check is used up (owner design 2026-10-26): the foods were matched without it, until `resetsAt`. */
     | { readonly kind: 'noAiCheck'; readonly resetsAt: string };
 
@@ -88,19 +88,64 @@ export const pasteMatchSummaryOf = (
     };
 };
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 /**
- * The daily limit's notice (004 FR-022), with the time matching starts again in the cook's locale. Pure.
+ * The calendar days from `from` to `to` in `timeZone`: 0 the same day, 1 the next. Whole days by the cook's own calendar, so
+ * a reset 23 hours away can still be "tomorrow", and 11 PM in New York is not already the next UTC day. Pure.
+ *
+ * @param from - The earlier instant.
+ * @param to - The later instant.
+ * @param timeZone - The cook's IANA time zone.
+ * @returns The day difference; negative when `to` is on an earlier day.
+ */
+const calendarDaysBetween = (from: Date, to: Date, timeZone: string): number => {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: 'numeric', day: 'numeric' });
+
+    // The numeric parts, read back with `Date.UTC`, are a plain calendar day with no zone or DST in it. No formatted date
+    // string is parsed, so the count does not depend on how a device's date library writes a date.
+    // ⛔ An engine whose Intl cannot read the parts in a zone (Hermes without full ICU) yields no numbers. The device's own
+    // calendar is then the fallback: the zone passed in is the device's, so it is the cook's day too.
+    const dayStartOf = (instant: Date): number => {
+        const part = (type: Intl.DateTimeFormatPartTypes): number =>
+            Number(parts.formatToParts(instant).find((entry) => entry.type === type)?.value);
+        const zoned = Date.UTC(part('year'), part('month') - 1, part('day'));
+
+        return Number.isFinite(zoned) ? zoned : Date.UTC(instant.getFullYear(), instant.getMonth(), instant.getDate());
+    };
+
+    return Math.round((dayStartOf(to) - dayStartOf(from)) / MS_PER_DAY);
+};
+
+/**
+ * The daily limit's notice (004 FR-022), with when matching starts again in the cook's locale: the time alone when it is later
+ * today, and "tomorrow at <time>" on a later day. The reset is at most a rolling day away, so it falls today or tomorrow; a
+ * reset further off comes only from a device clock that is behind, and it still reads as tomorrow. Pure.
  *
  * @param resetsAt - When the limit resets, ISO 8601 (the refusal's `resetsAt`).
+ * @param now - The instant the notice is read at, ISO 8601: passing it keeps this function pure.
  * @param copy - The localised copy.
  * @param locale - The active locale.
  * @param timeZone - The cook's IANA time zone, resolved by the host: passing it keeps this function pure.
  * @returns The notice's sentence.
  */
-export const quotaBodyOf = (resetsAt: string, copy: PasteCopy, locale: string, timeZone: string): string =>
-    fillTemplate(copy.pasteMatch.quota.body, {
-        time: new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone }).format(new Date(resetsAt)),
-    });
+export const quotaBodyOf = (
+    resetsAt: string,
+    now: string,
+    copy: PasteCopy,
+    locale: string,
+    timeZone: string,
+): string => {
+    const reset = new Date(resetsAt);
+    const time = new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone }).format(reset);
+    const days = calendarDaysBetween(new Date(now), reset, timeZone);
+
+    if (days <= 0) {
+        return fillTemplate(copy.pasteMatch.quota.today, { time });
+    }
+
+    return fillTemplate(copy.pasteMatch.quota.tomorrow, { time });
+};
 
 /**
  * The notice for foods matched without the AI check (board ImportPasteNoAiCheck), with the day it comes back as a day and
@@ -132,6 +177,8 @@ export interface PasteMatchNoticeInput {
     readonly keep: DraftKeep;
     /** The cook's IANA time zone, for the daily limit's time. */
     readonly timeZone: string;
+    /** The instant the notice is read at, ISO 8601, so the daily limit can say which day it resets on. */
+    readonly now: string;
     /** The paste's matched lines. */
     readonly lines: readonly MatchLine[];
 }
@@ -147,7 +194,7 @@ export interface PasteMatchNoticeInput {
  */
 export const pasteMatchNoticeFor = (input: PasteMatchNoticeInput): PasteMatchNotice | undefined => {
     if (input.quota !== undefined) {
-        return { kind: 'quota', resetsAt: input.quota.resetsAt, timeZone: input.timeZone };
+        return { kind: 'quota', resetsAt: input.quota.resetsAt, now: input.now, timeZone: input.timeZone };
     }
 
     if (input.offline && input.lines.length > 0) {
@@ -278,7 +325,7 @@ export const pasteMatchNoticeOf = (notice: PasteMatchNotice, copy: PasteCopy, lo
         case 'offline':
             return notice.keep === 'disk' ? copy.pasteMatch.offline.bodyDevice : copy.pasteMatch.offline.bodyTab;
         case 'quota':
-            return quotaBodyOf(notice.resetsAt, copy, locale, notice.timeZone);
+            return quotaBodyOf(notice.resetsAt, notice.now, copy, locale, notice.timeZone);
         case 'noAiCheck':
             return noAiCheckBodyOf(notice.resetsAt, copy, locale);
     }

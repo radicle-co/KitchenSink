@@ -61,6 +61,8 @@ const host: ScrollHostApi = {
     scrollToSection: () => undefined,
     scrollToField: () => false,
     revealSpan: () => false,
+    scrollToStart: () => false,
+    showIfHidden: () => false,
     headingLayout: () => undefined,
     sectionLayout: () => () => undefined,
     handle: createRef<ScrollTarget | null>(),

@@ -10,9 +10,10 @@
  * sticky with its own scroll) beside the steps (7/12), with the review surface under the steps. The collapsed Nutrition
  * row sits before the columns, full width.
  *
- * There is no section switch (`nativeBoards/buildLists.md`): the page is one scroll. Left out until their features
- * ship (`designAnswers.md` section "2026-11-02: card, Home header and Recipe detail build questions", bullets
- * "8 comments" row and "Start cooking"): the comments row and "Start cooking".
+ * There is no section switch (`nativeBoards/buildLists.md`): the page is one scroll. Left out until its feature ships
+ * (`designAnswers.md` section "2026-11-02: card, Home header and Recipe detail build questions", bullet "8 comments"
+ * row): the comments row. Start cooking is drawn, on its own row under the fact tiles, only when the recipe can be
+ * cooked and the app bound the cooking route.
  *
  * Every width rule is a CONTAINER query on the article (`@container/detail`), never a script measurement, so the
  * server render and the hydrated page are the same page. "Screen on" is a labelled row, and the toggle itself renders
@@ -24,6 +25,7 @@
  * @pattern Humble Object — the pure render half of the orchestration/render split whose shell is
  *     `RecipeDetailView.tsx`. It holds no fetch state and decides nothing.
  */
+import { fillTemplate } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { useFocusOnSignal } from '@commise/ui/dialog-focus';
@@ -34,11 +36,13 @@ import { LiveRegion } from '@commise/ui/live-region';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
+import type { RecipeIngredientView } from '@kitchensink/recipe-core';
 import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
 import Link from 'next/link';
-import { useId, type ComponentProps, type FC } from 'react';
+import { useId, type ComponentProps, type FC, type ReactNode } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { arrivalHash } from '../editor/editorArrival.js';
+import type { EditorSectionId } from '../editor/sections.js';
 import { recipeMessages } from '../messages.js';
 import { bylineMessages } from '../byline/messages.js';
 import { AmbiguityReview } from './AmbiguityReview.js';
@@ -57,12 +61,21 @@ import {
     STEPS_COLUMN,
 } from './detailLayoutClasses.js';
 import { IngredientRuns } from './IngredientRuns.js';
-import { allLinesFoodRemoved, detailNoticeState, removedFoodNotice, type RecipeDetailBodyWebProps } from './model.js';
+import { lineDisplayName } from './lineName.js';
+import {
+    allLinesFoodRemoved,
+    detailNoticeState,
+    removedFoodNotice,
+    reviewControlAddressOf,
+    type RecipeDetailBodyWebProps,
+} from './model.js';
+import { ReviewLineLink } from './ReviewLineLink.js';
 import { pinnedBarFactsOf } from './pinnedBarFacts.js';
 import { PinnedIngredientsBar } from './PinnedIngredientsBar.js';
 import { RecipeHero } from './RecipeHero.js';
 import { RecipeSourceLine } from './RecipeSourceLine.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
+import { StartCookingRow } from './StartCookingRow.js';
 import { StepRow } from './StepRow.js';
 
 /** A Next.js link target from a plain address. */
@@ -93,6 +106,8 @@ const TILE_GLYPH = { total: 'clock', prep: 'timer', difficulty: 'chartColumn' } 
 export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
     recipe,
     headerActions,
+    canStartCooking,
+    onStartCooking,
     back,
     heroControls,
     rating,
@@ -114,7 +129,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
     ingredientsEndRef,
     pinnedIngredients,
 }) => {
-    const { detail, duration, card } = useMessages(recipeMessages);
+    const { detail, duration, card, ingredientLineName } = useMessages(recipeMessages);
     const locale = useLocale();
     const bylineCopy = useMessages(bylineMessages);
     const owner = viewerIsOwner === true;
@@ -142,8 +157,21 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
     const byline = detailByline(recipe, owner, detail, bylineCopy);
     const status = detailStatusLine(recipe, owner, { detail, card });
     const tags = [...recipe.dietaryFlags, ...recipe.tags];
-    const editSectionHref = (section: string): Href | undefined =>
-        owner && editHref !== undefined ? (`${editHref}#${section}` as Href) : undefined;
+    const editSectionHref = (section: EditorSectionId): Href | undefined =>
+        owner && editHref !== undefined ? (`${editHref}${arrivalHash({ section })}` as Href) : undefined;
+
+    // The owner's way from a line that needs review to that line in the editor; another cook keeps the plain badge.
+    const reviewAction = (position: number, ingredient: RecipeIngredientView): ReactNode => {
+        const address = reviewControlAddressOf(recipe, position, { owner, canOpenEditor: editHref !== undefined });
+
+        return address === undefined ? undefined : (
+            <ReviewLineLink
+                href={`${editHref}${arrivalHash({ section: 'ingredients', line: address })}` as Href}
+                food={lineDisplayName(ingredient, ingredientLineName)}
+            />
+        );
+    };
+
     const ingredientsEdit = editSectionHref('ingredients');
     const stepsEdit = editSectionHref('steps');
 
@@ -215,6 +243,9 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
                                 </div>
                             ))}
                         </dl>
+                    )}
+                    {canStartCooking === true && onStartCooking !== undefined && (
+                        <StartCookingRow onPress={onStartCooking} />
                     )}
                     {/* The action row: the host's text action (Edit recipe, Save a copy), then Screen on, a quiet action with the sun glyph
                         (which renders nothing where the browser cannot keep the screen awake). */}
@@ -353,6 +384,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
                             checked={marks.checkedLines}
                             allRemoved={allRemoved}
                             onToggle={marks.toggleLine}
+                            reviewAction={reviewAction}
                         />
                     )}
                     {/* The marker the pinned bar watches (owner ruling R1): zero tall, at the card's end, and gone from a 720 px body, where the sticky card does this job. */}
@@ -375,7 +407,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
                         open={pinnedIngredients.open}
                         onOpenChange={pinnedIngredients.onOpenChange}
                     >
-                        <div className="flex items-center justify-between gap-3 pe-3 ps-4 pt-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pe-3 ps-4 pt-2.5">
                             <span className="text-meta text-ink-muted">{detail.servingsAdjustLabel}</span>
                             <ServingScaleControl
                                 servings={servings}
@@ -388,6 +420,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
                             checked={marks.checkedLines}
                             allRemoved={allRemoved}
                             onToggle={marks.toggleLine}
+                            reviewAction={reviewAction}
                         />
                     </PinnedIngredientsBar>
                 )}

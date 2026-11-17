@@ -5,10 +5,8 @@
  * platforms cannot drift on copy. The `en` set is required; adding a locale is just
  * another key. Templates carry `{token}` placeholders filled with `fillTemplate`.
  */
-import type { LocalizedMessages } from '@commise/i18n';
+import { type LocalizedMessages, type PluralText } from '@commise/i18n';
 import type { RecipeMealType } from '@kitchensink/recipe-core';
-
-import type { PluralText } from '../format/plural.js';
 
 /** Shared copy for the recipe create/edit form, rendered by both the web and native form leaves. */
 export interface RecipeFormMessages {
@@ -246,6 +244,12 @@ export interface RecipeFormMessages {
     readonly rowAmountInvalid: string;
     /** The row editor's Done (§7.5.2, `row.done`). */
     readonly rowDone: string;
+    /** The row editor's Cancel: closes it and puts back what it edited. */
+    readonly rowCancel: string;
+    /** The label above the cook's own original line, in a needs-review row editor. */
+    readonly rowYouWroteLabel: string;
+    /** The original line above the food search during Change on a needs-review line. Holds `{line}`. */
+    readonly rowYouWroteInline: string;
     /** The phone row editor sheet's close control. Holds `{food}`. */
     readonly rowEditorClose: string;
     /** The row editor's amount field (`row.amountLabel`). */
@@ -614,8 +618,16 @@ export interface RecipeFormMessages {
             readonly bodyDevice: string;
             readonly bodyTab: string;
         };
-        /** 004 FR-022's daily limit; `{time}` is when it resets. */
-        readonly quota: { readonly body: string };
+        /**
+         * 004 FR-022's daily limit, one whole sentence per variant because word order differs by language (UI Designer,
+         * 2026-11-16). The reset is at most a rolling day away, so it falls today or tomorrow. Each contains `{time}`.
+         */
+        readonly quota: {
+            /** The reset is later today. */
+            readonly today: string;
+            /** The reset is on the next day. */
+            readonly tomorrow: string;
+        };
         /**
          * `import.paste.noAiCheck` (owner design 2026-10-26, board ImportPasteNoAiCheck): the month's AI check is used up
          * and these foods were matched without it; `{date}` is the day it comes back, as a day and month in the cook's
@@ -751,6 +763,9 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         rowAttentionLabel: '{state}: {food}',
         rowAmountInvalid: 'Check the amount',
         rowDone: 'Done',
+        rowCancel: 'Cancel',
+        rowYouWroteLabel: 'You wrote',
+        rowYouWroteInline: 'You wrote: “{line}”',
         rowEditorClose: 'Close {food}',
         rowAmountLabel: 'Amount',
         rowAmountTo: 'to',
@@ -927,7 +942,9 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
                     'You’re offline. Your choices are kept in this tab. Search and the check start again when you’re back online.',
             },
             quota: {
-                body: 'You’ve added a lot today. Matching starts again at {time}. These lines are kept as written, and you can choose foods for them then.',
+                today: 'You’ve added a lot today. Matching starts again at {time}. These lines are kept as written, and you can choose foods for them then.',
+                tomorrow:
+                    'You’ve added a lot today. Matching starts again tomorrow at {time}. These lines are kept as written, and you can choose foods for them then.',
             },
             noAiCheck: {
                 body: 'This month’s AI check is used up, so these foods were matched without it, your matches from before included. Confirm or change each one. The check comes back on {date}.',

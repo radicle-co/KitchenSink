@@ -46,7 +46,8 @@ import {
 import { lineProgressOf } from './domain/lineProgress.js';
 import { RecipeDomainError, importQuotaExceeded } from './recipe.error.js';
 import { PARSE_JOB_QUEUE, type ParseJobQueuePort } from './parseJob.queue.js';
-import type { ImportAllowanceChannel } from '../database/schema/importAllowanceEvents.js';
+import { isPremiumPrincipal, type Principal } from '../auth/principal.js';
+import type { AdmitRequest } from '../common/dal/importAllowance.dal.js';
 import type { ParseJobLineStatus, ParseJobStatus } from '../database/schema/parseJobs.js';
 import type { ParseJobLineProgress, ParseJobResponse, ParseProposal } from './parseJobs.schema.js';
 
@@ -115,20 +116,19 @@ export interface ReenqueueableLine {
     readonly lineDigest: string;
 }
 
+/** The slice of the verified principal a paste is admitted on: the owner key, and the plan and kind the one allowance reads. */
+export type PasteCaller = Pick<Principal, 'userId' | 'roles' | 'principalKind'>;
+
 /**
  * How a job pays for itself (004 FR-022). REQUIRED on {@link ParseJobsDalPort.createJob}, so no call site creates a job
  * free by omission: the free path is a value somebody had to write.
  */
 export type JobAdmission =
     /** Spend `units` of the caller's daily import allowance, as the FIRST write of the job's own transaction. */
-    | {
-          readonly kind: 'charge';
-          readonly channel: ImportAllowanceChannel;
-          readonly units: number;
-      }
+    | ({ readonly kind: 'charge' } & AdmitRequest)
     /**
-     * The caller already spent the unit this job belongs to (a bulk import's recipe pays on the `bulk` channel, ADR-0072 §8):
-     * admit nothing here. `jobId`, when given, is the id the job is created under: a retry that names an id that already
+     * The caller already spent the unit this job belongs to (a bulk import's recipe paid one unit of the one import
+     * allowance, on the `bulk` channel, ADR-0072 §8): admit nothing here. `jobId`, when given, is the id the job is created under: a retry that names an id that already
      * exists is answered with THAT job (`existing`) instead of making a second one, which is what makes a crash between
      * "the job was created" and "the item names it" free of a second LLM bill.
      */
@@ -336,26 +336,33 @@ export class ParseJobsService {
      * ⛔ A PASTE IS ONE UNIT, whatever its line count (004 D-013's reasoning: the allowance bounds outbound fetching and
      * OCR spend, which a paste does neither of). It is spent inside the job's transaction, so a refusal creates nothing.
      *
-     * @param ownerId - The verified caller.
+     * The unit is drawn from the ONE import allowance bulk import also draws on (004 FR-067, owner ruling 2026-11-15): the
+     * caller's plan and kind come from the verified principal, so a paid cook has the larger limit and a test principal has none.
+     *
+     * @param caller - The verified caller: the owner key, and the roles and kind the allowance reads.
      * @param text - The pasted block.
      * @throws `IMPORT_QUOTA_EXCEEDED` (429, `details.resetsAt`) when the allowance is spent.
      * @sideEffect Writes the parse-job tables and the allowance ledger, and enqueues SQS messages.
      */
-    public async create(ownerId: string, text: string): Promise<ParseJobResponse> {
-        return this.createWith(ownerId, splitParseJobLines(text), { kind: 'charge', channel: 'paste', units: 1 });
+    public async create(caller: PasteCaller, text: string): Promise<ParseJobResponse> {
+        return this.createWith(caller.userId, splitParseJobLines(text), {
+            kind: 'charge',
+            channel: 'paste',
+            units: 1,
+            isPremium: isPremiumPrincipal(caller),
+            principalKind: caller.principalKind,
+        });
     }
 
     /**
-     * Create a job for lines whose unit the caller ALREADY spent (a bulk import's recipe, ADR-0072 §8: one `bulk` unit per recipe).
+     * Create a job for lines whose unit the caller ALREADY spent (a bulk import's recipe: one unit of the one import
+     * allowance, recorded on the `bulk` channel, ADR-0072 §8).
      *
-     * ⛔ NO LIVE ROUTE MAY CALL THIS. It exists for the parked bulk-import lane (ADR-0072 section 8), which has no route
-     * yet; today the only door to a job is {@link create}, which charges the paste allowance. A controller that called this
-     * would hand every caller an uncharged parse job.
-     *
-     * ⛔ THIS IS NOT A FREE PATH. It is legitimate only for a caller that has already charged a `bulk` unit for the
-     * recipe these lines came from (and recorded that on the item, so a repeat never charges it twice); a caller that has
-     * not must use {@link create}. It admits nothing, so nothing here stops a caller from using it to skip the allowance —
-     * the guard is the call site. A bulk import pays PER RECIPE under its own channel, never against the paste allowance.
+     * ⛔ THIS IS NOT A FREE PATH. Its one live caller is `ImportAdvanceService.startParsing`, which has already charged the
+     * recipe's unit and recorded that on the item, so a repeat never charges it twice. A caller that has not charged must use
+     * {@link create}, which draws one unit from the SAME allowance. This method admits nothing, so nothing here stops a
+     * caller from using it to skip the allowance: the guard is the call site, and a controller that called it directly would
+     * hand every caller an uncharged parse job.
      *
      * @param ownerId - The verified caller.
      * @param lines - The already-split source lines (the importer's own, not a paste).

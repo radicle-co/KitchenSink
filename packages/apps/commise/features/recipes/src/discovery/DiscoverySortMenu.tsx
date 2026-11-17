@@ -20,7 +20,7 @@ import { surfaceToneClass, PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { discoveryMessages } from './messages.js';
 import { DISCOVERY_SORTS, discoverySortLabel, isDiscoverySort, type RecipeDiscoverySortControl } from './model.js';
 

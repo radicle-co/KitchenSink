@@ -2,6 +2,9 @@
  * The daily import allowance (004 FR-022) against the REAL app and a REAL database (LOCAL e2e,
  * `docs/CODING_STANDARDS.md` §7.1a; migration 0058).
  *
+ * The paste draws on the ONE import allowance bulk import also draws on (owner ruling 2026-11-15, 004 FR-067); the
+ * cross-channel cases are `tests/e2e/import/importAllowance.e2e.test.ts`. The dev-bypass caller here is a real, free cook.
+ *
  * What only this tier can prove, and the mutation each test is there to kill:
  *
  *  - migration 0058 applied, and the SERVICE role (`recipe_app`, DML only, ADR-0039) can insert, read and delete the
@@ -23,13 +26,15 @@ import pg from 'pg';
 import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 import { apiErrorSchema, parseJobResponseSchema, recipeApiErrorSchema } from '@kitchensink/schema-recipe';
 
-import { IMPORT_ALLOWANCE_RULES } from '../../../src/common/importAllowancePolicy.js';
+import { IMPORT_ALLOWANCE_RULE } from '../../../src/common/importAllowancePolicy.js';
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
 
 const USER = '01JIMPORTQUOTAE2EUSER0001';
 const OTHER = '01JIMPORTQUOTAE2EUSER0002';
 const roleDb = recipeDb();
+/** The dev-bypass caller is a real cook with no paid role, so the one allowance is Free's. */
+const FREE_LIMIT = IMPORT_ALLOWANCE_RULE.limit.free;
 
 describe('the daily import allowance (LOCAL e2e)', () => {
     let booted: BootedRecipeApp;
@@ -136,14 +141,14 @@ describe('the daily import allowance (LOCAL e2e)', () => {
     });
 
     describe('admission over HTTP', () => {
-        it('admits the 200th unit and refuses the 201st with 429 IMPORT_QUOTA_EXCEEDED', async () => {
-            await seed(USER, IMPORT_ALLOWANCE_RULES.paste.limit - 1, 1);
+        it('admits the 200th unit (Free) and refuses the 201st with 429 IMPORT_QUOTA_EXCEEDED', async () => {
+            await seed(USER, FREE_LIMIT - 1, 1);
 
             const admitted = await paste('2 cups flour');
 
             expect(admitted.status).toBe(202);
             parseJobResponseSchema.parse(await admitted.json());
-            expect(await ledgerUnits()).toBe(IMPORT_ALLOWANCE_RULES.paste.limit);
+            expect(await ledgerUnits()).toBe(FREE_LIMIT);
 
             const refused = await paste('1 tsp salt');
 
@@ -184,14 +189,14 @@ describe('the daily import allowance (LOCAL e2e)', () => {
                 [USER],
             );
             const expected = new Date(
-                (oldest.rows[0] as { oldest: Date }).oldest.getTime() + IMPORT_ALLOWANCE_RULES.paste.windowMs,
+                (oldest.rows[0] as { oldest: Date }).oldest.getTime() + IMPORT_ALLOWANCE_RULE.windowMs,
             );
 
             expect(body.details.resetsAt).toBe(expected.toISOString());
         });
 
         it('⛔ a refusal leaves no job, no line and no new ledger row', async () => {
-            await seed(USER, IMPORT_ALLOWANCE_RULES.paste.limit, 1);
+            await seed(USER, FREE_LIMIT, 1);
             const before = await ledgerUnits();
 
             const response = await paste('2 cups flour\n1 tsp salt');
@@ -210,7 +215,7 @@ describe('the daily import allowance (LOCAL e2e)', () => {
 
         it('⛔ a unit older than 24 h neither counts nor survives', async () => {
             // 199 fresh units and 5 expired ones: the expired five must not push the caller over the limit.
-            await seed(USER, IMPORT_ALLOWANCE_RULES.paste.limit - 1, 1);
+            await seed(USER, FREE_LIMIT - 1, 1);
             await seed(USER, 5, 25);
 
             const response = await paste('2 cups flour');
@@ -223,16 +228,31 @@ describe('the daily import allowance (LOCAL e2e)', () => {
             );
 
             expect((old.rows[0] as { n: number }).n).toBe(0);
-            expect(await ledgerUnits()).toBe(IMPORT_ALLOWANCE_RULES.paste.limit);
+            expect(await ledgerUnits()).toBe(FREE_LIMIT);
         });
 
         it("counts each caller's allowance separately", async () => {
-            await seed(OTHER, IMPORT_ALLOWANCE_RULES.paste.limit, 1);
+            await seed(OTHER, FREE_LIMIT, 1);
 
             const response = await paste('2 cups flour');
 
             expect(response.status).toBe(202);
-            expect(await ledgerUnits(OTHER)).toBe(IMPORT_ALLOWANCE_RULES.paste.limit);
+            expect(await ledgerUnits(OTHER)).toBe(FREE_LIMIT);
+        });
+    });
+
+    describe('one allowance across channels', () => {
+        it('⛔ a bulk-spent day refuses a paste: the 200 is shared, and the refusal is the same 429', async () => {
+            await pool.query(`INSERT INTO import_allowance_events (user_id, channel, units) VALUES ($1, 'bulk', $2)`, [
+                USER,
+                FREE_LIMIT,
+            ]);
+
+            const response = await paste('2 cups flour');
+
+            expect(response.status).toBe(429);
+            expect(recipeApiErrorSchema.parse(await response.json())).toMatchObject({ code: 'IMPORT_QUOTA_EXCEEDED' });
+            expect(await jobCount()).toBe(0);
         });
     });
 
@@ -284,14 +304,14 @@ describe('the daily import allowance (LOCAL e2e)', () => {
         });
 
         it('⛔ admits exactly one of two concurrent creates at 199 units', async () => {
-            await seed(USER, IMPORT_ALLOWANCE_RULES.paste.limit - 1, 1);
+            await seed(USER, FREE_LIMIT - 1, 1);
 
             const statuses = (await Promise.all([paste('2 cups flour'), paste('1 tsp salt')])).map(
                 (response) => response.status,
             );
 
             expect([...statuses].sort()).toEqual([202, 429]);
-            expect(await ledgerUnits()).toBe(IMPORT_ALLOWANCE_RULES.paste.limit);
+            expect(await ledgerUnits()).toBe(FREE_LIMIT);
             expect(await jobCount()).toBe(1);
         });
     });

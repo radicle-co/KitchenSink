@@ -1,0 +1,601 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-27T19:13:01Z"
+  },
+  "title": "Commise Screens: Account and sign in",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Profile.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 1191,
+      "title": "Profile, proposal (web)",
+      "expand": "fill"
+    },
+    "ProfileMobile.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 390,
+      "h": 1031,
+      "title": "Profile (mobile)"
+    },
+    "ProfileScrolledMobile.dc.html": {
+      "x": 18300,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Profile, scrolled (mobile)"
+    },
+    "AccountCloseDialog.dc.html": {
+      "x": 1830,
+      "y": 260,
+      "w": 1280,
+      "h": 1150,
+      "title": "Profile, close account, proposal (web)",
+      "expand": "fill"
+    },
+    "AccountCloseDialogMobile.dc.html": {
+      "x": 3190,
+      "y": 260,
+      "w": 390,
+      "h": 1416,
+      "title": "Profile, close account (mobile)"
+    },
+    "AccountEraseDialog.dc.html": {
+      "x": 3660,
+      "y": 260,
+      "w": 1280,
+      "h": 1844,
+      "title": "Profile, erase my data, proposal (web)",
+      "expand": "fill"
+    },
+    "AccountEraseDialogMobile.dc.html": {
+      "x": 5020,
+      "y": 260,
+      "w": 390,
+      "h": 1997,
+      "title": "Profile, erase my data (mobile)"
+    },
+    "AccountEraseDialogStates.dc.html": {
+      "x": 5490,
+      "y": 260,
+      "w": 1280,
+      "h": 3592,
+      "title": "Profile, erase and close: states, proposal (web)",
+      "expand": "fill"
+    },
+    "AccountEraseDialogStatesMobile.dc.html": {
+      "x": 6850,
+      "y": 260,
+      "w": 390,
+      "h": 5626,
+      "title": "Profile, erase and close: states (mobile)"
+    },
+    "AccountBlocked.dc.html": {
+      "x": 7320,
+      "y": 260,
+      "w": 1280,
+      "h": 836,
+      "title": "Account, blocked, proposal (web)",
+      "expand": "fill"
+    },
+    "AccountBlockedMobile.dc.html": {
+      "x": 8680,
+      "y": 260,
+      "w": 390,
+      "h": 1605,
+      "title": "Account, blocked (mobile)"
+    },
+    "ProfileLoading.dc.html": {
+      "x": 9150,
+      "y": 260,
+      "w": 1280,
+      "h": 1556,
+      "title": "Profile, loading and failed, proposal (web)",
+      "expand": "fill"
+    },
+    "ProfileLoadingMobile.dc.html": {
+      "x": 10510,
+      "y": 260,
+      "w": 390,
+      "h": 1506,
+      "title": "Profile, loading and failed (mobile)"
+    },
+    "ProfileDisplayName.dc.html": {
+      "x": 10980,
+      "y": 260,
+      "w": 1280,
+      "h": 2362,
+      "title": "Profile, display name, proposal (web)",
+      "expand": "fill"
+    },
+    "ProfileDisplayNameMobile.dc.html": {
+      "x": 12340,
+      "y": 260,
+      "w": 390,
+      "h": 2337,
+      "title": "Profile, display name (mobile)"
+    },
+    "ProfileDisplayNameStates.dc.html": {
+      "x": 12810,
+      "y": 260,
+      "w": 1280,
+      "h": 2944,
+      "title": "Profile, display name: states, proposal (web)",
+      "expand": "fill"
+    },
+    "ProfileDisplayNameStatesMobile.dc.html": {
+      "x": 14170,
+      "y": 260,
+      "w": 390,
+      "h": 3200,
+      "title": "Profile, display name: states (mobile)"
+    },
+    "ProfileInlineStates.dc.html": {
+      "x": 14640,
+      "y": 260,
+      "w": 1280,
+      "h": 774,
+      "title": "Profile, sign out and settings, proposal (web)",
+      "expand": "fill"
+    },
+    "ProfileInlineStatesMobile.dc.html": {
+      "x": 16000,
+      "y": 260,
+      "w": 390,
+      "h": 724,
+      "title": "Profile, sign out and settings (mobile)"
+    },
+    "ProfileAvatar.dc.html": {
+      "x": 16470,
+      "y": 260,
+      "w": 1280,
+      "h": 400,
+      "title": "Profile, photo, proposal (web)",
+      "expand": "fill"
+    },
+    "ProfileAvatarMobile.dc.html": {
+      "x": 17830,
+      "y": 260,
+      "w": 390,
+      "h": 1228,
+      "title": "Profile, photo (mobile)"
+    },
+    "ProfileNoName.dc.html": {
+      "x": 18770,
+      "y": 260,
+      "w": 1280,
+      "h": 1191,
+      "title": "Profile, no display name, proposal (web)",
+      "expand": "fill"
+    },
+    "Profile1024.dc.html": {
+      "x": 0,
+      "y": 6286,
+      "w": 1024,
+      "h": 1191,
+      "title": "Profile, proposal, 1024 px (web)",
+      "expand": "fill"
+    },
+    "Profile768.dc.html": {
+      "x": 1104,
+      "y": 6286,
+      "w": 768,
+      "h": 1233,
+      "title": "Profile, proposal, 768 px (web)",
+      "expand": "fill"
+    },
+    "Profile834Mobile.dc.html": {
+      "x": 2422,
+      "y": 6286,
+      "w": 834,
+      "h": 1194,
+      "title": "Profile, 834 px (mobile)"
+    },
+    "ProfileScrolled834Mobile.dc.html": {
+      "x": 4610,
+      "y": 6286,
+      "w": 834,
+      "h": 1194,
+      "title": "Profile, scrolled, 834 px (mobile)"
+    },
+    "Profile1194Mobile.dc.html": {
+      "x": 3336,
+      "y": 6286,
+      "w": 1194,
+      "h": 971,
+      "title": "Profile, 1194 px (mobile)"
+    },
+    "ProfileNoName1024.dc.html": {
+      "x": 5524,
+      "y": 6286,
+      "w": 1024,
+      "h": 1191,
+      "title": "Profile, no display name, proposal, 1024 px (web)",
+      "expand": "fill"
+    },
+    "ProfileNoName768.dc.html": {
+      "x": 6628,
+      "y": 6286,
+      "w": 768,
+      "h": 1233,
+      "title": "Profile, no display name, proposal, 768 px (web)",
+      "expand": "fill"
+    },
+    "SignIn.dc.html": {
+      "x": 0,
+      "y": 8179,
+      "w": 1280,
+      "h": 566,
+      "title": "Sign in (web)",
+      "expand": "fill"
+    },
+    "SignInMobile.dc.html": {
+      "x": 1360,
+      "y": 8179,
+      "w": 390,
+      "h": 671,
+      "title": "Sign in (mobile)"
+    },
+    "AuthSessionLoading.dc.html": {
+      "x": 1830,
+      "y": 8179,
+      "w": 1280,
+      "h": 400,
+      "title": "Sign in, checking your session (web)",
+      "expand": "fill"
+    },
+    "AuthSessionLoadingMobile.dc.html": {
+      "x": 3190,
+      "y": 8179,
+      "w": 390,
+      "h": 844,
+      "title": "Sign in, checking your session (mobile)"
+    },
+    "SignInVerifyCode.dc.html": {
+      "x": 3660,
+      "y": 8179,
+      "w": 1280,
+      "h": 844,
+      "title": "Sign in, verification code (web)",
+      "expand": "fill"
+    },
+    "SignInVerifyCodeMobile.dc.html": {
+      "x": 5020,
+      "y": 8179,
+      "w": 390,
+      "h": 1392,
+      "title": "Sign in, verification code (mobile)"
+    },
+    "SignInErrors.dc.html": {
+      "x": 5490,
+      "y": 8179,
+      "w": 1280,
+      "h": 478,
+      "title": "Sign in, errors (web)",
+      "expand": "fill"
+    },
+    "SignInErrorsMobile.dc.html": {
+      "x": 6850,
+      "y": 8179,
+      "w": 390,
+      "h": 3690,
+      "title": "Sign in, errors (mobile)"
+    },
+    "SignInSocialStates.dc.html": {
+      "x": 7320,
+      "y": 8179,
+      "w": 1280,
+      "h": 844,
+      "title": "Sign in, Google and Apple (web)",
+      "expand": "fill"
+    },
+    "SignInSocialStatesMobile.dc.html": {
+      "x": 8680,
+      "y": 8179,
+      "w": 390,
+      "h": 1744,
+      "title": "Sign in, Google and Apple (mobile)"
+    },
+    "SignIn1024.dc.html": {
+      "x": 0,
+      "y": 12269,
+      "w": 1024,
+      "h": 566,
+      "title": "Sign in, 1024 px (web)",
+      "expand": "fill"
+    },
+    "SignIn768.dc.html": {
+      "x": 1104,
+      "y": 12269,
+      "w": 768,
+      "h": 566,
+      "title": "Sign in, 768 px (web)",
+      "expand": "fill"
+    },
+    "SignIn834Mobile.dc.html": {
+      "x": 2422,
+      "y": 12269,
+      "w": 834,
+      "h": 671,
+      "title": "Sign in, 834 px (mobile)"
+    },
+    "SignIn1194Mobile.dc.html": {
+      "x": 3336,
+      "y": 12269,
+      "w": 1194,
+      "h": 671,
+      "title": "Sign in, 1194 px (mobile)"
+    },
+    "SignUp.dc.html": {
+      "x": 0,
+      "y": 13600,
+      "w": 1280,
+      "h": 908,
+      "title": "Sign up (web)",
+      "expand": "fill"
+    },
+    "SignUpMobile.dc.html": {
+      "x": 1360,
+      "y": 13600,
+      "w": 390,
+      "h": 950,
+      "title": "Sign up (mobile)"
+    },
+    "SignUpFinish.dc.html": {
+      "x": 1830,
+      "y": 13600,
+      "w": 1280,
+      "h": 844,
+      "title": "Sign up, finish creating your account (web)",
+      "expand": "fill"
+    },
+    "SignUpFinishMobile.dc.html": {
+      "x": 3190,
+      "y": 13600,
+      "w": 390,
+      "h": 1530,
+      "title": "Sign up, finish creating your account (mobile)"
+    },
+    "SignUp1024.dc.html": {
+      "x": 0,
+      "y": 15530,
+      "w": 1024,
+      "h": 908,
+      "title": "Sign up, 1024 px (web)",
+      "expand": "fill"
+    },
+    "SignUp768.dc.html": {
+      "x": 1104,
+      "y": 15530,
+      "w": 768,
+      "h": 908,
+      "title": "Sign up, 768 px (web)",
+      "expand": "fill"
+    },
+    "SignUp834Mobile.dc.html": {
+      "x": 2422,
+      "y": 15530,
+      "w": 834,
+      "h": 950,
+      "title": "Sign up, 834 px (mobile)"
+    },
+    "SignUp1194Mobile.dc.html": {
+      "x": 3336,
+      "y": 15530,
+      "w": 1194,
+      "h": 950,
+      "title": "Sign up, 1194 px (mobile)"
+    },
+    "LegalSources.dc.html": {
+      "x": 0,
+      "y": 17140,
+      "w": 1280,
+      "h": 828,
+      "title": "Data sources, proposal (web)",
+      "expand": "fill"
+    },
+    "LegalSourcesMobile.dc.html": {
+      "x": 1360,
+      "y": 17140,
+      "w": 390,
+      "h": 1144,
+      "title": "Data sources (mobile)"
+    },
+    "LegalSourcesScrolledMobile.dc.html": {
+      "x": 3660,
+      "y": 17140,
+      "w": 390,
+      "h": 844,
+      "title": "Data sources, scrolled (mobile)"
+    },
+    "LegalSourcesStates.dc.html": {
+      "x": 1830,
+      "y": 17140,
+      "w": 1280,
+      "h": 1375,
+      "title": "Data sources, loading and problems (web)",
+      "expand": "fill"
+    },
+    "LegalSourcesStatesMobile.dc.html": {
+      "x": 3190,
+      "y": 17140,
+      "w": 390,
+      "h": 2876,
+      "title": "Data sources, loading and problems (mobile)"
+    },
+    "LegalSources1024.dc.html": {
+      "x": 0,
+      "y": 20416,
+      "w": 1024,
+      "h": 828,
+      "title": "Data sources, proposal, 1024 px (web)",
+      "expand": "fill"
+    },
+    "LegalSources768.dc.html": {
+      "x": 1104,
+      "y": 20416,
+      "w": 768,
+      "h": 864,
+      "title": "Data sources, proposal, 768 px (web)",
+      "expand": "fill"
+    },
+    "LegalSources834Mobile.dc.html": {
+      "x": 2422,
+      "y": 20416,
+      "w": 834,
+      "h": 1194,
+      "title": "Data sources, 834 px (mobile)"
+    },
+    "LegalSourcesScrolled834Mobile.dc.html": {
+      "x": 4610,
+      "y": 20416,
+      "w": 834,
+      "h": 1194,
+      "title": "Data sources, scrolled, 834 px (mobile)"
+    },
+    "LegalSources1194Mobile.dc.html": {
+      "x": 3336,
+      "y": 20416,
+      "w": 1194,
+      "h": 1068,
+      "title": "Data sources, 1194 px (mobile)"
+    }
+  },
+  "order": [
+    "Profile.dc.html",
+    "ProfileMobile.dc.html",
+    "ProfileScrolledMobile.dc.html",
+    "AccountCloseDialog.dc.html",
+    "AccountCloseDialogMobile.dc.html",
+    "AccountEraseDialog.dc.html",
+    "AccountEraseDialogMobile.dc.html",
+    "AccountEraseDialogStates.dc.html",
+    "AccountEraseDialogStatesMobile.dc.html",
+    "AccountBlocked.dc.html",
+    "AccountBlockedMobile.dc.html",
+    "ProfileLoading.dc.html",
+    "ProfileLoadingMobile.dc.html",
+    "ProfileDisplayName.dc.html",
+    "ProfileDisplayNameMobile.dc.html",
+    "ProfileDisplayNameStates.dc.html",
+    "ProfileDisplayNameStatesMobile.dc.html",
+    "ProfileInlineStates.dc.html",
+    "ProfileInlineStatesMobile.dc.html",
+    "ProfileAvatar.dc.html",
+    "ProfileAvatarMobile.dc.html",
+    "ProfileNoName.dc.html",
+    "Profile1024.dc.html",
+    "Profile768.dc.html",
+    "Profile834Mobile.dc.html",
+    "ProfileScrolled834Mobile.dc.html",
+    "Profile1194Mobile.dc.html",
+    "ProfileNoName1024.dc.html",
+    "ProfileNoName768.dc.html",
+    "SignIn.dc.html",
+    "SignInMobile.dc.html",
+    "AuthSessionLoading.dc.html",
+    "AuthSessionLoadingMobile.dc.html",
+    "SignInVerifyCode.dc.html",
+    "SignInVerifyCodeMobile.dc.html",
+    "SignInErrors.dc.html",
+    "SignInErrorsMobile.dc.html",
+    "SignInSocialStates.dc.html",
+    "SignInSocialStatesMobile.dc.html",
+    "SignIn1024.dc.html",
+    "SignIn768.dc.html",
+    "SignIn834Mobile.dc.html",
+    "SignIn1194Mobile.dc.html",
+    "SignUp.dc.html",
+    "SignUpMobile.dc.html",
+    "SignUpFinish.dc.html",
+    "SignUpFinishMobile.dc.html",
+    "SignUp1024.dc.html",
+    "SignUp768.dc.html",
+    "SignUp834Mobile.dc.html",
+    "SignUp1194Mobile.dc.html",
+    "LegalSources.dc.html",
+    "LegalSourcesMobile.dc.html",
+    "LegalSourcesScrolledMobile.dc.html",
+    "LegalSourcesStates.dc.html",
+    "LegalSourcesStatesMobile.dc.html",
+    "LegalSources1024.dc.html",
+    "LegalSources768.dc.html",
+    "LegalSources834Mobile.dc.html",
+    "LegalSourcesScrolled834Mobile.dc.html",
+    "LegalSources1194Mobile.dc.html"
+  ],
+  "notes": {
+    "row27": {
+      "x": 0,
+      "y": 0,
+      "text": "Profile",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row28": {
+      "x": 0,
+      "y": 6026,
+      "text": "Profile: breakpoints",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row29": {
+      "x": 0,
+      "y": 7919,
+      "text": "Sign in",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row30": {
+      "x": 0,
+      "y": 12009,
+      "text": "Sign in: breakpoints",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row31": {
+      "x": 0,
+      "y": 13340,
+      "text": "Sign up",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row32": {
+      "x": 0,
+      "y": 15270,
+      "text": "Sign up: breakpoints",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row34": {
+      "x": 0,
+      "y": 16880,
+      "text": "Data sources",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row35": {
+      "x": 0,
+      "y": 20156,
+      "text": "Data sources: breakpoints",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

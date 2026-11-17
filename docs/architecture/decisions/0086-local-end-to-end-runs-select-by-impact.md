@@ -69,9 +69,14 @@ widens every screen change to the whole app. The walk does not stop there for a 
 ### 3. Anything the selector cannot attribute runs the whole tier
 
 Only these changes select zero tests: markdown (`**/*.md`, ADRs included), the vitest test files and their
-configuration (`**/__tests__/**`, `**/*.test.*`, `**/vitest*.config.*`), and `packages/tools/repoGuards/**`. This differs
+configuration (`**/__tests__/**`, `**/*.test.*`, `**/vitest*.config.*`), `packages/tools/repoGuards/**`, and the two
+timing tables the lane packers read, `web/tests/e2e/testDurations.json` and `mobile/tests/e2e/maestroFlowSeconds.tsv`. This differs
 from the first brief, which also listed `docs/**` and `specs/**`. A Playwright spec screenshots `docs/mockups/screens/*.html`,
-so a file under `docs/` can feed a test. The test files are on the list for a reason. One guard cruises both graphs with tests included. It fails if any shipped file imports a test. A second guard fails if a source of the end-to-end suites names a markdown file or the repo guards.
+so a file under `docs/` can feed a test. Three guards hold the list. One cruises both graphs with tests included, and
+fails if any shipped file imports a test. One fails if a source of the end-to-end suites names a markdown file or the
+repo guards. One fails if any file names a timing table, except the lane packers (`web/scripts/e2ePaths.ts` and
+`mobile/tests/e2e/runMaestroFlows.sh`), their tests and the selector's own policy and tests. A spec, fixture, seed or
+flow that read a table would fail it.
 
 These changes select every test. Service sources, wire schemas and service clients. Every package that a service or a
 test tool depends on, read from the workspace manifests at plan time and never from a list. A web spec runs against the

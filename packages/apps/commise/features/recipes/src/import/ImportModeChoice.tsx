@@ -22,8 +22,7 @@ import { RadioList } from '@commise/ui/radio-list';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
-import { pluralOf } from '../format/plural.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { pluralOf, fillTemplate } from '@commise/i18n';
 import { modeOfOptionId, modeOptionsOf } from './importMode.js';
 import { importMessages } from './messages.js';
 import type { ImportModeChoiceProps } from './props.js';

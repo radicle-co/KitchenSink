@@ -8,9 +8,9 @@
  * reasons and the announcements. A count is a `{ one, other }` pair with `{count}`, chosen through `Intl.PluralRules`
  * (`pluralOf`, `format/plural.ts`), the way every count in this package is.
  */
-import type { LocalizedMessages } from '@commise/i18n';
 
-import type { PluralText } from '../format/plural.js';
+import { type LocalizedMessages, type PluralText } from '@commise/i18n';
+
 import type { EditorSectionId } from './sections.js';
 import type { AttentionReason, InProgressReason } from './sectionStatus.js';
 
@@ -170,6 +170,8 @@ export interface EditorMessages {
             readonly prep: string;
         };
         readonly pasteList: string;
+        /** One quiet line when a link named an ingredient the draft no longer holds (a changed or older draft). */
+        readonly jumpLineMissing: string;
         readonly pasteTitle: string;
         readonly pasteLabel: string;
         readonly pasteHint: string;
@@ -506,6 +508,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
                 prep: 'preparation {prep}',
             },
             pasteList: 'Paste a list',
+            jumpLineMissing: 'We couldn’t find that ingredient. Your draft may have changed since it was last saved.',
             pasteTitle: 'Paste a list',
             pasteLabel: 'Ingredient lines',
             pasteHint: 'One ingredient per line. You can add the steps next.',

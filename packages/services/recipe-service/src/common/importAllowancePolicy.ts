@@ -8,22 +8,23 @@
  *
  * ## The numbers, and where they come from
  *
- * Two channels, each with its OWN limit, its OWN rows and its own window (owner ruling 2026-10-26, ADR-0072 §8):
- *
- *  - **paste: 200 a rolling day**, one unit per paste (004 plan.md §5; spec D-006);
- *  - **bulk: 1,000 recipes a rolling day**, one unit per recipe (`/api/v1/import`).
+ * ONE allowance for every user-facing import (owner ruling 2026-11-15, "one pipeline, one allowance"; 004 FR-067,
+ * ADR-0072 §8): **200 units a rolling day on Free and 1,000 on a paid plan.** A bulk import spends one unit per recipe on
+ * the `bulk` channel; the editor's ingredient-list paste spends one unit per paste on the `paste` channel. The channel is
+ * kept on each ledger row for attribution only: every channel's rows count against the one limit, so a cook who pasted
+ * 150 times on Free has 50 recipes of bulk import left that day, and the reverse. A test principal (ADR-0040) has no
+ * limit on any channel.
  *
  * A trailing window, not a calendar day: a calendar day resets every user at the same instant and lets a burst straddle
- * midnight at double the allowance. Each channel sums ONLY its own rows, so paste and bulk import never borrow from each
- * other. The 50-a-day OCR sub-quota does not live here: plan.md moved it to 011 with its channel, which must inherit it
- * rather than re-derive it.
+ * midnight at double the allowance. The 50-a-day OCR sub-quota does not live here: plan.md moved it to 011 with its
+ * channel, which must inherit it rather than re-derive it.
  *
  * ## One unit, and "admit what fits"
  *
  * A paste costs ONE unit however many lines it has (it does no outbound fetching and no OCR). A bulk import costs one unit
  * PER RECIPE, because LLM spend starts when a recipe's lines are first sent for parsing. A bulk file of ANY size is
  * accepted (owner ruling, second round): the policy admits the units that fit in today's room and says when more opens,
- * so a 2,000-recipe export imports 1,000 today and the rest follows. There is no per-file cap and no error for a large
+ * so a 2,000-recipe export imports 1,000 today on a paid plan, and the rest follows. There is no per-file cap and no error for a large
  * file.
  *
  * ## The window edge
@@ -32,36 +33,59 @@
  * that instant, so the room it held is available at `createdAt + 24 h` and not a tick later. The edge is defined here and
  * nowhere else ({@link importAllowanceWindowStart}); the DAL prunes and reads with it.
  *
- * ## No tier input (yet)
+ * ## The plan and kind inputs
  *
- * Every caller gets the same limit today, so the decision takes no tier. 010 adds the input, and the first rule that
- * reads it, together; an input nothing reads is a promise nothing checks. `isPremium` is the one tier fact every policy
- * here reads (`isPremiumPrincipal` in `auth/principal.ts`).
+ * A TEST principal has no limit ({@link TEST_PRINCIPAL_ALLOWANCE_LIMIT}, owner ruling 2026-11-15). A real cook's scope
+ * carries `isPremium`, the one plan fact every policy here reads (`isPremiumPrincipal` in `auth/principal.ts`, which counts
+ * `superuser`, `vip` and `premium` as paid). Every channel's scope carries both, because the one limit depends on both.
  *
  * @pattern Specification — one pure decision over the window's events; the DAL supplies the facts, this module owns the rule
  */
 import type { ImportAllowanceChannel } from '../database/schema/importAllowanceEvents.js';
+import type { PrincipalKind } from './containmentPolicy.js';
 
 /** A rolling day, in milliseconds. */
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** What one channel allows: how many units, over how long a trailing window. */
-export interface ImportAllowanceRule {
-    /** Units a user may spend in one window (the same for every caller until 010 specifies tier rules). */
-    readonly limit: number;
-    /** The trailing window an event counts in, in milliseconds. */
-    readonly windowMs: number;
-}
+/** The one rule every channel draws on: its limit by plan and its window (ADR-0072 §8, 004 FR-067). */
+export const IMPORT_ALLOWANCE_RULE = {
+    limit: { free: 200, paid: 1000 },
+    windowMs: DAY_MS,
+} as const;
 
 /**
- * Each channel's own rule: its limit and its own window (ADR-0072 §8). Typed over the channel union, so a channel added to
- * the ledger without a rule is a compile error rather than an unlimited channel. Both windows are a rolling day today;
- * they are separate values so that one can change without the other.
+ * The limit a TEST principal is stated with (ADR-0040): the int4 ceiling the view's `allowance.limit` can carry, which no test
+ * run reaches. Owner ruling 2026-11-15, verbatim: "if this is for testing, then there are no limits. IF this is for user-facing
+ * behavior, then one pipeline, one allowance." The pool users the e2e, Playwright, Maestro and k6 tiers sign in as are test
+ * principals, so a limit on them would stall a paste flow on a sandbox where nothing is wrong. The unit is still written to the
+ * ledger, so the one pipeline is exercised end to end.
  */
-export const IMPORT_ALLOWANCE_RULES: Readonly<Record<ImportAllowanceChannel, ImportAllowanceRule>> = {
-    paste: { limit: 200, windowMs: DAY_MS },
-    bulk: { limit: 1000, windowMs: DAY_MS },
-};
+export const TEST_PRINCIPAL_ALLOWANCE_LIMIT = 2_147_483_647;
+
+/**
+ * Who is asking, and on which channel. The channel only labels the ledger row; the limit depends on the plan and on
+ * whether the principal is a test principal. `principalKind` is REQUIRED so a call site that forgot it cannot silently
+ * limit a test principal.
+ */
+export interface ImportAllowanceScope {
+    readonly channel: ImportAllowanceChannel;
+    readonly isPremium: boolean;
+    readonly principalKind: PrincipalKind;
+}
+
+/** Whose allowance it is: the plan and the principal kind. The channel does not change the one allowance. */
+export type AllowanceHolder = Pick<ImportAllowanceScope, 'isPremium' | 'principalKind'>;
+
+/**
+ * The units a holder may spend in one window. Pure.
+ */
+export function importAllowanceLimitOf(scope: AllowanceHolder): number {
+    if (scope.principalKind === 'test') {
+        return TEST_PRINCIPAL_ALLOWANCE_LIMIT;
+    }
+
+    return scope.isPremium ? IMPORT_ALLOWANCE_RULE.limit.paid : IMPORT_ALLOWANCE_RULE.limit.free;
+}
 
 /** One spent unit on the ledger: which channel spent it, how many units, and when. */
 export interface AllowanceEvent {
@@ -79,27 +103,24 @@ export type ImportAllowanceDecision =
     /** No unit fits. More room opens at `resetsAt`. */
     | { readonly kind: 'refuse'; readonly resetsAt: Date };
 
-/** What {@link evaluateImportAllowance} reads. */
-export interface ImportAllowanceInput {
-    /** The channel asking. Only this channel's events count against this channel's limit. */
-    readonly channel: ImportAllowanceChannel;
-    /** The user's ledger events. Other channels' and out-of-window ones are ignored here, so a caller may pass a superset. */
+/** What {@link evaluateImportAllowance} reads: the holder asking (every channel's events count, so no channel) and the request. */
+export type ImportAllowanceInput = AllowanceHolder & {
+    /** The user's ledger events, on every channel. Out-of-window ones are ignored here, so a caller may pass a superset. */
     readonly windowEvents: readonly AllowanceEvent[];
     /** Units this request would spend: a positive integer. There is no upper bound; the policy admits what fits. */
     readonly requestedUnits: number;
     /** The instant the decision is made at. */
     readonly now: Date;
-}
+};
 
 /**
- * The instant before which an event no longer counts on `channel`. An event at or before this instant is out of the window.
+ * The instant before which an event no longer counts. An event at or before this instant is out of the window.
  *
- * @param channel - The channel whose window this is.
  * @param now - The instant the decision is made at.
  * @returns `now` minus the window. Pure.
  */
-export function importAllowanceWindowStart(channel: ImportAllowanceChannel, now: Date): Date {
-    return new Date(now.getTime() - IMPORT_ALLOWANCE_RULES[channel].windowMs);
+export function importAllowanceWindowStart(now: Date): Date {
+    return new Date(now.getTime() - IMPORT_ALLOWANCE_RULE.windowMs);
 }
 
 /**
@@ -107,7 +128,7 @@ export function importAllowanceWindowStart(channel: ImportAllowanceChannel, now:
  *
  * @param counted - The counted events, oldest first.
  * @param needed - Units that must leave: at least 1.
- * @param windowMs - The channel's window.
+ * @param windowMs - The window.
  * @returns The moment the last of the units needed leaves. Pure.
  */
 function whenUnitsLeave(
@@ -129,13 +150,33 @@ function whenUnitsLeave(
 }
 
 /**
- * Decide how much of a request fits the channel's allowance, and when more room opens.
+ * The events that count at `now`, on every channel, oldest first, and the room they leave under the scope's limit. The ONE
+ * counting rule: the decision and the view both read it, so they cannot disagree.
+ *
+ * @returns The counted events and `room` (the limit minus the units spent; negative when over it). Pure.
+ */
+function countedOn(
+    scope: AllowanceHolder,
+    windowEvents: readonly AllowanceEvent[],
+    now: Date,
+): { readonly counted: readonly AllowanceEvent[]; readonly room: number } {
+    const windowStart = importAllowanceWindowStart(now).getTime();
+    const counted = windowEvents
+        .filter((event) => event.createdAt.getTime() > windowStart)
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    const spent = counted.reduce((sum, event) => sum + event.units, 0);
+
+    return { counted, room: importAllowanceLimitOf(scope) - spent };
+}
+
+/**
+ * Decide how much of a request fits the allowance, and when more room opens.
  *
  * `resetsAt` is derived from the events, never from `now`: it is the moment ONE more unit becomes available, because
  * "admit what fits" reopens the allowance as soon as any unit frees, not when the whole request would fit. After a
  * partial admission the units being written at `now` are part of the ledger the answer is read from.
  *
- * @param input - The channel, the user's window events, the units requested and the clock.
+ * @param input - The scope, the user's window events, the units requested and the clock.
  * @returns `admit` (all of it), `partial` (the room that is left, and when more opens), or `refuse` (none, and when).
  * @throws {RangeError} when `requestedUnits` is not a positive integer: that is a caller defect, not a quota answer.
  */
@@ -144,13 +185,8 @@ export function evaluateImportAllowance(input: ImportAllowanceInput): ImportAllo
         throw new RangeError(`requestedUnits must be a positive integer, got ${String(input.requestedUnits)}`);
     }
 
-    const windowStart = importAllowanceWindowStart(input.channel, input.now).getTime();
-    const counted = input.windowEvents
-        .filter((event) => event.channel === input.channel && event.createdAt.getTime() > windowStart)
-        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-    const spent = counted.reduce((sum, event) => sum + event.units, 0);
-    const { windowMs } = IMPORT_ALLOWANCE_RULES[input.channel];
-    const room = IMPORT_ALLOWANCE_RULES[input.channel].limit - spent;
+    const { counted, room } = countedOn(input, input.windowEvents, input.now);
+    const { windowMs } = IMPORT_ALLOWANCE_RULE;
 
     if (room >= input.requestedUnits) {
         return { kind: 'admit', units: input.requestedUnits };
@@ -166,4 +202,41 @@ export function evaluateImportAllowance(input: ImportAllowanceInput): ImportAllo
     const afterAdmission = [...counted, { units: room, createdAt: input.now }];
 
     return { kind: 'partial', units: room, resetsAt: whenUnitsLeave(afterAdmission, 1, windowMs) };
+}
+
+/** The caller's allowance as the import view shows it. */
+export interface ImportAllowanceState {
+    readonly limit: number;
+    /** Units spent inside the window, on every channel. */
+    readonly used: number;
+    /**
+     * An ISO instant: when one more unit of room opens (the moment a refusal would name when the limit is reached), or
+     * `null` when nothing is spent.
+     */
+    readonly resetsAt: string | null;
+}
+
+/**
+ * Describe the allowance for the import view.
+ *
+ * Read with the SAME window edge and the same rows the decision uses, so what the view says and what the next
+ * `advance` does cannot disagree. An `advance` that reaches the allowance answers `200` with this state in the view (ADR-0072
+ * §8 as amended), so the client keeps the progress it paid for and explains the pause from `used`, `limit` and `resetsAt`.
+ *
+ * @param input - The scope, the user's ledger events and the clock.
+ * @returns The limit, the units spent and when more opens. Pure.
+ */
+export function describeImportAllowance(
+    input: AllowanceHolder & { readonly windowEvents: readonly AllowanceEvent[]; readonly now: Date },
+): ImportAllowanceState {
+    const { counted, room } = countedOn(input, input.windowEvents, input.now);
+    const limit = importAllowanceLimitOf(input);
+    const { windowMs } = IMPORT_ALLOWANCE_RULE;
+
+    return {
+        limit,
+        used: limit - room,
+        // Over the limit, one unit of room needs `1 - room` units to leave, exactly as the refusal counts it.
+        resetsAt: counted.length === 0 ? null : whenUnitsLeave(counted, Math.max(1, 1 - room), windowMs).toISOString(),
+    };
 }

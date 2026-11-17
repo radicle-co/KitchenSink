@@ -449,6 +449,23 @@ describe('ScrollHost (native)', () => {
         expect(api().revealSpan('row', 'field')).toBe(false);
     });
 
+    // A native element is not found by id: it hears that it was named (`FieldTargetContext`), as a field does.
+    it('names a start to the element, which hears it: scrollToStart answers true and releases a held section', () => {
+        const { api } = renderHost(['details']);
+
+        act(() => {
+            api().scrollToSection('details');
+        });
+        expect(api().current).toBe('details');
+
+        let found = false;
+        act(() => {
+            found = api().scrollToStart('row');
+        });
+
+        expect(found).toBe(true);
+    });
+
     it('throws when read outside a host: a floating button with no scroller is a wiring defect', () => {
         const Orphan = (): null => {
             useScrollHost();

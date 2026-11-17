@@ -10,7 +10,7 @@
  * While a paste's lines are still joining the recipe, or a pick is being sent, `pending` holds Publish: a recipe
  * published then would lose them, and the rows themselves say "Reading…". ⛔ A line still being CHECKED does not hold it:
  * the cook may publish, and the publish sheet (`openChoices`) says which lines have no food yet (R23). The same fact holds
- * the server create, through the shared paste hold the editor reads when a checkpoint runs (`pasteHold.ts`): written as
+ * the server create, through the shared paste hold the editor reads when a checkpoint runs (`editor/hold.ts`): written as
  * the paste's state commits, cleared on unmount.
  *
  * @pattern Facade — one entry point over the paste, its matching and its sheet, for the two containers
@@ -25,12 +25,13 @@ import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import { reviewReasonOf } from '../ingredientMatching/reviewReason.js';
 import { useMatchCopy } from '../ingredientMatching/useMatchCopy.js';
 import type { OpenChoicesFacts } from './openChoicesCopy.js';
-import type { PasteHold } from './pasteHold.js';
+import type { Hold } from './hold.js';
 import { pasteMilestoneOf, pasteProgressOf, pasteRowsOf, waitsOnCook } from './pasteProgress.js';
 import type { SourceLinkExtraction } from '@kitchensink/recipe-core';
 
 import type { DraftKeep } from './saveStatus.js';
 import { useAppFocused } from '../hooks/useAppFocused.js';
+import { systemNow, useDayClock } from './useDayClock.js';
 import { usePasteAnnouncement } from './usePasteAnnouncement.js';
 import { usePasteIntoIngredients } from './usePasteIntoIngredients.js';
 import { usePasteListSheet, type PasteListSheet } from './usePasteListSheet.js';
@@ -51,8 +52,8 @@ export interface UseIngredientsPasteOptions {
     readonly lineKeys: readonly string[];
     /** Open the sheet at once: Home's first-run Paste ingredients (§7.5.4). */
     readonly initiallyOpen: boolean;
-    /** The hold the editor reads before its server create (`pasteHold.ts`): this paste is its one writer. */
-    readonly hold: PasteHold;
+    /** The hold the editor reads before its server create (`editor/hold.ts`): this paste is its one writer. */
+    readonly hold: Hold;
     /** The row editor: the paste list's picks go through its one commit port, and its food picker opens on a line. */
     readonly rowEditor: IngredientRowEditor;
     /** Where the draft is kept (D7), for the offline notice. */
@@ -61,6 +62,8 @@ export interface UseIngredientsPasteOptions {
     readonly autoBind: boolean;
     /** A link line the pasted text carried (ADR-0089): it sets the recipe's Source rather than becoming an ingredient. */
     readonly onSource: (extraction: SourceLinkExtraction) => void;
+    /** The clock the daily limit's notice is read at; the device's when not given. */
+    readonly now?: () => Date;
 }
 
 /** What the publish action reads of the paste's lines that have no food yet. */
@@ -137,8 +140,10 @@ export function useIngredientsPaste(options: UseIngredientsPasteOptions): Ingred
         copy: { lineTooLong: m.pasteRefusalLineTooLong, tooManyLines: m.pasteRefusalTooManyLines },
         onSource: options.onSource,
     });
+    const now = useDayClock(options.now ?? systemNow);
     const presentation = usePasteMatchView({
         matching,
+        now,
         lineCount: options.lineKeys.length,
         keep: options.keep,
         quota: paste.quota,

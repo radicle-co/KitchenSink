@@ -1,0 +1,37 @@
+/* Commise redesign overrides (workshop 5, round 9). Loaded AFTER ds/commise/bundle.css and after each board's own
+   <style>, on the redesign canvas only. Design artifact, not app code.
+   The colours, radii and Manrope titles come from @commise/ui itself (merged 2026-10-27). What is left here styles
+   board markup that no component draws: inline board type is mapped onto the 14/16/18/28 ramp by attribute selectors
+   (boards write inline "font: W Spx/LH var(...)"), and the hand-drawn recipe detail rows follow C5 and C6. */
+
+/* ---------- Type ramp for inline board styles ---------- */
+/* The even scale (owner ruling T1, 2026-10-26): 14 for detail, lists and secondary text, 16 for body and row titles, 18
+   for section titles and reading text, 28 for the one page title. Board sources are already on it (typeScale.py); these rules catch the sizes that
+   components write at render time. A 15 is secondary (14) when it is muted, and a row title (16) otherwise. */
+[style*=' 11px/'], [style*=' 12px/'], [style*=' 13px/'], [style*=' 14px/'], [style*='font-size: 11px'], [style*='font-size: 12px'], [style*='font-size: 13px'], [style*='font-size: 14px'], [style*='font-size: 15px'][style*='muted'], [style*=' 15px/'][style*='muted'] { font-size: 14px !important; }
+[style*=' 15px/']:not([style*='muted']), [style*=' 16px/'], [style*=' 17px/'], [style*='font-size: 15px']:not([style*='muted']), [style*='font-size: 16px'], [style*='font-size: 17px'] { font-size: 16px !important; }
+[style*=' 18px/'], [style*=' 20px/'], [style*=' 22px/'], [style*='font-size: 18px'], [style*='font-size: 20px'], [style*='font-size: 22px'] { font-size: 18px !important; }
+[style*=' 18px/1.6'] { line-height: 1.5 !important; }
+/* Display: the one page title is 28; every other display use (dialog, sheet, card titles) drops to 16. */
+[style*='font: 700 28px'], [style*='font: 700 40px'], [style*='font-size: 28px'] { font-size: 28px !important; font-weight: 600 !important; }
+[style*='font: 600 24px'], [style*='font: 700 20px'], [style*='font: 600 18px'][style*='--font-display'], [style*='font-size: 24px'] { font-size: 16px !important; font-weight: 600 !important; }
+[style*='font: 700'], [style*='font-weight: 700'] { font-weight: 600 !important; }
+.font-bold { font-weight: 600; }
+/* ---------- Steel is an accent, never a large fill ---------- */
+/* The hero gradient is flat (tokens.css). A filled action keeps steel only on buttons, the FAB, the selected segment, checked boxes and the current step number; large selected areas use --selected-fill, never --action. */
+
+/* ---------- EVALUATE fixes (2026-10-23) ---------- */
+/* The web sidebar fills the board height, whatever the viewport. */
+.ks-side, .sb { height: auto !important; align-self: stretch; }
+/* Recipe detail ingredient list, owner decisions C5 and C6: rows are 14 (the list role) regular ink and only the amount is 600, as @commise/ui draws them;
+   section names are sentence case and muted; space replaces the row dividers; checkboxes are a thin outline.
+   `html body` lifts these rules over each board's own styles, which load after this file. */
+html body .rd .group { font-weight: 500; letter-spacing: 0; text-transform: none; padding-top: 16px; }
+html body .rd .ing li { padding-top: 8px; padding-bottom: 8px; }
+html body .rd .ing li + li::before { display: none; }
+html body .rd .ing .box { box-shadow: inset 0 0 0 1px var(--line-control); }
+html body .rd .ing .box.on { box-shadow: none; }
+html body .rd .stepper .n { font-weight: 500; }
+html body .rd .ing li { font-size: 14px; }
+html body .rd .ing .box { width: 18px; height: 18px; border-radius: 4px; }
+

@@ -1923,6 +1923,11 @@ jobs:
             - name: Run e2e-plan integration tests
               if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/e2e-plan') }}
               run: npm run test:integration --workspace=@kitchensink/e2e-plan
+            # The Mac Android host over a real MacSession and a scripted shell: the lane environment before and after the
+            # session opens. No Mac is reached, so it runs on this Linux runner.
+            - name: Run local-sandbox integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/local-sandbox') }}
+              run: npm run test:integration --workspace=@kitchensink/local-sandbox
             # The design-artifact build over the REAL sources: esbuild bundles both platforms' component surfaces, Tailwind
             # compiles their stylesheet, and the surface checks run on the actual cards and canvas boards. No browser,
             # no network. The Chromium render of every card and board is the LOCAL e2e tier, on a developer's machine.
@@ -1973,6 +1978,12 @@ jobs:
             - name: Run recipe-import-core integration tests
               if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/recipe-import-core') }}
               run: npm run test:integration --workspace=@kitchensink/recipe-import-core
+            # The page reader through its package name (`@kitchensink/page-reader`): the real htmlparser2 and tinyduration over
+            # a synthetic 2 MB page with 32,000-character lines, its walks bounded by counted node visits, plus the byte cap and
+            # a hostile `__proto__` key. A mocked parser cannot show a hostile page is read whole. No Docker, no network.
+            - name: Run page-reader integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/page-reader') }}
+              run: npm run test:integration --workspace=@kitchensink/page-reader
             # The seed manifest over a real temporary filesystem (curated plan U2): symlinks, special files and
             # file modes, which no in-memory stand-in reproduces. No Docker, no network, no database.
             - name: Run db-schema-guard integration tests
@@ -1984,6 +1995,23 @@ jobs:
             - name: Run clerk-verify integration tests
               if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/clerk-verify') }}
               run: npm run test:integration --workspace=@kitchensink/clerk-verify
+            # cooking-core through its public surface, with nothing mocked: recipe-core's schema, the step splitter,
+            # the entry rule and the place functions, and real recipes walked from Start to Done through the session
+            # reducer and the line ticks. No Docker, no network.
+            - name: Run cooking-core integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/cooking-core') }}
+              run: npm run test:integration --workspace=@kitchensink/cooking-core
+            # The i18n chain through `@commise/i18n`'s public surface: the real locale matcher, `Intl` plural rules and
+            # pseudo-locale expansion, with nothing mocked. No Docker, no network.
+            - name: Run i18n integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@commise/i18n') }}
+              run: npm run test:integration --workspace=@commise/i18n
+            # The cooking hooks of `@commise/features-cooking`: the real hooks over the real
+            # `@kitchensink/cooking-core` reducers and the real resolved `@commise/i18n` copy, on the web and native lanes.
+            # Only the wake lock is stood in for. No Docker, no network.
+            - name: Run features-cooking integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@commise/features-cooking') }}
+              run: npm run test:integration --workspace=@commise/features-cooking
             # The curated cookbook importer. Its integration tier drives the REAL `POST /api/v1/recipes` and the
             # REAL ingredient-resolution endpoints, and SKIPS (rather than fails) when `COOKBOOK_IMPORT_RECIPE_URL`
             # is unset — mirroring how the recipe service's own DB-backed tiers guard on `DATABASE_URL`. The step

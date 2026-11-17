@@ -13,8 +13,7 @@
 import type { ComboboxGroup, ComboboxStatus } from '@commise/ui/combobox';
 import { canonicalCuisine, cuisineEntryOf } from '@kitchensink/recipe-core';
 
-import { pluralOf } from '../format/plural.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { pluralOf, fillTemplate } from '@commise/i18n';
 import type { RecipeFormMessages } from './messages.js';
 import { cuisineSuggestions } from './props.js';
 

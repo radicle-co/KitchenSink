@@ -211,6 +211,19 @@ export function importIdInUse(): RecipeDomainError {
     );
 }
 
+/**
+ * `IMPORT_STORAGE_FULL` (→ 409) — the cook already holds as many unpaid import bytes as one cook may (ADR-0072 §8). Not a
+ * `413`: a client halves its chunk on `413`, and a smaller chunk does not help. Paying (an `advance`) or deleting an import does.
+ *
+ * @returns The error.
+ */
+export function importStorageFull(): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.IMPORT_STORAGE_FULL,
+        'You are holding as many imported recipes that are waiting to be processed as one account may. Let them finish, or delete an import, and try again.',
+    );
+}
+
 /** `NOT_OWNER` — the authenticated principal does not own the recipe. */
 export function notOwner(id: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.NOT_OWNER, `Recipe ${id} is not owned by the caller.`);

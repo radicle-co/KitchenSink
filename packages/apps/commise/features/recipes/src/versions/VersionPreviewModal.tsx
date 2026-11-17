@@ -38,6 +38,7 @@
  * @pattern Adapter over the house Radix `Dialog`, mirroring `PullUpdatesDialog.tsx` structurally and behaviourally —
  *     `open` is the caller's and this leaf stays a controlled `props → JSX` render.
  */
+import { fillTemplate } from '@commise/i18n';
 import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
 import { DialogActions, dialogActionSlotClass } from '@commise/ui/dialog-actions';
@@ -53,7 +54,6 @@ import { formatDurationMinutes } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
 import { recipeVersionMessages } from './messages.js';
 import { AmountText } from '../format/AmountText.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { previewRestoreErrorMessage, unrestorablePositionsFor } from './history.js';
 import {
     type VersionPreviewModalProps,

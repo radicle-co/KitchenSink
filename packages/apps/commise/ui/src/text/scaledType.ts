@@ -27,6 +27,7 @@ const CEILING: Readonly<Record<Exclude<TypeRole, 'figureInline'>, number>> = {
     cardTitle: FONT_SCALE_CAP,
     body: FONT_SCALE_CAP,
     readingBody: FONT_SCALE_CAP,
+    readingLarge: FONT_SCALE_CAP,
     meta: FONT_SCALE_CAP,
     list: FONT_SCALE_CAP,
     label: FONT_SCALE_CAP,
@@ -65,8 +66,15 @@ export interface ScaledTypeMetrics {
     readonly transform?: readonly [{ readonly translateY: number }];
 }
 
-/** The scale a sized role grows to: the system scale under the role's (or a chrome step's) ceiling. */
-function grownScale(role: Exclude<TypeRole, 'figureInline'>, systemScale: number, chromeCap?: ChromeCap): number {
+/**
+ * The scale a sized role grows to: the system scale under the role's (or a chrome step's) ceiling. Pure. A mark that
+ * grows with its text (the check box beside a row) multiplies its 1x size by this, so it never outgrows its text.
+ */
+export function grownScale(
+    role: Exclude<TypeRole, 'figureInline'>,
+    systemScale: number,
+    chromeCap?: ChromeCap,
+): number {
     const ceiling = chromeCap === undefined ? CEILING[role] : Math.min(CEILING[role], Number(chromeCap));
 
     return Math.min(systemScale, ceiling);

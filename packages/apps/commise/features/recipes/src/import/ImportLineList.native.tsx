@@ -9,7 +9,7 @@ import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { pluralOf } from '../format/plural.js';
+import { pluralOf } from '@commise/i18n';
 import { isNothingToFix } from '../ingredientMatching/matchLine.js';
 import { MatchLineList } from '../ingredientMatching/MatchLineList.native.js';
 import { importMessages } from './messages.js';

@@ -6,10 +6,11 @@
  * its own glyph" (`docs/design/uiOverhaul/buildSpec.md` §1.7). Each leaf maps every meaning to a Lucide glyph in its
  * own table (`glyphs.ts`, `glyphs.native.ts`), because the two packages cannot be imported from one module.
  *
- * ⚠️ The spec's §1.7 table and the blueprint's slice-2 list name 30 meanings. The rest below are the meanings the apps
- * already drew with Feather and hand-drawn SVGs when slice 2 moved them onto this Registry. Each keeps the glyph it had
- * (Lucide is the Feather lineage, so most names are unchanged), and each is an implementer's choice that
- * `staff-ux-engineer` has not yet reviewed. `bell`, `chartColumn` and `menu` serve navigation that slice 3 deletes.
+ * ⚠️ The comment above each group in the list says where its meanings come from. The group after the spec's carries
+ * the meanings the apps already drew with Feather and hand-drawn SVGs when slice 2 moved them onto this Registry. Each
+ * keeps the glyph it had (Lucide is the Feather lineage, so most names are unchanged), and each is an implementer's
+ * choice that `staff-ux-engineer` has not yet reviewed. `bell`, `chartColumn` and `menu` serve navigation that
+ * slice 3 deletes.
  */
 import type { Role } from '../tokens/colors.js';
 
@@ -69,6 +70,10 @@ export const ICON_NAMES = [
     // The library's list/grid switch (slice 4, `buildSpec.md` §4.3).
     'list',
     'layoutGrid',
+    // The cooking-mode entry, "Start cooking" and "Continue cooking". `flame` already means kcal.
+    'cookingPot',
+    // Ingredients in cooking mode. `list` keeps its one meaning, the library's list view.
+    'listChecks',
 ] as const;
 
 /** A meaning the Registry can draw. */

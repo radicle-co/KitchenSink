@@ -119,3 +119,24 @@ describe('PressScale (web) — width', () => {
         expect(screen.getByRole('button', { name: 'up' })).toBeTruthy();
     });
 });
+
+/**
+ * A checkbox child (the cooking line row is a checkbox that presses like a button). On web the wrapped child owns its
+ * role and `aria-checked`; `PressScale` is a presentational span around it, so these cases prove the wrapper neither
+ * hides the child nor rewrites its role or state, for both values of the state.
+ */
+describe('PressScale (web) — around a checkbox child', () => {
+    it.each([true, false])('leaves a child with role checkbox and aria-checked=%s found and unchanged', (checked) => {
+        render(
+            <PressScale>
+                <button type="button" role="checkbox" aria-checked={checked}>
+                    Whisk the eggs
+                </button>
+            </PressScale>,
+        );
+
+        const box = screen.getByRole('checkbox', { name: 'Whisk the eggs', checked });
+
+        expect(box.getAttribute('aria-checked')).toBe(String(checked));
+    });
+});

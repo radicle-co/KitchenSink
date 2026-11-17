@@ -11,10 +11,10 @@ import { cleanup } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { fillTemplate } from '@commise/i18n';
 import type { TextInput as TextInputAdapter } from '@commise/ui/text-input';
 
 import { editorMessages } from '../../editor/messages.js';
-import { fillTemplate } from '../../format/fillTemplate.js';
 import { descriptionFieldId, stepFieldId, titleFieldId } from '../fieldIds.js';
 import { RecipeBasicsFields } from '../RecipeBasicsFields.native.js';
 import { RecipeInstructionsFields } from '../RecipeInstructionsFields.native.js';

@@ -15,6 +15,8 @@ describe('classifyPath', () => {
         'packages/apps/commise/web/vitest.integration.config.ts',
         'packages/tools/repoGuards/__tests__/anything.test.ts',
         'packages/tools/repoGuards/tests/deployGate.integration.test.ts',
+        'packages/apps/commise/web/tests/e2e/testDurations.json',
+        'packages/apps/commise/mobile/tests/e2e/maestroFlowSeconds.tsv',
     ])('says %s cannot change a test result', (path) => {
         expect(classifyPath(path)).toEqual({ kind: 'irrelevant' });
     });

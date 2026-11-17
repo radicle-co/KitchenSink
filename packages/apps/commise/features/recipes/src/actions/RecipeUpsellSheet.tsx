@@ -18,7 +18,7 @@ import { Button } from '@commise/ui/button';
 import { Sheet } from '@commise/ui/sheet';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeActionMessages } from './messages.js';
 import type { RecipeUpsellSheetProps } from './model.js';
 

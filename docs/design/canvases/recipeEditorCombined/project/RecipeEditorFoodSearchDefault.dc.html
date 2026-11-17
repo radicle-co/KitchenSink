@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, food search default (web)</title>
+        <script src="./support.js"></script>
+    </head>
+    <body>
+        <x-dc>
+            <helmet>
+                <link
+                    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600&amp;display=swap"
+                    rel="stylesheet"
+                />
+                <style>
+                    body {
+                        margin: 0;
+                    }
+
+                    :root,
+                    [data-theme='light'] {
+                        --canvas: #eff3f6;
+                        --paper: #fcfdff;
+                        --ink: #171b20;
+                        --ink-muted: #5c646e;
+                        --line-control: #80878f;
+                        --line-divider: #dfe3e8;
+                        --action: #325c7f;
+                        --action-text: #325c7f;
+                        --selected-fill: #e4eef7;
+                        --selected-edge: #325c7f;
+                        --here-bar: #325c7f;
+                        --focus-ring: #325c7f;
+                        --rating: #171b20;
+                        --attention: #8c5a00;
+                        --attention-tint: rgba(245, 176, 65, 0.2);
+                        --danger: #c05238;
+                        --danger-text: #a53e27;
+                        --paper-raised: #ffffff;
+                        --paper-overlay: #ffffff;
+                        --surface-muted: #e9edf2;
+                        --inverse: #171b20;
+                        --inverse-ink: #ffffff;
+                        --inverse-action: #96bcde;
+                        --photo-chip: rgba(252, 253, 255, 0.94);
+                        --scrim: rgba(10, 16, 24, 0.42);
+                        --on-action: #ffffff;
+                        --action-pressed: #264a68;
+                        --bar: rgba(252, 253, 255, 0.92);
+                        --pro-fill: #e9edf2;
+                        --pro-ink: #171b20;
+                        --brand-seafoam: #325c7f;
+                        --brand-seafoam-light: #96bcde;
+                        --brand-ocean-dark: #264a68;
+                        --brand-coral: #f7e9d7;
+                        --brand-sky: #ddeefc;
+                        --brand-sand: #eff3f6;
+                        --brand-charcoal: #171b20;
+                        --brand-success: #4caf7c;
+                        --brand-warning: #f5b041;
+                        --brand-warning-dark: #8c5a00;
+                        --brand-error: #c05238;
+                        --brand-error-dark: #a53e27;
+                        --brand-premium: #5c646e;
+                        --brand-honey: #171b20;
+                        --cover-coral: #f7e9d7;
+                        --cover-sky: #ddeefc;
+                        --cover-premium: #f5e9df;
+                        --cover-success: #e4edf2;
+                        --cover-warning: #f7e9d7;
+                        --space-0: 0px;
+                        --space-1: 4px;
+                        --space-2: 8px;
+                        --space-3: 12px;
+                        --space-4: 16px;
+                        --space-5: 24px;
+                        --space-6: 32px;
+                        --space-7: 48px;
+                        --space-8: 64px;
+                        --space-9: 96px;
+                        --radius-sm: 8px;
+                        --radius-md: 12px;
+                        --radius-lg: 18px;
+                        --radius-xl: 24px;
+                        --radius-full: 9999px;
+                        --shadow-sm: 0 1px 2px rgba(20, 30, 45, 0.05);
+                        --shadow-md: 0 1px 2px rgba(20, 30, 45, 0.05), 0 2px 8px rgba(20, 30, 45, 0.05);
+                        --shadow-lg: 0 2px 4px rgba(10, 20, 30, 0.08), 0 8px 22px rgba(10, 20, 30, 0.12);
+                        --shadow-xl: 0 12px 30px rgba(10, 20, 30, 0.18);
+                        --shadow-glow: 0 0 0 3px rgba(50, 92, 127, 0.25);
+                        --font-display: 'Manrope', Inter, system-ui, sans-serif;
+                        --font-body: Inter, system-ui, sans-serif;
+                        --font-mono: 'JetBrains Mono', monospace;
+                        --background-image-hero: linear-gradient(180deg, #eff3f6 0%, #eff3f6 100%);
+                    }
+                    [data-theme='dark'] {
+                        --canvas: #0e161e;
+                        --paper: #172029;
+                        --ink: #ebeff2;
+                        --ink-muted: #a3acb6;
+                        --line-control: #7d8792;
+                        --line-divider: #262f38;
+                        --action: #96bcde;
+                        --action-text: #96bcde;
+                        --selected-fill: #1f3548;
+                        --selected-edge: #96bcde;
+                        --here-bar: #96bcde;
+                        --focus-ring: #96bcde;
+                        --rating: #ebeff2;
+                        --attention: #efba64;
+                        --attention-tint: rgba(245, 176, 65, 0.2);
+                        --danger: #c05238;
+                        --danger-text: #ec8e76;
+                        --paper-raised: #212b36;
+                        --paper-overlay: #26313d;
+                        --surface-muted: #212b36;
+                        --inverse: #ebeff2;
+                        --inverse-ink: #171b20;
+                        --inverse-action: #325c7f;
+                        --photo-chip: rgba(23, 32, 41, 0.86);
+                        --scrim: rgba(0, 0, 0, 0.66);
+                        --on-action: #0e161e;
+                        --action-pressed: #b4cfe8;
+                        --bar: rgba(23, 32, 41, 0.94);
+                        --pro-fill: #212b36;
+                        --pro-ink: #ebeff2;
+                        --cover-seafoam: #202b37;
+                        --cover-coral: #342817;
+                        --cover-sky: #1c2c38;
+                        --cover-premium: #32281f;
+                        --cover-success: #232b30;
+                        --cover-warning: #342817;
+                        --background-image-hero: linear-gradient(180deg, #0e161e 0%, #0e161e 100%);
+                    }
+                    body {
+                        font-family: Inter, system-ui, sans-serif;
+                    }
+                    .gallery {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 40px;
+                        align-items: flex-start;
+                    }
+
+                    .screen {
+                        position: relative;
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/24px var(--font-body);
+                    }
+                    .screen * {
+                        box-sizing: border-box;
+                    }
+                    .screen p,
+                    .screen h1,
+                    .screen h2,
+                    .screen ul {
+                        margin: 0;
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .screen a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .ic {
+                        width: 20px;
+                        height: 20px;
+                        flex: none;
+                        stroke: currentColor;
+                        fill: none;
+                        stroke-width: 1.6;
+                        stroke-linecap: round;
+                        stroke-linejoin: round;
+                    }
+                    .ic.sm {
+                        width: 16px;
+                        height: 16px;
+                    }
+                    .ic.xs {
+                        width: 14px;
+                        height: 14px;
+                    }
+                    .t13 {
+                        font-size: 14px;
+                        line-height: 20px;
+                    }
+                    .t15 {
+                        font-size: 16px;
+                        line-height: 24px;
+                    }
+                    .t17 {
+                        font-size: 16px;
+                        line-height: 24px;
+                    }
+                    .soft {
+                        color: var(--ink-muted);
+                    }
+                    .w500 {
+                        font-weight: 500;
+                    }
+                    .w600 {
+                        font-weight: 600;
+                    }
+                    .steel {
+                        color: var(--action-text);
+                    }
+                    .att {
+                        color: var(--attention);
+                    }
+                    .grow {
+                        flex: 1;
+                        min-width: 0;
+                    }
+                    .row {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+                    .ehead {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        padding: 47px 8px 0 4px;
+                        min-height: 103px;
+                        background: var(--canvas);
+                    }
+                    .ehead.wide {
+                        padding: 14px 20px;
+                        min-height: 56px;
+                        border-bottom: 1px solid var(--line-divider);
+                    }
+                    .iconBtn {
+                        width: 44px;
+                        height: 44px;
+                        display: grid;
+                        place-items: center;
+                        flex: none;
+                        border-radius: 22px;
+                    }
+                    .sbar {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        padding: 0 16px 10px;
+                        border-bottom: 3px solid var(--line-divider);
+                        font-size: 16px;
+                    }
+                    .body {
+                        flex: 1;
+                        min-height: 0;
+                        overflow: hidden;
+                        padding: 16px;
+                    }
+                    .card {
+                        background: var(--paper);
+                        border-radius: var(--radius-lg);
+                        padding: 16px;
+                    }
+                    .secTitle {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        margin-bottom: 8px;
+                    }
+                    .secTitle h2 {
+                        font-size: 18px;
+                        font-weight: 600;
+                    }
+                    .linkBtn {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        min-height: 44px;
+                        font-size: 16px;
+                        font-weight: 600;
+                        color: var(--action-text);
+                    }
+                    .linkBtn.quiet {
+                        color: var(--ink-muted);
+                        font-weight: 500;
+                    }
+                    .irow {
+                        display: flex;
+                        gap: 12px;
+                        padding: 10px 0;
+                        border-bottom: 1px solid var(--line-divider);
+                        font-size: 16px;
+                    }
+                    .irow .amt {
+                        width: 64px;
+                        flex: none;
+                        font-weight: 600;
+                    }
+                    .summary {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 2px;
+                        padding: 14px 0 6px;
+                    }
+                    .ln {
+                        padding: 14px 0;
+                        border-top: 1px solid var(--line-divider);
+                    }
+                    .ln .typed {
+                        font-size: 16px;
+                        line-height: 24px;
+                    }
+                    .ln .typed b {
+                        font-weight: 600;
+                    }
+                    .state {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        font-size: 14px;
+                        line-height: 20px;
+                        margin-top: 4px;
+                        color: var(--ink-muted);
+                    }
+                    .state.att {
+                        color: var(--attention);
+                    }
+                    .state .ic {
+                        width: 14px;
+                        height: 14px;
+                    }
+                    .spin {
+                        width: 14px;
+                        height: 14px;
+                        border-radius: 50%;
+                        box-shadow: inset 0 0 0 2px var(--line-divider);
+                        border-top: 2px solid var(--action-text);
+                        flex: none;
+                    }
+                    .choices {
+                        margin-top: 8px;
+                        border-radius: 12px;
+                        box-shadow: inset 0 0 0 1px var(--line-divider);
+                        background: var(--paper-raised);
+                    }
+                    .opt {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        min-height: 48px;
+                        padding: 8px 12px;
+                        font-size: 14px;
+                        line-height: 20px;
+                    }
+                    .opt + .opt {
+                        border-top: 1px solid var(--line-divider);
+                    }
+                    .radio {
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 50%;
+                        box-shadow: inset 0 0 0 1.5px var(--line-control);
+                        flex: none;
+                    }
+                    .radio.on {
+                        box-shadow: inset 0 0 0 5px var(--action);
+                    }
+                    .opt .nm {
+                        flex: 1;
+                        min-width: 0;
+                        overflow-wrap: anywhere;
+                    }
+                    .opt .nm .soft {
+                        display: block;
+                    }
+                    .tag {
+                        display: inline-flex;
+                        align-items: center;
+                        height: 22px;
+                        padding: 0 8px;
+                        border-radius: 6px;
+                        background: var(--surface-muted);
+                        color: var(--ink-muted);
+                        font-size: 14px;
+                        font-weight: 500;
+                        flex: none;
+                    }
+                    .acts {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 4px 18px;
+                        margin-top: 4px;
+                    }
+                    .matched {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        margin-top: 6px;
+                        font-size: 14px;
+                    }
+                    .matched .ic {
+                        color: var(--action-text);
+                        width: 16px;
+                        height: 16px;
+                    }
+                    .matched .nm {
+                        flex: 1;
+                        min-width: 0;
+                        overflow-wrap: anywhere;
+                    }
+                    .proposal {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        margin-top: 8px;
+                        padding: 10px 12px;
+                        border-radius: 12px;
+                        box-shadow: inset 0 0 0 1px var(--line-divider);
+                        background: var(--paper-raised);
+                        font-size: 14px;
+                    }
+                    .proposal .nm {
+                        flex: 1;
+                        min-width: 0;
+                        overflow-wrap: anywhere;
+                    }
+                    .btn {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        min-height: 44px;
+                        padding: 0 18px;
+                        border-radius: 999px;
+                        font-size: 16px;
+                        font-weight: 600;
+                        white-space: nowrap;
+                    }
+                    .btn.primary {
+                        background: var(--action);
+                        color: var(--on-action);
+                    }
+                    .btn.secondary {
+                        background: var(--paper);
+                        box-shadow: inset 0 0 0 1px var(--line-control);
+                    }
+                    .btn.small {
+                        min-height: 36px;
+                        padding: 0 14px;
+                        border-radius: 999px;
+                        font-size: 16px;
+                    }
+                    .foot {
+                        display: flex;
+                        justify-content: flex-end;
+                        gap: 10px;
+                        padding: 12px 16px 30px;
+                        background: var(--bar);
+                        border-top: 1px solid var(--line-divider);
+                        flex: none;
+                    }
+                    .foot.wide {
+                        padding: 12px 20px;
+                    }
+                    .notice {
+                        display: flex;
+                        gap: 10px;
+                        padding: 12px 14px;
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                        font-size: 14px;
+                        line-height: 20px;
+                    }
+                    .notice .ic {
+                        width: 18px;
+                        height: 18px;
+                        flex: none;
+                        margin-top: 1px;
+                    }
+                    .inp {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        min-height: 44px;
+                        padding: 8px 12px;
+                        border-radius: 12px;
+                        background: var(--paper-raised);
+                        box-shadow: inset 0 0 0 1px var(--line-control);
+                        font-size: 16px;
+                    }
+                    .inp.focus {
+                        box-shadow: inset 0 0 0 2px var(--focus-ring);
+                    }
+                    .dd {
+                        border-radius: 16px;
+                        background: var(--paper-overlay);
+                        box-shadow:
+                            var(--shadow-lg),
+                            inset 0 0 0 1px var(--line-divider);
+                        padding: 6px 0;
+                    }
+                    .dd .grp {
+                        padding: 10px 16px 4px;
+                        font-size: 14px;
+                        font-weight: 600;
+                        color: var(--ink-muted);
+                    }
+                    .dd .item {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        min-height: 44px;
+                        padding: 8px 16px;
+                        font-size: 14px;
+                        line-height: 20px;
+                    }
+                    .dd .item .nm {
+                        flex: 1;
+                        min-width: 0;
+                        overflow-wrap: anywhere;
+                    }
+                    .dd .item .ic {
+                        color: var(--ink-muted);
+                    }
+                    .side {
+                        width: 212px;
+                        flex: none;
+                        background: var(--paper);
+                        border-right: 1px solid var(--line-divider);
+                        padding: 20px 12px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 2px;
+                    }
+                    .side .brand {
+                        font-weight: 600;
+                        font-size: 16px;
+                        padding: 0 10px 16px;
+                    }
+                    .side a {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        height: 40px;
+                        padding: 0 10px;
+                        border-radius: 10px;
+                        font-size: 14px;
+                        color: var(--ink-muted);
+                    }
+                    .side a.on {
+                        background: var(--surface-muted);
+                        color: var(--ink);
+                        font-weight: 600;
+                    }
+                    .idx {
+                        width: 200px;
+                        flex: none;
+                        padding: 20px 16px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        font-size: 14px;
+                        color: var(--ink-muted);
+                    }
+                    .idx a {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        min-height: 40px;
+                        padding-left: 10px;
+                    }
+                    .idx a.on {
+                        color: var(--ink);
+                        font-weight: 600;
+                        box-shadow: inset 3px 0 0 var(--here-bar);
+                    }
+                    .idx .ic {
+                        width: 16px;
+                        height: 16px;
+                    }
+                    .pane {
+                        width: 400px;
+                        flex: none;
+                        border-left: 1px solid var(--line-divider);
+                        background: var(--paper);
+                        padding: 20px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        overflow: hidden;
+                    }
+                    .ln.sel {
+                        background: var(--selected-fill);
+                        margin: 0 -12px;
+                        padding: 14px 12px;
+                        border-radius: 12px;
+                        border-top-color: transparent;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                        z-index: 5;
+                    }
+                    .sheet {
+                        position: absolute;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        z-index: 6;
+                        background: var(--paper-overlay);
+                        border-radius: 24px 24px 0 0;
+                        padding: 12px 16px 34px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        box-shadow: var(--shadow-xl);
+                    }
+                    .dialog {
+                        position: absolute;
+                        z-index: 6;
+                        left: 50%;
+                        top: 50%;
+                        transform: translate(-50%, -50%);
+                        width: 440px;
+                        background: var(--paper-overlay);
+                        border-radius: 24px;
+                        padding: 24px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        box-shadow: var(--shadow-xl);
+                    }
+                    .grab {
+                        width: 36px;
+                        height: 5px;
+                        border-radius: 3px;
+                        background: var(--line-divider);
+                        margin: 0 auto 4px;
+                    }
+                    .sheet h2,
+                    .dialog h2 {
+                        font-size: 18px;
+                        font-weight: 600;
+                    }
+                    .panelLabel {
+                        margin: 16px 16px 0;
+                        padding: 6px 10px;
+                        border: 1px dashed var(--line-control);
+                        border-radius: 8px;
+                        font-size: 14px;
+                        color: var(--ink-muted);
+                    }
+                    .g3 .panelLabel {
+                        margin: 16px 8px 0;
+                    }
+                    .g3 .card {
+                        margin: 8px 8px 0 !important;
+                    }
+                    .ln.closed {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        min-height: 56px;
+                        color: inherit;
+                    }
+                    .ln.closed .state {
+                        display: block;
+                    }
+                    .ln.closed .ic {
+                        color: var(--ink-muted);
+                    }
+                    .screen button {
+                        font: inherit;
+                        color: inherit;
+                        background: none;
+                        border: 0;
+                        padding: 0;
+                        text-align: left;
+                        cursor: pointer;
+                        width: 100%;
+                    }
+                    .screen button.opt {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        min-height: 48px;
+                        padding: 8px 12px;
+                        font-size: 14px;
+                        line-height: 20px;
+                    }
+                    .screen button.opt + button.opt {
+                        border-top: 1px solid var(--line-divider);
+                    }
+                    .screen button.opt.quiet {
+                        min-height: 44px;
+                    }
+                    .opt .chk {
+                        color: var(--action-text);
+                        display: grid;
+                    }
+                    .opt.quiet {
+                        min-height: 44px;
+                        color: var(--ink-muted);
+                    }
+                    .opt.quiet .nm {
+                        color: var(--ink-muted);
+                    }
+                    .sbtn {
+                        display: flex !important;
+                        align-items: center;
+                        gap: 10px;
+                        min-height: 44px;
+                        margin-top: 8px;
+                        padding: 0 12px !important;
+                        border-radius: 12px;
+                        font-size: 14px;
+                        color: var(--action-text) !important;
+                        font-weight: 600;
+                    }
+                    .screen button.sbtn {
+                        font-size: 14px;
+                        font-weight: 600;
+                    }
+                    .sbtn span {
+                        flex: 1;
+                    }
+                    .sbtn .ic:last-child {
+                        color: var(--ink-muted);
+                    }
+
+                    b,
+                    strong {
+                        font-weight: 600;
+                    }
+                
+                    .rd .side .me { height: 64px; margin: -12px 0 12px; color: var(--ink); font-weight: 600; }
+                    .rd .side .me.on { background: var(--surface-muted); }
+                    .rd .avatar.sm { width: 32px; height: 32px; font-size: 12px; flex: none; }
+                    .rd .tabbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
+                    .tab .avatar.xs, .nv-tab .avatar.xs { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-divider); }
+                    .tab.on .avatar.xs, .nv-tab.on .avatar.xs { box-shadow: 0 0 0 2px var(--ink); }
+</style>
+            <link rel="stylesheet" href="ds/commise/redesign.css" /></helmet>
+            <div class="screen" data-screen="web1280FoodSearchDefault" style="width: 1280px; height: 1010px">
+                <div style="display: flex; flex: 1; min-height: 0">
+                    <nav class="side" aria-label="Main">
+                        <a href="#" class="me" aria-label="Profile, Eliza Ramirez"><span class="avatar sm">ER</span>Eliza Ramirez</a>
+                        <a href="#" class=""
+                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                    d="M3.5 10.5 12 3.8l8.5 6.7V20a.8.8 0 0 1-.8.8H15v-6h-6v6H4.3a.8.8 0 0 1-.8-.8z"
+                                /></svg
+                            >Home</a
+                        ><a href="#" class="on"
+                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                    d="M12 6.5C10.2 5 7.6 4.5 4 4.6v13.9c3.6-.1 6.2.4 8 1.9 1.8-1.5 4.4-2 8-1.9V4.6c-3.6-.1-6.2.4-8 1.9zM12 6.5v13.9"
+                                /></svg
+                            >Recipes</a
+                        ><a href="#" class=""
+                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle cx="12" cy="12" r="8.5" />
+                                <path d="m15.2 8.8-1.9 4.5-4.5 1.9 1.9-4.5z" /></svg
+                            >Discover</a
+                        ><a href="#" class=""
+                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                <rect x="4" y="5.5" width="16" height="14.5" rx="2.5" />
+                                <path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5" /></svg
+                            >Meal plan</a
+                        >
+                    </nav>
+                    <div style="display: flex; flex-direction: column; flex: 1; min-width: 0">
+                        <div class="ehead wide">
+                            <a class="iconBtn" href="#" aria-label="Close editor"
+                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M7 7l10 10M17 7 7 17" /></svg
+                            ></a>
+                            <p class="t17 w600">New recipe</p>
+                            <span class="t13 soft">Saved</span><span class="grow"></span
+                            ><a class="iconBtn" href="#" aria-label="More"
+                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                            ></a>
+                        </div>
+                        <div style="display: flex; flex: 1; min-height: 0">
+                            <nav class="idx" aria-label="Recipe sections">
+                                <a href="#" class=""
+                                    ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    >Details</a
+                                ><a href="#" class="on">Ingredients</a
+                                ><a href="#" class=""
+                                    ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    >Steps</a
+                                ><a href="#" class="">Photos and publish</a>
+                            </nav>
+                            <div class="body" style="padding: 20px 24px">
+                                <div class="card">
+                                    <div class="secTitle">
+                                        <h2>Ingredients</h2>
+                                        <a class="linkBtn" href="#"
+                                            ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                                <rect x="5.5" y="5" width="13" height="15.5" rx="2" />
+                                                <path d="M9 5V3.5h6V5M8.5 10h7M8.5 13.5h7M8.5 17h4" /></svg
+                                            >Paste a list</a
+                                        >
+                                    </div>
+                                    <div class="irow"><span class="amt">4 tbsp</span><span>Sugar</span></div>
+                                    <div class="irow"><span class="amt">3</span><span>Egg, whole, raw</span></div>
+                                    <p class="t15 w600" style="margin-top: 16px">Add an ingredient</p>
+                                    <p class="t13 soft">
+                                        Type the amount first, then pick the food. For example: 2 tbsp olive oil.
+                                    </p>
+                                    <div class="inp focus" style="margin-top: 8px">
+                                        <svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M12 6.5v11M6.5 12h11" /></svg
+                                        ><span>2 cups milk</span>
+                                    </div>
+                                    <p class="t13 soft" style="margin-top: 4px">2 cups · milk</p>
+                                    <div style="margin-top: 8px">
+                                        <div class="dd" role="listbox" aria-label="Foods for milk">
+                                            <div class="item" role="option" aria-selected="false">
+                                                <span class="nm">Whole milk</span><span class="tag">Default</span>
+                                            </div>
+                                            <p class="grp">Food catalog</p>
+                                            <div class="item" role="option" aria-selected="false">
+                                                <span class="nm">Milk, 2% fat</span>
+                                            </div>
+                                            <div class="item" role="option" aria-selected="false">
+                                                <span class="nm">Skim milk</span>
+                                            </div>
+                                            <div class="item" role="option" aria-selected="false">
+                                                <span class="nm"
+                                                    >Milk, whole, 3.25% fat, with added vitamin D, from a long-life
+                                                    carton</span
+                                                >
+                                            </div>
+                                            <div class="item" role="option" aria-selected="false">
+                                                <span class="nm">Oat milk, unsweetened</span>
+                                            </div>
+                                            <p class="grp">Not listed?</p>
+                                            <div class="item">
+                                                <svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="11" cy="11" r="6" />
+                                                    <path d="m15.5 15.5 4 4" /></svg
+                                                ><span class="nm">Search for a food</span>
+                                            </div>
+                                            <div class="item">
+                                                <svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <path d="M5 7h14M5 12h14M5 17h9" /></svg
+                                                ><span class="nm">Use “milk” as written, without nutrition</span>
+                                            </div>
+                                            <div class="item">
+                                                <svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <path d="M12 6.5v11M6.5 12h11" /></svg
+                                                ><span class="nm">Create my own food</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p class="t13 soft" style="margin-top: 8px">
+                                        “Default” marks the food most cooks mean. Nothing is picked until you tap one.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="foot wide">
+                            <a class="btn secondary" href="#"
+                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M3 12s3.3-6 9-6 9 6 9 6-3.3 6-9 6-9-6-9-6z" />
+                                    <circle cx="12" cy="12" r="2.5" /></svg
+                                >Preview</a
+                            ><a class="btn primary" href="#"
+                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="m6 12.5 4 4 8-9" /></svg
+                                >Publish</a
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <!--data-you-tab--></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1280, "height": 1010}}'>
+            class Component extends DCLogic {
+            renderVals() {
+            return {};
+            }
+            }
+        </script>
+    </body>
+</html>

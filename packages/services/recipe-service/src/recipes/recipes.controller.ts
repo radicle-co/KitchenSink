@@ -20,6 +20,7 @@ import {
     Controller,
     Delete,
     Get,
+    Header,
     HttpCode,
     HttpStatus,
     Param,
@@ -146,8 +147,14 @@ export class RecipesController {
         return this.recipesService.getPrivateSlotUsage(principal);
     }
 
-    /** `GET /api/v1/recipes/{id}` — fetch one recipe (owner, or any public recipe). */
+    /**
+     * `GET /api/v1/recipes/{id}` — fetch one recipe (owner, or any public recipe).
+     *
+     * ⛔ `private, no-store`: the body differs by viewer (the owner alone receives each line's `sourceLine`,
+     * `transcriptionDisclosure.ts`), so no shared cache may store one viewer's answer and serve it to another.
+     */
     @Get(':id')
+    @Header('Cache-Control', 'private, no-store')
     public async getById(
         @CurrentPrincipal() principal: Principal,
         @Param('id', ParseUUIDPipe) id: string,

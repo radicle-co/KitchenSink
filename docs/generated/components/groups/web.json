@@ -4,15 +4,15 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 85,
-        "implementations": 85,
-        "props": 101,
-        "documentedComponents": 82,
-        "implementationsWithModuleDoc": 64,
-        "implementationsWithComponentDoc": 61,
-        "documentedProps": 61,
-        "classifiedComponents": 38,
-        "componentsWithPatternTag": 33,
+        "components": 89,
+        "implementations": 89,
+        "props": 105,
+        "documentedComponents": 86,
+        "implementationsWithModuleDoc": 67,
+        "implementationsWithComponentDoc": 63,
+        "documentedProps": 62,
+        "classifiedComponents": 39,
+        "componentsWithPatternTag": 34,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -823,6 +823,209 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/app/[locale]/recipes/[id]/cook/CookingError",
+            "name": "CookingError",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook",
+            "kind": "unclassified",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingError",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/error.tsx",
+                    "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook",
+                    "moduleDoc": "Error boundary for the cook route segment (`/[locale]/recipes/[id]/cook`). Only an error the page's own read boundary\ndid not catch reaches here (a read failure is the screen's S29 or S32); it delegates to the shared\n{@link RouteErrorBoundary}, as the recipe page does.",
+                    "moduleTags": [],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "default",
+                    "props": [
+                        {
+                            "name": "error",
+                            "type": "Error & { digest?: string | undefined; }",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "retry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/app/[locale]/recipes/[id]/cook/CookingLoading",
+            "name": "CookingLoading",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook",
+            "kind": "unclassified",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingLoading",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/loading.tsx",
+                    "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook",
+                    "moduleDoc": "Loading boundary for the cook route segment (`/[locale]/recipes/[id]/cook`). It reserves cooking mode's own shape, the\nS28 loading frame, rather than the recipe page's skeleton, so the screen does not reflow when the page settles.",
+                    "moduleTags": [],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "compiler-fallback",
+                    "exportKind": "default",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/app/[locale]/recipes/[id]/cook/CookingPage",
+            "name": "CookingPage",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook",
+            "kind": "unclassified",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingPage",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/page.tsx",
+                    "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook",
+                    "moduleDoc": "",
+                    "moduleTags": [],
+                    "description": "Cooking mode's route (`/[locale]/recipes/[id]/cook`). Full screen, outside AppShell:\ncooking mode is a focused task, with no tab bar or sidebar.\n\nA thin server page, as the recipe page is: it refuses a segment that is not a recipe id, requires a signed-in cook\n(R-14, carrying this path back through sign-in), and prefetches the SAME `recipeQueries(client).detail(id)` the recipe\npage does, with this request's own session token. A failed prefetch dehydrates nothing and never throws, so the browser\nreads after hydration. Where the link goes (a draft's owner to the editor) is decided in the browser\nwhen the read settles, in one place, not on the server.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "default",
+                    "props": [
+                        {
+                            "name": "params",
+                            "type": "Promise<{ locale: string; id: string; }>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/app/[locale]/recipes/[id]/cook/CookingRoute",
+            "name": "CookingRoute",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter — the route's params, router, session and query, to `CookingScreen`'s read and callbacks"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingRoute",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/CookingRoute.tsx",
+                    "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook",
+                    "moduleDoc": "The cook route's client orchestration (`/[locale]/recipes/[id]/cook`): it reads the recipe and the viewer, and\nhands `CookingScreen` the read and where each way out goes.\n\nThe read is the SAME `recipeQueries(client).detail(id)` the page prefetched, behind `ClientQueryBoundary`: a prefetch\nthat succeeded ships the screen in the server HTML; one that failed (the API down, or every mocked Playwright run)\nships the loading frame, and the browser reads after hydration. A 404 is S32; any other failure is\nS29, whose Try again resets the boundary and reads again.\n\nThe viewer is the detail page's one rule (`viewerIdOf`). Until it is known the screen is told\n`pending`, so no cook-link decision is ever taken on a guess and nothing of the recipe is painted.\n\nWhere each way out goes, and why it replaces rather than pushes, is `useCookWays`.",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — the route's params, router, session and query, to `CookingScreen`'s read and callbacks"
+                        }
+                    ],
+                    "description": "The live cook route: the read boundary around the settled screen.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The recipe id."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The cooking screen in the read's state."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "id",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe id from the `[id]` segment.",
+                            "declaredIn": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/CookingRoute.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]

@@ -14,9 +14,10 @@
  *
  * @pattern Policy — a pure projection of the validator's verdict and the row policy into one sentence, or none
  */
+import { pluralOf } from '@commise/i18n';
+
 import { validateRecipeForm } from '../form/validate.js';
 import type { RecipeFormValues } from '../form/values.js';
-import { pluralOf } from '../format/plural.js';
 import { privateFoodRowIndexes } from '../form/privateFoodLines.js';
 import type { EditorMessages } from './messages.js';
 import { EDITOR_SECTIONS, firstSectionWithErrors, type EditorSectionId } from './sections.js';

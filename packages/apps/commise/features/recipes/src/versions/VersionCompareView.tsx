@@ -14,11 +14,12 @@ import { useMessages } from '@commise/i18n/react';
 import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { TOUCH_TARGET_CLASS } from '@commise/ui/touch-target';
 import { surfaceToneClass, PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { compareRowsOf, type VersionCompareViewProps } from './compare.js';
 import { recipeVersionMessages } from './messages.js';
 
@@ -44,7 +45,7 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({ open, version,
                         </Dialog.Title>
                         <Dialog.Close
                             aria-label={compare.close}
-                            className={`inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink-muted ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
+                            className={`inline-flex ${TOUCH_TARGET_CLASS.fixed} shrink-0 items-center justify-center rounded-full text-ink-muted ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
                         >
                             <Icon name="x" size={20} />
                         </Dialog.Close>

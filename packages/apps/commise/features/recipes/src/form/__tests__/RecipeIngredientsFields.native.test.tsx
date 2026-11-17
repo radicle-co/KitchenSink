@@ -21,6 +21,7 @@ import { pressFrameOf, render as renderBare, renderWithTamagui, resolvedColour }
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC, type ReactElement, type ReactNode } from 'react';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
+import { FieldRevealContext, type RevealRequest } from '@commise/ui/field-reveal';
 import { recordedTextInputLabelled, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
@@ -37,7 +38,33 @@ vi.mock('@commise/ui/text-input', async (importOriginal) => {
     return recordingTextInputModule(await importOriginal<typeof import('@commise/ui/text-input')>());
 });
 
-vi.mock('../../layout/useMainContainerClass.native.js', () => ({ useMainContainerClass: () => layout.container }));
+// The rows hear the host naming their start (`useFieldStartReveal`); the host side is proved in `@commise/ui`.
+const starts = vi.hoisted(() => ({ ids: [] as string[] }));
+
+vi.mock('@commise/ui/field-reveal', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@commise/ui/field-reveal')>();
+
+    return {
+        ...actual,
+        useFieldStartReveal: (id: string): void => {
+            starts.ids.push(id);
+        },
+    };
+});
+// The page's scroll host, where a case gives one: an inline editor that closes asks it for its row's start.
+const host = vi.hoisted(() => ({ showIfHidden: vi.fn<(id: string) => boolean>(() => true), present: false }));
+
+vi.mock('@commise/ui/scroll-host', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/ui/scroll-host')>()),
+    useOptionalScrollHost: () => (host.present ? { showIfHidden: host.showIfHidden } : null),
+}));
+vi.mock('../../layout/useMainContainerClass.native.js', () => ({
+    useMainContainerClass: () => layout.container,
+}));
+vi.mock('../../layout/useMainContainerWidth.native.js', () => ({
+    // Wide enough for the inline editor (43 rem) when the case says a regular or wide container.
+    useMainContainerWidth: () => ({ narrow: 390, regular: 800, wide: 1000 })[layout.container],
+}));
 // Rows 6 and 7's panel searches the line's words through the progressive food search. This suite pins the panel's frame,
 // not that search, which `RecipeIngredientsFields.rowEditor.native` and `rowEditor.integration` own.
 vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
@@ -47,12 +74,17 @@ vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
     }),
 }));
 // react-native-web does not implement `sendAccessibilityEvent`, which the sheets call to move the screen-reader cursor.
+// The window is as tall as a tablet's unless a case sets it: react-native-web in jsdom has no height at all, and the row
+// editor opens inline only when the screen has room for it (`inlineEditorFit.ts`).
+const screenSize = vi.hoisted(() => ({ height: 900 }));
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
         ...actual,
         AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
+        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), height: screenSize.height }),
     };
 });
 
@@ -74,6 +106,8 @@ import { useFakeRowEditor } from '../../__fixtures__/useFakeRowEditor.js';
 import type { LookupRetry } from '../ingredientStatus.js';
 import type { IngredientNutrition, LookupEntry } from '../nutritionLookup.js';
 import type { DraftAction } from '../draftAction.js';
+import { ingredientRowId } from '../fieldIds.js';
+import { seedLineKey, type IngredientLineKey } from '../lineKey.js';
 import { applyDraftAction } from '../props.js';
 import { toCreateRecipeInput } from '../wire.js';
 import type { IngredientsPasteView } from '../props.js';
@@ -149,7 +183,11 @@ const StatefulLeaf: FC<{
     readonly seen?: RecipeFormValues[];
     readonly nutrition?: IngredientNutrition;
     readonly dispatched?: DraftAction[];
-}> = ({ initial, seen, nutrition, dispatched }) => {
+    /** A row editor to open on arrival (`RecipeIngredientsFieldsProps.arrivalLine`, found). */
+    readonly initialLine?: IngredientLineKey;
+    /** The cook's original lines by key, for a line that needs review. */
+    readonly originalLines?: ReadonlyMap<IngredientLineKey, string>;
+}> = ({ initial, seen, nutrition, dispatched, initialLine, originalLines }) => {
     const [values, setValues] = useState(() => valuesWith(withLineKeys(initial)));
 
     const change = (next: RecipeFormValues): void => {
@@ -180,6 +218,8 @@ const StatefulLeaf: FC<{
             nutrition={nutrition ?? NUTRITION}
             lookupRetry={LOOKUP_RETRY}
             rowEditor={rowEditor}
+            {...(initialLine === undefined ? {} : { arrivalLine: { kind: 'found', key: initialLine } as const })}
+            {...(originalLines === undefined ? {} : { originalLines })}
         />
     );
 };
@@ -269,6 +309,26 @@ describe('RecipeIngredientsFields (native) — the states (§7.5.1, §7.9)', () 
         );
         expect(within(salt!).getByRole('button', { name: 'Edit Salt' }).textContent).toBe('Salt');
     });
+
+    /**
+     * New (designer must-fix, 2026-11-14): the row reads like the recipe page. A WORD unit takes the plural of the amount
+     * ("7 cups", not "7 cup"), one stays singular, and a symbol keeps its spelling.
+     */
+    it.each([
+        { quantity: 7, unit: 'cup', read: '7 cups' },
+        { quantity: 1, unit: 'cup', read: '1 cup' },
+        { quantity: 2, unit: 'tsp', read: '2 tsp' },
+    ])(
+        'a $unit line of $quantity reads "$read" on the row and in its open control’s name',
+        ({ quantity, unit, read }) => {
+            renderLeaf({ values: valuesWith(withLineKeys([{ ...RICE, quantity, unit }])) });
+
+            const [rice] = rowItems();
+            const button = within(rice!).getByRole('button', { name: `Edit ${read} Arborio rice` });
+
+            expect(button.textContent?.replaceAll('\u00A0', ' ')).toContain(read);
+        },
+    );
 
     it('D21: a count of one reads in the singular, and the stored name stays plural', () => {
         renderLeaf({
@@ -437,6 +497,16 @@ describe('RecipeIngredientsFields (native) — the ⋯ (§7.5.1)', () => {
         ]);
     });
 
+    // NEW (needs-review jump): a deep link names a row's START through the scroll host, so each row listens for its own id.
+    it('each row listens for the host naming its start, by its own row id', () => {
+        starts.ids = [];
+        render(<StatefulLeaf initial={THREE} />);
+
+        const keys = withLineKeys(THREE).map((line) => ingredientRowId(line.key));
+
+        expect(new Set(starts.ids)).toEqual(new Set(keys));
+    });
+
     it('Remove removes ONLY that line', () => {
         const dispatched: DraftAction[] = [];
         render(<StatefulLeaf initial={THREE} dispatched={dispatched} />);
@@ -481,17 +551,170 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
         expect(queryDialogTitled('Arborio rice')).toBeNull();
     });
 
-    // F11 (`evaluateFinal.md`; `buildSpec.md` §5.1): the phone sheet's one primary fills it, and it has no Cancel.
-    it('the line editor sheet’s Done fills the sheet and the sheet has no Cancel', () => {
+    // REWRITTEN (needs-review jump): the sheet's footer is now a Cancel + Done PAIR in the design system's
+    // DialogActions. It proves Done still fills its slot, Cancel comes first, and the two are not the same surface
+    // (Done is the primary, Cancel the secondary). It used to prove "no Cancel", which the owner has reversed.
+    it('the sheet’s footer is Cancel then Done, both filling their slot, Done the primary', () => {
         render(<StatefulLeaf initial={[RICE]} />);
 
         press('Edit 300 g Arborio rice');
         const sheet = dialogTitled('Arborio rice');
+        const cancel = within(sheet).getByRole('button', { name: en.rowCancel });
+        const done = within(sheet).getByRole('button', { name: en.rowDone });
 
-        expect(getComputedStyle(pressFrameOf(within(sheet).getByRole('button', { name: en.rowDone }))).alignSelf).toBe(
-            'stretch',
+        expect(getComputedStyle(pressFrameOf(done)).alignSelf).toBe('stretch');
+        expect(getComputedStyle(pressFrameOf(cancel)).alignSelf).toBe('stretch');
+        expect(cancel.compareDocumentPosition(done) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        // The primary's label is not the secondary's ink: the two are different surfaces.
+        expect(resolvedColour(within(cancel).getByText(en.rowCancel), 'color')).not.toBe(
+            resolvedColour(within(done).getByText(en.rowDone), 'color'),
         );
-        expect(within(sheet).queryByRole('button', { name: /cancel/i })).toBeNull();
+    });
+
+    it('Cancel puts back every edited field, closes the sheet, and the range goes back too', () => {
+        const seen: RecipeFormValues[] = [];
+        render(<StatefulLeaf initial={[{ ...RICE, preparation: 'rinsed' }]} seen={seen} />);
+
+        press('Edit 300 g Arborio rice, rinsed');
+        const sheet = dialogTitled('Arborio rice');
+
+        type(within(sheet).getByLabelText(en.rowAmountLabel), '250');
+        type(within(sheet).getByLabelText(en.rowNoteLabel), '9 inch');
+        fireEvent.click(within(sheet).getByRole('button', { name: en.rowAddRange }));
+        type(within(sheet).getByLabelText(en.rowAmountHighLabel), '400');
+
+        expect(seen.at(-1)?.ingredients[0]).toMatchObject({ quantity: 250, quantityHigh: 400, note: '9 inch' });
+
+        fireEvent.click(within(sheet).getByRole('button', { name: en.rowCancel }));
+
+        expect(queryDialogTitled('Arborio rice')).toBeNull();
+        expect(JSON.stringify(seen.at(-1)?.ingredients)).toBe(
+            JSON.stringify(withLineKeys([{ ...RICE, preparation: 'rinsed' }])),
+        );
+
+        press('Edit 300 g Arborio rice, rinsed');
+        expect(within(dialogTitled('Arborio rice')).queryByLabelText(en.rowAmountHighLabel)).toBeNull();
+    });
+
+    it('Done keeps the edits', () => {
+        const seen: RecipeFormValues[] = [];
+        render(<StatefulLeaf initial={[RICE]} seen={seen} />);
+
+        press('Edit 300 g Arborio rice');
+        type(within(dialogTitled('Arborio rice')).getByLabelText(en.rowPrepLabel), 'washed');
+        fireEvent.click(within(dialogTitled('Arborio rice')).getByRole('button', { name: en.rowDone }));
+
+        expect(seen.at(-1)?.ingredients[0]).toMatchObject({ preparation: 'washed' });
+    });
+
+    // NEW (needs-review jump, designer): Done and Cancel hand the screen-reader cursor back to the row's open control.
+    it.each([en.rowDone, en.rowCancel])('%s returns screen-reader focus to the row’s open control', (label) => {
+        const send = vi.mocked(AccessibilityInfo.sendAccessibilityEvent);
+        render(<StatefulLeaf initial={[RICE]} />);
+        press('Edit 300 g Arborio rice');
+        send.mockClear();
+
+        fireEvent.click(within(dialogTitled('Arborio rice')).getByRole('button', { name: label }));
+
+        const taken = send.mock.calls.filter(([, event]) => event === 'focus').map(([node]) => node as unknown as Node);
+        const target = screen.getByRole('button', { name: 'Edit 300 g Arborio rice' });
+
+        expect(taken.some((node) => node === target || node.contains(target))).toBe(true);
+    });
+
+    it('arriving at a row opens its sheet; a stale address opens nothing', () => {
+        const salt = { ...RICE, ingredientId: 'b', name: 'Salt' };
+        const second = withLineKeys([RICE, salt])[1]!.key;
+        const { unmount } = render(<StatefulLeaf initial={[RICE, salt]} initialLine={second} />);
+
+        expect(dialogTitled('Salt')).toBeTruthy();
+        unmount();
+
+        render(<StatefulLeaf initial={[RICE, salt]} initialLine={seedLineKey(9, 9)} />);
+        expect(queryDialogTitled('Salt')).toBeNull();
+        expect(queryDialogTitled('Arborio rice')).toBeNull();
+    });
+
+    /**
+     * The jump end to end (designer, 2026-11-14): when the page opens a needs-review row's editor, the screen-reader cursor
+     * goes onto the Needs review notice, once, and onto nothing else: not a field, not the sheet's title.
+     */
+    /** The text of a node the screen-reader cursor was sent to (a DOM element under jsdom). */
+    const textOf = (node: unknown): string => (node instanceof HTMLElement ? (node.textContent ?? '') : '');
+
+    const jump = (): string[] => {
+        const review = { ...RICE, resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW };
+        const key = withLineKeys([review])[0]!.key;
+        const sendEvent = vi.mocked(AccessibilityInfo.sendAccessibilityEvent);
+        sendEvent.mockClear();
+
+        render(
+            <StatefulLeaf
+                initial={[review]}
+                initialLine={key}
+                originalLines={new Map([[key, '2 cups rice, or so']])}
+            />,
+        );
+
+        return sendEvent.mock.calls.filter(([, event]) => event === 'focus').map(([node]) => textOf(node));
+    };
+
+    it('the jump moves the screen-reader cursor onto the notice, as one element holding its words', () => {
+        const notice = jump().filter((text) => text.includes(en.statusNeedsReview));
+
+        expect(notice).toHaveLength(1);
+        expect(notice[0]).toContain('2 cups rice, or so');
+    });
+
+    // The phone's sheet used to move the cursor to its own title after the notice, so the notice lost it. The row editor now
+    // asks the sheet to leave the landing to its content (`screenReaderLanding="content"`) when a jump raises the notice's focus.
+    it('the notice is the ONLY and last cursor move of the jump on a phone: the sheet does not take it back', () => {
+        const moves = jump();
+
+        expect(moves).toHaveLength(1);
+        expect(moves.at(-1)).toContain(en.statusNeedsReview);
+    });
+
+    it('a sheet with no notice to focus still lands the cursor on its title', () => {
+        const sendEvent = vi.mocked(AccessibilityInfo.sendAccessibilityEvent);
+        sendEvent.mockClear();
+
+        render(<StatefulLeaf initial={[RICE]} />);
+        press('Edit 300 g Arborio rice');
+
+        expect(sendEvent.mock.calls.filter(([, event]) => event === 'focus').map(([node]) => textOf(node))).toEqual([
+            'Arborio rice',
+        ]);
+    });
+
+    it('a needs-review line opens with the notice and the cook’s original line, and Change is secondary', () => {
+        const review = { ...RICE, resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW };
+        const key = withLineKeys([review])[0]!.key;
+
+        render(
+            <StatefulLeaf
+                initial={[review]}
+                initialLine={key}
+                originalLines={new Map([[key, '2 cups rice, or so']])}
+            />,
+        );
+        const sheet = dialogTitled('Arborio rice');
+
+        expect(within(sheet).getByText(en.statusNeedsReview)).toBeTruthy();
+        expect(within(sheet).getByText(en.statusExplainNeedsReview)).toBeTruthy();
+        expect(within(sheet).getByText(en.rowYouWroteLabel)).toBeTruthy();
+        expect(within(sheet).getByText('2 cups rice, or so')).toBeTruthy();
+    });
+
+    it('a resolved line shows neither the notice nor an original it was handed', () => {
+        const key = withLineKeys([RICE])[0]!.key;
+
+        render(<StatefulLeaf initial={[RICE]} initialLine={key} originalLines={new Map([[key, 'stale']])} />);
+        const sheet = dialogTitled('Arborio rice');
+
+        expect(within(sheet).queryByText(en.statusNeedsReview)).toBeNull();
+        expect(within(sheet).queryByText(en.statusExplainNeedsReview)).toBeNull();
+        expect(within(sheet).queryByText('stale')).toBeNull();
     });
 
     /** 2026-10-09 review, High 3: "1/2" stored no amount and the field emptied when it lost focus. */
@@ -635,6 +858,93 @@ describe('RecipeIngredientsFields (native) — the row editor on a tablet: inlin
 
         press(en.rowDone);
         expect(screen.queryByLabelText(en.rowAmountLabel)).toBeNull();
+    });
+
+    // The keyboard can hide the inline editor's Done and Cancel under it on a landscape tablet, so a focus inside the
+    // editor names the row as the `end` the host must show with the field (`withRevealEnd`).
+    it('focusing Amount sends a focus request that carries the row as its end, so Done and Cancel stay above the keyboard', () => {
+        const asked: RevealRequest[] = [];
+
+        const reveal = (request: RevealRequest): (() => void) => {
+            asked.push(request);
+
+            return () => undefined;
+        };
+
+        render(
+            <FieldRevealContext.Provider value={reveal}>
+                <StatefulLeaf initial={[RICE]} />
+            </FieldRevealContext.Provider>,
+        );
+
+        press('Edit 300 g Arborio rice');
+        // React hears a focus through `focusin`.
+        fireEvent.focusIn(screen.getByLabelText(en.rowAmountLabel));
+
+        expect(asked).toContainEqual(expect.objectContaining({ kind: 'focus', end: expect.anything() }));
+    });
+
+    // The keyboard reveal scrolls so Done and Cancel sit above the keyboard; when the editor closes the keyboard drops and
+    // the scroll stays, which left the edited row off the top of the screen. Closing asks the host to show the row
+    // only when it is hidden (`showIfHidden`): the smallest scroll, and none when the row already shows. REWRITTEN:
+    // this used
+    // to assert `scrollToStart`, which always moved the row's top to the top of the visible area. The host's own tests
+    // prove
+    // what `showIfHidden` does; this one proves that Done and Cancel ask for it, once.
+    describe.each([
+        ['Done', en.rowDone],
+        ['Cancel', en.rowCancel],
+    ])('closing the inline editor with %s', (_name, label) => {
+        beforeEach(() => {
+            host.present = true;
+            host.showIfHidden.mockClear();
+            starts.ids.length = 0;
+        });
+        afterEach(() => {
+            host.present = false;
+        });
+
+        it('asks the scroll host to show the edited row by the nearest scroll, once', () => {
+            render(<StatefulLeaf initial={[RICE, { ...RICE, ingredientId: 'b', name: 'Salt' }]} />);
+
+            press('Edit 300 g Arborio rice');
+            expect(host.showIfHidden).not.toHaveBeenCalled();
+
+            press(label);
+
+            expect(host.showIfHidden).toHaveBeenCalledTimes(1);
+            expect(host.showIfHidden).toHaveBeenCalledWith(starts.ids[0]);
+        });
+    });
+
+    // New (needs-review jump): the inline panel has the same Cancel + Done pair, and Cancel discards.
+    it('Cancel comes first and discards the edits, closing the panel', () => {
+        const seen: RecipeFormValues[] = [];
+        render(<StatefulLeaf initial={[RICE]} seen={seen} />);
+
+        press('Edit 300 g Arborio rice');
+        const cancel = screen.getByRole('button', { name: en.rowCancel });
+        const done = screen.getByRole('button', { name: en.rowDone });
+
+        expect(cancel.compareDocumentPosition(done) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+        type(screen.getByLabelText(en.rowPrepLabel), 'washed');
+        expect(seen.at(-1)?.ingredients[0]).toMatchObject({ preparation: 'washed' });
+
+        fireEvent.click(cancel);
+
+        expect(screen.queryByLabelText(en.rowAmountLabel)).toBeNull();
+        expect(JSON.stringify(seen.at(-1)?.ingredients)).toBe(JSON.stringify(withLineKeys([RICE])));
+    });
+
+    it('arriving at a row opens that row’s inline editor and no other', () => {
+        const salt = { ...RICE, ingredientId: 'b', name: 'Salt' };
+        const second = withLineKeys([RICE, salt])[1]!.key;
+
+        render(<StatefulLeaf initial={[RICE, salt]} initialLine={second} />);
+
+        expect(screen.getAllByLabelText(en.rowAmountLabel)).toHaveLength(1);
+        expect(within(rowItems()[1]!).getByLabelText(en.rowAmountLabel)).toBeTruthy();
     });
 });
 
@@ -1068,5 +1378,36 @@ describe('RecipeIngredientsFields (native) — a stand-in row that holds the coo
         expect(screen.getByText(standIns.privateFood)).toBeTruthy();
         expect(screen.getByText(en.rowNotCounted)).toBeTruthy();
         expect(screen.queryByText(/Counted as/u)).toBeNull();
+    });
+});
+
+/**
+ * A tablet's row editor opens inline only when the screen has room for it, as on the web (`inlineEditorFit.ts`): a short
+ * screen, or a large text size, opens the same sheet a phone gets, with Done and Cancel pinned.
+ */
+describe('RecipeIngredientsFields (native) — a tablet’s editor is inline only when it fits', () => {
+    afterEach(() => {
+        screenSize.height = 900;
+    });
+
+    it('opens the sheet on a wide container whose screen is too short for the inline editor', () => {
+        layout.container = 'regular';
+        screenSize.height = 400;
+        render(<StatefulLeaf initial={[RICE]} />);
+
+        press('Edit 300 g Arborio rice');
+
+        expect(dialogTitled('Arborio rice')).toBeTruthy();
+    });
+
+    it('opens the editor under its row on a tall screen', () => {
+        layout.container = 'regular';
+        screenSize.height = 900;
+        render(<StatefulLeaf initial={[RICE]} />);
+
+        press('Edit 300 g Arborio rice');
+
+        expect(queryDialogTitled('Arborio rice')).toBeNull();
+        expect(screen.getByLabelText(en.rowAmountLabel)).toBeTruthy();
     });
 });

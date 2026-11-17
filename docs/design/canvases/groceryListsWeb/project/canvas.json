@@ -1,0 +1,201 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:32Z"
+  },
+  "title": "Commise Screens, web: Grocery lists",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "GroceryListsEmptyWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Grocery lists, lists empty (web, 1280)"
+    },
+    "GroceryListsWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Grocery lists, lists (web, 1280)"
+    },
+    "GroceryListReviewWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Grocery lists, list review (web, 1280)"
+    },
+    "GroceryInStoreWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Grocery lists, in store (web, 1280)"
+    },
+    "GroceryManualListWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Grocery lists, manual list (web, 1280)"
+    },
+    "GrocerySharedListWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Grocery lists, shared list (web, 1280)"
+    },
+    "GroceryAisleOrderWeb1280.dc.html": {
+      "x": 8160,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Grocery lists, aisle order (web, 1280)"
+    },
+    "GroceryStoreConnectWeb1280.dc.html": {
+      "x": 9520,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Grocery lists, store connect (web, 1280)"
+    },
+    "GroceryOrderReviewWeb1280.dc.html": {
+      "x": 10880,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Grocery lists, order review (web, 1280)"
+    },
+    "GroceryStoreErrorWeb1280.dc.html": {
+      "x": 12240,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Grocery lists, store error (web, 1280)"
+    },
+    "GroceryListsEmptyWeb390.dc.html": {
+      "x": 0,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Grocery lists, lists empty (web, 390)"
+    },
+    "GroceryListsWeb390.dc.html": {
+      "x": 470,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Grocery lists, lists (web, 390)"
+    },
+    "GroceryListReviewWeb390.dc.html": {
+      "x": 940,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Grocery lists, list review (web, 390)"
+    },
+    "GroceryInStoreWeb390.dc.html": {
+      "x": 1410,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Grocery lists, in store (web, 390)"
+    },
+    "GroceryManualListWeb390.dc.html": {
+      "x": 1880,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Grocery lists, manual list (web, 390)"
+    },
+    "GrocerySharedListWeb390.dc.html": {
+      "x": 2350,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Grocery lists, shared list (web, 390)"
+    },
+    "GroceryAisleOrderWeb390.dc.html": {
+      "x": 2820,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Grocery lists, aisle order (web, 390)"
+    },
+    "GroceryStoreConnectWeb390.dc.html": {
+      "x": 3290,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Grocery lists, store connect (web, 390)"
+    },
+    "GroceryOrderReviewWeb390.dc.html": {
+      "x": 3760,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Grocery lists, order review (web, 390)"
+    },
+    "GroceryStoreErrorWeb390.dc.html": {
+      "x": 4230,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Grocery lists, store error (web, 390)"
+    }
+  },
+  "order": [
+    "GroceryListsEmptyWeb1280.dc.html",
+    "GroceryListsWeb1280.dc.html",
+    "GroceryListReviewWeb1280.dc.html",
+    "GroceryInStoreWeb1280.dc.html",
+    "GroceryManualListWeb1280.dc.html",
+    "GrocerySharedListWeb1280.dc.html",
+    "GroceryAisleOrderWeb1280.dc.html",
+    "GroceryStoreConnectWeb1280.dc.html",
+    "GroceryOrderReviewWeb1280.dc.html",
+    "GroceryStoreErrorWeb1280.dc.html",
+    "GroceryListsEmptyWeb390.dc.html",
+    "GroceryListsWeb390.dc.html",
+    "GroceryListReviewWeb390.dc.html",
+    "GroceryInStoreWeb390.dc.html",
+    "GroceryManualListWeb390.dc.html",
+    "GrocerySharedListWeb390.dc.html",
+    "GroceryAisleOrderWeb390.dc.html",
+    "GroceryStoreConnectWeb390.dc.html",
+    "GroceryOrderReviewWeb390.dc.html",
+    "GroceryStoreErrorWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Grocery lists: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1460,
+      "text": "Grocery lists: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { RecipesModule } from './recipes/recipes.module.js';
+import { ImportModule } from './import/import.module.js';
 import { RatingsModule } from './ratings/ratings.module.js';
 import { IngredientsModule } from './ingredients/ingredients.module.js';
 import { VersionsModule } from './versions/versions.module.js';
@@ -39,6 +40,7 @@ import { ErasureLockGuard } from './account/erasureLock.guard.js';
         HealthModule,
         AuthModule,
         RecipesModule,
+        ImportModule,
         RatingsModule,
         IngredientsModule,
         VersionsModule,

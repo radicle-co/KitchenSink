@@ -1,0 +1,468 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T05:52:09Z"
+  },
+  "title": "Commise Screens, web: Cooking mode",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "CookingModeEntryWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, entry (web, 1280)"
+    },
+    "CookingModeEntryInProgressWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, entry in progress (web, 1280)"
+    },
+    "CookingModeResumeWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, resume (web, 1280)"
+    },
+    "CookingModeResumeTimerDoneWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, resume timer done (web, 1280)"
+    },
+    "CookingModeResumeEarlierWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, resume earlier (web, 1280)"
+    },
+    "CookingModeEntryEndedWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, entry ended (web, 1280)"
+    },
+    "CookingModeBeforeWeb1280.dc.html": {
+      "x": 8160,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, before (web, 1280)"
+    },
+    "CookingModeStepWeb1280.dc.html": {
+      "x": 9520,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, step (web, 1280)"
+    },
+    "CookingModeStepTickedWeb1280.dc.html": {
+      "x": 10880,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, step ticked (web, 1280)"
+    },
+    "CookingModeStepJumpedWeb1280.dc.html": {
+      "x": 12240,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, step jumped (web, 1280)"
+    },
+    "CookingModeNextComingWeb1280.dc.html": {
+      "x": 13600,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, next coming (web, 1280)"
+    },
+    "CookingModeWaitWeb1280.dc.html": {
+      "x": 14960,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, wait (web, 1280)"
+    },
+    "CookingModeTwoTimersWeb1280.dc.html": {
+      "x": 16320,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, two timers (web, 1280)"
+    },
+    "CookingModeJobInProgressWeb1280.dc.html": {
+      "x": 17680,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, job in progress (web, 1280)"
+    },
+    "CookingModeStepFiveWeb1280.dc.html": {
+      "x": 19040,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, step five (web, 1280)"
+    },
+    "CookingModeTimerDoneWeb1280.dc.html": {
+      "x": 20400,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, timer done (web, 1280)"
+    },
+    "CookingModeAlarmsOffWeb1280.dc.html": {
+      "x": 21760,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, alarms off (web, 1280)"
+    },
+    "CookingModeIngredientsWeb1280.dc.html": {
+      "x": 23120,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, ingredients (web, 1280)"
+    },
+    "CookingModeAllStepsWeb1280.dc.html": {
+      "x": 24480,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, all steps (web, 1280)"
+    },
+    "CookingModeDoneWeb1280.dc.html": {
+      "x": 25840,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, done (web, 1280)"
+    },
+    "CookingModeEntryWeb390.dc.html": {
+      "x": 0,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, entry (web, 390)"
+    },
+    "CookingModeEntryInProgressWeb390.dc.html": {
+      "x": 470,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, entry in progress (web, 390)"
+    },
+    "CookingModeResumeWeb390.dc.html": {
+      "x": 940,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, resume (web, 390)"
+    },
+    "CookingModeResumeTimerDoneWeb390.dc.html": {
+      "x": 1410,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, resume timer done (web, 390)"
+    },
+    "CookingModeResumeEarlierWeb390.dc.html": {
+      "x": 1880,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, resume earlier (web, 390)"
+    },
+    "CookingModeEntryEndedWeb390.dc.html": {
+      "x": 2350,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, entry ended (web, 390)"
+    },
+    "CookingModeBeforeWeb390.dc.html": {
+      "x": 2820,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, before (web, 390)"
+    },
+    "CookingModeStepWeb390.dc.html": {
+      "x": 3290,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, step (web, 390)"
+    },
+    "CookingModeStepTickedWeb390.dc.html": {
+      "x": 3760,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, step ticked (web, 390)"
+    },
+    "CookingModeStepJumpedWeb390.dc.html": {
+      "x": 4230,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, step jumped (web, 390)"
+    },
+    "CookingModeNextComingWeb390.dc.html": {
+      "x": 4700,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, next coming (web, 390)"
+    },
+    "CookingModeWaitWeb390.dc.html": {
+      "x": 5170,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, wait (web, 390)"
+    },
+    "CookingModeTwoTimersWeb390.dc.html": {
+      "x": 5640,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, two timers (web, 390)"
+    },
+    "CookingModeJobInProgressWeb390.dc.html": {
+      "x": 6110,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, job in progress (web, 390)"
+    },
+    "CookingModeStepFiveWeb390.dc.html": {
+      "x": 6580,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, step five (web, 390)"
+    },
+    "CookingModeTimerDoneWeb390.dc.html": {
+      "x": 7050,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, timer done (web, 390)"
+    },
+    "CookingModeOtherRecipeTimerWeb390.dc.html": {
+      "x": 7520,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, other recipe timer (web, 390)"
+    },
+    "CookingModeTimerDoneLockedWeb390.dc.html": {
+      "x": 7990,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, timer done locked (web, 390)"
+    },
+    "CookingModeTimerNoticeWeb390.dc.html": {
+      "x": 8460,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, timer notice (web, 390)"
+    },
+    "CookingModeTimerBannerWeb390.dc.html": {
+      "x": 8930,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, timer banner (web, 390)"
+    },
+    "CookingModeAlarmsOffWeb390.dc.html": {
+      "x": 9400,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, alarms off (web, 390)"
+    },
+    "CookingModeIngredientsWeb390.dc.html": {
+      "x": 9870,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, ingredients (web, 390)"
+    },
+    "CookingModeAllStepsWeb390.dc.html": {
+      "x": 10340,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, all steps (web, 390)"
+    },
+    "CookingModeDoneWeb390.dc.html": {
+      "x": 10810,
+      "y": 1720,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, done (web, 390)"
+    },
+    "CookingModeDockRowS3Web.dc.html": {
+      "x": 0,
+      "y": 2820,
+      "w": 2400,
+      "h": 3018,
+      "title": "Cooking mode, S3 dock row (web: 1024, 320 at 200%)"
+    },
+    "CookingModeAlarmGoToStepS3bWeb.dc.html": {
+      "x": 0,
+      "y": 6280,
+      "w": 2400,
+      "h": 1992,
+      "title": "Cooking mode, S3b alarm with \"Stop and go to step\" (web)"
+    },
+    "CookingModeIngredientsS2Web.dc.html": {
+      "x": 0,
+      "y": 8692,
+      "w": 2400,
+      "h": 8638,
+      "title": "Cooking mode, S2 ingredients and servings (web: 390, 768, 1024, 1280, 320 at 200%)"
+    },
+    "CookingModeAddTimerS3aWeb.dc.html": {
+      "x": 0,
+      "y": 17750,
+      "w": 2400,
+      "h": 3744,
+      "title": "Cooking mode, S3a Add a timer (web: 390, 1024, 1280, 320 at 200%)"
+    },
+    "CookingModeResumeS4aWeb.dc.html": {
+      "x": 0,
+      "y": 21914,
+      "w": 2800,
+      "h": 3244,
+      "title": "Cooking mode, S4a leave and come back (web: 390, 768, 1024, 1280, 320 at 200%)"
+    }
+  },
+  "order": [
+    "CookingModeEntryWeb1280.dc.html",
+    "CookingModeEntryInProgressWeb1280.dc.html",
+    "CookingModeResumeWeb1280.dc.html",
+    "CookingModeResumeTimerDoneWeb1280.dc.html",
+    "CookingModeResumeEarlierWeb1280.dc.html",
+    "CookingModeEntryEndedWeb1280.dc.html",
+    "CookingModeBeforeWeb1280.dc.html",
+    "CookingModeStepWeb1280.dc.html",
+    "CookingModeStepTickedWeb1280.dc.html",
+    "CookingModeStepJumpedWeb1280.dc.html",
+    "CookingModeNextComingWeb1280.dc.html",
+    "CookingModeWaitWeb1280.dc.html",
+    "CookingModeTwoTimersWeb1280.dc.html",
+    "CookingModeJobInProgressWeb1280.dc.html",
+    "CookingModeStepFiveWeb1280.dc.html",
+    "CookingModeTimerDoneWeb1280.dc.html",
+    "CookingModeAlarmsOffWeb1280.dc.html",
+    "CookingModeIngredientsWeb1280.dc.html",
+    "CookingModeAllStepsWeb1280.dc.html",
+    "CookingModeDoneWeb1280.dc.html",
+    "CookingModeEntryWeb390.dc.html",
+    "CookingModeEntryInProgressWeb390.dc.html",
+    "CookingModeResumeWeb390.dc.html",
+    "CookingModeResumeTimerDoneWeb390.dc.html",
+    "CookingModeResumeEarlierWeb390.dc.html",
+    "CookingModeEntryEndedWeb390.dc.html",
+    "CookingModeBeforeWeb390.dc.html",
+    "CookingModeStepWeb390.dc.html",
+    "CookingModeStepTickedWeb390.dc.html",
+    "CookingModeStepJumpedWeb390.dc.html",
+    "CookingModeNextComingWeb390.dc.html",
+    "CookingModeWaitWeb390.dc.html",
+    "CookingModeTwoTimersWeb390.dc.html",
+    "CookingModeJobInProgressWeb390.dc.html",
+    "CookingModeStepFiveWeb390.dc.html",
+    "CookingModeTimerDoneWeb390.dc.html",
+    "CookingModeOtherRecipeTimerWeb390.dc.html",
+    "CookingModeTimerDoneLockedWeb390.dc.html",
+    "CookingModeTimerNoticeWeb390.dc.html",
+    "CookingModeTimerBannerWeb390.dc.html",
+    "CookingModeAlarmsOffWeb390.dc.html",
+    "CookingModeIngredientsWeb390.dc.html",
+    "CookingModeAllStepsWeb390.dc.html",
+    "CookingModeDoneWeb390.dc.html",
+    "CookingModeDockRowS3Web.dc.html",
+    "CookingModeAlarmGoToStepS3bWeb.dc.html",
+    "CookingModeIngredientsS2Web.dc.html",
+    "CookingModeAddTimerS3aWeb.dc.html",
+    "CookingModeResumeS4aWeb.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Cooking mode: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1460,
+      "text": "Cooking mode: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 2720,
+      "text": "Cooking mode: S3 dock row (plan 0110)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nCookingModeAlarmGoToStepS3bWeb": {
+      "x": 0,
+      "y": 6020,
+      "text": "Cooking mode: S3b alarm outside cooking mode (plan 0111)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nCookingModeIngredientsS2Web": {
+      "x": 0,
+      "y": 8432,
+      "text": "Cooking mode: S2 ingredients and servings, the built one-list shape (Luna designer D16-D18)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nCookingModeAddTimerS3aWeb": {
+      "x": 0,
+      "y": 17490,
+      "text": "Cooking mode: S3a Add a timer (SPECIFY S36, KTD16)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nCookingModeResumeS4aWeb": {
+      "x": 0,
+      "y": 21654,
+      "text": "Cooking mode: S4a leave and come back, the Resume lines, the Done row and the entry meta lines (Luna plan 0003, designer D16-D24 and D37)",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

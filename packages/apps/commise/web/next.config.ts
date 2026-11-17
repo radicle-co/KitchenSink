@@ -57,6 +57,7 @@ const nextConfig: NextConfig = {
     // feature UI + its typed client, which in turn depend on the shared i18n and recipe-core packages.
     transpilePackages: [
         '@commise/features-account',
+        '@commise/features-cooking',
         '@commise/features-recipes',
         '@commise/features-core',
         // The design-system `Button` (and future @commise/ui components) ship as raw `./src` .tsx so the
@@ -68,6 +69,8 @@ const nextConfig: NextConfig = {
         // `node_modules` and so transpiles it anyway; listed here so it does not depend on that.
         '@commise/query',
         '@kitchensink/recipe-service-client',
+        // Raw `./src` TypeScript, imported by the recipe page's Start cooking gate.
+        '@kitchensink/cooking-core',
         '@kitchensink/recipe-core',
         // The PII scrubbers' browser-safe engine (`./core`), bound by `src/lib/sentryScrubbers.ts` and run
         // from all three Sentry configs. Ships raw `./src` .ts like the rest, so Next must transpile it.

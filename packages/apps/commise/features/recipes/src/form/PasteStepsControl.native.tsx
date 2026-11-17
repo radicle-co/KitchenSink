@@ -6,6 +6,7 @@
  * It reads no clipboard itself: the field's own system paste menu pastes (Settled 34), so nothing asks for clipboard
  * access.
  */
+import { pluralOf } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { FieldLabel, TextArea } from '@commise/ui/input';
@@ -17,7 +18,6 @@ import type { FC } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { editorMessages } from '../editor/messages.js';
-import { pluralOf } from '../format/plural.js';
 import { pasteStepsFieldId } from './fieldIds.js';
 import { recipeFormMessages } from './messages.js';
 import { usePasteSteps } from './usePasteSteps.js';

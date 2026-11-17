@@ -8,10 +8,11 @@
  * BEFORE the run notices. Each test below is one way that comparison could be
  * dropped, and it fails if it is.
  */
+import { laneCosts } from '@kitchensink/e2e-plan/laneCosts';
 import { describe, expect, it } from 'vitest';
 
 import { durationTable, laneLists, medianMs } from '../e2eDurationTable';
-import { buildEnv, distinctPorts, laneArgs, laneEnv } from '../e2eLaneSet';
+import { LANE_COST, SERVER_COST, buildEnv, distinctPorts, laneArgs, laneEnv } from '../e2eLaneSet';
 import { countTests, flattenReport, outcomesOf, parseReport, verdict, type PlaywrightReport } from '../e2eReport';
 import { decideSpecs, selectorChose, specFilters, testListText, wantsSelection } from '../e2eSelection';
 import { main } from '../e2eLanes';
@@ -495,5 +496,12 @@ describe('main — the lane variables are read before anything runs', () => {
 
     it('stops on a stagger that is not a number of seconds', async () => {
         await expect(main([], { E2E_LANE_STAGGER_SECONDS: 'soon' })).rejects.toThrow(/E2E_LANE_STAGGER_SECONDS/u);
+    });
+});
+
+describe('the web lane costs', () => {
+    it('are the laneCosts entries themselves, not copies of their figures', () => {
+        expect(LANE_COST).toBe(laneCosts.web);
+        expect(SERVER_COST).toBe(laneCosts.webServer);
     });
 });

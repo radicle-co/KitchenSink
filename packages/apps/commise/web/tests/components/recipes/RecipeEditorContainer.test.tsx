@@ -116,6 +116,29 @@ describe('RecipeEditorContainer (web)', () => {
         expect(screen.getByDisplayValue('Stored Stew')).toBeTruthy();
     });
 
+    it('rewrites a line address in the hash to its section once read, keeping path and search', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ id: 'rec_1', title: 'Stored Stew' }));
+        window.history.replaceState(null, '', '/en/recipes/rec_1/edit?x=1#ingredients/1.0');
+
+        renderEditor(client, 'rec_1');
+        await screen.findByDisplayValue('Stored Stew');
+
+        // A reload after a save must not name a version that is gone: it would say "couldn't find that ingredient".
+        await waitFor(() => expect(window.location.hash).toBe('#ingredients'));
+        expect(window.location.pathname + window.location.search).toBe('/en/recipes/rec_1/edit?x=1');
+    });
+
+    it('leaves a section-only hash as it is', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ id: 'rec_1', title: 'Stored Stew' }));
+        window.history.replaceState(null, '', '/en/recipes/rec_1/edit#steps');
+        renderEditor(client, 'rec_1');
+        await screen.findByDisplayValue('Stored Stew');
+
+        expect(window.location.hash).toBe('#steps');
+    });
+
     /**
      * A-010 / buildSpec §7.7: the photos empty state previews the recipe's own generated cover, which is made from its
      * TITLE and CUISINE. The editor must hand the uploader both, from the draft, or the preview is a blank tint.

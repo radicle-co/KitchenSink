@@ -81,6 +81,7 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
     PRIVATE_FOODS_ON_PUBLIC_RECIPE: HttpStatus.BAD_REQUEST,
     IMPORT_ITEM_LOCKED: HttpStatus.CONFLICT,
     IMPORT_ID_IN_USE: HttpStatus.CONFLICT,
+    IMPORT_STORAGE_FULL: HttpStatus.CONFLICT,
 
     // ── Auth and account lifecycle ──
     UNAUTHORIZED: HttpStatus.UNAUTHORIZED,
@@ -167,4 +168,20 @@ export function apiError(code: RecipeErrorCode, message: string, details?: Recor
     const body: ApiErrorBody = details === undefined ? { code, message } : { code, message, details };
 
     return new HttpException(body, RECIPE_ERROR_STATUS[code]);
+}
+
+/**
+ * The code a thrown exception's body carries, if any: the one reader of what {@link apiError} writes.
+ *
+ * @param error - Anything thrown.
+ * @returns The code, or `undefined` for anything that is not an `HttpException` with a coded body. Pure.
+ */
+export function apiErrorCodeOf(error: unknown): string | undefined {
+    if (!(error instanceof HttpException)) {
+        return undefined;
+    }
+
+    const body = error.getResponse();
+
+    return typeof body === 'object' && 'code' in body ? String(body.code) : undefined;
 }

@@ -10,9 +10,10 @@ import type { IngredientLineKey } from './lineKey.js';
 
 /**
  * A row control that can take a requested focus: the food search while the row is in entry, the row's open control
- * ("Edit {amount} {food}", build spec §7.5.1), which every row has, and its `⋯`.
+ * ("Edit {amount} {food}", build spec §7.5.1), which every row has, its `⋯`, and the open editor's notice (an arrival
+ * at a line under review: the notice heads the editor, so a screen reader reads what is wrong first).
  */
-export type RowFocusControl = 'name' | 'open' | 'actions';
+export type RowFocusControl = 'name' | 'open' | 'actions' | 'editor';
 
 /**
  * A host's request that one row control take focus: a level, cleared when the control acknowledges it.

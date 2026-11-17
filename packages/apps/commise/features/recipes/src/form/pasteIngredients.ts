@@ -15,7 +15,7 @@ import {
     splitParseJobLines,
 } from '@kitchensink/recipe-core';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 
 /** The two refusals a cook can act on, already localised. */
 export interface PasteRefusalCopy {

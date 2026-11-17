@@ -7,7 +7,7 @@ import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
 // The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
-import { render, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
+import { render, renderWithTamagui, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 
 import { role } from '@commise/ui/colors';
@@ -16,6 +16,7 @@ import { withPlatformOs } from '@commise/ui/testing/platform-os';
 import { rgb } from '@commise/ui/testing/system-color-scheme';
 
 import { makeIngredientView, makeStepView } from '../../__fixtures__/index.js';
+import { recipeMessages } from '../../messages.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
 import { IngredientCheckRow } from '../IngredientCheckRow.native.js';
 import { StepRow } from '../StepRow.native.js';
@@ -28,6 +29,61 @@ const lamb = makeIngredientView({
     unit: 'kg',
     name: 'lamb shoulder',
     preparation: 'trimmed of excess fat',
+});
+
+/**
+ * The owner's review control (needs-review jump), the native mirror of the web block: the row takes a `reviewAction`
+ * slot drawn BESIDE the checkbox, never inside it (a control inside the checkbox would tick the line when pressed), and
+ * the "Needs review" badge moves to it. Other statuses stay in the row.
+ */
+describe('IngredientCheckRow (native) — the review control slot', () => {
+    const doubted = makeIngredientView({
+        resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+        name: 'flour',
+        isUserEntered: true,
+    });
+    const control = <button type="button">Go to flour</button>;
+
+    it('draws the control outside the checkbox, and pressing it does not tick the line', () => {
+        const onToggle = vi.fn();
+
+        render(
+            <IngredientCheckRow
+                ingredient={doubted}
+                checked={false}
+                allRemoved={false}
+                onToggle={onToggle}
+                reviewAction={control}
+            />,
+        );
+        const press = screen.getByRole('button', { name: 'Go to flour' });
+
+        expect(screen.getByRole('checkbox', { name: /flour/u }).contains(press)).toBe(false);
+        fireEvent.click(press);
+        expect(onToggle).not.toHaveBeenCalled();
+    });
+
+    it('moves the Needs review badge out of the checkbox; other statuses stay', () => {
+        render(
+            <IngredientCheckRow
+                ingredient={doubted}
+                checked={false}
+                allRemoved={false}
+                onToggle={vi.fn()}
+                reviewAction={control}
+            />,
+        );
+        const row = screen.getByRole('checkbox', { name: /flour/u });
+
+        expect(row.textContent).not.toContain('Needs review');
+        expect(row.textContent).toContain(recipeMessages.en.detail.userEnteredBadge);
+    });
+
+    it('with no slot the badge stays in the row', () => {
+        render(<IngredientCheckRow ingredient={doubted} checked={false} allRemoved={false} onToggle={vi.fn()} />);
+
+        expect(screen.getByRole('checkbox', { name: /flour/u }).textContent).toContain('Needs review');
+    });
 });
 
 describe('IngredientCheckRow (native)', () => {
@@ -165,6 +221,56 @@ describe('IngredientCheckRow (native)', () => {
 
         expect(screen.getByRole('checkbox', { name: /lamb shoulder/u }).getAttribute('aria-checked')).toBe('false');
         expect(resolvedColour(screen.getByText('lamb shoulder'), 'color')).toBe(rgb(role.ink));
+    });
+});
+
+describe('IngredientCheckRow (native) — one text scale for the box and the hairline', () => {
+    // The device reports 1x here; the design system's context says 2x. The box grows from the context, so the hairline
+    // must start where THAT box ends: gutter 16 + box 36 + gap 12. Reading the device scale instead leaves it at 1x.
+    it('⛔ starts the hairline past the box the design-system text scale draws, not the device scale', () => {
+        renderWithTamagui(
+            <IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} divided />,
+            'light',
+            2,
+        );
+
+        const divider = document.querySelector<HTMLElement>('[name="IngredientRowDivider"]');
+        const box = screen.getByRole('checkbox').querySelector<HTMLElement>('[aria-hidden="true"]');
+
+        expect(box && resolvedStyle(box, 'width')).toBe('36px');
+        expect(divider && resolvedStyle(divider, 'marginLeft')).toBe(
+            `${String(nativeTokens.spacing[4] + 36 + nativeTokens.spacing[3])}px`,
+        );
+    });
+});
+
+describe('IngredientCheckRow (native) — the review control starts under the text at any text scale', () => {
+    // #196 insets the control to where the row text starts; D5 made that start follow the text scale. At 2x the box is 36
+    // wide, so the control starts at gutter 16 + box 36 + gap 12, the same place the hairline does.
+    it('⛔ insets the review control by the scaled box, not by the 1x box', () => {
+        const doubted = makeIngredientView({
+            resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+            name: 'flour',
+            isUserEntered: true,
+        });
+
+        renderWithTamagui(
+            <IngredientCheckRow
+                ingredient={doubted}
+                checked={false}
+                allRemoved={false}
+                onToggle={vi.fn()}
+                reviewAction={<button type="button">Go to flour</button>}
+            />,
+            'light',
+            2,
+        );
+
+        const slot = document.querySelector<HTMLElement>('[name="IngredientReviewSlot"]');
+
+        expect(slot && resolvedStyle(slot, 'paddingLeft')).toBe(
+            `${String(nativeTokens.spacing[4] + 36 + nativeTokens.spacing[3])}px`,
+        );
     });
 });
 

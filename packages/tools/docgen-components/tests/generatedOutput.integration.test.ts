@@ -1,5 +1,6 @@
 /**
- * THE STALENESS GUARD for `docs/generated/components` and `docs/generated/design`.
+ * THE STALENESS GUARD for `docs/generated/components`, `docs/generated/design`, and the token tables in
+ * `docs/design/uiOverhaul/buildSpec.md` §1.4 and §1.5.
  *
  * ## Why this exists at all
  *
@@ -23,15 +24,19 @@
  * (measured and written up on `@kitchensink/infra-global#test`), so a cached PASS here would certify a
  * component surface it never read.
  */
+import { readFileSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
+import { role } from '@commise/ui/colors';
+import { typeRole } from '@commise/ui/tokens/typography';
 import { describe, expect, it } from 'vitest';
 
 import { COMPONENTS_OUT_DIR, COMPONENT_GROUPS, DESIGN_OUT_DIR, REPO_ROOT } from '../src/config.js';
 import { discoverComponentFiles } from '../src/discovery.js';
 import { exportsAComponentName } from '../src/extract.js';
 import { buildArtifacts, readCommittedArtifacts, readGroup } from '../src/generate.js';
+import { BUILD_SPEC_PATH, REGENERATE, buildSpecDocument, endMarker, startMarker } from '../src/specTables.js';
 import { buildDesignTokens } from '../src/tokens.js';
 
 const artifacts = buildArtifacts(REPO_ROOT);
@@ -157,6 +162,34 @@ describe('the design tokens are the values the app itself consumes', () => {
         expect(ids).toContain('native.spacing');
         expect(ids).toContain('native.fontSize');
         expect(ids).toContain('gradient');
+    });
+});
+
+describe('the build spec token tables (buildSpec.md §1.4 and §1.5)', () => {
+    const committedSpec = readFileSync(join(REPO_ROOT, BUILD_SPEC_PATH), 'utf8');
+
+    it('match what regenerating from the current @commise/ui tokens produces, byte for byte', async () => {
+        expect(committedSpec === (await buildSpecDocument(REPO_ROOT)), `run: ${REGENERATE}`).toBe(true);
+    });
+
+    /** The first-column role names of the hand-written tables in one section, outside its generated region. */
+    function handWrittenRoles(heading: string, nextHeading: string, region: string): readonly string[] {
+        const section = committedSpec.slice(committedSpec.indexOf(heading), committedSpec.indexOf(nextHeading));
+        const outside =
+            section.slice(0, section.indexOf(startMarker(region))) + section.slice(section.indexOf(endMarker(region)));
+
+        return [...outside.matchAll(/^\| `(\w+)` +\|/gm)].map((match) => match[1] ?? '').sort();
+    }
+
+    // The rules beside each table (what a colour is for, how a type role wraps) have no token to come from, so they
+    // stay hand-written. Their role SET is still the code's: a role added to the tokens without its rule, or a rule
+    // left behind for a retired role, fails here by name.
+    it('give every colour role exactly one hand-written "used for" row', () => {
+        expect(handWrittenRoles('### 1.4 ', '### 1.5 ', 'colorRoles')).toEqual(Object.keys(role).sort());
+    });
+
+    it('give every type role exactly one hand-written default rule', () => {
+        expect(handWrittenRoles('### 1.5 ', '### 1.6 ', 'typeRoles')).toEqual(Object.keys(typeRole).sort());
     });
 });
 

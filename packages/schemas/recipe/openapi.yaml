@@ -5330,6 +5330,18 @@ components:
             code:
               type: string
               enum:
+                - IMPORT_STORAGE_FULL
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
                 - UNAUTHORIZED
             message:
               type: string
@@ -5570,6 +5582,9 @@ components:
             - public_web
             - book
             - paid_site
+            - unrecognised
+          description: "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never
+            sends it."
         sourceUrl:
           type: string
           format: uri
@@ -5721,6 +5736,9 @@ components:
             - public_web
             - book
             - paid_site
+            - unrecognised
+          description: "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never
+            sends it."
         sourceUrl:
           type: string
           format: uri
@@ -5921,6 +5939,9 @@ components:
                   - default
                   - autoBest
                   - cook
+              sourceLine:
+                type: string
+                minLength: 1
             required:
               - ingredientId
               - quantity
@@ -7968,6 +7989,9 @@ components:
             - public_web
             - book
             - paid_site
+            - unrecognised
+          description: "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never
+            sends it."
         sourceUrl:
           type: string
           format: uri

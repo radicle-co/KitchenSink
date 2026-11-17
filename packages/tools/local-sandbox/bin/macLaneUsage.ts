@@ -1,8 +1,8 @@
 /**
  * `npm run maestro:macUsage --workspace=@kitchensink/local-sandbox` — watches the Mac while iOS lanes run and, on
  * SIGINT or SIGTERM, prints each lane's mean CPUs and peak memory. Start it next to `test:e2e:ios` (it needs the lane
- * Simulators to exist, so start it once the first lane has booted). The numbers feed `IOS_LANE_COST` in
- * `src/maestroLanes/iosAdapter.ts`.
+ * Simulators to exist, so start it once the first lane has booted). The numbers feed `iphone` and `ipad` in
+ * `packages/tools/e2ePlan/src/laneCosts.json`; record the measurement beside them in `laneCosts.ts`.
  *
  * It reads and prints only. Every `ps` sample is also appended to `<state>/macLaneUsage.tsv`.
  *
@@ -21,8 +21,10 @@ import { IOS_MAX_LANES, macHostFromEnv } from '../src/maestroLanes/iosLane.js';
 import { macPathsOf } from '../src/maestroLanes/macSession.js';
 
 const INTERVAL_MS = 15_000;
-// `--platform android` watches the Mac's Android lane emulators; the default is the iOS Simulators.
+// `android` watches the Mac's Android lane emulators; the default is the iOS Simulators, and `ipad` watches the iPad lanes
+// (`test:e2e:ios -- --ios-device ipad`) in place of the iPhone ones.
 const platform = process.argv.includes('android') ? 'android' : 'ios';
+const iosDevice = process.argv.includes('ipad') ? 'ipad' : 'iphone';
 const host = macHostFromEnv(process.env);
 const stateDir = stateRoot();
 const tsv = path.join(stateDir, 'macLaneUsage.tsv');
@@ -54,7 +56,8 @@ function sample(): void {
 
             udids.set(lane, port);
         } else {
-            const udid = udids.get(lane) ?? ssh(`bash ${macPathsOf().laneHostScript} udid ${String(lane)}`).trim();
+            const udid =
+                udids.get(lane) ?? ssh(`bash ${macPathsOf().laneHostScript} udid ${String(lane)} ${iosDevice}`).trim();
 
             if (udid === '') {
                 continue;

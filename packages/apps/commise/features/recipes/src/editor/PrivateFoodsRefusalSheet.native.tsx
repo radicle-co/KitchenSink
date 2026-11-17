@@ -21,8 +21,7 @@ import { Text as DesignText } from '@commise/ui/text';
 import type { FC } from 'react';
 import { YStack } from 'tamagui';
 
-import { fillTemplate } from '../format/fillTemplate.js';
-import { pluralOf } from '../format/plural.js';
+import { fillTemplate, pluralOf } from '@commise/i18n';
 import { AmountRun } from '../form/AmountRun.native.js';
 import { refusalPlanOf } from '../foodPage/privateFoodsRefusal.js';
 import { editorMessages } from './messages.js';

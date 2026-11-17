@@ -1,0 +1,280 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-27T19:13:01Z"
+  },
+  "title": "Commise Screens: Reports, rules and your rights",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "RightsReportMobile.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, report (phone)"
+    },
+    "RightsReportReceivedMobile.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, report received (phone)"
+    },
+    "RightsStatementOfReasonsMobile.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, statement of reasons (phone)"
+    },
+    "RightsRulesMobile.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, rules (phone)"
+    },
+    "RightsYourDataMobile.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, your data (phone)"
+    },
+    "RightsEraseMobile.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, erase (phone)"
+    },
+    "RightsAiDisclosureMobile.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, ai disclosure (phone)"
+    },
+    "RightsReport834Mobile.dc.html": {
+      "x": 0,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Reports, rules and your rights, report (tablet 834 px)"
+    },
+    "RightsReportReceived834Mobile.dc.html": {
+      "x": 914,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Reports, rules and your rights, report received (tablet 834 px)"
+    },
+    "RightsStatementOfReasons834Mobile.dc.html": {
+      "x": 1828,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Reports, rules and your rights, statement of reasons (tablet 834 px)"
+    },
+    "RightsRules834Mobile.dc.html": {
+      "x": 2742,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Reports, rules and your rights, rules (tablet 834 px)"
+    },
+    "RightsYourData834Mobile.dc.html": {
+      "x": 3656,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Reports, rules and your rights, your data (tablet 834 px)"
+    },
+    "RightsErase834Mobile.dc.html": {
+      "x": 4570,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Reports, rules and your rights, erase (tablet 834 px)"
+    },
+    "RightsAiDisclosure834Mobile.dc.html": {
+      "x": 5484,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Reports, rules and your rights, ai disclosure (tablet 834 px)"
+    },
+    "RightsReport1194Mobile.dc.html": {
+      "x": 6398,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Reports, rules and your rights, report (tablet 1194 px)"
+    },
+    "RightsReportReceived1194Mobile.dc.html": {
+      "x": 7672,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Reports, rules and your rights, report received (tablet 1194 px)"
+    },
+    "RightsStatementOfReasons1194Mobile.dc.html": {
+      "x": 8946,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Reports, rules and your rights, statement of reasons (tablet 1194 px)"
+    },
+    "RightsRules1194Mobile.dc.html": {
+      "x": 10220,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Reports, rules and your rights, rules (tablet 1194 px)"
+    },
+    "RightsYourData1194Mobile.dc.html": {
+      "x": 11494,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Reports, rules and your rights, your data (tablet 1194 px)"
+    },
+    "RightsErase1194Mobile.dc.html": {
+      "x": 12768,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Reports, rules and your rights, erase (tablet 1194 px)"
+    },
+    "RightsAiDisclosure1194Mobile.dc.html": {
+      "x": 14042,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Reports, rules and your rights, ai disclosure (tablet 1194 px)"
+    },
+    "RightsReport.dc.html": {
+      "x": 0,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, report (web)"
+    },
+    "RightsReportReceived.dc.html": {
+      "x": 1360,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, report received (web)"
+    },
+    "RightsStatementOfReasons.dc.html": {
+      "x": 2720,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, statement of reasons (web)"
+    },
+    "RightsRules.dc.html": {
+      "x": 4080,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, rules (web)"
+    },
+    "RightsYourData.dc.html": {
+      "x": 5440,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, your data (web)"
+    },
+    "RightsErase.dc.html": {
+      "x": 6800,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, erase (web)"
+    },
+    "RightsAiDisclosure.dc.html": {
+      "x": 8160,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, ai disclosure (web)"
+    },
+    "RightsReviewQueue.dc.html": {
+      "x": 9520,
+      "y": 3058,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, review queue (web)"
+    }
+  },
+  "order": [
+    "RightsReportMobile.dc.html",
+    "RightsReportReceivedMobile.dc.html",
+    "RightsStatementOfReasonsMobile.dc.html",
+    "RightsRulesMobile.dc.html",
+    "RightsYourDataMobile.dc.html",
+    "RightsEraseMobile.dc.html",
+    "RightsAiDisclosureMobile.dc.html",
+    "RightsReport834Mobile.dc.html",
+    "RightsReportReceived834Mobile.dc.html",
+    "RightsStatementOfReasons834Mobile.dc.html",
+    "RightsRules834Mobile.dc.html",
+    "RightsYourData834Mobile.dc.html",
+    "RightsErase834Mobile.dc.html",
+    "RightsAiDisclosure834Mobile.dc.html",
+    "RightsReport1194Mobile.dc.html",
+    "RightsReportReceived1194Mobile.dc.html",
+    "RightsStatementOfReasons1194Mobile.dc.html",
+    "RightsRules1194Mobile.dc.html",
+    "RightsYourData1194Mobile.dc.html",
+    "RightsErase1194Mobile.dc.html",
+    "RightsAiDisclosure1194Mobile.dc.html",
+    "RightsReport.dc.html",
+    "RightsReportReceived.dc.html",
+    "RightsStatementOfReasons.dc.html",
+    "RightsRules.dc.html",
+    "RightsYourData.dc.html",
+    "RightsErase.dc.html",
+    "RightsAiDisclosure.dc.html",
+    "RightsReviewQueue.dc.html"
+  ],
+  "notes": {
+    "row33": {
+      "x": 0,
+      "y": 0,
+      "text": "Reports, rules and your rights: phone",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row34": {
+      "x": 0,
+      "y": 1224,
+      "text": "Reports, rules and your rights: tablet",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row35": {
+      "x": 0,
+      "y": 2798,
+      "text": "Reports, rules and your rights: web",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

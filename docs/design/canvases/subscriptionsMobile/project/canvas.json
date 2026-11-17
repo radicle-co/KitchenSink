@@ -1,0 +1,336 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:35Z"
+  },
+  "title": "Commise Screens, mobile: Subscriptions",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "SubscriptionPricingIphone390.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Subscriptions, pricing (mobile, iPhone 390)"
+    },
+    "SubscriptionTrialUsedIphone390.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Subscriptions, trial used (mobile, iPhone 390)"
+    },
+    "SubscriptionPaywallIphone390.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Subscriptions, paywall (mobile, iPhone 390)"
+    },
+    "SubscriptionCheckoutIphone390.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Subscriptions, checkout (mobile, iPhone 390)"
+    },
+    "SubscriptionTrialCardIphone390.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Subscriptions, trial card (mobile, iPhone 390)"
+    },
+    "SubscriptionManageIphone390.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Subscriptions, manage (mobile, iPhone 390)"
+    },
+    "SubscriptionTrialActiveIphone390.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 1234,
+      "title": "Subscriptions, trial active (mobile, iPhone 390)"
+    },
+    "SubscriptionCancelIphone390.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Subscriptions, cancel (mobile, iPhone 390)"
+    },
+    "SubscriptionCancelledIphone390.dc.html": {
+      "x": 3760,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Subscriptions, cancelled (mobile, iPhone 390)"
+    },
+    "SubscriptionBillingHistoryIphone390.dc.html": {
+      "x": 4230,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Subscriptions, billing history (mobile, iPhone 390)"
+    },
+    "SubscriptionPaymentFailedIphone390.dc.html": {
+      "x": 4700,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Subscriptions, payment failed (mobile, iPhone 390)"
+    },
+    "SubscriptionRestoreIphone390.dc.html": {
+      "x": 5170,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Subscriptions, restore (mobile, iPhone 390)"
+    },
+    "SubscriptionPricingAndroid384.dc.html": {
+      "x": 0,
+      "y": 2154,
+      "w": 384,
+      "h": 832,
+      "title": "Subscriptions, pricing (mobile, Android 384)"
+    },
+    "SubscriptionTrialUsedAndroid384.dc.html": {
+      "x": 464,
+      "y": 2154,
+      "w": 384,
+      "h": 832,
+      "title": "Subscriptions, trial used (mobile, Android 384)"
+    },
+    "SubscriptionPaywallAndroid384.dc.html": {
+      "x": 928,
+      "y": 2154,
+      "w": 384,
+      "h": 832,
+      "title": "Subscriptions, paywall (mobile, Android 384)"
+    },
+    "SubscriptionCheckoutAndroid384.dc.html": {
+      "x": 1392,
+      "y": 2154,
+      "w": 384,
+      "h": 832,
+      "title": "Subscriptions, checkout (mobile, Android 384)"
+    },
+    "SubscriptionTrialCardAndroid384.dc.html": {
+      "x": 1856,
+      "y": 2154,
+      "w": 384,
+      "h": 832,
+      "title": "Subscriptions, trial card (mobile, Android 384)"
+    },
+    "SubscriptionManageAndroid384.dc.html": {
+      "x": 2320,
+      "y": 2154,
+      "w": 384,
+      "h": 832,
+      "title": "Subscriptions, manage (mobile, Android 384)"
+    },
+    "SubscriptionTrialActiveAndroid384.dc.html": {
+      "x": 2784,
+      "y": 2154,
+      "w": 384,
+      "h": 1191,
+      "title": "Subscriptions, trial active (mobile, Android 384)"
+    },
+    "SubscriptionCancelAndroid384.dc.html": {
+      "x": 3248,
+      "y": 2154,
+      "w": 384,
+      "h": 832,
+      "title": "Subscriptions, cancel (mobile, Android 384)"
+    },
+    "SubscriptionCancelledAndroid384.dc.html": {
+      "x": 3712,
+      "y": 2154,
+      "w": 384,
+      "h": 832,
+      "title": "Subscriptions, cancelled (mobile, Android 384)"
+    },
+    "SubscriptionBillingHistoryAndroid384.dc.html": {
+      "x": 4176,
+      "y": 2154,
+      "w": 384,
+      "h": 832,
+      "title": "Subscriptions, billing history (mobile, Android 384)"
+    },
+    "SubscriptionPaymentFailedAndroid384.dc.html": {
+      "x": 4640,
+      "y": 2154,
+      "w": 384,
+      "h": 832,
+      "title": "Subscriptions, payment failed (mobile, Android 384)"
+    },
+    "SubscriptionRestoreAndroid384.dc.html": {
+      "x": 5104,
+      "y": 2154,
+      "w": 384,
+      "h": 832,
+      "title": "Subscriptions, restore (mobile, Android 384)"
+    },
+    "SubscriptionPricingIpad820.dc.html": {
+      "x": 0,
+      "y": 4005,
+      "w": 820,
+      "h": 1180,
+      "title": "Subscriptions, pricing (mobile, iPad 820)"
+    },
+    "SubscriptionTrialUsedIpad820.dc.html": {
+      "x": 900,
+      "y": 4005,
+      "w": 820,
+      "h": 1180,
+      "title": "Subscriptions, trial used (mobile, iPad 820)"
+    },
+    "SubscriptionPaywallIpad820.dc.html": {
+      "x": 1800,
+      "y": 4005,
+      "w": 820,
+      "h": 1180,
+      "title": "Subscriptions, paywall (mobile, iPad 820)"
+    },
+    "SubscriptionCheckoutIpad820.dc.html": {
+      "x": 2700,
+      "y": 4005,
+      "w": 820,
+      "h": 1180,
+      "title": "Subscriptions, checkout (mobile, iPad 820)"
+    },
+    "SubscriptionTrialCardIpad820.dc.html": {
+      "x": 3600,
+      "y": 4005,
+      "w": 820,
+      "h": 1180,
+      "title": "Subscriptions, trial card (mobile, iPad 820)"
+    },
+    "SubscriptionManageIpad820.dc.html": {
+      "x": 4500,
+      "y": 4005,
+      "w": 820,
+      "h": 1180,
+      "title": "Subscriptions, manage (mobile, iPad 820)"
+    },
+    "SubscriptionTrialActiveIpad820.dc.html": {
+      "x": 5400,
+      "y": 4005,
+      "w": 820,
+      "h": 1180,
+      "title": "Subscriptions, trial active (mobile, iPad 820)"
+    },
+    "SubscriptionCancelIpad820.dc.html": {
+      "x": 6300,
+      "y": 4005,
+      "w": 820,
+      "h": 1180,
+      "title": "Subscriptions, cancel (mobile, iPad 820)"
+    },
+    "SubscriptionCancelledIpad820.dc.html": {
+      "x": 7200,
+      "y": 4005,
+      "w": 820,
+      "h": 1180,
+      "title": "Subscriptions, cancelled (mobile, iPad 820)"
+    },
+    "SubscriptionBillingHistoryIpad820.dc.html": {
+      "x": 8100,
+      "y": 4005,
+      "w": 820,
+      "h": 1180,
+      "title": "Subscriptions, billing history (mobile, iPad 820)"
+    },
+    "SubscriptionPaymentFailedIpad820.dc.html": {
+      "x": 9000,
+      "y": 4005,
+      "w": 820,
+      "h": 1180,
+      "title": "Subscriptions, payment failed (mobile, iPad 820)"
+    },
+    "SubscriptionRestoreIpad820.dc.html": {
+      "x": 9900,
+      "y": 4005,
+      "w": 820,
+      "h": 1180,
+      "title": "Subscriptions, restore (mobile, iPad 820)"
+    }
+  },
+  "order": [
+    "SubscriptionPricingIphone390.dc.html",
+    "SubscriptionTrialUsedIphone390.dc.html",
+    "SubscriptionPaywallIphone390.dc.html",
+    "SubscriptionCheckoutIphone390.dc.html",
+    "SubscriptionTrialCardIphone390.dc.html",
+    "SubscriptionManageIphone390.dc.html",
+    "SubscriptionTrialActiveIphone390.dc.html",
+    "SubscriptionCancelIphone390.dc.html",
+    "SubscriptionCancelledIphone390.dc.html",
+    "SubscriptionBillingHistoryIphone390.dc.html",
+    "SubscriptionPaymentFailedIphone390.dc.html",
+    "SubscriptionRestoreIphone390.dc.html",
+    "SubscriptionPricingAndroid384.dc.html",
+    "SubscriptionTrialUsedAndroid384.dc.html",
+    "SubscriptionPaywallAndroid384.dc.html",
+    "SubscriptionCheckoutAndroid384.dc.html",
+    "SubscriptionTrialCardAndroid384.dc.html",
+    "SubscriptionManageAndroid384.dc.html",
+    "SubscriptionTrialActiveAndroid384.dc.html",
+    "SubscriptionCancelAndroid384.dc.html",
+    "SubscriptionCancelledAndroid384.dc.html",
+    "SubscriptionBillingHistoryAndroid384.dc.html",
+    "SubscriptionPaymentFailedAndroid384.dc.html",
+    "SubscriptionRestoreAndroid384.dc.html",
+    "SubscriptionPricingIpad820.dc.html",
+    "SubscriptionTrialUsedIpad820.dc.html",
+    "SubscriptionPaywallIpad820.dc.html",
+    "SubscriptionCheckoutIpad820.dc.html",
+    "SubscriptionTrialCardIpad820.dc.html",
+    "SubscriptionManageIpad820.dc.html",
+    "SubscriptionTrialActiveIpad820.dc.html",
+    "SubscriptionCancelIpad820.dc.html",
+    "SubscriptionCancelledIpad820.dc.html",
+    "SubscriptionBillingHistoryIpad820.dc.html",
+    "SubscriptionPaymentFailedIpad820.dc.html",
+    "SubscriptionRestoreIpad820.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Subscriptions: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1894,
+      "text": "Subscriptions: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 3745,
+      "text": "Subscriptions: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

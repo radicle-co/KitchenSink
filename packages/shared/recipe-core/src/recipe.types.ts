@@ -130,6 +130,34 @@ export type RecipeSourceKind = (typeof RECIPE_SOURCE_KINDS)[number];
 export const recipeSourceKindSchema = z.enum(RECIPE_SOURCE_KINDS);
 
 /**
+ * What a client reads a source kind it does not know as. The vocabulary is OPEN on the way out (ADR-0089: "adapted" and
+ * "family" wait on the owner), so a newer server's kind must not fail an installed client's whole recipe read. Every rule
+ * that reads a kind treats it as the most closed one: private only, and not correctable.
+ */
+export const UNRECOGNISED_SOURCE_KIND = 'unrecognised';
+
+/** A source kind as a client reads it off the wire: a known kind, or {@link UNRECOGNISED_SOURCE_KIND}. */
+export type RecipeSourceKindView = RecipeSourceKind | typeof UNRECOGNISED_SOURCE_KIND;
+
+/**
+ * The tolerant wire read of a source kind: a known kind is itself, any other STRING is {@link UNRECOGNISED_SOURCE_KIND}, and
+ * a value that is not a string still fails. Only the response read uses it; every request and the database stay closed.
+ * A preprocess, not a transform, because the contract fingerprint describes the output side and records a transform as
+ * unrepresentable (the same shape as the import's statement view).
+ */
+export const recipeSourceKindViewSchema = z.preprocess(
+    (value) =>
+        typeof value === 'string' && !(RECIPE_SOURCE_KINDS as readonly string[]).includes(value)
+            ? UNRECOGNISED_SOURCE_KIND
+            : value,
+    z
+        .enum([...RECIPE_SOURCE_KINDS, UNRECOGNISED_SOURCE_KIND])
+        .describe(
+            `${UNRECOGNISED_SOURCE_KIND} is client-side only: what a client reads for a kind newer than it knows. The server never sends it.`,
+        ),
+);
+
+/**
  * Allowed recipe difficulty values (CR-001 / FR-001b).
  */
 export const RecipeDifficulty = {
@@ -272,9 +300,10 @@ export interface Recipe {
     sourceType: RecipeSourceType;
     /**
      * What the cook said the source is (ADR-0089), ABSENT for a recipe with no statement, the curator's public-domain
-     * text included. `public_web` makes the recipe private only ({@link privateRuleOf}).
+     * text included. `public_web` makes the recipe private only ({@link privateRuleOf}). The server only ever writes a kind
+     * it knows; a client's wire read ({@link recipeSchema}) reads a newer one as {@link UNRECOGNISED_SOURCE_KIND}.
      */
-    sourceKind?: RecipeSourceKind;
+    sourceKind?: RecipeSourceKindView;
     sourceUrl?: string;
     sourceAttribution?: string;
     clonedFromId?: string;
@@ -384,7 +413,12 @@ export type PrivateRule = 'slots' | 'privateOnly';
  * @param sourceKind - What the cook said the source is, or `null` when the recipe has no statement.
  * @returns `privateOnly` for a book or paid-site recipe or a web copy, else `slots`. Pure.
  */
-export function privateRuleOf(sourceType: RecipeSourceType, sourceKind: RecipeSourceKind | null): PrivateRule {
+export function privateRuleOf(sourceType: RecipeSourceType, sourceKind: RecipeSourceKindView | null): PrivateRule {
+    // A kind this client cannot name fails closed: it offers Public for nothing whose rule it does not know.
+    if (sourceKind === UNRECOGNISED_SOURCE_KIND) {
+        return 'privateOnly';
+    }
+
     switch (sourceType) {
         case RecipeSourceType.IMPORTED_PHYSICAL:
         case RecipeSourceType.IMPORTED_PAID:
@@ -432,7 +466,7 @@ export const recipeSchema = z.object({
     // Absent until the first publish, kept after (ADR-0058 rule 1) — see the `Recipe` interface above.
     firstPublishedAt: isoDateTimeStringSchema.optional(),
     sourceType: recipeSourceTypeSchema,
-    sourceKind: recipeSourceKindSchema.optional(),
+    sourceKind: recipeSourceKindViewSchema.optional(),
     sourceUrl: z.string().url().optional(),
     sourceAttribution: z.string().min(1).optional(),
     clonedFromId: idSchema.optional(),
@@ -607,6 +641,15 @@ export interface RecipeIngredientView {
      * no request carries it, because it is written only by the save path and carried forward by the food alone.
      */
     boundBy?: BoundBy;
+    /**
+     * The line exactly as the cook pasted or imported it — the text the verification gate judged — so the editor can
+     * show "You wrote: …" beside a `NEEDS_REVIEW` line. ⛔ OWNER-ONLY, decided on the server by recipe-service's
+     * `transcriptionDisclosure.ts`, never hidden by a client: it is verbatim copied text, and ADR-0082 §2 forbids any
+     * line word for word on a public form. Absent for every other viewer, on a line with no transcription, and on a
+     * line its owner did not transcribe. Never on a snapshot, a list item, or 003A's `PublicRecipeView`.
+     * Response-only: the request field of the same name is create-only (ADR-0023's shape).
+     */
+    sourceLine?: string;
 }
 
 /**
@@ -639,6 +682,8 @@ export const recipeIngredientViewSchema = z.object({
     resolutionStatus: lineResolutionStatusSchema.optional(),
     // ADR-0072 §5 — who bound the line. Response-only and optional, so an older client strips it rather than rejecting the recipe.
     boundBy: boundBySchema.optional(),
+    // Owner-only and response-only; see the interface doc. `.min(1)` so absent stays the one spelling of "none".
+    sourceLine: z.string().min(1).optional(),
 });
 
 /**
@@ -670,8 +715,10 @@ export interface RecipeNutrition {
      * 0027 persists the pair the source printed on `recipe_ingredients`, and it rides the CREATE request,
      * because U11's verification gate reads it (a gate shown `0.5 cup` beside a source reading `one gill of
      * milk` disagrees with a line we parsed correctly). See `RangeDerivedBound` in `nutrition.ts` — and do not
-     * add a historical-unit provenance field here to "match" it. `RecipeIngredient` carries no `sourceLine` either; both are write-side provenance, and the
-     * disclosure a cook gets is the sentence in the recipe's description.
+     * add a historical-unit provenance field here to "match" it. `RecipeIngredient` (the snapshot line) carries no `sourceLine` either, and the stated
+     * measure stays write-side provenance the gate reads. The source line alone is returned, to its owner only, as
+     * `RecipeIngredientView.sourceLine`, decided once by recipe-service's `transcriptionDisclosure.ts`; that is no
+     * reason to put the stated measure on the wire.
      *
      * ⚠️ Load-bearing honesty, not decoration. A total computed from `2 cups` when the line read
      * `2 to 3 cups` is up to a third under and is otherwise indistinguishable from an exact one. Absent
@@ -1603,6 +1650,13 @@ export const RecipeErrorCode = {
      * details. (An id some OTHER cook holds is `IMPORT_NOT_FOUND`: a different answer would confirm the id exists.)
      */
     IMPORT_ID_IN_USE: 'IMPORT_ID_IN_USE',
+    /**
+     * ADR-0072 §2 — the cook already holds as many UNPAID import bytes as one cook may (`IMPORT_MAX_UNPAID_BYTES`): the recipes
+     * of every import that have not yet spent an allowance unit. A 409 with no details, and NOT a `413`: a client halves its
+     * chunk on `413`, and a smaller chunk does not help here. What helps is payment (an `advance`) or deleting an import. The
+     * size of a FILE is never capped; the bytes a cook may hold waiting to be paid for are.
+     */
+    IMPORT_STORAGE_FULL: 'IMPORT_STORAGE_FULL',
 } as const;
 
 /**
@@ -1652,6 +1706,7 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.PRIVATE_FOODS_ON_PUBLIC_RECIPE,
     RecipeErrorCode.IMPORT_ITEM_LOCKED,
     RecipeErrorCode.IMPORT_ID_IN_USE,
+    RecipeErrorCode.IMPORT_STORAGE_FULL,
 ]);
 
 /**

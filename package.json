@@ -35,6 +35,7 @@
         "test:e2e": "turbo run test:e2e && npm run test:e2e --prefix packages/infra/global",
         "e2e:maestro": "bash packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh",
         "e2e:plan": "npm run plan --workspace=@kitchensink/e2e-plan --",
+        "worktree:add": "node scripts/worktreeAdd.mjs",
         "scope": "npm run -s scope --workspace=@kitchensink/e2e-plan --",
         "test:e2e:web": "npm run test:e2e --workspace=@commise/web",
         "test:e2e:android": "npm run maestro:lanes --workspace=@kitchensink/local-sandbox -- --platform android",

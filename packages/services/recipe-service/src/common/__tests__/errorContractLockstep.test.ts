@@ -63,6 +63,7 @@ import {
     importCursorMoved,
     importItemAlreadySaved,
     importIdInUse,
+    importStorageFull,
     importItemLocked,
     importNotFound,
     importQuotaExceeded,
@@ -477,6 +478,13 @@ describe('the recipe error contract, end to end through both halves', () => {
 
         expect(wire.status).toBe(HttpStatus.CONFLICT);
         expect(error).toMatchObject({ status: 409, code: CODE.IMPORT_ID_IN_USE });
+    });
+
+    it('409 IMPORT_STORAGE_FULL → an unexpected-response error that keeps its status and code (the cook finishes or deletes an import)', async () => {
+        const { wire, error } = await throughTheWire(importStorageFull(), (client) => client.getRecipeById(RECIPE_ID));
+
+        expect(wire.status).toBe(HttpStatus.CONFLICT);
+        expect(error).toMatchObject({ status: 409, code: CODE.IMPORT_STORAGE_FULL });
     });
 
     it('409 IMPORT_ITEM_LOCKED → ImportItemLockedError carrying the item and where it stands', async () => {

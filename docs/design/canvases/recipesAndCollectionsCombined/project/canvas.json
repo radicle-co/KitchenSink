@@ -1,0 +1,646 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-27T19:13:01Z"
+  },
+  "title": "Commise Screens: Recipes and collections",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Recipes.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 1523,
+      "title": "My recipes, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipesMobile.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 390,
+      "h": 1700,
+      "title": "My recipes (mobile)"
+    },
+    "RecipesLoading.dc.html": {
+      "x": 1830,
+      "y": 260,
+      "w": 1280,
+      "h": 786,
+      "title": "My recipes, loading, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipesLoadingMobile.dc.html": {
+      "x": 3190,
+      "y": 260,
+      "w": 390,
+      "h": 994,
+      "title": "My recipes, loading (mobile)"
+    },
+    "RecipesError.dc.html": {
+      "x": 3660,
+      "y": 260,
+      "w": 1280,
+      "h": 760,
+      "title": "My recipes, could not load, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipesErrorMobile.dc.html": {
+      "x": 5020,
+      "y": 260,
+      "w": 390,
+      "h": 622,
+      "title": "My recipes, could not load (mobile)"
+    },
+    "RecipesEmpty.dc.html": {
+      "x": 5490,
+      "y": 260,
+      "w": 1280,
+      "h": 760,
+      "title": "My recipes, empty, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipesEmptyMobile.dc.html": {
+      "x": 6850,
+      "y": 260,
+      "w": 390,
+      "h": 624,
+      "title": "My recipes, empty (mobile)"
+    },
+    "RecipesNoMatch.dc.html": {
+      "x": 7320,
+      "y": 260,
+      "w": 1280,
+      "h": 1908,
+      "title": "My recipes, no match, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipesNoMatchMobile.dc.html": {
+      "x": 8680,
+      "y": 260,
+      "w": 390,
+      "h": 1982,
+      "title": "My recipes, no match (mobile)"
+    },
+    "RecipesLoadMore.dc.html": {
+      "x": 9150,
+      "y": 260,
+      "w": 1280,
+      "h": 1999,
+      "title": "My recipes, load more, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipesLoadMoreMobile.dc.html": {
+      "x": 10510,
+      "y": 260,
+      "w": 390,
+      "h": 1882,
+      "title": "My recipes, load more (mobile)"
+    },
+    "RecipesSort.dc.html": {
+      "x": 10980,
+      "y": 260,
+      "w": 1280,
+      "h": 1521,
+      "title": "My recipes, sort, proposal (web)",
+      "expand": "fill"
+    },
+    "RecipesSortMobile.dc.html": {
+      "x": 12340,
+      "y": 260,
+      "w": 390,
+      "h": 951,
+      "title": "My recipes, sort (mobile)"
+    },
+    "Recipes1024.dc.html": {
+      "x": 0,
+      "y": 2694,
+      "w": 1024,
+      "h": 1513,
+      "title": "My recipes, proposal, 1024 px (web)",
+      "expand": "fill"
+    },
+    "Recipes768.dc.html": {
+      "x": 1104,
+      "y": 2694,
+      "w": 768,
+      "h": 2543,
+      "title": "My recipes, proposal, 768 px (web)",
+      "expand": "fill"
+    },
+    "Recipes834Mobile.dc.html": {
+      "x": 2422,
+      "y": 2694,
+      "w": 834,
+      "h": 1486,
+      "title": "My recipes, 834 px (mobile)"
+    },
+    "Recipes1194Mobile.dc.html": {
+      "x": 3336,
+      "y": 2694,
+      "w": 1194,
+      "h": 1678,
+      "title": "My recipes, 1194 px (mobile)"
+    },
+    "Collections.dc.html": {
+      "x": 0,
+      "y": 5897,
+      "w": 1280,
+      "h": 872,
+      "title": "Collections, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionsMobile.dc.html": {
+      "x": 1360,
+      "y": 5897,
+      "w": 390,
+      "h": 1250,
+      "title": "Collections (mobile)"
+    },
+    "CollectionsLoading.dc.html": {
+      "x": 1830,
+      "y": 5897,
+      "w": 1280,
+      "h": 760,
+      "title": "Collections, loading, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionsLoadingMobile.dc.html": {
+      "x": 3190,
+      "y": 5897,
+      "w": 390,
+      "h": 866,
+      "title": "Collections, loading (mobile)"
+    },
+    "CollectionsError.dc.html": {
+      "x": 3660,
+      "y": 5897,
+      "w": 1280,
+      "h": 760,
+      "title": "Collections, could not load, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionsErrorMobile.dc.html": {
+      "x": 5020,
+      "y": 5897,
+      "w": 390,
+      "h": 622,
+      "title": "Collections, could not load (mobile)"
+    },
+    "CollectionsEmpty.dc.html": {
+      "x": 5490,
+      "y": 5897,
+      "w": 1280,
+      "h": 848,
+      "title": "Collections, empty, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionsEmptyMobile.dc.html": {
+      "x": 6850,
+      "y": 5897,
+      "w": 390,
+      "h": 1050,
+      "title": "Collections, empty (mobile)"
+    },
+    "CollectionsNoMatch.dc.html": {
+      "x": 7320,
+      "y": 5897,
+      "w": 1280,
+      "h": 760,
+      "title": "Collections, no match, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionsNoMatchMobile.dc.html": {
+      "x": 8680,
+      "y": 5897,
+      "w": 390,
+      "h": 698,
+      "title": "Collections, no match (mobile)"
+    },
+    "NewCollectionSheet.dc.html": {
+      "x": 9150,
+      "y": 5897,
+      "w": 1280,
+      "h": 800,
+      "title": "Collections, new collection, proposal (web)",
+      "expand": "fill"
+    },
+    "NewCollectionSheetMobile.dc.html": {
+      "x": 10510,
+      "y": 5897,
+      "w": 390,
+      "h": 844,
+      "title": "Collections, new collection (mobile)"
+    },
+    "NewCollectionSheetErrors.dc.html": {
+      "x": 10980,
+      "y": 5897,
+      "w": 1280,
+      "h": 1940,
+      "title": "Collections, new collection: problems, proposal (web)",
+      "expand": "fill"
+    },
+    "NewCollectionSheetErrorsMobile.dc.html": {
+      "x": 12340,
+      "y": 5897,
+      "w": 390,
+      "h": 2240,
+      "title": "Collections, new collection: problems (mobile)"
+    },
+    "Collections1024.dc.html": {
+      "x": 0,
+      "y": 8589,
+      "w": 1024,
+      "h": 866,
+      "title": "Collections, proposal, 1024 px (web)",
+      "expand": "fill"
+    },
+    "Collections768.dc.html": {
+      "x": 1104,
+      "y": 8589,
+      "w": 768,
+      "h": 1359,
+      "title": "Collections, proposal, 768 px (web)",
+      "expand": "fill"
+    },
+    "Collections834Mobile.dc.html": {
+      "x": 2422,
+      "y": 8589,
+      "w": 834,
+      "h": 923,
+      "title": "Collections, 834 px (mobile)"
+    },
+    "Collections1194Mobile.dc.html": {
+      "x": 3336,
+      "y": 8589,
+      "w": 1194,
+      "h": 1037,
+      "title": "Collections, 1194 px (mobile)"
+    },
+    "CollectionDetail.dc.html": {
+      "x": 0,
+      "y": 10608,
+      "w": 1280,
+      "h": 984,
+      "title": "Collection detail, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionDetailMobile.dc.html": {
+      "x": 1360,
+      "y": 10608,
+      "w": 390,
+      "h": 1354,
+      "title": "Collection detail (mobile)"
+    },
+    "CollectionDetailScrolledMobile.dc.html": {
+      "x": 23790,
+      "y": 10608,
+      "w": 390,
+      "h": 844,
+      "title": "Collection detail, scrolled (mobile)"
+    },
+    "CollectionMakePublicDialog.dc.html": {
+      "x": 1830,
+      "y": 10608,
+      "w": 1280,
+      "h": 937,
+      "title": "Collection detail, make public?, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionMakePublicDialogMobile.dc.html": {
+      "x": 3190,
+      "y": 10608,
+      "w": 390,
+      "h": 1104,
+      "title": "Collection detail, make public? (mobile)"
+    },
+    "CollectionUpsellSheet.dc.html": {
+      "x": 3660,
+      "y": 10608,
+      "w": 1280,
+      "h": 800,
+      "title": "Collection detail, Premium for private, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionUpsellSheetMobile.dc.html": {
+      "x": 5020,
+      "y": 10608,
+      "w": 390,
+      "h": 844,
+      "title": "Collection detail, Premium for private (mobile)"
+    },
+    "CollectionPullUpdates.dc.html": {
+      "x": 5490,
+      "y": 10608,
+      "w": 1280,
+      "h": 800,
+      "title": "Collection detail, pull updates, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionPullUpdatesMobile.dc.html": {
+      "x": 6850,
+      "y": 10608,
+      "w": 390,
+      "h": 1879,
+      "title": "Collection detail, pull updates (mobile)"
+    },
+    "CollectionRecipePicker.dc.html": {
+      "x": 7320,
+      "y": 10608,
+      "w": 1280,
+      "h": 820,
+      "title": "Collection detail, add recipes, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionRecipePickerMobile.dc.html": {
+      "x": 8680,
+      "y": 10608,
+      "w": 390,
+      "h": 844,
+      "title": "Collection detail, add recipes (mobile)"
+    },
+    "CollectionRecipePickerStates.dc.html": {
+      "x": 9150,
+      "y": 10608,
+      "w": 1280,
+      "h": 1811,
+      "title": "Collection detail, add recipes: states, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionRecipePickerStatesMobile.dc.html": {
+      "x": 10510,
+      "y": 10608,
+      "w": 390,
+      "h": 2802,
+      "title": "Collection detail, add recipes: states (mobile)"
+    },
+    "CollectionPullUpdatesStates.dc.html": {
+      "x": 10980,
+      "y": 10608,
+      "w": 1280,
+      "h": 944,
+      "title": "Collection detail, pull updates: states, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionPullUpdatesStatesMobile.dc.html": {
+      "x": 12340,
+      "y": 10608,
+      "w": 390,
+      "h": 1937,
+      "title": "Collection detail, pull updates: states (mobile)"
+    },
+    "CollectionDetailLoading.dc.html": {
+      "x": 12810,
+      "y": 10608,
+      "w": 1280,
+      "h": 760,
+      "title": "Collection detail, loading (web)",
+      "expand": "fill"
+    },
+    "CollectionDetailLoadingMobile.dc.html": {
+      "x": 14170,
+      "y": 10608,
+      "w": 390,
+      "h": 773,
+      "title": "Collection detail, loading (mobile)"
+    },
+    "CollectionDetailNotFound.dc.html": {
+      "x": 14640,
+      "y": 10608,
+      "w": 1280,
+      "h": 760,
+      "title": "Collection detail, not found or failed (web)",
+      "expand": "fill"
+    },
+    "CollectionDetailNotFoundMobile.dc.html": {
+      "x": 16000,
+      "y": 10608,
+      "w": 390,
+      "h": 826,
+      "title": "Collection detail, not found or failed (mobile)"
+    },
+    "CollectionDetailEmpty.dc.html": {
+      "x": 16470,
+      "y": 10608,
+      "w": 1280,
+      "h": 760,
+      "title": "Collection detail, empty, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionDetailEmptyMobile.dc.html": {
+      "x": 17830,
+      "y": 10608,
+      "w": 390,
+      "h": 690,
+      "title": "Collection detail, empty (mobile)"
+    },
+    "CollectionDetailAlerts.dc.html": {
+      "x": 18300,
+      "y": 10608,
+      "w": 1280,
+      "h": 1144,
+      "title": "Collection detail, actions failed, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionDetailAlertsMobile.dc.html": {
+      "x": 19660,
+      "y": 10608,
+      "w": 390,
+      "h": 1606,
+      "title": "Collection detail, actions failed (mobile)"
+    },
+    "CollectionRenameSheet.dc.html": {
+      "x": 20130,
+      "y": 10608,
+      "w": 1280,
+      "h": 868,
+      "title": "Collection detail, rename, proposal (web)",
+      "expand": "fill"
+    },
+    "CollectionRenameSheetMobile.dc.html": {
+      "x": 21490,
+      "y": 10608,
+      "w": 390,
+      "h": 930,
+      "title": "Collection detail, rename (mobile)"
+    },
+    "CollectionDeleteDialog.dc.html": {
+      "x": 21960,
+      "y": 10608,
+      "w": 1280,
+      "h": 704,
+      "title": "Collection detail, delete? (web)",
+      "expand": "fill"
+    },
+    "CollectionDeleteDialogMobile.dc.html": {
+      "x": 23320,
+      "y": 10608,
+      "w": 390,
+      "h": 1238,
+      "title": "Collection detail, delete? (mobile)"
+    },
+    "CollectionDetail1024.dc.html": {
+      "x": 0,
+      "y": 14754,
+      "w": 1024,
+      "h": 988,
+      "title": "Collection detail, proposal, 1024 px (web)",
+      "expand": "fill"
+    },
+    "CollectionDetail768.dc.html": {
+      "x": 1104,
+      "y": 14754,
+      "w": 768,
+      "h": 1525,
+      "title": "Collection detail, proposal, 768 px (web)",
+      "expand": "fill"
+    },
+    "CollectionDetail834Mobile.dc.html": {
+      "x": 2422,
+      "y": 14754,
+      "w": 834,
+      "h": 1037,
+      "title": "Collection detail, 834 px (mobile)"
+    },
+    "CollectionDetailScrolled834Mobile.dc.html": {
+      "x": 4610,
+      "y": 14754,
+      "w": 834,
+      "h": 1194,
+      "title": "Collection detail, scrolled, 834 px (mobile)"
+    },
+    "CollectionDetail1194Mobile.dc.html": {
+      "x": 3336,
+      "y": 14754,
+      "w": 1194,
+      "h": 1145,
+      "title": "Collection detail, 1194 px (mobile)"
+    }
+  },
+  "order": [
+    "Recipes.dc.html",
+    "RecipesMobile.dc.html",
+    "RecipesLoading.dc.html",
+    "RecipesLoadingMobile.dc.html",
+    "RecipesError.dc.html",
+    "RecipesErrorMobile.dc.html",
+    "RecipesEmpty.dc.html",
+    "RecipesEmptyMobile.dc.html",
+    "RecipesNoMatch.dc.html",
+    "RecipesNoMatchMobile.dc.html",
+    "RecipesLoadMore.dc.html",
+    "RecipesLoadMoreMobile.dc.html",
+    "RecipesSort.dc.html",
+    "RecipesSortMobile.dc.html",
+    "Recipes1024.dc.html",
+    "Recipes768.dc.html",
+    "Recipes834Mobile.dc.html",
+    "Recipes1194Mobile.dc.html",
+    "Collections.dc.html",
+    "CollectionsMobile.dc.html",
+    "CollectionsLoading.dc.html",
+    "CollectionsLoadingMobile.dc.html",
+    "CollectionsError.dc.html",
+    "CollectionsErrorMobile.dc.html",
+    "CollectionsEmpty.dc.html",
+    "CollectionsEmptyMobile.dc.html",
+    "CollectionsNoMatch.dc.html",
+    "CollectionsNoMatchMobile.dc.html",
+    "NewCollectionSheet.dc.html",
+    "NewCollectionSheetMobile.dc.html",
+    "NewCollectionSheetErrors.dc.html",
+    "NewCollectionSheetErrorsMobile.dc.html",
+    "Collections1024.dc.html",
+    "Collections768.dc.html",
+    "Collections834Mobile.dc.html",
+    "Collections1194Mobile.dc.html",
+    "CollectionDetail.dc.html",
+    "CollectionDetailMobile.dc.html",
+    "CollectionDetailScrolledMobile.dc.html",
+    "CollectionMakePublicDialog.dc.html",
+    "CollectionMakePublicDialogMobile.dc.html",
+    "CollectionUpsellSheet.dc.html",
+    "CollectionUpsellSheetMobile.dc.html",
+    "CollectionPullUpdates.dc.html",
+    "CollectionPullUpdatesMobile.dc.html",
+    "CollectionRecipePicker.dc.html",
+    "CollectionRecipePickerMobile.dc.html",
+    "CollectionRecipePickerStates.dc.html",
+    "CollectionRecipePickerStatesMobile.dc.html",
+    "CollectionPullUpdatesStates.dc.html",
+    "CollectionPullUpdatesStatesMobile.dc.html",
+    "CollectionDetailLoading.dc.html",
+    "CollectionDetailLoadingMobile.dc.html",
+    "CollectionDetailNotFound.dc.html",
+    "CollectionDetailNotFoundMobile.dc.html",
+    "CollectionDetailEmpty.dc.html",
+    "CollectionDetailEmptyMobile.dc.html",
+    "CollectionDetailAlerts.dc.html",
+    "CollectionDetailAlertsMobile.dc.html",
+    "CollectionRenameSheet.dc.html",
+    "CollectionRenameSheetMobile.dc.html",
+    "CollectionDeleteDialog.dc.html",
+    "CollectionDeleteDialogMobile.dc.html",
+    "CollectionDetail1024.dc.html",
+    "CollectionDetail768.dc.html",
+    "CollectionDetail834Mobile.dc.html",
+    "CollectionDetailScrolled834Mobile.dc.html",
+    "CollectionDetail1194Mobile.dc.html"
+  ],
+  "notes": {
+    "row4": {
+      "x": 0,
+      "y": 0,
+      "text": "My recipes",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row5": {
+      "x": 0,
+      "y": 2434,
+      "text": "My recipes: breakpoints",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row6": {
+      "x": 0,
+      "y": 5637,
+      "text": "Collections",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row7": {
+      "x": 0,
+      "y": 8329,
+      "text": "Collections: breakpoints",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row8": {
+      "x": 0,
+      "y": 10348,
+      "text": "Collection detail",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row9": {
+      "x": 0,
+      "y": 14494,
+      "text": "Collection detail: breakpoints",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

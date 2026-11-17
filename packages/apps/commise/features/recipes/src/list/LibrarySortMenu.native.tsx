@@ -5,6 +5,7 @@
  *
  * @pattern Adapter over the design-system `Sheet`, carrying a radio group
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
@@ -16,7 +17,6 @@ import { SortOptionRow } from '../common/SortOptionRow.native.js';
 import { recipeMessages } from '../messages.js';
 import { LIBRARY_SORTS, sortLabelOf } from './library.js';
 import { type RecipeListSortControl } from './model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 
 /**
  * The sort control.

@@ -1,7 +1,7 @@
 # Metrics and ROI: Recipe Importing
 
 **Branch**: `004-recipe-importing` | **Date**: 2026-05-09
-**Status**: Complete | **Sources**: [spec.md](../spec.md), [plan.md](../plan.md), [tasks.md](../tasks.md), [v-model/requirements.md](../v-model/requirements.md)
+**Status**: Complete | **Sources**: [spec.md](../spec.md), [plan.md](../plan.md), [tasks.md](../tasks.md)
 
 ---
 

@@ -13,7 +13,12 @@
 import { describe, expect, it } from 'vitest';
 import { RecipeSourceType, RecipeStatus, type PublishRequirement } from '@kitchensink/recipe-core';
 
-import { evaluatePublication, requiresCuisine, type PublishPolicyInput } from '../publishPolicy.js';
+import {
+    evaluatePublication,
+    requiresCuisine,
+    unmetContentRequirements,
+    type PublishPolicyInput,
+} from '../publishPolicy.js';
 
 /** A recipe that meets every requirement. */
 const COMPLETE: PublishPolicyInput = {
@@ -113,5 +118,29 @@ describe('evaluatePublication — the cuisine is judged as it will be stored', (
 
     it('accepts a cuisine the list does not hold: free text is a cuisine', () => {
         expect(missingOf({ cuisine: 'Nyonya' })).toEqual([]);
+    });
+});
+
+describe("unmetContentRequirements: the content half of Publish, in the policy's own order", () => {
+    it.each([
+        [{ ingredientCount: 1, stepCount: 1 }, []],
+        [{ ingredientCount: 0, stepCount: 1 }, ['ingredients']],
+        [{ ingredientCount: 1, stepCount: 0 }, ['steps']],
+        [{ ingredientCount: 0, stepCount: 0 }, ['ingredients', 'steps']],
+    ] as const)('%j -> %j', (input, expected) => {
+        expect(unmetContentRequirements(input)).toEqual(expected);
+    });
+
+    it('agrees with evaluatePublication on the same counts, so the rule has one statement', () => {
+        for (const ingredientCount of [0, 2]) {
+            for (const stepCount of [0, 3]) {
+                const decision = evaluatePublication({ ...COMPLETE, ingredientCount, stepCount });
+                const content = decision.allowed
+                    ? []
+                    : decision.missing.filter((item) => item === 'ingredients' || item === 'steps');
+
+                expect(unmetContentRequirements({ ingredientCount, stepCount })).toEqual(content);
+            }
+        }
     });
 });

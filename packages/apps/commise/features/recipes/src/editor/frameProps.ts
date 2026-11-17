@@ -11,6 +11,7 @@ import type { GateOutcome } from './gate.js';
 import type { OpenChoicesFacts } from './openChoicesCopy.js';
 import type { DraftKeep } from './saveStatus.js';
 import type { EditorSectionId } from './sections.js';
+import type { ResolvedArrival } from './editorArrival.js';
 
 /** The header's element id: the popups in the sections read its edge to keep clear of it (`chromeInsets.ts`). */
 export const EDITOR_HEADER_ID = 'recipe-editor-header';
@@ -170,8 +171,11 @@ export interface RecipeEditorViewProps {
     readonly headingActions?: Partial<Readonly<Record<EditorSectionId, ReactNode>>>;
     /** The rail's foot (the nutrition total). */
     readonly railFooter?: ReactNode;
-    /** The section a deep link names (the URL's hash), jumped to once on mount (blueprint A16). */
-    readonly initialSection?: EditorSectionId;
+    /**
+     * Where a deep link opens (the URL's hash, the native route params): the section, and the line the surface resolved
+     * from the link's address. Jumped to once on mount (blueprint A16).
+     */
+    readonly arrival?: ResolvedArrival;
     /** Leave the editor (× ). The editor has already checkpointed the exit. */
     readonly onClose: () => void;
     /**

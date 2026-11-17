@@ -465,6 +465,62 @@ describe('useFieldRevealHost — a focus (specSharedSystem.md §16.3)', () => {
         expect(seam.measured).toBe(1);
     });
 
+    /** A focus that also names the open row's end (its Done and Cancel); the host measures the field, then the end. */
+    async function focusWithEnd(rendered: ReturnType<typeof host>): Promise<void> {
+        await act(async () => {
+            rendered.result.current.revealer({ kind: 'focus', field, end: { measureLayout: () => undefined } });
+            await Promise.resolve();
+        });
+    }
+
+    it('with an end, a keyboard that shrinks the area scrolls the field AND the end into view when both fit (Done and Cancel land one gap above the keyboard)', async () => {
+        const rendered = host(600);
+        // Field 200 to 240, the end's bottom at 400: all inside 600, so nothing moves yet.
+        seam.measures = [
+            { top: 200, height: 40, offset: 0 },
+            { top: 360, height: 40, offset: 0 },
+        ];
+        await focusWithEnd(rendered);
+        expect(seam.scrolls).toEqual([]);
+
+        // The keyboard rises: 300 dp. The span 192 to 408 (216 dp) fits, so the end's bottom goes to 300 - 8.
+        seam.measures = [
+            { top: 200, height: 40, offset: 0 },
+            { top: 360, height: 40, offset: 0 },
+        ];
+        await resize(rendered, 300);
+
+        expect(seam.scrolls).toEqual([{ y: 108, animated: true }]);
+    });
+
+    it('with an end that does not fit with the field, the field wins: today’s field-only scroll', async () => {
+        const rendered = host(700);
+        seam.measures = [
+            { top: 280, height: 40, offset: 0 },
+            { top: 560, height: 40, offset: 0 },
+        ];
+        await focusWithEnd(rendered);
+        expect(seam.scrolls).toEqual([]);
+
+        // 300 dp: the span 272 to 608 (336 dp) is too tall, so the field's own bottom goes one gap above the edge.
+        seam.measures = [
+            { top: 280, height: 40, offset: 0 },
+            { top: 560, height: 40, offset: 0 },
+        ];
+        await resize(rendered, 300);
+
+        expect(seam.scrolls).toEqual([{ y: 28, animated: true }]);
+    });
+
+    it('with an end that cannot be measured, keeps the field-only scroll', async () => {
+        const rendered = host(300);
+        seam.measures = [{ top: 280, height: 40, offset: 0 }, null];
+
+        await focusWithEnd(rendered);
+
+        expect(seam.scrolls).toEqual([{ y: 28, animated: true }]);
+    });
+
     it('is dropped while an arrival is pending', async () => {
         const rendered = host(600);
         seam.measures = [{ top: 250, height: 48, offset: 500 }];
@@ -701,5 +757,126 @@ describe('useFieldRevealHost — a target (specSharedSystem.md §16.3)', () => {
         });
 
         expect(seam.measured).toBe(measured);
+    });
+});
+
+describe('useFieldRevealHost — a start (scrollToStart)', () => {
+    async function aim(rendered: Pick<ReturnType<typeof host>, 'result'>): Promise<() => void> {
+        let release: () => void = () => undefined;
+
+        await act(async () => {
+            release = rendered.result.current.revealer({ kind: 'start', field });
+            await Promise.resolve();
+        });
+
+        return release;
+    }
+
+    it('scrolls the element’s top one gap below the top of the visible area, even when it already shows', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 120, height: 48, offset: 100 }];
+
+        await aim(rendered);
+
+        expect(seam.scrolls).toEqual([{ y: 100 + 120 - 8, animated: true }]);
+    });
+
+    // The row and its editor are taller than the area: Done and Cancel (the row's end) win, one gap above the bottom edge.
+    it('too tall to show whole: the end wins, one gap above the bottom edge, in ONE scroll', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 100, height: 500, offset: 200 }];
+
+        await aim(rendered);
+
+        expect(seam.scrolls).toEqual([{ y: 200 + 600 + 8 - 400, animated: true }]);
+    });
+
+    it('moves nothing when it cannot be measured', async () => {
+        const rendered = host(400);
+        seam.measures = [null];
+
+        await aim(rendered);
+
+        expect(seam.scrolls).toEqual([]);
+    });
+
+    it('waits for the visible area to be laid out, then scrolls once', async () => {
+        const rendered = renderHook(() => useFieldRevealHost({ current: scroller }));
+        seam.measures = [{ top: 300, height: 48, offset: 100 }];
+
+        await aim(rendered);
+        expect(seam.measured).toBe(0);
+
+        await act(async () => {
+            rendered.result.current.onViewportLayout(layout(0, 400));
+            await Promise.resolve();
+        });
+
+        expect(seam.scrolls).toEqual([{ y: 392, animated: true }]);
+    });
+
+    /** A `nearest` request: the smallest scroll that shows the element, and none when it already shows. */
+    async function aimNearest(rendered: Pick<ReturnType<typeof host>, 'result'>): Promise<void> {
+        await act(async () => {
+            rendered.result.current.revealer({ kind: 'nearest', field });
+            await Promise.resolve();
+        });
+    }
+
+    it('a nearest request: an element fully in view scrolls nothing', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 120, height: 48, offset: 100 }];
+
+        await aimNearest(rendered);
+
+        expect(seam.measured).toBe(1);
+        expect(seam.scrolls).toEqual([]);
+    });
+
+    it('a nearest request: an element off the top lands its top one gap below the top edge', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: -60, height: 48, offset: 100 }];
+
+        await aimNearest(rendered);
+
+        expect(seam.scrolls).toEqual([{ y: 100 - 60 - 8, animated: true }]);
+    });
+
+    it('a nearest request: an element off the bottom lands its bottom one gap above the bottom edge', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 380, height: 48, offset: 100 }];
+
+        await aimNearest(rendered);
+
+        expect(seam.scrolls).toEqual([{ y: 100 + 380 + 48 + 8 - 400, animated: true }]);
+    });
+
+    it('a nearest request: disarms after one check, even when nothing scrolled', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 120, height: 48, offset: 100 }];
+        await aimNearest(rendered);
+
+        seam.measures = [{ top: 380, height: 48, offset: 100 }];
+        await act(async () => {
+            rendered.result.current.onViewportLayout(layout(0, 300));
+            await Promise.resolve();
+        });
+
+        expect(seam.measured).toBe(1);
+        expect(seam.scrolls).toEqual([]);
+    });
+
+    it('a release cancels a start still measuring', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 300, height: 48, offset: 100 }];
+        let release: () => void = () => undefined;
+
+        await act(async () => {
+            release = rendered.result.current.revealer({ kind: 'start', field });
+            release();
+            await Promise.resolve();
+        });
+
+        expect(seam.scrolls).toEqual([]);
     });
 });

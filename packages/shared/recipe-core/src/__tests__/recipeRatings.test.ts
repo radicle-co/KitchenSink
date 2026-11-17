@@ -168,6 +168,12 @@ describe('recipeSchema — CR-001 rating aggregate + derived fields', () => {
         expect(recipeSchema.safeParse(makeRecipe({ averageRating: 5.5, ratingCount: 1 })).success).toBe(false);
     });
 
+    it('reads a source kind a newer server sends as unrecognised instead of failing the whole recipe', () => {
+        const parsed = recipeSchema.parse({ ...makeRecipe({ sourceType: 'imported_public' }), sourceKind: 'adapted' });
+
+        expect(parsed.sourceKind).toBe('unrecognised');
+    });
+
     it('accepts an optional difficulty and a cover photo URL, and tolerates their absence', () => {
         expect(recipeSchema.parse(makeRecipe({ difficulty: RecipeDifficulty.HARD })).difficulty).toBe('hard');
         expect(

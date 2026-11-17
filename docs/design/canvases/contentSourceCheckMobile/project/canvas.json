@@ -1,0 +1,384 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:37Z"
+  },
+  "title": "Commise Screens, mobile: Content source check",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "SourceCheckCheckingIphone390.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, checking (mobile, iPhone 390)"
+    },
+    "SourceCheckInReviewIphone390.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, in review (mobile, iPhone 390)"
+    },
+    "SourceCheckLibraryIphone390.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, library (mobile, iPhone 390)"
+    },
+    "SourceCheckEditorInReviewIphone390.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, editor in review (mobile, iPhone 390)"
+    },
+    "SourceCheckEditorPrivateNoSlotIphone390.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, editor private no slot (mobile, iPhone 390)"
+    },
+    "SourceCheckPublishBlockedNoSlotIphone390.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, publish blocked no slot (mobile, iPhone 390)"
+    },
+    "SourceCheckPublishBlockedWebImportIphone390.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, publish blocked web import (mobile, iPhone 390)"
+    },
+    "SourceCheckApprovedIphone390.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, approved (mobile, iPhone 390)"
+    },
+    "SourceCheckNotApprovedIphone390.dc.html": {
+      "x": 3760,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, not approved (mobile, iPhone 390)"
+    },
+    "SourceCheckNotApprovedOverLimitIphone390.dc.html": {
+      "x": 4230,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, not approved over limit (mobile, iPhone 390)"
+    },
+    "SourceCheckAskAgainIphone390.dc.html": {
+      "x": 4700,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, ask again (mobile, iPhone 390)"
+    },
+    "SourceCheckAskAgainSentIphone390.dc.html": {
+      "x": 5170,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, ask again sent (mobile, iPhone 390)"
+    },
+    "SourceCheckPlanInReviewIphone390.dc.html": {
+      "x": 5640,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, plan in review (mobile, iPhone 390)"
+    },
+    "SourceCheckCollectionInReviewIphone390.dc.html": {
+      "x": 6110,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Content source check, collection in review (mobile, iPhone 390)"
+    },
+    "SourceCheckCheckingAndroid384.dc.html": {
+      "x": 0,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Content source check, checking (mobile, Android 384)"
+    },
+    "SourceCheckInReviewAndroid384.dc.html": {
+      "x": 464,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Content source check, in review (mobile, Android 384)"
+    },
+    "SourceCheckLibraryAndroid384.dc.html": {
+      "x": 928,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Content source check, library (mobile, Android 384)"
+    },
+    "SourceCheckEditorInReviewAndroid384.dc.html": {
+      "x": 1392,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Content source check, editor in review (mobile, Android 384)"
+    },
+    "SourceCheckEditorPrivateNoSlotAndroid384.dc.html": {
+      "x": 1856,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Content source check, editor private no slot (mobile, Android 384)"
+    },
+    "SourceCheckPublishBlockedNoSlotAndroid384.dc.html": {
+      "x": 2320,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Content source check, publish blocked no slot (mobile, Android 384)"
+    },
+    "SourceCheckPublishBlockedWebImportAndroid384.dc.html": {
+      "x": 2784,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Content source check, publish blocked web import (mobile, Android 384)"
+    },
+    "SourceCheckApprovedAndroid384.dc.html": {
+      "x": 3248,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Content source check, approved (mobile, Android 384)"
+    },
+    "SourceCheckNotApprovedAndroid384.dc.html": {
+      "x": 3712,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Content source check, not approved (mobile, Android 384)"
+    },
+    "SourceCheckNotApprovedOverLimitAndroid384.dc.html": {
+      "x": 4176,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Content source check, not approved over limit (mobile, Android 384)"
+    },
+    "SourceCheckAskAgainAndroid384.dc.html": {
+      "x": 4640,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Content source check, ask again (mobile, Android 384)"
+    },
+    "SourceCheckAskAgainSentAndroid384.dc.html": {
+      "x": 5104,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Content source check, ask again sent (mobile, Android 384)"
+    },
+    "SourceCheckPlanInReviewAndroid384.dc.html": {
+      "x": 5568,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Content source check, plan in review (mobile, Android 384)"
+    },
+    "SourceCheckCollectionInReviewAndroid384.dc.html": {
+      "x": 6032,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Content source check, collection in review (mobile, Android 384)"
+    },
+    "SourceCheckCheckingIpad820.dc.html": {
+      "x": 0,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Content source check, checking (mobile, iPad 820)"
+    },
+    "SourceCheckInReviewIpad820.dc.html": {
+      "x": 900,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Content source check, in review (mobile, iPad 820)"
+    },
+    "SourceCheckLibraryIpad820.dc.html": {
+      "x": 1800,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Content source check, library (mobile, iPad 820)"
+    },
+    "SourceCheckEditorInReviewIpad820.dc.html": {
+      "x": 2700,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Content source check, editor in review (mobile, iPad 820)"
+    },
+    "SourceCheckEditorPrivateNoSlotIpad820.dc.html": {
+      "x": 3600,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Content source check, editor private no slot (mobile, iPad 820)"
+    },
+    "SourceCheckPublishBlockedNoSlotIpad820.dc.html": {
+      "x": 4500,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Content source check, publish blocked no slot (mobile, iPad 820)"
+    },
+    "SourceCheckPublishBlockedWebImportIpad820.dc.html": {
+      "x": 5400,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Content source check, publish blocked web import (mobile, iPad 820)"
+    },
+    "SourceCheckApprovedIpad820.dc.html": {
+      "x": 6300,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Content source check, approved (mobile, iPad 820)"
+    },
+    "SourceCheckNotApprovedIpad820.dc.html": {
+      "x": 7200,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Content source check, not approved (mobile, iPad 820)"
+    },
+    "SourceCheckNotApprovedOverLimitIpad820.dc.html": {
+      "x": 8100,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Content source check, not approved over limit (mobile, iPad 820)"
+    },
+    "SourceCheckAskAgainIpad820.dc.html": {
+      "x": 9000,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Content source check, ask again (mobile, iPad 820)"
+    },
+    "SourceCheckAskAgainSentIpad820.dc.html": {
+      "x": 9900,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Content source check, ask again sent (mobile, iPad 820)"
+    },
+    "SourceCheckPlanInReviewIpad820.dc.html": {
+      "x": 10800,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Content source check, plan in review (mobile, iPad 820)"
+    },
+    "SourceCheckCollectionInReviewIpad820.dc.html": {
+      "x": 11700,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Content source check, collection in review (mobile, iPad 820)"
+    }
+  },
+  "order": [
+    "SourceCheckCheckingIphone390.dc.html",
+    "SourceCheckInReviewIphone390.dc.html",
+    "SourceCheckLibraryIphone390.dc.html",
+    "SourceCheckEditorInReviewIphone390.dc.html",
+    "SourceCheckEditorPrivateNoSlotIphone390.dc.html",
+    "SourceCheckPublishBlockedNoSlotIphone390.dc.html",
+    "SourceCheckPublishBlockedWebImportIphone390.dc.html",
+    "SourceCheckApprovedIphone390.dc.html",
+    "SourceCheckNotApprovedIphone390.dc.html",
+    "SourceCheckNotApprovedOverLimitIphone390.dc.html",
+    "SourceCheckAskAgainIphone390.dc.html",
+    "SourceCheckAskAgainSentIphone390.dc.html",
+    "SourceCheckPlanInReviewIphone390.dc.html",
+    "SourceCheckCollectionInReviewIphone390.dc.html",
+    "SourceCheckCheckingAndroid384.dc.html",
+    "SourceCheckInReviewAndroid384.dc.html",
+    "SourceCheckLibraryAndroid384.dc.html",
+    "SourceCheckEditorInReviewAndroid384.dc.html",
+    "SourceCheckEditorPrivateNoSlotAndroid384.dc.html",
+    "SourceCheckPublishBlockedNoSlotAndroid384.dc.html",
+    "SourceCheckPublishBlockedWebImportAndroid384.dc.html",
+    "SourceCheckApprovedAndroid384.dc.html",
+    "SourceCheckNotApprovedAndroid384.dc.html",
+    "SourceCheckNotApprovedOverLimitAndroid384.dc.html",
+    "SourceCheckAskAgainAndroid384.dc.html",
+    "SourceCheckAskAgainSentAndroid384.dc.html",
+    "SourceCheckPlanInReviewAndroid384.dc.html",
+    "SourceCheckCollectionInReviewAndroid384.dc.html",
+    "SourceCheckCheckingIpad820.dc.html",
+    "SourceCheckInReviewIpad820.dc.html",
+    "SourceCheckLibraryIpad820.dc.html",
+    "SourceCheckEditorInReviewIpad820.dc.html",
+    "SourceCheckEditorPrivateNoSlotIpad820.dc.html",
+    "SourceCheckPublishBlockedNoSlotIpad820.dc.html",
+    "SourceCheckPublishBlockedWebImportIpad820.dc.html",
+    "SourceCheckApprovedIpad820.dc.html",
+    "SourceCheckNotApprovedIpad820.dc.html",
+    "SourceCheckNotApprovedOverLimitIpad820.dc.html",
+    "SourceCheckAskAgainIpad820.dc.html",
+    "SourceCheckAskAgainSentIpad820.dc.html",
+    "SourceCheckPlanInReviewIpad820.dc.html",
+    "SourceCheckCollectionInReviewIpad820.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Content source check: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1504,
+      "text": "Content source check: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 2996,
+      "text": "Content source check: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

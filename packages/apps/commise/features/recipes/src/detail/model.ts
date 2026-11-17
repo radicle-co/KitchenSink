@@ -7,7 +7,7 @@
  */
 import type { ReactNode, RefCallback } from 'react';
 
-import type { Locale } from '@commise/i18n';
+import { type Locale, fillTemplate } from '@commise/i18n';
 import { spokenVariantParts } from '@commise/ui/variant-parts-line';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { servingsRange } from '@kitchensink/recipe-core/scaling';
@@ -21,6 +21,7 @@ import type {
     RecipeNutrition,
 } from '@kitchensink/recipe-core';
 
+import type { LineAddress } from '../editor/editorArrival.js';
 import type { RecipeFormMessages } from '../form/messages.js';
 import {
     sourceDisplayName,
@@ -40,7 +41,6 @@ import {
 import type { RemoteFoodPick } from '../hooks/lineCommit.js';
 import { formatAmountNumber } from '../format/cookAmount.js';
 import { formatDuration } from '../format/duration.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import type {
     IngredientLineNameMessages,
     IngredientRemoteSearchMessages,
@@ -79,7 +79,8 @@ const RANGE_SEPARATOR = '–';
 const AMOUNT_UNIT_JOINER = '\u00A0';
 
 /**
- * Format an ingredient quantity with its optional unit for the active locale. Each number goes through
+ * Format an ingredient quantity with its optional unit, the unit AS WRITTEN, for the active locale. For an amount shown
+ * beside a line use {@link formatAmount}, which pluralizes a word unit. Each number goes through
  * `format/cookAmount.ts` (a cook's fraction in English, a locale decimal elsewhere, never string concatenation of the
  * NUMBERS). Pure.
  *
@@ -122,12 +123,12 @@ export const formatQuantity = (quantity: IngredientQuantity, locale: Locale, uni
 };
 
 /**
- * {@link formatQuantity} for an amount SHOWN beside a line on the recipe page: a WORD unit takes the plural of the amount
+ * {@link formatQuantity} for an amount SHOWN beside a line: a WORD unit takes the plural of the amount
  * it follows (`1.5 cups`, `2 tablespoons`), a symbol (`tbsp`, `g`) does not (D11). Pure.
  *
- * Kept apart from {@link formatQuantity} on purpose: that one prints the unit AS THE COOK WROTE IT, which is what the
- * editor row and the parsed-line preview must keep showing, so their text matches what is in the field. The detail page
- * is read, not edited, and it rescales the amounts, which is when "1.5 cup" appears.
+ * Kept apart from {@link formatQuantity}, which prints the unit AS THE COOK WROTE IT. An amount a reader sees beside a line
+ * reads through this one; text that must show the unit as stored, or mirror what is in a
+ * field, uses {@link formatQuantity}.
  *
  * @param quantity - The ingredient quantity value object.
  * @param locale - The active BCP-47 locale.
@@ -152,7 +153,7 @@ export const lineSummary = (
     locale: Locale,
     labels: IngredientLineNameMessages,
 ): string =>
-    `${formatQuantity(line.quantity, locale, line.unit)} ${lineAmountName(line, line.quantity, line.unit, labels)}`.trim();
+    `${formatAmount(line.quantity, locale, line.unit)} ${lineAmountName(line, line.quantity, line.unit, labels)}`.trim();
 
 /**
  * The read view's ingredient checkbox name (`docs/design/ingredientSpecialization.md` §S5): {@link lineSummary}, with the
@@ -292,11 +293,49 @@ export const staleNutritionNotice = (
  * not judged the line at all. Migration 0023 is explicit that absence means PUBLISH: the gate runs off a
  * queue, so a line publishes between save and verification whatever the verdict table says.
  *
- * @param line - One recipe ingredient line as the detail read returns it.
+ * @param line - Anything carrying the line's status: a detail line, or the editor's form line.
  * @returns `true` only for a line the gate contradicted.
  */
-export const isLineNeedsReview = (line: RecipeIngredientView): boolean =>
+export const isLineNeedsReview = (line: Pick<RecipeIngredientView, 'resolutionStatus'>): boolean =>
     line.resolutionStatus === FoodResolutionStatus.NEEDS_REVIEW;
+
+/**
+ * The address the owner's review control carries into the editor: the line's position in the recipe's STORED
+ * `ingredients` order, at the version the page was read at. Pure.
+ *
+ * ⛔ The position is the stored one, never an index the page made up: the scaled list and a group's own run do not count
+ * lines the way the server stores them, and the editor's `lineKeyAt` reads this against the stored order.
+ *
+ * @param recipe - The recipe as the detail read returns it.
+ * @param position - The line's position in `recipe.ingredients`.
+ * @returns The address, or `undefined` when the recipe holds no such line or it does not need review.
+ */
+export const needsReviewAddressOf = (
+    recipe: Pick<RecipeDetail, 'currentVersion' | 'ingredients'>,
+    position: number,
+): LineAddress | undefined => {
+    const line = Number.isInteger(position) ? recipe.ingredients[position] : undefined;
+
+    return line !== undefined && isLineNeedsReview(line) ? { version: recipe.currentVersion, position } : undefined;
+};
+
+/**
+ * Whether a line gets the "Needs review" control, and the address it carries: the ONE decision both platforms' detail
+ * bodies draw their leaf from. Only the recipe's owner gets it (another cook keeps the plain badge), and only a surface
+ * that can open the editor. Pure.
+ *
+ * @param recipe - The recipe as the detail read returns it.
+ * @param position - The line's position in `recipe.ingredients`.
+ * @param context - `owner`: the viewer owns the recipe. `canOpenEditor`: the surface has an editor to go to (web: an
+ *   edit href; native: an `onReviewLine` handler).
+ * @returns The address to open, or `undefined` when the line gets no control.
+ */
+export const reviewControlAddressOf = (
+    recipe: Pick<RecipeDetail, 'currentVersion' | 'ingredients'>,
+    position: number,
+    context: { readonly owner: boolean; readonly canOpenEditor: boolean },
+): LineAddress | undefined =>
+    context.owner && context.canOpenEditor ? needsReviewAddressOf(recipe, position) : undefined;
 
 /**
  * How many of a recipe's lines the gate contradicted. Pure.
@@ -851,7 +890,7 @@ export interface RecipeHeroProps {
      */
     readonly photos: readonly RecipePhoto[];
     /**
-     * The controls that sit ON the photo: back and ⋯ (D12), each a `PhotoControl` from `@commise/ui/photo-control`.
+     * The controls that sit ON the photo: back and ⋯ (D12), Back is a `HeroButton` and ⋯ is an `ActionMenu` with `appearance="disc"`.
      * The hero lays them over its top edge, start to end, first in the reading order. The caller owns what they do.
      */
     readonly overlay?: ReactNode;
@@ -881,6 +920,17 @@ export interface RecipeDetailViewProps {
      * menu closing.
      */
     readonly headerActions?: ReactNode;
+    /**
+     * Whether the recipe can be cooked: the controller's `canStartCooking` (cooking-core's `isCookable`).
+     * With {@link onStartCooking} bound, the view draws the Start cooking row. Absent reads as not cookable.
+     */
+    readonly canStartCooking?: boolean;
+    /**
+     * Open cooking mode for this recipe: native navigates to the CookingMode task, web to the cook route. The view draws
+     * the Start cooking row only when this is bound AND {@link canStartCooking} is true, so the label, the size and the
+     * place are the shared view's, and an app owns only where the press goes.
+     */
+    readonly onStartCooking?: () => void;
     /** The back link above the meta line (web), e.g. "‹ My recipes". Absent draws none. */
     readonly back?: ReactNode;
     /**
@@ -918,6 +968,11 @@ export interface RecipeDetailViewProps {
     readonly versionsHref?: string;
     /** Native: open the editor at a section (the owner's Edit links and empty-state actions). */
     readonly onEditSection?: (section: DetailSection) => void;
+    /**
+     * Native, the owner only: open the editor on one ingredient that needs review, with its row editor open. Its own
+     * prop, not `onEditSection`: a section and a line are different arrivals.
+     */
+    readonly onReviewLine?: (address: LineAddress) => void;
     /** Native: open the version history from the status row. */
     readonly onViewVersions?: () => void;
     /**

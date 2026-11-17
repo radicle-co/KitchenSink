@@ -57,6 +57,9 @@ const TextFrame = styled(TamaguiText, {
             readingBody: {
                 fontFamily: type.readingBody.fontFamily,
             },
+            readingLarge: {
+                fontFamily: type.readingLarge.fontFamily,
+            },
             meta: {
                 fontFamily: type.meta.fontFamily,
             },
@@ -141,3 +144,5 @@ export const Text = TextFrame.resolve(
             Platform.OS === 'ios' ? 'ios' : 'other',
         ),
 );
+
+export { useTextScale } from './useTextScale.native.js';

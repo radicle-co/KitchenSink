@@ -6,7 +6,7 @@
  * now, never a count of presses: on → off → on is no change, and counting events would read it as one add and one
  * remove. Pure.
  */
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { CollectionRecipePickerMessages } from './messages.js';
 
 /** What the cook changed while the picker was open. */

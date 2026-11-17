@@ -11,6 +11,7 @@
         "audit": "tsx bin/audit.ts",
         "consumer": "tsx bin/queueConsumer.ts",
         "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
         "test:e2e": "vitest run --config vitest.e2e.config.ts",
         "lint": "eslint .",
         "maestro": "bash bin/localMaestro.sh",

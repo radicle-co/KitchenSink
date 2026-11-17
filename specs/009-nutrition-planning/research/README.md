@@ -36,6 +36,6 @@ Operational and product metrics for nutrition planning outcomes, including targe
 - Canonical FR source is [spec.md](../spec.md): `FR-036..FR-039`.
 - NFR source is [spec.md](../spec.md): `NFR-001..NFR-004`.
 - Success criterion source is [spec.md](../spec.md): `SC-010`.
-- Requirement-level normalization is in [v-model/requirements.md](../v-model/requirements.md) (`REQ-001..REQ-008`, `REQ-NF-*`).
+- Requirement-level detail is in [spec.md](../spec.md).
 
 Where this directory discusses nutrition dimensions not explicitly enumerated as FR IDs (for example, deficiency alerts and micronutrient surfacing), those are treated as **augmentation hypotheses** and are marked as warning-level scope candidates until promoted upstream.

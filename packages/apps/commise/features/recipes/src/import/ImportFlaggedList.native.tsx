@@ -18,8 +18,7 @@ import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { pluralOf } from '../format/plural.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { pluralOf, fillTemplate } from '@commise/i18n';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.native.js';
 import { useMatchCopy } from '../ingredientMatching/useMatchCopy.js';
 import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';

@@ -26,11 +26,10 @@
  * parallel repeated params (paired by position), so a reloaded/shared URL can render the chip's label without a
  * network round-trip to re-resolve the name.
  */
-import type { Locale } from '@commise/i18n';
+import { type Locale, fillTemplate } from '@commise/i18n';
 import type { Ingredient, RecipeFacetCount } from '@kitchensink/recipe-core';
 import { MAX_SEARCH_FOOD_FILTERS, type RecipeSearchFacets, type RecipeSearchQuery } from '@kitchensink/schema-recipe';
 
-import { fillTemplate } from '../format/fillTemplate.js';
 import { MIN_SEARCH_QUERY_LENGTH, meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 
 /** The facet dimensions the service aggregates (and the bar renders as chip groups). */

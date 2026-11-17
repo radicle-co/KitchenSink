@@ -15,6 +15,8 @@
  *
  * @pattern Presentation Model — {@link shortlistPanelOf} derives the view the body draws
  */
+import { fillTemplate } from '@commise/i18n';
+
 import { variantPartTexts } from '../detail/lineName.js';
 import {
     foodPickOf,
@@ -26,7 +28,6 @@ import {
 } from '../hooks/foodSuggestions.model.js';
 import type { IngredientPick, LineCommitOutcome } from '../hooks/lineCommit.js';
 import type { SettledRowCommit } from '../hooks/useIngredientRowEditor.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import type { IngredientRemoteSearchMessages } from '../messages.js';
 import type { CandidateGroup, CandidateOption, CandidatesPanelBody, CandidatesPanelView } from './candidatesPanel.js';
 import type { IngredientLineKey } from './lineKey.js';

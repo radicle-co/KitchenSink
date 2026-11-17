@@ -98,7 +98,6 @@ export {
 export type { LibraryFacet, LibraryState } from './list/libraryTypes.js';
 export { viewModeOf } from './list/viewModePreference.js';
 export { useMainContainerClass } from './layout/useMainContainerClass.js';
-export { fillTemplate } from './format/fillTemplate.js';
 export {
     QUICK_TIME_FACET,
     QUICK_TIME_THRESHOLD_MINUTES,
@@ -471,7 +470,9 @@ export { DataSourcesScreen } from './dataSources/DataSourcesScreen.js';
 export { RecipeEditorView } from './editor/RecipeEditorView.js';
 export type { RecipeEditorViewProps } from './editor/frameProps.js';
 export { EDITOR_GUTTER } from './editor/editorGutter.js';
-export { EDITOR_SECTIONS, isEditorSectionId, sectionFromHash } from './editor/sections.js';
+export { arrivalFromHash, arrivalHash, arrivalOf } from './editor/editorArrival.js';
+export type { EditorArrival, LineAddress } from './editor/editorArrival.js';
+export { EDITOR_SECTIONS, isEditorSectionId } from './editor/sections.js';
 export type { EditorSectionId } from './editor/sections.js';
 export { draftStoreFor } from './editor/draftStore.js';
 export { visibilityFollowUp } from './editor/visibilityFollowUp.js';

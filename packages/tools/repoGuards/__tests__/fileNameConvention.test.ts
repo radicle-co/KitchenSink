@@ -68,12 +68,6 @@ export const MANDATED: readonly Mandate[] = [
             'path (e.g. `extensions/product-forge/scripts/gate-risk.js` does `require("./lib-yaml")`); it is vendored',
     },
     {
-        pattern: /^v-model-config\.yml$/u,
-        mandatedBy:
-            'the Spec Kit v-model extension — `.specify/extensions/v-model/commands/system-design.md`: "Load ' +
-            '`v-model-config.yml` (if it exists at the repository root)"',
-    },
-    {
         pattern: /^specs\/[^/]+\/(\.forge-status\.yml|sync-report\.json)$/u,
         mandatedBy:
             'the Spec Kit product-forge extension — `scripts/lib-paths.js` finds a feature by ' +
@@ -104,6 +98,13 @@ export const MANDATED: readonly Mandate[] = [
         pattern:
             /(^|\/)(next-env\.d\.ts|not-found\.tsx|global-not-found\.tsx|global-error\.tsx|instrumentation-client\.ts)$/u,
         mandatedBy: 'Next.js — App Router special files resolved by name, and the `next-env.d.ts` it generates',
+    },
+    {
+        // They mirror claude.ai artifact paths byte for byte: the boards load these files by name.
+        pattern: /^docs\/design\/canvases\/[A-Za-z0-9]+\/project\//u,
+        mandatedBy:
+            'the claude.ai Design canvases — each board loads its fonts and styles by path (`tokens.css` names ' +
+            '`fonts/Inter_400Regular.ttf`), and the snapshot keeps the published paths unchanged',
     },
 ];
 

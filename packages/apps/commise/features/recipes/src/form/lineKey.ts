@@ -11,7 +11,9 @@
  *   index is the wrong answer as soon as the cook removes a line above, and {@link storedPositionOf} reads the
  *   persisted lines instead.
  *
- * ⚠️ A key never leaves memory: it is not on the wire and not in a version. That is what makes its spelling free.
+ * ⚠️ A key never leaves memory: it is not on the wire and not in a version. That is what makes its spelling free. What
+ * leaves memory (in a link) is a line ADDRESS — version and stored position — which {@link lineKeyAt} turns back
+ * into a key.
  *
  * Pure and platform-agnostic. No React, no platform APIs.
  *
@@ -128,3 +130,22 @@ export const storedPositionOf = (
 
     return position === -1 ? undefined : position;
 };
+
+/**
+ * The key of the stored line a link names, the inverse of {@link storedPositionOf}. Pure.
+ *
+ * A key never leaves memory, but a link must. So a link carries an ADDRESS (the version the keys were read at, and the
+ * stored position), and this answers a key only when that version is the one the draft's keys were seeded from. A
+ * link to any other version names a line that may now sit at another position, and opening the wrong line is worse
+ * than opening none.
+ *
+ * @param persistedKeys - From {@link persistedLineKeysOf}.
+ * @param baseVersion - The recipe version the persisted keys were read at.
+ * @param address - The line the link names.
+ * @returns The key, or `undefined` when the version differs or the position is out of range.
+ */
+export const lineKeyAt = (
+    persistedKeys: readonly IngredientLineKey[],
+    baseVersion: number,
+    address: { readonly version: number; readonly position: number },
+): IngredientLineKey | undefined => (address.version === baseVersion ? persistedKeys[address.position] : undefined);

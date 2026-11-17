@@ -13,7 +13,7 @@
  *
  * @pattern Interpreter — `filterBarViewOf` reads each facet descriptor into the view its leaf draws (P9)
  */
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { sentenceCase } from '../format/sentenceCase.js';
 import type { FilterMessages } from './messages.js';
 import {

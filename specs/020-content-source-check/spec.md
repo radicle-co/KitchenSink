@@ -8,30 +8,29 @@ owner's rulings on it, the same day. The decision is recorded in
 two new statements and a rights-only review scope, recorded in
 [ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md) Amended 2026-10-29 for the owner's ruling on [026](../026-chef-spaces/spec.md) Q1: a live site claim
 clears a hit on the recipe's own page (`FR-012g`).)
-**Input**: User description, owner, 2026-10-26: "We will need an automated review process checking all new content -
-that needs to be a new feature and spec ... that uses an AI agent to check to see if the content of a recipe is from a
-paid site, copyrighted content, a book, etc." Context ruling, same day: "If we can tell then we can prevent them from
-going public; otherwise we have to rely on the user telling us that it's ok to make them public."
+**Input**: Owner request, 2026-10-26. An automated check reviews every recipe headed public, with an AI agent among its
+steps, to tell whether its content comes from a paid site, a book or another source the cook does not own. Where the
+check can tell, the recipe does not go public. Where it cannot, the cook's own statement decides.
 
 ## Dependencies
 
-| Spec or decision                                                                                                                                                   | Relationship                                                                                                                                                                                              |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)                                                                                                        | **Required.** Owns visibility (`001-FR-003`), public read (`001-FR-004`), the clone chain (`001-FR-005`) and the C-004 visibility policy                                                                  |
-| [004-recipe-importing](../004-recipe-importing/spec.md)                                                                                                            | **Required, amended.** Owns provenance (`004-FR-011`), the per-item attestation (`004-FR-014a`), the paywall blocklist (`004-FR-014`, D-004) and the import channels. `004-FR-014a` changes (FR-040)      |
-| [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md)                                                                                        | **Required, amended.** Owns the statement of reasons (`016-FR-018`), the reviewer dashboard (`016-FR-053a` to `g`) and strikes (`016-FR-020`). Also owns retention (`016-FR-052`) and the counsel list    |
-| [015-publishing-rewards](../015-publishing-rewards/spec.md)                                                                                                        | **Referenced.** A recipe that this check holds back is not published, so it earns nothing                                                                                                                 |
-| [017-recime-parity](../017-recime-parity/spec.md)                                                                                                                  | **Referenced.** Its portability contract says bulk import is not a side door around the per-item attestation. This check applies to bulk import too                                                       |
-| [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) and [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md) §1a | **Required.** The per-recipe statement and the four provenance labels. The check never changes a label                                                                                                    |
-| [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)                                                                                      | **Required.** Free cooks hold up to 50 private recipes, counted live. When slots run out mid-import, the cook can stop, or make the rest public. This check stops a book or paid-site recipe going public |
-| [ADR-0024](../../docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md)                                                                        | **Governs.** The one $100 monthly pool, reserve-then-settle at worst case, and the single `bedrock:InvokeModel` grantee                                                                                   |
-| [ADR-0074](../../docs/architecture/decisions/0074-content-source-check.md)                                                                                         | **Records this feature.** The hold in the read rule, per-part evidence, the all-green rule, match effects, the switch, erasure and donation, and non-disclosure                                           |
-| [ADR-0027](../../docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md)                                                                       | **Amended.** A third erasure verdict: time-boxed retention of a decision's hash and reviewer text (FR-036)                                                                                                |
-| [ADR-0039](../../docs/architecture/decisions/0039-database-role-split.md)                                                                                          | **Required.** Table policy classes for the append-only tables (FR-011, FR-019)                                                                                                                            |
-| [Account closure plan](../../docs/plans/2026-07-18-002-feat-account-closure-anonymization-plan.md) U3b                                                             | **Amended.** The erasure election runs the check on each recipe elected for donation (FR-018a, FR-044a)                                                                                                   |
-| [ADR-0026](../../docs/architecture/decisions/0026-two-engine-ingredient-parse-pipeline.md)                                                                         | **Applied by analogy.** A model is never shown another engine's answer. Here the model is never shown the cook's statement or our rule-based signals                                                      |
-| `GR-010` EU AI Act Compliance Propagation                                                                                                                          | **Referenced.** The check's output is a decision, not AI-generated content shown to users, so no Art. 50(2) marking is owed (FR-034)                                                                      |
-| `GR-003` FR Identifier Namespace                                                                                                                                   | **Governs.** Every cross-feature reference here is written `{feature}-FR-{NNN}`                                                                                                                           |
+| Spec or decision                                                                                                                                                   | Relationship                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)                                                                                                        | **Required.** Owns visibility (`001-FR-003`), public read (`001-FR-004`), the clone chain (`001-FR-005`) and the C-004 visibility policy                                                                      |
+| [004-recipe-importing](../004-recipe-importing/spec.md)                                                                                                            | **Required, amended.** Owns provenance (`004-FR-011`), the per-item attestation (`004-FR-014a`), the paywall blocklist (`004-FR-014`, D-004) and the import channels. `004-FR-014a` changes (FR-040)          |
+| [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md)                                                                                        | **Required, amended.** Owns the statement of reasons (`016-FR-018`), the reviewer dashboard (`016-FR-053a` to `g`) and strikes (`016-FR-020`). Also owns retention (`016-FR-052`) and the open-decisions list |
+| [015-publishing-rewards](../015-publishing-rewards/spec.md)                                                                                                        | **Referenced.** A recipe that this check holds back is not published, so it earns nothing                                                                                                                     |
+| [017-recime-parity](../017-recime-parity/spec.md)                                                                                                                  | **Referenced.** Its portability contract says bulk import is not a side door around the per-item attestation. This check applies to bulk import too                                                           |
+| [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) and [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md) §1a | **Required.** The per-recipe statement and the four provenance labels. The check never changes a label                                                                                                        |
+| [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)                                                                                      | **Required.** Free cooks hold up to 50 private recipes, counted live. When slots run out mid-import, the cook can stop, or make the rest public. This check stops a book or paid-site recipe going public     |
+| [ADR-0024](../../docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md)                                                                        | **Governs.** The one $100 monthly pool, reserve-then-settle at worst case, and the single `bedrock:InvokeModel` grantee                                                                                       |
+| [ADR-0074](../../docs/architecture/decisions/0074-content-source-check.md)                                                                                         | **Records this feature.** The hold in the read rule, per-part evidence, the all-green rule, match effects, the switch, erasure and donation, and non-disclosure                                               |
+| [ADR-0027](../../docs/architecture/decisions/0027-ingredient-phrase-is-not-personal-data.md)                                                                       | **Amended.** A third erasure verdict: time-boxed retention of a decision's hash and reviewer text (FR-036)                                                                                                    |
+| [ADR-0039](../../docs/architecture/decisions/0039-database-role-split.md)                                                                                          | **Required.** Table policy classes for the append-only tables (FR-011, FR-019)                                                                                                                                |
+| [Account closure plan](../../docs/plans/2026-07-18-002-feat-account-closure-anonymization-plan.md) U3b                                                             | **Amended.** The erasure election runs the check on each recipe elected for donation (FR-018a, FR-044a)                                                                                                       |
+| [ADR-0026](../../docs/architecture/decisions/0026-two-engine-ingredient-parse-pipeline.md)                                                                         | **Applied by analogy.** A model is never shown another engine's answer. Here the model is never shown the cook's statement or our rule-based signals                                                          |
+| `GR-010` EU AI Act Compliance Propagation                                                                                                                          | **Referenced.** The check's output is a decision, not AI-generated content shown to users, so no Art. 50(2) marking is owed (FR-034)                                                                          |
+| `GR-003` FR Identifier Namespace                                                                                                                                   | **Governs.** Every cross-feature reference here is written `{feature}-FR-{NNN}`                                                                                                                               |
 
 ## Overview
 
@@ -40,8 +39,9 @@ is a copy of someone else's work, shown to the public by us. Today the only thin
 tells us. For each imported recipe, the cook says "I wrote this" or "From a source", with a citation (six statements
 since 2026-10-29, `004-FR-014a`). That statement
 sets the recipe's label (`004-FR-014a`, ADR-0072 §9). The full text of a book or paid-site recipe can never be
-public. Its public form is a facts card, the book card (`021-FR-004`). The check reads the cook's own notes and photos
-on that card (FR-068) _(amended 2026-11-03, owner ruling, ADR-0082)_.
+public. _(Amended, Owner ruling, 2026-11-15.)_ Facts cards are retired. An imported recipe goes public only as a
+Commise-written version (`016-FR-077`, `016-FR-080`). This check decides, at import, whether a source must be rewritten
+(FR-081), and "Report a problem" hides a public version until staff look (FR-082).
 
 This works only if the cook knows the source and tells the truth. This feature adds an automated **source check**. It
 reads the recipe, text and photos, before the recipe goes public. It looks for signs that the recipe came from a book,
@@ -72,7 +72,6 @@ The owner's rulings set what happens next:
 - **"Publicly visible" covers the open web** _(confirmed 2026-11-03, owner ruling, ADR-0082)_. A recipe open to the web
   (`021-FR-002`) is publicly visible, so every full recipe that goes there passes this check. That includes a family
   recipe and an Adapted recipe headed public. A public-domain text (`016-FR-015k`) skips the web search (FR-012d).
-  The facts card of a linked web import shows no method, so it is not a full public recipe (`021-FR-014a`).
 - It runs on every recipe that is about to become publicly visible: a new recipe published as public, a private recipe
   made public, a public recipe whose text, photos or source statement changed, every bulk-imported recipe,
   public or private, and every private recipe a cook elects to donate when they erase their account.
@@ -92,10 +91,9 @@ The owner's rulings set what happens next:
 
 ### What the check does NOT do
 
-- **It is not a legal shield.** A contract cannot move liability for a third party's copyright onto the cook (016,
-  finding 2). Our protection still comes from hosting content at a user's direction and from fast takedown
-  (DMCA §512(c), `016-FR-016` to `FR-022`). This check lowers the number of copied recipes that reach the public. It does
-  not make us safe. Nobody can present it as a defence.
+- **It does not replace notice and takedown.** Notice and takedown (`016-FR-016` to `FR-022`) still applies to every
+  public recipe. This check lowers the number of copied recipes that reach the public. Nothing presents it as a
+  guarantee.
 - **It does not delete a recipe, and it blocks a save only in three narrow cases** (FR-018). Otherwise the recipe is
   always saved, and only public visibility is held back.
 - **It never changes the cook's label.** The statement the cook made stays the record (`016-FR-014`). The hold is a
@@ -485,7 +483,7 @@ one.
   The decision records 016 requires are kept for their period (FR-036).
 - **One cook sends a very large number of recipes to a person.** Each cook has a cap on open referrals. Past it, new
   referrals wait as deferred and open one at a time as the cook's open ones close. The cap never publishes anything
-  (FR-030b).
+  (FR-030b). This cap is kept on purpose: the 2026-11-15 "no caps" ruling covers caps on public content only.
 - **The cook edits a recipe that is in review.** Saving a change to the text, photos or source starts a new check and
   replaces the open referral. The editor warns before the save. The recipe keeps its place in the queue, so editing
   never pushes it back, and it never keeps a recipe in review for ever (FR-030a).
@@ -595,8 +593,7 @@ bind.
   "In review", and uses no private slot. It becomes public only when it is all green or a person approves it
   (FR-014a). This resolves ADR-0073's open question.
 - **What "not approved" means**, decided from the owner's rulings and relayed by the coordinator:
-    - A not-approved recipe keeps its appeal (FR-026) and its statement of reasons (FR-028), as DSA Art. 17 and 20
-      require. The ground is generic and never names what matched.
+    - A not-approved recipe keeps its appeal (FR-026) and its statement of reasons (FR-028). The ground is generic and never names what matched.
     - It is never published and never deleted by us. It becomes the cook's private recipe even with no free slot,
       like ADR-0073's downgrade rule, and the cook is then over the limit: no new private recipe until they are under 50. That closes the loophole of review as a free private store, because a not-approved recipe counts as private.
     - While in review, the cook may switch to Private (it uses a slot, and is refused if none is free, and the referral
@@ -674,7 +671,7 @@ of about $555 a month, and the half-time reviewer is hired when a volume trigger
 
 ### Session 2026-11-03: the open web and CC BY eligibility
 
-Owner rulings, 2026-11-03, [Law] and [House rule] as tagged in ADR-0082.
+Owner rulings, 2026-11-03 (ADR-0082).
 
 - **"Publicly visible" covers the open web.** A full recipe open to the web (`021-FR-002`) is publicly visible, so it
   passes this check. That includes a family recipe and an Adapted recipe headed public. A public-domain text skips the
@@ -682,14 +679,12 @@ Owner rulings, 2026-11-03, [Law] and [House rule] as tagged in ADR-0082.
 - **The check makes a recipe eligible for CC BY** (`FR-056`). Only a "Written by you" recipe with a `clear` outcome can
   carry the cook's opt-in CC BY 4.0 licence.
 - **"Never blocks" is reworded.** Evidence from the model, the web search or a photo signal does not reject the recipe
-  automatically. It holds the recipe for a person. [Law] A flag creates knowledge, so the recipe waits until a person
-  decides (DSA Art. 7 keeps the hosting defence for good-faith checks, but the knowledge they produce must be acted on),
-  and a person must not publish a confirmed copy. The cook cannot click past the hold.
+  automatically. It holds the recipe for a person. A flagged recipe waits until a person decides, and a person must not
+  publish a confirmed copy. The cook cannot click past the hold.
 
 ### Session 2026-10-29: outside copies, two statements, and the review's scope
 
-The rulings rest on research by the CLO agent of the same day. It is research, not legal advice, and every rule it
-supports is subject to counsel review (`016-FR-050`). [ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md)
+[ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md)
 records the decision.
 
 - **Copy detection.** Owner, verbatim, on ownership: "The automated review process needs to check for this as well."
@@ -702,10 +697,7 @@ records the decision.
   could never be public. It can now go public under this same check (FR-013a). _(Amended 2026-11-03, owner ruling,
   ADR-0082: it is also open to the web and indexable, like any recipe the cook wrote (`021-FR-002`), because the
   cook's statement must cover sharing "publicly, on Commise and on the web". This check still runs on it, since a
-  "family" recipe can be a copied blog post. Counsel review is owed before launch (`016-FR-050`).)_
-- **A linked card is still checked.** A public web import shows other cooks a linked card (`021-FR-014a`). Its text and
-  the cook's photos and notes are checked as today. The import-page comparison scores the cook's notes, and the web
-  search does not run, because the card shows no method.
+  "family" recipe can be a copied blog post.)_
 - **Staff review is a rights check only** (FR-027b, `016-FR-053j`).
 - **What is not decided here.** Reverse image search of the cook's own photos, which the research also suggested, is
   not part of these rulings.
@@ -755,14 +747,12 @@ username. No need to call out family recipes."
     - _(Added 2026-11-03, owner ruling, ADR-0082.)_ A public recipe's old version is restored (FR-065).
     - _(Added 2026-11-03.)_ A clone is published. It is a new recipe headed public, and it inherits no outcome.
     - _(Added 2026-11-03.)_ A photo is added to, replaced on or removed from a public recipe.
-    - _(Added 2026-11-03.)_ A facts card (a linked card or a book card, `021-FR-014a`, `021-FR-004`) is headed public,
-      or the cook's own notes or photos on a public facts card change (FR-068).
 
     These moments say when to request a check. They are not the gate. The gate is FR-002, and FR-057 makes
     it the only door: a moment that is missing from this list leaves the recipe held, never public.
     _(Added 2026-11-03.)_ "Publicly visible" means visible to anyone other than the owner and the owner's household
     (`017-FR-030`). That includes signed-out visitors, enrolled learners (013), buyers of chef content (018, 026) and
-    any embed or feed. Counsel review is owed before launch (`016-FR-050`).
+    any embed or feed.
 
 - **FR-002**: A recipe MUST be publicly visible only while the current version of its checked content has an outcome
   that allows it (FR-013, FR-016a). This one rule covers every moment in FR-001. A recipe without such an outcome is
@@ -783,12 +773,12 @@ username. No need to call out family recipes."
       public one uses no slot. A private one holds its slot from the save until a person checks it, and the screens
       say so (owner ruling, 2026-10-26).
     - _(amended 2026-11-03, owner ruling, ADR-0082 §9. This replaces the private half of the rule above. Was: a
-      private bulk import waits in review and holds its slot until a person checks it.)_ [House rule] A private
+      private bulk import waits in review and holds its slot until a person checks it.)_ A private
       bulk-imported recipe is usable at once. It is saved private and published, it uses its slot like any private
       recipe (ADR-0073), and it has no draft restrictions. It does not wait in review. Only going public or on sale
       waits for review. When the cook later makes it public or lists it for sale, that door is checked like any other
       (FR-001, FR-057), and a flag holds it from public or sale until it is resolved. This settles Q-3. ADR-0074 §3a's
-      text is not edited. This spec carries the change. Counsel review is owed before launch (`016-FR-050`).
+      text is not edited. This spec carries the change.
     - It stays subject to review until its content is first approved: switching its visibility while it is in review
       does not end review, and a trip through Draft does not either. Its next publish is checked again, private or
       public. After its content is approved, it follows the editor's rules like any other recipe.
@@ -887,8 +877,7 @@ username. No need to call out family recipes."
     _(Added 2026-11-03, owner ruling, ADR-0082.)_ A book card (FR-068) is judged under `imported_physical` and
     `imported_paid`. For those labels, the cited book's own ISBN and publisher are NOT evidence. Nor are the cited paid site's own
     host and template. The card's credit names them by design. Any other ISBN, publisher, copyright
-    notice or printed-page signal sends the card to a person. Nothing on a book card is blocking. Counsel review is
-    owed before launch (`016-FR-050`).
+    notice or printed-page signal sends the card to a person. Nothing on a book card is blocking.
 
 - **FR-011**: The lists of publishers, imprints, paid-site hosts and paid-site template strings MUST be data. Each
   has an admin-managed lifecycle and an audit trail: who added an entry, when and why. This is the governance of
@@ -898,8 +887,7 @@ username. No need to call out family recipes."
 - **FR-012** _(amended 2026-10-29, owner ruling: "Allow, public recipes only", ADR-0077)_: The check MUST NOT visit a
   cited link, crawl a site or fetch any page of its own. For a recipe headed public, and only then, it MUST compare the
   recipe with outside sources as FR-012a to FR-012h say. It MUST NOT compare a recipe that stays private with anything
-  outside our database. The research behind this is not legal advice, and every rule here is subject to counsel review
-  (`016-FR-050`).
+  outside our database.
 - **FR-012a**: The **outside-copy check** MUST run in cost order, cheapest first, on a recipe headed public:
     1. its own import page, which costs nothing (FR-012b)
     2. a web search for its method sentences (FR-012d). Its cost is OPEN (owner ruling 2026-11-03): decided when feature 020 starts.
@@ -915,12 +903,10 @@ username. No need to call out family recipes."
   It MUST NOT keep the page or any of its text (`016-FR-027f`). When the recipe heads public, the check MUST score the
   recipe's method, headnote and the cook's own notes for **containment** in that fingerprint. Containment, not
   resemblance, because a page holds the recipe plus ads, comments and a story. A score over the threshold is evidence
-  for a person. Counsel confirms that a stored fingerprint is not a copy (`016-FR-050`).
+  for a person. Whether a stored fingerprint may be kept is confirmed before launch (`016-FR-050`).
 - **FR-012c**: Where the comparison runs on FR-012b's fingerprint:
     - "Adapted in my own words" (`004-FR-014a`): the method should be rewritten, so a high score is evidence for a
       person.
-    - A linked card (`021-FR-014a`): the card shows no method, so only the cook's own notes are scored. A high score
-      means the notes carry the page's words, and is evidence for a person.
     - "I wrote this" or a family or friend recipe that came in from a page: a high score is evidence for a person.
     - A recipe with no import page, such as one typed in the editor, has no fingerprint. This part is then green, and
       FR-012d does the work.
@@ -930,8 +916,7 @@ username. No need to call out family recipes."
     - **How the internet search works is OPEN (owner ruling 2026-11-03): decided when feature 020 starts.** That covers the provider, the method and the terms of use. No provider is chosen here.
     - _(Confirmed 2026-11-03, ADR-0082.)_ It runs on a family recipe and an Adapted recipe headed public, because either
       can be a copied page. It runs only where other cooks will read the method: a recipe whose label (`016-FR-015c`) is written, adapted, or
-      from a family member or friend, or a clone of one of those, headed public. It does not run for a linked card,
-      which shows no method, or for public domain text.
+      from a family member or friend, or a clone of one of those, headed public. It does not run for public domain text.
     - It MUST send the chosen method sentences and nothing else. It MUST NOT send the title, a name, an account id, a
       photo or anything else about the cook. The privacy notice says so (`016-FR-039a`).
     - Whether `FR-033`'s region rule governs the search depends on the method chosen. It is OPEN (owner ruling 2026-11-03): decided when feature 020 starts. Until then this FR governs what is sent.
@@ -967,16 +952,15 @@ username. No need to call out family recipes."
       shown, and never counts against the cook on its own. A person decides.
     - **A claim that fails later** does not reopen a recipe the claim already cleared. A new check after an edit
       (`FR-001`) reads the claim as it stands then.
-    - ⚠️ **Counsel reviews this rule before it is built.** A claim proves control of a site, not authorship, so a guest
+    - ⚠️ **This rule is confirmed before it is built (`016-FR-050`).** A claim proves control of a site, not authorship, so a guest
       post or a copied recipe on the chef's own blog can pass. The controls for that case are the per-recipe
       statement, the rights label and takedown (`016-FR-015j`), as for any "I wrote this" recipe.
 
-    _(amended 2026-11-03, owner ruling O16, ADR-0082)_ The owner said: "a user should be able to mark that they are
-    actually the owner of the recipe (i.e. a user importing from a web page they own). This is important for the review
-    process." Any cook can now make the owner statement at paste, URL or social import (`004-FR-014a` statement 1a), not
+    _(amended 2026-11-03, owner ruling O16, ADR-0082)_ A cook can mark that they own the recipe, for example when
+    importing from a web page they own, and the review reads it. Any cook can now make the owner statement at paste, URL or social import (`004-FR-014a` statement 1a), not
     only a chef through the bulk bring-in. This rule reads it as follows:
 
-    - **A bare statement never clears a flag.** [House rule] The statement sets the label "Written by you". It is not
+    - **A bare statement never clears a flag.** The statement sets the label "Written by you". It is not
       evidence that the recipe is not a copy, because anyone can make it. Every hit it touches goes to a person, with
       the statement shown.
     - **A live claim clears only the own-origin hit.** The cleared hit is on the page this recipe was imported from, on
@@ -998,12 +982,11 @@ username. No need to call out family recipes."
       §9)_ A cook can claim ownership later, on a recipe already saved (`004-FR-055`). The next check of that recipe
       reads the claim or the linked account as it stands then. _(owner-accepted 2026-11-03)_ A person who already holds
       the recipe decides alone, with the claim as evidence. The open default above is settled this way.
-    - **Erasure.** [Law] The claim is personal data (GDPR Art. 4(1)). It is deleted with the account (`026` key entity
-      "Site claim", `016-FR-069`). [House rule] An outcome that cited it keeps only the claim's opaque id, its method
+    - **Erasure.** The claim is personal data. It is deleted with the account (`026` key entity
+      "Site claim", `016-FR-069`). An outcome that cited it keeps only the claim's opaque id, its method
       and the time it was last checked. It drops the claim's domain, because a personal blog's domain can name a person
       (FR-063). The data model owes the outcome field that names the claim (ADR-0078). Records keyed on a page or host
       (`recipe_source_keys`, `content_source_decisions`) are about the source, not the claim, and keep their own rules.
-    - Counsel review is owed before launch (`016-FR-050`).
 
     _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ **A linked social account clears the own-post hit.** The proof
     for a social account is the platform's own sign-in (OAuth), never a code placed in a bio or a post (`026-FR-061`).
@@ -1021,12 +1004,11 @@ username. No need to call out family recipes."
       cleared is not reopened (ADR-0078 §2).
     - **Per platform.** A platform with no usable OAuth identity API, or no official way to read a post's author id, is
       OPEN. Its imports are checked as usual until it is settled (`026-FR-061`).
-    - **The same tension.** [Law] A linked account proves control of an account, not authorship of each post. A
+    - **The same tension.** A linked account proves control of an account, not authorship of each post. A
       reposted or shared recipe on the cook's own account can pass. The per-recipe statement, the label and takedown
       remain the controls (`016-FR-015j`).
     - **Erasure.** The link and its tokens are deleted with the account (`016-FR-069`). An outcome that cited it keeps
       only the link's opaque id, its platform and the last check time (FR-063).
-    - Counsel review is owed before launch (`016-FR-050`).
 
 - **FR-012h**: **A copy of a private source cannot be detected.** A family card, a friend's email or a book that is not
   online has no page to find. For those, the controls are the cook's statement, the rights label and takedown
@@ -1181,8 +1163,8 @@ username. No need to call out family recipes."
     - A recipe already in review that the cook elects waits the same way.
     - A not-approved recipe is never donated. Its content has a final decision and cannot enter review again.
     - The erasure MUST wait for that person only until the **donation deadline: 14 days** from the request (owner
-      ruling, 2026-10-26). That leaves about 16 days of GDPR Art. 12(3)'s one month for the rest of the erasure, the
-      identity scrub and the Clerk deletion included.
+      ruling, 2026-10-26). The rest of the erasure, the identity scrub and the Clerk deletion
+      included, completes within one month of the request.
     - When the deadline comes, or when every elected recipe is decided, whichever is first, the erasure completes.
       It keeps only recipes the hold Specification allows. Every other recipe is deleted with the account: a recipe in
       review that was not elected, an elected recipe a person did not approve, and an elected recipe still waiting for
@@ -1324,8 +1306,7 @@ username. No need to call out family recipes."
 - **FR-027b** _(added 2026-10-29, owner ruling, ADR-0077)_: A review MUST be a **rights check only** (`016-FR-053j`). The
   reviewer decides whether the recipe is someone else's work, shared without the right to share it. The reviewer MUST
   NOT judge quality, taste, style, accuracy or fit, MUST NOT edit the recipe, and MUST NOT feature or promote it. FR-027's
-  reasons are all rights reasons, and no reason for quality is ever added. This keeps review on the screening side of
-  _Mavrix Photographs v. LiveJournal_ (9th Cir. 2017), and so keeps the §512(c) safe harbour.
+  reasons are all rights reasons, and no reason for quality is ever added.
 - **FR-028**: Every "not approved" decision (a `detected` hold, a person's non-approval, an upheld appeal) MUST give the
   cook a **statement of reasons** through 016's mechanism (`016-FR-018`, `016-FR-018a`). It MUST name:
     - the action: publication withheld, and the recipe kept private
@@ -1386,7 +1367,7 @@ username. No need to call out family recipes."
     - What a decision record keeps: the short marker text it relied on, the reviewer's note, the cook's appeal reason,
       and, for a hold decision only, the text fingerprint (FR-052). Never the recipe text or a photo.
     - A statement of reasons owed to a cook whose account has been erased cannot be delivered. The decision record
-      MUST say so, and counsel confirms that this is enough (FR-041).
+      MUST say so (FR-041).
 - **FR-037**: The cook MUST be able to see, for their own recipe, its state (FR-014a), any open referral and its age,
   any decision, and its statement of reasons. For a `detected` recipe they also see the rule evidence in their own
   text. For a person's rejection they see the chosen reason and the reviewer's note (FR-027). They see no part results and no outcome value for a recipe in review (FR-016c).
@@ -1425,30 +1406,23 @@ username. No need to call out family recipes."
       where it reads yes".
     - **Assumptions** says "Volume is low" for human decisions. It gains: "020 adds pre-publication referrals, whose
       volume is forecast in shadow mode (020 FR-039a)".
-    - **`016-FR-050`** gains five counsel items:
-        - **Clearing flagged content.** Can a person who looks at a flagged recipe and clears it be said to know of
-          infringement, under 17 U.S.C. §512(c)(1)(A)? DSA Art. 7 protects voluntary checks in the EU. US law has no
-          equivalent. **What breaks**: if the answer is yes, a reviewer's clearance needs a stated standard, and the
-          decision record must carry the reason.
-        - **A pending hold.** Does holding a recipe while a person decides need a statement of reasons under DSA
-          Art. 17, or only the final hold? **What breaks**: if it needs one, every referral issues a statement.
-        - **The statement wording.** Counsel confirms the statement of reasons for an automated hold and for a person's
-          hold. **What breaks**: a statement that fails DSA Art. 17 is a defect on every hold.
-        - **The labeled set.** Is it lawful to keep excerpts and photos of copyrighted works for internal testing, and
-          on what terms? **What breaks**: the evaluation then needs another source of positive examples.
+    - **`016-FR-050`** gains these open decisions:
+        - **Clearing flagged content.** Does a reviewer's clearance need a stated standard, with the reason on the
+          decision record?
+        - **A pending hold.** Does each referral issue a statement of reasons, or only the final hold?
+        - **The statement wording** for an automated hold and for a person's hold.
+        - **The labeled set.** May excerpts and photos of matched works be kept for internal testing, and on what
+          terms? If not, the evaluation needs another source of positive examples.
         - **The region.** The owner approves a region for recipe content sent to the model at this call site (FR-033).
-          **What breaks**: without it, the model detector cannot run, and every publish without rule evidence goes to a
-          person.
-        - **Facts and non-disclosure.** DSA Art. 17(3)(b) asks for the facts relied on. A rejection that rests on a
-          match against another cook's private recipe can give a reason and a note, but never `notYours` and never the
-          match (FR-027). Is that enough? **What breaks**: if not, a private match cannot be the only ground for a
-          rejection, and FR-051 must route it differently.
-        - **The donation deadline.** The owner set 14 days, inside GDPR Art. 12(3)'s one month (FR-018a). Counsel
-          confirms it is not undue delay. **What breaks**: if it is, donated recipes that need a person are deleted at
-          once instead.
+          Without it, the model detector cannot run, and every publish without rule evidence goes to a person.
+        - **Facts and non-disclosure.** A rejection that rests on a match against another cook's private recipe gives
+          a reason and a note, but never `notYours` and never the match (FR-027). Can a private match be the only
+          ground for a rejection? If not, FR-051 must route it differently.
+        - **The donation deadline.** The owner set 14 days (FR-018a). If that changes, donated recipes that need a
+          person are deleted at once instead.
         - **A statement for an erased cook.** A person's hold during the donation wait, or after the account is gone,
-          has nobody to deliver a statement to (FR-036). **What breaks**: if a statement is still owed, it must be sent
-          by email before the identity record is scrubbed.
+          has nobody to deliver a statement to (FR-036). If a statement is still owed, it is sent by email before the
+          identity record is scrubbed.
     - **`016-FR-018a`'s delivery** MUST accept a decision from 020 (a hold or a person's decision), not only a notice
       decision. 016's `notice_decisions` table is not changed (research R-13).
     - These 016 amendments are NOT applied by this feature. Another session is working on 016, so they are listed here
@@ -1585,17 +1559,14 @@ username. No need to call out family recipes."
   content passed the outside-copy check green, as `ccByEligible`. A recipe is eligible for the cook's opt-in **CC BY 4.0**
   licence (`016-FR-015` licence rules) only when its label is "Written by you" **and** its current checked content has a
   `clear` outcome. A recipe labelled Adapted, from a family member or friend, public domain or a clone is not
-  eligible at v1. [Law] The cook is the licensor, and the check is evidence that the text is their own, not a legal
-  finding. A later edit that gives the content a new digest MUST remove eligibility until the new content is `clear`.
-  A `detected`, `possible`, `unchecked` or in-review outcome is not eligible. Counsel review is owed before
-  launch (`016-FR-050`).
+  eligible at v1. The cook is the licensor. A later edit that gives the content a new digest MUST remove eligibility until the new content is `clear`.
+  A `detected`, `possible`, `unchecked` or in-review outcome is not eligible.
 
 #### K. One gate for every door, and how it fails _(added 2026-11-03, owner ruling, ADR-0082)_
 
 The founder's requirement: the whole path a recipe takes to public must be airtight. This section closes it with one
 rule, written once, not a check per door. The door-by-door analysis that found the gaps is in the plan
-([plan.md, "Tasks owed (ADR-0082)"](./plan.md)). Counsel review is owed before launch (`016-FR-050`) for every rule in
-this section.
+([plan.md, "Tasks owed (ADR-0082)"](./plan.md)).
 
 - **FR-057**: **The read rule is the only door.** Content reaches anyone other than its owner and household only
   through the read rule (FR-002, FR-018). Signed-out readers also pass 021's open-to-web Specification
@@ -1607,7 +1578,7 @@ this section.
       public route can ship, before the hold is in the read rule.
     - A guard MUST fail any SQL that reads `visibility = 'public'` outside the hold Specification (FR-018).
     - **Selling is a door** _(added 2026-11-03, owner ruling O14e, ADR-0082)_. A creator can list a PRIVATE recipe or
-      collection for sale (`012-FR-034a`, `018-FR-026`). Selling is distribution (17 U.S.C. §106(3)), so a sold recipe
+      collection for sale (`012-FR-034a`, `018-FR-026`). A sold recipe
       MUST pass this same hold before it is listed and before any buyer reads it, and a listed recipe that becomes held
       MUST be delisted. _(amended 2026-11-03, owner ruling O15b, ADR-0082. Was: before it is delivered.)_ A buyer gets a
       live view of the recipe (`018-FR-029a`) and no copy, so there is no delivery step. _(amended again 2026-11-03,
@@ -1616,7 +1587,7 @@ this section.
       in-app read goes through the read rule like any other read. An edit to a sold recipe changes the digest, and
       subscribers see the last approved version until the new digest has an allowing outcome (FR-064,
       `018-FR-029d`). Only a recipe with an allowing outcome on its current digest can be sold, and only a sellable
-      label can be sold at all (O14d). [House rule] Counsel review is owed before launch (`016-FR-050`).
+      label can be sold at all (O14d).
     - A door that is missing from FR-001's list leaves the recipe held. A sweep MUST find every recipe whose current
       digest has no outcome and request its check (FR-022's sweep).
     - **A copy written into another account carries its source's digest.** A reader who becomes an owner skips
@@ -1626,9 +1597,8 @@ this section.
       that delivers a licensed copy.)_ A sale now writes no copy, so it is no longer a case of this bullet. If any
       route ever writes a bought recipe into a buyer's account, it falls under this bullet and under the refusal in
       `018-FR-029a`. _(amended again 2026-11-03, ADR-0082 §9)_ A purchase still writes no recipe row. Its file leaves
-      Commise, so it is gated at the download door instead (FR-079). Counsel review is owed before launch
-      (`016-FR-050`).
-    - [House rule] This is the airtight property. A new door can be slow. It can never be open.
+      Commise, so it is gated at the download door instead (FR-079).
+    - This is the airtight property. A new door can be slow. It can never be open.
 - **FR-058**: **The digest always matches the content.** Database triggers MUST keep `checked_content_digest`
   (data-model §0) from going stale:
     - On steps, ingredients and photos, any change sets the parent recipe's digest to NULL.
@@ -1640,7 +1610,6 @@ this section.
       photo upload, delete or reorder, a migration and an operator's hand edit.
     - **Checked content is a closed list with one rule:** every field a cook contributed that any public projection
       renders (`021-FR-102`). So the text digest gains these fields:
-        - the cook's own notes on a facts card
         - the credit text of an Adapted or family statement
         - an ingredient line's display text, where it has no source line
         - an ingredient line's group label and preparation words
@@ -1661,7 +1630,7 @@ this section.
     - a mode or an outcome value outside the closed sets (FR-019, FR-013)
     - for a public domain text, a missing or unreadable record (`016-FR-015k`): the text is not open
     - for a licence, an unreadable choice: the page shows the `commise` licence, never CC BY
-    - for a facts card, an unreadable cap counter or opt-out list: the source card form (`021-FR-014e`)
+    - for an import headed public, an unreadable opt-out list: Private only (`016-FR-081`)
 
     The tests MUST set each input to NULL or to an unknown value, one at a time. Each test MUST see the recipe held.
 
@@ -1676,7 +1645,6 @@ this section.
     | An import page fingerprint is missing or unreadable | That part is not green. A person decides                                                  |
     | The model, its budget or its spend counter          | FR-020, FR-021 and FR-022, as written                                                     |
     | The web search, its index, its budget or its switch | `unchecked` (`searchNotRun`), FR-012e. A person decides                                   |
-    | The per-site or per-source cap counter or its lock  | The source card form (`021-FR-014e`), never a full facts card                             |
     | The public domain record store                      | The text is not open (`021-FR-006`)                                                       |
     | The licence grant store                             | The `commise` licence (FR-070)                                                            |
     | The reviewer queue                                  | Referrals wait. No timer publishes anything (FR-030)                                      |
@@ -1699,7 +1667,7 @@ this section.
 - **FR-062**: **A partial deploy cannot open a door.** The order of release is fixed:
     1. the hold Specification and the read rule with its required input (FR-057), with blocking in `shadow`
     2. the checks that write outcomes
-    3. any new door: a public route, a feed, an embed, a facts card, the CC BY choice, or a pilot
+    3. any new door: a public route, a feed, an embed, a public version, or the CC BY choice
 
     Each new door ships behind a flag that defaults closed. A flag value that cannot be read reads as closed. An
     older service can meet newer data. It MUST read the newer columns as missing, and so as held (FR-059). The plan's delivery slices MUST keep this order.
@@ -1717,8 +1685,7 @@ this section.
     pseudonymisation and `016-FR-052c`'s legal holds apply. At account erasure the record is de-identified. It drops
     every name, email and recipe text. It keeps the cook's opaque app id. Identity keeps that id resolvable without
     personal data (ADR-0027). _(amended 2026-11-03, owner ruling O16, ADR-0082)_ A record that cites a site claim keeps
-    the claim's opaque id, method and last check time, and drops the claim's domain (FR-012g) [House rule]. [Law] Keeping it rests on GDPR Art. 17(3)(e), the defence of legal claims. Counsel review is owed
-    before launch (`016-FR-050`).
+    the claim's opaque id, method and last check time, and drops the claim's domain (FR-012g).
 
 - **FR-064** _(amended 2026-11-03, owner ruling O10, ADR-0082)_: **An edit to a public recipe never shows unchecked content.** While a new digest is checking or in
   review, the public surfaces MUST NOT serve the new content. Decided: readers see the **last approved version**,
@@ -1726,7 +1693,7 @@ this section.
   (a green outcome or a person's clearance). They do not answer not-available during the check. If no version has an
   allowing outcome, or a 016 decision removed the content (FR-066), or an exit event other than the edit applies, the
   surfaces answer not-available (`021-FR-013`). The cook's own view shows the new content with its state. This was
-  open (the plan chose one of two answers) and is now decided. Counsel review is owed before launch (`016-FR-050`).
+  open (the plan chose one of two answers) and is now decided.
   An edit that touches no checked field changes no digest, so it starts no check (FR-005).
 - **FR-065**: **A version restore is a content write.** Restoring an old version MUST compute the digest of the
   restored content (FR-058), and it is a new check moment (FR-001).
@@ -1745,59 +1712,42 @@ this section.
     - Clones of the removed content are actioned in the same decision (`016-FR-022`).
 - **FR-067**: **Some facts change after publication, and the read rule reads them live.** These MUST be read at read
   time, never stamped at publish, so a later change takes effect within 021's purge bound (`021-FR-061`):
-    - a site's opt-out, its cap, or its exclusion (`016-FR-024a`, `016-FR-030a`, `021-FR-014e`)
+    - a site's opt-out (`016-FR-081`). There are no caps (`016-FR-030a`, owner ruling, 2026-11-15)
     - a public domain record that stops passing (`016-FR-015k`, `021-FR-006`)
     - a chef's Home or a claim that fails (`021-FR-010a`, `026-FR-001`). _(amended 2026-11-03, owner ruling O16,
       ADR-0082)_ This live read moves the canonical address only. A failed claim never reopens a recipe it already
-      cleared (FR-012g, ADR-0078 §2). Counsel review is owed before launch (`016-FR-050`).
+      cleared (FR-012g, ADR-0078 §2).
     - an account suspended, terminated, closed or erased (`021-FR-002` rule 7)
     - a 016 restriction (`021-FR-002` rule 8)
 
     A source page that changes after import is not one of them. We never fetch it again (FR-012), so the import page
-    fingerprint stays as it was. A later opt-out reaches us by a notice or a standing request (`016-FR-024a`).
+    fingerprint stays as it was. A later opt-out reaches us by the opt-out form or the staff list (`016-FR-081`).
 
-- **FR-068**: **Facts cards are checked.** A linked card or a book card heading public MUST be checked on what it shows
-  that the cook wrote or uploaded: the cook's own notes and the cook's own photos (`021-FR-014a`).
-    - The rule detectors and the model run on the notes, and the photo signals run on the photos (FR-006).
-    - A linked card's notes are scored against its import page fingerprint (FR-012c). A book card has no import page.
-    - The web search (FR-012d) MUST run on notes that pass FR-012f's minimum length. A cook's notes can carry a
-      book's headnote, and the web can hold that headnote.
-    - A page image the cook chose to keep (`016-FR-027h`) MUST NOT be a card photo. A printed-page signal on a card
-      photo sends the card to a person (FR-006a).
-    - The facts themselves (title, times, servings, normalized ingredients) are not checked. [Law] Nobody owns them
-      (17 U.S.C. §102(b), _Feist v. Rural_, 499 U.S. 340 (1991)). The per-site and per-source cap governs them instead.
-    - Counsel review is owed before launch (`016-FR-050`).
+- **FR-068**: Withdrawn. Owner ruling, 2026-11-15: no facts cards.
 - **FR-069**: **A licensed page goes to a person.** A recipe shown in full under a licence the source page stated
   (`021-FR-014f`) will score high on its own import page by design. FR-012c's containment rule MUST NOT treat that as
-  green or as evidence. Instead, every licensed page MUST go to a person. The person checks the recorded licence
-  evidence in the fetch log (`016-FR-024a`): the licence named, that it allows commercial use, the attribution it asks
-  for, and the time it was read.
-    - [Law] A Creative Commons 4.0 licence cannot be revoked for a copy already made under it (CC BY 4.0 §2(a)(1)). So
-      a source page that later drops its licence is not an exit event. A notice from the rightsholder is still
+  green or as evidence. Instead, every licensed page MUST go to a person. The person checks the licence
+  evidence the import detected in the page's structured data (`016-FR-073`): the
+  licence named, that it allows commercial use, and the attribution it asks for.
+    - A source page that later drops its licence is not an exit event. A notice from the rightsholder is still
       decided under 016.
-    - Counsel review is owed before launch (`016-FR-050`).
 - **FR-070**: **The licence shown is the licence in effect.** The page's licence line and its schema.org `license`
   MUST name the licence that covers the version being served (`021-FR-011`). A CC BY grant MUST record the digest it
-  covers. A new digest that is not yet `clear` is served under `commise` until it is (FR-056). [Law] Copies others made
-  under CC BY cannot be recalled, and the publish screen says so (`016-FR-010`).
-    - Counsel review is owed before launch (`016-FR-050`).
-- **FR-071**: **Other public text.** [House rule] A public collection's name, description and any cover the cook
+  covers. A new digest that is not yet `clear` is served under `commise` until it is (FR-056). The publish screen says that
+  copies others made under CC BY cannot be recalled (`016-FR-010`).
+- **FR-071**: **Other public text.** A public collection's name, description and any cover the cook
   uploads, and a creator's bio and avatar, are public text and images that are not recipes.
     - A public collection's description MUST pass the rule detectors. A description that passes FR-012f's minimum
       length also gets the web search. A hit hides the description, not the page, until a person decides. A cover the cook uploads is checked
       as a photo (FR-006). A cover picked from the collection's own recipes needs no check.
     - A bio (160 characters, `012-FR-002`) and an avatar are not checked. They fall under 016's notice-and-action, and
       a removal gets a statement of reasons (`016-FR-018`).
-      _(amended 2026-11-03, owner ruling O11, ADR-0082)_ Decided: the outside-copy check does NOT run on a bio or an avatar. [House rule]
-      Notice-and-takedown (`016-FR-017`) covers them. A bio is 160 characters and an avatar is a small image, so the
-      copy risk is low and a check would cost more than it protects.
-    - Counsel review is owed before launch (`016-FR-050`).
-- **FR-072**: **Household sharing is not publication.** [House rule] A household (`017-FR-030`, at most 6 accounts,
+      _(amended 2026-11-03, owner ruling O11, ADR-0082)_ Decided: the outside-copy check does NOT run on a bio or an avatar.
+      Notice-and-takedown (`016-FR-017`) covers them.
+- **FR-072**: **Household sharing is not publication.** A household (`017-FR-030`, at most 6 accounts,
   `017-FR-034f`) is a private circle, not the public, so sharing a recipe with it starts no check. A household member
   can clone a shared private copy. The clone is private and keeps the source's label, so its full text can never go
-  public. Publishing that clone is a new check moment like any other (FR-001). [Law] Whether a household of up to 6
-  accounts is a private circle in every market is a counsel item. The UK has no private-copy exception
-  (_R (BASCA) v Secretary of State_ [2015] EWHC 2041 (Admin)). Counsel review is owed before launch (`016-FR-050`).
+  public. Publishing that clone is a new check moment like any other (FR-001).
 - **FR-073**: **A later Commise-version pilot passes this gate too** (ADR-0082, the pilot's conditions). If it is ever
   built, its output is a recipe headed public. It MUST pass this check with its own stricter similarity and structure
   thresholds. Its output for a registered or high-value publisher MUST go to a person. Its flag defaults closed, and an
@@ -1820,22 +1770,19 @@ this section.
       review or not approved MUST NOT be put in a file. For the 30-day file that is the last approved version.
     - A file MUST hold only a sellable label (`018-FR-026`, O14d).
     - A takedown (`016-FR-060`) MUST close every download door for that content at once. The route refuses, also inside
-      an open 30-day window. [Law] A host that keeps distributing content after notice that it infringes loses the safe
-      harbor (17 U.S.C. §512(c)(1)(A)(iii), §512(c)(1)(C)).
+      an open 30-day window.
     - A missing or unknown input reads as closed, as for every door in this section.
     - Each served file is a download event in 018's commerce record (`018-FR-029l`), with its version id, so the
       notice to past downloaders can find every holder (`018-FR-029k`).
     - The deployed bypass suite (FR-074) holds one row per download door.
-    - [House rule] Counsel review is owed before launch (`016-FR-050`).
 
 #### L. Next batch: the copy check at import, with suggested rewording (FINAL, owner ruling 2026-11-03)
 
 FINAL, owner ruling 2026-11-03. The founder confirmed this design as final _(amended 2026-11-03, owner ruling, ADR-0082)_. Q-1 and Q-3 below were settled on 2026-11-03 (owner rulings, ADR-0082 §9).
 The check uses AI, and it searches the wider internet as well as the source the cook named. The founder's words: "The review process was already planned to use AI and to search not just the provided source but search the internet." How the internet search works, and the AI and search cost and budget, are OPEN (owner ruling 2026-11-03): decided when feature 020 starts.
-Counsel review is owed before launch (`016-FR-050`).
 
 - **FR-075** _(FINAL, owner ruling 2026-11-03)_: **The outside-copy check runs on the steps at
-  import, beside the ingredient-match review.** [House rule] At import, the outside-copy check (FR-012a to FR-012d)
+  import, beside the ingredient-match review.** At import, the outside-copy check (FR-012a to FR-012d)
   MUST run on the recipe's method steps. It shows its result next to the ingredient-match review
   (`004-FR-054`). A flagged step shows a suggested rewording. The cook can accept it, edit it, or dispute it. After
   each choice the check re-runs on the new text.
@@ -1844,25 +1791,23 @@ Counsel review is owed before launch (`016-FR-050`).
     - The suggestion restates what the step does in fresh words. It is never a line-by-line paraphrase.
     - The suggestion model sees only the flagged step. It MUST NOT see the matched outside text, the URL or the
       cook's statement (FR-008). So it cannot copy the source back to the cook.
-    - A suggestion is not evidence. It never clears a recipe and it never counts as a person's decision. [House rule]
+    - A suggestion is not evidence. It never clears a recipe and it never counts as a person's decision.
       The accepted or edited text goes through the same check as any other edit (FR-058), and the model never clears
       a recipe (ADR-0074). A suggestion that still matches is flagged again.
     - _(amended 2026-11-03, owner ruling O16, ADR-0082)_ A step that matches only the recipe's own origin page, under
       the cook's live claim on that domain, is not flagged and gets no suggestion (FR-012g). With statement 1a and no
       live claim, the step is flagged as usual. The cook sees the offer to verify the site beside the flag
       (`004-FR-014a`). A suggestion to reword the cook's own text is still shown, and the cook can dispute it.
-      [House rule] Counsel review is owed before launch (`016-FR-050`).
     - **Settled (owner ruling 2026-11-03, ADR-0082 §9).** Private is never blocked. A private bulk-imported recipe is
       usable at once, and only going public or on sale waits for review (FR-003b as amended). _(Was: a conflict with
       FR-003b, which held a private bulk import in review, left for the founder as Q-3.)_
-    - _(added 2026-11-03, owner ruling, ADR-0082 §9)_ [House rule] Rewording a flagged step before any takedown is not
+    - _(added 2026-11-03, owner ruling, ADR-0082 §9)_ Rewording a flagged step before any takedown is not
       a strike. Accepting, editing or disputing a suggestion records no strike. Only an upheld takedown is a strike
       (`016-FR-062`).
-    - [Law] This check lowers the chance of a copy going public. It is not a legal shield (17 U.S.C. §512 safe harbour
-      still depends on notice and takedown, `016-FR-058` to `016-FR-061`).
-    - Counsel review is owed before launch (`016-FR-050`).
+    - This check lowers the chance of a copy going public. Notice and takedown still applies (`016-FR-058` to
+      `016-FR-061`).
 - **FR-076** _(FINAL, owner ruling 2026-11-03)_: **The same suggestions appear in the review of a
-  flagged recipe.** [House rule] When a recipe is flagged after import (an edit, a publish, or the async check), the
+  flagged recipe.** When a recipe is flagged after import (an edit, a publish, or the async check), the
   cook's in-review screen MUST show the same suggestions on the same flagged steps, with the same accept, edit and
   dispute choices.
     - A suggestion is shown only for a line flagged by the cook's own text, a public page, or the web search. For a
@@ -1871,10 +1816,8 @@ Counsel review is owed before launch (`016-FR-050`).
       (ADR-0074). No suggestion is made.
     - A suggestion made while the AI budget is spent is not made. The recipe waits for a person as before
       (FR-012e, ADR-0024). The cook can still edit by hand.
-    - Counsel review is owed before launch (`016-FR-050`).
 - **FR-077** _(FINAL, owner ruling 2026-11-03)_: **Whose words an accepted suggestion is.**
-  [Law, US] Text a model wrote is not the cook's authorship (US Copyright Office, _Copyright and Artificial
-  Intelligence, Part 2_, Jan 2025). `016-FR-015i` already says a method rewritten by an AI feature is not the cook's own
+  `016-FR-015i` already says a method rewritten by an AI feature is not the cook's own
   words and MUST NOT make a recipe "Written by you".
     - _(amended 2026-11-03, owner ruling, ADR-0082 §9. Was: a holding rule until the founder ruled on Q-1, with an
       open test for an edit that is "more than trivial".)_ A recipe that holds any step from an accepted suggestion is
@@ -1884,14 +1827,12 @@ Counsel review is owed before launch (`016-FR-050`).
       it "Adapted by you", which stays eligible to be public and to be sold (`018-FR-026`). It is not eligible for CC BY
       4.0, which needs "Written by you" (`021-FR-040a`). An edit by the cook does not restore "Written by you". Where
       the method came from a named source, the adapted credit still applies. This settles Q-1.
-    - Counsel review is owed before launch (`016-FR-050`).
 - **FR-078** _(FINAL, owner ruling 2026-11-03)_: **The suggestion call, its cost and its budget.** _(amended 2026-11-03, owner ruling, ADR-0082)_
-  [House rule] The suggestion call MUST have an explicit `maxTokens` and a hard input cap. Its cost, its budget, whether it
+  The suggestion call MUST have an explicit `maxTokens` and a hard input cap. Its cost, its budget, whether it
   shares ADR-0024's pool, and its spend mechanism are OPEN (owner ruling 2026-11-03): decided when feature 020 starts. If the call cannot run, no
   suggestion is shown (FR-076), the recipe waits for a person, and the cook can still edit by hand (fail closed).
-    - Counsel review is owed before launch (`016-FR-050`).
 - **FR-080** _(owner ruling 2026-11-11; open questions Q-4 to Q-7)_: **The source line says who made or
-  changed the recipe's words.** [House rule]
+  changed the recipe's words.**
     - When the import pipeline changes the wording of a step, the recipe's source label MUST say it was adapted by
       Commise.
     - Today steps are reworded automatically (the owner's words; see Q-6 for what the code shows). Once this review
@@ -1900,7 +1841,10 @@ Counsel review is owed before launch (`016-FR-050`).
     - When a cook edits a recipe that came from another source (an import), "Edited by {username}" MUST be appended
       to the source.
     - A family recipe needs no special label.
-    - Counsel review is owed before launch (`016-FR-050`).
+    - _(Amended, Owner ruling, 2026-11-15.)_ The import never rewords a cook's private copy: it keeps the source's
+      wording (`016-FR-077`). Commise writes steps only for a public version, and that version says so plainly, for
+      example "Steps written by Commise with AI, checked by {cook}" (wording to be confirmed). The second bullet above
+      applies only to that public version.
 
 **Founder questions (Q-1 and Q-3 settled 2026-11-03, owner rulings, ADR-0082 §9).**
 
@@ -1922,12 +1866,8 @@ Counsel review is owed before launch (`016-FR-050`).
   cook's own words (`016-FR-015i`). Both can be true only if they are two different things: the rights label (one
   derived label, `016-FR-015c`, `016-FR-015d`) and the source line (FR-080). Which one does each rewording set, and
   does a cook who accepts a suggestion get both?
-- **Q-5. Does the label make Commise the publisher? Counsel review (`016-FR-050`).** ADR-0082 section 6 says an AI
-  rewrite of another site's recipe published as Commise's own is not built at launch, because Commise is then the
-  publisher, outside the 17 U.S.C. §512(c) safe harbour and DSA Art. 6. FR-080 has Commise saying it adapted the
-  text. Does that label make Commise the publisher of the reworded step? FR-075 and FR-076 keep the cook as the one
-  who accepts, edits or disputes, which is the safeguard ADR-0082 relies on. A pipeline that rewords with no cook
-  choice is the case section 6 names.
+- **Q-5.** Answered by the owner ruling of 2026-11-15: Commise writes and publishes the public version of an
+  imported recipe (`016-FR-077`), and discloses it.
 - **Q-6. Does "right now we reword automatically" match the code?** The search (2026-11-11) of
   `packages/shared/recipe-import-core/src`, `packages/services/recipe-workers/src`,
   `packages/services/recipe-service/src` and `packages/tools/cookbook-import/src` found no step rewording. It found
@@ -1944,6 +1884,16 @@ Counsel review is owed before launch (`016-FR-050`).
   Does "Created by {username}" and "Edited by {username}" add a second line beside it, replace the source line, or
   show on a public recipe at all? A username is shown to every reader, so the owner needs to say whether the
   cook agreed to that.
+
+- **FR-081** _(added 2026-11-15, Owner ruling, 2026-11-15)_: **The check flags a source for rewriting.** When a cook
+  chooses Public or Both at import (`004`), this check MUST run on the source's own text before the public version is
+  made. If it flags the source, the public version's instructions are rewritten (`016-FR-077`), even when the source
+  is on the copy-outright allowlist. A flag never touches the cook's private copy. If the check cannot run, the
+  import offers Private only.
+- **FR-082** _(added 2026-11-15, Owner ruling, 2026-11-15)_: **"Report a problem" hides a public version.** Every
+  Commise-written public version (`016-FR-077`) carries "Report a problem". A report MUST hide the version from every
+  public surface at once, and it stays hidden until a staff member looks and decides. The decision is recorded like any
+  other reviewer decision, and a hide sends the cook a statement of reasons (`016-FR-018`).
 
 ### Non-Functional Requirements _(constitution-derived)_
 

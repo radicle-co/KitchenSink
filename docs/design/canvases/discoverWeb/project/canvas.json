@@ -1,0 +1,175 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T05:52:09Z"
+  },
+  "title": "Commise Screens, web: Discover",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "DiscoverWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 1220,
+      "title": "Discover, proposal (web, 1280)"
+    },
+    "DiscoverRailStatesWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 446,
+      "title": "Discover, row states (web, 1280)"
+    },
+    "DiscoverRecentSearchesWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 1458,
+      "title": "Discover, recent searches, proposal (web, 1280)"
+    },
+    "DiscoverLoadingWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 1811,
+      "title": "Discover, searching and failed, proposal (web, 1280)"
+    },
+    "DiscoverNoMatchWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 2411,
+      "title": "Discover, no results (web, 1280)"
+    },
+    "DiscoverFiltersWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 1558,
+      "title": "Discover, filters (web, 1280)"
+    },
+    "DiscoverIngredientFilterWeb1280.dc.html": {
+      "x": 8160,
+      "y": 260,
+      "w": 1280,
+      "h": 1880,
+      "title": "Discover, filter by ingredient (web, 1280)"
+    },
+    "DiscoverWeb1024.dc.html": {
+      "x": 0,
+      "y": 3331,
+      "w": 1024,
+      "h": 1718,
+      "title": "Discover, proposal (web, 1024)"
+    },
+    "DiscoverWeb768.dc.html": {
+      "x": 0,
+      "y": 5709,
+      "w": 768,
+      "h": 1904,
+      "title": "Discover, proposal (web, 768)"
+    },
+    "DiscoverWeb390.dc.html": {
+      "x": 0,
+      "y": 8273,
+      "w": 390,
+      "h": 1360,
+      "title": "Discover, proposal (web, 390)"
+    },
+    "DiscoverRecentSearchesWeb390.dc.html": {
+      "x": 470,
+      "y": 8273,
+      "w": 390,
+      "h": 1392,
+      "title": "Discover, recent searches, proposal (web, 390)"
+    },
+    "DiscoverLoadingWeb390.dc.html": {
+      "x": 940,
+      "y": 8273,
+      "w": 390,
+      "h": 1500,
+      "title": "Discover, searching and failed, proposal (web, 390)"
+    },
+    "DiscoverNoMatchWeb390.dc.html": {
+      "x": 1410,
+      "y": 8273,
+      "w": 390,
+      "h": 2430,
+      "title": "Discover, no results (web, 390)"
+    },
+    "DiscoverFiltersWeb390.dc.html": {
+      "x": 1880,
+      "y": 8273,
+      "w": 390,
+      "h": 1298,
+      "title": "Discover, filters (web, 390)"
+    },
+    "DiscoverIngredientFilterWeb390.dc.html": {
+      "x": 2350,
+      "y": 8273,
+      "w": 390,
+      "h": 2394,
+      "title": "Discover, filter by ingredient (web, 390)"
+    }
+  },
+  "order": [
+    "DiscoverWeb1280.dc.html",
+    "DiscoverRailStatesWeb1280.dc.html",
+    "DiscoverRecentSearchesWeb1280.dc.html",
+    "DiscoverLoadingWeb1280.dc.html",
+    "DiscoverNoMatchWeb1280.dc.html",
+    "DiscoverFiltersWeb1280.dc.html",
+    "DiscoverIngredientFilterWeb1280.dc.html",
+    "DiscoverWeb1024.dc.html",
+    "DiscoverWeb768.dc.html",
+    "DiscoverWeb390.dc.html",
+    "DiscoverRecentSearchesWeb390.dc.html",
+    "DiscoverLoadingWeb390.dc.html",
+    "DiscoverNoMatchWeb390.dc.html",
+    "DiscoverFiltersWeb390.dc.html",
+    "DiscoverIngredientFilterWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Discover: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 3071,
+      "text": "Discover: web 1024",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 5449,
+      "text": "Discover: web 768",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row3": {
+      "x": 0,
+      "y": 8013,
+      "text": "Discover: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

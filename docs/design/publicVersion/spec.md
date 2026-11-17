@@ -313,14 +313,15 @@ Every state names its copy and key. Keys are under `importMessages.choice.*` unl
 
 One line, the slot line on Free, "Save my copy".
 
-| Reason                                                                                   | Key                      | Copy                                                                                                                     |
-| ---------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `paidRecent` with `{date}`                                                               | `privateOnly.paidRecent` | "This one is saved just for you. You can share a public version after {date}."                                           |
-| `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, `paidRecent` without a date | `privateOnly.line`       | `This one is saved just for you. We can't write a public version of it.`                                                 |
-| `noSteps`                                                                                | `privateOnly.noSteps`    | "There are no steps to write from yet. Save it, add steps in the editor, then share a public version."                   |
-| `noSourceAddress`                                                                        | `privateOnly.noSource`   | "We need the page's link to share this one. Save it, add the link as its source, then share a public version."           |
-| `languageUnsupported`                                                                    | `privateOnly.language`   | "We can’t write a public version in this recipe’s language yet. Your copy stays private." (copy pending designer review) |
-| `budget`                                                                                 | reuse `budget.line`      | `We can’t write public versions right now. Save it just for you.`                                                        |
+| Reason                                                                                   | Key                          | Copy                                                                                                                                             |
+| ---------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `paidRecent` with `{date}`                                                               | `privateOnly.paidRecent`     | "This one is saved just for you. You can share a public version after {date}."                                                                   |
+| `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, `paidRecent` without a date | `privateOnly.line`           | `This one is saved just for you. We can't write a public version of it.`                                                                         |
+| `noSteps`                                                                                | `privateOnly.noSteps`        | "There are no steps to write from yet. Save it, add steps in the editor, then share a public version."                                           |
+| `noSourceAddress`                                                                        | `privateOnly.noSource`       | "We need the page's link to share this one. Save it, add the link as its source, then share a public version."                                   |
+| `languageUnsupported`                                                                    | `privateOnly.language`       | "This one is saved just for you. We can’t write public versions in its language yet."                                                            |
+| `languageUncertain`                                                                      | `privateOnly.languageUnsure` | "This one is saved just for you. We can’t tell which language it’s in, so we can’t write a public version of it." (copy pending designer review) |
+| `budget`                                                                                 | reuse `budget.line`          | `We can’t write public versions right now. Save it just for you.`                                                                                |
 
 Slot line on Free: `private.hint`. Pro: none.
 
@@ -369,14 +370,15 @@ Slot line on Free: `private.hint`. Pro: none.
 
 ### 6.8 Refused, failed and budget (B8)
 
-| State                        | Copy and keys                     | Actions                                                                  |
-| ---------------------------- | --------------------------------- | ------------------------------------------------------------------------ |
-| Wording too close            | `blocked.body`                    | `flag.rewrite`, `review.notNow` / `review.notNowBoth`                    |
-| Rewrite needed               | `rewriteNeeded.body` (new, §7.2)  | `flag.rewrite` ("Write it again"), `review.notNow` / `review.notNowBoth` |
-| Failed, For everyone         | `failed.title`, `failed.body`     | reuse `importMessages.wizard.retry`, `button.private`. No slot: dead end |
-| Failed, Both                 | `failed.title`, `failed.bodyBoth` | reuse `importMessages.wizard.retry`, "Done" (`failed.done`, new)         |
-| Budget spent during the flow | `budget.line`                     | `button.private`. Both: "Done" (`failed.done`)                           |
-| The offer changed (409)      | `offerChanged.line` (new, §7.2)   | "Continue"                                                               |
+| State                          | Copy and keys                     | Actions                                                                  |
+| ------------------------------ | --------------------------------- | ------------------------------------------------------------------------ |
+| Wording too close, public path | `blocked.body`                    | `flag.rewrite`, `review.notNow`                                          |
+| Wording too close, Both        | `blocked.bodyBoth`                | `flag.rewrite`, `review.notNowBoth`                                      |
+| Rewrite needed                 | `rewriteNeeded.body` (new, §7.2)  | `flag.rewrite` ("Write it again"), `review.notNow` / `review.notNowBoth` |
+| Failed, For everyone           | `failed.title`, `failed.body`     | reuse `importMessages.wizard.retry`, `button.private`. No slot: dead end |
+| Failed, Both                   | `failed.title`, `failed.bodyBoth` | reuse `importMessages.wizard.retry`, "Done" (`failed.done`, new)         |
+| Budget spent during the flow   | `budget.line`                     | `button.private`. Both: "Done" (`failed.done`)                           |
+| The offer changed (409)        | `offerChanged.line` (new, §7.2)   | "Continue"                                                               |
 
 Every one of these is `role="alert"`, and focus moves to the screen's heading or the alert.
 
@@ -562,18 +564,18 @@ None of our own. Pushes, the dialog and the sheet use the platform's transitions
 
 ### 12.1 `recipeImportingWeb`
 
-| #   | Board                   | States shown                                                                                      | Sizes          |
-| --- | ----------------------- | ------------------------------------------------------------------------------------------------- | -------------- |
-| B1  | ImportPublicChoice      | Nothing chosen (full P5), For everyone with free and paid credit, Pro with Both, pickOne, offline | 1280, 390      |
-| B2  | ImportPublicPrivateOnly | paidRecent (full P5), line, noSteps, noSourceAddress, languageUnsupported, budget, Pro            | 1280, 390      |
-| B3  | ImportPublicExists      | published (full P5), writing, inReview, no slot                                                   | 1280, 390      |
-| B4  | ImportPublicOnly        | `full.line` with the Pro card (full P5), switch off                                               | 1280, 390      |
-| B5  | ImportPublicDeadEnd     | Trial eligible (full P9), trial used, switch off                                                  | 1280, 390      |
-| B6  | ImportPublicWriting     | For everyone, Both with copy saved, offline                                                       | 1280, 390      |
-| B7  | ImportPublicReview      | Closed, open, editing, flags, paid credit, Both actions, For everyone with no slot                | 1280, 768, 390 |
-| B8  | ImportPublicRefused     | Wording too close, rewrite needed, failed (both paths), budget spent, offer changed               | 1280, 390      |
-| B9  | ImportPublicSaved       | Both (private copy and public version), Just for me, For everyone                                 | 1280, 390      |
-| B10 | ImportPublicAgeConfirm  | The dialog over the review                                                                        | 1280, 390      |
+| #   | Board                   | States shown                                                                                              | Sizes          |
+| --- | ----------------------- | --------------------------------------------------------------------------------------------------------- | -------------- |
+| B1  | ImportPublicChoice      | Nothing chosen (full P5), For everyone with free and paid credit, Pro with Both, pickOne, offline         | 1280, 390      |
+| B2  | ImportPublicPrivateOnly | paidRecent (full P5), line, noSteps, noSourceAddress, languageUnsupported, languageUncertain, budget, Pro | 1280, 390      |
+| B3  | ImportPublicExists      | published (full P5), writing, inReview, no slot                                                           | 1280, 390      |
+| B4  | ImportPublicOnly        | `full.line` with the Pro card (full P5), switch off                                                       | 1280, 390      |
+| B5  | ImportPublicDeadEnd     | Trial eligible (full P9), trial used, switch off                                                          | 1280, 390      |
+| B6  | ImportPublicWriting     | For everyone, Both with copy saved, offline                                                               | 1280, 390      |
+| B7  | ImportPublicReview      | Closed, open, editing, flags, paid credit, Both actions, For everyone with no slot                        | 1280, 768, 390 |
+| B8  | ImportPublicRefused     | Wording too close, rewrite needed, failed (both paths), budget spent, offer changed                       | 1280, 390      |
+| B9  | ImportPublicSaved       | Both (private copy and public version), Just for me, For everyone                                         | 1280, 390      |
+| B10 | ImportPublicAgeConfirm  | The dialog over the review                                                                                | 1280, 390      |
 
 768 is drawn only for B7, where the open comparison sits side by side (regular container) while 390 stacks it. Every
 other screen at 768 has the 390 layout at a wider column. 1024 is not drawn: at 1024 the sidebar leaves `<main>` under
@@ -589,7 +591,7 @@ action is last in any stacked bar.
 | #   | Board                   | States drawn                                                                                                                                                                 | Sizes                                    |
 | --- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
 | M1  | ImportPublicChoice      | Review page before the sheet opens (phones), nothing chosen, For everyone with free and paid credit, Pro with Both, pickOne, offline. A sheet on phones, in the page on iPad | Iphone390, Android384, Ipad834, Ipad1194 |
-| M2  | ImportPublicPrivateOnly | paidRecent (full P5), line, noSteps, noSourceAddress, languageUnsupported, budget, Pro                                                                                       | Iphone390, Ipad1194                      |
+| M2  | ImportPublicPrivateOnly | paidRecent (full P5), line, noSteps, noSourceAddress, languageUnsupported, languageUncertain, budget, Pro                                                                    | Iphone390, Ipad1194                      |
 | M3  | ImportPublicExists      | published (full P5), writing, inReview, no slot                                                                                                                              | Iphone390                                |
 | M4  | ImportPublicOnly        | `full.line` with the Pro card (full P5), switch off                                                                                                                          | Iphone390                                |
 | M5  | ImportPublicDeadEnd     | Trial eligible, trial used, switch off. Full page, stacked buttons, Upgrade last. The store sheet is the OS's, not drawn                                                     | Iphone390, Android384, Ipad834           |

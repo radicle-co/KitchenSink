@@ -4,13 +4,11 @@ Phase 0 for `plan.md`. Each item: decision, rationale, alternatives rejected.
 
 ## R1. Writer input is a facts sheet for every recipe
 
-- **Decision**: `FactsSheet` = ordered steps, each with `actions` (closed verb lexicon), `amounts`, `temperatures`,
-  `durations`, `ingredients` (names from the recipe's ingredient lines found in the step), `equipment` (closed list),
-  `safety` (FR-041 categories, carried as a category plus its facts, not its words). Plus the ingredient-line names and
-  the recipe language. Built by code. Never stored.
+- **Decision**: `FactsSheet` = ordered steps, each with `amounts`, `temperatures`, `durations` (all read from digits, fractions and unit symbols) and
+  `ingredients` (names from the recipe's ingredient lines found in the step). There is no verb, equipment or safety-word
+  lexicon: those are left to the cook's review. Plus the ingredient-line names and the recipe language. Built by code. Never stored.
 - **Ties**: a tie between an amount and an ingredient is exact or null. Only the shape NUM [UNIT] [of [the]] NAME ties.
-  A step with two or more untied amounts that carry a unit refuses the sheet. Actions are read only at an instruction
-  position, and a doneness value needs a reading verb.
+  A step with two or more untied amounts that carry a unit refuses the sheet.
 - **Rationale**: spec FR-035. A cook's source statement is a claim and can be wrong. One input type gives one pinned
   prompt signature and one evaluation path (same discipline as 004-FR-057 and ADR-0026's `buildParsePrompt`).
 - **Rejected**: wording for "Written by you" recipes (two prompts, two evaluations, trusts a cook-supplied label);

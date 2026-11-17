@@ -174,8 +174,9 @@ can always cook from the original steps.
   `008-FR-034a` note.
 - A step that says only "Enjoy!" or similar: carries no facts. The writer may drop it (FR-040 does not count it).
 - A recipe in a language other than the cook's app language: Flow Steps are written in the recipe's own language, with no
-  translation. Only a language with a registry entry is written, and English is the only entry at first (C-12). A recipe in
-  another language, or one whose language cannot be read reliably, is not offered.
+  translation. The writer works for every language the platform's language detector supports (C-12). A recipe in a
+  language the detector or the platform's locale data cannot handle, or whose language cannot be decided with
+  confidence, is not offered.
 - The recipe is under a takedown or a content hold: not offered while the hold stands (FR-003).
 - The model returns more steps, fewer steps, merged or split steps: allowed, as long as FR-040 passes.
 
@@ -248,8 +249,8 @@ can always cook from the original steps.
 #### D. How Flow Steps are written and checked (the shared engine)
 
 - **FR-035**: The writer MUST receive only a sheet of facts drawn from the recipe by code: the order of the steps, the
-  actions from a fixed list, the amounts, temperatures, times, ingredient names, equipment from a fixed list, and the
-  safety lines (FR-041). It MUST NOT receive the wording of the steps, the source address, the source statement or
+  amounts, temperatures, times (read from digits, fractions and unit symbols) and the ingredient names exactly as the
+  recipe's ingredient list has them. It MUST NOT receive the wording of the steps, the source address, the source statement or
   any other recipe text. This holds for every recipe, whoever wrote it. (C-7)
 - **FR-036**: The writer MUST be a model that is not made by Anthropic (owner ruling, 2026-11-17), run on Amazon Bedrock. The cook's own keys (`005-FR-015`) MUST NOT be used for Flow Steps. (C-6)
 - **FR-037**: The writer MUST rewrite into cook-ready steps: one main action per step, preparation gathered before the
@@ -257,14 +258,21 @@ can always cook from the original steps.
   anything that must happen well ahead (preheat, marinate, rest). It MUST NOT add tips, reasons, substitutions,
   serving ideas, or any fact not on the sheet.
 - **FR-040**: Code MUST check every result before anyone sees it, in both directions, across the whole recipe:
-    - every amount, temperature, time, ingredient name and safety line on the fact sheet appears in the result, as
-      often as on the sheet. And
-    - the result holds no amount, temperature, time, ingredient name or safety line that is not on the sheet.
+    - every amount, temperature, time and ingredient name on the fact sheet appears in the result, as often as on the
+      sheet. And
+    - the result holds no amount, temperature, time or ingredient name that is not on the sheet.
       The check compares (quantity, unit, ingredient) triples, not bare amounts, so two amounts swapped between
       ingredients fail. A quantity ties to an ingredient only in the shape NUM [UNIT] [of [the]] NAME. A tie is exact or
       null: any other shape ties to nothing.
-      Steps may be merged, split or reordered. A result that fails is never shown, stored or charged.
-- **FR-041**: A safety line is a statement in the steps in one of these seven categories. The plan fixes the detectors. (C-13)
+      Every ingredient name in the result matches the recipe's ingredient list exactly, in any script. The check works in
+      any language, because it reads digits, fractions, unit symbols and digit times and temperatures only. Verbs,
+      equipment, safety words and number words are not machine-checked. A safety instruction with no number, or an
+      amount written as a word, is checked only by the cook's review.
+      Steps may be merged, split or reordered, within a set range for the sentence count. A result that fails is never
+      shown, stored or charged.
+- **FR-041**: A safety line is a statement in the steps in one of these seven categories. Code checks only the part of
+  a safety line that carries a number (an internal or doneness temperature, a time). The rest of a safety line, such
+  as a "do not" warning or a named allergen with no number, is checked by the cook's review. (C-13)
     1. An internal or doneness temperature.
     2. Raw or undercooked meat, poultry, fish, egg or flour.
     3. Hot oil or deep frying.
@@ -276,7 +284,8 @@ can always cook from the original steps.
   close to the original (the plan sets the measure and the threshold, and this feature owns both for every consumer of
   the engine, spec 003B included) MUST NOT be shown, stored or charged. This is a
   ceiling on reuse of the original wording, not a measure of quality. The measure works on a hashed fingerprint of the
-  original wording (a versioned set of keyed hashes of word runs), not on the text. The text is folded first: lower-cased,
+  original wording (a versioned set of keyed hashes of word runs, with words cut by the platform's word segmenter), not
+  on the text. Length limits are a ratio of the source's character count. The text is folded first: lower-cased,
   punctuation-stripped, and reduced by the UTS #39 skeleton so that look-alike letters compare equal. This feature takes the fingerprint
   in memory from the saved steps. Spec 003B stores one, because it keeps no source text. Both run the one function.
 - **FR-043**: Flow Steps MUST carry a credit line wherever they are shown:
@@ -405,10 +414,10 @@ can always cook from the original steps.
   so spec 003B builds the engine first (FR-045).
 - 005's ledger of uses is built before or with this feature. This feature does not build a second one.
 - The plan register (`010-FR-041b`) gains a Flow Steps entry.
-- English is the only writing language at first (`025`, English markets first). Each language is one registry entry with
-  its own scripts, sentence-end rule, segmentation locale, prompt and pin, fact lexicon, wording limits, title limits and
-  golden tests. Adding one is its own change. The registry key is the lower-case ISO 639-1 code (the primary language subtag), and the
-  003B source record stores the same code.
+- Every language the platform's detector supports is written. There is no list of languages and no per-language
+  reviewer: the cook's review is the language check. One language profile is derived from the platform's locale data (script,
+  sentence and word segmentation). One prompt template takes the language as a parameter, with one pin. The language is
+  the lower-case ISO 639-1 code (the primary language subtag), and the 003B source record stores the same code.
 - The figures in FR-004, FR-042 and FR-064 are set in the plan and measured on the evaluation set.
 - Flow Steps never change ingredient lists, servings, photos, the title, or nutrition.
 
@@ -443,7 +452,7 @@ Each answer is the best-justified default. Each is **Assumed, owner to confirm**
   update only when the cook asks, because an update spends a use. (FR-022) _Assumed, owner to confirm._
 - **C-11. Undo a replace.** Q: How does the cook go back? → A: From the recipe's version history. A recipe must have
   been saved as a recipe once, so a version always exists (ADR-0058). (FR-003, FR-031) _Assumed, owner to confirm._
-- **C-12. Language.** Q: Which language? → A: The recipe's language; English only at first. _Assumed, owner to confirm._
+- **C-12. Language.** Q: Which language? → A: The recipe's own language, for every language the detector supports. The cook's review is the language check.
 - **C-13. What counts as a safety line.** Q: Which statements must survive? → A: The seven categories in FR-041.
   _Assumed, owner to confirm._
 - **C-14. What makes it out of date.** Q: Steps only, or ingredients too? → A: Steps, ingredient lines and language,

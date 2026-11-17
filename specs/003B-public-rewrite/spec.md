@@ -402,7 +402,7 @@ later from its own menu. (C-6)
   Both path it is also reachable later from the public version (owner only, "See my copy").
 - **FR-042**: When the cook edits the written steps in the review, the two-way fact check MUST re-run on the server at
   "Publish", against the facts snapshot taken at import (the job's own copy, which also serves the "For everyone" path
-  where no private copy exists). The server never trusts a verdict from the client. Each missing fact or ingredient name shows as a flag (`flag.*`). Publish
+  where no private copy exists). The server never trusts a verdict from the client. Each missing fact or ingredient name shows as a flag (`flag.*`). The `flag.allergen` flag keeps its key and checks the ingredient name only. Publish
   waits until each flag is resolved by an edit or by "Write it again". (C-9)
 - **FR-043**: The cook can change the title. The title then goes through the title check of FR-050.
 - **FR-044**: A cook with no slot left who reaches `review.notNow` on the "For everyone" path sees the reused `cancel`

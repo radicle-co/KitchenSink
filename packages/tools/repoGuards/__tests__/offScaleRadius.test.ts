@@ -80,6 +80,9 @@ describe('radius scale, every app', () => {
             'md:rounded-b-[calc(var(--radius-md)*2)]',
             'rounded-tl',
             'rounded-[calc(1px+2px)]',
+            'rounded-2xl!',
+            '!rounded-2xl',
+            'sm:rounded-[10px]!',
         ]) {
             expect(isOffScaleClass(token), token).toBe(true);
         }
@@ -97,6 +100,7 @@ describe('radius scale, every app', () => {
             'rounded-s-full',
             'roundedness',
             'text-rounded',
+            'rounded-lg!',
         ]) {
             expect(isOffScaleClass(token), token).toBe(false);
         }

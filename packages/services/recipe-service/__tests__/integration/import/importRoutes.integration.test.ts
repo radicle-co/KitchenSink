@@ -22,7 +22,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { Logger } from '@nestjs/common';
 
 import {
-    apiErrorSchema,
+    recipeApiErrorSchema,
     importFlaggedResponseSchema,
     importListResponseSchema,
     importPickResponseSchema,
@@ -422,7 +422,7 @@ describe('the body parser refuses with the published envelope', () => {
         );
 
         expect(status).toBe(413);
-        expect(apiErrorSchema.parse(json).code).toBe('PAYLOAD_TOO_LARGE');
+        expect(recipeApiErrorSchema.parse(json).code).toBe('PAYLOAD_TOO_LARGE');
         expect(imports.insertHeader).not.toHaveBeenCalled();
     });
 
@@ -446,7 +446,8 @@ describe('the body parser refuses with the published envelope', () => {
         warn.mockRestore();
 
         expect(response.status).toBe(400);
-        expect(apiErrorSchema.parse(JSON.parse(text)).code).toBe('VALIDATION_FAILED');
+        // The service's OWN published schema, whose `VALIDATION_FAILED` arm requires `details.fields`.
+        expect(recipeApiErrorSchema.parse(JSON.parse(text)).code).toBe('VALIDATION_FAILED');
         expect(text).not.toContain('MARKER');
         expect(logged.length).toBeGreaterThan(0);
         expect(logged.filter((line) => line.includes('MARKER'))).toEqual([]);
@@ -488,7 +489,7 @@ describe('the body parser refuses with the published envelope', () => {
         const text = await response.text();
 
         expect(response.status).toBe(415);
-        expect(apiErrorSchema.parse(JSON.parse(text)).code).toBe('UNSUPPORTED_MEDIA_TYPE');
+        expect(recipeApiErrorSchema.parse(JSON.parse(text)).code).toBe('UNSUPPORTED_MEDIA_TYPE');
         expect(text).not.toContain('MARKER-encoded-body');
         expect(imports.insertHeader).not.toHaveBeenCalled();
     });

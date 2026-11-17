@@ -98,6 +98,9 @@ const BASE_PASTE: IngredientsPasteView = {
     onOpen: undefined,
 };
 
+/** The instant the notices are read at: half an hour before the daily limit's reset below, on the same day. */
+const READ_AT = '2026-10-27T07:30:00.000Z';
+
 interface HarnessProps {
     readonly matching: PasteMatching;
     readonly offline?: boolean;
@@ -106,6 +109,7 @@ interface HarnessProps {
 
 const Harness: FC<HarnessProps> = ({ matching, offline = false, quota }) => {
     const presentation = usePasteMatchView({
+        now: READ_AT,
         matching,
         lineCount: VALUES.ingredients.length,
         keep: 'disk',
@@ -175,6 +179,7 @@ describe('the paste still matching (native)', () => {
     it('⛔ draws the lines already matched, then the lines still being read, each line once', () => {
         const Reading: FC = () => {
             const presentation = usePasteMatchView({
+                now: READ_AT,
                 matching: matchingOf([EGGS_BOUND]),
                 lineCount: VALUES.ingredients.length,
                 keep: 'tabSession',

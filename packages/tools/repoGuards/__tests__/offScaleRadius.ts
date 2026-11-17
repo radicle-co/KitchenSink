@@ -32,7 +32,7 @@ import path from 'node:path';
 
 import ts from 'typescript';
 
-import { appSourceModules, classTokensOf, parseModule, stringLikeTexts } from './appSources.js';
+import { appSourceModules, classTokensOf, parseModule, splitToken, stringLikeTexts } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
 import { isTamaguiStyledCall, tamaguiStyledNames, type StyledExportsOf } from './tamaguiElements.js';
 import { styleSiteFindings } from './tamaguiStyleSites.js';
@@ -72,8 +72,8 @@ export interface Offender {
  * @param token - One whitespace-free token.
  */
 export function isOffScaleClass(token: string): boolean {
-    const base = token.split(/:(?![^[]*\])/u).at(-1) ?? '';
-    const match = RADIUS_UTILITY.exec(base.replace(/^!/u, ''));
+    const { base } = splitToken(token);
+    const match = RADIUS_UTILITY.exec(base);
 
     if (match === null) {
         return false;

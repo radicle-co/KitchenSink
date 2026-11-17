@@ -80,9 +80,9 @@ caught by a disjoint check, redone clean), one depleted-strata screen (patched w
 
 The pinned artifact now ships as `@kitchensink/recipe-core/parsing/foodness-prompt` +
 `foodness-answer` (SHA `67fa4c10…` over the canonical structured serialization of system + turns), and
-two live runs were made THROUGH the shipped modules (`packages/shared/recipe-core/scripts/foodnessHoldoutRun.ts`):
+two live runs were made THROUGH the shipped modules (`packages/clients/bedrock/scripts/foodnessHoldoutRun.ts`):
 
-**1. Tolerance-band verification over the committed holdout** (`src/parsing/__fixtures__/foodnessHoldout.tsv`,
+**1. Tolerance-band verification over the committed holdout** (`packages/clients/bedrock/scripts/fixtures/foodnessHoldout.tsv`,
 10,002 words): overall **98.13%** (band ≥ 97.5% ✓), food-loss FN **9** (band ≤ 12 ✓), junk-pass FP 167,
 could-not-judge 11 (the reader's new consistency cross-check absorbing hedges), equipment/units/tricky/plain
 **100/100/100/100**. The shipped module reproduces the champion within the band — the ±0.13pt drift vs the

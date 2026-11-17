@@ -1,0 +1,8 @@
+{
+    "android": { "cpus": 5.5, "gib": 5.5 },
+    "iphone": { "cpus": 1, "gib": 2.1 },
+    "ipad": { "cpus": 1, "gib": 2.2 },
+    "macAndroid": { "cpus": 3, "gib": 5.8 },
+    "web": { "cpus": 0.75, "gib": 1.5 },
+    "webServer": { "cpus": 1, "gib": 0.75 }
+}

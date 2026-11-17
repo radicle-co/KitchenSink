@@ -635,7 +635,7 @@ export const importViewSchema = z.object({
     /** How many recipes the whole file holds. `counts.total` is how many have ARRIVED. */
     expectedTotal: z.number().int().positive(),
     /**
-     * The caller's bulk allowance now: what it is, how much of it the last day spent, and when the next unit frees (an ISO
+     * The caller's ONE import allowance now (every user-facing import counts against it, bulk and paste alike): what it is, how much of it the last day spent, and when the next unit frees (an ISO
      * instant), or `null` when nothing is spent. A paused import explains itself from this.
      *
      * ⛔ AN `advance` THAT REACHES THE ALLOWANCE ANSWERS `200`, NOT `429` (ADR-0072 §8 as amended). It does the work it can

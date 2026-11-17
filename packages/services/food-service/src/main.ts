@@ -18,7 +18,7 @@ import { CONTRACT_HASH as SCHEMA_PACKAGE_CONTRACT_HASH } from '@kitchensink/sche
 
 import { CONTRACT_HASH } from './contract/contractHash.js';
 import { assertContractHashesAgree } from './contract/contractSkew.js';
-import { corsPolicyFromEnv } from './config/cors.js';
+import { FOOD_HTTP_SETUP } from './config/httpSetup.js';
 import { settingFromEnv } from './config/env.schema.js';
 import { DrizzleProvider, type FoodDrizzle } from './database/database.module.js';
 import { verifyFoodSchemaCurrent } from './db/schemaCurrency.js';
@@ -49,15 +49,11 @@ async function bootstrap(): Promise<void> {
     // in the shared `kitchensink-log-drain` (ADR-0042), and `info`/`warn` keep reaching CloudWatch — which
     // is the half its predecessor in identity got wrong, writing nothing to stdout and therefore DELETING
     // every line on any run with no DSN.
-    const app = await NestFactory.create(AppModule, { logger: new NestRoutedLogger() });
+    const app = await NestFactory.create(AppModule, FOOD_HTTP_SETUP.nestOptions({ logger: new NestRoutedLogger() }));
 
-    // The browser boundary (plan 002 S4, ADR-0047). The allowlist IS the Clerk `azp` boundary the token check uses,
-    // per stage, and it denies when nothing is configured. Installed before `listen`, so no request is served
-    // without it, and the live mode is logged so the posture can be read off a deployed task.
-    const cors = corsPolicyFromEnv();
-
-    app.enableCors(cors.options);
-    new Logger('bootstrap').log(`CORS origin mode: ${cors.mode}`);
+    // CORS, then the JSON parser, then the refusal link, in that order (`config/httpSetup.ts`). The CORS allowlist
+    // is the Clerk `azp` boundary (plan 002 S4, ADR-0047). Installed before `listen`, so no request is served without it.
+    FOOD_HTTP_SETUP.configure(app);
 
     // DRIFT LAYER 4 (Schema) — is the database this process is about to serve from actually current for this
     // release? The pipeline migrates ahead of this deploy (ADR-0035), so on the ordinary release path this

@@ -32,7 +32,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-import { appSourceModules, classTokensOf, parseModule, stringLikeTexts } from './appSources.js';
+import { appSourceModules, classTokensOf, parseModule, splitToken, stringLikeTexts } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
 
 /** The directory that owns the recipe, and so may write the tokens. */
@@ -52,13 +52,6 @@ const PRESS_ROLE = /^bg-press-/u;
 
 /** An ink-alpha background: `bg-ink/6`, `bg-ink-muted/10`, `bg-ink/[0.06]`. */
 const INK_ALPHA = /^bg-ink(?:-muted)?\/(?:\d+(?:\.\d+)?|\[[^\]\s]+\])$/u;
-
-/** A token split into its variant chain and its utility (`md:hover:bg-ink/6`). */
-function splitToken(token: string): { readonly variants: readonly string[]; readonly base: string } {
-    const parts = token.split(/:(?![^[]*\])/u);
-
-    return { variants: parts.slice(0, -1), base: (parts.at(-1) ?? '').replace(/^!/u, '') };
-}
 
 /**
  * Whether a class token is a hand-written press fill. Pure.
@@ -228,6 +221,8 @@ describe('the hand-written press fill reader', () => {
             source: `const c = 'bg-press-paper-overlay';`,
             found: ['bg-press-paper-overlay'],
         },
+        { shape: 'a suffix important ink wash', source: `const c = 'hover:bg-ink/6!';`, found: ['hover:bg-ink/6!'] },
+        { shape: 'a prefix important ink wash', source: `const c = 'hover:!bg-ink/6';`, found: ['hover:!bg-ink/6'] },
         { shape: 'a bare ink wash', source: `const c = 'bg-ink/6';`, found: ['bg-ink/6'] },
         { shape: 'a hover ink wash', source: `const c = 'flex hover:bg-ink/6 gap-2';`, found: ['hover:bg-ink/6'] },
         { shape: 'an ink-muted wash', source: `const c = 'hover:bg-ink-muted/10';`, found: ['hover:bg-ink-muted/10'] },

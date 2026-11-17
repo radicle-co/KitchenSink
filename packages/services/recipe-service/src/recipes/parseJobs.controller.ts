@@ -67,7 +67,7 @@ export class ParseJobsController {
     /**
      * `POST /api/v1/recipe-parse-jobs` — accept a pasted block; parsing continues asynchronously.
      *
-     * Spends one unit of the caller's daily import allowance (004 FR-022); a spent allowance is `429
+     * Spends one unit of the caller's ONE import allowance, shared with bulk import (004 FR-022, FR-067); a spent allowance is `429
      * IMPORT_QUOTA_EXCEEDED` with `details.resetsAt` and creates nothing.
      */
     @Post()
@@ -81,7 +81,7 @@ export class ParseJobsController {
         return this.matchView.decorate(
             actingPrincipalOf(principal),
             caller,
-            await this.parseJobsService.create(principal.userId, body.text),
+            await this.parseJobsService.create(principal, body.text),
         );
     }
 

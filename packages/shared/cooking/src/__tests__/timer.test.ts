@@ -377,7 +377,13 @@ describe('cancel and restore (Undo)', () => {
 
         expect(timerOf(kept, 't2')?.ordinal).toBe(2);
 
-        const intruder = { ...(timerOf(three, 't3') as ActiveTimer), id: 'x', ordinal: 2 };
+        const third = three.timers[2];
+
+        if (third === undefined) {
+            throw new Error('many(3) builds three timers');
+        }
+
+        const intruder = { ...third, id: 'x', ordinal: 2 };
         const taken: TimerState = { timers: [...cancelled.timers, intruder], undo: cancelled.undo };
         const renumbered = reduceTimer(taken, { kind: 'restore', limit: 10, nowMs: 6 * SECOND }).state;
 

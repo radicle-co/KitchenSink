@@ -18,7 +18,7 @@
  *     are the pure reducer's (State + Command)
  */
 import { useContext, useEffect, useState, type FC } from 'react';
-import { AccessibilityInfo, Dimensions, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { keyboardOverlap } from '../keyboardAvoider/keyboardOverlap.js';
@@ -36,19 +36,22 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
     const queue = useSnackbarQueue();
     const readInsets = useContext(PopupInsetsContext);
     const [foot, setFoot] = useState(SNACKBAR_GAP);
-    const keyboard = useKeyboardFrame();
+    const { current } = queue;
+    // The keyboard is read only while a snackbar shows, so the shared listeners are released the rest of the time.
+    const keyboard = useKeyboardFrame(current !== null);
     const navigationBar = useSafeAreaInsets().bottom;
-    // The overlay is window-high and edge to edge, so its foot is the screen's, and the keyboard covers what the one lift rule
-    // says (`KeyboardLift`): the keyboard's height plus the navigation bar at most, because Android's height leaves that bar out.
+    // The overlay fills the window, so its foot is the window's, which follows rotation and split screen. The keyboard's top
+    // is in display coordinates, and an edge-to-edge window starts at the display's top, so the two agree with nothing added.
+    // The keyboard covers what the one lift rule says (`KeyboardLift`): its height plus the navigation bar at most, because
+    // Android's height leaves that bar out.
     const lift = keyboardOverlap(
-        Dimensions.get('screen').height,
+        useWindowDimensions().height,
         keyboard?.top ?? null,
         (keyboard?.height ?? 0) + navigationBar,
     );
     const bottom = keyboard === null ? foot : Math.max(foot, lift + SNACKBAR_GAP);
     const [screenReader, setScreenReader] = useState(false);
     const [regionHeight, setRegionHeight] = useState(0);
-    const { current } = queue;
     const action = current?.input.action;
     const currentId = current?.id;
 

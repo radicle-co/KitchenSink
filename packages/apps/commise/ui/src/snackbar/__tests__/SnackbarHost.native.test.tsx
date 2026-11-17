@@ -211,6 +211,70 @@ describe('SnackbarHost (native)', () => {
         expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('964px');
     });
 
+    /** The window and the screen apart, as in split screen: the lift is judged against the WINDOW the overlay fills. */
+    const sizeWindow = (window: number, screenHeight: number): void => {
+        vi.spyOn(Dimensions, 'get').mockImplementation((dimension) => ({
+            width: 400,
+            height: dimension === 'window' ? window : screenHeight,
+            scale: 1,
+            fontScale: 1,
+        }));
+    };
+
+    it('rises against the window the overlay fills, not the whole screen (split screen, rotation)', () => {
+        sizeWindow(1200, 2400);
+        render(
+            <PopupInsetsContext value={() => ({ top: 0, bottom: 80 })}>
+                <SnackbarHost>
+                    <Screen input={{ message: 'Source removed.' }} />
+                </SnackbarHost>
+            </PopupInsetsContext>,
+        );
+
+        showFrom('Source removed.');
+        // The keyboard starts at 700 in a window 1200 high: it covers 500 of it, and 16 above that.
+        act(() => keyboard.emit('keyboardDidShow', { screenY: 700, height: 500 }));
+
+        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('516px');
+    });
+
+    it('takes the keyboard’s top as it is under edge-to-edge, with no status-bar offset (the window starts at the screen’s top)', () => {
+        sizeWindow(2400, 2400);
+        render(
+            <PopupInsetsContext value={() => ({ top: 0, bottom: 80 })}>
+                <SnackbarHost>
+                    <Screen input={{ message: 'Source removed.' }} />
+                </SnackbarHost>
+            </PopupInsetsContext>,
+        );
+
+        showFrom('Source removed.');
+        // The mocked status bar is 24 high. Android reports the top of the keyboard in display coordinates, and an
+        // edge-to-edge window starts at the display's top, so 2400 - 1500 = 900 is covered, with nothing added or taken away.
+        act(() => keyboard.emit('keyboardDidShow', { screenY: 1500, height: 900 }));
+
+        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('916px');
+    });
+
+    it('listens for the keyboard only while a snackbar shows, and lets go when it is gone', () => {
+        render(
+            <SnackbarHost>
+                <Screen input={{ message: 'Source removed.' }} />
+            </SnackbarHost>,
+        );
+
+        expect(keyboard.added).toEqual([]);
+
+        showFrom('Source removed.');
+
+        expect(keyboard.added.length).toBeGreaterThan(0);
+        expect(keyboard.removed()).toBe(0);
+
+        advance(6000);
+
+        expect(keyboard.removed()).toBe(keyboard.added.length);
+    });
+
     it('drops back to the chrome when the keyboard closes', () => {
         vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 400, height: 2400, scale: 1, fontScale: 1 });
         render(

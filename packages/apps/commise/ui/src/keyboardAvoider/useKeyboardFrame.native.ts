@@ -10,11 +10,21 @@ import { useSyncExternalStore } from 'react';
 
 import { keyboardFrameSnapshot, subscribeToKeyboard, type KeyboardFrame } from '../layout/useKeyboardShown.native.js';
 
+/** A reader that is switched off holds no listener and sees no keyboard. */
+const noSubscription = (): (() => void) => () => undefined;
+const noFrame = (): null => null;
+
 /**
  * The keyboard's frame, or `null` while none is up.
  *
- * @sideEffect Listens for keyboard show and hide events while mounted.
+ * @param active - Whether to read at all. A reader that is off adds no listener, so a host that is always mounted but needs
+ *     the keyboard only now and then does not keep the shared listeners alive for the life of the app. Defaults to on.
+ * @sideEffect Listens for keyboard show and hide events while mounted and active.
  */
-export function useKeyboardFrame(): KeyboardFrame | null {
-    return useSyncExternalStore(subscribeToKeyboard, keyboardFrameSnapshot, keyboardFrameSnapshot);
+export function useKeyboardFrame(active = true): KeyboardFrame | null {
+    return useSyncExternalStore(
+        active ? subscribeToKeyboard : noSubscription,
+        active ? keyboardFrameSnapshot : noFrame,
+        active ? keyboardFrameSnapshot : noFrame,
+    );
 }

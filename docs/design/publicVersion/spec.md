@@ -557,7 +557,7 @@ None of our own. Pushes, the dialog and the sheet use the platform's transitions
 - **No slot left and a public version possible.** `publicOnly` (B4), never a dead end.
 - **The offer changes between read and press.** `409 offerChanged` (B8).
 - **Another device publishes first.** `409 publicExists`: the area re-renders as `publicExists.published`.
-- **Retry at 3 attempts.** `409 attemptsUsed`: the client refetches the job and re-renders from its state and attempts. At 3 attempts the screens hide `wizard.retry` and `flag.rewrite` and show `blocked.bodyFinal` or `blocked.bodyFinalBoth` where blocked, and the failed Final variants where failed: `failed.titleFinal` with `failed.bodyFinal` and `review.notNow` on the public path, `failed.bodyFinalBoth` and `failed.done` on the Both path (B8).
+- **Retry at 3 attempts.** `409 attemptsUsed`: the client refetches the job and re-renders from its state and attempts. The public path's private exit (`review.notNow`, `button.private`) calls the keepPrivate route, and with no free slot shows the reused `cancel`. At 3 attempts the screens hide `wizard.retry` and `flag.rewrite` and show `blocked.bodyFinal` or `blocked.bodyFinalBoth` where blocked, and the failed Final variants where failed: `failed.titleFinal` with `failed.bodyFinal` and `review.notNow` on the public path, `failed.bodyFinalBoth` and `failed.done` on the Both path (B8).
 - **The private copy changes during writing (Both).** `409 privateCopyChanged` at Publish: `flag.fix` with "Write it
   again".
 - **Under 16 learned at the age question.** "Not now" publishes nothing. The cook can still keep a private copy from P8

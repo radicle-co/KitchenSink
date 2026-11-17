@@ -382,13 +382,13 @@ later from its own menu. (C-6)
   is a resting state while fewer than 3 attempts are used: "Try again" calls the retry route and makes a third
   attempt. After the third attempt a refusal is final. A resting `checkRefused` expires to `cancelled` after 24
   hours. A job that ends `failed` (FR-082) rests the same way: "Try again" while fewer than 3 attempts are used, then
-  `cancelled` after 24 hours, and final at 3 attempts. Cancel (`button.private` on the "For everyone" path, `review.notNow` at 3 attempts there, `failed.done` on the Both path) is accepted from
+  `cancelled` after 24 hours, and final at 3 attempts. The "For everyone" path's private exit (`button.private`, or `review.notNow` at 3 attempts) is the keepPrivate route of the contract. On the Both path `failed.done` calls cancel, which is accepted from
   `checkRefused` and `failed`. Attempts carry over a retry and no allowance unit is spent. At 3 attempts the client
   hides `wizard.retry` and `flag.rewrite` and shows the Final variants. The failed screen shows `failed.titleFinal` with
   `failed.bodyFinal` and the private exit `review.notNow` on the public path, so the cook's recipe is not lost without
   warning, and `failed.titleFinal` with `failed.bodyFinalBoth` and `failed.done` on the Both path, where the copy is
   already saved. The blocked state shows `blocked.bodyFinal` (`blocked.bodyFinalBoth` on the Both path) with the path's
-  not-now key only. The item draft's life at a final state is FR-033's. On `409 attemptsUsed` the client refetches the job. (C-7)
+  not-now key only. The item draft's life is FR-033's. On `409 attemptsUsed` the client refetches the job. (C-7)
 - **FR-032**: The public version MUST hold these parts, and no photo from the source:
     - the written steps.
     - a descriptive title built by code from the facts sheet (the main foods), with no model call. It
@@ -399,15 +399,13 @@ later from its own menu. (C-6)
     It MUST NOT carry the
     source's notes, tips or description. (C-8)
 
-- **FR-033**: On the "For everyone" path the pasted step text MUST be kept only in the job's `source_steps` and in the
-  import item's draft, so a retry sends the writer the same text. The job's own text (`facts_snapshot`, `source_steps`
-  and `output`) MUST be cleared in one UPDATE on entering a final state (`published`, `cancelled`, `budgetSpent`, or
-  `failed` or `checkRefused` at 3 attempts) and on cancel. The item's draft step text MUST be cleared in the same
-  transaction on `published`, `cancelled` and `budgetSpent`. At a final `failed` or `checkRefused` the draft stays, to
-  serve "Show my copy" and the cook's exit that saves a private copy, until the first of two events: the cook's exit
-  (cancel), or the 24-hour expiry of that state to `cancelled`. Either clears the draft in its own transaction. A job
-  lives about 73 hours at most (3 attempts, each a 10-minute window plus a 24-hour rest or grace), inside ADR-0072's 30
-  days. Only the source record of FR-080 stays.
+- **FR-033**: On the "For everyone" path the pasted step text MUST be kept in two places only: the job's
+  `source_steps`, so a retry sends the writer the same text, and the import item's draft. The job's text
+  (`facts_snapshot`, `source_steps` and `output`) MUST be cleared in one UPDATE at every final state and on cancel. The
+  item's draft step text MUST clear only on Publish, on keepPrivate, on cancel, or in the scheduled sweep, which clears
+  the draft of a finished public-path job 24 hours after its `state_changed_at`. So pasted text lives about 3 days after
+  the cook's last action (3 × (24 hours + 10 minutes) + 15 minutes), inside ADR-0072's 30 days. Only the source record
+  of FR-080 stays.
 - **FR-034**: A source page MUST have at most one Commise-written public version at a time (ADR-0093 §2). The page is
   its normalised source address (`sourceLinkKey`, `004`). A retry or a second device of the same cook MUST return the
   same version. A later cook who chooses "For everyone" or "Both" while one holds the page is shown it (`publicExists.published`,
@@ -445,8 +443,10 @@ later from its own menu. (C-6)
   waits until each flag is resolved by an edit or by "Write it again", which calls the retry route and returns the
   job to `pending` (data-model "State transitions"). (C-9)
 - **FR-043**: The cook can change the title. The title then goes through the title check of FR-050.
-- **FR-044**: A cook with no slot left who reaches `review.notNow` on the "For everyone" path sees the reused `cancel`
-  instead of "Keep it just for me".
+- **FR-044**: A cook with no slot left who reaches the private exit on the "For everyone" path sees the reused `cancel`
+  instead of "Keep it just for me". The private exit is `review.notNow`, `button.private` on the failed and budget
+  screens, and `review.notNow` on the failed and blocked-final screens at 3 attempts. All of them call keepPrivate, which
+  answers `403 PRIVATE_SLOTS_FULL` with no free slot and changes nothing.
 - **FR-045**: On the Both path the private copy can change between the writing and "Publish". Publish MUST then be
   refused with `409 privateCopyChanged` and "Write it again" (`flag.rewrite`). That retry rebuilds the job's facts
   snapshot and private digest from the changed private copy before the job re-enters `pending`. The wording
@@ -767,7 +767,8 @@ Still owed:
   wording settled 2026-11-17 (research R8).
 - **C-24. Does making a public version cost an allowance unit?** Ruled 2026-11-17: no unit is spent. Making a public
   version is part of the original import, in the same import and on the later "Share a public version" route. The
-  import's own unit and every existing import limit stay unchanged.
+  import's own unit and every existing import limit stay unchanged: the paste's unit was spent when its extraction
+  succeeded (`004-FR-061`, an interim rule awaiting an owner ruling), and keepPrivate charges nothing.
 - **C-25. How long may a writer job run?** Assumed: 10 minutes in `pending` or `writing`, counted from when it last entered that state, then it ends `failed`. Owner to confirm.
 - **C-26. Key custody for the wording fingerprint?** Assumed: a secret in AWS Secrets Manager under this feature's
   custody, with rotation that keeps old versions readable. A save with an old key version re-checks with that key.

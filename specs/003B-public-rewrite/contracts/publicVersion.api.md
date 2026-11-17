@@ -143,10 +143,22 @@ fewer than 3 attempts are used. Attempts carry over and no allowance unit is spe
 ## Cancel
 
 `POST /api/v1/public-version-jobs/{jobId}/cancel` → `200 { state: 'cancelled' }`. Idempotent. It is accepted from
-`pending`, `writing`, `ready`, `checkRefused` and `failed` (the failed screen's "Done" and "Save my copy", and `review.notNow` at 3 attempts), and it clears
+`pending`, `writing`, `ready`, `checkRefused` and `failed` (`failed.done` on the Both path), and it clears
 `facts_snapshot`, `source_steps` and `output` in the same UPDATE, and the item's draft step text in the same transaction
-(FR-033). Open, owed to a `staff-architect` ruling: which route saves the private copy from the item's draft on
-`review.notNow` and `button.private`, and in which transaction relative to this clear.
+(FR-033). The "For everyone" path's private exit does not use this route: it uses keepPrivate below.
+
+## Keep a private copy
+
+`POST /api/v1/public-version-jobs/{jobId}/keepPrivate` → `201 { recipeId }`, and a replay answers `200` with the same
+`recipeId`. It serves `review.notNow`, `button.private` and the private exit of the failed and blocked-final screens on
+the public-only path (the job has an import item and no private copy). Any other job answers `409 { code: 'notKeepable' }`.
+
+- One transaction: the DD33 lock, save the item's draft as a private recipe with FR-021's wording, record the recipe id
+  on the item, cancel the job (a `failed`, `checkRefused` or `budgetSpent` job keeps its state), and set
+  `source_steps`, `facts_snapshot`, `output` and the draft step text to NULL.
+- It charges no allowance unit: the paste's unit was spent when its extraction succeeded (`004-FR-061`, an interim rule awaiting an owner ruling).
+- With no free slot it answers `403 { code: 'PRIVATE_SLOTS_FULL', used, limit }` and changes nothing.
+- A Publish racing it ends one way: the loser answers its own conflict and writes nothing.
 
 ## Recipe writes
 

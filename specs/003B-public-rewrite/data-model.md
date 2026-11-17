@@ -57,7 +57,7 @@ Indexes:
 
 Every expiry counts from `state_changed_at`, so a retry starts a fresh window. A job expires lazily, in the data layer, in the same transaction before an insert and again on every read: a job in
 `pending` or `writing` for more than 10 minutes becomes `failed`, and a job in `ready` for more than 24 hours becomes
-`cancelled`, and so is a `checkRefused` or `failed` job after 24 hours, resting (fewer than 3 attempts) or final (3 attempts). A job lives about 73 hours at most (3 attempts, each a 10-minute window plus a 24-hour rest), inside the 30 days of ADR-0072, which is how long `source_steps` can live. No timer process is needed, and a job nobody reads cannot hold its page key past the next insert for that page.
+`cancelled`, and so is a `checkRefused` or `failed` job after 24 hours, resting (fewer than 3 attempts) or final (3 attempts). A sweep on the band drain's existing 15-minute tick (`bandDrain.ts` in recipe-workers, beside `purgeFinishedImports` and the parse-job sweep) runs the same expiry function the reads use, and also clears the import item's draft step text of a finished public-path job 24 hours after its `state_changed_at`. It follows ADR-0072's purge rules: its own transaction, `FOR UPDATE SKIP LOCKED`, and it runs even if an earlier sweep failed. Every tick publishes the age of the oldest expired job with `Stage` (ADR-0062), and a behind alarm, `PublicVersionJobSweepBehindAlarm`, is styled like `BulkImportPurgeBehindAlarm`. It adds no Lambda, no schedule rule and no NAT consumer. So a job nobody reads cannot hold its page key or its text: the pasted text lives about 3 days after the cook's last action (3 × (24 hours + 10 minutes) + 15 minutes), inside the 30 days of ADR-0072.
 
 Finished jobs are deleted 7 days after `finished_at` by the existing retention sweeper. The table is user-keyed: add it
 to `erasureSweepCoverage` and to the test-principal purge.
@@ -80,8 +80,9 @@ checkRefused ──"Try again"───────────────▶ p
 checkRefused ──24 h (attempts < 3)───────▶ cancelled
 failed ──"Try again"────────────────────▶ pending         (attempts < 3)
 failed ──24 h (attempts < 3)─────────────▶ cancelled
-checkRefused|failed ──24 h (attempts = 3)────▶ cancelled        (clears the item draft; the job's own text is already cleared)
-checkRefused|failed ──cancel (button.private or, at 3 attempts, review.notNow on the For everyone path; failed.done on the Both path)──▶ cancelled
+checkRefused|failed ──24 h (attempts = 3)────▶ cancelled        (the job's own text is already cleared)
+checkRefused|failed ──cancel (failed.done, Both path)──▶ cancelled
+pending|writing|ready ──keepPrivate (For everyone path only)──▶ cancelled   (failed, checkRefused and budgetSpent keep their state; published answers 409 notKeepable)
 ```
 
 Rules:
@@ -101,7 +102,8 @@ Rules:
 - A Publish that answers `503 checkUnavailable` leaves the job `ready` and spends no attempt.
 - `facts_snapshot`, `source_steps` and `output` are cleared only on entering a terminal state: `published`,
   `cancelled`, `budgetSpent`, `failed` at 3 attempts, or `checkRefused` at 3 attempts. They are kept while "Write it
-  again" or "Try again" can still happen. The import item's draft step text follows FR-033: cleared in the same transaction on `published`, `cancelled` and `budgetSpent`, and at a final `failed` or `checkRefused` kept until the cook's cancel or the 24-hour expiry to `cancelled`, whichever comes first.
+  again" or "Try again" can still happen. The import item's draft step text follows FR-033: it clears only on Publish, keepPrivate, cancel or the sweep, while the job's text columns clear at a final state.
+- keepPrivate (`POST /api/v1/public-version-jobs/{jobId}/keepPrivate`) applies to the public-only path (`import_item_id` set, `private_recipe_id` NULL). One transaction: the DD33 lock, save the item's draft as a private recipe, record the recipe id on the item, cancel the job (a `failed`, `checkRefused` or `budgetSpent` job keeps its state), and set `source_steps`, `facts_snapshot`, `output` and the draft step text to NULL. It spends no allowance unit (the paste's unit was spent when its extraction succeeded, `004-FR-061`). With no free slot it rolls everything back (`403 PRIVATE_SLOTS_FULL`).
 - Every pair of states that this list does not name is refused.
 
 ## Columns on existing tables
@@ -140,7 +142,7 @@ row is written. Recipe-service holds no age data. `clerk-verify` parses the clai
 
 ## Source evidence retained
 
-ADR-0089 §6's evidence record holds no source steps. This feature keeps source step text only in `public_version_jobs.source_steps`, while the job lives (about 73 hours at most), so a retry sends the writer the same text. The source record keeps hashes only. Keys are never
+ADR-0089 §6's evidence record holds no source steps. This feature keeps source step text only in `public_version_jobs.source_steps`, while the job lives (about 3 days after the cook's last action), so a retry sends the writer the same text. The source record keeps hashes only. Keys are never
 deleted, so a missing key version is an operator fault. A later save then answers `503 checkUnavailable` and raises an
 alarm, and Publish answers the same `503`, leaving the job `ready` (FR-050a).
 

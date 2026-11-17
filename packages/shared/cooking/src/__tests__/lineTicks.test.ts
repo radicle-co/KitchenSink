@@ -6,12 +6,13 @@ import {
     allLinesTicked,
     createLineTicks,
     focusLineIndex,
+    focusLineOf,
     isLineTicked,
     tickLine,
     tickedLineCount,
     untickLine,
 } from '../lineTicks.js';
-import type { LineTicks } from '../lineTicks.js';
+import type { LineTicks, TappedLine } from '../lineTicks.js';
 import { makeCookingSteps } from '../__fixtures__/cookingSteps.js';
 
 /**
@@ -262,5 +263,112 @@ describe('lineTicks — properties', () => {
                 expect(ticks.ticked).toHaveLength(model.size);
             }),
         );
+    });
+});
+
+/**
+ * `focusLineOf` (plan 0008 KTD1, AE3's rule rows): the line the cook tapped is the focus only while four facts hold, and
+ * is derived, never cleared. Any other state falls back to S1's first unticked line. The step's digest is the kept
+ * store's (ADR-0094 section 9), handed in by the caller, so there is one meaning of "step digest".
+ *
+ * Steps 0 to 2 have three lines each. The cook is on step 1 with lines A (0), B (1) and C (2) unticked, and taps C.
+ */
+describe('focusLineOf', () => {
+    const DIGEST = 's1:aaaaaaaa';
+    const tappedC: TappedLine = { stepIndex: 1, stepDigest: DIGEST, lineIndex: 2, tickedAtTap: [] };
+
+    const focus = (overrides: {
+        readonly ticks?: LineTicks;
+        readonly stepIndex?: number;
+        readonly stepDigest?: string;
+        readonly tapped?: TappedLine | null;
+    }): number | null =>
+        focusLineOf({
+            ticks: overrides.ticks ?? ticksOf(),
+            stepIndex: overrides.stepIndex ?? 1,
+            steps: STEPS,
+            stepDigest: overrides.stepDigest ?? DIGEST,
+            tapped: overrides.tapped === undefined ? tappedC : overrides.tapped,
+        });
+
+    it('is the tapped line while nothing changed', () => {
+        expect(focus({})).toBe(2);
+    });
+
+    it('is the first unticked line when nothing was tapped, for every tick state of the step (no S1 regression)', () => {
+        const states: readonly LineTicks[] = [
+            ticksOf(),
+            ticksOf([1, 0]),
+            ticksOf([1, 1]),
+            ticksOf([1, 0], [1, 1]),
+            ticksOf([1, 0], [1, 1], [1, 2]),
+            ticksOf([0, 0], [2, 1]),
+        ];
+
+        for (const ticks of states) {
+            expect(focus({ ticks, tapped: null })).toBe(focusLineIndex(ticks, 1, STEPS));
+        }
+    });
+
+    it('goes back to the first unticked line when the tapped line is ticked', () => {
+        expect(focus({ ticks: ticksOf([1, 2]) })).toBe(0);
+    });
+
+    it('goes back when another source ticked a different line of the step (the ticked set moved)', () => {
+        expect(focus({ ticks: ticksOf([1, 1]) })).toBe(0);
+    });
+
+    it('goes back when the step text changed: the digest differs (mutant: the tap is kept by index)', () => {
+        expect(focus({ stepDigest: 's1:bbbbbbbb' })).toBe(0);
+    });
+
+    it('goes back when the session is on another step', () => {
+        expect(focus({ stepIndex: 0 })).toBe(0);
+        expect(focus({ stepIndex: 2 })).toBe(0);
+    });
+
+    it('goes back when the tapped line is past the end of the step after an edit', () => {
+        expect(focus({ tapped: { ...tappedC, lineIndex: 3 } })).toBe(0);
+        expect(focus({ tapped: { ...tappedC, lineIndex: -1 } })).toBe(0);
+    });
+
+    it('keeps the tap when only another step is ticked (a tick on step 0 or 2)', () => {
+        expect(focus({ ticks: ticksOf([0, 0], [2, 1]) })).toBe(2);
+    });
+
+    it('keeps the tap when the ticked set equals the one at the tap, whatever order it was ticked in', () => {
+        const tapped: TappedLine = { ...tappedC, tickedAtTap: [0, 1] };
+
+        expect(focus({ ticks: ticksOf([1, 1], [1, 0]), tapped })).toBe(2);
+        expect(focus({ ticks: ticksOf([1, 0], [1, 1]), tapped })).toBe(2);
+    });
+
+    it('with A ticked and B unticked, a tap on C holds, and unticking A ends it: the focus is A', () => {
+        const tapped: TappedLine = { ...tappedC, tickedAtTap: [0] };
+
+        expect(focus({ ticks: ticksOf([1, 0]), tapped })).toBe(2);
+        expect(focus({ ticks: ticksOf(), tapped })).toBe(0);
+    });
+
+    it('goes back when another source swapped one tick for another: same count, different lines', () => {
+        const tapped: TappedLine = { ...tappedC, tickedAtTap: [0] };
+
+        expect(focus({ ticks: ticksOf([1, 0]), tapped })).toBe(2);
+        expect(focus({ ticks: ticksOf([1, 1]), tapped })).toBe(0);
+    });
+
+    it('never makes a ticked line the focus, even for a tap whose record lists that line as ticked', () => {
+        const malformed: TappedLine = { ...tappedC, tickedAtTap: [2] };
+
+        expect(focus({ ticks: ticksOf([1, 2]), tapped: malformed })).toBe(0);
+    });
+
+    it('does not tick, untick or change anything it reads', () => {
+        const ticks = ticksOf([1, 0]);
+        const tapped: TappedLine = Object.freeze({ ...tappedC, tickedAtTap: Object.freeze([0]) });
+
+        focus({ ticks, tapped });
+
+        expect(ticks).toEqual(ticksOf([1, 0]));
     });
 });

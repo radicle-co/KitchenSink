@@ -124,3 +124,63 @@ export function tickedLineCount(ticks: LineTicks, stepIndex: number): number {
 export function allLinesTicked(ticks: LineTicks, stepIndex: number, steps: readonly CookingStep[]): boolean {
     return stepAt(steps, stepIndex).lines.length > 0 && focusLineIndex(ticks, stepIndex, steps) === null;
 }
+
+/**
+ * A line the cook tapped to make the focus, with the facts that were true at the tap. It is screen state, never stored.
+ */
+export interface TappedLine {
+    readonly stepIndex: number;
+    /** The kept store's digest of the step's text at the tap (ADR-0094 section 9), the same source `focusLineOf` is given. */
+    readonly stepDigest: string;
+    readonly lineIndex: number;
+    /** This step's ticked line indexes at the tap, in any order. */
+    readonly tickedAtTap: readonly number[];
+}
+
+/** What {@link focusLineOf} decides the focus line from. */
+export interface FocusLineInput {
+    readonly ticks: LineTicks;
+    /** The session's step. */
+    readonly stepIndex: number;
+    readonly steps: readonly CookingStep[];
+    /** The kept store's digest of the session step's text now. */
+    readonly stepDigest: string;
+    /** The cook's tap, or `null` when there is none. */
+    readonly tapped: TappedLine | null;
+}
+
+const sameLineSet = (tickedNow: readonly number[], tickedAtTap: readonly number[]): boolean =>
+    new Set(tickedAtTap).size === tickedNow.length && tickedNow.every((line) => tickedAtTap.includes(line));
+
+/**
+ * The focus line of the session's step. The tapped line is the focus only while all four facts hold: the session is on
+ * the step that was tapped, its text is unchanged (same digest), the line exists and is unticked, and the step's ticked
+ * set is the one at the tap, so a tick or untick from any source ends the tap. Otherwise it is S1's first unticked
+ * line, so S1's untick rule holds unchanged. Nothing is written: an invalid tap is simply never the answer.
+ *
+ * @param input - The ticks, the session step and its digest, and the tap.
+ * @returns The focus line's index, or `null` when every line is ticked or the step has none. Pure.
+ * @throws {InvalidTotalStepsError} When the recipe has no steps.
+ * @throws {InvalidStepIndexError} When `stepIndex` is not an index of `steps`.
+ */
+export function focusLineOf({ ticks, stepIndex, steps, stepDigest, tapped }: FocusLineInput): number | null {
+    const lineCount = stepAt(steps, stepIndex).lines.length;
+
+    if (
+        tapped !== null &&
+        tapped.stepIndex === stepIndex &&
+        tapped.stepDigest === stepDigest &&
+        Number.isInteger(tapped.lineIndex) &&
+        tapped.lineIndex >= 0 &&
+        tapped.lineIndex < lineCount &&
+        !isLineTicked(ticks, { stepIndex, lineIndex: tapped.lineIndex }) &&
+        sameLineSet(
+            ticks.ticked.filter((key) => key.stepIndex === stepIndex).map((key) => key.lineIndex),
+            tapped.tickedAtTap,
+        )
+    ) {
+        return tapped.lineIndex;
+    }
+
+    return focusLineIndex(ticks, stepIndex, steps);
+}

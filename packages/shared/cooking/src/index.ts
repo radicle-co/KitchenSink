@@ -40,12 +40,13 @@ export {
     allLinesTicked,
     createLineTicks,
     focusLineIndex,
+    focusLineOf,
     isLineTicked,
     tickedLineCount,
     tickLine,
     untickLine,
 } from './lineTicks.js';
-export type { LineKey, LineTicks } from './lineTicks.js';
+export type { FocusLineInput, LineKey, LineTicks, TappedLine } from './lineTicks.js';
 
 // ── The timer: one reducer over a list, and the reader of a step's duration ──
 export {

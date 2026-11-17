@@ -1,0 +1,95 @@
+import { resolveMessages } from '@commise/i18n';
+import {
+    NO_TIMER,
+    TIMER_LIMIT,
+    cookingStepsOf,
+    createLineTicks,
+    reduceTimer,
+    tickLine,
+    type TimerCommand,
+    type TimerState,
+} from '@kitchensink/cooking-core';
+import { describe, expect, it } from 'vitest';
+
+import { allStepsRowCopyOf, allStepsRowsOf } from '../../src/allSteps';
+import { cookingMessages } from '../../src/messages';
+
+/**
+ * All steps over the real reducers (plan 0008 AE2): the timer list is built by running `reduceTimer` commands, not
+ * hand-made, the ticks by `tickLine` over steps the real splitter made, and the words come from the real resolved
+ * `en` copy. Only the five-step AE2 session is stated here, as the cook would have walked it.
+ */
+
+const en = resolveMessages(cookingMessages, 'en').allSteps;
+const RECIPE = 'rec_1';
+const SECOND = 1_000;
+const MINUTE = 60 * SECOND;
+
+const STEPS = cookingStepsOf([
+    { stepNumber: 1, instruction: 'Heat the oil.' },
+    { stepNumber: 2, instruction: 'Add the onion. Stir well.' },
+    { stepNumber: 3, instruction: 'Add the stock. Simmer it. Skim it. Season it.' },
+    { stepNumber: 4, instruction: 'Rest it. Slice it.' },
+    { stepNumber: 5, instruction: 'Plate it. Garnish it. Serve it.' },
+]);
+
+const start = (id: string, stepIndex: number, durationMs: number, nowMs: number): TimerCommand => ({
+    kind: 'start',
+    id,
+    recipeId: RECIPE,
+    stepIndex,
+    stepDigest: `s1:0000000${String(stepIndex)}`,
+    name: undefined,
+    durationMs,
+    limit: 10,
+    nowMs,
+});
+
+const run = (commands: readonly TimerCommand[]): TimerState =>
+    commands.reduce<TimerState>((state, command) => reduceTimer(state, command).state, NO_TIMER);
+
+const ticks = [
+    [2, 0],
+    [2, 1],
+    [3, 0],
+    [3, 1],
+    [4, 0],
+].reduce(
+    (state, [stepIndex, lineIndex]) => tickLine(state, { stepIndex: stepIndex ?? 0, lineIndex: lineIndex ?? 0 }, STEPS),
+    createLineTicks(),
+);
+
+describe('All steps over the real reducers', () => {
+    it('reads AE2: Done, Done, Now, All lines ticked and 2 lines left, with step 2 holding a done and a paused timer', () => {
+        expect(TIMER_LIMIT).toBeGreaterThanOrEqual(1);
+
+        // Step 2 (index 1) has two timers: a 1-minute one that rings and a 10-minute one the cook paused. Step 3
+        // (index 2) has one running.
+        const timers = run([
+            start('a', 1, MINUTE, 0),
+            start('b', 1, 10 * MINUTE, 0),
+            { kind: 'pause', id: 'b', nowMs: 10 * SECOND },
+            start('c', 2, 20 * MINUTE, 0),
+            { kind: 'ring', nowMs: 2 * MINUTE },
+        ]);
+        const rows = allStepsRowsOf({
+            steps: STEPS,
+            stepIndex: 2,
+            marks: [0, 1],
+            lineTicks: ticks,
+            timers,
+            recipeId: RECIPE,
+        });
+        const copy = rows.map((row) => allStepsRowCopyOf(row, en, 'en'));
+
+        expect(copy.map((row) => row.mark)).toEqual(['Done', 'Done', 'Now', 'All lines ticked', '2 lines left']);
+        expect(copy[1]?.timers).toBe('Timer done · Timer paused');
+        expect(copy.map((row) => row.timers)).toEqual([
+            undefined,
+            'Timer done · Timer paused',
+            'Timer running',
+            undefined,
+            undefined,
+        ]);
+    });
+});

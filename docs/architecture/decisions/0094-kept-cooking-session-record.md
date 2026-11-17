@@ -44,8 +44,9 @@ timers need no format change. The one-timer limit and the numbering and step rul
 `reduceTimer`, not to the record. A later format change bumps `v` and adds a migration.
 
 Finishing a recipe removes its entry and keeps its timers. Starting a session over an existing cooking entry writes
-nothing and joins it at that step. Ending a session keeps a snapshot in memory for Undo, and nothing of that snapshot is
-stored.
+nothing and joins it at that step. `snapshotForEnd` captures what ending a session removes, and `restoreSession` brings
+it back for Undo. The caller holds the snapshot in memory, and nothing of it is stored. The wiring is built with the
+session UI.
 
 ### 3. The port and the write outcome
 

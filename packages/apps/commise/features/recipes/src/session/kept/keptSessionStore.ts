@@ -87,8 +87,8 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
      * Commands applied in memory while storage could not be read (so nothing was written), each with the instant the
      * cook made it: a pause or a last-touch replayed later must keep the time the cook acted, not the replay time. The
      * next successful locked dispatch replays them on top of what storage then holds, so a change made during a
-     * transient failure is not lost (ADR-0094 section 3). Dropped on sign-out and on a change of cook, so it never reaches
-     * another record.
+     * transient failure is not lost (ADR-0094 section 3). Dropped on sign-out and on a change of cook, so it never
+     * reaches another record.
      */
     let unsaved: readonly UnsavedCommand[] = [];
     /** The last raw string this store read or wrote, so a re-read can tell a different record from the same one. */
@@ -303,7 +303,7 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
             // Storage is the truth. The one exception: our own write failed and nobody has written since, so storage
             // still holds the rev it held then (an absent or unreadable key is rev 0, and every real record is 1 or
             // more). Otherwise an absent key means empty, never memory, or a record another tab cleared would come back
-            // (ADR-0094 section 6).
+            // (ADR-0094 sections 3 and 6).
             const read = locked ? await attempt(() => port.read(key)) : undefined;
             const writable = read?.ok === true;
             const stored = read?.ok === true ? parseKeptDocument(read.value) : undefined;

@@ -153,7 +153,7 @@ describe('a recipe edited under a kept session (ADR-0094 section 9)', () => {
     });
 });
 
-describe('a write never brings back a cleared or newer record (ADR-0094 sections 3 and 4)', () => {
+describe('a write never brings back a cleared or newer record (ADR-0094 sections 3, 4 and 6)', () => {
     it('B clears, then A, still holding the old session in memory, ticks: nothing from before the clear returns (mutant: base is memory when the key is absent)', async () => {
         const { a, b, stored } = await twoTabs({ [KEY]: withSession });
 

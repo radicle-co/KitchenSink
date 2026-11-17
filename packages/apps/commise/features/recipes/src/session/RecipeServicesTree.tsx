@@ -60,7 +60,8 @@ export const RecipeServicesTree: FC<RecipeServicesTreeProps> = ({
     useQueue,
     children,
 }) => {
-    // Another cook's record is removed only once auth has resolved, and a sign-out removes them all (ADR-0094 section 5).
+    // Another cook's record is removed only once auth has resolved, and a sign-out removes them all (ADR-0094
+    // section 5).
     useKeptSessionScope(kept, subject);
     const cook = subject ?? undefined;
 

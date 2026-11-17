@@ -83,7 +83,7 @@ describe('page ticks', () => {
     });
 });
 
-describe('startSession (r4)', () => {
+describe('startSession', () => {
     it('makes a session at the page step with the page ticks and servings (mutant: the start resets ticks)', () => {
         const doc = makeDoc({ entries: { r1: makePage({ ticks: ['salt'], servings: 6, pageStep: step(3) }) } });
         const next = applied(run(doc, { type: 'startSession', recipeId: 'r1', step: step(3) }));
@@ -113,7 +113,7 @@ describe('startSession (r4)', () => {
     });
 });
 
-describe('the two "Start from step 1" commands ', () => {
+describe('the two "Start from step 1" commands', () => {
     const doc = makeDoc({
         entries: { r1: makeCooking({ step: step(3), ticks: ['butter'], marks: [step(1)] }) },
         timers: [makeTimer({ recipeId: 'r1' })],

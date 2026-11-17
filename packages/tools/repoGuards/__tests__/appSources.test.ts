@@ -98,22 +98,21 @@ describe('splitToken', () => {
         expect(splitToken('md:focus-visible:ring-2')).toEqual({
             variants: ['md', 'focus-visible'],
             base: 'ring-2',
-            important: false,
         });
-        expect(splitToken('flex')).toEqual({ variants: [], base: 'flex', important: false });
+        expect(splitToken('flex')).toEqual({ variants: [], base: 'flex' });
     });
 
-    it('reads Tailwind important modifier at either end, as a flag and not as part of the utility', () => {
-        expect(splitToken('!size-11')).toEqual({ variants: [], base: 'size-11', important: true });
-        expect(splitToken('size-11!')).toEqual({ variants: [], base: 'size-11', important: true });
-        expect(splitToken('md:ring-2!')).toEqual({ variants: ['md'], base: 'ring-2', important: true });
-        expect(splitToken('size-11')).toEqual({ variants: [], base: 'size-11', important: false });
-        expect(splitToken('md:!ring-2')).toEqual({ variants: ['md'], base: 'ring-2', important: true });
-        expect(splitToken("content-['hi!']")).toEqual({ variants: [], base: "content-['hi!']", important: false });
+    it('reads Tailwind important modifier at either end, and never as part of the utility', () => {
+        expect(splitToken('!size-11')).toEqual({ variants: [], base: 'size-11' });
+        expect(splitToken('size-11!')).toEqual({ variants: [], base: 'size-11' });
+        expect(splitToken('md:ring-2!')).toEqual({ variants: ['md'], base: 'ring-2' });
+        expect(splitToken('size-11')).toEqual({ variants: [], base: 'size-11' });
+        expect(splitToken('md:!ring-2')).toEqual({ variants: ['md'], base: 'ring-2' });
+        expect(splitToken("content-['hi!']")).toEqual({ variants: [], base: "content-['hi!']" });
     });
 
     it('does not split on a colon inside a bracketed variant or value', () => {
-        expect(splitToken('[&:hover]:size-11')).toEqual({ variants: ['[&:hover]'], base: 'size-11', important: false });
-        expect(splitToken('bg-[url(a:b)]')).toEqual({ variants: [], base: 'bg-[url(a:b)]', important: false });
+        expect(splitToken('[&:hover]:size-11')).toEqual({ variants: ['[&:hover]'], base: 'size-11' });
+        expect(splitToken('bg-[url(a:b)]')).toEqual({ variants: [], base: 'bg-[url(a:b)]' });
     });
 });

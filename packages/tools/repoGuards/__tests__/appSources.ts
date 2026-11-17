@@ -128,9 +128,9 @@ export function classTokensOf(text: string, openEnded: boolean): readonly string
 }
 
 /**
- * A class token split into its variant chain, its utility and whether it is important (`md:focus-visible:ring-2`).
+ * A class token split into its variant chain and its utility (`md:focus-visible:ring-2`).
  * A colon inside brackets belongs to the value or the variant, never a split (`[&:hover]:size-11`). Tailwind v4 writes
- * the important marker as a prefix (`!size-11`) or a suffix (`size-11!`); `base` never carries it. A `!` inside a
+ * the important marker as a prefix (`!size-11`) or a suffix (`size-11!`); `base` never carries either. A `!` inside a
  * bracketed value (`content-['hi!']`) is part of the value. Pure.
  *
  * @param token - One whitespace-free token.
@@ -138,11 +138,9 @@ export function classTokensOf(text: string, openEnded: boolean): readonly string
 export function splitToken(token: string): {
     readonly variants: readonly string[];
     readonly base: string;
-    readonly important: boolean;
 } {
     const parts = token.split(/:(?![^[]*\])/u);
-    const last = parts.at(-1) ?? '';
-    const base = last.replace(/^!|!$/gu, '');
+    const base = (parts.at(-1) ?? '').replace(/^!|!$/gu, '');
 
-    return { variants: parts.slice(0, -1), base, important: base !== last };
+    return { variants: parts.slice(0, -1), base };
 }

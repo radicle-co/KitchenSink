@@ -430,14 +430,20 @@ describe('readPastedContent', () => {
                 },
             );
 
-            it.each(['March 1, 2024', '2024-13-45', '', '2024-03-01 and more'])(
-                'leaves datePublished %j absent',
-                (date) => {
-                    expect(evidence(makePage({ jsonLd: [credited({ datePublished: date })] }))).not.toHaveProperty(
-                        'datePublished',
-                    );
-                },
-            );
+            it.each([
+                'March 1, 2024',
+                '2024-13-45',
+                '',
+                '2024-03-01 and more',
+                '2024-02-30',
+                '2024-01-01T99:99',
+                '2024-01-01T10:00+99:00',
+                '2024-01-01T23:60',
+            ])('leaves datePublished %j absent', (date) => {
+                expect(evidence(makePage({ jsonLd: [credited({ datePublished: date })] }))).not.toHaveProperty(
+                    'datePublished',
+                );
+            });
 
             it.each([
                 ['a TDMRep reservation', '<meta name="tdm-reservation" content="1">', true],

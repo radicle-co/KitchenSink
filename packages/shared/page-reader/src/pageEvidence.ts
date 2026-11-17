@@ -60,7 +60,8 @@ export interface PageEvidence extends PageAccess {
 const MAX_DATE_CHARS = 40;
 
 /** An ISO 8601 date, with an optional time and zone: anchored, with no repetition that could backtrack. */
-const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})(T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:?\d{2})?)?$/u;
+const ISO_DATE =
+    /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(?:Z|[+-](\d{2}):?(\d{2}))?)?$/u;
 
 /** A stated boolean: `true`, `false`, or the text of either in any case. Anything else is not one. */
 function statedBoolean(value: unknown): boolean | undefined {
@@ -75,7 +76,7 @@ function statedBoolean(value: unknown): boolean | undefined {
     return text === 'true' ? true : text === 'false' ? false : undefined;
 }
 
-/** An ISO 8601 date as written, when its calendar date is real ("2024-02-30" is not). */
+/** An ISO 8601 date as written, when its calendar date, time and zone are real ("2024-02-30" and "T23:60" are not). */
 function isoDate(value: unknown): string | undefined {
     const text = textOf(scalar(value));
     const match = text !== undefined && text.length <= MAX_DATE_CHARS ? ISO_DATE.exec(text) : null;
@@ -85,11 +86,16 @@ function isoDate(value: unknown): string | undefined {
     }
 
     const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
-    const date = new Date(Date.UTC(year, month - 1, day));
+    // An absent time or zone part reads as 0, which is in range.
+    const [hour, minute, second, zoneHour, zoneMinute] = [4, 5, 6, 7, 8].map((group) => Number(match[group] ?? 0));
+    const date = new Date(0);
 
-    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
-        ? text
-        : undefined;
+    date.setUTCFullYear(year, month - 1, day);
+
+    const realDate = date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+    const realTime = hour <= 23 && minute <= 59 && second <= 59 && zoneHour <= 14 && zoneMinute <= 59;
+
+    return realDate && realTime ? text : undefined;
 }
 
 /**

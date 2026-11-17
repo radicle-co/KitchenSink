@@ -202,14 +202,41 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         ],
         ['a stray list after the method', '<ul><li>Serves four</li></ul>'],
         ['a nutrition list after the method', '<ul><li>Calories: 250kcal</li><li>Protein: 8g</li></ul>'],
-    ])('reads a card with %s', (_name, extra) => {
-        expect(readPastedContent(cardPage(NODE, { extra }))).toMatchObject({ kind: 'extracted' });
+    ])('reads a card with %s in a container of its own', (_name, extra) => {
+        expect(
+            readPastedContent(cardPage(NODE, { extra: `<div class="notes"><div>${extra}</div></div>` })),
+        ).toMatchObject({
+            kind: 'extracted',
+        });
     });
 
-    it('reads a card with a meta list before the ingredients', () => {
+    // code-reviewer, round 8: a list beside a list the schema reads (the same parent, or the same group wrapper's parent)
+    // is a sibling of a recipe list, never furniture, whatever it says: an amount written last ("砂糖 大さじ1") or a method
+    // in a <ul> (as WP Recipe Maker writes one) reads no amount and is no <ol>.
+    it.each([
+        ['an unnumbered list right beside the method', '<ul><li>Let it cool for an hour.</li></ul>'],
+        ['an ingredient group with its amounts last', '<ul><li>砂糖 大さじ1</li><li>Mehl, 200 g</li></ul>'],
+    ])('refuses a card with %s', (_name, extra) => {
+        expect(readPastedContent(cardPage(NODE, { extra }))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageDisagreesWithSchema',
+        });
+    });
+
+    it('refuses an omitted method group in a group wrapper beside the read ones, as WP Recipe Maker writes groups', () => {
+        const group = (lines: readonly string[]) => `<div class="instruction-group"><ul>${items(lines)}</ul></div>`;
         const page = makePage({
             jsonLd: [NODE],
-            body: `<article><h1>Test</h1><ul><li>Prep Time: 10 minutes</li><li>Yield: 4</li></ul><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol></article>`,
+            body: `<article><ul>${items(INGREDIENTS)}</ul><div class="instructions">${group(STEPS)}${group(['Glaze the cake while it is warm.'])}</div></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+    });
+
+    it('reads a card with a meta list before the ingredients, in a container of its own', () => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><h1>Test</h1><div class="meta"><div><ul><li>Prep Time: 10 minutes</li><li>Yield: 4</li></ul></div></div><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol></article>`,
         });
 
         expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
@@ -226,10 +253,10 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
 
     // ⚠️ ACCEPTED RISK, pinned (staff-architect, round 8): an omitted ingredient group after the method with no line that
     // opens with an amount reads as furniture. Telling it from a notes list needs a signal no structure gives.
-    it('reads, as furniture, an omitted group after the method whose lines state no amount', () => {
-        expect(
-            readPastedContent(cardPage(NODE, { extra: '<ul><li>Salt to taste</li><li>Fresh herbs</li></ul>' })),
-        ).toMatchObject({ kind: 'extracted' });
+    it('reads, as furniture, an omitted group after the method, in a container of its own, whose lines state no amount', () => {
+        const extra = '<div class="extra"><div><ul><li>Salt to taste</li><li>Fresh herbs</li></ul></div></div>';
+
+        expect(readPastedContent(cardPage(NODE, { extra }))).toMatchObject({ kind: 'extracted' });
     });
 
     it('refuses a list before the ingredients whose line opens with an amount', () => {
@@ -324,7 +351,7 @@ function pluginStyleCard(lists: {
         '</ul></div><div class="ingredient-group"><h4>Seasoning</h4><ul>',
         ingredient('1', 'tsp', 'salt'),
         '</ul></div></div>',
-        `<div class="recipe-instructions" id="instructions"><h3>Instructions</h3><ul>${STEPS.map(step).join('')}</ul></div>`,
+        `<div class="recipe-instructions" id="instructions"><h3>Instructions</h3><div class="instruction-group"><ul>${STEPS.map(step).join('')}</ul></div></div>`,
         lists.nutrition
             ? '<div class="recipe-nutrition"><h3>Nutrition</h3><ul><li>Calories: 250kcal</li><li>Protein: 8g</li></ul></div>'
             : '',

@@ -54,19 +54,26 @@ const AGREES: Corroboration = Object.freeze({ ok: true });
 const refusal = (reason: CorroborationReason): Corroboration => Object.freeze({ ok: false, reason });
 
 /**
- * The card's furniture: an unread list item of the card that is no part of the recipe the schema left out. Language-neutral
- * on purpose, from structure only:
+ * The card's furniture: an unread list item of the card that is no part of the recipe the schema left out. From the
+ * page's structure first:
  * - a link-only item, anywhere (Print, Rate, jump links, tags, related recipes);
- * - an item before the first line the schema reads or after the last (meta, notes, nutrition), unless it is numbered (a
- *   second method) or opens with an amount (an ingredient group).
- * An unread item between the read lines (an equipment list, an omitted group) is never furniture: any doubt is no.
+ * - an item before the first line the schema reads or after the last (meta, notes, nutrition), unless its list sits
+ *   beside a list the schema reads (a group the schema left out), it is numbered (a second method), or it opens with an
+ *   amount (an ingredient group).
+ * An unread item between the read lines (an equipment list, an omitted group) is never furniture: any doubt is no. The
+ * amount test reads only a leading amount, so it is the last check, not the one the policy rests on.
  */
 function isCardFurniture(item: CardItem): boolean {
     if (item.linkOnly) {
         return true;
     }
 
-    return item.position !== 'between' && !item.ordered && readCooksMeasure(item.text).quantity.kind === 'absent';
+    return (
+        item.position !== 'between' &&
+        !item.besideReadList &&
+        !item.ordered &&
+        readCooksMeasure(item.text).quantity.kind === 'absent'
+    );
 }
 
 /** G-CORR over a page's visible text: the card the cook reads is the ingredient lines and the steps, no more and no less. */

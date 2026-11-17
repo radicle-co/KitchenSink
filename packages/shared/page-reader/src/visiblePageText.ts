@@ -62,6 +62,11 @@ export interface CardItem {
     readonly ordered: boolean;
     /** Where it sits against the blocks the runs read: before the first, after the last, or between. */
     readonly position: 'before' | 'between' | 'after';
+    /**
+     * Whether its list sits beside a list a run read: the two lists share a parent, or their parents share one (a plugin
+     * wraps each group of a list in its own element). Such a list is a sibling of a recipe list, a group the schema left out.
+     */
+    readonly besideReadList: boolean;
 }
 
 /** One list a page must show. */
@@ -220,6 +225,32 @@ function leavesLinesUnread(
     const lastRead = read.at(-1)?.last ?? 0;
     const positionOf = (block: BlockSpan): CardItem['position'] =>
         block.last < firstRead ? 'before' : block.first > lastRead ? 'after' : 'between';
+    // The parent and the grandparent of a list item's list, by element number (`-1` past the root).
+    const parentOf = (element: number): number => (element > 0 ? (elements[element]?.parent ?? -1) : -1);
+
+    const listParents = (item: number): readonly [number, number] => {
+        const parent = parentOf(parentOf(item));
+
+        return [parent, parentOf(parent)];
+    };
+
+    const readParents = new Set<number>();
+    const readGrandparents = new Set<number>();
+
+    for (const block of read) {
+        if (block.item > 0) {
+            const [parent, grandparent] = listParents(block.item);
+
+            readParents.add(parent);
+            readGrandparents.add(grandparent);
+        }
+    }
+
+    const besideReadList = (item: number): boolean => {
+        const [parent, grandparent] = listParents(item);
+
+        return readParents.has(parent) || (grandparent > 0 && readGrandparents.has(grandparent));
+    };
 
     // Loose text (group 0) is not a list: any other block is a line of the list its siblings are. A list item inside the
     // card (its `<li>` numbered after the card's own, and within its range) is a line of the card, unless the policy
@@ -234,6 +265,7 @@ function leavesLinesUnread(
                     linkOnly: block.linkOnly,
                     ordered: block.ordered,
                     position: positionOf(block),
+                    besideReadList: besideReadList(block.item),
                 })),
     );
 }

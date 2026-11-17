@@ -154,6 +154,13 @@ const s3 = new S3Client({});
 const isValidOwnerId = (value: unknown): value is string => typeof value === 'string' && value.trim() !== '';
 
 /**
+ * A fresh `erased_` token (`erased_` and 32 hex characters), derived from nothing, that stands in for one account's id.
+ *
+ * @sideEffect Reads the system's random source.
+ */
+const erasedAccountToken = (): string => `erased_${randomBytes(16).toString('hex')}`;
+
+/**
  * Strict owner-id guard for the untrusted MESSAGE boundary: the id must be a valid ULID — the exact format
  * identity mints (via `ulidx`). Because this id feeds both the S3 prefix and the SQL predicate on the most
  * destructive path in the system, the boundary refuses anything malformed (path fragments, slugs, wrong
@@ -690,7 +697,7 @@ export const eraseRecipeRows = async (
     const pseudonym = pseudonymizedAuthorHandle(ownerId);
     // ONE random token for this erasure (migration 0088): every attestation row of the account gets the same one (all are kept), it is
     // derived from nothing, and it is stored nowhere else, so it links the rows to each other and to no one.
-    const attestationAccountToken = `erased_${randomBytes(16).toString('hex')}`;
+    const attestationAccountToken = erasedAccountToken();
     // The election is bound as a single jsonb parameter (NOT `= ANY($1::uuid[])` over a JS array, which
     // drizzle list-EXPANDS into `ANY($1, $2, …)` — invalid for ANY). `jsonb_array_elements_text` turns the
     // one bound json string back into a set of ids the flip matches with `id IN (…)`; an empty election
@@ -1011,7 +1018,7 @@ export const purgeTestPrincipalRows = async (
     `;
 
     // ONE random token for this reset: every statement record of the principal moves to it (step 2b).
-    const resetAccountToken = `erased_${randomBytes(16).toString('hex')}`;
+    const resetAccountToken = erasedAccountToken();
 
     await db.transaction(async (tx) => {
         // 1. Ratings on anyone's recipes; the statement trigger re-derives every survivor's aggregate.

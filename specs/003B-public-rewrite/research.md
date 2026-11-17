@@ -42,8 +42,7 @@ Each item gives the decision, the reason, and the options set aside.
 
 ## R6. Idempotent Publish
 
-- **Decision**: one transaction. Lock the job row. Insert the recipe under a unique source page key. Write the
-  source-count row for monitoring. Mark the job `published`. A second device gets the existing
+- **Decision**: one transaction. Lock the job row. Insert the recipe under a unique source page key. Mark the job `published`. A second device gets the existing
   recipe id.
 
 ## R7. Spend

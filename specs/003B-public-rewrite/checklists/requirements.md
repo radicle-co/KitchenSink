@@ -31,8 +31,8 @@
 
 ## Notes
 
-- The spec names house artifacts (027's engine, ADR-0024's pool, the 016 cap record) because they are product rules
+- The spec names house artifacts (027's engine, ADR-0024's pool, the source records) because they are product rules
   the owner already ruled on. It names no language, framework or table.
-- Every clarification (C-1 to C-23) is an assumed default for the owner to rule on. None blocks planning.
+- Each clarification (C-1 to C-23) is ruled where marked, and the rest are assumed defaults for the owner to rule on. None blocks planning.
 - One simple-English lint hit in spec.md is left on purpose. It is a word-group clash between the owner's
   required clarification phrase and the product's term for the content review.

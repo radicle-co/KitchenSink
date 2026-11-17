@@ -4,7 +4,7 @@
 `specs/003B-public-rewrite`. The owner asked for "003A", but `specs/003A-signed-out-reading` already exists, so this
 feature takes 003B. It is not part of `003-usda-food-data` or `003A`.)
 **Created**: 2026-11-15
-**Status**: Draft. Planned, not built. Every clarification is assumed and waits for the owner (see Clarifications,
+**Status**: Draft. Planned, not built. Each clarification is ruled where marked, and the rest are assumed and wait for the owner (see Clarifications,
 C-1 to C-23). It sits behind one per-market switch (FR-090).
 **Input**: Owner rulings, 2026-11-15. A cook's private copy of an imported recipe keeps the site's wording. The import
 process writes new steps for every public-facing recipe from a source that Commise cannot show as it is. The cook
@@ -27,10 +27,9 @@ rather than restating it.
 - **[020](../020-content-source-check/spec.md)** and ADR-0074 own the content check and the hold in the read rule. A
   public version goes public through that one hold, like any recipe.
 - **[ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)**
-  ("imported recipes go public only as a Commise-written version") records the owner's 2026-11-15 rulings and amends
-  004, 016, 020, 021 and the paste design spec. 003B does not repeat or restate them. It cites ADR-0093.
-- **[016](../016-legal-compliance-framework/spec.md)** owns rights labels, licences, the source-count record
-  (data-model §12) and the report flow. ADR-0093 amends `016-FR-015i` and owner-decisions item 5.
+  ("imported recipes go public only as a Commise-written version") records the owner's 2026-11-15 rulings, and its sweep
+  amended 004, 016, 020, 021 and the paste design spec. 003B does not repeat or restate them. It cites ADR-0093.
+- **[016](../016-legal-compliance-framework/spec.md)** owns rights labels, licences and the report flow.
 - **[021](../021-public-discovery-and-sharing/spec.md)** owns what a public page shows signed out and how it is indexed.
 - **[010](../010-subscriptions/spec.md)** owns plans, prices and the subscription page. 003B needs one rule amended for one
   screen (FR-074).
@@ -114,7 +113,7 @@ Free, and its ingredient lines are matched as before.
    shown: one line, `paid.line` and `paid.keepWording`, and one button, "Save my copy".
 4. **Given** a paid source that FR-017 allows, **Then** the three choices show, and the public version's credit names no
    site (`review.creditPaid`).
-5. **Given** a private copy of a paid source, **Then** it cannot be exported. The household sees its public version if
+5. **Given** a private copy of a paid source, **Then** it cannot be shared or exported, except in the cook's own account data export (ADR-0093 §5). The household sees its public version if
    one exists, and nothing otherwise (FR-019).
 
 ### User Story 3 - The public version cannot be written now (Priority: P2)
@@ -254,7 +253,7 @@ later from its own menu. (C-6)
     2. its domain is on the paid-site list that `004-FR-014` already keeps as data.
     3. the page shows a metered paywall: paywall markup on the page, or a paid-list entry marked metered.
 
-    A paid source's private copy keeps the site's wording (owner ruling 2026-11-15) and MUST NOT be exported. (C-1)
+    A paid source's private copy keeps the site's wording (owner ruling 2026-11-15) and MUST NOT be shared or exported, except in the account data export (ADR-0093 §5). (C-1)
 
 - **FR-017**: A paid source can go public only as a public version Commise writes in full. All of these must hold
   (owner ruling 2026-11-15). Otherwise it is private only.
@@ -382,14 +381,13 @@ later from its own menu. (C-6)
 - **FR-064**: No string in this feature can use: copyright, legal, lawful, safe, safety, cleared, approved, "we checked"
   (any form), plagiarism, "original recipe", "same recipe", "By {site}", "From the kitchen of {site}", infringe,
   permission, "to avoid", "get around". There MUST be one list, held in one module that every copy guard imports. Today the words exist only as a
-  comment beside `editor.source.rightsLabel` in `features/recipes/src/editor/messages.ts`. The new module replaces that
+  comment beside `editor.source.rightsLabel` in `packages/apps/commise/features/recipes/src/editor/messages.ts`. The new module replaces that
   comment, and a test enforces it over every `importMessages.choice.*` string and 027's `recipes.flowSteps.*`.
 
 #### H. Monitoring and review
 
-- **FR-070**: There is no per-publisher or per-site cap (owner ruling 2026-11-15: "No caps on anything right now"). A
-  public version still writes a `commise_version` row to 016's source-count record, so the count exists for
-  monitoring and for any later ruling.
+- **FR-070**: There is no per-publisher or per-site cap (owner ruling 2026-11-15: "No caps on anything right now"). The
+  source records still let monitoring count public versions per source (FR-071).
 - **FR-071**: An alarm MUST fire at a set rate of public versions from one source. The rate is
   configuration. The alarm informs a person. It never blocks. (C-13)
 - **FR-072**: There is no human-review gate for publishers before a public version goes public (ADR-0093 §6a).
@@ -480,8 +478,6 @@ is never charged to a cook's uses (FR-081).
 - **Public-version job**: one writer job for one import item: `pending`, `ready`, `checkRefused`, `budgetSpent`,
   `failed`, `cancelled`.
 - **Source record**: the append-only evidence of FR-080.
-- **Source count**: a `source_card_events` row with form `commise_version` (016 data-model §12). Counted for
-  monitoring only.
 
 ## Success Criteria _(mandatory)_
 
@@ -521,37 +517,17 @@ is never charged to a cook's uses (FR-081).
 
 ## Conflicts with existing specs (for the owner)
 
-1. **`016-FR-015i` second sentence, `016` owner-decisions item 5, ADR-0082 §6, `021-FR-014h`**: said a Commise-written
-   version of another site's recipe is not built at launch, and comes only as a pilot. The owner's 2026-11-15 position
-   is that it is its own feature (003B), not a ban. ADR-0093 records it.
-2. **Pilot conditions that ADR-0093 §6a replaced**: test-kitchen publishers, a US-only market scope and review for
-   registered publishers. Every market is on at launch and there is no review gate for publishers. 003B's check
-   refuses where the pilot's check would have held, which is stricter (FR-050).
-3. **Licence**: ADR-0082 §5 and pilot item 8 say CC0 on Commise-written text. The owner ruled CC BY-SA 4.0 credited to
-   "Commise and contributors" (FR-062). `016-FR-033` and ADR-0082 §5 need amendment. `016` data-model §11's licence
-   union gains a value (one-way door).
-4. **Rights label**: `016-FR-015c` has seven labels and none fits (FR-061). A new value is a one-way door.
-5. **Facts cards are retired** (owner ruling 2026-11-15: "No fact cards"). Every place that has one is owed an
-   amendment:
-    - the ADRs: ADR-0077, ADR-0082 (§2, §3, §6), ADR-0072 and ADR-0073.
-    - the specs: `004-FR-014b` and `FR-028`, `021-FR-004`, and `021-FR-014` to `FR-014h` (the linked and facts card).
-    - `016` data-model §12 (the `facts_card` form) and `docs/business-plan.md`.
-    - the recipe-detail canvases `recipeDetailWeb` and `recipeDetailMobile` (the RecipeFacts boards).
-    - **Paid sites now go public** as a Commise-written page under FR-017. This reverses `004-FR-014b`'s card,
-      ADR-0082 §6 item 2 (no paid sites) and the earlier "never public" ruling of the same day.
-    - **Household**: `021-FR-014c` lets the household see the full private copy. FR-019 keeps that, except a paid site's
-      wording. The household sees the Commise-written version or nothing.
-6. **`020-FR-075` to `FR-080`, Q-4**: 003B replaces the per-step suggestion for imports (FR-014), answers Q-4 for the
+ADR-0093 and its sweep already settled the facts cards, the caps, the licence text, the pilot conditions (it replaced
+them with a per-market switch and no publisher review gate, §6a), the paste design spec's D8 line and `016-FR-015i`.
+Still open:
+
+1. **Rights label**: no `016-FR-015c` label fits (FR-061). A new value is a one-way door.
+2. **`020-FR-075` to `FR-080`, Q-4**: 003B replaces the per-step suggestion for imports (FR-014), answers Q-4 for the
    public version (label FR-061, credit FR-060, never "Adapted by you"), settles FR-078's spend for this call (FR-081),
    and gives FR-080's "adapted by Commise" its behaviour. Q-6 now has code behind it once 003B ships.
-7. **027 FR-032**: 027's replace never changes the rights label, and only 003B's Publish makes a public version
-   (FR-015). 027 FR-032 says so, and its owner-decision gate is gone.
-8. **`010` US6 scenario 2 and `010-FR-042c`**: "No plan is chosen for the cook". Owed: an amendment for the dead end only (FR-074).
-9. **pasteImport D8, `review.webPrivate`, `review.webPrivatePro`, `hold.slotsFull`, `editor.source.announceSet`**: now
-   false once the switch is on. ADR-0093's sweep amends them.
-10. **ADR-0024 §3**: a third ceiling-denial exception (this call site, terminal). Owed.
-11. **Caps**: 016-FR-030a, ADR-0082 §3 and 004-FR-026's per-source caps conflict with "No caps on anything right now".
-    Owed through ADR-0093 or a later amendment.
+3. **`010` US6 scenario 2 and `010-FR-042c`**: "No plan is chosen for the cook". Owed: an amendment for the dead end
+   only (FR-074).
+4. **ADR-0024 §3**: a third ceiling-denial exception (this call site, terminal). Owed.
 
 ## Amendments
 
@@ -561,8 +537,7 @@ carries the amendments to 004, 016, 020, 021 and the paste design spec. 003B doe
 Still owed:
 
 - `010` US6 scenario 2 and `010-FR-042c` (FR-074).
-- ADR-0024 §3 (a third no-retry path) and the label, licence and provenance one-way doors, in 003B's BLUEPRINT ADR.
-- Any facts-card removal in the "Conflicts" list above that ADR-0093 and its sweep did not reach.
+- ADR-0024 §3 (a third no-retry path) and the label, licence and provenance one-way doors (FR-061, FR-062, data-model), in 003B's BLUEPRINT ADR.
 
 ## Clarifications
 
@@ -591,7 +566,7 @@ Still owed:
 - **C-12. Review for registered publishers?** Ruled 2026-11-15: none (ADR-0093 §6a). A publisher who opts out later has
   its public versions withdrawn (`016`).
 - **C-13. Monitoring numbers?** Assumed: an alarm at 20 public versions from one source in 24 hours, with no cap. Configuration. Owner to confirm.
-- **C-14. Is the source record kept after the public version is deleted?** Assumed: yes, with the source count, for 016's
+- **C-14. Is the source record kept after the public version is deleted?** Assumed: yes, for 016's
   evidence period. It holds no personal data beyond the recipe link. Owner to confirm.
 - **C-15. Who pays and how much?** Assumed: operating cost from the one $100 pool, own call site, bounded by the one import allowance
   and 3 calls per item. No daily cap (ruled 2026-11-15). Owner to confirm.

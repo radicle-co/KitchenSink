@@ -551,7 +551,7 @@ Full matrix + enforcement: **`docs/CODING_STANDARDS.md §7.1`**.
 ## Active Spec Kit features
 
 - **003B Public Versions**: `specs/003B-public-rewrite/`. Planned, not built. It sits behind one per-market switch with
-  no test door: do not build a second step-writing engine (ADR-0093, `agentNotes.md`).
+  no test door: do not build a second step-writing engine (`027-FR-045`, `agentNotes.md`).
 - **027 Flow Steps**: `specs/027-rewritten-steps/`. Planned, not built. A replace never changes the rights label, and
   only 003B's Publish makes an imported recipe public (`agentNotes.md`).
 

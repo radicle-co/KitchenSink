@@ -10,7 +10,7 @@ or recipe answers 404, never 403.
 
 ```text
 source: { classification: 'open' | 'thirdParty' | 'paid', domain: string | null }
-offer:  { kind: 'choice', credit: 'linked' | 'paid' } | { kind: 'privateOnly', reason: 'paidRecent' | 'paidSignature' | 'publisherOptOut' | 'budget' | 'optOut' | 'under16' | 'noSteps' | 'switchOff' | 'publicPending' }
+offer:  { kind: 'choice', credit: 'free' | 'paid' } | { kind: 'privateOnly', reason: 'paidRecent' | 'paidSignature' | 'publisherOptOut' | 'budget' | 'optOut' | 'under16' | 'noSteps' | 'switchOff' | 'publicPending' }
         | { kind: 'publicExists', recipeId: string }   // one public version per source page (FR-034)
         | { kind: 'publicOnly' }   // no slot left, public possible
         | { kind: 'deadEnd', reason: 'paid' | 'noWrite' }

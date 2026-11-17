@@ -248,8 +248,7 @@ can always cook from the original steps.
   actions from a fixed list, the amounts, temperatures, times, ingredient names, equipment from a fixed list, and the
   safety lines (FR-041). It MUST NOT receive the wording of the steps, the source address, the source statement or
   any other recipe text. This holds for every recipe, whoever wrote it. (C-7)
-- **FR-036**: The writer MUST be a model that is not made by Anthropic, run on Amazon Bedrock or as an open model the
-  platform hosts. The cook's own keys (`005-FR-015`) MUST NOT be used for Flow Steps. (C-6)
+- **FR-036**: The writer MUST be a model that is not made by Anthropic, run on Amazon Bedrock. The cook's own keys (`005-FR-015`) MUST NOT be used for Flow Steps. (C-6)
 - **FR-037**: The writer MUST rewrite into cook-ready steps: one main action per step, preparation gathered before the
   heat where the facts allow, waits named so the cook can work during them, and a short "before you start" step for
   anything that must happen well ahead (preheat, marinate, rest). It MUST NOT add tips, reasons, substitutions,
@@ -279,8 +278,8 @@ can always cook from the original steps.
     - after a replace on a private copy of another site's recipe: "Steps written by Commise. Based on a recipe at
       {domain}." (`recipes.flowSteps.credit.privateSourced`). It replaces the copy's "Saved from {domain}" wording,
       which no longer describes the steps (C-19).
-      A public version of an imported recipe keeps its own credit line, `review.credit` of spec 003B. That is the one
-      key for it, and this feature adds none (C-20).
+      A public version of an imported recipe keeps the credit line of spec 003B (`review.credit`, or `review.creditPaid`).
+      This feature adds no key for it (C-20).
       The credit line sits beside the rights label and the source line. It does not replace them (FR-032).
 - **FR-044**: Copy for this feature MUST NOT use any word on the one shared banned-word list, in any language. The
   list is defined once, in spec 003B (003B-FR-064), and held in one module that every copy guard imports. A test MUST
@@ -329,8 +328,7 @@ can always cook from the original steps.
     | held                 | Under a takedown or content hold (FR-003)       | `state.held`           |
     | replace preview      | Side by side before a replace (FR-030)          | `state.replacePreview` |
     | busy                 | 3 requests already running (FR-065)             | `state.busy`           |
-
-| replaced (success) | The replace saved (FR-031) | `state.replaced` |
+    | replaced (success)   | The replace saved (FR-031)                      | `state.replaced`       |
 
 - **FR-062**: Errors MUST keep what the cook had: the original steps are always available, and an attached version
   survives a failed update.
@@ -450,9 +448,8 @@ Each answer is the best-justified default. Each is **Assumed, owner to confirm**
   → A: Yes, by the cook's own choice. The ruling governs what the import pipeline does, not what the cook chooses
   later. The original stays in the recipe's history, and the credit line changes (FR-043). _Assumed, owner to
   confirm._
-- **C-20. One credit key.** Q: Does this feature keep its own credit for a public version of an imported recipe? → A:
-  No. The credit for it is spec 003B's `review.credit`, so the string has one key. (FR-043) _Assumed, owner to
-  confirm._
+- **C-20. No second credit key.** Q: Does this feature keep its own credit for a public version of an imported recipe? → A:
+  No. It uses spec 003B's credit keys, so each string has one key. (FR-043) _Assumed, owner to confirm._
 - **C-21. AI disclosure on a public replace.** Q: Does the credit say AI wrote the steps? → A: Yes, in 003B's words
   ("with AI, checked by {cook}"), so every public page that carries Commise-written steps discloses the same way. (FR-043)
   _Assumed, owner to confirm._

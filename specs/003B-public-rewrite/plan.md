@@ -1,7 +1,7 @@
 # Implementation Plan: Public Versions of Imported Recipes
 
 **Branch**: single-branch directive | **Date**: 2026-11-15 | **Spec**: [spec.md](./spec.md)
-**Input**: `specs/003B-public-rewrite/spec.md`. Every clarification there is assumed and waits for the owner.
+**Input**: `specs/003B-public-rewrite/spec.md`. Each clarification there is ruled where marked, and the rest are assumed and wait for the owner.
 
 **Status**: Planned, not built. `staff-architect` PLANNING ran on 2026-11-15 (opus). Its pattern register and its
 findings are folded in below and into the spec (FR-015, FR-016, FR-045, FR-065, and the FR-050 title rule). BLUEPRINT,
@@ -14,7 +14,7 @@ An aggregator follows the third-party rules. A third-party item offers Private, 
 (spec FR-017), and stays private only where they hold it back. Public and Both create one public-version job.
 A recipe-workers Lambda runs 027's step-writing engine on a facts snapshot, under its own ADR-0024 call site, and
 stores the result on the job. The cook reviews it. "Publish" is one Command. In one transaction it re-runs the fact check and the wording
-check on the server. It then writes the public recipe through the hold and records a source-count row for monitoring.
+check on the server. It then writes the public recipe through the hold.
 There are no caps (owner ruling 2026-11-15). Every later save of a public version runs the wording check inside the recipe
 write, against a hashed fingerprint of the source taken at import. The source text itself is never kept for this.
 
@@ -48,19 +48,19 @@ unknown classification input. Job timeout 10 min.
 | IX Patterns / seams        | PASS   | Register below.                                                                                    |
 | ADR-0024 layer 4b          | PASS   | Runs under the one verification role. New `SPEND_CALL_SITES` member `import-public-rewrite`.       |
 | ADR-0004 NAT list          | AMEND  | The new VPC Lambda adds a `nat-consumers` row (`natEgressConsumers.test.ts`).                      |
-| ADR-0082 §5 and §6         | AMEND  | Through the feature ADR (spec "Conflicts" 1 to 4).                                                 |
+| ADR-0093                   | PASS   | Amended ADR-0082 §5 and §6 already. This feature builds what it rules.                             |
 
 ## Engine ownership (decision)
 
 **027 owns the engine's design. 003B depends on it and builds none of it twice.**
 
-| Part                                                                                                                                                                          | Owner | Built by                                                        |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------------------------------------- |
-| `recipe-core/src/stepWriting/*`: facts sheet, prompt, answer parser, fact check, shingle measure, `rewriteSteps`                                                              | 027   | Whichever feature lands first (027 build step 1)                |
-| `recipe-workers/src/stepWriting/gatedStepWriter.ts` (the adapter half of 027 step 4)                                                                                          | 027   | Whichever feature lands first                                   |
-| The bake-off, the pinned model id, the measured thresholds (027 step 5)                                                                                                       | 027   | Whichever feature lands first. 003B cannot launch without them. |
-| Import classification, the choice, the public-version job, the worker handler, the review, Publish, the every-save wording guard, the source count, the title builder, all UI | 003B  | 003B                                                            |
-| 027's own tables, cache, use ledger and Cooking Mode switch                                                                                                                   | 027   | 027 only. 003B never takes them.                                |
+| Part                                                                                                                                                                        | Owner | Built by                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------------------------------------- |
+| `recipe-core/src/stepWriting/*`: facts sheet, prompt, answer parser, fact check, shingle measure, `rewriteSteps`                                                            | 027   | Whichever feature lands first (027 build step 1)                |
+| `recipe-workers/src/stepWriting/gatedStepWriter.ts` (the adapter half of 027 step 4)                                                                                        | 027   | Whichever feature lands first                                   |
+| The bake-off, the pinned model id, the measured thresholds (027 step 5)                                                                                                     | 027   | Whichever feature lands first. 003B cannot launch without them. |
+| Import classification, the choice, the public-version job, the worker handler, the review, Publish, the every-save wording guard, the rate alarm, the title builder, all UI | 003B  | 003B                                                            |
+| 027's own tables, cache, use ledger and Cooking Mode switch                                                                                                                 | 027   | 027 only. 003B never takes them.                                |
 
 003B will probably land first. 027's build step 0 needs 005's use ledger, which is unbuilt. 003B charges operating
 cost and needs no ledger.
@@ -74,7 +74,7 @@ cost and needs no ledger.
 3. `027-FR-032`: no gate. A 027 replace never changes the rights label, and only 003B's Publish makes a public version
    (003B FR-015). Otherwise "private copy, replace, set public" is a back door.
 4. `027-FR-044`: the banned-word list is one module both guards import (003B FR-064).
-5. `027-FR-043`: one credit key for a public version of an imported recipe, 003B's `review.credit`.
+5. `027-FR-043`: no credit key of its own for a public version of an imported recipe. 027 uses 003B's.
 6. 027's "Not stored: the facts sheet" stays true for 027. 003B stores a facts snapshot on its job until the flow
    ends (FR-042). This is a deliberate difference, recorded in both plans.
 
@@ -97,8 +97,8 @@ own second pinned prompt behind the same adapter, under its own call site.
 - **Strategy at the consumer edge**: the engine is composed with call site `import-public-rewrite`, operating cost and
   the job row as its sink. No mode flag enters the engine.
 - **Command**: Publish is one service method through `RecipesService.create`. The client side is a TanStack mutation.
-- **No cap Specification**: there are no caps (owner ruling 2026-11-15). The 016 §12 count is written for monitoring
-  only, and the rate alarm reads it.
+- **No cap Specification**: there are no caps (owner ruling 2026-11-15). The rate alarm counts public versions per
+  source from the source records.
 - **Guard in the write transaction**: the wording check runs inside the `RecipesService` write for any recipe that is
   a public version. It covers `update` and version restore (ADR-0058), not just one controller.
 - **Adapter on a Template Method**: 027's `createGatedStepWriter` over `gatedConverse`, with the terminal `budgetSpent`
@@ -124,12 +124,12 @@ the unique `recipes.source_page_key` as the idempotency key (no `Idempotency-Key
 - **Per item.** At most 3 writer calls (one automatic retry, one by hand, C-7): at most about $0.009.
 - **Per cook.** Bounded by the one import allowance: at most 1,000 items a day on a paid plan, so about $9 a day in the
   3-call worst case. There is no separate cap (owner ruling 2026-11-15), so the pool's ceiling is the real bound.
-- **Pool reach.** As the only consumer, $100 covers about 11,000 items a month at the 3-call worst case.
+- **Pool reach.** Were it the only consumer, $100 covers about 11,000 items a month at the 3-call worst case.
 - **Denial.** Terminal `budgetSpent`, refund in full, ack the message, never redeliver (FR-082). The screen reads the
   counter as a hint only. The reservation is the gate.
 - **ADR-0024 §3** gains a third no-retry path, in the feature ADR. §6's split of operating AI from paid credits is
   still owed before Pro with AI goes on sale, and this call site sits on the operating side.
-- **Non-prod.** Ungated, as every other call site. The import allowance and reserved concurrency of 1 bound it.
+- **Non-prod.** Ungated, as every other call site, so non-prod spend is watched, not capped (DD21).
 
 ## Project Structure
 
@@ -168,7 +168,7 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 ## Build order
 
 0. Prerequisites. The evidence record of ADR-0089 §6 is built. The feature ADR is written (label, licence,
-   provenance pair, fingerprint format, ADR-0024 §3, ADR-0082 §5 and §6). `staff-ux-engineer` SPECIFY.
+   provenance pair, fingerprint format, ADR-0024 §3). `staff-ux-engineer` SPECIFY.
 1. 027 engine core and fingerprint API, test-first with mutation suites (if 027 has not built it).
 2. Migration and LOCAL e2e: tables, columns, CHECK pairs, unique `source_page_key`, cascade and erasure.
 3. recipe-service: classifier, job API, Publish Command, wording guard, title builder, zod contract,

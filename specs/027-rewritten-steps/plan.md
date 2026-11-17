@@ -1,6 +1,6 @@
 # Implementation Plan: Flow Steps (rewritten recipe steps)
 
-**Branch**: `docs/spec027-optimized-steps` | **Date**: 2026-11-15 | **Spec**: [spec.md](./spec.md)
+**Branch**: single-branch directive | **Date**: 2026-11-15 | **Spec**: [spec.md](./spec.md)
 **Input**: `specs/027-rewritten-steps/spec.md`. Every clarification there is assumed and waits for the owner.
 
 **Status**: Planned, not built. `staff-architect` PLANNING ran on 2026-11-15 (opus) and its pattern register is folded
@@ -34,7 +34,7 @@ worker tests, Playwright (web), Maestro (mobile), k6 by hand.
 **Performance Goals**: cache hit < 1 s end to end (SC-003). P95 generation ≤ 30 s (SC-004).
 **Constraints**: facts-only writer input. No Anthropic model. No own keys. Fail closed on spend. Never truncate input;
 job timeout 10 min.
-**Scale/Scope**: one row per recipe. Generation bounded by 300 uses per Pro with AI cook per month.
+**Scale/Scope**: one row per recipe. Generation bounded by the cook's monthly uses (`010-FR-041b`).
 
 ## Constitution Check
 
@@ -45,7 +45,7 @@ job timeout 10 min.
 | III Imports / organisation  | PASS   | Subpath exports per pure module, as `parsing/parse-prompt` already does. No barrels.             |
 | IV Testing pyramid          | PASS   | Tier matrix in §Testing. Fact check gets a mutation suite.                                       |
 | V Monorepo                  | PASS   | No new package. recipe-workers already depends on recipe-core.                                   |
-| VII Accessibility / UX      | PASS   | 19 designed states, `recipes.flowSteps.*` keys, `staff-ux-engineer` owed.                        |
+| VII Accessibility / UX      | PASS   | every state in FR-061, `recipes.flowSteps.*` keys, `staff-ux-engineer` owed.                     |
 | VIII Cross-platform         | PASS   | Web + mobile in one release (FR-060).                                                            |
 | IX Patterns / seams / React | PASS   | Register below. Render components get a plain `steps` array, no mode prop.                       |
 | ADR-0024 layer 4b           | PASS   | Runs under the one verification role; new `SPEND_CALL_SITES` member; `llmSpendGuards` unchanged. |

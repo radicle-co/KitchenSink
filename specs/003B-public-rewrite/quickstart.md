@@ -3,7 +3,7 @@
 Nothing here runs today. The feature is planned, not built.
 
 1. Bring up the local stack: `npm run local:up` (LocalStack and Postgres). Run the recipe migrations.
-2. Turn the feature switch on for the local stage only. Never on a shared stage before the owner opens it.
+2. Turn the feature switch on for the local stage only. Every market is on at launch (ADR-0093 §6a).
 3. Point the worker at a stub writer, or at Bedrock with a scoped, non-root profile (the default profile is root).
 4. Paste a blog page with JSON-LD into Add a recipe on web. Finish the match review.
 5. Choose "For everyone". Wait for the review. Check:

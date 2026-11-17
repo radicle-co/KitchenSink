@@ -22,8 +22,8 @@ A run guide for after the build. It names the checks, not the code. Contracts: `
    Restore the old text. `GET` shows `fresh` again with no job.
 5. **Replace (US3).** Apply with the current `expectedVersion` and digest. Expect the recipe's steps to change and a
    new version in its history. Apply again with the old digest. Expect `409` and no change. Restore the old version.
-6. **Gate (US3-5).** On a public recipe whose steps came from another site, Replace is absent, and apply answers
-   `409 replaceNotOffered`.
+6. **Label stays (US3-5, FR-032).** Replace the steps of a public version of an imported recipe. Expect the wording
+   check of 003B-FR-050 to run, and the rights label and the credit line to stay as they were.
 7. **Budget (US4-2).** Set the ceiling to zero in the local stack. Request. Expect `budgetSpent`, no use taken, the
    message not redelivered.
 8. **Out of uses (US4-1).** Use the cook with none left. Expect `409 outOfUses` and no job.

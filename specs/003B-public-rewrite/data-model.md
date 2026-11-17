@@ -9,14 +9,14 @@ Owner, migrator and service roles per ADR-0039. Every one-way door below goes in
 One row per third-party import item (the page is `page_key`), written in the same transaction as the item's save or the job's creation. It is
 the source of truth for this feature (FR-080). It extends ADR-0089 §6's evidence by reference and does not cascade from
 a recipe, so it outlives the private copy and the public version (C-14). It holds no cook id: the job and the public version carry the
-owner, and neither the fingerprint nor the source count needs the cook. So erasure has nothing to sweep here, and the table goes
+owner, and neither the fingerprint nor the monitoring count needs the cook. So erasure has nothing to sweep here, and the table goes
 in `erasureSweepCoverage`'s `RETAINED_BY_RULING` map with this reason.
 
 | Column                    | Type                 | Rule                                                                                                                                                                   |
 | ------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `id`                      | uuid PK              |                                                                                                                                                                        |
 | `evidence_id`             | uuid NULL            | The ADR-0089 §6 evidence row, where one exists. No cascade.                                                                                                            |
-| `source_key`              | text NOT NULL        | Registrable domain (Public Suffix List, by library), as 016 data-model §12.                                                                                            |
+| `source_key`              | text NOT NULL        | Registrable domain (Public Suffix List, by library), (the same key `016` uses for a source).                                                                           |
 | `source_class`            | text NOT NULL        | CHECK in (`site`, `aggregator`, `paid_site`). Kept for monitoring. It changes no rule.                                                                                 |
 | `classification`          | text NOT NULL        | CHECK in (`open`, `thirdParty`, `paid`).                                                                                                                               |
 | `classification_inputs`   | jsonb NOT NULL       | The signals read: statement kind, claim state, licence signal, paid signal (which of the three), publication date, signature status, list versions.                    |
@@ -67,7 +67,7 @@ writing ──check refused again────────────▶ checkRe
 writing ──ceiling denial─────────────────▶ budgetSpent     (refund, ack, never redelivered)
 pending|writing ──Stop───────────────────▶ cancelled       (a late result is dropped: writes need state IN pending, writing)
 pending|writing ──10 min / maxReceive────▶ failed
-ready ──Publish (server re-checks pass)──▶ published       (same transaction as the recipe insert and the source-count row)
+ready ──Publish (server re-checks pass)──▶ published       (same transaction as the recipe insert)
 ready ──Not now / flow ends──────────────▶ cancelled
 ```
 
@@ -83,8 +83,8 @@ ready ──Not now / flow ends──────────────▶ can
   copy. One-way door, named in the ADR.
 - Import item `choice text NULL CHECK in ('private','public','both')`. Not a new `visibility` value, which
   `importSchemaParity` pins.
-- `source_card_events`: Publish writes `form = 'commise_version'` (016 data-model §12). The `facts_card` form is
-  retired (owner ruling 2026-11-15). The rows are counted for monitoring only. There are no caps (owner ruling 2026-11-15).
+- Monitoring counts public versions per `source_key` from `recipes.source_page_key` and the source records, for the
+  rate alarm only. There is no per-source ledger and there are no caps (owner ruling 2026-11-15).
 - Licence acceptance at Publish: one row in 016's acceptance record with the terms version (FR-062).
 
 ## Not stored

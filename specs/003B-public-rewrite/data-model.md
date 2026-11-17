@@ -21,7 +21,7 @@ in `erasureSweepCoverage`'s `RETAINED_BY_RULING` map with this reason.
 | `classification`          | text NOT NULL        | CHECK in (`open`, `thirdParty`, `paid`).                                                                                                                                                                                      |
 | `classification_inputs`   | jsonb NOT NULL       | The signals read: statement kind, claim state, licence signal, paid signal (which of the three), publication date, signature status, list versions. Each signal is `stated`, `absent` or `unread`, and `unread` reads closed. |
 | `fingerprint_format`      | smallint NOT NULL    | Format version of the hashing (R3).                                                                                                                                                                                           |
-| `fingerprint_key_version` | smallint NOT NULL    | Version of the hash key. One keyring secret holds every version, rotation adds a version and never deletes one (ADR-0097 §4).                                                                                                 |
+| `fingerprint_key_version` | smallint NOT NULL    | Version of the hash key. One keyring secret holds every version, rotation adds a version and never deletes one (the feature ADR, owed (T004)).                                                                                |
 | `step_shingles`           | bigint[] NOT NULL    | Keyed hashes (first 8 bytes of an HMAC-SHA-256, as a signed bigint) of word 5-shingles of the source steps. Never the text.                                                                                                   |
 | `title_shingles`          | bigint[] NOT NULL    | Keyed hashes of word 2-shingles of the source title.                                                                                                                                                                          |
 | `title_hash`              | bigint NOT NULL      | Keyed hash of the normalised source title.                                                                                                                                                                                    |
@@ -84,7 +84,7 @@ ready ──Not now / flow ends──────────────▶ can
   (FR-034a).
 - Provenance: a public version has `source_type = 'commise_written'`, no `source_kind` and no `statement_kind`. The
   existing `source_type` CHECKs gain the value. `public_web` + `imported_public` is wrong, because it reads as a web
-  copy. One-way door, named in ADR-0097.
+  copy. One-way door, named in the feature ADR, owed (T004).
 - The rights label "Steps written by Commise" (016-FR-015c) and the licence `cc-by-sa-4.0` are derived from
   `source_type` in `recipe-core` (`rightsLabelOf`, `licenceOf`). There is no column for either.
 - Import item `choice text NULL CHECK in ('private','public','both')`. Not a new `visibility` value, which
@@ -101,13 +101,14 @@ ready ──Not now / flow ends──────────────▶ can
 ## Identity
 
 Identity's database gains the `age_assurances` table now, as defined in `specs/016-legal-compliance-framework/data-model.md` §3 (FR-016, FR-016b). This feature writes `basis = self_attested`, `floor_met = 16`, `wording_version = ageConfirm.v1` and the cook's `locale`. Account erasure
-deletes the row, and the erasure coverage test covers it. The Clerk claim `public_metadata.ageFloorMet` is set after the
+deletes the row, and the erasure coverage test covers it. The Clerk claim `public_metadata.ageFloorMet` (the integer `16`) is set after the
 row is written. Recipe-service holds no age data. `clerk-verify` parses the claim into the `Principal` field `publishAgeMet`.
 
 ## Source evidence retained
 
-ADR-0089 §6's evidence record holds no source steps, so a save under a key version the service cannot read cannot be
-re-checked against retained text. It answers `422 rewriteNeeded` (FR-050a). This feature keeps no source text of its own.
+ADR-0089 §6's evidence record holds no source steps, and this feature keeps no source text of its own. Keys are never
+deleted, so a missing key version is an operator fault. A later save then answers `503 checkUnavailable` and raises an
+alarm, and Publish answers `422 rewriteNeeded` (FR-050a).
 
 ## Not stored
 

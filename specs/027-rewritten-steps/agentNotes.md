@@ -18,7 +18,7 @@ Rules that are easy to get wrong. Read before working on this feature.
   (`expectedVersion` + digest). It needs a recipe published once, so a version always exists (ADR-0058).
 - **A replace never changes the rights label.** Another site's steps go public only through the two doors of 003B-FR-015.
   Attach changes no label either.
-- **One engine.** Whichever of 027 and 003B ships first builds `recipe-core/src/stepWriting/`. The other and 020's
+- **One engine.** 003B builds `recipe-core/src/stepWriting/` first. 027 and 020's
   suggestion consume it with their own call site, charge rule and sink. No mode flag inside the engine. The wording
   check runs on a hashed fingerprint of the original, never on stored text.
 - **One banned-word list**, defined by 003B-FR-064 and held in one module. A test enforces it over `recipes.flowSteps.*`.

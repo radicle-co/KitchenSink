@@ -2,7 +2,7 @@
 
 Rules that are easy to get wrong. Read before working on this feature.
 
-- **Planned, not built. Clarifications are ruled where marked, the rest assumed** (spec C-1 to C-23). It sits behind one per-market
+- **Planned, not built. Clarifications are ruled where marked, the rest assumed** (spec C-1 to C-27). It sits behind one per-market
   switch, on in every market at launch (FR-090, ADR-0093 §6a). No test door.
 - **The engine is 027's.** Facts sheet, writer, fact check and shingle measure live in `recipe-core/src/stepWriting/`
   and are designed in spec 027. Build them once, to 027's design. No mode flag in the engine. The title is built by

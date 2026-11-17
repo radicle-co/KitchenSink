@@ -34,6 +34,25 @@ PublicVersionOffer =
 
 The server computes `offer`. The client renders it and never derives it.
 
+## The shown offer
+
+Start and Publish carry `shownOffer`, the offer the client rendered, cut down to the fields the server compares:
+
+```text
+ShownOffer =
+          { kind: 'choice', credit: 'free' | 'paid' }
+        | { kind: 'privateOnly', reason }   // the same reasons as the offer. holdEndsOn is not compared
+        | { kind: 'publicExists', status: 'published' | 'writing' | 'inReview' }   // recipeId is not compared
+        | { kind: 'publicOnly' }
+        | { kind: 'deadEnd', reason: 'paid' | 'noWrite' }
+```
+
+The server compares exactly these fields with the offer it computes now, and answers `409 { code: 'offerChanged', offer }`
+on a difference. The client never decides on its own that the offer changed. When the server computes the offer at Start
+and at Publish, it excludes the caller's own live job, so the same cook's job never reads as `publicExists`. If the page
+is now held by another cook's version, the answer is `409 { code: 'publicExists', recipeId }`, which takes precedence over
+`offerChanged`. The later route sends the `shownOffer` it got from `GET /api/v1/recipes/{recipeId}/public-version/offer`.
+
 ## Read the offer for a private copy
 
 `GET /api/v1/recipes/{recipeId}/public-version/offer` → `200 { offer: PublicVersionOffer }`. Owner only, and it needs a
@@ -50,16 +69,14 @@ viewer, like the other owner-only fields (ADR-0090, #301). It is computed the wa
 
 ## Start a public version
 
-`POST /api/v1/import/{importId}/items/{itemId}/public-version` with `{ choice: 'public' | 'both', shownOffer: { kind, reason? } }`.
+`POST /api/v1/import/{importId}/items/{itemId}/public-version` with `{ choice: 'public' | 'both', shownOffer: ShownOffer }`.
 `POST /api/v1/recipes/{recipeId}/public-version` for the later route (a private copy). A paid copy goes through the
 same paid-site rules.
 
 - `202 { jobId, state }`. A second call while a live job exists returns the same job.
 - `409 { code: 'publicExists', recipeId: string | null }`: another version of this source page is already public (FR-034). The key is released by FR-034a.
-- `409 { code: 'offerChanged', offer }`: the offer the server computes now differs from the one the client saw. `offer`
-  is the current offer. The request carries the offer `kind` and `reason` it was shown (`shownOffer: { kind, reason? }`)
-  and the server compares them. The client never decides on its own that the offer changed. Client copy:
-  `offerChanged.line`. Publish answers the same way.
+- `409 { code: 'offerChanged', offer }`: the offer the server computes now differs from the `shownOffer` the client sent
+  (see "The shown offer"). `offer` is the current offer. Client copy: `offerChanged.line`. Publish answers the same way.
 - `429 { code: 'importAllowance' }` past the one import allowance (004-FR-061).
 
 ## Read the job
@@ -70,13 +87,15 @@ The output is present only in `ready`. It holds no source text.
 
 ## Publish
 
-`POST /api/v1/public-version-jobs/{jobId}/publish` with `{ title, steps: { text }[], shownOffer: { kind, reason? } }` (the cook's edited version).
+`POST /api/v1/public-version-jobs/{jobId}/publish` with `{ title, steps: { text }[], shownOffer: ShownOffer }` (the cook's edited version).
 
 - `201 { recipeId }`, or `200 { recipeId }` for a job already published (idempotent on the source page key).
 - `422 { code: 'flags', flags: { kind: 'step' | 'allergen', line?, ingredient? }[] }` from the server fact check.
-- `422 { code: 'tooSimilar' }` from the wording check, or `422 { code: 'rewriteNeeded' }` when the stored fingerprint's key version cannot be read. The service keeps no source text to re-check against, so there is no other branch.
+- `422 { code: 'tooSimilar' }` from the wording check, or `422 { code: 'rewriteNeeded' }` when the stored fingerprint's key version cannot be read (the cook can write it again).
 - `409 { code: 'privateCopyChanged' }` on the Both path (FR-045).
 - `409 { code: 'offerChanged', offer }` as for starting a job.
+- `409 { code: 'publicExists', recipeId }` when another cook's version now holds the page. It takes precedence over
+  `offerChanged`.
 - `403 { code: 'ageConfirmNeeded' }`: the principal has no `publishAgeMet`, the `Principal` field parsed from the signed `public_metadata.ageFloorMet` claim (`publishAgeAllowed`, FR-016). Only
   Publish is gated, and so is the Publish step of the later route. The client shows `ageConfirm.*` (wording
   `ageConfirm.v1`). On "I'm 16 or over" it calls the identity route below, then `getToken({ skipCache: true })` (on
@@ -85,7 +104,7 @@ The output is present only in `ready`. It holds no source text.
 ## Identity: age assurance
 
 `POST /api/v1/me/age-assurance` with `{ floor: 16, wordingVersion: 'ageConfirm.v1', locale }`. It writes the
-`age_assurances` row first, then sets the Clerk `public_metadata.ageFloorMet` claim. It is idempotent.
+`age_assurances` row first, then sets the Clerk `public_metadata.ageFloorMet` claim to the integer `16`. It is idempotent.
 
 - `204` on success. A repeat call writes no second row.
 - `503` when the claim write fails. The row stays, and a retry writes only the claim.
@@ -97,4 +116,23 @@ The output is present only in `ready`. It holds no source text.
 ## Recipe writes
 
 `PATCH /api/v1/recipes/{id}` and version restore on a public version answer `422 { code: 'tooSimilar' }` on a
-refusal by the wording guard (FR-050). No new route.
+refusal by the wording guard (FR-050). When the stored fingerprint's key version cannot be read, they answer a retryable
+`503 { code: 'checkUnavailable' }` and raise an alarm (FR-050a). The editor keeps the cook's edit in its device draft. A
+save that makes the version private runs no wording check. No new route.
+
+## Duplicate lookup
+
+`GET /api/v1/import/copies?source=<link>` →
+
+```text
+200 { copies: { recipeId: string, title: string, savedAt: string, site: string, version: number,
+                replaceable: boolean, everPublished: boolean }[],
+      total: number }
+```
+
+It lists the caller's own copies of one source page, never another cook's, and charges nothing.
+
+- `copies` holds at most 20 entries (`IMPORT_COPIES_MAX`), newest first. `savedAt` is an ISO date.
+- `everPublished` is true when the recipe's `first_published_at` is set. It is never derived from the recipe's status.
+- `total` counts every copy of the page that the cook holds, so `total >= copies.length`. A page with no copy answers
+  `{ copies: [], total: 0 }`.

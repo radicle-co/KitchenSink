@@ -10,10 +10,14 @@ Nothing here runs today. The feature is planned, not built.
     - the steps are new, and every amount, time and temperature matches the paste.
     - "Show my copy" shows the pasted steps.
     - the credit and licence lines show, and no page photo.
-6. Publish. The recipe reads "Checking". Edit its steps back to the pasted wording. The save is refused.
-7. Repeat with a paid-site page newer than 6 months: one line, "Save my copy", no other choice. With an older one,
-   the choice shows and the credit names no site.
-8. Fill 50 private slots on a Free test cook. Paste a paid-site page. The dead end shows. Try "Not now".
-9. Repeat 4 to 8 on Android and iOS through the mobile app.
+6. Publish with a test cook that has no age claim. The age question shows. Choose "Not now": nothing publishes and the
+   review screen returns. Publish again and choose "I'm 16 or over". The recipe publishes after one retry and reads
+   "Checking".
+7. Edit its steps back to the pasted wording. The save is refused.
+8. Repeat with a paid-site page. It reads Private only: one line and "Save my copy". Once the page evidence carries the
+   paid facts, a page newer than 6 months shows the same, and an older one shows the choice with a credit that names
+   no site.
+9. Fill 50 private slots on a Free test cook. Paste a paid-site page. The dead end shows. Try "Not now".
+10. Repeat 4 to 9 on Android and iOS through the mobile app.
 
 Clean up: stop the local stack, delete the test cook's recipes, and remove any stub writer files.

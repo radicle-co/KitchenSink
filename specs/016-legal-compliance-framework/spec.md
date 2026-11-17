@@ -391,7 +391,8 @@ the policy's recommendation are both visible.
 - **FR-008**: The system MUST enforce a minimum account age and MUST record the basis on which the account
   was determined to meet it. The floor is the higher of the applicable local digital-consent age and 13.
 - **FR-009**: The system MUST NOT present a user under 16 with any publication surface, in any market (`FR-072`,
-  Owner ruling, 2026-11-15).
+  Owner ruling, 2026-11-15). _Interim exception_: until this spec's age assurance ships, spec 003B (`FR-016`, C-17)
+  lets a cook who confirms "I'm 16 or over" at Publish publish. It ends when that assurance ships (003B T150).
 
 #### B. The content licence — the right to display, clone and derive
 

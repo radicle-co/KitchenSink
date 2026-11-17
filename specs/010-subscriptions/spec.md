@@ -2,7 +2,7 @@
 
 **Feature Branch**: `010-subscriptions`
 **Created**: 2026-04-14
-**Last updated**: 2026-11-15 (owner ruling: the import dead end's "Upgrade to Pro" button, `FR-042c`)
+**Last updated**: 2026-11-17 (the import dead end's "Upgrade to Pro" button opens Pro's checkout: `FR-042c`, US6 scenario 2)
 **Status**: Product decisions revalidated — implementation/test gate blocked pending test execution.
 2026-10-27: the three plans are **Free, Pro and Pro with AI**, and the paid plans are called "Pro" everywhere
 (owner rulings 2026-10-26 and 2026-10-27). AI credits come in three levels, held by Free, Pro and Pro with AI: 3, 30

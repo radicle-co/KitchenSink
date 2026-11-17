@@ -279,7 +279,7 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
   spends the one import allowance: 200 a rolling day on Free and 1,000 a rolling day on a paid plan. No channel has a
   counter of its own. Test principals (ADR-0040) have no limit. This
   replaces the per-channel counts in the `FR-022` note, D-006 and D-013.
-- **FR-068** _(added 2026-11-17, the paste and link import ADR (ADR-0096))_: **A link import reads the page
+- **FR-068** _(added 2026-11-17, the paste and link import ADR, owed (T004))_: **A link import reads the page
   on the device first and on the server if that fails, and the server never reads a known paid site.**
     - The device read runs first. If it cannot fetch the page, the import asks the server to read it. On web the device
       read always answers "cannot fetch", because a browser cannot read another site's page, so the server read runs.

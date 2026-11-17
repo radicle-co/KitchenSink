@@ -259,6 +259,9 @@ can always cook from the original steps.
     - every amount, temperature, time, ingredient name and safety line on the fact sheet appears in the result, as
       often as on the sheet. And
     - the result holds no amount, temperature, time, ingredient name or safety line that is not on the sheet.
+      The check compares (quantity, unit, ingredient) triples, not bare amounts, so two amounts swapped between
+      ingredients fail. A quantity ties to an ingredient only in the shape NUM [UNIT] [of [the]] NAME. A tie is exact or
+      null: any other shape ties to nothing.
       Steps may be merged, split or reordered. A result that fails is never shown, stored or charged.
 - **FR-041**: A safety line is a statement in the steps in one of these seven categories. The plan fixes the detectors. (C-13)
     1. An internal or doneness temperature.

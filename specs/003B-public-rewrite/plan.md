@@ -5,8 +5,7 @@
 
 **Status**: BLUEPRINT done 2026-11-17. `staff-architect` PLANNING ran on 2026-11-15 (opus). Its pattern register and its
 findings are folded in below and into the spec (FR-015, FR-016, FR-045, FR-065, and the FR-050 title rule). The decisions
-are recorded in the paste and link import ADR (ADR-0096) and
-the public version ADR (ADR-0097). The build order is in `tasks.md`, with one slice tag per task.
+are to be recorded in the paste and link import ADR, owed (T004), and the feature ADR, owed (T004). The build order is in `tasks.md`, with one slice tag per task.
 `staff-ux-engineer` SPECIFY and EVALUATE are owed before any UI code.
 
 ## Summary
@@ -56,15 +55,15 @@ unknown classification input. Job timeout 10 min.
 
 **027 owns the engine's design. 003B depends on it and builds none of it twice.**
 
-| Part                                                                                                                                                                        | Owner | Built by                                                        |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------------------------------------- |
-| `recipe-core/src/stepWriting/*`: facts sheet, prompt, answer parser, fact check, shingle measure, `rewriteSteps`                                                            | 027   | Whichever feature lands first (027 build step 1)                |
-| `recipe-workers/src/stepWriting/gatedStepWriter.ts` (the adapter half of 027 step 4)                                                                                        | 027   | Whichever feature lands first                                   |
-| The bake-off, the pinned model id, the measured thresholds (027 step 5)                                                                                                     | 027   | Whichever feature lands first. 003B cannot launch without them. |
-| Import classification, the choice, the public-version job, the worker handler, the review, Publish, the every-save wording guard, the rate alarm, the title builder, all UI | 003B  | 003B                                                            |
-| 027's own tables, cache, use ledger and Cooking Mode switch                                                                                                                 | 027   | 027 only. 003B never takes them.                                |
+| Part                                                                                                                                                                        | Owner | Built by                                      |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------------------- |
+| `recipe-core/src/stepWriting/*`: facts sheet, prompt, answer parser, fact check, shingle measure, `rewriteSteps`                                                            | 027   | 003B, first (027 build step 1)                |
+| `recipe-workers/src/stepWriting/gatedStepWriter.ts` (the adapter half of 027 step 4)                                                                                        | 027   | 003B, first                                   |
+| The bake-off, the pinned model id, the measured thresholds (027 step 5)                                                                                                     | 027   | 003B, first. 003B cannot launch without them. |
+| Import classification, the choice, the public-version job, the worker handler, the review, Publish, the every-save wording guard, the rate alarm, the title builder, all UI | 003B  | 003B                                          |
+| 027's own tables, cache, use ledger and Cooking Mode switch                                                                                                                 | 027   | 027 only. 003B never takes them.              |
 
-003B will probably land first. 027's build step 0 needs 005's use ledger, which is unbuilt. 003B charges operating
+003B builds the engine first. 027's build step 0 needs 005's use ledger, which is unbuilt. 003B charges operating
 cost and needs no ledger.
 
 **Edits made to 027 in the same PR:**
@@ -171,7 +170,7 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 
 0. Prerequisites. The evidence record of ADR-0089 §6 is built. The feature ADR is written (label, licence,
    provenance pair, fingerprint format, ADR-0024 §3). `staff-ux-engineer` SPECIFY.
-1. 027 engine core and fingerprint API, test-first with mutation suites (if 027 has not built it).
+1. 027 engine core and fingerprint API, test-first with mutation suites.
 2. Migration and LOCAL e2e: tables, columns, CHECK pairs, unique `source_page_key`, cascade and erasure.
 3. recipe-service: classifier, job API, Publish Command, wording guard, title builder, zod contract,
    `contract:generate`.
@@ -191,17 +190,17 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 | LOCAL e2e            | Migration applied. CHECK pairs. Unique `source_page_key`. Page key released on delete, rejection and opt-out. Erasure covers the job table and identity's `age_assurances` row. Age route round trip and k6 by hand (P3b).                           |
 | Service e2e + k6     | Job and publish round trip on a deployed preview. k6 on job status reads, by hand.                                                                                                                                                                   |
 | Component (both)     | Every state in the spec table. Banned-word guard over `importMessages.choice.*` and `recipes.flowSteps.*`.                                                                                                                                           |
-| Playwright / Maestro | US1 Public and Both. US2 Private, and paid held back or allowed. US3 failure and later route, US4 dead end with switch on and off, US5 blocked save.                                                                                                 |
+| Playwright / Maestro | US1 Public and Both. US2 Private, and paid held back (paid allowed is enabled once the page evidence carries the paid facts). US3 failure and later route, US4 dead end with switch on and off, US5 blocked save.                                    |
 
 ## Watch list
 
 - **Facts-only quality.** The steps can read flat. The bake-off measures it before launch.
 - **Fact extraction recall.** A fact the extractor misses is neither sent nor checked. SC-001's human audit is the
   backstop.
-- **Key custody.** The fingerprint key is a secret in AWS Secrets Manager under this feature, with rotation that keeps old versions readable (FR-050a). A lost key version sends a save to `rewriteNeeded`.
+- **Key custody.** The fingerprint key is a secret in AWS Secrets Manager under this feature, with rotation that keeps old versions readable (FR-050a). A missing key version is an operator fault: a later save answers `503 checkUnavailable` with an alarm, and Publish answers `422 rewriteNeeded`.
 - **Fingerprint permanence.** With no text kept, a fingerprint can never be recomputed. The format version and the key
   version are stored, and a format change keeps the old reader.
 - **Shared pool.** The first operating-cost consumer that a cook's choice triggers. It competes with parse and match
   until ADR-0024 §6's split lands.
 - **Unmerged dependencies.** The evidence record of ADR-0089 §6 is not built. The source record shape can still move.
-- **Open owner rulings.** C-1 to C-23, and the conflicts list in the spec.
+- **Open owner rulings.** C-1 to C-27, and the conflicts list in the spec.

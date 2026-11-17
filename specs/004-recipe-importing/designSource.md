@@ -48,6 +48,9 @@ Each needs a design spec section and boards on both canvases before it is built:
 - Ownership claim at import and later (FR-014a item 4, FR-055): offered, in progress, verified, failed and declined.
 - The paid-list admin screen (FR-014): designed with the server link fetch.
 - The bulk "Already in your library" state (FR-068).
+- The statement block's rows for statements 1a, 2 and 6 (`FR-014a`), and the bulk "Needs your statement" group. Until
+  then the block offers only the paste design spec's §7.4 statements. The wording is confirmed before launch
+  (`016-FR-050`).
 
 ## Rules that hold on every import screen
 

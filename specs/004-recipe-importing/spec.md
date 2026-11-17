@@ -97,8 +97,8 @@ the page's wording and shows the source author's name. Then clone it and verify 
    **Then** only Private is offered.
 3. **Given** a page with a title and steps but no ingredient lines, **When** the cook imports it, **Then** the import is
    refused with its reason and nothing is saved. The same holds for a page with no steps (`FR-015`).
-4. **Given** a page with no yield, no cuisine or no time, **When** the cook imports it, **Then** the item is held under
-   "Needs servings", "Needs a cuisine" or "Needs times" until the cook enters the value, and no value is invented
+4. **Given** a page with no yield, no cuisine or no time, **When** the cook imports it, **Then** the item is held by the
+   `needsServings`, `needsCuisine` or `needsTimes` hold (paste design spec S12 to S14) until the cook enters the value, and no value is invented
    (`FR-015`, `FR-021`).
 5. _(Photo import is 011's. 004's residual obligation: **Given** a caller submits recipes to the import route with the
    statement "from a book", **When** they are saved as `imported_physical`, **Then** each is private with no public source

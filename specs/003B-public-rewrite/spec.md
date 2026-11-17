@@ -679,8 +679,9 @@ pointer to it. The exception ends when 016's age assurance ships and the `under1
 
 Still owed:
 
-- ADR-0093 §4 and `016-FR-077` say the writer sees facts only. This feature changes that: the writer reads the facts
-  sheet and the source step text (`027-FR-035`, owner to confirm). The feature ADR records the amendment, owed (T004).
+- ADR-0093 §4 says the writer sees facts only. This feature changes that: the writer reads the facts sheet and the
+  source step text (`027-FR-035`, owner to confirm). `016-FR-077` already points to `027-FR-035`. The feature ADR
+  records the amendment, owed (T004).
 - ADR-0024 §3 (a third no-retry path) and the label, licence, provenance and stored-credit (`recipes.public_credit`)
   one-way doors (FR-060, FR-061, FR-062, data-model), in the feature ADR, owed (T004).
 

@@ -3,6 +3,8 @@
  * "what am I over" to get wrong. This pins it at the type level, which is where a prop's return would be a compile error
  * in every caller and not a test failure in one. Mutation lens: add `over` back to `ButtonCommon` and this file stops
  * compiling.
+ *
+ * The `expectTypeOf` checks run at compile time, under `npm run typecheck`, not when vitest runs the file.
  */
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
@@ -13,7 +15,6 @@ describe('ButtonProps', () => {
         type HasOver<T> = T extends unknown ? ('over' extends keyof T ? true : false) : never;
 
         expectTypeOf<HasOver<ButtonProps>>().toEqualTypeOf<false>();
-        expect(true).toBe(true);
     });
 
     // Designer ruling 2026-11-03: a neutral safe choice ("Keep editing") is a `secondary` button with its border and NO glyph,
@@ -27,7 +28,6 @@ describe('ButtonProps', () => {
         expectTypeOf<Bare<'primary'>>().not.toExtend<ButtonProps>();
         expectTypeOf<Bare<'destructive'>>().not.toExtend<ButtonProps>();
         expectTypeOf<{ readonly children: string }>().not.toExtend<ButtonProps>();
-        expect(true).toBe(true);
     });
 
     // The action glyph is a SECONDARY option: a filled tier's glyph sits on its fill, and ghost is already actionText.
@@ -44,7 +44,6 @@ describe('ButtonProps', () => {
         expectTypeOf<Toned<'ghost'>>().not.toExtend<ButtonProps>();
         expectTypeOf<Toned<'quiet'>>().not.toExtend<ButtonProps>();
         expectTypeOf<Toned<'destructive'>>().not.toExtend<ButtonProps>();
-        expect(true).toBe(true);
     });
 });
 

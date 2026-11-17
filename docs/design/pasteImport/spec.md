@@ -275,7 +275,7 @@ On every change of the box's value, the orchestration classifies it with one pur
 - `shortText`: everything else.
 
 Two named constants, owned by the blueprint's page reader beside its other caps (PR B), not by this screen:
-`PASTE_MAX_BYTES = 2_000_000` and `PASTE_CARD_THRESHOLD_CHARS = 20_000`. The architect places them. This spec names
+`MAX_PASTE_BYTES = 2_000_000` and `PASTE_CARD_THRESHOLD_CHARS = 20_000`. The architect places them. This spec names
 them only so the screen never repeats a literal.
 
 **Per platform, too large.** The value is already in the field when the change event arrives, on both platforms. The

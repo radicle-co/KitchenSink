@@ -427,7 +427,7 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   so explicitly and offer the screenshot/paste path, distinguishing "cannot read this source" from "read it and
   found no recipe". _(Extends `004-FR-016`, which covers the message but not the distinction.)_
 - **FR-009** `→ 004 MODIFIED`: Instagram import MUST be reachable through user-initiated capture and MUST NOT
-  depend on Meta Graph API approval. **This closes gate D-002 on `004-FR-009`**; the Graph API path becomes an
+  depend on Meta Graph API approval. The Graph API path (`004-D-002`) becomes an
   optional enhancement, never a precondition.
 - **FR-010** `→ 004 MODIFIED`: Every **new** surface introduced by this feature — the waterfall (FR-002), unit
   conversion (FR-026), and export round-trip (FR-020) — MUST preserve an unstated quantity as unstated, never

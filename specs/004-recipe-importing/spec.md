@@ -531,8 +531,8 @@ them. So the import never invents a value:
       pauses (ADR-0072 §9).
     - With no free slot, the cook is offered Public where the rewrite can run, and otherwise the dead end with its
       "Upgrade to Pro" action (`003B-FR-073`).
-    - A family or friend recipe shared with permission is not non-public by policy: it can be public, so this
-      requirement's refusals do not apply to it. Its private copy uses a slot like any private recipe.
+    - A family or friend recipe is private only until 016's family source type ships (`FR-014a`), so this requirement's
+      refusals apply to it. Its private copy uses a slot like any private recipe.
     - A book or paid-site recipe can go public only as a Commise-written version (`FR-065`). The cook's private copy uses
       a private slot even when the recipe also has a public version.
 - **FR-014b**: Withdrawn. A book or paid-site recipe's public form is a Commise-written version
@@ -838,7 +838,7 @@ Normative sources: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDAR
 - **SC-002**: A device extraction tier is switched on for cooks only when it shows 0 wrong yes on held-out, unseen pages,
   and it also has a 95% upper bound under 5% on its wrong-yes rate, which takes about 60 or more yes pages. The tier's
   upper bound and coverage are reported. A wrong yes is a yes whose extracted recipe differs from the page's recipe. The
-  corpus, its size and the measurement method are fixed at PLANNING (D-009).
+  corpus is `D-009`'s.
 - **SC-003**: Each tier's coverage, the share of pages it answers yes for, is reported next to its wrong-yes bound, per
   tier. A tier below the bar of `SC-002` stays off.
 - **SC-004**: p95 end-to-end latency for a link import job on the server fetch path of `FR-064` MUST be 15 seconds or

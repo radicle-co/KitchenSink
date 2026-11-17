@@ -257,7 +257,7 @@ describe('assertFactsSheetPlain', () => {
 
 describe('the fact character set A2 builds its separators from', () => {
     it('is exactly the punctuation a plain name may hold', () => {
-        expect(PLAIN_FACT_PUNCTUATION).toBe(" '\u2019,()&%\u00B0.+/-");
+        expect(PLAIN_FACT_PUNCTUATION).toBe(" '\u2019\u2018,()&%\u00B0.+/#\u00D7\u2026\u00AE\u2122\u2103-");
     });
 
     it('lets every punctuation mark in it follow a letter in a name', () => {

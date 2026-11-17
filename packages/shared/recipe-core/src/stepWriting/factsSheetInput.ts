@@ -13,7 +13,7 @@
  *
  * What a refused sheet means for the recipe is in `alphabet.ts`.
  */
-import { ALPHABET_BY_LANGUAGE, isOutputLanguage } from './alphabet.js';
+import { ALPHABET_BY_LANGUAGE, canonicalText, isOutputLanguage } from './alphabet.js';
 import { firstShapeFault } from './factsSheetShape.js';
 
 import type { OutputLanguage } from './alphabet.js';
@@ -31,8 +31,9 @@ export const MAX_FACT_TEXT_CHARS = 80;
  */
 export function isPlainFactText(text: string, language: OutputLanguage = 'en'): boolean {
     const alphabet = ALPHABET_BY_LANGUAGE[language];
-    // NFC first, so a decomposed letter composes and passes, and one that cannot compose is not on the list.
-    const composed = text.normalize('NFC');
+    // Canonical first: a decomposed letter composes and passes, one that cannot compose is not on the list, and other
+    // space characters become a plain space.
+    const composed = canonicalText(text);
 
     // Code points, not UTF-16 units: an astral letter is one character of the name.
     return (

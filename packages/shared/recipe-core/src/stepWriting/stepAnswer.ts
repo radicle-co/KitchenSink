@@ -20,7 +20,7 @@
  */
 import { z } from 'zod';
 
-import { ALPHABET_BY_LANGUAGE } from './alphabet.js';
+import { ALPHABET_BY_LANGUAGE, canonicalText } from './alphabet.js';
 
 import type { OutputLanguage } from './alphabet.js';
 
@@ -85,8 +85,9 @@ export function parseStepAnswer(text: string, cap: number, language: OutputLangu
     }
 
     const { prose, addressRule } = ALPHABET_BY_LANGUAGE[language];
-    // NFC first, so a decomposed letter composes and passes. The steps handed back are the NFC text that was checked.
-    const steps = parsed.data.steps.map((step) => ({ ...step, text: step.text.normalize('NFC') }));
+    // Canonical first: a decomposed letter composes and passes, and other space characters become a plain space.
+    // The steps handed back are the canonical text that was checked.
+    const steps = parsed.data.steps.map((step) => ({ ...step, text: canonicalText(step.text) }));
 
     if (steps.some(({ text: step }) => !prose.test(step) || addressRule(step))) {
         return { refused: 'unsafeText' };

@@ -26,6 +26,16 @@ interface LanguageCases {
 const CASES: Record<OutputLanguage, LanguageCases> = {
     en: {
         refused: [
+            ['a Latin small letter l with middle dot', 'evil\u0140.com'],
+            ['a Latin capital letter L with middle dot', '\u013F.com'],
+            ['a Latin small letter l with middle dot alone', 'evil\u0140'],
+            ['a tel scheme', 'tel:5551234'],
+            ['an sms scheme', 'sms:5551234'],
+            ['the character just above the fractions', '\u215F'],
+            ['the character just below the fractions', '\u214F'],
+            ['the character just above the low fractions', '\u00BF'],
+            ['the character just below the low fractions', '\u00BB'],
+            ['a zero-width space', 'a\u200Bb'],
             ['a dotless i', '\u0131'],
             ['a Latin small letter iota', '\u0269'],
             ['a long s', '\u017F'],
@@ -50,6 +60,18 @@ const CASES: Record<OutputLanguage, LanguageCases> = {
             ['a tight dot that is not on the list', 'U.S. beef'],
         ],
         accepted: [
+            '#2 can',
+            '\u2018nduja',
+            '3 \u00D7 4',
+            'wait\u2026',
+            'brand\u00AE',
+            'brand\u2122',
+            '180 \u2103',
+            '\u00BE cup',
+            '\u2150 cup',
+            'butter\u00A0salt',
+            'a\u2003b',
+            'a\u3000b',
             'cr\u00E8me br\u00FBl\u00E9e',
             'jalape\u00F1o',
             'pi\u00F1a',
@@ -69,7 +91,7 @@ const CASES: Record<OutputLanguage, LanguageCases> = {
             '\u215E tsp',
             '\u00BC cup',
         ],
-        dotted: ['evil.com', 'evil.cooking', 'evil.zip'],
+        dotted: ['evil\uFF0Ecom', 'evil\u2024com', 'evil\uFE52com', 'evil.com', 'evil.cooking', 'evil.zip'],
     },
 };
 
@@ -93,9 +115,31 @@ describe.each(OUTPUT_LANGUAGES)('the %s alphabet', (language) => {
         expect(parseStepAnswer(reply, 80, language)).toMatchObject({ ok: true });
     });
 
-    it.each(cases.dotted)('reads %j as an address in both doors', (text) => {
+    it.each(cases.dotted)('reads %j, with its dot, as an address in both doors', (text) => {
         expect(ALPHABET_BY_LANGUAGE[language].addressRule(text)).toBe(true);
         expect(isPlainFactText(text, language)).toBe(false);
+    });
+
+    it.each(['.', '...', '\u2026', '#', "'", '()', '- -', '%'])(
+        'refuses %j, which is only punctuation, as a name',
+        (text) => {
+            expect(isPlainFactText(text, language)).toBe(false);
+        },
+    );
+
+    it.each(['.', '...', '\u2026', '#', '()', ', ,'])('refuses a written step of only %j', (text) => {
+        const reply = JSON.stringify({ steps: [{ text, covers: [0] }] });
+
+        expect(parseStepAnswer(reply, 80, language)).toEqual({ refused: 'unsafeText' });
+    });
+
+    it('folds a no-break space and the other space characters to a plain space instead of allowing them', () => {
+        const reply = JSON.stringify({ steps: [{ text: 'Add butter\u00A0and\u2003salt\u3000now.', covers: [0] }] });
+
+        expect(parseStepAnswer(reply, 80, language)).toEqual({
+            ok: true,
+            steps: [{ text: 'Add butter and salt now.', covers: [0] }],
+        });
     });
 
     it('accepts a time with a colon in a written step, though a name may not hold one', () => {

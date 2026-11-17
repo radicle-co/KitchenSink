@@ -4,10 +4,11 @@
  *
  * @pattern Strategy (Registry): `ALPHABET_BY_LANGUAGE` maps each output language to its own allowlists and its own
  * address rule. It is a `Record` over the closed `OutputLanguage` union, so adding a language fails to compile until
- * that language has an alphabet, its own handling of the ideographic full stop (`。`), and, in the unit tests, its own
- * table of refused and accepted cases.
+ * that language has an `Alphabet` entry and an entry in the unit tests' table of cases. How the entry treats the
+ * ideographic full stop (`。`) is for its author and that table to settle: the compiler does not check it.
  *
- * Both doors, the sheet check and the answer reader, normalise to NFC and then accept only what the allowlist names.
+ * Both doors, the sheet check and the answer reader, normalise to NFC, fold every space character to a plain space
+ * (see {@link canonicalText}), and then accept only what the allowlist names, with at least one letter or digit.
  * For English that is a to z, a closed list of accented letters, the digits 0 to 9, the vulgar fractions, and the
  * punctuation sets below. Combining marks, other scripts, full-width forms, joiners and hidden characters are not in it.
  * A decomposed `é` composes under NFC and passes. A combining mark that does not compose has no place to hide, because
@@ -40,13 +41,19 @@ export function isOutputLanguage(value: unknown): value is OutputLanguage {
 }
 
 /**
- * What a plain name may hold besides letters and digits: space, apostrophes, comma, parentheses, ampersand, percent,
- * degree, full stop, plus, slash and hyphen. The hyphen stays last so the set reads as a regex class.
+ * What a plain name may hold besides letters and digits: space, apostrophes and the single curly quotes, comma,
+ * parentheses, ampersand, percent, degree, full stop, plus, slash, number sign, multiplication sign, ellipsis,
+ * registered and trade mark signs, degree Celsius, and hyphen. The hyphen stays last so the set reads as a regex class.
+ * Other space characters are folded to a plain space before the check, not allowed as characters.
  */
-export const PLAIN_FACT_PUNCTUATION = " '’,()&%°.+/-";
+export const PLAIN_FACT_PUNCTUATION = " '\u2019\u2018,()&%\u00B0.+/#\u00D7\u2026\u00AE\u2122\u2103-";
 
-/** What a written step may hold besides letters and digits: the name set, plus semicolon, colon, marks, quotes and dashes. */
-const PLAIN_PROSE_PUNCTUATION = ' .,;:!?\'’"“”()-–—/%°&+';
+/**
+ * What a written step may hold besides letters and digits: the name set, plus semicolon, colon, exclamation and
+ * question marks, double quotes and dashes.
+ */
+const PLAIN_PROSE_PUNCTUATION =
+    ' .,;:!?\'\u2019\u2018"\u201C\u201D()-\u2013\u2014/%\u00B0&+#\u00D7\u2026\u00AE\u2122\u2103';
 
 /**
  * The accented Latin letters English recipe text really uses (French, Spanish, Portuguese, German, Scandinavian and
@@ -71,13 +78,30 @@ const DIGIT_OR_FRACTION = '0-9\\u00BC-\\u00BE\\u2150-\\u215E';
  */
 const classBody = (characters: string): string => characters.replace(/[()[\]{}/|\\-]/gu, String.raw`\$&`);
 
-/** A name starts with a letter, digit, fraction or apostrophe (`'nduja`), then holds only the name set. */
+/** Somewhere in the text there is a letter, a digit or a fraction, so punctuation alone is never a name or a step. */
+const SOMETHING_TO_READ = `(?=.*[${LATIN_LETTER}${DIGIT_OR_FRACTION}])`;
+
+/** A name starts with a letter, digit, fraction, apostrophe or number sign (`'nduja`, `#2 can`), then holds only the name set. */
 const ENGLISH_NAME = new RegExp(
-    `^[${LATIN_LETTER}${DIGIT_OR_FRACTION}'’][${LATIN_LETTER}${DIGIT_OR_FRACTION}${classBody(PLAIN_FACT_PUNCTUATION)}]*$`,
+    `^${SOMETHING_TO_READ}[${LATIN_LETTER}${DIGIT_OR_FRACTION}'\u2019\u2018#][${LATIN_LETTER}${DIGIT_OR_FRACTION}${classBody(PLAIN_FACT_PUNCTUATION)}]*$`,
     'v',
 );
 
-const ENGLISH_PROSE = new RegExp(`^[${LATIN_LETTER}${DIGIT_OR_FRACTION}${classBody(PLAIN_PROSE_PUNCTUATION)}]+$`, 'v');
+const ENGLISH_PROSE = new RegExp(
+    `^${SOMETHING_TO_READ}[${LATIN_LETTER}${DIGIT_OR_FRACTION}${classBody(PLAIN_PROSE_PUNCTUATION)}]+$`,
+    'v',
+);
+
+/**
+ * The text a door checks and hands back: NFC, so a decomposed letter composes, with every space character (no-break,
+ * em, ideographic and the rest of `\p{Zs}`) folded to a plain space. Spaces are folded, not allowed as characters.
+ *
+ * @param text - Raw text.
+ * @returns The canonical text. Pure.
+ */
+export function canonicalText(text: string): string {
+    return text.normalize('NFC').replace(/\p{Zs}/gu, ' ');
+}
 
 /** One language's alphabet. */
 export interface Alphabet {

@@ -23,10 +23,16 @@ export const SAFETY_CATEGORIES = [
 /** One of the seven safety categories. */
 export type SafetyCategory = (typeof SAFETY_CATEGORIES)[number];
 
-/** An amount in canonical form: a quantity and its unit, `null` for a count with no unit. */
+/**
+ * An amount in canonical form: a quantity and its unit, `null` for a count with no unit.
+ *
+ * `ingredient` ties the amount to the ingredient it measures, so a step with two amounts ("2 tbsp butter and 1 cup
+ * flour") cannot swap them. It is one of the same step's `ingredients`, or `null` when the step names none after it.
+ */
 export interface FactAmount {
     readonly quantity: number;
     readonly unit: string | null;
+    readonly ingredient: string | null;
 }
 
 /** A temperature as the step states it. The check normalises to Celsius, the writer sees the stated scale. */

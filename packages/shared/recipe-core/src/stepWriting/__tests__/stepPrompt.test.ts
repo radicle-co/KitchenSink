@@ -43,7 +43,7 @@ const makeSheet = (overrides: Partial<FactsSheet> = {}): FactsSheet => ({
     steps: [
         makeStep({
             actions: ['melt'],
-            amounts: [{ quantity: 2, unit: 'tbsp' }],
+            amounts: [{ quantity: 2, unit: 'tbsp', ingredient: 'butter' }],
             ingredients: ['butter'],
             equipment: ['skillet'],
         }),
@@ -118,7 +118,7 @@ describe('buildStepPrompt', () => {
                 {
                     index: 0,
                     actions: ['melt'],
-                    amounts: [{ quantity: 2, unit: 'tbsp' }],
+                    amounts: [{ quantity: 2, unit: 'tbsp', ingredient: 'butter' }],
                     temperatures: [],
                     durations: [],
                     ingredients: ['butter'],
@@ -169,7 +169,7 @@ describe('buildStepPrompt', () => {
         const sentinel = 'SENTINEL-nested-wording-91c4';
         const plant = <T extends object>(fact: T): T & { text: string } => ({ ...fact, text: sentinel });
         const step = makeStep({
-            amounts: [plant({ quantity: 2, unit: 'tbsp' })],
+            amounts: [plant({ quantity: 2, unit: 'tbsp', ingredient: null })],
             temperatures: [plant({ value: 200, scale: 'C' as const })],
             durations: [plant({ minSeconds: 60, maxSeconds: 90 })],
             safety: [plant({ category: 'warning' as const, facts: ['never leave it'] })],
@@ -212,7 +212,7 @@ describe('buildStepPrompt', () => {
 
     it('refuses a sheet whose prompt would pass the input cap, and never truncates', () => {
         const names = Array.from({ length: 2_000 }, (_, index) => `ingredient number ${index} with a long name`);
-        const sheet = makeSheet({ ingredientNames: names });
+        const sheet = makeSheet({ ingredientNames: ['butter', 'chicken thigh', ...names] });
 
         const thrown = thrownBy(() => buildStepPrompt(sheet));
 
@@ -225,7 +225,14 @@ describe('buildStepPrompt', () => {
     it('accepts a prompt of exactly the cap and refuses one code point more', () => {
         // Names are capped at 80 code points, so pad with whole names and tune the last one a character at a time.
         const padded = (fullNames: number, lastLength: number): FactsSheet =>
-            makeSheet({ ingredientNames: [...Array(fullNames).fill('a'.repeat(80)), 'a'.repeat(lastLength)] });
+            makeSheet({
+                ingredientNames: [
+                    'butter',
+                    'chicken thigh',
+                    ...Array(fullNames).fill('a'.repeat(80)),
+                    'a'.repeat(lastLength),
+                ],
+            });
 
         const length = (sheet: FactsSheet): number => {
             const { systemPrompt, userMessage } = buildStepPrompt(sheet);

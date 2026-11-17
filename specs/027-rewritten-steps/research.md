@@ -100,8 +100,9 @@ Phase 0 for `plan.md`. Each item: decision, rationale, alternatives rejected.
 ## R11. Place mapping in Cooking Mode
 
 - **Decision**: the writer's answer carries, for each result step, the source step indexes it covers
-  (`covers: number[]`, validated: every source step with text covered at least once, indexes in range). Switching
-  maps the current step to the first step whose `covers` contains it.
+  (`covers: number[]`, validated: indexes in range, and every source step that carries at least one fact covered at
+  least once). The facts sheet keeps every source step in order, so indexes stay stable. A step with no facts ("Enjoy!")
+  may be dropped. Switching maps the current step to the first step whose `covers` contains it.
 - **Rationale**: FR-012. Indexes only, no text, so it stays inside FR-035/FR-046.
 
 ## R12. Caps

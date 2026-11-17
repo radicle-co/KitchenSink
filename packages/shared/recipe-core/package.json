@@ -42,6 +42,8 @@
         "./parsing/parse-answer": "./src/parsing/parseAnswer.ts",
         "./step-writing/step-prompt": "./src/stepWriting/stepPrompt.ts",
         "./step-writing/step-answer": "./src/stepWriting/stepAnswer.ts",
+        "./step-writing/facts-sheet": "./src/stepWriting/factsSheet.ts",
+        "./time-unit-words": "./src/timeUnitWords.ts",
         "./step-writing/facts-sheet-types": "./src/stepWriting/factsSheet.types.ts",
         "./step-writing/alphabet": "./src/stepWriting/alphabet.ts",
         "./step-writing/facts-sheet-input": "./src/stepWriting/factsSheetInput.ts",

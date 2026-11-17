@@ -294,10 +294,14 @@ const PACKAGE_INTERNALS_PATTERN = {
         // recipe service's contract corpus.
         '!@kitchensink/*/parsing/parse-prompt',
         '!@kitchensink/*/parsing/parse-answer',
+        // `time-unit-words` is the one list of time words. It stays OUT of the barrel, which is hashed into the recipe
+        // contract, as `parsing/*` does.
+        '!@kitchensink/*/time-unit-words',
         // `step-writing/*` (specs 027 and 003B): the step-writing engine's published entry points. They stay OUT of the
         // barrel on purpose, as the parse-leg modules above do. The bare `step-writing` entry is what the allow-list guard
         // needs for the directory form of the pattern.
         '!@kitchensink/*/step-writing',
+        '!@kitchensink/*/step-writing/facts-sheet',
         '!@kitchensink/*/step-writing/facts-sheet-types',
         '!@kitchensink/*/step-writing/alphabet',
         '!@kitchensink/*/step-writing/facts-sheet-input',

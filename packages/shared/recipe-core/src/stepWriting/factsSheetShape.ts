@@ -22,7 +22,7 @@ const factsSheetShape: z.ZodType<FactsSheet> = z.object({
     steps: z.array(
         z.object({
             actions: texts,
-            amounts: z.array(z.object({ quantity: z.number(), unit: text.nullable() })),
+            amounts: z.array(z.object({ quantity: z.number(), unit: text.nullable(), ingredient: text.nullable() })),
             temperatures: z.array(z.object({ value: z.number(), scale: z.enum(['C', 'F']) })),
             durations: z.array(z.object({ minSeconds: z.number(), maxSeconds: z.number() })),
             ingredients: texts,

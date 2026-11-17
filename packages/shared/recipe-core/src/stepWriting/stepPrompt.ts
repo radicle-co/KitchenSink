@@ -96,7 +96,7 @@ export function buildStepPrompt(sheet: FactsSheet): StepPrompt {
         steps: sheet.steps.map((step, index) => ({
             index,
             actions: [...step.actions],
-            amounts: step.amounts.map(({ quantity, unit }) => ({ quantity, unit })),
+            amounts: step.amounts.map(({ quantity, unit, ingredient }) => ({ quantity, unit, ingredient })),
             temperatures: step.temperatures.map(({ value, scale }) => ({ value, scale })),
             durations: step.durations.map(({ minSeconds, maxSeconds }) => ({ minSeconds, maxSeconds })),
             ingredients: [...step.ingredients],

@@ -191,6 +191,98 @@ function cardOf(elements: readonly ElementExtent[], read: readonly BlockSpan[]):
     return card;
 }
 
+/** How many of `block`'s tokens the runs read. */
+function readsOf(block: BlockSpan, covered: Uint8Array): number {
+    let reads = 0;
+
+    for (let at = block.first; at <= block.last; at += 1) {
+        reads += covered[at] ?? 0;
+    }
+
+    return reads;
+}
+
+/** An element's parent, by number (`-1` past the root). */
+const parentIn = (elements: readonly ElementExtent[], element: number): number =>
+    element > 0 ? (elements[element]?.parent ?? -1) : -1;
+
+/** The parent and the grandparent of a list item's list, by element number. */
+function listParentsOf(elements: readonly ElementExtent[], item: number): readonly [number, number] {
+    const parent = parentIn(elements, parentIn(elements, item));
+
+    return [parent, parentIn(elements, parent)];
+}
+
+/** What the read blocks sit in: the parents and grandparents of their lists, and the ids of their elements and ancestors. */
+interface ReadAncestry {
+    readonly listParents: ReadonlySet<number>;
+    readonly listGrandparents: ReadonlySet<number>;
+    readonly holderIds: ReadonlySet<string>;
+}
+
+/** The {@link ReadAncestry} of the blocks in `read`, in one walk up from each. */
+function readAncestryOf(elements: readonly ElementExtent[], read: readonly BlockSpan[]): ReadAncestry {
+    const listParents = new Set<number>();
+    const listGrandparents = new Set<number>();
+    const holderIds = new Set<string>();
+
+    for (const block of read) {
+        if (block.item > 0) {
+            const [parent, grandparent] = listParentsOf(elements, block.item);
+
+            listParents.add(parent);
+            listGrandparents.add(grandparent);
+        }
+
+        for (let element = block.element; element > 0; element = parentIn(elements, element)) {
+            const id = elements[element]?.id;
+
+            if (id !== undefined) {
+                holderIds.add(id);
+            }
+        }
+    }
+
+    return { listParents, listGrandparents, holderIds };
+}
+
+/** The first and the last token the read blocks span. */
+interface ReadSpan {
+    readonly first: number;
+    readonly last: number;
+}
+
+/** Where `block` sits against the read lines. */
+function positionOf(block: BlockSpan, span: ReadSpan): CardItem['position'] {
+    if (block.last < span.first) {
+        return 'before';
+    }
+
+    return block.first > span.last ? 'after' : 'between';
+}
+
+/** The card item an unread list item is, as the card policy sees it. */
+function cardItemOf(
+    block: BlockSpan,
+    elements: readonly ElementExtent[],
+    ancestry: ReadAncestry,
+    span: ReadSpan,
+): CardItem {
+    const [parent, grandparent] = listParentsOf(elements, block.item);
+
+    return {
+        text: block.text,
+        jumpsToReadLines:
+            block.fragmentLinksOnly &&
+            block.fragmentTargets.length > 0 &&
+            block.fragmentTargets.every((target) => ancestry.holderIds.has(target)),
+        ordered: block.ordered,
+        position: positionOf(block, span),
+        besideReadList:
+            ancestry.listParents.has(parent) || (grandparent > 0 && ancestry.listGrandparents.has(grandparent)),
+    };
+}
+
 /** Whether the blocks that runs were read from leave a line of their list, or a list item of their card, unread. */
 function leavesLinesUnread(
     { blocks, elements }: Tokenized,
@@ -202,72 +294,25 @@ function leavesLinesUnread(
     const unread: BlockSpan[] = [];
 
     for (const block of blocks) {
-        let reads = 0;
-
-        for (let at = block.first; at <= block.last; at += 1) {
-            reads += covered[at] ?? 0;
-        }
-
-        if (reads > 0) {
-            touched.add(block.group);
-            read.push(block);
-        }
+        const reads = readsOf(block, covered);
 
         if (reads > 0 && reads < block.last - block.first + 1) {
             // Read in part: a line of the page whose other words the schema does not state.
             return true;
         }
 
-        if (reads === 0 && !block.isHeading) {
+        if (reads > 0) {
+            touched.add(block.group);
+            read.push(block);
+        } else if (!block.isHeading) {
             unread.push(block);
         }
     }
 
     const card = cardOf(elements, read);
     const cardLast = elements[card]?.last ?? 0;
-    const firstRead = read[0]?.first ?? 0;
-    const lastRead = read.at(-1)?.last ?? 0;
-    const positionOf = (block: BlockSpan): CardItem['position'] =>
-        block.last < firstRead ? 'before' : block.first > lastRead ? 'after' : 'between';
-    // The parent and the grandparent of a list item's list, by element number (`-1` past the root).
-    const parentOf = (element: number): number => (element > 0 ? (elements[element]?.parent ?? -1) : -1);
-
-    const listParents = (item: number): readonly [number, number] => {
-        const parent = parentOf(parentOf(item));
-
-        return [parent, parentOf(parent)];
-    };
-
-    const readParents = new Set<number>();
-    const readGrandparents = new Set<number>();
-
-    for (const block of read) {
-        if (block.item > 0) {
-            const [parent, grandparent] = listParents(block.item);
-
-            readParents.add(parent);
-            readGrandparents.add(grandparent);
-        }
-    }
-
-    // The ids of the elements that hold a block the runs read: each read block's element and its ancestors.
-    const readHolders = new Set<string>();
-
-    for (const block of read) {
-        for (let element = block.element; element > 0; element = parentOf(element)) {
-            const id = elements[element]?.id;
-
-            if (id !== undefined) {
-                readHolders.add(id);
-            }
-        }
-    }
-
-    const besideReadList = (item: number): boolean => {
-        const [parent, grandparent] = listParents(item);
-
-        return readParents.has(parent) || (grandparent > 0 && readGrandparents.has(grandparent));
-    };
+    const ancestry = readAncestryOf(elements, read);
+    const span: ReadSpan = { first: read[0]?.first ?? 0, last: read.at(-1)?.last ?? 0 };
 
     // Loose text (group 0) is not a list: any other block is a line of the list its siblings are. A list item inside the
     // card (its `<li>` numbered after the card's own, and within its range) is a line of the card, unless the policy
@@ -275,18 +320,7 @@ function leavesLinesUnread(
     return unread.some(
         (block) =>
             (block.group !== 0 && touched.has(block.group)) ||
-            (block.item > card &&
-                block.item <= cardLast &&
-                !tolerates({
-                    text: block.text,
-                    jumpsToReadLines:
-                        block.fragmentLinksOnly &&
-                        block.fragmentTargets.length > 0 &&
-                        block.fragmentTargets.every((target) => readHolders.has(target)),
-                    ordered: block.ordered,
-                    position: positionOf(block),
-                    besideReadList: besideReadList(block.item),
-                })),
+            (block.item > card && block.item <= cardLast && !tolerates(cardItemOf(block, elements, ancestry, span))),
     );
 }
 

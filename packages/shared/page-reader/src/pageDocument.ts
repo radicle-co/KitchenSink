@@ -294,11 +294,40 @@ const LOOSE_TEXT: Owner = { group: 0, isHeading: false, element: 0, item: 0, ord
 /** The end of a fragment link: the text read after it is no longer that link's text. */
 const FRAGMENT_LINK_END = Symbol('fragmentLinkEnd');
 
-/** The target of a link to a fragment of the same page (its `href` starts with `#`), without the `#`; else `undefined`. */
+/** The target of `element` when it is a link to a fragment of the same page (`<a href="#...">`), without the `#`. */
 function fragmentTargetOf(element: DomElement): string | undefined {
+    if (element.name !== 'a') {
+        return undefined;
+    }
+
     const href = (element.attribs['href'] ?? '').trim();
 
     return href.startsWith('#') ? href.slice(1) : undefined;
+}
+
+/** A new block element's extent, numbered `element` under `parent`, with its `id` when it has one. */
+function extentOf(node: DomElement, parent: number, element: number): ElementExtent {
+    const id = node.attribs['id']?.trim();
+
+    return { parent, last: element, ...(id ? { id } : {}) };
+}
+
+/**
+ * The owner of the text inside block element `node`, numbered `element`, in the list numbered `group`, with
+ * `fragmentDepth` fragment links open around it. A list item starts an item, numbered when its list is an `<ol>`.
+ */
+function blockOwner(node: DomElement, previous: Owner, element: number, group: number, fragmentDepth: number): Owner {
+    const isItem = node.name === 'li';
+    const inOrderedList = node.parent !== null && 'name' in node.parent && node.parent.name === 'ol';
+
+    return {
+        group,
+        isHeading: HEADING_TAGS.has(node.name),
+        element,
+        item: isItem ? element : previous.item,
+        ordered: isItem ? inOrderedList : previous.ordered,
+        linkBase: fragmentDepth,
+    };
 }
 
 /** How many characters of word material (`isWordMaterial`) `text` holds. */
@@ -406,25 +435,13 @@ function blocksOf(
                 const element = elements.length;
 
                 flush();
-                const id = next.attribs['id']?.trim();
-
-                elements.push({ parent: owner.element, last: element, ...(id ? { id } : {}) });
+                elements.push(extentOf(next, owner.element, element));
                 stack.push(new BlockEnd(owner, element));
                 groups.set(next.parent, groups.get(next.parent) ?? groups.size + 1);
-                owner = {
-                    group: groups.get(next.parent) ?? 0,
-                    isHeading: HEADING_TAGS.has(next.name),
-                    element,
-                    item: next.name === 'li' ? element : owner.item,
-                    ordered:
-                        next.name === 'li'
-                            ? next.parent !== null && 'name' in next.parent && next.parent.name === 'ol'
-                            : owner.ordered,
-                    linkBase: fragmentDepth,
-                };
+                owner = blockOwner(next, owner, element, groups.get(next.parent) ?? 0, fragmentDepth);
             }
 
-            const target = next.name === 'a' ? fragmentTargetOf(next) : undefined;
+            const target = fragmentTargetOf(next);
 
             if (target !== undefined) {
                 fragmentDepth += 1;

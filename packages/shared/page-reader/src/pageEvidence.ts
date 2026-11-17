@@ -59,7 +59,11 @@ export interface PageEvidence extends PageAccess {
 /** The longest `datePublished` read, in characters. */
 const MAX_DATE_CHARS = 40;
 
-/** An ISO 8601 date, with an optional time and zone: anchored, with no repetition that could backtrack. */
+/**
+ * An ISO 8601 date, with an optional time and zone: anchored, with no repetition that could backtrack. Hand-written on
+ * purpose: no date library is a dependency, and zod 4.6's `iso.datetime` refuses the `+0200` offset and a time with an
+ * offset but no seconds (`T10:00+02:00`), which real pages write, and needs a second schema for a bare date.
+ */
 const ISO_DATE =
     /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(?:Z|[+-](\d{2}):?(\d{2}))?)?$/u;
 
@@ -87,7 +91,11 @@ function statedBoolean(raw: unknown): FreeStatement {
     const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
     const word = SCHEMA_BOOLEAN.exec(text)?.[1] ?? text;
 
-    return word === 'true' ? true : word === 'false' ? false : 'unreadable';
+    if (word === 'true' || word === 'false') {
+        return word === 'true';
+    }
+
+    return 'unreadable';
 }
 
 /**

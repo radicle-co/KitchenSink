@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { MAX_PASTE_BYTES, readPastedContent } from '@kitchensink/page-reader';
 
-import { MAX_JSON_LD_BLOCK_BYTES, MAX_RECIPES_PER_PAGE } from '../src/pageCaps.js';
+import { MAX_JSON_LD_BLOCK_BYTES, MAX_JSON_LD_BLOCKS, MAX_RECIPES_PER_PAGE } from '../src/pageCaps.js';
 import { parsePage, type PageDocument } from '../src/pageDocument.js';
 import type * as PageDocumentModule from '../src/pageDocument.js';
 import { makeLinkHead, makePage, makeRecipeCard, makeRecipeNode } from '../src/__fixtures__/pageFixtures.js';
@@ -287,5 +287,68 @@ describe('readPastedContent over a whole synthetic page', () => {
             expect(block.length).toBeLessThan(MAX_JSON_LD_BLOCK_BYTES);
             expect(() => readPastedContent(makePage({ jsonLd: [block] }))).not.toThrow();
         });
+    });
+});
+
+/**
+ * The evidence facts a consumer reads beside the recipe: whether the page is free to read, whether it reserves itself from
+ * AI, and when it was published (spec 016 FR-024a). Each is read from the whole page, never from the recipe node alone.
+ */
+describe('readPastedContent evidence over a whole synthetic page', () => {
+    const PAGE_ID = 'https://www.example.com/recipe/1/pancakes/';
+
+    it('says the page is not free when a false sits on a WebPageElement the WebPage names by @id, beside a recipe that says true', () => {
+        const page = makePage({
+            jsonLd: [
+                {
+                    '@context': 'https://schema.org',
+                    '@graph': [
+                        makeRecipeNode({ isAccessibleForFree: true, mainEntityOfPage: { '@id': PAGE_ID } }),
+                        { '@type': 'WebPage', '@id': PAGE_ID, hasPart: { '@id': '#paywall' } },
+                        {
+                            '@type': 'WebPageElement',
+                            '@id': '#paywall',
+                            isAccessibleForFree: false,
+                            cssSelector: '.paid',
+                        },
+                    ],
+                },
+            ],
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'extracted', evidence: { isAccessibleForFree: false } });
+    });
+
+    it('says the page reserves itself from AI when an X-Robots-Tag names noai for a search crawler, and keeps its date', () => {
+        const page = makePage({
+            jsonLd: [makeRecipeNode({ datePublished: '2024-02-01T10:00+02:00' })],
+            head: '<meta http-equiv="X-Robots-Tag" content="googlebot: noai">',
+        });
+
+        expect(readPastedContent(page)).toMatchObject({
+            kind: 'extracted',
+            evidence: { aiOptOut: true, datePublished: '2024-02-01T10:00+02:00' },
+        });
+    });
+
+    it('reads every statement in the most blocks the cap allows, each a wide graph, within a bounded walk', () => {
+        const statementsPerBlock = 1_500;
+        const graph = (last: boolean) => ({
+            '@graph': Array.from({ length: statementsPerBlock }, (_, index) => ({
+                '@type': 'WebPageElement',
+                isAccessibleForFree: !(last && index === statementsPerBlock - 1),
+            })),
+        });
+        const blocks = Array.from({ length: MAX_JSON_LD_BLOCKS - 1 }, (_, index) =>
+            graph(index === MAX_JSON_LD_BLOCKS - 2),
+        );
+        const page = makePage({ jsonLd: [makeRecipeNode({ isAccessibleForFree: true }), ...blocks] });
+
+        expect(page.length).toBeLessThan(MAX_PASTE_BYTES);
+
+        const { result, works } = readCounted(page);
+
+        expect(result).toMatchObject({ kind: 'extracted', evidence: { isAccessibleForFree: false } });
+        expectBoundedWalks(works);
     });
 });

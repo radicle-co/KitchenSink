@@ -107,6 +107,23 @@ function parsedBlock(script: PageElement): ParsedBlock {
     }
 }
 
+/** The values of a page's JSON-LD blocks, and whether every block was read: none past the cap, and none unread. */
+interface JsonLdBlocks {
+    readonly values: readonly unknown[];
+    readonly whole: boolean;
+}
+
+/** Read the page's JSON-LD blocks, at most {@link MAX_JSON_LD_BLOCKS} of them, each within the byte and depth caps. */
+function jsonLdBlocksOf(page: PageDocument): JsonLdBlocks {
+    const scripts = page.byTag('script').filter(isJsonLdScript);
+    const blocks = scripts.slice(0, MAX_JSON_LD_BLOCKS).map(parsedBlock);
+
+    return {
+        values: blocks.flatMap((block) => (block.kind === 'json' ? [block.value] : [])),
+        whole: scripts.length <= MAX_JSON_LD_BLOCKS && blocks.every((block) => block.kind !== 'unread'),
+    };
+}
+
 /** Every `isAccessibleForFree` value a page's JSON-LD states, and whether every block was read whole. */
 export interface JsonLdStatements {
     readonly values: readonly unknown[];
@@ -121,23 +138,20 @@ export interface JsonLdStatements {
  *   cut short may hold one more. Pure.
  */
 export function jsonLdFreeStatements(page: PageDocument): JsonLdStatements {
-    const scripts = page.byTag('script').filter(isJsonLdScript);
-    const blocks = scripts.slice(0, MAX_JSON_LD_BLOCKS).map(parsedBlock);
+    const { values: blocks, whole } = jsonLdBlocksOf(page);
     const values: unknown[] = [];
-    let complete = scripts.length <= MAX_JSON_LD_BLOCKS && blocks.every((block) => block.kind !== 'unread');
+    let complete = whole;
 
     for (const block of blocks) {
-        if (block.kind === 'json') {
-            const { truncated } = boundedWalk([block.value], (value) => {
-                if (isSchemaNode(value) && field(value, 'isAccessibleForFree') !== undefined) {
-                    values.push(field(value, 'isAccessibleForFree'));
-                }
+        const { truncated } = boundedWalk([block], (value) => {
+            if (isSchemaNode(value) && field(value, 'isAccessibleForFree') !== undefined) {
+                values.push(field(value, 'isAccessibleForFree'));
+            }
 
-                return childrenOf(value);
-            });
+            return childrenOf(value);
+        });
 
-            complete = complete && !truncated;
-        }
+        complete = complete && !truncated;
     }
 
     return { values, complete };
@@ -151,15 +165,14 @@ export function jsonLdFreeStatements(page: PageDocument): JsonLdStatements {
  *   the depth cap, or a walk hit the node cap, because a recipe (or a second one) may lie in what was not read. Pure.
  */
 export function jsonLdRecipe(page: PageDocument): RecipeExtraction {
-    const scripts = page.byTag('script').filter(isJsonLdScript);
-    const blocks = scripts.slice(0, MAX_JSON_LD_BLOCKS).map(parsedBlock);
+    const { values, whole } = jsonLdBlocksOf(page);
 
     // A block past the cap, or one too big, too deep or not JSON to read, may hold the page's own recipe.
-    if (scripts.length > MAX_JSON_LD_BLOCKS || blocks.some((block) => block.kind === 'unread')) {
+    if (!whole) {
         return TOO_COMPLEX;
     }
 
-    const walks = blocks.flatMap((block) => (block.kind === 'json' ? [recipeNodesOf(block.value)] : []));
+    const walks = values.map(recipeNodesOf);
 
     return walks.some((walk) => walk.truncated)
         ? TOO_COMPLEX

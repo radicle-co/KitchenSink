@@ -41,7 +41,9 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
     const keyboard = useKeyboardFrame(current !== null);
     const navigationBar = useSafeAreaInsets().bottom;
     // The overlay fills the window, so its foot is the window's, which follows rotation and split screen. The keyboard's top
-    // is in display coordinates, and an edge-to-edge window starts at the display's top, so the two agree with nothing added.
+    // is in display coordinates and the window's height is the window's own, so the two agree where the window starts at the
+    // top of the display (full screen, and an edge-to-edge window), with no status-bar offset. A window lower on the display, such
+    // as the lower pane of a split screen, reads a lift of 0.
     // The keyboard covers what the one lift rule says (`KeyboardLift`): its height plus the navigation bar at most, because
     // Android's height leaves that bar out.
     const lift = keyboardOverlap(

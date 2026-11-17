@@ -80,7 +80,7 @@ checkRefused ──"Try again"───────────────▶ p
 checkRefused ──24 h (attempts < 3)───────▶ cancelled
 failed ──"Try again"────────────────────▶ pending         (attempts < 3)
 failed ──24 h (attempts < 3)─────────────▶ cancelled
-checkRefused|failed ──cancel (`button.private` on the For everyone path, `failed.done` on the Both path)──▶ cancelled
+checkRefused|failed ──cancel (button.private or, at 3 attempts, review.notNow on the For everyone path; failed.done on the Both path)──▶ cancelled
 ```
 
 Rules:

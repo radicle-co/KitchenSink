@@ -99,7 +99,7 @@ same paid-site rules.
 `{ state, attempts, output?: { title, steps: { text }[] }, refusal?: 'factMissing' | 'factAdded' | 'tooSimilar' | 'unreadable' }`.
 The output is present only in `ready`. It holds no source text, and the job's `source_steps` is never returned.
 The client reads `attempts` to decide which actions to show: at `attempts === 3` it hides `wizard.retry` and
-`flag.rewrite` (FR-031).
+`flag.rewrite` and shows the Final variants (FR-031).
 
 ## Publish
 
@@ -143,7 +143,7 @@ fewer than 3 attempts are used. Attempts carry over and no allowance unit is spe
 ## Cancel
 
 `POST /api/v1/public-version-jobs/{jobId}/cancel` → `200 { state: 'cancelled' }`. Idempotent. It is accepted from
-`pending`, `writing`, `ready`, `checkRefused` and `failed` (the failed screen's "Done" and "Save my copy"), and it clears
+`pending`, `writing`, `ready`, `checkRefused` and `failed` (the failed screen's "Done" and "Save my copy", and `review.notNow` at 3 attempts), and it clears
 `facts_snapshot`, `source_steps` and `output` in the same UPDATE.
 
 ## Recipe writes

@@ -370,17 +370,17 @@ Slot line on Free: `private.hint`. Pro: none.
 
 ### 6.8 Refused, failed and budget (B8)
 
-| State                                      | Copy and keys                                                                     | Actions                                                                                                                        |
-| ------------------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Wording too close, public path             | `blocked.body`                                                                    | `flag.rewrite`, `review.notNow`                                                                                                |
-| Wording too close, public path, 3 attempts | `blocked.bodyFinal` (new, copy pending designer review)                           | `review.notNow` only. No `flag.rewrite`                                                                                        |
-| Wording too close, Both                    | `blocked.bodyBoth`                                                                | `flag.rewrite`, `review.notNowBoth`                                                                                            |
-| Wording too close, Both, 3 attempts        | `blocked.bodyFinalBoth` (new, copy pending designer review)                       | `review.notNowBoth` only. No `flag.rewrite`                                                                                    |
-| Check unavailable (Publish)                | `checkUnavailable.body`, `checkUnavailable.bodyBoth` on the Both path (new, §7.2) | Publish (enabled, tries again) and the path's not-now key (`review.notNow` / `review.notNowBoth`)                              |
-| Failed, For everyone                       | `failed.title`, `failed.body`                                                     | reuse `importMessages.wizard.retry`, `button.private`. No slot: dead end. At 3 attempts: `failed.done` only, no `wizard.retry` |
-| Failed, Both                               | `failed.title`, `failed.bodyBoth`                                                 | reuse `importMessages.wizard.retry`, "Done" (`failed.done`, new). At 3 attempts: "Done" only, no `wizard.retry`                |
-| Budget spent during the flow               | `budget.line`                                                                     | `button.private`. Both: "Done" (`failed.done`)                                                                                 |
-| The offer changed (409)                    | `offerChanged.line` (new, §7.2)                                                   | "Continue"                                                                                                                     |
+| State                                      | Copy and keys                                                                     | Actions                                                                                                                                                                 |
+| ------------------------------------------ | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wording too close, public path             | `blocked.body`                                                                    | `flag.rewrite`, `review.notNow`                                                                                                                                         |
+| Wording too close, public path, 3 attempts | `blocked.bodyFinal` (new)                                                         | `review.notNow` only. No `flag.rewrite`                                                                                                                                 |
+| Wording too close, Both                    | `blocked.bodyBoth`                                                                | `flag.rewrite`, `review.notNowBoth`                                                                                                                                     |
+| Wording too close, Both, 3 attempts        | `blocked.bodyFinalBoth` (new)                                                     | `review.notNowBoth` only. No `flag.rewrite`                                                                                                                             |
+| Check unavailable (Publish)                | `checkUnavailable.body`, `checkUnavailable.bodyBoth` on the Both path (new, §7.2) | Publish (enabled, tries again) and the path's not-now key (`review.notNow` / `review.notNowBoth`)                                                                       |
+| Failed, For everyone                       | `failed.title`, `failed.body`                                                     | reuse `importMessages.wizard.retry`, `button.private`. No slot: dead end. At 3 attempts: `failed.titleFinal`, `failed.bodyFinal` and `review.notNow`, no `wizard.retry` |
+| Failed, Both                               | `failed.title`, `failed.bodyBoth`                                                 | reuse `importMessages.wizard.retry`, "Done" (`failed.done`, new). At 3 attempts: `failed.titleFinal`, `failed.bodyFinalBoth` and "Done", no `wizard.retry`              |
+| Budget spent during the flow               | `budget.line`                                                                     | `button.private`. Both: "Done" (`failed.done`)                                                                                                                          |
+| The offer changed (409)                    | `offerChanged.line` (new, §7.2)                                                   | "Continue"                                                                                                                                                              |
 
 Every one of these is `role="alert"`, and focus moves to the screen's heading or the alert.
 
@@ -421,8 +421,11 @@ exclamation marks, no reason clauses, and none of the banned words (one list, `b
 | `checkUnavailable.bodyBoth` | "We can’t check this version right now. Your copy is saved. Try again in a moment, or share it later from the recipe." | B8     |
 | `flag.added`                | "Your edit adds “{line}”, which isn’t in the recipe you saved. Take it out in Edit steps, or let us write it again."   | B7     |
 | `failed.done`               | "Done"                                                                                                                 | B8     |
-| `blocked.bodyFinal`         | "We can’t publish this version, and we can’t write it again. Keep it just for you." (copy pending designer review)     | B8     |
-| `blocked.bodyFinalBoth`     | "We can’t publish this version, and we can’t write it again. Your copy is saved." (copy pending designer review)       | B8     |
+| `blocked.bodyFinal`         | "We can’t publish this version, and we can’t write it again. You can keep it just for you."                            | B8     |
+| `blocked.bodyFinalBoth`     | "We can’t publish this version, and we can’t write it again. Your copy is saved."                                      | B8     |
+| `failed.titleFinal`         | "We couldn’t write the public version"                                                                                 | B8     |
+| `failed.bodyFinal`          | "We can’t try again for this one. You can keep it just for you."                                                       | B8     |
+| `failed.bodyFinalBoth`      | "We can’t try again for this one. Your copy is saved."                                                                 | B8     |
 | `offerChanged.line`         | "Something changed since you chose. Have a look and pick again."                                                       | B1, B8 |
 
 ### 7.3 Reused keys
@@ -554,7 +557,7 @@ None of our own. Pushes, the dialog and the sheet use the platform's transitions
 - **No slot left and a public version possible.** `publicOnly` (B4), never a dead end.
 - **The offer changes between read and press.** `409 offerChanged` (B8).
 - **Another device publishes first.** `409 publicExists`: the area re-renders as `publicExists.published`.
-- **Retry at 3 attempts.** `409 attemptsUsed`: the client refetches the job and re-renders from its state and attempts. At 3 attempts the screens hide `wizard.retry` and `flag.rewrite` and show `blocked.bodyFinal` or `blocked.bodyFinalBoth` where blocked, and `failed.done` only where failed (B8).
+- **Retry at 3 attempts.** `409 attemptsUsed`: the client refetches the job and re-renders from its state and attempts. At 3 attempts the screens hide `wizard.retry` and `flag.rewrite` and show `blocked.bodyFinal` or `blocked.bodyFinalBoth` where blocked, and the failed Final variants where failed: `failed.titleFinal` with `failed.bodyFinal` and `review.notNow` on the public path, `failed.bodyFinalBoth` and `failed.done` on the Both path (B8).
 - **The private copy changes during writing (Both).** `409 privateCopyChanged` at Publish: `flag.fix` with "Write it
   again".
 - **Under 16 learned at the age question.** "Not now" publishes nothing. The cook can still keep a private copy from P8
@@ -590,7 +593,7 @@ other screen at 768 has the 390 layout at a wider column. 1024 is not drawn: at 
 
 ### 12.2 `recipeImportingMobile` (drawn, with the two language states and check unavailable owed)
 
-Drawn on 2026-11-17 on `recipeImportingMobile`, in four rows below the existing boards, one per size. Owed after merge: the designer redraws the review board M7 with the new `review.body`, draws the 3-attempt states (`blocked.bodyFinal`, `blocked.bodyFinalBoth`, failed with `failed.done` only), draws `languageUnsupported` and `languageUncertain` on M2, and redraws the rewrite-needed state of M8 as check unavailable. Every board name is
+Drawn on 2026-11-17 on `recipeImportingMobile`, in four rows below the existing boards, one per size. Owed after merge: the designer redraws the review board M7 with the new `review.body`, draws the 3-attempt states (`blocked.bodyFinal`, `blocked.bodyFinalBoth`, the failed Final variants), draws `languageUnsupported` and `languageUncertain` on M2, and redraws the rewrite-needed state of M8 as check unavailable. Every board name is
 `ImportPublic<Name><Size>`. Boards stack their states, as the paste boards do. The owner rulings in force: the choice is a
 bottom sheet on phones, `ageConfirm` is a centred blocking dialog, the dead end is a full page, and on phones the primary
 action is last in any stacked bar.

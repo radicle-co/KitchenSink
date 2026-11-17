@@ -132,7 +132,8 @@ The cook can still keep the recipe and make a public version later.
    promise of a later public version (FR-084).
 3. **Given** the writer fails after its retry (FR-031), **Then** `failed.title` and `failed.body` show with "Try again"
    and "Save my copy". On the Both path the private copy is already saved and the screen shows `failed.bodyBoth`. At
-   3 attempts "Try again" is hidden and only `failed.done` is offered.
+   3 attempts "Try again" is hidden: the public path shows `failed.titleFinal`, `failed.bodyFinal` and `review.notNow`, and
+   the Both path shows `failed.titleFinal`, `failed.bodyFinalBoth` and `failed.done`.
 4. **Given** a saved private copy whose public version did not get written, **When** the cook picks "Share a public
    version" from the recipe's menu (shown to the owner of a private recipe with a source record, FR-092), **Then** the
    offer is read from the server and the review flow of User Story 1 runs from the saved copy.
@@ -381,11 +382,14 @@ later from its own menu. (C-6)
   is a resting state while fewer than 3 attempts are used: "Try again" calls the retry route and makes a third
   attempt. After the third attempt a refusal is final. A resting `checkRefused` expires to `cancelled` after 24
   hours. A job that ends `failed` (FR-082) rests the same way: "Try again" while fewer than 3 attempts are used, then
-  `cancelled` after 24 hours, and final at 3 attempts. Cancel (`button.private` on the "For everyone" path, `failed.done` on the Both path) is accepted from
+  `cancelled` after 24 hours, and final at 3 attempts. Cancel (`button.private` on the "For everyone" path, `review.notNow` at 3 attempts there, `failed.done` on the Both path) is accepted from
   `checkRefused` and `failed`. Attempts carry over a retry and no allowance unit is spent. At 3 attempts the client
-  hides `wizard.retry` and `flag.rewrite`: the failed screen shows `failed.title`, `failed.body` (`failed.bodyBoth` on the Both path) and `failed.done`
-  only, and the blocked state shows `blocked.bodyFinal` (`blocked.bodyFinalBoth` on the Both path) with the path's
-  not-now key only. On `409 attemptsUsed` the client refetches the job. (C-7)
+  hides `wizard.retry` and `flag.rewrite` and shows the Final variants. The failed screen shows `failed.titleFinal` with
+  `failed.bodyFinal` and the private exit `review.notNow` on the public path, so the cook's recipe is not lost without
+  warning, and `failed.titleFinal` with `failed.bodyFinalBoth` and `failed.done` on the Both path, where the copy is
+  already saved. The blocked state shows `blocked.bodyFinal` (`blocked.bodyFinalBoth` on the Both path) with the path's
+  not-now key only. At a final `failed` or `checkRefused` the item's draft stays until the cook's exit, and the exit's
+  transaction saves the private copy from it and clears it. On `409 attemptsUsed` the client refetches the job. (C-7)
 - **FR-032**: The public version MUST hold these parts, and no photo from the source:
     - the written steps.
     - a descriptive title built by code from the facts sheet (the main foods), with no model call. It
@@ -609,7 +613,7 @@ owner-approved v3 draft over v2 (staff-ux-engineer). `staff-ux-engineer` SPECIFY
 | Wording refused                                                                                      | `blocked.body` (public path) or `blocked.bodyBoth` (Both path), actions `flag.rewrite` ("Write it again"), the path's not-now key. At 3 attempts: `blocked.bodyFinal` (`blocked.bodyFinalBoth` on the Both path) and the not-now key only, with no `flag.rewrite`                                                                                                          |
 | Check unavailable (Publish)                                                                          | `checkUnavailable.body` (`checkUnavailable.bodyBoth` on the Both path), Publish enabled to try again, and the path's not-now key. The job stays ready.                                                                                                                                                                                                                     |
 | Check unavailable (later edit)                                                                       | The editor's ordinary retryable save error, with no new key. The edit stays in the device draft. "Keep it just for me" stays available.                                                                                                                                                                                                                                    |
-| Writer failed                                                                                        | `failed.title`, `failed.body`, `failed.bodyBoth`, `failed.done`, **reuse** `wizard.retry` (hidden at 3 attempts, when only `failed.done` is offered)                                                                                                                                                                                                                       |
+| Writer failed                                                                                        | `failed.title`, `failed.body`, `failed.bodyBoth`, `failed.done`, **reuse** `wizard.retry` (hidden at 3 attempts, when `failed.titleFinal`, `failed.bodyFinal` and `review.notNow` show on the public path, and `failed.titleFinal`, `failed.bodyFinalBoth` and `failed.done` on the Both path)                                                                             |
 | Budget spent                                                                                         | `budget.line`, and `failed.done` on the Both path                                                                                                                                                                                                                                                                                                                          |
 | The offer changed                                                                                    | `offerChanged.line`, then the area re-renders from the new offer with nothing selected                                                                                                                                                                                                                                                                                     |
 | Private only, by reason                                                                              | One line per reason: `privateOnly.paidRecent` (with `{date}`), `privateOnly.noSteps`, `privateOnly.noSource`, `privateOnly.language`, `privateOnly.languageUnsure`, `budget.line`; `privateOnly.line` for `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, and for `paidRecent` with no date. On Free the slot line `private.hint` follows. No "later" promise |
@@ -707,9 +711,6 @@ Still owed:
 - ADR-0093 §5 and `016-FR-080` and `004-FR-014` say a domain on the paid list makes a site paid. This feature changes that: a paid-list
   domain alone is not a clear signal (FR-012, FR-012b), so no hold and no private-copy limit apply to it. The feature ADR
   records the amendment, owed (T004).
-- At 3 attempts on the "For everyone" path the failed screen offers only `failed.done`, and the job's end clears the
-  pasted text, so the cook's paste is gone. Whether `button.private` ("Save my copy") stays at 3 attempts, saving the
-  private copy from the item before the clear, is not decided. Owed to the architect and the owner.
 - ADR-0024 §3 (a third no-retry path) and the label, licence, provenance and stored-credit (`recipes.public_credit`)
   one-way doors (FR-060, FR-061, FR-062, data-model), in the feature ADR, owed (T004).
 

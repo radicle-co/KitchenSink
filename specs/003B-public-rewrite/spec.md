@@ -135,11 +135,11 @@ The cook can still keep the recipe and make a public version later.
 
 ### User Story 4 - No private spots left and no public version possible (Priority: P2)
 
-A Free cook has all 50 private spots in use. The public version cannot be made, because of a paid-site rule, a failure,
+A Free cook has every private spot in use (ADR-0073). The public version cannot be made, because of a paid-site rule, a failure,
 the budget or an opt-out. The cook sees the free ways out first, then Pro with its real terms, and an equal "Not
 now".
 
-**Independent Test**: Fill 50 slots. Paste a paid-site page. The dead-end panel shows. "Upgrade to Pro" is the
+**Independent Test**: Fill the Free private-recipe limit. Paste a paid-site page. The dead-end panel shows. "Upgrade to Pro" is the
 primary button, with "Compare plans" beside it. "Not now" has equal size, with the note that the recipe is not saved.
 
 **Acceptance Scenarios**:
@@ -248,24 +248,16 @@ later from its own menu. (C-6)
     4. A page from a US federal government publisher on a list kept as data. A `.gov` suffix alone is not enough. (C-2)
 - **FR-011**: The import detects a source, or the cook states one. If that source is not open under FR-010, it is
   **third-party**. Every third-party source MUST go public only as a public version.
-- **FR-012**: Three signals make a source **paid** (owner ruling 2026-11-15). Any one is enough:
-    1. the page's structured data says `isAccessibleForFree` is false, for the page or for a part of it.
-    2. its domain is on the paid-site list that `004-FR-014` already keeps as data.
-    3. the page shows a metered paywall: paywall markup on the page, or a paid-list entry marked metered.
+- **FR-012**: A source is **paid** under the three signals of ADR-0093 §5 (`isAccessibleForFree` false, a domain on the
+  paid-site list of `004-FR-014`, or a metered paywall). Any one is enough. A paid source's private copy follows
+  ADR-0093 §5: the site's wording, no sharing, no household view, and no export except the account data export. (C-1)
 
-    A paid source's private copy keeps the site's wording (owner ruling 2026-11-15) and MUST NOT be shared or exported, except in the account data export (ADR-0093 §5). (C-1)
-
-- **FR-017**: A paid source can go public only as a public version Commise writes in full. All of these must hold
-  (owner ruling 2026-11-15). Otherwise it is private only.
-    1. The publisher has not opted out, on the opt-out list kept as data or by a page signal (`004-FR-063`).
-    2. The page's publication date is at least `PAID_CONTENT_HOLD_MONTHS` in the past. With no readable date, they
-       count from the first import of that page by any cook, read from the source records. The constant is 6
-       months, defined once and configurable (owner ruling 2026-11-15).
-    3. The recipe is not the publisher's signature recipe. A signature recipe is never published from that single
-       source.
-    4. Where the dish also exists in free or independent sources, a consensus recipe is preferred to a single-source
-       version. Consensus recipes are a later feature. Until then the public version is written from the cook's copy
-       alone. (C-19)
+- **FR-017**: A paid source can go public only as a public version Commise writes in full, under ADR-0093 §5: no
+  publisher opt-out (`004-FR-063`), not a signature recipe from that single source, and older than
+  `PAID_CONTENT_HOLD_MONTHS`. The constant is defined once and configurable. With no readable page date, the age counts
+  from the first import of that page by any cook, read from the source records. Otherwise it is private only.
+  Consensus recipes, which ADR-0093 §5 prefers, are a later feature. Until then the public version is written from the
+  cook's copy alone. (C-19)
 - **FR-018**: A paid source's public version MUST carry the credit `review.creditPaid`: "Steps written by Commise with
   AI, checked by {cook}." It names no site and links to none, on the page and in its structured data. The source record
   keeps the source (FR-080).
@@ -281,17 +273,16 @@ later from its own menu. (C-6)
 - **FR-015**: A recipe from a third-party source MUST reach the public only through this feature's Publish. No other
   door can make it public with third-party steps: not the visibility toggle, not a clone, and not a 027 Flow Steps
   replace. A 027 replace never changes the rights label. (Found at PLANNING, staff-architect.)
-- **FR-016**: Publishing needs a cook aged 16 or over (owner ruling 2026-11-15). A younger cook MUST NOT be offered
-  "For everyone" or "Both", and gets the private path only. Using the app at all needs the higher of 13 and the
-  market's digital-consent age. That rule belongs to the account, not to this feature. (C-17)
+- **FR-016**: Publishing needs a cook aged 16 or over (ADR-0093 §8, `016-FR-009`). A younger cook MUST NOT be offered
+  "For everyone" or "Both", and gets the private path only. (C-17)
 - **FR-016a**: Each recipe this feature saves or publishes spends the one shared import allowance (`004-FR-061`: 200 a
   day on Free, 1,000 on a paid plan). A public version made in the same import costs no second unit. A private copy
   uses a slot, with or without a public version (owner ruling 2026-11-15).
 
 #### C. The choice at import
 
-- **FR-020**: After the import review, a third-party recipe (or a paid one that FR-017 allows) MUST ask "Just for you, or for everyone?" with three
-  choices: "Just for me", "For everyone" and "Both". None is selected at first. The button label follows the choice
+- **FR-020**: After the import review, a third-party recipe (or a paid one that FR-017 allows) MUST offer the choice of
+  ADR-0093 §2: "Just for me", "For everyone" and "Both". None is selected at first. The button label follows the choice
   (`button.private`, `button.public`, `button.both`).
 - **FR-021**: "Just for me" saves the private copy (one private slot on Free). "For everyone" writes and reviews the
   public version and keeps no private copy. "Both" saves the private copy, then writes and reviews the public version.

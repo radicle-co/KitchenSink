@@ -13,7 +13,7 @@ Each item gives the decision, the reason, and the options set aside.
 ## R2. Where the job lives
 
 - **Decision**: a `public_version_jobs` table of its own, keyed on the source record.
-- **Reason**: the import item is purged 30 days after the last `advance` (ADR-0072), and the later route (US3) has no
+- **Reason**: the import item is purged on the schedule of ADR-0072, and the later route (US3) has no
   item at all.
 - **Set aside**: columns on the import item.
 
@@ -61,12 +61,12 @@ From the owner-approved v2 copy draft (staff-ux-engineer, 2026-11-15). Keys are 
 | `title`                                                | Just for you, or for everyone?                                                                                                                                |
 | `explain`                                              | Your copy stays just as you saved it, for you alone. To share it, we write the steps in our own words and publish that version.                               |
 | `private.label`                                        | Just for me                                                                                                                                                   |
-| `private.hint`                                         | Saved exactly as it is. Uses one of your 50 private recipes, and you have {count} left. (ICU plural)                                                          |
+| `private.hint`                                         | Saved exactly as it is. Uses one of your {limit} private recipes, and you have {count} left. (ICU plural)                                                     |
 | `private.hintPro`                                      | Saved exactly as it is. Only you can see it.                                                                                                                  |
 | `public.label`                                         | For everyone                                                                                                                                                  |
 | `public.hint`                                          | We write the steps in our own words. Every amount, time and temperature stays as it was. You read it before anyone else does. We don’t keep your pasted copy. |
 | `both.label`                                           | Both                                                                                                                                                          |
-| `both.hint`                                            | Your copy stays just for you, and our version goes to everyone. Uses one of your 50 private recipes, and you have {count} left. (ICU plural)                  |
+| `both.hint`                                            | Your copy stays just for you, and our version goes to everyone. Uses one of your {limit} private recipes, and you have {count} left. (ICU plural)             |
 | `both.hintPro`                                         | Your copy stays just for you, and our version goes to everyone.                                                                                               |
 | `credit`                                               | Shared recipes carry your name and ours. Anyone can cook from them and pass them on.                                                                          |
 | `creditLink`                                           | How sharing works                                                                                                                                             |
@@ -97,20 +97,20 @@ From the owner-approved v2 copy draft (staff-ux-engineer, 2026-11-15). Keys are 
 | `failed.body`                                          | Try again, or save it just for you. You can share it later from the recipe.                                                                                   |
 | `failed.bodyBoth`                                      | Your copy is saved. Try again, or share it later from the recipe.                                                                                             |
 | `budget.line`                                          | We can’t write public versions right now. Save it just for you, and share it later from the recipe.                                                           |
-| `full.line`                                            | You can share this one with everyone. All 50 of your private recipes are in use, so it can’t be kept just for you.                                            |
+| `full.line`                                            | You can share this one with everyone. All {limit} of your private recipes are in use, so it can’t be kept just for you.                                       |
 | `full.free`                                            | To make room, delete a private recipe or share one.                                                                                                           |
 | `exists.line` / `exists.link`                          | This recipe already has a public version. / See the public version                                                                                            |
 | `exists.pending`                                       | A public version of this recipe is being written. Your copy is saved just for you.                                                                            |
 | `paid.line`                                            | This recipe is saved just for you.                                                                                                                            |
 | `paid.keepWording`                                     | It’s kept exactly as you saved it.                                                                                                                            |
-| `paid.count`                                           | It uses one of your 50 private recipes, and you have {count} left. (ICU plural, none on Pro)                                                                  |
+| `paid.count`                                           | It uses one of your {limit} private recipes, and you have {count} left. (ICU plural, none on Pro)                                                             |
 | `deadEnd.title`                                        | Your private recipes are full                                                                                                                                 |
-| `deadEnd.bodyNoWrite`                                  | This one can only be saved just for you right now, and all 50 of your spots are in use.                                                                       |
-| `deadEnd.bodyPaid`                                     | Recipes from {domain} are saved just for you, and all 50 of your spots are in use.                                                                            |
+| `deadEnd.bodyNoWrite`                                  | This one can only be saved just for you right now, and all {limit} of your spots are in use.                                                                  |
+| `deadEnd.bodyPaid`                                     | Recipes from {domain} are saved just for you, and all {limit} of your spots are in use.                                                                       |
 | `deadEnd.free`                                         | To make room, delete a private recipe or share one. Then import this one again.                                                                               |
 | `pro.name` / `pro.price`                               | Pro / {monthlyPrice} a month, or {yearlyPrice} a year                                                                                                         |
-| `pro.perk.private` / `pro.perk.pantry` / `pro.perk.ai` | As many private recipes as you like / A pantry that reminds you what to use up / 30 AI uses a month                                                           |
-| `pro.trial`                                            | Free for 14 days. Then {monthlyPrice} a month, unless you cancel before {date}.                                                                               |
+| `pro.perk.private` / `pro.perk.pantry` / `pro.perk.ai` | As many private recipes as you like / A pantry that reminds you what to use up / {aiUses} AI uses a month                                                     |
+| `pro.trial`                                            | Free for {trialDays} days. Then {monthlyPrice} a month, unless you cancel before {date}.                                                                      |
 | `pro.renews`                                           | Renews each month or year until you cancel. You can cancel any time.                                                                                          |
 | `pro.upgrade` / `pro.compare` / `notNow`               | Upgrade to Pro / Compare plans / Not now                                                                                                                      |
 | `notNow.note`                                          | With Not now, this recipe isn’t saved.                                                                                                                        |
@@ -123,6 +123,8 @@ From the owner-approved v2 copy draft (staff-ux-engineer, 2026-11-15). Keys are 
 | `done.linkPublic` / `done.linkPrivate`                 | See the public version / See my copy                                                                                                                          |
 | `later.action`                                         | Share a public version                                                                                                                                        |
 | `publicPage.report`                                    | Report a problem                                                                                                                                              |
+
+ICU parameters: `{limit}` is the Free private-recipe limit (ADR-0073), `{aiUses}` the Pro monthly uses and `{trialDays}` the trial length (`010-FR-041b`, `010-FR-042`). The copy holds no plan number.
 
 Not used: the draft's `paid.ourWording` (the owner ruled that paid copies keep the site's wording) and
 `budget.allowance` (the writer never spends a cook's uses).

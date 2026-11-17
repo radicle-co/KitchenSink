@@ -1,14 +1,14 @@
 /**
  * @module @commise/ui/keyboard-lift — where the on-screen keyboard is, for the Sheet's lift and the snackbar host.
  *
- * A reader of the ONE keyboard subscription in `layout/useKeyboardShown.native.ts`, so the shown flag and the frame
+ * A reader of the ONE keyboard subscription in `layout/keyboardStore.native.ts`, so the shown flag and the frame
  * can never disagree about which event they have seen.
  *
  * @pattern Observer — a `useSyncExternalStore` reader of the shared keyboard store
  */
 import { useSyncExternalStore } from 'react';
 
-import { keyboardFrameSnapshot, subscribeToKeyboard, type KeyboardFrame } from '../layout/useKeyboardShown.native.js';
+import { keyboardFrameSnapshot, subscribeToKeyboard, type KeyboardFrame } from '../layout/keyboardStore.native.js';
 
 /** A reader that is switched off holds no listener and sees no keyboard. */
 const noSubscription = (): (() => void) => () => undefined;

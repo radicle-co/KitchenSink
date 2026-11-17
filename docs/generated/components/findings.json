@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 30,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 103,
+        "platform-singleton": 104,
         "ref-api": 22,
         "unclassified-layer": 96,
         "undocumented-prop": 231
@@ -5387,6 +5387,16 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "short"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingNoticeSlot",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingNoticeSlot.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
             ]
         },
         {

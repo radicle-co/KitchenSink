@@ -27,6 +27,7 @@ import type { FC } from 'react';
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
+import { CookingNoticeMount } from './CookingNoticeMount';
 import { useCookWays, type CookWays } from './useCookWays';
 
 /** Props for {@link CookingRoute}. */
@@ -59,29 +60,31 @@ export const CookingRoute: FC<CookingRouteProps> = ({ id }) => {
     };
 
     return (
-        <ClientQueryBoundary
-            prefetchedKeys={[detail.queryKey]}
-            loading={<CookingScreen read={{ kind: 'pending', retry: readAgain }} {...ways} />}
-            renderError={({ error, resetErrorBoundary }) => (
-                <CookingScreen
-                    read={
-                        isNotFoundError(error)
-                            ? { kind: 'gone' }
-                            : { kind: 'failed', offline: !onlineManager.isOnline(), retry: resetErrorBoundary }
-                    }
-                    {...ways}
+        <CookingNoticeMount>
+            <ClientQueryBoundary
+                prefetchedKeys={[detail.queryKey]}
+                loading={<CookingScreen read={{ kind: 'pending', retry: readAgain }} {...ways} />}
+                renderError={({ error, resetErrorBoundary }) => (
+                    <CookingScreen
+                        read={
+                            isNotFoundError(error)
+                                ? { kind: 'gone' }
+                                : { kind: 'failed', offline: !onlineManager.isOnline(), retry: resetErrorBoundary }
+                        }
+                        {...ways}
+                    />
+                )}
+                resetKeys={[id]}
+            >
+                <SettledCooking
+                    key={`${id}|${viewerId ?? ''}`}
+                    detail={detail}
+                    viewer={viewer}
+                    ways={ways}
+                    readAgain={readAgain}
                 />
-            )}
-            resetKeys={[id]}
-        >
-            <SettledCooking
-                key={`${id}|${viewerId ?? ''}`}
-                detail={detail}
-                viewer={viewer}
-                ways={ways}
-                readAgain={readAgain}
-            />
-        </ClientQueryBoundary>
+            </ClientQueryBoundary>
+        </CookingNoticeMount>
     );
 };
 

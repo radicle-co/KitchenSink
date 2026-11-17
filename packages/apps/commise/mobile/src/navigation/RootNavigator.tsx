@@ -22,9 +22,10 @@ import { BackInterceptProvider } from '@commise/ui/back-intercept';
 import { PopupInsetsContext } from '@commise/ui/popup-insets';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { useTheme } from '@commise/ui/theme';
-import { useCallback, useMemo, useState, type JSX } from 'react';
+import { useCallback, useContext, useMemo, useState, type JSX } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { focusedRootRouteOf, ReportFocusedRootRouteContext } from './focusedRootRoute.js';
 import { navigationRef } from './navigationRef.js';
 import type { RootStackParamList } from './routes.js';
 import { ScreenBoundary } from './ScreenBoundary.js';
@@ -49,6 +50,7 @@ export function RootNavigator(): JSX.Element {
     const insets = useSafeAreaInsets();
     const [tabBarHeight, setTabBarHeight] = useState(0);
     const [onTabs, setOnTabs] = useState(true);
+    const reportFocusedRoot = useContext(ReportFocusedRootRouteContext);
 
     // The popups (the snackbar) keep clear of the tab bar while the tabs show, and of the home indicator on a task.
     const footHeight = onTabs ? tabBarHeight : insets.bottom;
@@ -76,7 +78,13 @@ export function RootNavigator(): JSX.Element {
             <NavigationContainer
                 ref={navigationRef}
                 theme={theme}
-                onStateChange={(state) => setOnTabs(state?.routes[state.index]?.name === 'Tabs')}
+                // `onReady` reports the route a fresh container opened on, so a gate that outlived a sign-out never
+                // keeps the last session's focus.
+                onReady={() => reportFocusedRoot(focusedRootRouteOf(navigationRef.getRootState()))}
+                onStateChange={(state) => {
+                    setOnTabs(focusedRootRouteOf(state) === 'Tabs');
+                    reportFocusedRoot(focusedRootRouteOf(state));
+                }}
             >
                 <PopupInsetsContext value={readInsets}>
                     <SnackbarHost>

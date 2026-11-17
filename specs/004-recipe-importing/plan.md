@@ -247,7 +247,7 @@ Every remainder item writes these tiers before its code (`docs/CODING_STANDARDS.
 
 1. **Meta app approval** for the Instagram official-API path: an external workstream. The capability flag defaults off
    (`D-002`).
-2. **The held-out corpus for `SC-002`**: it is hand-verified, and its size and composition are fixed at planning (`D-009`).
+2. **The held-out corpus for `SC-002`**: it is hand-verified, and `D-009` describes it.
 3. **The alarm fraction** for the attempt signal (section 6) and the ADR number: chosen at build.
 
 ---

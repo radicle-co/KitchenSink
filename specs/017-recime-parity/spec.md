@@ -163,8 +163,7 @@ sheet on phone, or a browser button on desktop — without first opening Commise
 **Why this priority**: The share sheet is ReciMe's **primary** capture path, and their Chrome extension has
 30,000 users. Import quality (US1) is worth nothing if reaching the importer costs the user a context switch;
 these two stories are one product and ship together. Instagram also rides here — only `004-FR-009`'s Instagram
-official-API path is gated on a Meta approval, and user-initiated share capture does not depend on it. It is also the **legally preferred** shape: `016` records that
-user-supplied bytes are a stronger position than server-side fetching.
+official-API path is gated on a Meta approval, and user-initiated share capture does not depend on it.
 
 **Independent Test**: From a cold app state on iOS, Android, and Chrome, share a recipe URL from a third-party
 app/site and confirm an import is created without the user opening Commise first.
@@ -308,7 +307,7 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 - **A video is a recipe _reaction_, not a recipe.** Import must be able to conclude "no recipe here" and say so,
   rather than hallucinating one from ambient food talk.
 - **Every tier fails.** The user gets an explicit, actionable failure naming what was tried — not a silent
-  empty draft. ReciMe's documented behaviour here is a generic error with "email us the URL"; that is the bar
+  empty result. ReciMe's documented behaviour here is a generic error with "email us the URL"; that is the bar
   to beat, not to match.
 - **The video is 45 minutes long.** Frame sampling and transcription must be bounded, and the bound must be
   stated, or a single import can consume an unbounded share of the inference budget.

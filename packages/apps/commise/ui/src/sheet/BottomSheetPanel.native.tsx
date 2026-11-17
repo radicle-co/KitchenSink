@@ -53,7 +53,7 @@ import { useSwipeToDismiss } from './useSwipeToDismiss.native.js';
 
 export interface BottomSheetPanelProps extends Pick<
     SheetProps,
-    'title' | 'closeLabel' | 'size' | 'presentation' | 'toolbar' | 'footer'
+    'title' | 'closeLabel' | 'size' | 'presentation' | 'busy' | 'toolbar' | 'footer'
 > {
     readonly children: ReactNode;
     /** Advances each time the Modal shows; the title takes screen-reader focus on each advance. */
@@ -77,6 +77,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     closeLabel,
     size,
     presentation = 'sheet',
+    busy = false,
     toolbar,
     footer,
     children,
@@ -92,6 +93,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     const theme = useTheme();
     const { colors } = theme;
     const { width } = useWindowDimensions();
+    const centred = sheetIsCentred(presentation, width);
     const keyboardShown = useKeyboardShown();
     const collapsed = toolbar !== undefined && isToolbarCollapsed(keyboardShown, true);
     // The panel mounts once per opening, so the landing is the one the opening asked for: a later change must not move the
@@ -132,11 +134,12 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
             <Animated.View
                 role="dialog"
                 aria-modal
+                aria-busy={busy || undefined}
                 style={[
                     styles.sheet,
                     { backgroundColor: surfaceFill(theme, 'paperOverlay') },
                     sheetWidthStyle(width, presentation),
-                    sheetIsCentred(presentation, width) ? styles.centredCard : null,
+                    centred ? styles.centredCard : null,
                     size === 'content' ? styles.content : styles.full,
                     {
                         paddingLeft: sheetSideInsetPadding(width, insets.left, presentation),
@@ -153,11 +156,14 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
                     with the same thresholds. The handle is decorative; the labelled Close button stays the accessible way
                     out (WCAG 2.5.7). */}
                     <View {...panHandlers}>
-                        <View
-                            aria-hidden
-                            importantForAccessibility="no-hide-descendants"
-                            style={[styles.handle, { backgroundColor: colors.lineDivider }]}
-                        />
+                        {/* A centred dialog has no bottom edge to drag from, so it draws no handle. */}
+                        {centred ? null : (
+                            <View
+                                aria-hidden
+                                importantForAccessibility="no-hide-descendants"
+                                style={[styles.handle, { backgroundColor: colors.lineDivider }]}
+                            />
+                        )}
                         <View style={styles.titleRow}>
                             <View style={styles.titleBox}>
                                 <Text

@@ -15,6 +15,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
+import { dimmedOpacity } from '../tokens/scale.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import type { RadioListProps } from './props.js';
 import { usePressFill } from '../surfaceTone/usePressFill.native.js';
@@ -54,6 +55,8 @@ export function RadioList<Id extends string>({
                             styles.row,
                             { minHeight: touchFloor(), borderColor: colors.lineDivider, backgroundColor: colors.paper },
                             pressed ? { backgroundColor: wash } : null,
+                            // An unavailable list LOOKS it, at the one dim every unavailable native control takes.
+                            disabled ? { opacity: dimmedOpacity } : null,
                         ]}
                     >
                         <View

@@ -78,7 +78,7 @@ const factsIn = (userMessage: string): unknown => {
 describe('STEP_SYSTEM_PROMPT, the pinned artifact', () => {
     it('is pinned by length and by digest', () => {
         // Both: length alone cannot see a same-length reword, the digest alone does not say how far it moved.
-        expect(Buffer.byteLength(STEP_SYSTEM_PROMPT, 'utf8')).toBe(1_758);
+        expect(Buffer.byteLength(STEP_SYSTEM_PROMPT, 'utf8')).toBe(1_675);
         expect(createHash('sha256').update(STEP_SYSTEM_PROMPT, 'utf8').digest('hex')).toBe(STEP_PROMPT_SHA256);
         expect(STEP_PROMPT_SHA256).toMatch(/^[0-9a-f]{64}$/);
     });
@@ -182,6 +182,19 @@ describe('buildStepPrompt', () => {
         expect(thrown).toBeInstanceOf(StepPromptTooLargeError);
         expect(thrown).toMatchObject({ limitChars: MAX_STEP_PROMPT_CHARS });
         expect(isStepPromptTooLargeError(new Error('x'))).toBe(false);
+    });
+
+    it('accepts a prompt of exactly the cap and refuses one code point more', () => {
+        const withPadding = (padding: number): FactsSheet => makeSheet({ ingredientNames: ['a'.repeat(padding)] });
+        const length = (sheet: FactsSheet): number => {
+            const { systemPrompt, userMessage } = buildStepPrompt(sheet);
+
+            return [...systemPrompt].length + [...userMessage].length;
+        };
+        const room = MAX_STEP_PROMPT_CHARS - length(withPadding(0));
+
+        expect(length(withPadding(room))).toBe(MAX_STEP_PROMPT_CHARS);
+        expect(() => buildStepPrompt(withPadding(room + 1))).toThrow(StepPromptTooLargeError);
     });
 
     it('is pure: the same sheet gives the same prompt and the sheet is untouched', () => {

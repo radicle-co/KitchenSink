@@ -10,19 +10,16 @@
  *   field the prompt never asked for;
  * - `overCap`: more steps than the caller's cap.
  *
- * Whether each `covers` index points at a real source step, and whether every source step with text is covered, needs
- * the source step count, which is not in the answer. The caller holding the sheet checks that.
+ * Whether each `covers` index points at a real source step, and which source steps must be covered, needs the source
+ * recipe, which is not in the answer. The rewrite step that holds both checks it.
  */
 import { z } from 'zod';
 
 /** The most text one rewritten step may hold (contract `rewrittenSteps.api.md`). */
 export const MAX_REWRITTEN_STEP_CHARS = 2_000;
 
-/** The most steps a result may hold (research R12, to confirm on the evaluation set). */
-export const MAX_REWRITTEN_STEPS = 80;
-
 const stepSchema = z.strictObject({
-    text: z.string().refine((text) => text.trim() !== '' && text.length <= MAX_REWRITTEN_STEP_CHARS),
+    text: z.string().refine((text) => text.trim() !== '' && [...text].length <= MAX_REWRITTEN_STEP_CHARS),
     covers: z.array(z.number().int().nonnegative()),
 });
 

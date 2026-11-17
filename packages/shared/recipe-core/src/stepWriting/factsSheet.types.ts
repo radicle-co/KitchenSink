@@ -2,14 +2,14 @@
  * The facts sheet: everything the step writer is allowed to see (spec 027 FR-035, research R1).
  *
  * The writer sees facts for every recipe, and never step wording. This type is the whole of what the prompt
- * consumes, so a field that is not here cannot reach the model. `buildFactsSheet` (the sheet builder) produces
- * it, `buildStepPrompt` reads it, and the fact check extracts the same shape from the result and compares.
+ * consumes, so a field that is not here cannot reach the model. The sheet builder produces it, `buildStepPrompt`
+ * reads it, and the fact check compares the same shape extracted from the result.
  *
  * Plain readonly data with no behaviour. Quantities, temperatures and durations are numbers. The sheet holds no
  * step text.
  */
 
-/** The seven safety categories of spec 027 FR-041. The one authority: the lexicons and the check import this. */
+/** The seven safety categories of spec 027 FR-041. One authority: detectors and checks import this list. */
 export const SAFETY_CATEGORIES = [
     'internalTemperature',
     'rawFood',

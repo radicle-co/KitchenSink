@@ -30,7 +30,7 @@ Rules:
 
 Answer with this JSON and nothing else:
 {"steps":[{"text":"string","covers":[0]}]}
-"text" is one written step. "covers" lists the "index" of every source step that written step draws on, and every source step that has facts must be covered by at least one written step.
+"text" is one written step. "covers" lists the "index" of every source step that written step draws on.
 
 <example>{"steps":[{"text":"Melt 2 tbsp butter in a skillet.","covers":[0]},{"text":"Roast at 200 C for 20 to 25 minutes.","covers":[1,2]}]}</example>`;
 
@@ -38,11 +38,12 @@ Answer with this JSON and nothing else:
  * SHA-256 of {@link STEP_SYSTEM_PROMPT} in UTF-8. The engine's prompt version: the audit trail records it
  * beside the model id.
  */
-export const STEP_PROMPT_SHA256 = '6b9f4c87c1f59695cef949e2477b2d7e078e5f3e7e962e7c17916820b1c9625f';
+export const STEP_PROMPT_SHA256 = 'a6025c88aa2a7dbd9aff53349660823c88bb1229ecc329f750476df5162eb1e4';
 
 /**
- * The hard input cap in code points over the assembled prompt (ADR-0024 layer 1). Research R12 caps the recipe at
- * 24,000 bytes, so a sheet within that cap fits and a larger one is refused, never cut.
+ * The hard input cap in code points over the assembled prompt (ADR-0024 layer 1): the system turn plus the facts.
+ * A prompt over it is refused, never cut. Whether a recipe within the service's own size limit always fits is for
+ * the sheet builder's tests to show.
  */
 export const MAX_STEP_PROMPT_CHARS = 24_000;
 
@@ -100,6 +101,7 @@ export function buildStepPrompt(sheet: FactsSheet): StepPrompt {
     };
     // `<` escaped so no fact, an ingredient name included, can spell the closing tag and end the block early.
     const userMessage = `${OPEN_TAG}${JSON.stringify(payload).replaceAll('<', '\\u003c')}${CLOSE_TAG}`;
+    // Code points, not UTF-16 units: an astral character is one thing a tokenizer sees and two `.length` units.
     const observedChars = [...STEP_SYSTEM_PROMPT].length + [...userMessage].length;
 
     if (observedChars > MAX_STEP_PROMPT_CHARS) {

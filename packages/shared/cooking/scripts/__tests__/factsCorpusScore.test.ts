@@ -9,6 +9,7 @@ import {
     type Floor,
     type GoldenRecipe,
     floorFaults,
+    isFloor,
     factsOf,
     ingredientNameOf,
     precisionFaults,
@@ -73,13 +74,13 @@ describe('precisionFaults', () => {
             [],
         );
         expect(precisionFaults('r', { refused: 'steps[1].amounts' }, golden({ refused: 'steps[0].amounts' }))).toEqual([
-            'r: refused at steps[1].amounts, golden says steps[0].amounts',
+            'r: refused at steps[1].amounts, golden says refused at steps[0].amounts',
         ]);
         expect(precisionFaults('r', { refused: 'steps[0].amounts' }, golden())).toEqual([
-            'r: refused at steps[0].amounts, golden says not refused',
+            'r: refused at steps[0].amounts, golden says built',
         ]);
         expect(precisionFaults('r', sheet, golden({ refused: 'steps[0].amounts' }))).toEqual([
-            'r: refused at not refused, golden says steps[0].amounts',
+            'r: built, golden says refused at steps[0].amounts',
         ]);
     });
 });
@@ -133,5 +134,30 @@ describe('ingredientNameOf', () => {
         ['salt', 'salt'],
     ])('keeps the food words of %s', (line, name) => {
         expect(ingredientNameOf(line)).toBe(name);
+    });
+});
+
+describe('isFloor', () => {
+    const floor = {
+        recall: { actions: 1, ingredients: 1, amounts: 0.9, temperatures: 1, durations: 1, safety: 1 },
+        refusedMax: 2,
+    };
+
+    it('accepts a floor with every kind and a ceiling', () => {
+        expect(isFloor(floor)).toBe(true);
+    });
+
+    it.each([
+        ['a kind is missing', { ...floor, recall: { ...floor.recall, amounts: undefined } }],
+        ['a kind is misspelled', { ...floor, recall: { actions: 1, amount: 0.9 } }],
+        ['a kind is a string', { ...floor, recall: { ...floor.recall, amounts: '0.9' } }],
+        ['a kind is null', { ...floor, recall: { ...floor.recall, amounts: null } }],
+        ['a kind is not finite', { ...floor, recall: { ...floor.recall, amounts: Number.NaN } }],
+        ['the ceiling is missing', { recall: floor.recall }],
+        ['the recall is missing', { refusedMax: 2 }],
+        ['it is not an object', 'floor'],
+        ['it is null', null],
+    ])('refuses a floor when %s, so no run passes against it', (_why, value) => {
+        expect(isFloor(value)).toBe(false);
     });
 });

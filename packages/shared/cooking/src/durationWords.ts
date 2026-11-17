@@ -71,7 +71,7 @@ const isArticle = (token: string | undefined): boolean => token === 'a' || token
 function fixedPhraseAt(tokens: readonly string[], index: number): Amount | undefined {
     for (const phrase of FIXED_PHRASES) {
         if (phrase.words.every((word, offset) => tokens[index + offset] === word)) {
-            return { seconds: phrase.seconds, rank: 3_600, next: index + phrase.words.length };
+            return { seconds: phrase.seconds, rank: SECONDS_PER_TIME_UNIT.hour, next: index + phrase.words.length };
         }
     }
 

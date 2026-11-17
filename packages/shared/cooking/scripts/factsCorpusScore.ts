@@ -67,10 +67,10 @@ export const isRefusal = (outcome: FactsSheet | Refusal): outcome is Refusal => 
  */
 export function precisionFaults(slug: string, outcome: FactsSheet | Refusal, expected: GoldenRecipe): string[] {
     if (isRefusal(outcome) || expected.refused !== undefined) {
-        const got = isRefusal(outcome) ? outcome.refused : 'not refused';
-        const want = expected.refused ?? 'not refused';
+        const got = isRefusal(outcome) ? `refused at ${outcome.refused}` : 'built';
+        const want = expected.refused === undefined ? 'built' : `refused at ${expected.refused}`;
 
-        return got === want ? [] : [`${slug}: refused at ${got}, golden says ${want}`];
+        return got === want ? [] : [`${slug}: ${got}, golden says ${want}`];
     }
 
     const stated = factsOf(outcome);
@@ -109,6 +109,22 @@ export function recallOf(results: readonly Scored[]): Record<Kind, number> {
         Kind,
         number
     >;
+}
+
+/** Whether a value read from the floor file is a whole floor: every kind and the ceiling, each a finite number. Pure. */
+export function isFloor(value: unknown): value is Floor {
+    if (typeof value !== 'object' || value === null || !('recall' in value) || !('refusedMax' in value)) {
+        return false;
+    }
+
+    const { recall, refusedMax } = value;
+
+    return (
+        Number.isFinite(refusedMax) &&
+        typeof recall === 'object' &&
+        recall !== null &&
+        KINDS.every((kind) => kind in recall && Number.isFinite((recall as Record<string, unknown>)[kind]))
+    );
 }
 
 /** What a run breaks of the floor: a kind below its floor, and more refusals than the ceiling. Pure. */

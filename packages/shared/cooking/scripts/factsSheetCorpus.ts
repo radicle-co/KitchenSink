@@ -20,10 +20,10 @@ import type { FactsSheet } from '@kitchensink/recipe-core/step-writing/facts-she
 import { readDuration } from '../src/duration.js';
 
 import {
-    type Floor,
     type GoldenRecipe,
     type Refusal,
     floorFaults,
+    isFloor,
     ingredientNameOf,
     isRefusal,
     precisionFaults,
@@ -51,14 +51,14 @@ const readers: FactsSheetReaders = {
     },
 };
 
-function readJson<T>(name: string, what: string): T {
+function readJson(name: string, what: string): unknown {
     const file = join(CORPUS_DIR, name);
 
     if (!existsSync(file)) {
         throw new Error(`${what} is missing: ${file}`);
     }
 
-    return JSON.parse(readFileSync(file, 'utf8')) as T;
+    return JSON.parse(readFileSync(file, 'utf8'));
 }
 
 /** The sheet of one recipe, or the field that refused it. */
@@ -83,9 +83,15 @@ function sheetOrRefusal(recipe: CorpusRecipe): FactsSheet | Refusal {
 }
 
 function run(): string[] {
-    const recipes = readJson<readonly CorpusRecipe[]>('recipes.json', 'The recipe corpus');
-    const golden = readJson<Record<string, GoldenRecipe>>('factsGolden.json', 'The reviewed golden file');
-    const floor = readJson<Floor>('factsRecallFloor.json', 'The recall floor');
+    const recipes = readJson('recipes.json', 'The recipe corpus') as readonly CorpusRecipe[];
+    const golden = readJson('factsGolden.json', 'The reviewed golden file') as Record<string, GoldenRecipe>;
+    const floor = readJson('factsRecallFloor.json', 'The recall floor');
+
+    // A floor that cannot be compared would pass every run, so a malformed one stops the run.
+    if (!isFloor(floor)) {
+        throw new Error(`The recall floor is malformed: ${FLOOR_FILE}`);
+    }
+
     const results = recipes.map((recipe) => ({ slug: recipe.slug, outcome: sheetOrRefusal(recipe) }));
     const missing = results
         .filter(({ slug }) => golden[slug] === undefined)

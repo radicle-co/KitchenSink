@@ -969,9 +969,10 @@ fallback, and accepted an exception to the rule that every user-facing feature s
 
 - **A8. Was a copy ever published?** Resolved (architect ruling, 2026-11-17). Each copy in the list carries
   `everPublished: boolean`. S42's "Draft" row and the choice of S45 over S31 read it, never the copy's current status.
+  The `everPublished` and `total` fields are a pending contract change, owned by the 003B lead.
 - **A9. More than 20 copies.** Resolved (architect ruling, 2026-11-17). The list answer carries a top-level `total`. Over
-  20, `duplicate.bodyAtLimit` reads "You saved this page {total} times. These are your {count} most recent copies.", and
-  `duplicate.mostRecent` is dropped.
+  20, the body is `duplicate.bodyAtLimit` (S42), and `duplicate.mostRecent` is dropped. The `total` field is a pending
+  contract change, owned by the 003B lead.
 - **A10. Holds on a Replace.** Resolved (architect ruling, 2026-11-17). A Replace save checks cuisine, servings and times
   like a new copy, with no statement, no visibility choice and no slot hold.
 

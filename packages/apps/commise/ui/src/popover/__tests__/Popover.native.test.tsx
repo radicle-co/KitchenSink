@@ -36,7 +36,13 @@ afterEach(cleanup);
 
 const renderPopover = (): void => {
     render(
-        <Popover triggerLabel="About Kale" triggerIcon="info" title="Kale" closeLabel="Close details for Kale">
+        <Popover
+            triggerLabel="About Kale"
+            triggerIcon="info"
+            triggerText="No match found"
+            title="Kale"
+            closeLabel="Close details for Kale"
+        >
             <Text>No match for this.</Text>
         </Popover>,
     );
@@ -86,7 +92,13 @@ describe('Popover (native)', () => {
 
     it('hands its content a close action that closes the sheet', () => {
         render(
-            <Popover triggerLabel="About Kale" triggerIcon="info" title="Kale" closeLabel="Close Kale">
+            <Popover
+                triggerLabel="About Kale"
+                triggerIcon="info"
+                triggerText="No match found"
+                title="Kale"
+                closeLabel="Close Kale"
+            >
                 {(close) => (
                     <Text accessibilityRole="button" onPress={close}>
                         Do it
@@ -103,7 +115,14 @@ describe('Popover (native)', () => {
 
     it('reads BUSY on the trigger while its work runs', () => {
         render(
-            <Popover triggerLabel="About Kale" triggerIcon="info" title="Kale" closeLabel="Close Kale" busy>
+            <Popover
+                triggerLabel="About Kale"
+                triggerIcon="info"
+                triggerText="No match found"
+                title="Kale"
+                closeLabel="Close Kale"
+                busy
+            >
                 <Text>Body</Text>
             </Popover>,
         );
@@ -116,7 +135,13 @@ describe('Popover (native)', () => {
     // UI-overhaul slice 2: the glyph is a meaning from the icon Registry, so no host draws its own.
     it('draws the Registry glyph for the meaning it is given, while idle', () => {
         render(
-            <Popover triggerLabel="About Kale" triggerIcon="triangleAlert" title="Kale" closeLabel="Close Kale">
+            <Popover
+                triggerLabel="About Kale"
+                triggerIcon="triangleAlert"
+                triggerText="No match found"
+                title="Kale"
+                closeLabel="Close Kale"
+            >
                 <Text>Body</Text>
             </Popover>,
         );
@@ -141,6 +166,7 @@ describe('Popover (native)', () => {
             <Popover
                 triggerLabel="About Kale"
                 triggerIcon="info"
+                triggerText="No match found"
                 title="Kale"
                 closeLabel="Close Kale"
                 focusRequested={focusRequested}
@@ -190,6 +216,7 @@ describe('Popover (native) — once it is gone', () => {
             <Popover
                 triggerLabel="About Kale"
                 triggerIcon="info"
+                triggerText="No match found"
                 title="Kale"
                 closeLabel="Close Kale"
                 onDismissed={onDismissed}

@@ -126,3 +126,15 @@ export function classTokensOf(text: string, openEnded: boolean): readonly string
 
     return openEnded && !/\s$/u.test(text) ? tokens.slice(0, -1) : tokens;
 }
+
+/**
+ * A class token split into its variant chain and its utility (`md:focus-visible:ring-2`). A colon inside brackets
+ * belongs to the value or the variant, never a split (`[&:hover]:size-11`). Pure.
+ *
+ * @param token - One whitespace-free token.
+ */
+export function splitToken(token: string): { readonly variants: readonly string[]; readonly base: string } {
+    const parts = token.split(/:(?![^[]*\])/u);
+
+    return { variants: parts.slice(0, -1), base: parts.at(-1) ?? '' };
+}

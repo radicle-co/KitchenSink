@@ -786,8 +786,7 @@ There is one board pair per row: `Name.dc.html` (web, 1280 wide) and `NameMobile
   `Combobox`, `Popover`, `Sheet`, `ConfirmDialog`, `StateNotice`, `LoadingNotice`, `OfflineReadSlot`, `SyncNotice`,
   `UnreadableWorkNotice`, `RefreshNotice`, `LoadMoreControl`, `SnackbarHost` / `UndoSnackbar`, `StatusBadge`,
   `StandIn`, `VariantPartsLine`, `Spinner`, `Button`, `Input`, `TextArea`, `FieldLabel`, `SectionIndex`,
-  `DurationField`, `ChipRow`, `SegmentedControl`, `LargeTitleHeader`, `SearchField`, `ActionMenu`, `RecipeCover`,
-  `PhotoControl`. The product components on the surface are `IngredientRow`, `EditorHeader`, `EditorSection`,
+  `DurationField`, `ChipRow`, `SegmentedControl`, `LargeTitleHeader`, `SearchField`, `ActionMenu`, `RecipeCover`. The product components on the surface are `IngredientRow`, `EditorHeader`, `EditorSection`,
   `EditorActionBar`, `PublishLine`, `RecipeCard`, `RecipeHero`, `NutritionFigure`, `ProfileRow`, `ProfileGroup`,
   `RecentRecipeGrid` and `RecipeDiscoveryCard` (`src/surface/productSurface.ts:30-43`).
 - **Not on the surface.** `CandidatesPanelBody`, `AuthoredFoodSheet`, `VariantDetailsDialog`, `PasteProgressBlock`,

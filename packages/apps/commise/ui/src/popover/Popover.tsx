@@ -86,15 +86,11 @@ export const Popover: FC<PopoverProps> = ({
                 aria-label={triggerLabel}
                 aria-busy={busy || undefined}
                 aria-describedby={describedBy}
-                className={
-                    triggerText === undefined
-                        ? `inline-flex ${TOUCH_TARGET_CLASS.fixed} shrink-0 items-center justify-center rounded-full text-ink transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`
-                        : // The attention line: at least 32 px tall (2.5.8 asks 24), its words in `attention`.
-                          `inline-flex min-h-8 items-center gap-1 rounded-sm text-left text-caption font-medium text-attention transition hover:underline ${FOCUS_RING_CLASS.offset}`
-                }
+                // The attention line: at least 32 px tall (2.5.8 asks 24), its words in `attention`.
+                className={`inline-flex min-h-8 items-center gap-1 rounded-sm text-left text-caption font-medium text-attention transition hover:underline ${FOCUS_RING_CLASS.offset}`}
             >
                 <span aria-hidden="true" className="inline-flex">
-                    {busy ? <Spinner /> : <Icon name={triggerIcon} size={triggerText === undefined ? 20 : 16} />}
+                    {busy ? <Spinner /> : <Icon name={triggerIcon} size={16} />}
                 </span>
                 {triggerText}
             </RadixPopover.Trigger>

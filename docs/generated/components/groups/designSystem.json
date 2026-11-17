@@ -4,16 +4,16 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 94,
-        "implementations": 152,
-        "props": 976,
-        "documentedComponents": 94,
-        "implementationsWithModuleDoc": 152,
-        "implementationsWithComponentDoc": 138,
-        "documentedProps": 879,
-        "classifiedComponents": 87,
-        "componentsWithPatternTag": 94,
-        "crossPlatformComponents": 58
+        "components": 93,
+        "implementations": 150,
+        "props": 970,
+        "documentedComponents": 93,
+        "implementationsWithModuleDoc": 150,
+        "implementationsWithComponentDoc": 136,
+        "documentedProps": 873,
+        "classifiedComponents": 86,
+        "componentsWithPatternTag": 93,
+        "crossPlatformComponents": 57
     },
     "components": [
         {
@@ -10593,243 +10593,6 @@
             ]
         },
         {
-            "id": "designSystem/photoControl/PhotoControl",
-            "name": "PhotoControl",
-            "group": "designSystem",
-            "packageName": "@commise/ui",
-            "layer": "design-system",
-            "dir": "packages/apps/commise/ui/src/photoControl",
-            "kind": "presentational",
-            "patterns": [
-                "Adapter over `expo-glass-effect`, with a solid fallback where the platform has no glass"
-            ],
-            "platforms": [
-                "web",
-                "native"
-            ],
-            "crossPlatform": true,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "PhotoControl",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/ui/src/photoControl/PhotoControl.tsx",
-                    "dir": "packages/apps/commise/ui/src/photoControl",
-                    "moduleDoc": "@commise/ui/photo-control — the web design-system {@link PhotoControl} (see `props.ts`): a solid 44 px\n`photoChip` disc with an `ink` glyph and a visible focus ring. No backdrop blur, by D12.\n\nPresentational: props → JSX.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/ui/photo-control — the web design-system {@link PhotoControl} (see `props.ts`): a solid 44 px"
-                        }
-                    ],
-                    "description": "The web control over a photo.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "icon",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"house\"",
-                                "\"bookOpen\"",
-                                "\"compass\"",
-                                "\"plus\"",
-                                "\"clipboardPaste\"",
-                                "\"ellipsis\"",
-                                "\"chevronLeft\"",
-                                "\"x\"",
-                                "\"search\"",
-                                "\"copyPlus\"",
-                                "\"trash\"",
-                                "\"clock\"",
-                                "\"users\"",
-                                "\"flame\"",
-                                "\"star\"",
-                                "\"lock\"",
-                                "\"globe\"",
-                                "\"pencilLine\"",
-                                "\"timer\"",
-                                "\"sun\"",
-                                "\"check\"",
-                                "\"arrowUp\"",
-                                "\"imagePlus\"",
-                                "\"listPlus\"",
-                                "\"chevronsLeft\"",
-                                "\"slidersHorizontal\"",
-                                "\"rotateCcw\"",
-                                "\"chevronDown\"",
-                                "\"eye\"",
-                                "\"user\"",
-                                "\"minus\"",
-                                "\"chevronRight\"",
-                                "\"chevronUp\"",
-                                "\"refreshCw\"",
-                                "\"logIn\"",
-                                "\"logOut\"",
-                                "\"userPlus\"",
-                                "\"userX\"",
-                                "\"save\"",
-                                "\"settings\"",
-                                "\"camera\"",
-                                "\"image\"",
-                                "\"triangleAlert\"",
-                                "\"info\"",
-                                "\"calendar\"",
-                                "\"shoppingCart\"",
-                                "\"chartColumn\"",
-                                "\"bell\"",
-                                "\"menu\"",
-                                "\"list\"",
-                                "\"layoutGrid\"",
-                                "\"cookingPot\"",
-                                "\"listChecks\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The glyph on the disc. Decorative: the control's name is `label`.",
-                            "declaredIn": "packages/apps/commise/ui/src/photoControl/props.ts"
-                        },
-                        {
-                            "name": "label",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The control's accessible name, localised by the caller (\"Back\", \"More actions\").",
-                            "declaredIn": "packages/apps/commise/ui/src/photoControl/props.ts"
-                        },
-                        {
-                            "name": "onPress",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Called on a press.",
-                            "declaredIn": "packages/apps/commise/ui/src/photoControl/props.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                },
-                {
-                    "name": "PhotoControl",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/ui/src/photoControl/PhotoControl.native.tsx",
-                    "dir": "packages/apps/commise/ui/src/photoControl",
-                    "moduleDoc": "@commise/ui/photo-control — the native design-system {@link PhotoControl} (see `props.ts`): regular,\nuntinted, interactive Liquid Glass on iOS 26, and a solid `photoChip` disc everywhere else, in the system's theme.\n\nPresentational: props → JSX. Which device it is on is read, not decided.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/ui/photo-control — the native design-system {@link PhotoControl} (see `props.ts`): regular,"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Adapter over `expo-glass-effect`, with a solid fallback where the platform has no glass"
-                        }
-                    ],
-                    "description": "The native control over a photo.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "icon",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"house\"",
-                                "\"bookOpen\"",
-                                "\"compass\"",
-                                "\"plus\"",
-                                "\"clipboardPaste\"",
-                                "\"ellipsis\"",
-                                "\"chevronLeft\"",
-                                "\"x\"",
-                                "\"search\"",
-                                "\"copyPlus\"",
-                                "\"trash\"",
-                                "\"clock\"",
-                                "\"users\"",
-                                "\"flame\"",
-                                "\"star\"",
-                                "\"lock\"",
-                                "\"globe\"",
-                                "\"pencilLine\"",
-                                "\"timer\"",
-                                "\"sun\"",
-                                "\"check\"",
-                                "\"arrowUp\"",
-                                "\"imagePlus\"",
-                                "\"listPlus\"",
-                                "\"chevronsLeft\"",
-                                "\"slidersHorizontal\"",
-                                "\"rotateCcw\"",
-                                "\"chevronDown\"",
-                                "\"eye\"",
-                                "\"user\"",
-                                "\"minus\"",
-                                "\"chevronRight\"",
-                                "\"chevronUp\"",
-                                "\"refreshCw\"",
-                                "\"logIn\"",
-                                "\"logOut\"",
-                                "\"userPlus\"",
-                                "\"userX\"",
-                                "\"save\"",
-                                "\"settings\"",
-                                "\"camera\"",
-                                "\"image\"",
-                                "\"triangleAlert\"",
-                                "\"info\"",
-                                "\"calendar\"",
-                                "\"shoppingCart\"",
-                                "\"chartColumn\"",
-                                "\"bell\"",
-                                "\"menu\"",
-                                "\"list\"",
-                                "\"layoutGrid\"",
-                                "\"cookingPot\"",
-                                "\"listChecks\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The glyph on the disc. Decorative: the control's name is `label`.",
-                            "declaredIn": "packages/apps/commise/ui/src/photoControl/props.ts"
-                        },
-                        {
-                            "name": "label",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The control's accessible name, localised by the caller (\"Back\", \"More actions\").",
-                            "declaredIn": "packages/apps/commise/ui/src/photoControl/props.ts"
-                        },
-                        {
-                            "name": "onPress",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Called on a press.",
-                            "declaredIn": "packages/apps/commise/ui/src/photoControl/props.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "designSystem/pinnedSearch/PinnedSearchOverlay",
             "name": "PinnedSearchOverlay",
             "group": "designSystem",
@@ -11189,9 +10952,9 @@
                             "name": "triggerText",
                             "type": "string",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "Words drawn beside the glyph, in the `attention` role: the trigger becomes a read row's attention line (\"⚠ Choose\na match\", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC\n2.5.3). Absent, the trigger is the 44 px glyph button.",
+                            "description": "Words drawn beside the glyph, in the `attention` role: the trigger is a read row's attention line (\"⚠ Choose a\nmatch\", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC\n2.5.3). Required: the glyph-only trigger had no caller and is gone (designer D67).",
                             "declaredIn": "packages/apps/commise/ui/src/popover/props.ts"
                         }
                     ],
@@ -11375,9 +11138,9 @@
                             "name": "triggerText",
                             "type": "string",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "Words drawn beside the glyph, in the `attention` role: the trigger becomes a read row's attention line (\"⚠ Choose\na match\", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC\n2.5.3). Absent, the trigger is the 44 px glyph button.",
+                            "description": "Words drawn beside the glyph, in the `attention` role: the trigger is a read row's attention line (\"⚠ Choose a\nmatch\", `docs/design/uiOverhaul/buildSpec.md` §7.5.1). ⛔ {@link triggerLabel} must CONTAIN these words (SC\n2.5.3). Required: the glyph-only trigger had no caller and is gone (designer D67).",
                             "declaredIn": "packages/apps/commise/ui/src/popover/props.ts"
                         }
                     ],

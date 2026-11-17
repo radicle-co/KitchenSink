@@ -1,9 +1,9 @@
 /**
  * @module RecipeHero.card — the design-system card of the RecipeHero: a recipe with two photos and one with none (the
- * cover falls back), each with the Back and More overlay controls.
+ * cover falls back), each with the Back and More overlay controls (a HeroButton and an ActionMenu disc).
  */
 import { defineCard } from '../../../../src/cards/defineCard.js';
-import type { CardUi } from '../../../../src/cards/cardComponents.js';
+import type { CardUi, NativeCardUi } from '../../../../src/cards/cardComponents.js';
 
 const noop = (): void => undefined;
 
@@ -28,10 +28,20 @@ const photos = [
     createdAt: '2026-10-01T12:00:00.000Z',
 }));
 
-function overlay({ PhotoControl }: CardUi<'PhotoControl'>) {
+function overlay({
+    HeroButton,
+    ActionMenu,
+}: CardUi<'HeroButton' | 'ActionMenu'> | NativeCardUi<'HeroButton' | 'ActionMenu'>) {
     return [
-        <PhotoControl key="b" icon="chevronLeft" label="Back" onPress={noop} />,
-        <PhotoControl key="m" icon="ellipsis" label="More actions" onPress={noop} />,
+        <HeroButton key="b" icon="chevronLeft" label="Back" onPress={noop} />,
+        <ActionMenu
+            key="m"
+            appearance="disc"
+            triggerLabel="Recipe actions"
+            title="Recipe"
+            closeLabel="Close"
+            items={[{ id: 'share', label: 'Share', onSelect: noop }]}
+        />,
     ];
 }
 
@@ -39,12 +49,23 @@ export default defineCard({
     group: 'Recipes',
     height: 470,
     platforms: 'both',
-    uses: ['RecipeHero', 'PhotoControl'],
+    uses: ['RecipeHero', 'HeroButton', 'ActionMenu'],
     staging: { phoneViewport: true },
-    render: ({ RecipeHero, PhotoControl }) => (
+    render: ({ RecipeHero, HeroButton, ActionMenu }) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
-            <RecipeHero title="Lemon ricotta pancakes" photos={photos} overlay={overlay({ PhotoControl })} />
-            <RecipeHero title="Weeknight pad thai" photos={[]} overlay={overlay({ PhotoControl })} />
+            <RecipeHero title="Lemon ricotta pancakes" photos={photos} overlay={overlay({ HeroButton, ActionMenu })} />
+            <RecipeHero title="Weeknight pad thai" photos={[]} overlay={overlay({ HeroButton, ActionMenu })} />
+        </div>
+    ),
+    // The native HeroButton takes `ref` as a plain prop, so its component type differs from the web one.
+    renderNative: ({
+        RecipeHero,
+        HeroButton,
+        ActionMenu,
+    }: NativeCardUi<'RecipeHero' | 'HeroButton' | 'ActionMenu'>) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
+            <RecipeHero title="Lemon ricotta pancakes" photos={photos} overlay={overlay({ HeroButton, ActionMenu })} />
+            <RecipeHero title="Weeknight pad thai" photos={[]} overlay={overlay({ HeroButton, ActionMenu })} />
         </div>
     ),
 });

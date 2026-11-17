@@ -71,25 +71,16 @@ export const Popover: FC<PopoverProps> = ({
                 onPress={() => {
                     onOpenChange(true);
                 }}
-                style={({ pressed }) => [
-                    triggerText === undefined ? styles.trigger : styles.textTrigger,
-                    pressed && { backgroundColor: wash },
-                ]}
+                style={({ pressed }) => [styles.textTrigger, pressed && { backgroundColor: wash }]}
             >
                 <View aria-hidden style={styles.glyph}>
                     {busy ? (
                         <ActivityIndicator color={colors.ink} />
                     ) : (
-                        <Icon
-                            name={triggerIcon}
-                            size={triggerText === undefined ? 20 : 16}
-                            tone={triggerText === undefined ? 'ink' : 'attention'}
-                        />
+                        <Icon name={triggerIcon} size={16} tone="attention" />
                     )}
                 </View>
-                {triggerText !== undefined && (
-                    <Text style={[styles.triggerText, { color: colors.attention }]}>{triggerText}</Text>
-                )}
+                <Text style={[styles.triggerText, { color: colors.attention }]}>{triggerText}</Text>
             </Pressable>
             <Sheet
                 open={open}
@@ -110,13 +101,6 @@ export const Popover: FC<PopoverProps> = ({
 };
 
 const styles = StyleSheet.create({
-    trigger: {
-        minWidth: TARGET_DP,
-        minHeight: TARGET_DP,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: TARGET_DP / 2,
-    },
     // The attention line: the full 48 dp target, its words beside the glyph (build spec §7.5.1).
     textTrigger: {
         minHeight: TARGET_DP,

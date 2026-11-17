@@ -24,7 +24,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { appSourceModules, classTokensOf, stringLikeTexts } from './appSources.js';
+import { appSourceModules, classTokensOf, splitToken, stringLikeTexts } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
 
 /** The directory that owns the recipe, and so may write the tokens. */
@@ -35,13 +35,6 @@ const FOCUS_VARIANT = /^(?:focus|focus-visible|focus-within|has-\[:focus-visible
 
 /** A utility of the ring family: `ring`, `ring-2`, `ring-inset`, `ring-focus-ring`, `ring-offset-2`. */
 const RING_UTILITY = /^!?ring(?:-.+)?$/u;
-
-/** The tokens of a class string split into its variant chain and its utility (`md:focus-visible:ring-2`). */
-function splitToken(token: string): { readonly variants: readonly string[]; readonly base: string } {
-    const parts = token.split(/:(?![^[]*\])/u);
-
-    return { variants: parts.slice(0, -1), base: parts.at(-1) ?? '' };
-}
 
 /**
  * Whether a class token is a hand-written focus ring or ring offset. Pure.

@@ -150,6 +150,23 @@ describe('allStepsRowsOf: the mark of each step', () => {
         ]);
     });
 
+    it('reads the recipe step number, not the row position, when a step with no text is dropped', () => {
+        const gap = cookingStepsOf([
+            { stepNumber: 1, instruction: 'Heat the oil.' },
+            { stepNumber: 2, instruction: '   ' },
+            { stepNumber: 3, instruction: 'Add the stock.' },
+        ]);
+
+        expect(
+            allStepsRowsOf(input({ steps: gap, stepIndex: 0, marks: [], lineTicks: createLineTicks() })).map(
+                ({ index, stepNumber }) => [index, stepNumber],
+            ),
+        ).toEqual([
+            [0, 1],
+            [1, 3],
+        ]);
+    });
+
     it('reads every row from its own step, in recipe order, with the step number and first line', () => {
         expect(
             allStepsRowsOf(input()).map(({ index, stepNumber, firstLine }) => [index, stepNumber, firstLine]),

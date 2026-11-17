@@ -92,4 +92,22 @@ describe('All steps over the real reducers', () => {
             undefined,
         ]);
     });
+
+    it('keeps the recipe step numbers across a blank step through the real splitter', () => {
+        const gap = cookingStepsOf([
+            { stepNumber: 1, instruction: 'Heat the oil.' },
+            { stepNumber: 2, instruction: '' },
+            { stepNumber: 3, instruction: 'Add the stock.' },
+        ]);
+        const rows = allStepsRowsOf({
+            steps: gap,
+            stepIndex: 0,
+            marks: [],
+            lineTicks: createLineTicks(),
+            timers: NO_TIMER,
+            recipeId: RECIPE,
+        });
+
+        expect(rows.map((row) => row.stepNumber)).toEqual([1, 3]);
+    });
 });

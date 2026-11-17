@@ -310,6 +310,10 @@ describe('focusLineOf', () => {
         }
     });
 
+    it('goes back when the tapped line is not a whole number (mutant: the integer check removed)', () => {
+        expect(focus({ tapped: { ...tappedC, lineIndex: 1.5 } })).toBe(0);
+    });
+
     it('goes back to the first unticked line when the tapped line is ticked', () => {
         expect(focus({ ticks: ticksOf([1, 2]) })).toBe(0);
     });

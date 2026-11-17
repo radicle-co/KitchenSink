@@ -86,7 +86,7 @@ export const keptTimerSchema = z.discriminatedUnion('state', [
         pausedAt: isoInstant,
     }),
     z.strictObject({ ...endedShape, state: z.literal('ringing') }),
-    /** `announcedAt` is written only for the ended-away announcement (ADR-0094 section 2). */
+    /** Only an ended-away timer may carry `announcedAt` (ADR-0094 section 2). */
     z.strictObject({ ...endedShape, state: z.literal('endedAway'), announcedAt: isoInstant.optional() }),
 ]);
 

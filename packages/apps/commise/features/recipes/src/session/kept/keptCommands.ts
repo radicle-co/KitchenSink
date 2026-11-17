@@ -9,7 +9,7 @@ import { matchStep, matchStepStrict } from '@kitchensink/cooking-core';
 import { sessionClock, timerClock } from './sessionClock.js';
 import type { CookingEntry, KeptDocument, KeptEntry, KeptTimer, LineTickRef, StepMark } from './keptRecord.js';
 
-/** The snapshot End keeps in memory for Undo (ADR-0094 section 8). */
+/** The snapshot End keeps in memory for Undo (ADR-0094 section 2). */
 export interface EndedSnapshot {
     readonly recipeId: string;
     readonly entry: CookingEntry;

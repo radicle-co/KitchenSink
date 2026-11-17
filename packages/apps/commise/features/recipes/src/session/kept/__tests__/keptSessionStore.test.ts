@@ -161,7 +161,7 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         expect(report).toHaveBeenCalledTimes(1);
     });
 
-    it('a change made while reads fail is kept and joins the record once reads recover (ADR-0094 section 6)', async () => {
+    it('a change made while reads fail is kept and joins the record once reads recover (ADR-0094 section 3)', async () => {
         const { store, data, state } = setup({ [KEY_A]: stored });
 
         state.failReads = true;

@@ -87,7 +87,7 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
      * Commands applied in memory while storage could not be read (so nothing was written), each with the instant the
      * cook made it: a pause or a last-touch replayed later must keep the time the cook acted, not the replay time. The
      * next successful locked dispatch replays them on top of what storage then holds, so a change made during a
-     * transient failure is not lost (ADR-0094 section 6). Dropped on sign-out and on a change of cook, so it never reaches
+     * transient failure is not lost (ADR-0094 section 3). Dropped on sign-out and on a change of cook, so it never reaches
      * another record.
      */
     let unsaved: readonly UnsavedCommand[] = [];

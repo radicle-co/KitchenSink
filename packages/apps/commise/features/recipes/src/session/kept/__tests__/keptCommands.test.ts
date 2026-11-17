@@ -213,7 +213,7 @@ describe('rebind (ADR-0094 section 9)', () => {
     });
 });
 
-describe('End then Undo (ADR-0094 section 8)', () => {
+describe('End then Undo (ADR-0094 section 2)', () => {
     const entry = makeCooking({ step: step(2), ticks: ['butter'], lastTouch: iso(T0) });
     const timer = makeTimer({ recipeId: 'r1', stepIndex: 2, stepDigest: step(2).digest, ordinal: 2 });
     const before = makeDoc({ entries: { r1: entry }, timers: [timer] });

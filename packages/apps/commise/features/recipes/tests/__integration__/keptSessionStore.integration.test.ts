@@ -1,3 +1,4 @@
+import { cookingStepsOf, stepDigest } from '@kitchensink/cooking-core';
 import { describe, expect, it, vi } from 'vitest';
 
 import { makeFakeLocks, makeFakePort } from '../../src/session/kept/__fixtures__/fakeKeptPort.js';
@@ -95,6 +96,60 @@ describe('two tabs over one record (R12, AE13, RT1)', () => {
 
         expect(outcome).toEqual({ kind: 'joined', step: step(3) });
         expect(data.get(KEY)).toBe(afterB);
+    });
+});
+
+/** The digests the cook screen hands `rebind`: the real splitter skips blank steps, the real digest hashes each one. */
+const digestsOfRecipe = (instructions: readonly string[]): string[] => {
+    const steps = instructions.map((instruction, index) => ({ stepNumber: index + 1, instruction }));
+
+    return cookingStepsOf(steps).map(({ stepNumber }) => stepDigest(instructions[stepNumber - 1] ?? ''));
+};
+
+describe('a recipe edited under a kept session (ADR-0094 section 9)', () => {
+    const before = ['Cream the butter.', 'Beat in the eggs.', '   ', 'Fold in the flour.', 'Bake until golden.'];
+    const beforeDigests = digestsOfRecipe(before);
+
+    it('rebinds the kept step, a mark and a line tick onto the steps of the edited recipe, through the stored record', async () => {
+        const kept = makeCooking({
+            step: { index: 2, digest: beforeDigests[2] ?? '' },
+            marks: [{ index: 1, digest: beforeDigests[1] ?? '' }],
+            lineTicks: [{ stepIndex: 2, stepDigest: beforeDigests[2] ?? '', lineIndex: 0 }],
+        });
+        const { a, stored } = await twoTabs({
+            [KEY]: serializeKeptDocument(makeDoc({ rev: 1, entries: { r1: kept } })),
+        });
+
+        await a.dispatch({
+            type: 'rebind',
+            recipeId: 'r1',
+            stepDigests: digestsOfRecipe(['Heat the oven.', ...before]),
+        });
+
+        expect(stored().entries['r1']).toMatchObject({
+            step: { index: 3, digest: beforeDigests[2] },
+            marks: [{ index: 2, digest: beforeDigests[1] }],
+            lineTicks: [{ stepIndex: 3, stepDigest: beforeDigests[2], lineIndex: 0 }],
+        });
+    });
+
+    it('drops a mark and a line tick whose step was edited, and keeps the kept step at its clamped index', async () => {
+        const kept = makeCooking({
+            step: { index: 1, digest: beforeDigests[1] ?? '' },
+            marks: [{ index: 1, digest: beforeDigests[1] ?? '' }],
+            lineTicks: [{ stepIndex: 1, stepDigest: beforeDigests[1] ?? '', lineIndex: 0 }],
+        });
+        const { a, stored } = await twoTabs({
+            [KEY]: serializeKeptDocument(makeDoc({ rev: 1, entries: { r1: kept } })),
+        });
+
+        await a.dispatch({
+            type: 'rebind',
+            recipeId: 'r1',
+            stepDigests: digestsOfRecipe(before.map((text, i) => (i === 1 ? `${text} Add vanilla.` : text))),
+        });
+
+        expect(stored().entries['r1']).toMatchObject({ step: { index: 1 }, marks: [], lineTicks: [] });
     });
 });
 

@@ -295,7 +295,8 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/*/parsing/parse-prompt',
         '!@kitchensink/*/parsing/parse-answer',
         // `step-writing/*` (specs 027 and 003B): the step-writing engine's published entry points. They stay OUT of the
-        // barrel on purpose, as the parse-leg modules above do.
+        // barrel on purpose, as the parse-leg modules above do. The bare `step-writing` entry is what the allow-list guard
+        // needs for the directory form of the pattern.
         '!@kitchensink/*/step-writing',
         '!@kitchensink/*/step-writing/facts-sheet-types',
         '!@kitchensink/*/step-writing/facts-sheet-input',

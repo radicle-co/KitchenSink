@@ -1,6 +1,6 @@
 /**
- * The one input check for a facts sheet's free text: a name is a short plain name, a language is a tag.
- * The sheet builder and the prompt builder both call it, so wording cannot reach the writer through a field.
+ * The input check for a facts sheet's free text: a name is a short plain name, a language is a tag. It pins that
+ * wording, markup and links are refused in every free-text field.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -54,12 +54,19 @@ describe('assertFactsSheetPlain', () => {
         },
     );
 
-    it.each(['jalapeño', "baker's yeast", 'crème fraîche', '00 flour', 'half-and-half', 'cheese, grated', 'バター'])(
-        'accepts the name %j',
-        (name) => {
-            expect(faultOf(makeSheet({ ingredientNames: [name] }))).toBeUndefined();
-        },
-    );
+    it.each([
+        'jalapeño',
+        "baker's yeast",
+        'crème fraîche',
+        '00 flour',
+        'half-and-half',
+        'cheese, grated',
+        'バター',
+        '1% milk',
+        '74 °C',
+    ])('accepts the name %j', (name) => {
+        expect(faultOf(makeSheet({ ingredientNames: [name] }))).toBeUndefined();
+    });
 
     it.each([
         ['wording', WORDING],
@@ -74,7 +81,7 @@ describe('assertFactsSheetPlain', () => {
     });
 
     it('checks every free-text field and names the one at fault', () => {
-        const base = makeSheet().steps[0]!;
+        const base = makeSheet().steps[0];
         const withStep = (change: Partial<typeof base>): FactsSheet =>
             makeSheet({ steps: [base, { ...base, ...change }] });
 
@@ -90,7 +97,7 @@ describe('assertFactsSheetPlain', () => {
     });
 
     it('refuses a number that is not finite', () => {
-        const base = makeSheet().steps[0]!;
+        const base = makeSheet().steps[0];
 
         expect(
             faultOf(makeSheet({ steps: [{ ...base, temperatures: [{ value: Number.NaN, scale: 'C' }] }] })),

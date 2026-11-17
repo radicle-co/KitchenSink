@@ -11,10 +11,8 @@
  * - `overCap`: more steps than the caller's cap;
  * - `unsafeText`: a step holding a link, markup or any character outside plain recipe prose (see `PLAIN_PROSE`).
  *
- * This reader checks the SHAPE and the CHARACTERS of the text. It cannot check that the text is true to the recipe:
- * the fact check that follows (slice A4) does, and refuses any text that cannot be traced to the facts sheet. Every
- * number, temperature, time, equipment word and ingredient name in the written steps must appear on the sheet, so a
- * name or figure that was not a fact is refused there.
+ * This reader checks the SHAPE and the CHARACTERS of the text only. Truth to the recipe is checked later in the pipeline
+ * (spec 027 FR-040, the two-way fact check).
  *
  * Whether each `covers` index points at a real source step, and which source steps must be covered, needs the source
  * recipe, which is not in the answer. The rewrite step that holds both checks it.

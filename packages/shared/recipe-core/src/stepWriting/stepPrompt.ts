@@ -104,7 +104,7 @@ export function buildStepPrompt(sheet: FactsSheet): StepPrompt {
             safety: step.safety.map(({ category, facts }) => ({ category, facts: [...facts] })),
         })),
     };
-    // `<` escaped as well: a plain fact cannot hold one today, and the frame must stay safe if that rule loosens.
+    // `<` escaped as well: defence in depth. `assertFactsSheetPlain` already rejects `<`.
     const userMessage = `${OPEN_TAG}${JSON.stringify(payload).replaceAll('<', '\\u003c')}${CLOSE_TAG}`;
     // Code points, not UTF-16 units: an astral character is one thing a tokenizer sees and two `.length` units.
     const observedChars = [...STEP_SYSTEM_PROMPT].length + [...userMessage].length;

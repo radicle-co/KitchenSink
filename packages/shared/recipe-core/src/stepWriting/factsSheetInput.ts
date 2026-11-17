@@ -2,11 +2,11 @@
  * The one input check for a facts sheet's free text.
  *
  * The prompt is facts only, so every string a sheet carries must be a fact: a short plain name or a language tag, and
- * never a sentence of source wording. The sheet builder and the prompt builder both call
- * {@link assertFactsSheetPlain}, so a field cannot carry wording in at either door.
+ * never a sentence of source wording. Any code that hands a sheet to the writer calls {@link assertFactsSheetPlain}
+ * first.
  *
- * Names are plain by construction: letters, marks, numbers, spaces, apostrophes, hyphens, commas, parentheses and
- * ampersands, at most {@link MAX_FACT_TEXT_CHARS} code points. A sentence ends in a full stop and runs past that, a
+ * Names are plain by construction: letters, marks, numbers, spaces, apostrophes, hyphens, commas, parentheses,
+ * ampersands, percent signs and degree signs, at most {@link MAX_FACT_TEXT_CHARS} code points. A sentence ends in a full stop and runs past that, a
  * link needs a colon, a slash or a dot, and markup needs an angle bracket, so none of them passes.
  */
 import type { FactsSheet } from './factsSheet.types.js';
@@ -14,7 +14,7 @@ import type { FactsSheet } from './factsSheet.types.js';
 /** The longest name, unit, action, equipment word or safety fact, in code points. */
 export const MAX_FACT_TEXT_CHARS = 80;
 
-const PLAIN_FACT_TEXT = /^[\p{L}\p{M}\p{N}][\p{L}\p{M}\p{N} '’,()&-]*$/u;
+const PLAIN_FACT_TEXT = /^[\p{L}\p{M}\p{N}][\p{L}\p{M}\p{N} '’,()&%°-]*$/u;
 
 /** A BCP 47 tag of language, optional script and optional region: `en`, `pt-BR`, `zh-Hans-CN`. */
 const LANGUAGE_TAG = /^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2})?$/;

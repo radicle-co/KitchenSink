@@ -534,5 +534,13 @@ describe('recipe provenance hardening (migration 0090)', () => {
 
             expect(await heldOf(CLONE_ID)).toBe(true);
         });
+        it('copies nothing when the clone already states "from another person" itself', async () => {
+            await insertRecipe('fromPerson');
+            await attest(FROM_PERSON);
+
+            await cloneRecipe('fromPerson');
+
+            expect(await cloneRows()).toEqual([]);
+        });
     });
 });

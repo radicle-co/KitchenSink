@@ -388,8 +388,7 @@ later from its own menu. (C-6)
   `failed.bodyFinal` and the private exit `review.notNow` on the public path, so the cook's recipe is not lost without
   warning, and `failed.titleFinal` with `failed.bodyFinalBoth` and `failed.done` on the Both path, where the copy is
   already saved. The blocked state shows `blocked.bodyFinal` (`blocked.bodyFinalBoth` on the Both path) with the path's
-  not-now key only. At a final `failed` or `checkRefused` the item's draft stays until the cook's exit, and the exit's
-  transaction saves the private copy from it and clears it. On `409 attemptsUsed` the client refetches the job. (C-7)
+  not-now key only. The item draft's life at a final state is FR-033's. On `409 attemptsUsed` the client refetches the job. (C-7)
 - **FR-032**: The public version MUST hold these parts, and no photo from the source:
     - the written steps.
     - a descriptive title built by code from the facts sheet (the main foods), with no model call. It
@@ -400,11 +399,15 @@ later from its own menu. (C-6)
     It MUST NOT carry the
     source's notes, tips or description. (C-8)
 
-- **FR-033**: On the "For everyone" path the pasted step text MUST be kept only in the job's `source_steps`, so a
-  retry sends the writer the same text. It MUST be cleared in the same UPDATE as `facts_snapshot` and `output` at every
-  terminal state and on cancel, and the import item's draft step text MUST be cleared in that same transaction. Until
-  then the item's draft still serves "Show my copy" and the cook's exits that save a private copy. A job lives about 73 hours at most, inside ADR-0072's 30 days. Only the source record of
-  FR-080 stays.
+- **FR-033**: On the "For everyone" path the pasted step text MUST be kept only in the job's `source_steps` and in the
+  import item's draft, so a retry sends the writer the same text. The job's own text (`facts_snapshot`, `source_steps`
+  and `output`) MUST be cleared in one UPDATE on entering a final state (`published`, `cancelled`, `budgetSpent`, or
+  `failed` or `checkRefused` at 3 attempts) and on cancel. The item's draft step text MUST be cleared in the same
+  transaction on `published`, `cancelled` and `budgetSpent`. At a final `failed` or `checkRefused` the draft stays, to
+  serve "Show my copy" and the cook's exit that saves a private copy, until the first of two events: the cook's exit
+  (cancel), or the 24-hour expiry of that state to `cancelled`. Either clears the draft in its own transaction. A job
+  lives about 73 hours at most (3 attempts, each a 10-minute window plus a 24-hour rest or grace), inside ADR-0072's 30
+  days. Only the source record of FR-080 stays.
 - **FR-034**: A source page MUST have at most one Commise-written public version at a time (ADR-0093 §2). The page is
   its normalised source address (`sourceLinkKey`, `004`). A retry or a second device of the same cook MUST return the
   same version. A later cook who chooses "For everyone" or "Both" while one holds the page is shown it (`publicExists.published`,

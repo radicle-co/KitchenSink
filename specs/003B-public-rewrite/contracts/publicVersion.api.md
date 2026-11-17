@@ -144,7 +144,9 @@ fewer than 3 attempts are used. Attempts carry over and no allowance unit is spe
 
 `POST /api/v1/public-version-jobs/{jobId}/cancel` → `200 { state: 'cancelled' }`. Idempotent. It is accepted from
 `pending`, `writing`, `ready`, `checkRefused` and `failed` (the failed screen's "Done" and "Save my copy", and `review.notNow` at 3 attempts), and it clears
-`facts_snapshot`, `source_steps` and `output` in the same UPDATE.
+`facts_snapshot`, `source_steps` and `output` in the same UPDATE, and the item's draft step text in the same transaction
+(FR-033). Open, owed to a `staff-architect` ruling: which route saves the private copy from the item's draft on
+`review.notNow` and `button.private`, and in which transaction relative to this clear.
 
 ## Recipe writes
 

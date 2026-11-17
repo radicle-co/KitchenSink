@@ -16,7 +16,8 @@ Each item gives the decision, the reason, and the options set aside.
 - **Reason**: the import item is purged on the schedule of ADR-0072, and the later route (US3) has no
   item at all. The job also holds the writer's source step text (`source_steps`) until it ends (about 73 hours at
   most, inside ADR-0072's 30 days), so a retry on the public-only path sends the same text. The item's draft step
-  text is cleared in the same transaction that clears `source_steps` at the job's end (FR-033).
+  text follows FR-033: cleared with the job's text at `published`, `cancelled` and `budgetSpent`, and kept at a final
+  `failed` or `checkRefused` until the cook's exit or the 24-hour expiry.
 - **Set aside**: columns on the import item.
 
 ## R3. The comparator for every later save

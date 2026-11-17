@@ -57,7 +57,7 @@ Indexes:
 
 Every expiry counts from `state_changed_at`, so a retry starts a fresh window. A job expires lazily, in the data layer, in the same transaction before an insert and again on every read: a job in
 `pending` or `writing` for more than 10 minutes becomes `failed`, and a job in `ready` for more than 24 hours becomes
-`cancelled`, and so is a resting `checkRefused` or a resting `failed` (fewer than 3 attempts) after 24 hours. A job lives about 73 hours at most (3 attempts, each a 10-minute window plus a 24-hour rest), inside the 30 days of ADR-0072, which is how long `source_steps` can live. No timer process is needed, and a job nobody reads cannot hold its page key past the next insert for that page.
+`cancelled`, and so is a `checkRefused` or `failed` job after 24 hours, resting (fewer than 3 attempts) or final (3 attempts). A job lives about 73 hours at most (3 attempts, each a 10-minute window plus a 24-hour rest), inside the 30 days of ADR-0072, which is how long `source_steps` can live. No timer process is needed, and a job nobody reads cannot hold its page key past the next insert for that page.
 
 Finished jobs are deleted 7 days after `finished_at` by the existing retention sweeper. The table is user-keyed: add it
 to `erasureSweepCoverage` and to the test-principal purge.
@@ -80,6 +80,7 @@ checkRefused ──"Try again"───────────────▶ p
 checkRefused ──24 h (attempts < 3)───────▶ cancelled
 failed ──"Try again"────────────────────▶ pending         (attempts < 3)
 failed ──24 h (attempts < 3)─────────────▶ cancelled
+checkRefused|failed ──24 h (attempts = 3)────▶ cancelled        (clears the item draft; the job's own text is already cleared)
 checkRefused|failed ──cancel (button.private or, at 3 attempts, review.notNow on the For everyone path; failed.done on the Both path)──▶ cancelled
 ```
 
@@ -100,7 +101,7 @@ Rules:
 - A Publish that answers `503 checkUnavailable` leaves the job `ready` and spends no attempt.
 - `facts_snapshot`, `source_steps` and `output` are cleared only on entering a terminal state: `published`,
   `cancelled`, `budgetSpent`, `failed` at 3 attempts, or `checkRefused` at 3 attempts. They are kept while "Write it
-  again" or "Try again" can still happen. The import item's draft step text is cleared in the same UPDATE or transaction (FR-033), including at lazy expiry to `cancelled`.
+  again" or "Try again" can still happen. The import item's draft step text follows FR-033: cleared in the same transaction on `published`, `cancelled` and `budgetSpent`, and at a final `failed` or `checkRefused` kept until the cook's cancel or the 24-hour expiry to `cancelled`, whichever comes first.
 - Every pair of states that this list does not name is refused.
 
 ## Columns on existing tables

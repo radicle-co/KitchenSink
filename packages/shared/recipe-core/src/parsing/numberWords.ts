@@ -10,8 +10,8 @@
  * ⛔ LIBRARY-FIRST JUSTIFICATION (measured 2026-08-19; re-verified in this workspace on the same date —
  * do not re-litigate, and do not replace this table with a "words to numbers" package):
  *
- * - `parse-ingredient@2.2.0` (MIT, ~1,900 dl/wk) — the choice `specs/004-recipe-importing/research/tech-stack.md`
- *   already records, and it IS used, for unit + description extraction. It cannot read number WORDS:
+ * - `parse-ingredient@2.2.0` (MIT, ~1,900 dl/wk) — the importer's choice, and it IS used for unit + description
+ *   extraction. It cannot read number WORDS:
  *   measured to return `quantity: null` for `"one tablespoon of butter"`, `"two-thirds cup of flour"` and
  *   `"one-half teaspoon salt"` — which is the notation an entire 1900s cookbook is written in.
  * - `fraction.js@5.3.4` (MIT, ~51M dl/wk) — USED for every rational operation by its user, `normalizeQuantity`.

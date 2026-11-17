@@ -30,7 +30,7 @@ export type Parenthetical =
  * The words that name what a package is: the next word after "(28 ounce)" must be one of these for the parenthetical to
  * be a package size, as written (a plural is a separate spelling).
  */
-const CONTAINER_WORDS: ReadonlySet<string> = new Set(
+export const CONTAINER_WORDS: ReadonlySet<string> = new Set(
     [
         'can',
         'jar',

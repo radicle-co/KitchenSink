@@ -17,6 +17,7 @@
  * @pattern Port (injected duration reader)
  */
 import { amountAt, leadingAmount } from '../parsing/measureReader.js';
+import { CONTAINER_WORDS } from '../parsing/parentheticalMeasure.js';
 import { escapeRegExp } from '../parsing/escapeRegExp.js';
 import { LONG_TIME_UNIT_WORDS, TIME_UNIT_WORDS, type LongTimeUnit, type TimeUnit } from '../timeUnitWords.js';
 import { classifyUnit, LENGTH_UNIT_VOCABULARY, normalizeUnit } from '../units.js';
@@ -38,7 +39,15 @@ import {
     assertIngredientName,
     wordsOf,
 } from './factsSheetInput.js';
-import { ACTION_VERBS, EQUIPMENT, SAFETY_RULES, type SafetyTerm } from './stepLexicons.js';
+import {
+    ACTION_VERBS,
+    EQUIPMENT,
+    FUNCTION_WORDS,
+    INSTRUCTION_ADVERBS,
+    READING_VERBS,
+    SAFETY_RULES,
+    type SafetyTerm,
+} from './stepLexicons.js';
 
 import type { RecipeIngredientView, RecipeStep } from '../recipe.types.js';
 
@@ -68,9 +77,6 @@ const NOT_LETTER_OR_DIGIT_AFTER = String.raw`(?![\p{L}\p{N}])`;
 /** Between the words of a lexicon phrase: space or hyphen, never a sentence end. */
 const PHRASE_JOINER = String.raw`[\s-]+`;
 
-/** Between the words of an ingredient name: space or any punctuation a plain name may hold, apostrophes aside. */
-const NAME_JOINER = `[\\s${escapeRegExp(PLAIN_FACT_PUNCTUATION.replaceAll(/['’]/gu, ''))}]+`;
-
 /** A phrase as a pattern: its words joined, an apostrophe of either kind, a plural `s` allowed. */
 function phrasePattern(phrase: string, joiner: string): string {
     const words = wordsOf(phrase).map((word) => escapeRegExp(word).replaceAll(/['’]/gu, "['’]"));
@@ -79,17 +85,13 @@ function phrasePattern(phrase: string, joiner: string): string {
 }
 
 /** One compiled matcher for a set of phrases, matching on word boundaries and ignoring case. */
-const matcherOf = (phrases: readonly string[], flags: string, joiner: string = PHRASE_JOINER): RegExp =>
+const matcherOf = (phrases: readonly string[], flags: string): RegExp =>
     new RegExp(
-        `${NOT_LETTER_OR_DIGIT_BEFORE}(?:${phrases.map((phrase) => phrasePattern(phrase, joiner)).join('|')})${NOT_LETTER_OR_DIGIT_AFTER}`,
+        `${NOT_LETTER_OR_DIGIT_BEFORE}(?:${phrases.map((phrase) => phrasePattern(phrase, PHRASE_JOINER)).join('|')})${NOT_LETTER_OR_DIGIT_AFTER}`,
         flags,
     );
 
 // ── Actions and equipment ──
-
-const VERB_OF_FORM: ReadonlyMap<string, string> = new Map(
-    Object.entries(ACTION_VERBS).flatMap(([verb, forms]) => forms.map((form): [string, string] => [form, verb])),
-);
 
 const EQUIPMENT_MATCHERS: readonly (readonly [string, RegExp])[] = EQUIPMENT.map((item) => [
     item,
@@ -117,16 +119,41 @@ function blanked(text: string, spans: readonly Span[]): string {
     );
 }
 
+/** A clause: the text between marks that end one. */
+const CLAUSE = /[^.,;:!?()\n]+/gu;
+const WORD = /[\p{L}\p{N}'’-]+/gu;
+
 /**
- * The closed-lexicon verbs in a step, in order of first use, once each. The words of equipment and of ingredients are
- * not read: a baking sheet is no baking, and brown sugar is no browning.
+ * The closed-lexicon verbs a step uses as instructions, in order of first use, once each. A verb counts only in its base
+ * form, at an instruction position: the start of a clause (after any of a closed list of adverbs), or right after "and"
+ * or "then". The words of equipment and of ingredients are not read (a baking sheet is no baking, brown sugar is no
+ * browning), and a verb before "of" is a noun ("rest of the batter").
  */
 function actionsOf(text: string, namedThings: readonly Span[]): string[] {
-    const verbs = [...blanked(text, namedThings).matchAll(/\p{L}+/gu)].flatMap(
-        (word) => VERB_OF_FORM.get(word[0].toLowerCase()) ?? [],
-    );
+    const found = [...blanked(text, namedThings).matchAll(CLAUSE)].flatMap(([clause]) => {
+        const words = [...clause.matchAll(WORD)].map((match) => match[0].toLowerCase());
 
-    return [...new Set(verbs)];
+        const afterAdverbs = (from: number): number => {
+            let at = from;
+
+            while (INSTRUCTION_ADVERBS.has(words[at] ?? '')) {
+                at += 1;
+            }
+
+            return at;
+        };
+
+        const starts = [0, ...words.flatMap((word, index) => (word === 'and' || word === 'then' ? [index + 1] : []))];
+
+        return starts.flatMap((start) => {
+            const word = words[afterAdverbs(start)] ?? '';
+            const next = words[afterAdverbs(start) + 1];
+
+            return Object.hasOwn(ACTION_VERBS, word) && next !== 'of' ? [ACTION_VERBS[word] ?? word] : [];
+        });
+    });
+
+    return [...new Set(found)];
 }
 
 /** The closed-lexicon equipment in a step, outermost match only, in order of use. */
@@ -294,25 +321,37 @@ function ingredientNamesOf(lines: StepSourceRecipe['ingredientLines'], language:
     return [...new Set(lines.flatMap((line, index) => nameOfLine(line, index, language) ?? []))];
 }
 
-const HEAD_MIN_LETTERS = 3;
+/** A word of a name as a pattern: its characters literally, an apostrophe of either kind. */
+const tokenPattern = (token: string): string => escapeRegExp(token).replaceAll(/['’]/gu, "['’]");
+
+const FUNCTION_WORD_PATTERN = `(?:${FUNCTION_WORDS.join('|')})`;
+
+/** Where a run of a name's last words may start: a sentence or clause edge, or just after a function word. */
+const RUN_BEFORE = `(?<=^|[.,;:!?()\\n]\\s*|${NOT_LETTER_OR_DIGIT_BEFORE}${FUNCTION_WORD_PATTERN}\\s+)`;
+
+/** Where a run of a name's last words may end: a sentence or clause edge, or just before a function word. */
+const RUN_AFTER = `(?=$|\\s*[.,;:!?()\\n]|\\s+${FUNCTION_WORD_PATTERN}${NOT_LETTER_OR_DIGIT_AFTER})`;
 
 /**
- * A matcher per ingredient name. A name of several words also matches its last word, when no other name ends in that
- * word, because a step says "butter" for the line "unsalted butter".
+ * A matcher per ingredient name: the whole name, or a run of its last words (a single last word is a run). The words of a
+ * name join by a space or a hyphen only. The whole name matches on word boundaries. A run shorter than the name matches
+ * only at a sentence or clause edge, or beside a function word on both sides, so "broth" is "chicken broth" in "add the
+ * broth" and not in "add broth to the pot", and "chicken" is never "chicken broth". The plural of the last word matches.
  */
 function ingredientMatchersOf(names: readonly string[]): IngredientMatcher[] {
-    const headOf = (name: string): string => wordsOf(name).at(-1) ?? name;
-    const headCounts = new Map<string, number>();
-
-    for (const name of names) {
-        headCounts.set(headOf(name).toLowerCase(), (headCounts.get(headOf(name).toLowerCase()) ?? 0) + 1);
-    }
-
     return names.map((name) => {
-        const head = headOf(name);
-        const useHead = head !== name && head.length >= HEAD_MIN_LETTERS && headCounts.get(head.toLowerCase()) === 1;
+        const tokens = name.split(/[\s-]+/u).filter((token) => token !== '');
+        const run = (from: number): string => `${tokens.slice(from).map(tokenPattern).join(PHRASE_JOINER)}(?:e?s)?`;
+        const runs = tokens.slice(1).map((_token, index) => run(index + 1));
+        const partial = runs.length === 0 ? '' : `|${RUN_BEFORE}(?:${runs.join('|')})${RUN_AFTER}`;
 
-        return { name, matcher: matcherOf(useHead ? [name, head] : [name], 'giu', NAME_JOINER) };
+        return {
+            name,
+            matcher: new RegExp(
+                `${NOT_LETTER_OR_DIGIT_BEFORE}(?:${run(0)})${NOT_LETTER_OR_DIGIT_AFTER}${partial}`,
+                'giu',
+            ),
+        };
     });
 }
 
@@ -320,9 +359,13 @@ interface Mention extends Span {
     readonly name: string;
 }
 
-/** Every place a step mentions an ingredient name, in order. A name inside a longer name of the recipe is not counted. */
+/**
+ * Every place a step mentions an ingredient name, in order. A name inside a longer name of the recipe is not counted, and
+ * a place that two different names both match is no mention of either: "broth" is not picked between "chicken broth" and
+ * "beef broth".
+ */
 function mentionsOf(text: string, matchers: readonly IngredientMatcher[]): Mention[] {
-    return outermost(
+    const found = outermost(
         matchers.flatMap(({ name, matcher }) =>
             [...text.matchAll(matcher)].map((match) => ({
                 name,
@@ -330,7 +373,20 @@ function mentionsOf(text: string, matchers: readonly IngredientMatcher[]): Menti
                 end: match.index + match[0].length,
             })),
         ),
-    ).sort((a, b) => a.start - b.start);
+    );
+
+    return found
+        .filter(
+            (mention) =>
+                !found.some(
+                    (other) =>
+                        other !== mention &&
+                        other.start === mention.start &&
+                        other.end === mention.end &&
+                        other.name !== mention.name,
+                ),
+        )
+        .sort((a, b) => a.start - b.start);
 }
 
 // ── Amounts ──
@@ -402,6 +458,11 @@ function unitOf(word: string): string | null {
         return lower;
     }
 
+    // A package word is a unit ("2 cans beans"), kept as its singular.
+    if (CONTAINER_WORDS.has(lower)) {
+        return CONTAINER_WORDS.has(lower.replace(/(?:es|s)$/u, '')) ? lower.replace(/(?:es|s)$/u, '') : lower;
+    }
+
     return classifyUnit(word) === 'unknown' ? null : normalizeUnit(word);
 }
 
@@ -414,6 +475,8 @@ interface ReadAmount {
     readonly timeUnit: TimeUnit | LongTimeUnit | null;
     /** The word the cook wrote after a time's number, as written. */
     readonly timeWord: string | null;
+    /** The unit is a length ("2 inch"): a size, never an amount of an ingredient. */
+    readonly isLength: boolean;
     /** The number is glued to its unit by a hyphen ("9-inch"): a size of something, never an amount of an ingredient. */
     readonly hyphenSized: boolean;
 }
@@ -464,6 +527,7 @@ function readAmounts(text: string): ReadAmount[] {
             end: pieces[at + consumed - 1]?.end ?? last?.end ?? start,
             timeUnit,
             timeWord: timeUnit === null ? null : (next?.text ?? null),
+            isLength: unit !== null && LENGTH_UNITS.has(unit),
             hyphenSized: last?.text.endsWith('-') === true,
         });
         at += consumed;
@@ -600,54 +664,77 @@ function wordTimesOf(text: string, digitTimes: readonly ReadAmount[], readers: F
     });
 }
 
-/** The most words that may sit between an amount's unit and the name it measures: "2 cups finely chopped parsley". */
-const MAX_WORDS_BETWEEN_AMOUNT_AND_NAME = 3;
+/** A step with this many untied measures, or more, refuses the whole sheet. */
+const MAX_UNTIED_MEASURES_EXCLUSIVE = 2;
 
-/** What ends a phrase: a comma, a bracket, a colon, a semicolon or the end of a sentence. An amount is not tied across it. */
-const PHRASE_BREAK = /[,;:(.!?\n]/u;
+/** A name ends where a phrase does: at a sentence or clause edge, or before a function word. */
+const NAME_ENDS = new RegExp(`^${RUN_AFTER}`, 'iu');
 
-/**
- * Whether the text between an amount and a name lets the amount measure that name: one phrase, a few words, and "of" or
- * "of the" allowed ("2 cups of the flour"). The full stop of an abbreviated unit ("tbsp.") is not a sentence end.
- */
-function measuresName(between: string): boolean {
-    const gap = between.replace(/^\./u, '');
+/** What may sit between an amount and the name it measures: nothing, or "of" or "of the". */
+const DIRECT_TIE = /^\s*(?:of\s+(?:the\s+)?)?$/iu;
 
-    return (
-        !PHRASE_BREAK.test(gap) &&
-        wordsOf(gap.replace(/^\s*of\s+(?:the\s+)?/iu, '')).length <= MAX_WORDS_BETWEEN_AMOUNT_AND_NAME
-    );
-}
+/** What may sit between two amounts that share one name: "1 cup plus 2 tablespoons flour". */
+const PLUS_TIE = /^\s+plus\s+$/iu;
+
+/** Whether an amount can measure an ingredient: not a time, a length or a hyphenated size. */
+const canMeasure = (read: ReadAmount): boolean => read.timeUnit === null && !read.isLength && !read.hyphenSized;
 
 /**
- * The amounts of a step. An amount is tied to the first ingredient the step names after it only when the name is in the
- * same phrase, within a few words of the unit, and before the next amount. A time, a hyphenated size ("9-inch") and any
- * other amount fails that test, is tied to nothing: a missing tie is safe, a wrong one is published. A time is an amount
+ * The amounts of a step. An amount is tied to an ingredient only in the shape `NUM [UNIT] [of [the]] NAME`, with nothing
+ * in between, or as the first part of `NUM UNIT plus NUM UNIT NAME`, where both parts are tied. A time, a length, a
+ * hyphenated size and any other shape stay untied: a missing tie is safe, a wrong one is published. A time is an amount
  * only when the reader returned no duration for it.
+ *
+ * @returns The amounts, and how many measures with a unit stayed untied. A measure is an amount that is no time, length or
+ * hyphenated size.
  */
 function amountsOf(
     reads: readonly ReadAmount[],
     unread: ReadonlySet<ReadAmount>,
     mentions: readonly Mention[],
     text: string,
-): FactAmount[] {
-    return reads.flatMap((read, index): FactAmount[] => {
-        if (read.timeUnit !== null && !unread.has(read)) {
-            return [];
-        }
+): { amounts: FactAmount[]; untiedMeasures: number } {
+    const ties = reads.map((read): string | null => {
+        const mention = mentions.find((each) => each.start >= read.end);
 
-        const nextStart = reads[index + 1]?.start ?? Number.POSITIVE_INFINITY;
-        const mention = mentions.find((each) => each.start >= read.end && each.start < nextStart);
-        const tied =
-            mention !== undefined &&
-            read.timeUnit === null &&
-            !read.hyphenSized &&
-            measuresName(text.slice(read.end, mention.start));
-        const ingredient = tied ? mention.name : null;
-        const unit = read.timeUnit ?? read.unit;
-
-        return read.quantities.map((quantity) => ({ quantity, unit, ingredient }));
+        return mention !== undefined &&
+            canMeasure(read) &&
+            DIRECT_TIE.test(text.slice(read.end, mention.start)) &&
+            NAME_ENDS.test(text.slice(mention.end))
+            ? mention.name
+            : null;
     });
+
+    for (let index = reads.length - 2; index >= 0; index -= 1) {
+        const read = reads[index];
+        const next = reads[index + 1];
+
+        if (
+            read !== undefined &&
+            next !== undefined &&
+            ties[index] === null &&
+            ties[index + 1] !== null &&
+            canMeasure(read) &&
+            PLUS_TIE.test(text.slice(read.end, next.start))
+        ) {
+            ties[index] = ties[index + 1] ?? null;
+        }
+    }
+
+    const amounts = reads.flatMap((read, index): FactAmount[] =>
+        read.timeUnit !== null && !unread.has(read)
+            ? []
+            : read.quantities.map((quantity) => ({
+                  quantity,
+                  unit: read.timeUnit ?? read.unit,
+                  ingredient: ties[index] ?? null,
+              })),
+    );
+    const untiedMeasures = reads.filter(
+        (read, index) => canMeasure(read) && read.unit !== null && ties[index] === null,
+    ).length;
+
+    return { amounts, untiedMeasures };
 }
 
 // ── Safety ──
@@ -684,20 +771,31 @@ function cueEndsOf(text: string, terms: readonly SafetyTerm[]): number[] {
 /** What ends a clause for a doneness temperature: the end of a sentence or a semicolon. */
 const CLAUSE_END = /[.!?;]/u;
 
+const READING_VERB = new RegExp(
+    `${NOT_LETTER_OR_DIGIT_BEFORE}(?:${READING_VERBS.join('|')})${NOT_LETTER_OR_DIGIT_AFTER}`,
+    'giu',
+);
+
 /**
- * The temperatures that follow a cue in its own clause: "until a thermometer reads 165 F" gives 165, and the oven
- * temperature stated before the cue is not a doneness temperature.
+ * The doneness temperature of a step: the first temperature after a reading verb ("reads", "registers", "reaches") that
+ * follows a cue, all in one clause. "Until a thermometer reads 165 F" gives 165. An oven temperature stated before the
+ * cue, or after it with no reading verb, is not one. A range gives both its ends.
  */
 function donenessTemperatures(
     text: string,
     cues: readonly SafetyTerm[],
     temperatures: readonly PlacedTemperature[],
 ): PlacedTemperature[] {
-    const ends = cueEndsOf(text, cues);
-
-    return temperatures.filter((temperature) =>
-        ends.some((end) => end <= temperature.start && !CLAUSE_END.test(text.slice(end, temperature.start))),
+    const cueEnds = cueEndsOf(text, cues);
+    const sameClause = (from: number, to: number): boolean => !CLAUSE_END.test(text.slice(from, to));
+    const verbs = [...text.matchAll(READING_VERB)]
+        .map((match) => ({ start: match.index, end: match.index + match[0].length }))
+        .filter((verb) => cueEnds.some((end) => end <= verb.start && sameClause(end, verb.start)));
+    const first = temperatures.find((temperature) =>
+        verbs.some((verb) => verb.end <= temperature.start && sameClause(verb.end, temperature.start)),
     );
+
+    return first === undefined ? [] : temperatures.filter((temperature) => temperature.start === first.start);
 }
 
 /** The safety lines of a step: per category, the lexicon keys that fired and any doneness temperatures. Never words. */
@@ -742,7 +840,7 @@ export function buildFactsSheet(recipe: StepSourceRecipe, readers: FactsSheetRea
     const ingredientNames = ingredientNamesOf(recipe.ingredientLines, recipe.language);
     const matchers = ingredientMatchersOf(ingredientNames);
 
-    const steps = recipe.steps.map(({ instruction }): FactsStep => {
+    const steps = recipe.steps.map(({ instruction }, stepIndex): FactsStep => {
         // Hidden characters are dropped and the text composed first, so none can split a word or hide a fact.
         const text = readableStep(instruction);
         const { temperatures, rest } = readTemperatures(text);
@@ -762,9 +860,16 @@ export function buildFactsSheet(recipe: StepSourceRecipe, readers: FactsSheetRea
             .sort((a, b) => a.at - b.at)
             .map(({ duration }) => duration);
 
+        const { amounts, untiedMeasures } = amountsOf(reads, unread, mentions, text);
+
+        // Two or more measures the sheet cannot tie leave the writer free to attach them wrongly: refuse the sheet.
+        if (untiedMeasures >= MAX_UNTIED_MEASURES_EXCLUSIVE) {
+            throw new FactsSheetInvalidError(`steps[${stepIndex}].amounts`);
+        }
+
         return {
             actions: actionsOf(text, [...equipment, ...mentions]),
-            amounts: amountsOf(reads, unread, mentions, text),
+            amounts,
             temperatures: temperatures.map(({ value, scale }) => ({ value, scale })),
             durations,
             ingredients: [...new Set(mentions.map((mention) => mention.name))],

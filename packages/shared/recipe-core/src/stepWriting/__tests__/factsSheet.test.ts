@@ -107,26 +107,47 @@ describe('order and shape', () => {
 });
 
 describe('actions', () => {
-    it('lists closed-lexicon verbs in the order the step first uses them, in any inflection, once each', () => {
-        expect(stepOf('Chop the onion, then stir. Stirring again, add the garlic and fry it.').actions).toEqual([
+    it('lists base-form verbs where an instruction starts, in the order the step first uses them, once each', () => {
+        expect(stepOf('Chop the onion, then stir. Stir again, add the garlic and fry it.').actions).toEqual([
             'chop',
             'stir',
             'add',
             'fry',
         ]);
-        expect(stepOf('Chopped onions are sautéed.').actions).toEqual(['chop', 'sauté']);
+        expect(stepOf('Saute the onion.').actions).toEqual(['sauté']);
+    });
+
+    it('reads an instruction after a closed list of adverbs, and right after "and" or "then"', () => {
+        expect(stepOf('Gently stir the sauce, slowly pour in the milk, then whisk and serve.').actions).toEqual([
+            'stir',
+            'pour',
+            'whisk',
+            'serve',
+        ]);
     });
 
     it.each([
-        ['a baking sheet is no baking', 'Place on a baking sheet.', [], 'place'],
-        ['a frying pan is no frying', 'Heat the frying pan.', [], 'heat'],
-        ['a cutting board is no cutting', 'Set the cutting board down.', [], null],
-    ])('does not read a verb out of equipment: %s', (_why, text, ingredients, expected) => {
-        expect(stepOf(text, ingredients).actions).toEqual(expected === null ? [] : [expected]);
+        ['a participle used as an adjective', 'Add the chopped onion.', ['add']],
+        ['a verb form that is not the base', 'The onions are sautéed and the sauce thickens.', []],
+        ['a noun that is also a verb, before "of"', 'Rest of the batter goes in the bowl.', []],
+        ['a noun in the middle of a clause', 'Use the mixing bowl and a stir stick.', []],
+        ['a verb not at an instruction position', 'The cake should bake until golden.', []],
+        ['a subordinate clause that has no instruction', 'While the fryer heats, brush the donuts.', ['brush']],
+    ])('does not read an action out of %s', (_why, text, expected) => {
+        expect(stepOf(text).actions).toEqual(expected);
     });
 
-    it('does not read a verb out of an ingredient the recipe names', () => {
+    it.each([
+        ['a baking sheet is no baking', 'Place on a baking sheet.', ['place']],
+        ['a frying pan is no frying', 'Heat the frying pan.', ['heat']],
+        ['a cutting board is no cutting', 'Set the cutting board down.', []],
+    ])('does not read a verb out of equipment: %s', (_why, text, expected) => {
+        expect(stepOf(text).actions).toEqual(expected);
+    });
+
+    it('does not read a verb out of an ingredient the recipe names, even at an instruction position', () => {
         expect(stepOf('Cream 100 g butter with 50 g brown sugar.', ['butter', 'brown sugar']).actions).toEqual([]);
+        expect(stepOf('Brown sugar goes in last.', ['brown sugar']).actions).toEqual([]);
         expect(stepOf('Stir in the baking soda.', ['baking soda']).actions).toEqual(['stir']);
         expect(stepOf('Fold in the dried cranberries.', ['dried cranberries']).actions).toEqual(['fold']);
     });
@@ -142,15 +163,11 @@ describe('actions', () => {
         expect(stepOf('Frobnicate the quux until it gleams.').actions).toEqual([]);
     });
 
-    it('has every inflected form owned by exactly one verb', () => {
-        const owners = new Map<string, string>();
+    it('keeps each lexicon spelling once, in lower case', () => {
+        const spellings = Object.keys(ACTION_VERBS);
 
-        for (const [verb, forms] of Object.entries(ACTION_VERBS)) {
-            for (const form of forms) {
-                expect(owners.get(form), `${form} is claimed by ${owners.get(form)} and ${verb}`).toBeUndefined();
-                owners.set(form, verb);
-            }
-        }
+        expect(new Set(spellings).size).toBe(spellings.length);
+        expect(spellings.every((spelling) => spelling === spelling.toLowerCase())).toBe(true);
     });
 });
 
@@ -212,67 +229,97 @@ describe('amounts', () => {
         expect(step.temperatures).toEqual([]);
     });
 
-    it('ties an amount only to the name that follows its unit within a few words, in the same sentence', () => {
-        expect(stepOf('Add 2 cups water, then 1 cup flour.', ['flour']).amounts).toEqual([
-            { quantity: 2, unit: 'cup', ingredient: null },
-            { quantity: 1, unit: 'cup', ingredient: 'flour' },
+    it('ties an amount only in the shape NUM [UNIT] [of [the]] NAME, with nothing in between', () => {
+        expect(stepOf('Stir in 2 cups of the flour.', ['flour']).amounts).toEqual([
+            { quantity: 2, unit: 'cup', ingredient: 'flour' },
         ]);
-        // No comma and few enough words: the next amount alone must stop the first one reaching the flour.
-        expect(stepOf('Add 2 cups water then 1 flour.', ['flour']).amounts).toEqual([
-            { quantity: 2, unit: 'cup', ingredient: null },
-            { quantity: 1, unit: null, ingredient: 'flour' },
-        ]);
-        expect(stepOf('Stir in 2 cups of the flour.', ['flour']).amounts[0]?.ingredient).toBe('flour');
-        expect(stepOf('Stir in 2 cups finely chopped fresh parsley.', ['parsley']).amounts[0]?.ingredient).toBe(
-            'parsley',
-        );
-        expect(stepOf('Stir in 2 cups very finely chopped fresh parsley.', ['parsley']).amounts[0]?.ingredient).toBe(
-            null,
-        );
+        expect(stepOf('Stir in 2 cups of flour.', ['flour']).amounts[0]?.ingredient).toBe('flour');
+        expect(stepOf('Beat 3 eggs.', ['eggs']).amounts).toEqual([{ quantity: 3, unit: null, ingredient: 'eggs' }]);
         expect(stepOf('Season with 8 to 10 tablespoons salt.', ['salt']).amounts).toEqual([
             { quantity: 8, unit: 'tablespoon', ingredient: 'salt' },
             { quantity: 10, unit: 'tablespoon', ingredient: 'salt' },
         ]);
     });
 
-    it('never ties an amount to a name in the next sentence or clause', () => {
-        expect(stepOf('Bake 4 batches. Dust with sugar.', ['sugar']).amounts).toEqual([
-            { quantity: 4, unit: null, ingredient: null },
-        ]);
-        expect(stepOf('Add 2 cups; stir the flour.', ['flour']).amounts[0]?.ingredient).toBeNull();
+    it.each([
+        ['a word between them', 'Stir in 2 cups finely chopped parsley.', ['parsley']],
+        ['an ingredient of another name between them', 'Stir in 2 cups water over the flour.', ['flour']],
+        ['a conjunction between them', 'Stir in 2 cups water and flour.', ['flour']],
+        ['"until" between them', 'Whisk 1 cup milk until the flour dissolves.', ['flour']],
+        ['a comma between them', 'Add 2 cups, flour.', ['flour']],
+        ['the next sentence', 'Bake 4 batches. Dust with sugar.', ['sugar']],
+    ])('leaves an amount untied when there is %s', (_why, text, names) => {
+        const [first] = stepOf(text, names).amounts;
+
+        expect(first?.ingredient).toBeNull();
     });
 
-    it('never ties a hyphenated size to a name', () => {
+    it('leaves an amount untied when the name it reaches is the start of a longer phrase', () => {
+        expect(stepOf('Stir in 3 tablespoons of the bacon gravy.', ['bacon']).amounts).toEqual([
+            { quantity: 3, unit: 'tablespoon', ingredient: null },
+        ]);
+        expect(stepOf('Stir in 3 tablespoons of the bacon.', ['bacon']).amounts[0]?.ingredient).toBe('bacon');
+        expect(stepOf('Add 2 cups flour and stir.', ['flour']).amounts[0]?.ingredient).toBe('flour');
+        expect(stepOf('Add 2 eggs, beaten.', ['eggs']).amounts[0]?.ingredient).toBe('eggs');
+    });
+
+    it('ties a package word as a unit, so "2 cans beans" is two cans of beans and never two beans', () => {
+        expect(stepOf('Open 2 cans beans.', ['beans']).amounts).toEqual([
+            { quantity: 2, unit: 'can', ingredient: 'beans' },
+        ]);
+        expect(stepOf('Open 1 package noodles.', ['noodles']).amounts).toEqual([
+            { quantity: 1, unit: 'package', ingredient: 'noodles' },
+        ]);
+    });
+
+    it('ties both amounts of "NUM UNIT plus NUM UNIT NAME" to the name', () => {
+        expect(stepOf('Add 1 cup plus 2 tablespoons flour.', ['flour']).amounts).toEqual([
+            { quantity: 1, unit: 'cup', ingredient: 'flour' },
+            { quantity: 2, unit: 'tablespoon', ingredient: 'flour' },
+        ]);
+        expect(stepOf('Add 1 cup and 2 tablespoons flour.', ['flour']).amounts[0]?.ingredient).toBeNull();
+    });
+
+    it('never ties a hyphenated size or a length', () => {
         expect(stepOf('Grease a 24-cup mini muffin pan with coconut oil.', ['coconut oil']).amounts).toEqual([
             { quantity: 24, unit: 'cup', ingredient: null },
         ]);
         expect(stepOf('Grease a 9-inch baking dish with cooking spray.', ['cooking spray']).amounts).toEqual([
             { quantity: 9, unit: 'inch', ingredient: null },
         ]);
+        expect(stepOf('Slice 2 inches butter.', ['butter']).amounts[0]?.ingredient).toBeNull();
         expect(stepOf('Use a 6-quart pot of water.', ['water']).amounts[0]?.ingredient).toBeNull();
     });
 
-    it('never ties a time to a name, and records days and weeks as durations the reader is not asked about', () => {
-        const asked = vi.fn((_text: string) => []);
-        const step = stepOf('Chill for 2 to 3 days, then serve over ice.', ['ice'], { durations: asked });
+    it('refuses a sheet whose step has two untied amounts that carry a unit', () => {
+        const build = (): FactsSheet => sheetOf(['Add 2 cups water and 1 tbsp oil.'], ['flour']);
 
-        expect(step.durations).toEqual([{ minSeconds: 172_800, maxSeconds: 259_200 }]);
-        expect(step.amounts).toEqual([]);
-        expect(asked).not.toHaveBeenCalled();
-        expect(stepOf('Rest 1 week.').durations).toEqual([{ minSeconds: 604_800, maxSeconds: 604_800 }]);
-        expect(stepOf('Rest 10 minutes sugar.', ['sugar'], minutesReader).amounts).toEqual([]);
-        expect(stepOf('Rest 10 minutes sugar.', ['sugar']).amounts).toEqual([
-            { quantity: 10, unit: 'minute', ingredient: null },
-        ]);
+        expect(build).toThrow(FactsSheetInvalidError);
+        expect(build).toThrow(/steps\[0\]\.amounts/u);
     });
 
-    it('keeps the hours of "1 day 12 hours" as their own duration, never read with the day', () => {
-        const step = stepOf('Chill 1 day 12 hours.', [], minutesReader);
+    it('allows one untied amount with a unit, and any number of tied, unitless, length, size or time amounts', () => {
+        expect(() => sheetOf(['Add 2 cups water.'], ['flour'])).not.toThrow();
+        expect(() => sheetOf(['Add 2 cups flour and 3 eggs, then 4 portions.'], ['flour', 'eggs'])).not.toThrow();
+        expect(() =>
+            sheetOf(['Use a 9-inch pan and a 24-cup tin, cut 2 inch cubes, rest 10 minutes.'], [], minutesReader),
+        ).not.toThrow();
+    });
 
-        expect(step.durations).toEqual([
-            { minSeconds: 86_400, maxSeconds: 86_400 },
-            { minSeconds: 43_200, maxSeconds: 43_200 },
+    it('gives the triples a swap cannot survive: swapping two tied amounts changes the sheet', () => {
+        const [step] = sheetOf(['Add 2 cups flour and 1 tbsp butter.'], ['flour', 'butter']).steps;
+        const triples = step?.amounts.map(({ quantity, unit, ingredient }) => [quantity, unit, ingredient]);
+        const swapped = step?.amounts.map(({ quantity, unit }, index) => [
+            quantity,
+            unit,
+            step.amounts[1 - index]?.ingredient,
         ]);
+
+        expect(triples).toEqual([
+            [2, 'cup', 'flour'],
+            [1, 'tablespoon', 'butter'],
+        ]);
+        expect(swapped).not.toEqual(triples);
     });
 
     it('ties every amount to one of its own step ingredients, or to none', () => {
@@ -476,6 +523,38 @@ describe('ingredients', () => {
         expect(stepOf('Add all purpose flour.', ['all-purpose flour']).ingredients).toEqual(['all-purpose flour']);
     });
 
+    it('matches the whole name, or a run of its last words between a sentence or clause edge or function words', () => {
+        const names = ['chicken broth'];
+
+        expect(stepOf('Pour in the broth.', names).ingredients).toEqual(['chicken broth']);
+        expect(stepOf('Add the sauce. Broth, then salt.', names).ingredients).toEqual(['chicken broth']);
+        expect(stepOf('Stir the sauce, broth, and salt.', names).ingredients).toEqual(['chicken broth']);
+        expect(stepOf('Stir the chicken broth.', names).ingredients).toEqual(['chicken broth']);
+        // A verb on one side is not a function word.
+        expect(stepOf('Add broth to the pot.', names).ingredients).toEqual([]);
+    });
+
+    it('never matches a name by its first or middle words, or by its last word beside a content word', () => {
+        expect(stepOf('Simmer the chicken.', ['chicken broth']).ingredients).toEqual([]);
+        expect(stepOf('Add the chicken broth to the whole chicken.', ['whole chicken']).ingredients).toEqual([
+            'whole chicken',
+        ]);
+        expect(stepOf('Add the chicken stock.', ['whole chicken']).ingredients).toEqual([]);
+        expect(stepOf('Use the lean ground beef.', ['ground beef']).ingredients).toEqual(['ground beef']);
+    });
+
+    it('does not pick between two names that end in the same word', () => {
+        expect(stepOf('Pour in the broth.', ['chicken broth', 'beef broth']).ingredients).toEqual([]);
+        expect(stepOf('Pour in the beef broth.', ['chicken broth', 'beef broth']).ingredients).toEqual(['beef broth']);
+    });
+
+    it('joins the words of a name by a space or a hyphen only, never by a comma or a full stop', () => {
+        expect(stepOf('Add garlic, pepper.', ['garlic pepper oil']).ingredients).toEqual([]);
+        expect(stepOf('Add garlic. Pepper oil.', ['garlic pepper oil']).ingredients).toEqual(['garlic pepper oil']);
+        expect(stepOf('Add garlic salt.', ['garlic salt']).ingredients).toEqual(['garlic salt']);
+        expect(stepOf('Add garlic-salt.', ['garlic salt']).ingredients).toEqual(['garlic salt']);
+    });
+
     it('does not count a name inside a longer name of the recipe', () => {
         expect(stepOf('Add the peanut butter.', ['peanut butter', 'butter']).ingredients).toEqual(['peanut butter']);
         expect(stepOf('Add brown sugar.', ['brown sugar', 'sugar']).ingredients).toEqual(['brown sugar']);
@@ -518,15 +597,27 @@ describe('safety categories', () => {
         ]);
     });
 
-    it('internalTemperature: only the temperature that follows the cue, in its sentence, is the doneness temperature', () => {
+    it('internalTemperature: the first temperature after a reading verb that follows the cue, in one clause', () => {
         expect(safetyOf('Roast at 400°F until a thermometer reads 165°F.')).toEqual([
             { category: 'internalTemperature', facts: ['thermometer', '165 F'] },
         ]);
-        expect(safetyOf('Roast at 400°F. Check the thermometer.')).toEqual([]);
-        // A temperature in another sentence or clause is not tied to the cue: a missing fact is safe, a wrong one is not.
-        expect(safetyOf('Roast at 400°F. Check the thermometer; it reads 165°F.')).toEqual([]);
-        expect(safetyOf('Check the thermometer. It reads 165°F.')).toEqual([]);
-        expect(safetyOf('Check the thermometer. Then bake at 400°F.')).toEqual([]);
+        expect(
+            safetyOf('Roast until the thermometer inserted in the thickest part registers 165°F, not 170°F.'),
+        ).toEqual([{ category: 'internalTemperature', facts: ['thermometer', '165 F'] }]);
+        expect(safetyOf('Bake until the internal temperature reaches 74°C.')).toEqual([
+            { category: 'internalTemperature', facts: ['internal', '74 C'] },
+        ]);
+    });
+
+    it.each([
+        ['no reading verb', 'Roast at 400°F until the thermometer is at 165°F.'],
+        ['a verb that is not on the list', 'Roast until the thermometer shows 165°F.'],
+        ['the temperature before the cue', 'Roast at 400°F. Check the thermometer.'],
+        ['the temperature in another sentence', 'Check the thermometer. It reads 165°F.'],
+        ['the temperature in another clause', 'Check the thermometer; it reads 165°F.'],
+        ['an oven temperature after the cue with no reading verb', 'Check the thermometer, then bake at 400°F.'],
+    ])('internalTemperature: no safety line for %s', (_why, text) => {
+        expect(safetyOf(text)).toEqual([]);
     });
 
     it('internalTemperature: a plain oven temperature is not a doneness temperature', () => {

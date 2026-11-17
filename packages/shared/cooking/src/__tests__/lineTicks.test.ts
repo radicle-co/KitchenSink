@@ -267,8 +267,8 @@ describe('lineTicks — properties', () => {
 });
 
 /**
- * `focusLineOf` (plan 0008 KTD1, AE3's rule rows): the line the cook tapped is the focus only while four facts hold, and
- * is derived, never cleared. Any other state falls back to S1's first unticked line. The step's digest is the kept
+ * `focusLineOf`: the line the cook tapped is the focus only while four facts hold, and
+ * is derived, never cleared. Any other state falls back to the first unticked line. The step's digest is the kept
  * store's (ADR-0094 section 9), handed in by the caller, so there is one meaning of "step digest".
  *
  * Steps 0 to 2 have three lines each. The cook is on step 1 with lines A (0), B (1) and C (2) unticked, and taps C.
@@ -295,7 +295,7 @@ describe('focusLineOf', () => {
         expect(focus({})).toBe(2);
     });
 
-    it('is the first unticked line when nothing was tapped, for every tick state of the step (no S1 regression)', () => {
+    it('is the first unticked line when nothing was tapped, for every tick state of the step (no regression)', () => {
         const states: readonly LineTicks[] = [
             ticksOf(),
             ticksOf([1, 0]),

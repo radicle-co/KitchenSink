@@ -16,12 +16,12 @@ import { allStepsRowCopyOf, allStepsRowsOf, type AllStepsInput, type AllStepsRow
 import { cookingMessages } from '../messages.js';
 
 /**
- * `allStepsRowsOf`, the one pure function behind every row of All steps (plan 0008 KTD4, AE2 and AE2a): which mark a
+ * `allStepsRowsOf`, the one pure function behind every row of All steps: which mark a
  * step shows (Now, Done, lines left, or all ticked) and which timer parts it carries. `allStepsRowCopyOf` is the one
  * place those become the cook's words, with the real `en` copy.
  *
- * The fixture is AE2's: five steps, steps 1 and 2 in `marks`, the session on step 3 with 2 of 4 lines ticked, step 4
- * fully ticked but not marked (so "All lines ticked" is not "Done", P37), and step 5 with 1 of 3 ticked. Every case
+ * The fixture is five steps, steps 1 and 2 in `marks`, the session on step 3 with 2 of 4 lines ticked, step 4
+ * fully ticked but not marked (so "All lines ticked" is not "Done"), and step 5 with 1 of 3 ticked. Every case
  * names the mutant it kills.
  */
 const en = resolveMessages(cookingMessages, 'en').allSteps;
@@ -38,8 +38,8 @@ const STEPS = cookingStepsOf([
 const ticked = (...keys: readonly [number, number][]): LineTicks =>
     keys.reduce((ticks, [stepIndex, lineIndex]) => tickLine(ticks, { stepIndex, lineIndex }, STEPS), createLineTicks());
 
-/** AE2's ticks: step 3 has lines 0 and 1 ticked, step 4 every line, step 5 one of three. */
-const AE2_TICKS = ticked([2, 0], [2, 1], [3, 0], [3, 1], [4, 0]);
+/** The session's ticks: step 3 has lines 0 and 1 ticked, step 4 every line, step 5 one of three. */
+const SESSION_TICKS = ticked([2, 0], [2, 1], [3, 0], [3, 1], [4, 0]);
 
 let nextId = 0;
 
@@ -83,7 +83,7 @@ const input = (overrides: Partial<AllStepsInput> = {}): AllStepsInput => ({
     steps: STEPS,
     stepIndex: 2,
     marks: [0, 1],
-    lineTicks: AE2_TICKS,
+    lineTicks: SESSION_TICKS,
     timers: NO_TIMER,
     recipeId: RECIPE,
     ...overrides,
@@ -102,8 +102,8 @@ const rowAt = (rows: readonly AllStepsRow[], index: number): AllStepsRow => {
 
 const marksOf = (overrides: Partial<AllStepsInput> = {}) => allStepsRowsOf(input(overrides)).map((row) => row.mark);
 
-describe('allStepsRowsOf: the mark of each step (AE2)', () => {
-    it('reads Done, Done, Now, All lines ticked and 2 lines left on AE2s fixture', () => {
+describe('allStepsRowsOf: the mark of each step', () => {
+    it('reads Done, Done, Now, All lines ticked and 2 lines left on the five-step fixture', () => {
         expect(marksOf()).toEqual([
             { kind: 'done' },
             { kind: 'done' },
@@ -125,7 +125,7 @@ describe('allStepsRowsOf: the mark of each step (AE2)', () => {
         expect(marksOf({ marks: [0, 1, 3] })[3]).toEqual({ kind: 'done' });
     });
 
-    it('shows Now on a step that is in marks when it is the session step (AE2a; mutant: Done beats Now)', () => {
+    it('shows Now on a step that is in marks when it is the session step (mutant: Done beats Now)', () => {
         expect(marksOf({ stepIndex: 1, marks: [0, 1] })[1]).toEqual({ kind: 'now' });
         expect(marksOf({ stepIndex: 1, marks: [0, 1] })[0]).toEqual({ kind: 'done' });
     });
@@ -163,7 +163,7 @@ describe('allStepsRowsOf: the mark of each step (AE2)', () => {
     });
 });
 
-describe('allStepsRowsOf: the timer parts of each step (AE2)', () => {
+describe('allStepsRowsOf: the timer parts of each step', () => {
     const partsOf = (timers: TimerState, overrides: Partial<AllStepsInput> = {}) =>
         allStepsRowsOf(input({ timers, ...overrides })).map((row) => row.timerParts);
 
@@ -212,11 +212,11 @@ describe('allStepsRowsOf: the timer parts of each step (AE2)', () => {
     });
 });
 
-describe('allStepsRowCopyOf: the words of a row (AE2)', () => {
+describe('allStepsRowCopyOf: the words of a row', () => {
     const copyOf = (index: number, timers: TimerState = NO_TIMER) =>
         allStepsRowCopyOf(rowAt(allStepsRowsOf(input({ timers })), index), en, 'en');
 
-    const AE2_TIMERS = stateOf([paused(1), ringing(1), running(2)]);
+    const SESSION_TIMERS = stateOf([paused(1), ringing(1), running(2)]);
 
     it('says Done, Done, Now, All lines ticked and 2 lines left', () => {
         expect([0, 1, 2, 3, 4].map((index) => copyOf(index).mark)).toEqual([
@@ -235,8 +235,8 @@ describe('allStepsRowCopyOf: the words of a row (AE2)', () => {
     });
 
     it('joins the timer parts with a middle dot, no countdown', () => {
-        expect(copyOf(1, AE2_TIMERS).timers).toBe('Timer done · Timer paused');
-        expect(copyOf(2, AE2_TIMERS).timers).toBe('Timer running');
+        expect(copyOf(1, SESSION_TIMERS).timers).toBe('Timer done · Timer paused');
+        expect(copyOf(2, SESSION_TIMERS).timers).toBe('Timer running');
     });
 
     it('pluralises a count above one', () => {
@@ -246,6 +246,6 @@ describe('allStepsRowCopyOf: the words of a row (AE2)', () => {
     });
 
     it('has no timer text for a step with no timer', () => {
-        expect(copyOf(0, AE2_TIMERS).timers).toBeUndefined();
+        expect(copyOf(0, SESSION_TIMERS).timers).toBeUndefined();
     });
 });

@@ -1,5 +1,5 @@
 /**
- * @module allSteps — the rows of All steps (plan 0008 KTD4): which mark a step shows and which timers it carries.
+ * @module allSteps — the rows of All steps: which mark a step shows and which timers it carries.
  *
  * The rows are decided here and nowhere else, so no render component decides a mark or a timer part. The caller feeds
  * positions that are already matched to the recipe's current steps (the kept store's re-read does that), never a saved
@@ -10,7 +10,7 @@
  */
 import { pluralOf } from '@commise/i18n';
 import { allLinesTicked, tickedLineCount, timerOrder } from '@kitchensink/cooking-core';
-import type { CookingStep, LineTicks, TimerState } from '@kitchensink/cooking-core';
+import type { ActiveTimer, CookingStep, LineTicks, TimerState } from '@kitchensink/cooking-core';
 
 import type { CookingAllStepsMessages } from './messages.js';
 
@@ -70,7 +70,7 @@ const markOf = (input: AllStepsInput, index: number): AllStepsMark => {
     return { kind: 'linesLeft', count: lineCount - tickedLineCount(input.lineTicks, index) };
 };
 
-const partKindOf = (timer: { readonly kind: 'running' | 'paused' | 'ringing' | 'endedAway' }): TimerPartKind => {
+const partKindOf = (timer: ActiveTimer): TimerPartKind => {
     switch (timer.kind) {
         case 'ringing':
         case 'endedAway':

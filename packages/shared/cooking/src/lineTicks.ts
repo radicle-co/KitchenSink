@@ -130,7 +130,10 @@ export function allLinesTicked(ticks: LineTicks, stepIndex: number, steps: reado
  */
 export interface TappedLine {
     readonly stepIndex: number;
-    /** The kept store's digest of the step's text at the tap (ADR-0094 section 9), the same source `focusLineOf` is given. */
+    /**
+     * The kept store's digest of the step's text at the tap (ADR-0094 section 9), the same source `focusLineOf` is
+     * given.
+     */
     readonly stepDigest: string;
     readonly lineIndex: number;
     /** This step's ticked line indexes at the tap, in any order. */
@@ -155,8 +158,9 @@ const sameLineSet = (tickedNow: readonly number[], tickedAtTap: readonly number[
 /**
  * The focus line of the session's step. The tapped line is the focus only while all four facts hold: the session is on
  * the step that was tapped, its text is unchanged (same digest), the line exists and is unticked, and the step's ticked
- * set is the one at the tap, so a tick or untick from any source ends the tap. Otherwise it is S1's first unticked
- * line, so S1's untick rule holds unchanged. Nothing is written: an invalid tap is simply never the answer.
+ * set is the one at the tap, so a tick or untick from any source ends the tap. Otherwise it is the first unticked
+ * line, so unticking a line above the focus still makes it the focus again. Nothing is written: an invalid tap is
+ * simply never the answer.
  *
  * @param input - The ticks, the session step and its digest, and the tap.
  * @returns The focus line's index, or `null` when every line is ticked or the step has none. Pure.

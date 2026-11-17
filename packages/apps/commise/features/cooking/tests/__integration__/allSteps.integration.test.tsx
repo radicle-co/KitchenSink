@@ -15,9 +15,9 @@ import { allStepsRowCopyOf, allStepsRowsOf } from '../../src/allSteps';
 import { cookingMessages } from '../../src/messages';
 
 /**
- * All steps over the real reducers (plan 0008 AE2): the timer list is built by running `reduceTimer` commands, not
+ * All steps over the real reducers: the timer list is built by running `reduceTimer` commands, not
  * hand-made, the ticks by `tickLine` over steps the real splitter made, and the words come from the real resolved
- * `en` copy. Only the five-step AE2 session is stated here, as the cook would have walked it.
+ * `en` copy. Only the five-step session is stated here, as the cook would have walked it.
  */
 
 const en = resolveMessages(cookingMessages, 'en').allSteps;
@@ -60,7 +60,7 @@ const ticks = [
 );
 
 describe('All steps over the real reducers', () => {
-    it('reads AE2: Done, Done, Now, All lines ticked and 2 lines left, with step 2 holding a done and a paused timer', () => {
+    it('reads Done, Done, Now, All lines ticked and 2 lines left, with a done and a paused timer on step 2', () => {
         expect(TIMER_LIMIT).toBeGreaterThanOrEqual(1);
 
         // Step 2 (index 1) has two timers: a 1-minute one that rings and a 10-minute one the cook paused. Step 3

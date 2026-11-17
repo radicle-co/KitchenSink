@@ -108,7 +108,7 @@ interface CookingGoneMessages {
 }
 
 /** Every string the cooking surface says. */
-/** One row of All steps: its mark, and the plain text of its timers (plan 0008 KTD4). */
+/** One row of All steps: its mark, and the plain text of its timers. */
 export interface CookingAllStepsMessages {
     /** The mark of the step the session is on. */
     readonly now: string;

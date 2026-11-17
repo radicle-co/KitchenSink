@@ -27,15 +27,13 @@ const ALLOWED_PREFIXES: readonly string[] = ['packages/services/', 'packages/too
  * Inside recipe-core only its own tests may import the module. Every other recipe-core source is bundled into the
  * apps through the barrel, so a default hasher in `wordShingles.ts` or a barrel export would put `node:crypto` there.
  */
-const RECIPE_CORE_TESTS = /^packages\/shared\/recipe-core\/(src\/.*\/__tests__|tests)\//u;
+const RECIPE_CORE_TESTS = /^packages\/shared\/recipe-core\/(src\/(.*\/)?__tests__|tests)\//u;
 
 /** The module as written in an import: the package subpath, or a relative path to its file. */
 const MODULE_SPECIFIER = /(^|\/)(node-keyed-hash|nodeKeyedHash)(\.js)?$/u;
 
 const isAllowed = (file: string): boolean =>
-    ALLOWED_PREFIXES.some((prefix) => file.startsWith(prefix)) ||
-    RECIPE_CORE_TESTS.test(file) ||
-    file === 'packages/shared/recipe-core/src/stepWriting/nodeKeyedHash.ts';
+    ALLOWED_PREFIXES.some((prefix) => file.startsWith(prefix)) || RECIPE_CORE_TESTS.test(file);
 
 /**
  * The files whose imports break the rule.
@@ -60,6 +58,14 @@ describe('offendingImporters (the rule, over fixtures)', () => {
         ['packages/apps/commise/web/src/d.ts', `// ${MODULE} is server only\nconst s = '${MODULE}';`],
         ['packages/shared/recipe-core/src/stepWriting/wordShingles.ts', `import { x } from './nodeKeyedHash.js';`],
         ['packages/shared/recipe-core/src/index.ts', `export * from './stepWriting/nodeKeyedHash.js';`],
+        [
+            'packages/shared/recipe-core/src/__tests__/top.test.ts',
+            `import { x } from '../stepWriting/nodeKeyedHash.js';`,
+        ],
+        [
+            'packages/shared/recipe-core/tests/fp.integration.test.ts',
+            `import { x } from '../src/stepWriting/nodeKeyedHash.js';`,
+        ],
         [
             'packages/shared/recipe-core/src/stepWriting/__tests__/nodeKeyedHash.test.ts',
             `import { keyedShingleHash } from '../nodeKeyedHash.js';`,

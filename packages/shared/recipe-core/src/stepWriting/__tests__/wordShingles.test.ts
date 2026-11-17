@@ -199,8 +199,8 @@ describe('the persisted fold (fingerprint format 1)', () => {
     /**
      * Known answers for the whole text form: NFKC, invisibles removed, the `confusables` fold, lower case. The fold
      * is part of what a stored fingerprint means, so any change to it, including a data change in the package, must
-     * fail here and force a new FINGERPRINT_FORMAT_VERSION. It strips accents and transliterates other scripts on
-     * purpose: it is a matcher, and a collision between two different non-Latin words cannot fill a whole 5-word window.
+     * fail here and force a new FINGERPRINT_FORMAT_VERSION. It strips accents and maps other scripts by shape on
+     * purpose: it is a matcher, and a collision can only refuse a text that already matches its own source.
      */
     it.each([
         ['Caf\u00E9 cr\u00E8me', ['cafe creme']],

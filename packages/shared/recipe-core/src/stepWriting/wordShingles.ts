@@ -12,10 +12,11 @@
  *
  * Look-alike letters are then folded to the Latin letter they imitate (the `confusables` package, pinned to an exact
  * version), so a Cyrillic `е` in "eggs" cannot hide a copy. The fold is wider than look-alikes: it also strips
- * accents (`café` is `cafe`) and transliterates other scripts letter by letter, so two different non-Latin words can
- * collide. That is accepted, because it is for MATCHING and a collision cannot fill a whole 5-word window. It runs
- * before lower-casing and only here: the content digest does not use it (see `contentDigest.ts`). Its output is part
- * of what a stored fingerprint means, and `wordShingles.test.ts` pins it with known answers.
+ * accents (`café` is `cafe`) and maps other scripts letter by letter by shape, so two different non-Latin words can
+ * collide. That is accepted: a check only compares a text with its own source's fingerprint, so a collision can only
+ * refuse a text that already matches that source letter for letter after the fold, never miss a copy. It runs before
+ * lower-casing and only here: the content digest does not use it (see `contentDigest.ts`). Its output is part of what
+ * a stored fingerprint means, and `wordShingles.test.ts` pins it with known answers.
  *
  * Shingles are lower-cased words with punctuation stripped, joined by one space. Apostrophes are removed so
  * "don't" stays one word. A text shorter than the window yields one shingle of all its words, so a short sentence

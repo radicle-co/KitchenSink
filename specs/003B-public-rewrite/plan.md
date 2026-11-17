@@ -160,9 +160,10 @@ packages/services/recipe-service/src/recipes/domain/publishAgeAllowed.ts   # pur
 packages/services/identity/                                    # age_assurances migration, POST /api/v1/me/age-assurance (slice P3b)
 packages/services/recipe-service/src/database/migrations/00NN_public_versions.sql (+ _validate)
 packages/services/recipe-workers/src/handlers/publicVersionWorker.ts
-packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts  # Lambda, queue, DLQ, reserved concurrency
+packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts  # Lambda, queue, DLQ, reserved concurrency, PublicVersionJobSweepBehindAlarm
+packages/services/recipe-workers/src/handlers/bandDrain.ts    # the job sweep runs on its 15-minute tick (no new Lambda)
 packages/schemas/recipe                                        # generated copy (contract:generate)
-packages/clients/recipe-service                                # hooks for the job, publish, cancel
+packages/clients/recipe-service                                # hooks for the job, publish, cancel, keepPrivate
 packages/apps/commise/features/recipes/src/import/choice/      # statechart (importChoiceMachine), hook (useImportChoice), render (web + .native)
 ```
 
@@ -183,16 +184,16 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart (imp
 
 ## Testing (tiers owed, test-first)
 
-| Tier                 | What                                                                                                                                                                                                                                                                |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit (core)          | Fingerprint: same set from same text, format version pinned, keyed hash. Containment vs Jaccard. Mutants: one shingle changed, order changed.                                                                                                                       |
-| Unit (service)       | Classifier: every allowlist case, every unknown open-test input reads third-party, an unread paid, opt-out or signature signal reads `unknown` and offers the choice, CC BY-NC is not open, `.gov` alone is not open. Title builder never returns the source title. |
-| Integration (mocked) | Choice to job. Double publish returns one recipe. No age claim: the start is not gated, Publish answers `403 ageConfirmNeeded`. Paid hold counted from the first import for an undated page. Wording guard on update and restore. Both digest drift.                |
-| Worker               | `budgetSpent` terminal and acked. Unreadable counter retried. Late result after `cancelled` dropped. 10-minute expiry. At most 3 calls.                                                                                                                             |
-| LOCAL e2e            | Migration applied. CHECK pairs. Unique `source_page_key`. Page key released on delete, rejection and opt-out. Erasure covers the job table and identity's `age_assurances` row. Age route round trip and k6 by hand (P3b).                                          |
-| Service e2e + k6     | Job and publish round trip on a deployed preview. k6 on job status reads, by hand.                                                                                                                                                                                  |
-| Component (both)     | Every state in the spec table. Banned-word guard over `importMessages.choice.*` and `recipes.flowSteps.*`.                                                                                                                                                          |
-| Playwright / Maestro | US1 Public and Both. US2 Private, and paid held back (paid allowed is enabled once the page evidence carries the paid facts). US3 failure and later route, US4 dead end with switch on and off, US5 blocked save.                                                   |
+| Tier                 | What                                                                                                                                                                                                                                                                 |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit (core)          | Fingerprint: same set from same text, format version pinned, keyed hash. Containment vs Jaccard. Mutants: one shingle changed, order changed.                                                                                                                        |
+| Unit (service)       | Classifier: every allowlist case, every unknown open-test input reads third-party, an unread paid, opt-out or signature signal reads `unknown` and offers the choice, CC BY-NC is not open, `.gov` alone is not open. Title builder never returns the source title.  |
+| Integration (mocked) | Choice to job. Double publish returns one recipe. No age claim: the start is not gated, Publish answers `403 ageConfirmNeeded`. Paid hold counted from the first import for an undated page. Wording guard on update and restore. Both digest drift.                 |
+| Worker               | `budgetSpent` terminal and acked. Unreadable counter retried. Late result after `cancelled` dropped. 10-minute expiry. At most 3 calls. Job sweep on the band drain tick (T207).                                                                                     |
+| LOCAL e2e            | Migration applied. CHECK pairs. Unique `source_page_key`. Page key released on delete, rejection and opt-out. Erasure covers the job table and identity's `age_assurances` row. Age route round trip and k6 by hand (P3b). Job sweep against a real database (T208). |
+| Service e2e + k6     | Job and publish round trip on a deployed preview. k6 on job status reads, by hand.                                                                                                                                                                                   |
+| Component (both)     | Every state in the spec table. Banned-word guard over `importMessages.choice.*` and `recipes.flowSteps.*`.                                                                                                                                                           |
+| Playwright / Maestro | US1 Public and Both. US2 Private, and paid held back (paid allowed is enabled once the page evidence carries the paid facts). US3 failure and later route, US4 dead end with switch on and off, US5 blocked save.                                                    |
 
 ## Watch list
 

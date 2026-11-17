@@ -404,7 +404,7 @@ later from its own menu. (C-6)
   (`facts_snapshot`, `source_steps` and `output`) MUST be cleared in one UPDATE at every final state and on cancel. The
   item's draft step text MUST clear only on Publish, on keepPrivate, on cancel, or in the scheduled sweep, which clears
   the draft of a finished public-path job 24 hours after its `state_changed_at`. So pasted text lives about 3 days after
-  the cook's last action (3 × (24 hours + 10 minutes) + 15 minutes), inside ADR-0072's 30 days. Only the source record
+  the cook's last action, inside ADR-0072's 30 days. Only the source record
   of FR-080 stays.
 - **FR-034**: A source page MUST have at most one Commise-written public version at a time (ADR-0093 §2). The page is
   its normalised source address (`sourceLinkKey`, `004`). A retry or a second device of the same cook MUST return the

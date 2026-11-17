@@ -19,7 +19,13 @@
 import { amountAt, leadingAmount } from '../parsing/measureReader.js';
 import { CONTAINER_WORDS } from '../parsing/parentheticalMeasure.js';
 import { escapeRegExp } from '../parsing/escapeRegExp.js';
-import { LONG_TIME_UNIT_WORDS, TIME_UNIT_WORDS, type LongTimeUnit, type TimeUnit } from '../timeUnitWords.js';
+import {
+    LONG_TIME_UNIT_WORDS,
+    SECONDS_PER_TIME_UNIT,
+    TIME_UNIT_WORDS,
+    type LongTimeUnit,
+    type TimeUnit,
+} from '../timeUnitWords.js';
 import { classifyUnit, LENGTH_UNIT_VOCABULARY, normalizeUnit } from '../units.js';
 
 import {
@@ -555,8 +561,6 @@ function readAmounts(text: string): ReadAmount[] {
     return reads;
 }
 
-const SECONDS_PER_LONG_UNIT: Readonly<Record<LongTimeUnit, number>> = { day: 86_400, week: 604_800 };
-
 /** A time in days or weeks. The duration reader does not read these, so the sheet reads each one alone. */
 const isLongTime = (read: ReadAmount): read is ReadAmount & { readonly timeUnit: LongTimeUnit } =>
     read.timeUnit === 'day' || read.timeUnit === 'week';
@@ -626,7 +630,7 @@ function timesOf(
         const at = first.start;
 
         if (isLongTime(first)) {
-            const seconds = SECONDS_PER_LONG_UNIT[first.timeUnit];
+            const seconds = SECONDS_PER_TIME_UNIT[first.timeUnit];
 
             durations.push({
                 at,
@@ -690,7 +694,12 @@ const MAX_UNTIED_MEASURES_EXCLUSIVE = 2;
 const NAME_ENDS = new RegExp(`^${RUN_AFTER}`, 'iu');
 
 /** What may sit between an amount and the name it measures: nothing, or "of" or "of the". */
-const DIRECT_TIE = /^\s*(?:of\s+(?:the\s+)?)?$/iu;
+const TIE_WORDS = String.raw`\s*(?:of\s+(?:the\s+)?)?`;
+
+const DIRECT_TIE = new RegExp(`^${TIE_WORDS}$`, 'iu');
+
+/** The same gap, as the start of the text after an amount. */
+const TIE_PREFIX = new RegExp(`^${TIE_WORDS}`, 'iu');
 
 /** What may sit between two amounts that share one name: "1 cup plus 2 tablespoons flour". */
 const PLUS_TIE = /^\s+plus\s+$/iu;
@@ -703,7 +712,7 @@ const canMeasure = (read: ReadAmount): boolean => read.timeUnit === null && !rea
  * `null` when none does, or two names do. The amount stands as the edge on the left of the run.
  */
 function nameAfterAmount(read: ReadAmount, matchers: readonly IngredientMatcher[], text: string): string | null {
-    const from = read.end + (/^\s*(?:of\s+(?:the\s+)?)?/iu.exec(text.slice(read.end))?.[0].length ?? 0);
+    const from = read.end + (TIE_PREFIX.exec(text.slice(read.end))?.[0].length ?? 0);
     const found = matchers.filter(({ runAfterAmount }) => {
         if (runAfterAmount === null) {
             return false;
@@ -923,9 +932,5 @@ export function buildFactsSheet(recipe: StepSourceRecipe, readers: FactsSheetRea
         };
     });
 
-    const sheet: FactsSheet = { language: recipe.language, ingredientNames, steps };
-
-    toPlainFactsSheet(sheet);
-
-    return sheet;
+    return toPlainFactsSheet({ language: recipe.language, ingredientNames, steps });
 }

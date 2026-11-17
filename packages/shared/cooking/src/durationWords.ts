@@ -10,11 +10,9 @@
  */
 
 import { FRACTION_WORD_DENOMINATORS, readNumberWords } from '@kitchensink/recipe-core/parsing/number-words';
-import { TIME_UNIT_WORDS } from '@kitchensink/recipe-core/time-unit-words';
+import { SECONDS_PER_TIME_UNIT, TIME_UNIT_WORDS } from '@kitchensink/recipe-core/time-unit-words';
 
 import { oneReading, type DurationReading } from './durationReading.js';
-
-const SECONDS_PER_UNIT = { hour: 3_600, minute: 60, second: 1 } as const;
 
 /**
  * Seconds per unit word, from the one list of time words. The singular `second` is here, but an article never counts it
@@ -23,7 +21,7 @@ const SECONDS_PER_UNIT = { hour: 3_600, minute: 60, second: 1 } as const;
 const UNIT_SECONDS: ReadonlyMap<string, number> = new Map(
     Object.entries(TIME_UNIT_WORDS)
         .filter(([word]) => word !== 'h')
-        .map(([word, unit]): [string, number] => [word, SECONDS_PER_UNIT[unit]]),
+        .map(([word, unit]): [string, number] => [word, SECONDS_PER_TIME_UNIT[unit]]),
 );
 
 /** The only units an article counts: "a minute" is one, "a second" is a moment and "a day" is not read. */

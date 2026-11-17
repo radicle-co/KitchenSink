@@ -13,13 +13,11 @@
  */
 
 import { amountAt } from '@kitchensink/recipe-core/parsing/measure-reader';
-import { TIME_UNIT_WORDS } from '@kitchensink/recipe-core/time-unit-words';
+import { SECONDS_PER_TIME_UNIT, TIME_UNIT_WORDS } from '@kitchensink/recipe-core/time-unit-words';
 
 import { oneReading, type DurationReading } from './durationReading.js';
 import { readWordDuration } from './durationWords.js';
 import { isValidTimerMs } from './timer.js';
-
-const SECONDS_PER_UNIT: Readonly<Record<string, number>> = { h: 3_600, m: 60, s: 1 };
 
 /**
  * The longest line the reader looks at. Step text of a public recipe runs on every reader's device and has no maximum
@@ -82,7 +80,7 @@ function numberOf(token: string): number | undefined {
 }
 
 /** The seconds one unit stands for ('h', 'hours', 'Min' and so on), or 0 for one it does not know. */
-const unitSeconds = (unit: string): number => SECONDS_PER_UNIT[unit.toLowerCase().charAt(0)] ?? 0;
+const unitSeconds = (unit: string): number => SECONDS_PER_TIME_UNIT[TIME_UNIT_WORDS[unit.toLowerCase()]] ?? 0;
 
 /** The seconds an amount ("1½ hours", "20 to 25 min") stands for: its first number times its unit, or `undefined`. */
 function secondsOfAmount(quantity: string, unit: string): number | undefined {
@@ -138,7 +136,7 @@ export function readDuration(line: string): DurationReading {
         return { kind: 'many' };
     }
 
-    const bareMinutes = amounts.at(-1)?.rank === SECONDS_PER_UNIT['h'] ? spans[0]?.groups?.['bare'] : undefined;
+    const bareMinutes = amounts.at(-1)?.rank === SECONDS_PER_TIME_UNIT.hour ? spans[0]?.groups?.['bare'] : undefined;
     const total =
         amounts.reduce((sum, amount) => sum + (amount.seconds ?? 0), 0) +
         (bareMinutes === undefined ? 0 : Number.parseInt(bareMinutes, 10) * 60);

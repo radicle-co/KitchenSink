@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { LONG_TIME_UNIT_WORDS, TIME_UNIT_WORDS } from '../timeUnitWords.js';
+import { LONG_TIME_UNIT_WORDS, SECONDS_PER_TIME_UNIT, TIME_UNIT_WORDS } from '../timeUnitWords.js';
 
 describe('TIME_UNIT_WORDS', () => {
     it('is exactly the time words and the unit each names', () => {
@@ -28,5 +28,9 @@ describe('TIME_UNIT_WORDS', () => {
     it('keeps days and weeks out of the list the duration reader reads', () => {
         expect(Object.keys(TIME_UNIT_WORDS)).not.toContain('day');
         expect(LONG_TIME_UNIT_WORDS).toEqual({ day: 'day', days: 'day', week: 'week', weeks: 'week' });
+    });
+
+    it('gives the seconds of every unit, written out', () => {
+        expect(SECONDS_PER_TIME_UNIT).toEqual({ second: 1, minute: 60, hour: 3_600, day: 86_400, week: 604_800 });
     });
 });

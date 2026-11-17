@@ -43,3 +43,12 @@ export const LONG_TIME_UNIT_WORDS: Readonly<Record<string, LongTimeUnit>> = {
     week: 'week',
     weeks: 'week',
 };
+
+/** The seconds one unit stands for, the one table every time reader multiplies by. */
+export const SECONDS_PER_TIME_UNIT: Readonly<Record<TimeUnit | LongTimeUnit, number>> = {
+    second: 1,
+    minute: 60,
+    hour: 3_600,
+    day: 86_400,
+    week: 604_800,
+};

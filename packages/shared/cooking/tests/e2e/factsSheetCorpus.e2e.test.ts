@@ -221,15 +221,19 @@ describe('the facts sheet over the local recipe corpus', () => {
 
         console.info(`facts sheet corpus: ${refused} of ${recipes.length} refused, recall`, recall);
 
-        const floor: Floor = existsSync(FLOOR_FILE)
-            ? readJson<Floor>(FLOOR_FILE, 'The recall floor')
-            : { recall, refusedMax: refused };
+        // Required like the golden file: a floor that seeds itself from the run it judges can never fail that run.
+        const floor = readJson<Floor>(FLOOR_FILE, 'The recall floor');
 
         for (const kind of KINDS) {
             expect(recall[kind], `recall of ${kind}`).toBeGreaterThanOrEqual(floor.recall[kind] - 1e-9);
         }
 
         expect(refused, 'recipes refused').toBeLessThanOrEqual(floor.refusedMax);
+
+        // The floor only rises, and only on request, so a run never changes what the next run is held to.
+        if (process.env['UPDATE_FACTS_RECALL_FLOOR'] !== '1') {
+            return;
+        }
 
         writeFileSync(
             FLOOR_FILE,

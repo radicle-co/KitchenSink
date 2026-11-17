@@ -10,9 +10,15 @@ import { describe, expect, it } from 'vitest';
 import { readDuration } from '../duration.js';
 
 describe('the time words', () => {
-    it.each(Object.keys(TIME_UNIT_WORDS))('are all read by the duration reader: %s', (word) => {
-        expect(readDuration(`Rest for 2 ${word}.`).kind).toBe('one');
-    });
+    // Written out, so a word that names the wrong unit fails here and not only a word the reader skips.
+    const SECONDS = { hour: 3_600, minute: 60, second: 1 } as const;
+
+    it.each(Object.entries(TIME_UNIT_WORDS))(
+        'are all read by the duration reader, with the right unit: %s',
+        (word, unit) => {
+            expect(readDuration(`Rest for 2 ${word}.`)).toEqual({ kind: 'one', seconds: 2 * SECONDS[unit] });
+        },
+    );
 
     it('offers no timer for days or weeks: cooking mode reads the same lines as before', () => {
         expect(readDuration('Chill for 2 days.')).toEqual({ kind: 'none' });

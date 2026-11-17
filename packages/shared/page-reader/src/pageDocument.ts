@@ -12,6 +12,7 @@
 import { DomHandler, ElementType, Parser } from 'htmlparser2';
 
 import { MAX_VISIBLE_NODES, MAX_WALK_NODES } from './pageCaps.js';
+import { isWordMaterial } from './pageTokens.js';
 
 type DomDocument = DomHandler['root'];
 type DomNode = DomDocument['children'][number];
@@ -283,15 +284,12 @@ const LOOSE_TEXT: Owner = { group: 0, isHeading: false, element: 0, item: 0, ord
 /** The end of a link: the text read after it is no longer link text. */
 const LINK_END = Symbol('linkEnd');
 
-/** Whether a character is a letter or a digit: the text a link must hold all of for its block to be link-only. */
-const LETTER_OR_DIGIT = /^[\p{L}\p{N}]$/u;
-
-/** How many letters and digits `text` holds. */
+/** How many characters of word material (`isWordMaterial`) `text` holds: a link must hold all of its block's. */
 function lettersIn(text: string): number {
     let count = 0;
 
     for (const char of text) {
-        count += LETTER_OR_DIGIT.test(char) ? 1 : 0;
+        count += isWordMaterial(char) ? 1 : 0;
     }
 
     return count;

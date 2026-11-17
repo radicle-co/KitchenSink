@@ -182,7 +182,7 @@ function hasCutText(node: SchemaNode): boolean {
     return cut || truncated;
 }
 
-function candidateOf(node: SchemaNode): CandidateRead {
+function candidateOf(node: SchemaNode, containers: readonly SchemaNode[]): CandidateRead {
     const name = textOf(field(node, 'name'));
 
     if (name === undefined) {
@@ -233,7 +233,7 @@ function candidateOf(node: SchemaNode): CandidateRead {
         recipe: Object.freeze(recipe),
         links: Object.freeze(links),
         credit: creditOf(node),
-        access: accessOf(node),
+        access: accessOf(node, containers),
         imageRefs: Object.freeze(imageRefsOf(node)),
         schemaSteps: Object.freeze(steps.map((step) => Object.freeze(step))),
         emptyDeclaredSteps: asList(field(node, 'recipeInstructions')).some(
@@ -254,11 +254,16 @@ function candidateOf(node: SchemaNode): CandidateRead {
  *
  * @param nodes - Recipe nodes: JSON-LD objects, or microdata items shaped like them.
  * @param tier - The strategy that read them.
+ * @param containers - The page's nodes that may contain a recipe, read for its access facts only (`accessOf`).
  * @returns The candidates, `none` when there is no recipe node, or `tooComplex` when there are more nodes than
  *   {@link MAX_RECIPES_PER_PAGE} or a node's steps were cut short by a walk cap (a recipe with half its steps is never a
  *   candidate). Pure.
  */
-export function extractionOf(nodes: readonly SchemaNode[], tier: ExtractionTier): RecipeExtraction {
+export function extractionOf(
+    nodes: readonly SchemaNode[],
+    tier: ExtractionTier,
+    containers: readonly SchemaNode[],
+): RecipeExtraction {
     // A page with more is not one recipe's page, and a recipe past the cap is never read: say so, never drop it quietly.
     if (nodes.length > MAX_RECIPES_PER_PAGE) {
         return TOO_COMPLEX;
@@ -268,7 +273,7 @@ export function extractionOf(nodes: readonly SchemaNode[], tier: ExtractionTier)
     const candidates: PageCandidate[] = [];
 
     for (const node of nodes) {
-        const { candidate, truncated } = candidateOf(node);
+        const { candidate, truncated } = candidateOf(node, containers);
 
         if (truncated) {
             return TOO_COMPLEX;

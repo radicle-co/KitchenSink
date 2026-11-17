@@ -15,16 +15,15 @@
  * two-way (`VisibleText.shows`): each ingredient line is a whole visible line (it starts and ends where a visible block
  * does, so "flour" is not "2 cups flour"), the steps are read in order, a list the lines sit in has no line the schema
  * leaves out, and the recipe CARD (the smallest element holding every line and step read) has no list item the schema
- * leaves out but its furniture ({@link isCardFurniture}: links anywhere, and before or after the read lines anything that
- * is neither numbered nor opens with an amount), so a schema missing a line, an ingredient group or a second method is
+ * leaves out but its furniture ({@link isCardFurniture}: outside the read lines and beside no read list, an unnumbered
+ * item with no leading amount that is a link, comes after the lines, or is a labelled fact before them), so a schema
+ * missing a line, an ingredient group or a second method is
  * caught as surely as a page missing one. The per-card rule counts only list items (`<li>`), so it does not see three
  * kinds of line unless the schema reads a sibling of theirs: a table row (`<tr>`, as in an ingredient or nutrition
  * table), a paragraph or a `<br>`-separated line, and anything outside the card, such as an ingredient group a theme
- * renders after the card element. ⚠️ Nor does it see an omitted ingredient group before or after the read lines when no
- * line of it opens with an amount ("Salt to taste"), nor one nested a level deeper than the read lists: accepted risks
- * of the furniture policy, each pinned by a test. Text a
- * cook cannot
- * see (a template, a `noscript`, a `textarea`, anything `hidden`, an inline `display:none`, a closed `<details>`, a `<meta>`)
+ * renders after the card element. ⚠️ Nor does it see an omitted ingredient group after the read lines when no line of it
+ * opens with an amount ("Salt to taste"), nor one after them nested a level deeper than the read lists: accepted risks
+ * of the furniture policy, each pinned by a test. Text a cook cannot see (a template, a `noscript`, a `textarea`, anything `hidden`, an inline `display:none`, a closed `<details>`, a `<meta>`)
  * is no part of the page; text hidden by a CSS class is, because a paste has no stylesheet to say so. A line or step with no
  * letter or digit never agrees. A recipe whose data the page does not show is a no, never a wrong yes (precision first). It
  * reads each step's RAW text (`schemaSteps`), never the built instruction, so a heading the reader adds can never make a
@@ -36,7 +35,7 @@ import { readCooksMeasure } from '@kitchensink/recipe-core/parsing/measure-reade
 
 import { instructionOf } from './instructionSteps.js';
 import type { ExtractionTier, PageCandidate, PageRecipe } from './pageRecipeCandidate.js';
-import { tokensOf } from './pageTokens.js';
+import { namesAMeasure, tokensOf } from './pageTokens.js';
 import type { CardItem, VisibleText, VisibleTextResult } from './visiblePageText.js';
 
 /** Why the page and its structured data are not taken together as one recipe. */
@@ -55,26 +54,37 @@ const AGREES: Corroboration = Object.freeze({ ok: true });
 const refusal = (reason: CorroborationReason): Corroboration => Object.freeze({ ok: false, reason });
 
 /**
- * The card's furniture: an unread list item of the card that is no part of the recipe the schema left out. From the
- * page's structure first:
- * - a link-only item, anywhere (Print, Rate, jump links, tags, related recipes);
- * - an item before the first line the schema reads or after the last (meta, notes, nutrition), unless its list sits
- *   beside a list the schema reads (a group the schema left out), it is numbered (a second method), or it opens with an
- *   amount (an ingredient group).
- * An unread item between the read lines (an equipment list, an omitted group) is never furniture: any doubt is no. The
- * amount test reads only a leading amount, so it is the last check, not the one the policy rests on.
+ * A labelled fact: a short label with no digit, a colon (ASCII or full-width), then a value ("Prep Time: 10 minutes",
+ * "Сложность: сложно", "調理時間：30分"). The label is bounded, so the test is linear and cannot backtrack.
+ */
+const LABELLED_FACT = /^[^:\uFF1A\p{N}]{1,40}[:\uFF1A]\s*\S/u;
+
+/**
+ * The card's furniture: an unread list item of the card that is no part of the recipe the schema left out. An item is
+ * never furniture when it is between the first line the schema reads and the last (an equipment list, an omitted
+ * group), when its list sits beside a list the schema reads (a group the schema left out), when it is numbered (a
+ * second method) or when it opens with an amount (an ingredient). Past those checks:
+ * - a link-only item is furniture (Print, Rate, jump links, tags, related recipes);
+ * - an item after the last read line is furniture (notes, nutrition);
+ * - an item before the first read line is furniture only when it is a labelled fact that names no measure (meta:
+ *   "Prep Time: 10 minutes"), so a group whose amounts are words ("A pinch of saffron", "One onion") is refused.
+ * Any doubt is no. The amount and measure tests read English units only, so they can only refuse more.
  */
 function isCardFurniture(item: CardItem): boolean {
-    if (item.linkOnly) {
+    if (
+        item.position === 'between' ||
+        item.besideReadList ||
+        item.ordered ||
+        readCooksMeasure(item.text).quantity.kind !== 'absent'
+    ) {
+        return false;
+    }
+
+    if (item.linkOnly || item.position === 'after') {
         return true;
     }
 
-    return (
-        item.position !== 'between' &&
-        !item.besideReadList &&
-        !item.ordered &&
-        readCooksMeasure(item.text).quantity.kind === 'absent'
-    );
+    return LABELLED_FACT.test(item.text.trim()) && !namesAMeasure(item.text);
 }
 
 /** G-CORR over a page's visible text: the card the cook reads is the ingredient lines and the steps, no more and no less. */

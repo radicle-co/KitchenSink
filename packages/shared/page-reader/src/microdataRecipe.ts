@@ -127,6 +127,20 @@ const isRecipeItem = (element: PageElement): boolean =>
     words(element.attr('itemtype')).some((type) => typeNames({ '@type': type }).includes('Recipe'));
 
 /**
+ * The page's own `isAccessibleForFree` statements, as one page node: every element on the page that declares the
+ * property, whatever item it sits in. A paywall is stated on the page item as often as on the recipe, and reading every
+ * statement errs toward `false` (`accessOf`: any false wins). `datePublished` is read from the Recipe item only.
+ */
+function pageStatementsOf(page: PageDocument): SchemaNode {
+    const statements = page
+        .withAttribute('itemprop')
+        .filter((element) => words(element.attr('itemprop')).includes('isAccessibleForFree'))
+        .map((element) => valueOf(element).value);
+
+    return Object.freeze({ '@type': 'WebPage', isAccessibleForFree: statements });
+}
+
+/**
  * Find the recipe in a page's microdata.
  *
  * @param page - The parsed paste.
@@ -148,5 +162,6 @@ export function microdataRecipe(page: PageDocument): RecipeExtraction {
         : extractionOf(
               reads.map((read): SchemaNode => read.item),
               'microdata',
+              [pageStatementsOf(page)],
           );
 }

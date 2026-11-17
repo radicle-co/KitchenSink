@@ -242,10 +242,72 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
     });
 
-    it('reads a card with a list of links anywhere in it, such as Print and Rate between the lists', () => {
+    it('reads a card with a list of links before the lines, in a container of its own, such as jump links', () => {
         const page = makePage({
             jsonLd: [NODE],
-            body: `<article><ul>${items(INGREDIENTS)}</ul><ul><li><a href="#p">Print</a></li><li><a href="#r">Rate</a></li></ul><ol>${items(STEPS)}</ol></article>`,
+            body: `<article><div class="jump"><div><ul><li><a href="#p">Print</a></li><li><a href="#r">Jump to recipe</a></li></ul></div></div><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
+    });
+
+    // Rewritten for round 9 (code-reviewer HIGH 1 on #324): a list of links was furniture anywhere, so a linked sub-recipe
+    // the schema left out read as yes. A links-only item now passes every other furniture check too: not between the read
+    // lines, not beside a read list, not numbered, and no leading amount. Print and Rate between the lists is refused now.
+    it.each([
+        [
+            'a links-only list between the lists, such as Print and Rate',
+            `<ul>${items(INGREDIENTS)}</ul><ul><li><a href="#p">Print</a></li><li><a href="#r">Rate</a></li></ul><ol>${items(STEPS)}</ol>`,
+        ],
+        [
+            'a links-only list of sub-recipes beside the read ingredient list',
+            `<ul><li><a href="/dough">Pizza dough</a></li><li><a href="/sauce">Marinara sauce</a></li></ul><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol>`,
+        ],
+        [
+            'a linked ingredient group between the ingredients and the method',
+            `<ul>${items(INGREDIENTS)}</ul><h3>Sauce</h3><ul><li><a href="/sauce">1 batch tomato sauce</a></li></ul><ol>${items(STEPS)}</ol>`,
+        ],
+        [
+            'a numbered links-only list after the method',
+            `<ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol><div class="x"><div><ol><li><a href="/glaze">Glaze it</a></li></ol></div></div>`,
+        ],
+        [
+            'a links-only line that opens with an amount, before the lines',
+            `<div class="x"><div><ul><li><a href="/stock">2 cups stock</a></li></ul></div></div><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol>`,
+        ],
+    ])('refuses a card with %s', (_name, body) => {
+        expect(readPastedContent(makePage({ jsonLd: [NODE], body: `<article>${body}</article>` }))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageDisagreesWithSchema',
+        });
+    });
+
+    // Round 9 (code-reviewer HIGH 2 on #324): an amount written as words ("A pinch of", "Half a", "One") is no leading
+    // amount, so an omitted group before the lines read as furniture. Before the lines, an unread item that is not a link
+    // is furniture only when it is a labelled fact ("Prep Time: 10 minutes") that names no measure word: any doubt is no.
+    it.each([
+        ['an amount written as words', ['A pinch of saffron', 'Half a lemon', 'One onion']],
+        ['no amount at all', ['Salt to taste', 'Fresh herbs']],
+        ['a labelled line that names a measure', ['Flour: 200 g', 'Sugar: a pinch']],
+        ['a label that is all a line says', ['Equipment', 'Air fryer']],
+    ])('refuses an omitted group before the lines, nested deeper than the read lists, with %s', (_name, lines) => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><div class="group"><div><ul>${items(lines)}</ul></div></div><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+    });
+
+    it.each([
+        ['English', ['Prep Time: 10 minutes', 'Category: Dessert', 'Diet: Gluten-Free, Vegetarian']],
+        ['Italian', ['Tempo totale: 3h e 20 min', 'Calorie: 778']],
+        ['Russian', ['Сложность: сложно']],
+        ['Japanese, with a full-width colon', ['調理時間：30分']],
+    ])('reads a card with a %s meta list of labelled facts before the lines', (_name, lines) => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><div class="meta"><div><ul>${items(lines)}</ul></div></div><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol></article>`,
         });
 
         expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
@@ -396,15 +458,26 @@ describe('G-CORR on a card shaped like a recipe plugin’s', () => {
         });
     });
 
-    // Round 8 ruling: jump links are links, and this card's equipment list sits before its ingredients and its nutrition
-    // after its method, so none is a part of the recipe the schema left out.
+    // Round 8 ruling: jump links are links, and the nutrition list sits after the method, so neither is a part of the
+    // recipe the schema left out.
     it.each([
         ['a nutrition list', { equipment: false, nutrition: true, jumps: false }],
         ['jump links', { equipment: false, nutrition: false, jumps: true }],
-        ['an equipment list before the ingredients', { equipment: true, nutrition: false, jumps: false }],
-        ['all three', { equipment: true, nutrition: true, jumps: true }],
     ])('reads the card when it also holds %s', (_name, lists) => {
         expect(readPastedContent(page(lists))).toMatchObject({ kind: 'extracted' });
+    });
+
+    // Rewritten for round 9 (code-reviewer HIGH 2 on #324): an equipment list before the ingredients ("Mixing bowl") was
+    // read as furniture. It is not a labelled fact, and it cannot be told from an omitted group whose amounts are words
+    // ("One onion"), so any doubt is no: the card is refused.
+    it.each([
+        ['an equipment list before the ingredients', { equipment: true, nutrition: false, jumps: false }],
+        ['all three', { equipment: true, nutrition: true, jumps: true }],
+    ])('refuses the card when it also holds %s', (_name, lists) => {
+        expect(readPastedContent(page(lists))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageDisagreesWithSchema',
+        });
     });
 
     // An equipment list between the ingredients and the method sits where an omitted ingredient group would, and is not

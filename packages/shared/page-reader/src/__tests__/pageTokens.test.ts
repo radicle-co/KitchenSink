@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { tokensOf } from '../pageTokens.js';
+import { isWordMaterial, tokensOf } from '../pageTokens.js';
 
 describe('tokensOf', () => {
     it.each([
@@ -47,5 +47,29 @@ describe('tokensOf', () => {
 
     it('does not join a dash that is not between digits', () => {
         expect(tokensOf('half-and-half 2 - dash')).toEqual(['half', 'and', 'half', '2', 'dash']);
+    });
+
+    // Round 9 (code-reviewer LOW 7 on #324): a format character (Unicode Cf) is invisible and no separator. A soft hyphen
+    // or a zero-width joiner inside a word is dropped before tokenizing, so "choco&shy;late" is "chocolate". A Persian
+    // word written with a zero-width non-joiner reads as the same word written without one.
+    it.each([
+        ['choco\u00ADlate chips', ['chocolate', 'chips']],
+        ['\u200Bflour\u200B', ['flour']],
+        ['\uFEFF2 eggs', ['2', 'eggs']],
+        ['\u0645\u06CC\u200C\u062E\u0648\u0627\u0645', ['\u0645\u06CC\u062E\u0648\u0627\u0645']],
+    ])('drops format characters in %j', (text, tokens) => {
+        expect(tokensOf(text)).toEqual(tokens);
+    });
+});
+
+// Round 9 (code-reviewer LOW 6 on #324): one definition of a word's material, for the tokenizer, the link-only count and
+// the gate, so a combining mark counts the same everywhere.
+describe('isWordMaterial', () => {
+    it.each(['a', 'É', '\u0301', '\u093F', '7', '\u0663'])('is true for %j', (char) => {
+        expect(isWordMaterial(char)).toBe(true);
+    });
+
+    it.each([' ', '.', '▢', '\u00AD', '🥚'])('is false for %j', (char) => {
+        expect(isWordMaterial(char)).toBe(false);
     });
 });

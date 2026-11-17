@@ -211,7 +211,36 @@ describe('acceptRecipe: the black-and-white gate, one case per predicate and bot
             },
         );
 
-        it.each(['2 EGGS', 'BBQ sauce', 'Salt', 'A pinch of salt', '塩 少々', 'X'])('accepts %j', (line) => {
+        // Round 9 (code-reviewer MEDIUM 4 on #324): a line that ends in a colon and opens with no amount is a heading in any
+        // case ("For the sauce:", "TOPPING 2:"). A line in capitals is one only when it holds no digit and no measure word.
+        it.each(['For the sauce:', 'TOPPING 2:', 'Für den Teig：'])('refuses the colon heading %j', (line) => {
+            expect(acceptRecipe(recipeOf({ ingredientLines: ['1 cup flour', line] }), 'jsonLd')).toEqual({
+                ok: false,
+                reason: 'headingInIngredients',
+            });
+        });
+
+        // ⚠️ TRADE-OFF, pinned: a one-word ingredient in capitals reads as a heading. With no food lexicon the reader cannot
+        // tell "SALT" from "FROSTING", so the recipe is refused (a false no, which precision first allows).
+        it('refuses a one-word ingredient line in capitals, as it cannot be told from a heading', () => {
+            expect(acceptRecipe(recipeOf({ ingredientLines: ['1 cup flour', 'SALT'] }), 'jsonLd')).toEqual({
+                ok: false,
+                reason: 'headingInIngredients',
+            });
+        });
+
+        it.each([
+            '2 EGGS',
+            'EGGS 2',
+            'PINCH OF SALT',
+            'SALT TO TASTE',
+            '2 cups:',
+            'BBQ sauce',
+            'Salt',
+            'A pinch of salt',
+            '塩 少々',
+            'X',
+        ])('accepts %j', (line) => {
             expect(acceptRecipe(recipeOf({ ingredientLines: ['1 cup flour', line] }), 'jsonLd')).toEqual({ ok: true });
         });
     });

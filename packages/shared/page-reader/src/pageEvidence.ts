@@ -11,7 +11,7 @@
  */
 import { safeHttpUrl } from '@kitchensink/recipe-core/external-url';
 import { MAX_IMAGE_URL_CHARS } from './pageCaps.js';
-import { asList, field, isList, isSchemaNode, scalar, textOf } from './schemaNode.js';
+import { asList, field, isList, isSchemaNode, scalar, textOf, typeNames } from './schemaNode.js';
 import type { SchemaNode } from './schemaNode.js';
 
 /** The most authors kept. */
@@ -32,7 +32,7 @@ export interface PageCredit {
     readonly license?: string;
 }
 
-/** What a Recipe node states about access and age. Every field may be absent: the node states nothing usable. */
+/** What a recipe and the page around it state about access and age (`accessOf`). Every field may be absent. */
 export interface PageAccess {
     /** schema.org `isAccessibleForFree`: `true` or `false` as stated (a boolean, or the text "true" or "false"). */
     readonly isAccessibleForFree?: boolean;
@@ -49,9 +49,9 @@ export interface PageEvidence extends PageAccess {
     /** An absolute http(s) address, never fetched. ABSENT when the page names none that is usable. */
     readonly imageUrl?: string;
     /**
-     * Whether the page reserves its content from AI and text-and-data mining: `true` for a TDMRep `tdm-reservation` of 1
-     * or a robots `noai` or `noimageai`, `false` for a `tdm-reservation` of 0 and no reservation, ABSENT for no signal.
-     * Read from the page's own `<meta>` tags; a paste carries no HTTP headers.
+     * Whether the page reserves its content from AI and text-and-data mining: `true` for any reservation `aiOptOutOf`
+     * reads, `false` for a `tdm-reservation` of 0 and no reservation, ABSENT for no signal. Read from the page's own
+     * `<meta>` tags (an `X-Robots-Tag` only as an http-equiv meta): a paste carries no HTTP headers.
      */
     readonly aiOptOut?: boolean;
 }
@@ -63,10 +63,8 @@ const MAX_DATE_CHARS = 40;
 const ISO_DATE =
     /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(?:Z|[+-](\d{2}):?(\d{2}))?)?$/u;
 
-/** A stated boolean: `true`, `false`, or the text of either in any case. Anything else is not one. */
-function statedBoolean(value: unknown): boolean | undefined {
-    const raw = scalar(value);
-
+/** One stated boolean: `true`, `false`, or the text of either in any case. Anything else is not one. */
+function statedBoolean(raw: unknown): boolean | undefined {
     if (typeof raw === 'boolean') {
         return raw;
     }
@@ -99,14 +97,76 @@ function isoDate(value: unknown): string | undefined {
 }
 
 /**
- * Read what a Recipe node states about access and age.
+ * The schema.org types of a node that stands for the page a recipe is on: a web page, or an article or post (and their
+ * common subtypes). A node of one of these types states what it says about access and age for the whole page.
+ */
+const PAGE_TYPES: ReadonlySet<string> = new Set([
+    'WebPage',
+    'ItemPage',
+    'CollectionPage',
+    'AboutPage',
+    'FAQPage',
+    'QAPage',
+    'MedicalWebPage',
+    'Article',
+    'NewsArticle',
+    'AnalysisNewsArticle',
+    'BackgroundNewsArticle',
+    'OpinionNewsArticle',
+    'ReportageNewsArticle',
+    'ReviewNewsArticle',
+    'BlogPosting',
+    'LiveBlogPosting',
+    'SocialMediaPosting',
+    'DiscussionForumPosting',
+    'Report',
+    'TechArticle',
+    'ScholarlyArticle',
+    'AdvertiserContentArticle',
+    'SatiricalArticle',
+]);
+
+/** Whether a node stands for the page: one of {@link PAGE_TYPES}. */
+export const isPageNode = (node: SchemaNode): boolean => typeNames(node).some((type) => PAGE_TYPES.has(type));
+
+/** The `@id` of a node, or `undefined`. */
+const idOf = (node: SchemaNode): unknown => scalar(field(node, '@id'));
+
+/** Whether `container` names `recipe` as its `mainEntity`: the node itself, or a node with the same `@id`. */
+function hasMainEntity(container: SchemaNode, recipe: SchemaNode): boolean {
+    const id = idOf(recipe);
+
+    return items(field(container, 'mainEntity')).some(
+        (entity) => entity === recipe || (isSchemaNode(entity) && typeof id === 'string' && idOf(entity) === id),
+    );
+}
+
+/**
+ * Read what a Recipe node, and the page around it, state about access and age.
+ *
+ * The recipe is read first, then its containers: a node whose `mainEntity` is the recipe, then a page node
+ * ({@link isPageNode}). `isAccessibleForFree` is `false` when any of them says false (in a list too), so a paywall stated
+ * on the article is never lost behind a recipe that says nothing; otherwise `true` when any says true. `datePublished`
+ * is the first usable one in that order.
  *
  * @param node - A JSON-LD Recipe node or a microdata item shaped like one.
- * @returns The facts; a field the node does not state usably is absent. Pure.
+ * @param containers - The page's other nodes that may contain it: page nodes and nodes with a `mainEntity`. Any other
+ *   node is passed over.
+ * @returns The facts; a field no source states usably is absent. Pure.
  */
-export function accessOf(node: SchemaNode): PageAccess {
-    const isAccessibleForFree = statedBoolean(field(node, 'isAccessibleForFree'));
-    const datePublished = isoDate(field(node, 'datePublished'));
+export function accessOf(node: SchemaNode, containers: readonly SchemaNode[]): PageAccess {
+    const sources = [
+        node,
+        ...containers.filter((container) => container !== node && hasMainEntity(container, node)),
+        ...containers.filter((container) => container !== node && isPageNode(container)),
+    ];
+    const free = sources.flatMap((source) =>
+        items(field(source, 'isAccessibleForFree')).flatMap((value) => statedBoolean(value) ?? []),
+    );
+    const isAccessibleForFree = free.includes(false) ? false : free.includes(true) ? true : undefined;
+    const datePublished = sources
+        .map((source) => isoDate(field(source, 'datePublished')))
+        .find((date) => date !== undefined);
 
     return Object.freeze({
         ...(isAccessibleForFree === undefined ? {} : { isAccessibleForFree }),
@@ -114,29 +174,96 @@ export function accessOf(node: SchemaNode): PageAccess {
     });
 }
 
-/** The robots tokens that reserve a page from AI. */
+/** The robots tokens that reserve a page from AI, in a robots meta or header for every crawler. */
 const NO_AI_TOKENS: ReadonlySet<string> = new Set(['noai', 'noimageai']);
 
+/** The robots tokens that reserve a page from a crawler named for AI: the AI tokens, and keeping it out entirely. */
+const NAMED_AI_CRAWLER_TOKENS: ReadonlySet<string> = new Set([...NO_AI_TOKENS, 'noindex', 'none']);
+
 /**
- * Whether a page reserves its content from AI and text-and-data mining (see {@link PageEvidence.aiOptOut}).
- *
- * @param metas - The page's `<meta>` elements, as `name` and `content`.
- * @returns `true`, `false` or `undefined` (no signal). Pure.
+ * Crawlers that read pages for AI training or AI answers, by the name a site writes in a robots meta (lower case). Data:
+ * the agents their operators publish. A search crawler (`googlebot`, `bingbot`) is not one.
  */
-export function aiOptOutOf(
-    metas: readonly { readonly name?: string; readonly content?: string }[],
-): boolean | undefined {
+const AI_CRAWLERS: ReadonlySet<string> = new Set([
+    'gptbot',
+    'chatgpt-user',
+    'oai-searchbot',
+    'ccbot',
+    'google-extended',
+    'anthropic-ai',
+    'claudebot',
+    'claude-web',
+    'perplexitybot',
+    'bytespider',
+    'amazonbot',
+    'applebot-extended',
+    'facebookbot',
+    'meta-externalagent',
+    'cohere-ai',
+    'diffbot',
+    'imagesiftbot',
+    'omgilibot',
+    'youbot',
+]);
+
+/** A page's `<meta>` element, as its `name`, `http-equiv` and `content`. */
+export interface PageMeta {
+    readonly name?: string;
+    readonly httpEquiv?: string;
+    readonly content?: string;
+}
+
+/** The robots tokens of a value, split on spaces, commas and semicolons, lower case. */
+const robotsTokens = (value: string): readonly string[] => value.split(/[\s,;]+/u).filter((token) => token !== '');
+
+/** Whether an `X-Robots-Tag` value reserves the page: an AI token for all, or a named AI crawler's `agent: tokens`. */
+function headerReserves(value: string): boolean {
+    const colon = value.indexOf(':');
+    const agent = colon === -1 ? undefined : value.slice(0, colon).trim();
+
+    if (agent !== undefined && AI_CRAWLERS.has(agent)) {
+        return robotsTokens(value.slice(colon + 1)).some((token) => NAMED_AI_CRAWLER_TOKENS.has(token));
+    }
+
+    return robotsTokens(value).some((token) => NO_AI_TOKENS.has(token));
+}
+
+/** Whether one meta reserves the page from AI. */
+function metaReserves(key: string | undefined, equiv: string | undefined, value: string): boolean {
+    if (key === 'tdm-reservation') {
+        return value === '1';
+    }
+
+    if (key === 'robots') {
+        return robotsTokens(value).some((token) => NO_AI_TOKENS.has(token));
+    }
+
+    if (key !== undefined && AI_CRAWLERS.has(key)) {
+        return robotsTokens(value).some((token) => NAMED_AI_CRAWLER_TOKENS.has(token));
+    }
+
+    return equiv === 'x-robots-tag' && headerReserves(value);
+}
+
+/**
+ * Whether a page reserves its content from AI and text-and-data mining (see {@link PageEvidence.aiOptOut}): a TDMRep
+ * `tdm-reservation` of 1, a robots meta or `X-Robots-Tag` http-equiv with `noai` or `noimageai`, or a meta (or an
+ * `X-Robots-Tag` `agent:` prefix) naming an AI crawler that keeps it out (`noai`, `noimageai`, `noindex`, `none`). A
+ * plain robots `noindex` is about search, not AI, and is no reservation. Every meta on the page counts, including one
+ * inside `<noscript>` or `<template>`: a reservation a cook cannot see still binds, so the read errs toward reserved.
+ *
+ * @param metas - The page's `<meta>` elements.
+ * @returns `true` when any meta reserves the page; else `false` when a `tdm-reservation` of 0 says it does not; else
+ *   `undefined` (no signal). Pure.
+ */
+export function aiOptOutOf(metas: readonly PageMeta[]): boolean | undefined {
     let notReserved = false;
 
-    for (const { name, content } of metas) {
+    for (const { name, httpEquiv, content } of metas) {
         const key = name?.trim().toLowerCase();
         const value = content?.trim().toLowerCase() ?? '';
 
-        if (key === 'tdm-reservation' && value === '1') {
-            return true;
-        }
-
-        if (key === 'robots' && value.split(/[\s,]+/u).some((token) => NO_AI_TOKENS.has(token))) {
+        if (metaReserves(key, httpEquiv?.trim().toLowerCase(), value)) {
             return true;
         }
 

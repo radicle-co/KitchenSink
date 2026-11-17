@@ -99,7 +99,11 @@ function notExtractable(
 function evidenceOf(candidate: PageCandidate, page: PageDocument, source: DetectedSource): PageEvidence {
     const imageUrl = imageUrlOf(candidate.imageRefs, source.kind === 'found' ? source.citation.url : undefined);
     const aiOptOut = aiOptOutOf(
-        page.byTag('meta').map((meta) => ({ name: meta.attr('name'), content: meta.attr('content') })),
+        page.byTag('meta').map((meta) => ({
+            name: meta.attr('name'),
+            httpEquiv: meta.attr('http-equiv'),
+            content: meta.attr('content'),
+        })),
     );
 
     return Object.freeze({

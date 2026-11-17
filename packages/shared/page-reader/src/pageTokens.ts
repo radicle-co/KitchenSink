@@ -4,8 +4,10 @@
  * Case, punctuation, brackets, spacing and the way a fraction or a times sign is written do not make two texts differ;
  * a number, a unit, a word or a slash do. A character scan: only letters, combining marks and digits (in any script, so
  * a script with no case still tokenizes) are word material, and no pattern runs over page text except a one-character
- * class test, which cannot backtrack.
+ * class test, which cannot backtrack. A format character (Unicode `Cf`: a soft hyphen, a zero-width space or joiner, a
+ * byte-order mark) is invisible and is dropped, so it neither splits a word nor joins two.
  */
+import { classifyUnit, isSizeWord } from '@kitchensink/recipe-core';
 
 /** A vulgar fraction and what it reads as. NFKC alone would turn `1½` into `11⁄2`, so it is expanded first. */
 const VULGAR_FRACTIONS: Readonly<Record<string, string>> = Object.freeze({
@@ -35,11 +37,15 @@ const isSpace = (char: string): boolean => char.trim() === '';
 /** A letter, a combining mark or a digit, in any script. One character class: linear, and it cannot backtrack. */
 const LETTER_MARK_OR_DIGIT = /^[\p{L}\p{M}\p{N}]$/u;
 
+/** An invisible format character (Unicode `Cf`). */
+const FORMAT_CHARACTER = /^\p{Cf}$/u;
+
 /**
  * Whether `char` is part of a word or a number: a letter, a mark or a digit. Anything else (punctuation, a plugin's
- * checkbox "▢", a bullet, a star, an emoji) separates words like a space.
+ * checkbox "▢", a bullet, a star, an emoji) separates words like a space. The reader's one definition of word material:
+ * the tokenizer, the link-only count and the gate all use it.
  */
-const isWordMaterial = (char: string): boolean => LETTER_MARK_OR_DIGIT.test(char);
+export const isWordMaterial = (char: string): boolean => LETTER_MARK_OR_DIGIT.test(char);
 
 /** The text with each vulgar fraction written out as ` n/d `, so `1½` reads `1 1/2`. */
 function withFractionsWritten(text: string): string {
@@ -54,8 +60,12 @@ function withFractionsWritten(text: string): string {
     return out;
 }
 
-/** One character, with the slashes, dashes and times signs that mean the same read as one. */
+/** One character, with the slashes, dashes and times signs that mean the same read as one, and a format character dropped. */
 function foldedChar(char: string): string {
+    if (FORMAT_CHARACTER.test(char)) {
+        return '';
+    }
+
     if (char === '⁄' || char === '∕') {
         return '/';
     }
@@ -130,4 +140,26 @@ export function tokensOf(text: string): readonly string[] {
     flush();
 
     return tokens;
+}
+
+/**
+ * Whether `text` names a measure: a unit the reader knows ("g", "pinch", "to taste") or a size word ("large"), as one
+ * token or two. English-only, as the unit vocabulary is: a measure in another language is not seen, so a caller relies on
+ * it only to refuse more, never to accept.
+ *
+ * @param text - Any text.
+ * @returns Whether any token, or any two tokens in a row, is a unit or a size word. Pure.
+ */
+export function namesAMeasure(text: string): boolean {
+    const words = tokensOf(text);
+
+    return words.some((word, index) => {
+        const pair = index + 1 < words.length ? `${word} ${words[index + 1] ?? ''}` : undefined;
+
+        return (
+            classifyUnit(word) !== 'unknown' ||
+            isSizeWord(word) ||
+            (pair !== undefined && classifyUnit(pair) !== 'unknown')
+        );
+    });
 }

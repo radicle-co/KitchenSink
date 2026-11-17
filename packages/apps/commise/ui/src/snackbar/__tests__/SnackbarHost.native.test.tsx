@@ -1,12 +1,11 @@
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { render } from '../../testing/tamaguiTesting.native.js';
-import { AccessibilityInfo, Dimensions } from 'react-native';
+import { AccessibilityInfo } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JSX } from 'react';
 import { Pressable, Text } from 'react-native';
 
 import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
-import { installFakeKeyboard, type FakeKeyboard } from '../../testing/fakeKeyboard.native.js';
 import { role } from '../../tokens/colors.js';
 import { SnackbarHost } from '../SnackbarHost.native.js';
 import type { SnackbarInput } from '../props.js';
@@ -19,18 +18,10 @@ import { useSnackbar } from '../useSnackbar.js';
  * the snackbar does not time out at all (it stays until its action is taken or a newer one replaces it).
  */
 
-// The navigation bar: Android's keyboard height leaves it out, and the lift may rise by it past the reported height.
-vi.mock('react-native-safe-area-context', () => ({
-    useSafeAreaInsets: () => ({ top: 24, right: 0, bottom: 48, left: 0 }),
-}));
-
 /** The screen reader as the test sets it, and the listener the host registered. */
 const reader = vi.hoisted(() => ({ on: false, listener: undefined as ((on: boolean) => void) | undefined }));
 
-let keyboard: FakeKeyboard;
-
 beforeEach(() => {
-    keyboard = installFakeKeyboard();
     vi.useFakeTimers();
     vi.setSystemTime(0);
     reader.on = false;
@@ -52,7 +43,6 @@ afterEach(() => {
     cleanup();
     vi.useRealTimers();
     vi.restoreAllMocks();
-    keyboard.restore();
 });
 
 function Screen({ input }: { readonly input: SnackbarInput }): JSX.Element {
@@ -171,143 +161,6 @@ describe('SnackbarHost (native)', () => {
         );
 
         showFrom('Removed Pasta');
-
-        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('96px');
-    });
-
-    it('sits 16pt above the keyboard when it is up, however late it opens', () => {
-        vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 400, height: 2400, scale: 1, fontScale: 1 });
-        render(
-            <PopupInsetsContext value={() => ({ top: 0, bottom: 80 })}>
-                <SnackbarHost>
-                    <Screen input={{ message: 'Source removed.' }} />
-                </SnackbarHost>
-            </PopupInsetsContext>,
-        );
-
-        showFrom('Source removed.');
-        // The keyboard opens after the snackbar showed. It covers 948 of the 2400 screen, more than its reported height
-        // of 900 (Android's height leaves out the navigation bar), so the host must go by where the keyboard starts.
-        act(() => keyboard.emit('keyboardDidShow', { screenY: 1452, height: 900 }));
-
-        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('964px');
-    });
-
-    it('never rises past the keyboard’s height plus the navigation bar, whatever the frame says', () => {
-        vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 400, height: 2400, scale: 1, fontScale: 1 });
-        render(
-            <PopupInsetsContext value={() => ({ top: 0, bottom: 80 })}>
-                <SnackbarHost>
-                    <Screen input={{ message: 'Source removed.' }} />
-                </SnackbarHost>
-            </PopupInsetsContext>,
-        );
-
-        showFrom('Source removed.');
-        // A keyboard that claims to start at 1000 on a 2400 screen, with a 900 height: 1400 covered. Only 900 plus the
-        // 48 navigation bar can be, so the snackbar rises 948, and 16 above it.
-        act(() => keyboard.emit('keyboardDidShow', { screenY: 1000, height: 900 }));
-
-        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('964px');
-    });
-
-    /** The window and the screen apart, as in split screen: the lift is judged against the WINDOW the overlay fills. */
-    const sizeWindow = (window: number, screenHeight: number): void => {
-        vi.spyOn(Dimensions, 'get').mockImplementation((dimension) => ({
-            width: 400,
-            height: dimension === 'window' ? window : screenHeight,
-            scale: 1,
-            fontScale: 1,
-        }));
-    };
-
-    it('rises against the window the overlay fills, not the whole screen (split screen, rotation)', () => {
-        sizeWindow(1200, 2400);
-        render(
-            <PopupInsetsContext value={() => ({ top: 0, bottom: 80 })}>
-                <SnackbarHost>
-                    <Screen input={{ message: 'Source removed.' }} />
-                </SnackbarHost>
-            </PopupInsetsContext>,
-        );
-
-        showFrom('Source removed.');
-        // The keyboard starts at 700 in a window 1200 high: it covers 500 of it, and 16 above that.
-        act(() => keyboard.emit('keyboardDidShow', { screenY: 700, height: 500 }));
-
-        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('516px');
-    });
-
-    it('takes the keyboard’s top as it is under edge-to-edge, with no status-bar offset (the window starts at the screen’s top)', () => {
-        sizeWindow(2400, 2400);
-        render(
-            <PopupInsetsContext value={() => ({ top: 0, bottom: 80 })}>
-                <SnackbarHost>
-                    <Screen input={{ message: 'Source removed.' }} />
-                </SnackbarHost>
-            </PopupInsetsContext>,
-        );
-
-        showFrom('Source removed.');
-        // The mocked status bar is 24 high. Android reports the top of the keyboard in display coordinates, and an
-        // edge-to-edge window starts at the display's top, so 2400 - 1500 = 900 is covered, with nothing added or taken away.
-        act(() => keyboard.emit('keyboardDidShow', { screenY: 1500, height: 900 }));
-
-        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('916px');
-    });
-
-    it('sits above a keyboard that was already up when the snackbar shows, with no event to tell it', () => {
-        vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 400, height: 2400, scale: 1, fontScale: 1 });
-        // The keyboard opened before the host read it, so React Native's own state is all there is: no event follows.
-        keyboard.settle({ screenY: 1452, height: 900 });
-        render(
-            <PopupInsetsContext value={() => ({ top: 0, bottom: 80 })}>
-                <SnackbarHost>
-                    <Screen input={{ message: 'Source removed.' }} />
-                </SnackbarHost>
-            </PopupInsetsContext>,
-        );
-
-        // No snackbar shows, so the host reads nothing: the keyboard that is already up is met only through React Native's state.
-        expect(keyboard.added).toEqual([]);
-
-        showFrom('Source removed.');
-
-        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('964px');
-    });
-
-    it('listens for the keyboard only while a snackbar shows, and lets go when it is gone', () => {
-        render(
-            <SnackbarHost>
-                <Screen input={{ message: 'Source removed.' }} />
-            </SnackbarHost>,
-        );
-
-        expect(keyboard.added).toEqual([]);
-
-        showFrom('Source removed.');
-
-        expect(keyboard.added.length).toBeGreaterThan(0);
-        expect(keyboard.removed()).toBe(0);
-
-        advance(6000);
-
-        expect(keyboard.removed()).toBe(keyboard.added.length);
-    });
-
-    it('drops back to the chrome when the keyboard closes', () => {
-        vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 400, height: 2400, scale: 1, fontScale: 1 });
-        render(
-            <PopupInsetsContext value={() => ({ top: 0, bottom: 80 })}>
-                <SnackbarHost>
-                    <Screen input={{ message: 'Source removed.' }} />
-                </SnackbarHost>
-            </PopupInsetsContext>,
-        );
-
-        showFrom('Source removed.');
-        act(() => keyboard.emit('keyboardDidShow', { screenY: 1452, height: 900 }));
-        act(() => keyboard.emit('keyboardDidHide'));
 
         expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('96px');
     });

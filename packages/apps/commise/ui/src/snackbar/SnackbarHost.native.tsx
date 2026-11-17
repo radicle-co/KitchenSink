@@ -8,9 +8,6 @@
  * while a screen reader runs, the snackbar does not time out at all, and when it stops the snackbar runs out its own
  * remaining time.
  *
- * With the keyboard up the snackbar rides 16 pt above it, whenever it opened (a Remove that focuses a field opens it
- * at once), for every snackbar.
- *
  * It also publishes the showing snackbar's measured height (`SnackbarClearanceContext`), so the floating create button
  * rises above the bar instead of sitting under it.
  *
@@ -18,11 +15,8 @@
  *     are the pure reducer's (State + Command)
  */
 import { useContext, useEffect, useState, type FC } from 'react';
-import { AccessibilityInfo, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 
-import { keyboardOverlap } from '../keyboardAvoider/keyboardOverlap.js';
-import { useKeyboardFrame } from '../keyboardAvoider/useKeyboardFrame.native.js';
 import { PopupInsetsContext } from '../popupInsets/popupInsetsContext.js';
 import { nativeTokens } from '../tokens/native.js';
 import { SNACKBAR_GAP, type SnackbarHostProps } from './props.js';
@@ -35,25 +29,10 @@ import { useSnackbarQueue } from './useSnackbarQueue.js';
 export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
     const queue = useSnackbarQueue();
     const readInsets = useContext(PopupInsetsContext);
-    const [foot, setFoot] = useState(SNACKBAR_GAP);
-    const { current } = queue;
-    // The keyboard is read only while a snackbar shows, so the shared listeners are released the rest of the time.
-    const keyboard = useKeyboardFrame(current !== null);
-    const navigationBar = useSafeAreaInsets().bottom;
-    // The overlay fills the window, so its foot is the window's, which follows rotation and split screen. The keyboard's top
-    // is in display coordinates and the window's height is the window's own, so the two agree where the window starts at the
-    // top of the display (full screen, and an edge-to-edge window), with no status-bar offset. A window lower on the display, such
-    // as the lower pane of a split screen, reads a lift of 0.
-    // The keyboard covers what the one lift rule says (`KeyboardLift`): its height plus the navigation bar at most, because
-    // Android's height leaves that bar out.
-    const lift = keyboardOverlap(
-        useWindowDimensions().height,
-        keyboard?.top ?? null,
-        (keyboard?.height ?? 0) + navigationBar,
-    );
-    const bottom = keyboard === null ? foot : Math.max(foot, lift + SNACKBAR_GAP);
+    const [bottom, setBottom] = useState(SNACKBAR_GAP);
     const [screenReader, setScreenReader] = useState(false);
     const [regionHeight, setRegionHeight] = useState(0);
+    const { current } = queue;
     const action = current?.input.action;
     const currentId = current?.id;
 
@@ -93,7 +72,7 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
         <SnackbarContext
             value={{
                 show: (input) => {
-                    setFoot(readInsets().bottom + SNACKBAR_GAP);
+                    setBottom(readInsets().bottom + SNACKBAR_GAP);
                     queue.show(input);
                 },
             }}

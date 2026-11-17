@@ -21,7 +21,6 @@ import { createRef } from 'react';
 const state = vi.hoisted(() => ({ containerClass: 'narrow' as ContainerClass }));
 
 vi.mock('../../layout/useContainerClass.native.js', () => ({ useContainerClass: () => state.containerClass }));
-// The keyboard frame comes from keyboardStore, which stays real; this mock supplies only the shown flag.
 vi.mock('../../layout/useKeyboardShown.native.js', () => ({ useKeyboardShown: () => false }));
 vi.mock('../../motion/useReduceMotion.native.js', () => ({ useReduceMotion: () => true }));
 

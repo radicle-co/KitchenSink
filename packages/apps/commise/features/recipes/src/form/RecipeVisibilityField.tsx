@@ -25,19 +25,36 @@ import type { FC } from 'react';
 
 import { heldVisibility } from '../actions/privateGate.js';
 import { editorMessages } from '../editor/messages.js';
-import { visibilityChoice, visibilityFieldOf, type RecipeVisibilityFieldProps } from './props.js';
+import {
+    visibilityChoice,
+    visibilityFieldOf,
+    type RecipeVisibilityFieldProps,
+    type VisibilityOption,
+} from './props.js';
 
 // Layout and state-independent chrome only. The two state classes below are mutually exclusive, never layered on each
 // other: Tailwind's emission order, not the attribute's, decides between two utilities of one property.
 const card = `flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-4 py-2 ${FOCUS_RING_CLASS.within}`;
 const cardResting = 'border-line-control bg-paper';
 const cardChosen = 'border-selected-edge bg-selected-fill';
-// A card that cannot be chosen LOOKS it (the design system's disabled treatment, as `RadioList` and `Button` draw it): a muted
-// border, a dimmed radio and title. Its reason is not dimmed: it is the one thing on the card that must stay readable.
-const cardRefused = 'cursor-not-allowed';
-const cardRefusedEdge = 'border-line-divider bg-paper';
-const dimmed = 'opacity-60';
+// A card that cannot be chosen LOOKS it, by the opaque muted role and no opacity (`colors.ts` rule 3: an alpha-tinted text
+// colour passes as a token and fails as a pixel): the divider's edge and a muted title and radio. The design system has no
+// one disabled token across platforms (`dimmedOpacity` is native-only, and `RadioList` hard-codes its own web opacity), so
+// this is the one treatment both leaves of this field share. Its reason keeps the secondary colour, readable.
+const cardRefused = 'cursor-not-allowed border-line-divider bg-paper';
+const titleRefused = 'text-ink-muted';
+const titleAvailable = 'text-ink';
+const cardClasses = { refused: cardRefused, chosen: cardChosen, resting: cardResting } as const;
 const confirmLineId = 'recipe-visibility-confirm-line';
+
+/** A card's state classes: a refused card is refused whether or not it is the chosen one. Pure. */
+const cardClassOf = (option: VisibilityOption, chosen: boolean): string => {
+    if (option.refused) {
+        return `${card} ${cardClasses.refused}`;
+    }
+
+    return `${card} ${chosen ? cardClasses.chosen : cardClasses.resting}`;
+};
 
 /** "Who can see it": Public or Private. */
 export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
@@ -101,10 +118,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                           ].join(' ');
 
                     return (
-                        <label
-                            key={option.value}
-                            className={`${card} ${option.refused ? `${cardRefusedEdge} ${cardRefused}` : chosen ? cardChosen : cardResting}`}
-                        >
+                        <label key={option.value} className={cardClassOf(option, chosen)}>
                             <input
                                 type="radio"
                                 name="recipe-visibility"
@@ -115,12 +129,12 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                                 aria-describedby={describedBy}
                                 // Refused, not disabled: a natively disabled radio leaves the tab order and the reason with it.
                                 aria-disabled={option.refused ? true : undefined}
-                                className={`size-5 shrink-0 accent-action ${option.refused ? dimmed : ''}`}
+                                className={`size-5 shrink-0 ${option.refused ? 'accent-ink-muted' : 'accent-action'}`}
                             />
                             <span className="flex min-w-0 flex-1 flex-col">
                                 <span
                                     id={titleId}
-                                    className={`text-body font-semibold text-ink ${option.refused ? dimmed : ''}`}
+                                    className={`text-body font-semibold ${option.refused ? titleRefused : titleAvailable}`}
                                 >
                                     {option.title}
                                 </span>

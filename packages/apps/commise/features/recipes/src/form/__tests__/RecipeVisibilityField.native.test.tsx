@@ -7,7 +7,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, within } from '@testing-library/react';
-import { render } from '@commise/ui/testing/tamagui';
+import { render, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC } from 'react';
 
@@ -141,6 +141,17 @@ const Harness: FC<HarnessProps> = ({
  */
 const radio = (title: string): HTMLElement => screen.getByRole('radio', { name: new RegExp(`^${title}`, 'u') });
 
+/** A card's frame: the themed view inside the radio that owns the press, which carries the border and the fill. */
+const frameOf = (title: string): HTMLElement => {
+    const frame = radio(title).firstElementChild;
+
+    if (!(frame instanceof HTMLElement)) {
+        throw new Error(`The ${title} card has no frame.`);
+    }
+
+    return frame;
+};
+
 describe('RecipeVisibilityField (native)', () => {
     it('is a radio group named "Who can see it" of Public and Private, Public chosen by default', () => {
         render(<Harness paidFeatures="granted" />);
@@ -159,9 +170,9 @@ describe('RecipeVisibilityField (native)', () => {
         render(<Harness paidFeatures="granted" />);
         const theme = scheme === 'dark' ? roleDark : role;
 
-        expect(getComputedStyle(radio(v.public)).backgroundColor).toBe(rgb(theme.selectedFill));
-        expect(getComputedStyle(radio(v.private)).backgroundColor).toBe(rgb(theme.paper));
-        expect(getComputedStyle(radio(v.public)).minHeight).toBe('56px');
+        expect(resolvedColour(frameOf(v.public), 'backgroundColor')).toBe(rgb(theme.selectedFill));
+        expect(resolvedColour(frameOf(v.private), 'backgroundColor')).toBe(rgb(theme.paper));
+        expect(resolvedStyle(frameOf(v.public), 'minHeight')).toBe('56px');
     });
 
     it('a granted cook chooses Private, and back', () => {
@@ -516,8 +527,8 @@ describe('RecipeVisibilityField (native) - the passive line and the held note (A
 });
 
 /**
- * The designer's approval fixes. A Public card that cannot be chosen LOOKS unavailable (a muted border and a dimmed title, the
- * design system's disabled treatment) while its reason stays at the full secondary colour; and after the cook removes a saved
+ * The designer's approval fixes. A Public card that cannot be chosen LOOKS unavailable (a muted border and a muted title: the opaque muted role,
+ * no opacity, `colors.ts` rule 3) while its reason stays at the full secondary colour; and after the cook removes a saved
  * source, the screen-reader cursor goes to the group's first card, which reads the note.
  */
 describe('RecipeVisibilityField (native) - an unavailable Public card and the focus signal', () => {
@@ -536,28 +547,33 @@ describe('RecipeVisibilityField (native) - an unavailable Public card and the fo
     );
 
     it.each(['light', 'dark'] as const)(
-        '⛔ draws the held Public as unavailable in the %s scheme: a muted border, a dimmed title, the note at full strength',
+        '⛔ draws the held Public as unavailable in the %s scheme: a muted border, a muted title, no opacity, the note at full strength',
         (scheme) => {
             systemScheme.current = scheme;
             const theme = scheme === 'dark' ? roleDark : role;
             render(fieldWith({ publicHeld: true }));
 
-            expect(getComputedStyle(radio(v.public)).borderColor).toBe(rgb(theme.lineDivider));
+            expect(resolvedColour(frameOf(v.public), 'borderTopColor')).toBe(rgb(theme.lineDivider));
             // Private is the chosen card, so it keeps the selected edge.
-            expect(getComputedStyle(radio(v.private)).borderColor).toBe(rgb(theme.selectedEdge));
-            expect(getComputedStyle(screen.getByText(v.public)).opacity).toBe(String(dimmedOpacity));
-            expect(getComputedStyle(screen.getByText(v.private)).opacity).not.toBe(String(dimmedOpacity));
+            expect(resolvedColour(frameOf(v.private), 'borderTopColor')).toBe(rgb(theme.selectedEdge));
+            // The opaque muted role, never an alpha (`colors.ts` rule 3): the colour changes, the opacity does not.
+            expect(resolvedColour(screen.getByText(v.public), 'color')).toBe(rgb(theme.inkMuted));
+            expect(resolvedColour(screen.getByText(v.private), 'color')).toBe(rgb(theme.ink));
+            expect(resolvedStyle(frameOf(v.public), 'opacity')).not.toBe(String(dimmedOpacity));
+            expect(resolvedStyle(screen.getByText(v.public), 'opacity')).not.toBe(String(dimmedOpacity));
+            // Still unavailable to a screen reader, and still not natively disabled.
+            expect(handed.get(v.public)).toMatchObject({ disabled: true, nativelyDisabled: undefined });
             // The reason is the one thing on the card that must stay readable.
-            expect(getComputedStyle(screen.getByText(v.publicHeldBySource)).color).toBe(rgb(theme.inkMuted));
-            expect(getComputedStyle(screen.getByText(v.publicHeldBySource)).opacity).not.toBe(String(dimmedOpacity));
+            expect(resolvedColour(screen.getByText(v.publicHeldBySource), 'color')).toBe(rgb(theme.inkMuted));
+            expect(resolvedStyle(screen.getByText(v.publicHeldBySource), 'opacity')).not.toBe(String(dimmedOpacity));
         },
     );
 
     it('draws a Public that can be chosen at full strength', () => {
         render(fieldWith({}));
 
-        expect(getComputedStyle(radio(v.public)).borderColor).toBe(rgb(role.lineControl));
-        expect(getComputedStyle(screen.getByText(v.public)).opacity).not.toBe(String(dimmedOpacity));
+        expect(resolvedColour(frameOf(v.public), 'borderTopColor')).toBe(rgb(role.lineControl));
+        expect(resolvedColour(screen.getByText(v.public), 'color')).toBe(rgb(role.ink));
     });
 
     it("moves the screen-reader cursor to the group's first card when the signal advances", () => {

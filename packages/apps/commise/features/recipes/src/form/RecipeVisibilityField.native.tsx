@@ -5,25 +5,72 @@
  * the upsell instead of changing the value, and for a downgraded owner Public on a private recipe asks to confirm
  * (`onConfirmPublic`), its card saying beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5).
  *
- * Colours come from the theme at render, so both colour schemes paint (owner D15).
+ * Styled with Tamagui only (ADR-0080): the card is a themed frame inside the `Pressable` that owns the press and the
+ * accessibility, so both colour schemes paint from tokens (owner D15). An unavailable card takes the opaque muted role
+ * and no opacity (`colors.ts` rule 3), the one treatment the web leaf shares.
  *
  * @pattern Policy — `visibilityChoice` decides what a choice does; the paid-feature state only derives the badge, the
  *     note and that decision's input, it selects no second mode of the field
  */
 import { useMessages } from '@commise/i18n/react';
-import { nativeTokens } from '@commise/ui/native';
-import { dimmedOpacity } from '@commise/ui/scale';
+import { touchFloor } from '@commise/ui/layout';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { Text as UiText } from '@commise/ui/text';
-import { useTheme } from '@commise/ui/theme';
-import { touchFloor } from '@commise/ui/layout';
 import { RecipeVisibility as RecipeVisibilityValue, type RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, type View } from 'react-native';
+import { styled, XStack, YStack } from 'tamagui';
 
 import { heldVisibility } from '../actions/privateGate.js';
 import { editorMessages } from '../editor/messages.js';
-import { visibilityChoice, visibilityFieldOf, type RecipeVisibilityFieldProps } from './props.js';
+import {
+    visibilityChoice,
+    visibilityFieldOf,
+    type RecipeVisibilityFieldProps,
+    type VisibilityOption,
+} from './props.js';
+
+const Field = styled(YStack, { name: 'VisibilityField', gap: '$2' });
+const Cards = styled(YStack, { name: 'VisibilityCards', gap: '$2' });
+const Ways = styled(YStack, { name: 'VisibilityWays', gap: '$2', marginTop: '$1' });
+const OverLimit = styled(YStack, { name: 'VisibilityOverLimit', gap: '$1', alignItems: 'flex-start' });
+const Words = styled(YStack, { name: 'VisibilityWords', flex: 1, minWidth: 0 });
+
+/**
+ * A card's frame. The press and the accessibility are the `Pressable` around it. An unavailable card keeps the paper and
+ * takes the divider's edge, a muted one: the opaque role and no opacity, as its title does.
+ */
+const Card = styled(XStack, {
+    name: 'VisibilityCard',
+    minHeight: 56,
+    alignItems: 'center',
+    gap: '$3',
+    borderWidth: 1,
+    borderRadius: '$md',
+    paddingHorizontal: '$4',
+    paddingVertical: '$2',
+    backgroundColor: '$paper',
+    borderColor: '$lineControl',
+
+    variants: {
+        state: {
+            resting: {},
+            chosen: { backgroundColor: '$selectedFill', borderColor: '$selectedEdge' },
+            refused: { borderColor: '$lineDivider' },
+        },
+    } as const,
+
+    defaultVariants: { state: 'resting' },
+});
+
+/** A card's state: refused wins over chosen, as an unavailable card cannot be the one in force. Pure. */
+const cardStateOf = (option: VisibilityOption, chosen: boolean): 'refused' | 'chosen' | 'resting' => {
+    if (option.refused) {
+        return 'refused';
+    }
+
+    return chosen ? 'chosen' : 'resting';
+};
 
 /** "Who can see it": Public or Private. */
 export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
@@ -41,8 +88,6 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     focusSignal = 0,
 }) => {
     const { visibility: v } = useMessages(editorMessages);
-    const { colors } = useTheme();
-    const muted = colors.inkMuted;
     // A ref, for the reason `useScreenReaderFocusOnSignal` states: moving the reading cursor has no declarative form. It goes to
     // the Public card, not the group: a container that is not itself an accessibility element takes no cursor on iOS, and the
     // card reads its title and, when it is unavailable, the held note as its hint.
@@ -71,12 +116,12 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     };
 
     return (
-        <View style={styles.field}>
+        <Field>
             {/* The group is named by the same words; the visible legend is not read twice. */}
-            <Text aria-hidden style={[styles.legend, { color: muted }]}>
+            <UiText aria-hidden typeRole="label" color="$inkMuted">
                 {v.legend}
-            </Text>
-            <View collapsable={false} role="radiogroup" aria-label={v.legend} style={styles.cards}>
+            </UiText>
+            <Cards collapsable={false} role="radiogroup" aria-label={v.legend}>
                 {options.map((option) => {
                     const chosen = shown === option.value;
 
@@ -95,39 +140,27 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                             accessibilityLabel={option.refused ? option.title : undefined}
                             accessibilityHint={option.refused ? option.note : undefined}
                             onPress={() => choose(option.value)}
-                            style={[
-                                styles.card,
-                                {
-                                    backgroundColor: chosen ? colors.selectedFill : colors.paper,
-                                    // An unavailable card takes the divider's muted edge, as the design system's disabled option does.
-                                    borderColor: chosen
-                                        ? colors.selectedEdge
-                                        : option.refused
-                                          ? colors.lineDivider
-                                          : colors.lineControl,
-                                },
-                            ]}
                         >
-                            <View style={styles.words}>
-                                <Text
-                                    style={[
-                                        styles.title,
-                                        { color: colors.ink },
-                                        // Dimmed, as every unavailable control is; the reason below is not.
-                                        option.refused ? { opacity: dimmedOpacity } : null,
-                                    ]}
-                                >
-                                    {option.title}
-                                </Text>
-                                <Text style={[styles.hint, { color: muted }]}>{option.hint}</Text>
-                                {option.note === undefined ? null : (
-                                    <Text style={[styles.hint, { color: muted }]}>{option.note}</Text>
-                                )}
-                            </View>
+                            <Card state={cardStateOf(option, chosen)}>
+                                <Words>
+                                    {/* Muted, as every unavailable control is; the reason below keeps its colour. */}
+                                    <UiText typeRole="cardTitle" color={option.refused ? '$inkMuted' : '$ink'}>
+                                        {option.title}
+                                    </UiText>
+                                    <UiText typeRole="meta" color="$inkMuted">
+                                        {option.hint}
+                                    </UiText>
+                                    {option.note === undefined ? null : (
+                                        <UiText typeRole="meta" color="$inkMuted">
+                                            {option.note}
+                                        </UiText>
+                                    )}
+                                </Words>
+                            </Card>
                         </Pressable>
                     );
                 })}
-            </View>
+            </Cards>
             {confirmLine === undefined ? null : (
                 // ADR-0095: said before the cook chooses Public.
                 <UiText typeRole="meta" color="$inkMuted">
@@ -136,60 +169,46 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
             )}
             {slotsFull === undefined ? null : (
                 // ADR-0073: the refusal's ways forward. Premium is among them only where paid features are shown.
-                <View style={styles.ways}>
-                    <Text accessibilityRole="header" style={[styles.legend, { color: colors.ink }]}>
+                <Ways>
+                    <UiText role="heading" typeRole="label" color="$ink">
                         {slotsFull.title}
-                    </Text>
+                    </UiText>
                     {slotsFull.overLimit === undefined ? null : (
-                        <View style={styles.overLimit}>
-                            <Text style={[styles.hint, { color: muted }]}>{slotsFull.overLimit.text}</Text>
+                        <OverLimit>
+                            <UiText typeRole="meta" color="$inkMuted">
+                                {slotsFull.overLimit.text}
+                            </UiText>
                             {slotsFull.overLimit.premiumLink === undefined ? null : (
-                                <Pressable role="button" onPress={onPremiumRequired} style={styles.link}>
-                                    <Text style={[styles.linkText, { color: colors.action }]}>
-                                        {slotsFull.overLimit.premiumLink}
-                                    </Text>
+                                <Pressable role="button" onPress={onPremiumRequired}>
+                                    <YStack minHeight={touchFloor()} justifyContent="center">
+                                        <UiText typeRole="label" color="$action" textDecorationLine="underline">
+                                            {slotsFull.overLimit.premiumLink}
+                                        </UiText>
+                                    </YStack>
                                 </Pressable>
                             )}
-                        </View>
+                        </OverLimit>
                     )}
                     {slotsFull.ways.map((way) => (
                         <Pressable
                             key={way.id}
                             role="button"
                             onPress={way.id === 'premium' ? onPremiumRequired : onFreeASlot}
-                            style={[styles.card, { backgroundColor: colors.paper, borderColor: colors.lineControl }]}
                         >
-                            <View style={styles.words}>
-                                <Text style={[styles.title, { color: colors.ink }]}>{way.label}</Text>
-                                <Text style={[styles.hint, { color: muted }]}>{way.detail}</Text>
-                            </View>
+                            <Card>
+                                <Words>
+                                    <UiText typeRole="cardTitle" color="$ink">
+                                        {way.label}
+                                    </UiText>
+                                    <UiText typeRole="meta" color="$inkMuted">
+                                        {way.detail}
+                                    </UiText>
+                                </Words>
+                            </Card>
                         </Pressable>
                     ))}
-                </View>
+                </Ways>
             )}
-        </View>
+        </Field>
     );
 };
-
-const styles = StyleSheet.create({
-    field: { gap: nativeTokens.spacing[2] },
-    legend: nativeTokens.type.label,
-    cards: { gap: nativeTokens.spacing[2] },
-    overLimit: { gap: nativeTokens.spacing[1], alignItems: 'flex-start' },
-    link: { minHeight: touchFloor(), justifyContent: 'center' },
-    linkText: { ...nativeTokens.type.label, textDecorationLine: 'underline' },
-    ways: { gap: nativeTokens.spacing[2], marginTop: nativeTokens.spacing[1] },
-    card: {
-        minHeight: 56,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: nativeTokens.spacing[3],
-        borderWidth: 1,
-        borderRadius: nativeTokens.radius.md,
-        paddingHorizontal: nativeTokens.spacing[4],
-        paddingVertical: nativeTokens.spacing[2],
-    },
-    words: { flex: 1, minWidth: 0 },
-    title: nativeTokens.type.cardTitle,
-    hint: nativeTokens.type.meta,
-});

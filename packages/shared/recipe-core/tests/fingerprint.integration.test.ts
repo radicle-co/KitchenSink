@@ -5,15 +5,15 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { parseFingerprintKeyring } from '../src/stepWriting/fingerprintKeyring.js';
-import { keyedShingleHash } from '../src/stepWriting/nodeKeyedHash.js';
+import { parseFingerprintKeyring } from '@kitchensink/recipe-core/step-writing/fingerprint-keyring';
+import { keyedShingleHash } from '@kitchensink/recipe-core/step-writing/node-keyed-hash';
 import {
     containment,
     fingerprint,
     isFingerprintMismatchError,
     jaccard,
     type Fingerprint,
-} from '../src/stepWriting/wordShingles.js';
+} from '@kitchensink/recipe-core/step-writing/word-shingles';
 
 const SECRET = JSON.stringify({ current: 2, k1: 'k'.repeat(32), k2: 'm'.repeat(32) });
 const SOURCE = 'Cream the butter and sugar until pale. Beat in the eggs one at a time. Fold in the flour.';

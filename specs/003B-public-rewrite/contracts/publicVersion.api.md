@@ -20,12 +20,13 @@ offer:  PublicVersionOffer
 PublicVersionOffer =
           { kind: 'choice', credit: 'free' | 'paid' }
         | { kind: 'privateOnly', reason: 'paidRecent' | 'paidSignature' | 'publisherOptOut' | 'aiOptOut' | 'budget'
-                                | 'noSteps' | 'noSourceAddress' | 'switchOff',
+                                | 'noSteps' | 'noSourceAddress' | 'languageUnsupported' | 'switchOff',
                                 holdEndsOn?: string }
           // holdEndsOn is an ISO date, present only for paidRecent when the date is known.
           // A schema refine rejects holdEndsOn on any other reason.
           // Only a clearly read signal gives paidRecent, paidSignature, publisherOptOut or aiOptOut. An unknown signal
           // is never a reason: the offer is a choice (FR-012b).
+          // languageUnsupported: the source language has no registry entry, or could not be read (FR-012c).
           // 'under16' is not a reason: age is checked at Publish. Spec 016 adds it back.
         | { kind: 'publicExists', status: 'published' | 'writing' | 'inReview', recipeId: string | null }
           // one public version per source page (FR-034). recipeId is null until a recipe exists.

@@ -15,7 +15,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
   state gets a vitest component test. Every user story gets a Playwright spec (web) and a Maestro flow (mobile).
 - **Run only impacted e2e.** Use `npm run e2e:plan -- --base origin/main` and the root doors (`test:e2e:web`,
   `test:e2e:mobile`). Never start `playwright test` or `maestro test` by hand.
-- **Format**: `- [ ] Tnnn {slice} [P?] [Story?] Description with path`. The `{slice}` tag names the PR the task ships in: A1 to A7 (engine), B1 to B5 (paste and link import), P0 to P10 (server), P3b (age assurance), P12 (input door), P11 (editor routes, after #322), D0 (docs and ADRs), C2a and C2b (paste screens), U0a, U0b and U1 to U7 (choice UI), L0 and L1 (seed and launch) and L2 (after launch). `done` marks work already in the tree. `[P]` means a different file with no open dependency.
+- **Format**: `- [ ] Tnnn {slice} [P?] [Story?] Description with path`. The `{slice}` tag names the PR the task ships in: A1 to A7 (engine), A1b (Unicode tables, script check and skeleton fold), B1 to B5 (paste and link import), P0 to P10 (server), P3b (age assurance), P12 (input door), P11 (editor routes, after #322), D0 (docs and ADRs), C2a and C2b (paste screens), U0a, U0b and U1 to U7 (choice UI), L0 and L1 (seed and launch) and L2 (after launch). `done` marks work already in the tree. `[P]` means a different file with no open dependency.
 - **Owner rulings that override the docs**: no Anthropic model anywhere (Bedrock non-Anthropic only); no facts cards;
   no caps of any kind; a link import fetches on the device first and the server second, and the server never fetches
   a known paid site (the cook is asked to paste); one public version per source page; one import allowance for every
@@ -65,6 +65,9 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 - [ ] T013 {A4} [P] Unit test: `rewriteSteps(sheet, writer, wording)` outcomes (ok, checkRefused with a category, unreadable) with a fake writer, and no fetch in the engine, in `RC/stepWriting/__tests__/rewriteSteps.test.ts`.
 - [ ] T014 {A4} [P] Unit test: content digest is stable across whitespace and order in `RC/stepWriting/__tests__/contentDigest.test.ts`.
 - [ ] T015 {A5} [P] Unit test: the banned-word module is the only list, and a copy guard over `importMessages.choice.*` and `recipes.flowSteps.*` imports it, in `packages/tools/repoGuards/__tests__/bannedWordsCopy.test.ts` (fails until the strings exist, so start it with the module itself).
+- [ ] T166 {A1b} [P] Unit test (fail first): the generated confusables and Script_Extensions tables carry one pinned Unicode version and the hash of each source file, and a regeneration gives no diff; `mixedScriptWords` flags a Latin word with one Cyrillic letter and passes "Bibimbap (비빔밥)", "食べる", "350°F" and "½" (Han with Hiragana and Katakana, Han with Hangul and Han with Bopomofo count as one script); two words that differ only by confusable letters have the same skeleton in the fold; word shingles use the platform segmenter, in `RC/text/__tests__/`.
+- [ ] T167 {A3} [P] Unit test: every key of the one `STEP_LANGUAGES` registry holds all its parts (scripts, sentence-end rule, segmentation locale, prompt with its pin, fact lexicon, wording limits, title limits), `OutputLanguage` is the key type, and the facts door refuses a sheet whose language has no entry.
+- [ ] T168 {A2} [P] Unit test: the fact sheet reads its verbs, equipment, safety words, time and temperature units and number words from the language entry it is given, and refuses a language with no entry.
 
 ### Implementation
 
@@ -73,6 +76,10 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 - [ ] T018 {A3} Implement `RC/stepWriting/stepAnswer.ts` (zod, data only).
 - [ ] T019 {A4} Implement `RC/stepWriting/factCheck.ts` (multiset, whole recipe, no model judge).
 - [ ] T020 {A1} Implement `RC/stepWriting/wordShingles.ts`: keyed versioned hash, sets API, `jaccard`, `containment`. Each consumer owns its threshold.
+- [ ] T169 {A1b} Add `scripts/generateUnicodeTables.ts` in `RC`. It generates the confusables table and the Script_Extensions table from Unicode's own data files, pinned to one Unicode version, with the source file hashes in each generated file's header. The confusables table is a server-only subpath export. It lands before P4, because the fingerprint format v1 includes the skeleton.
+- [ ] T170 {A1b} Implement `RC/text/scriptMix.ts` (`mixedScriptWords`, words split by the platform segmenter; check the mobile runtime has it), the skeleton step in `comparisonForm`, and word shingles on the same segmenter.
+- [ ] T171 {A3} Follow-up to the answer and facts doors: make the output language the key type of one `STEP_LANGUAGES` registry (scripts, sentence-end rule, segmentation locale, prompt and its pin, fact lexicon, wording limits, title limits). The per-language alphabet registry folds into it. Adding a language is its own PR after the model pin, with its golden tests.
+- [ ] T172 {A2} Follow-up: move the facts lexicon into the English entry of the registry, so the fact sheet takes the lexicon of the recipe's language.
 - [ ] T021 {A4} Implement `RC/stepWriting/contentDigest.ts` and `RC/stepWriting/rewriteSteps.ts`.
 - [ ] T022 {A5} Implement `RC/copy/bannedWords.ts` and move the comment beside `editor.source.rightsLabel` in `FR/editor/messages.ts` to import it.
 - [ ] T023 {A1-A4} Add subpath exports for each engine module in `RC/../package.json` (as `parsing/parse-prompt` does). No barrel files.
@@ -88,11 +95,13 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 - [ ] T026 {P1} LOCAL e2e (write first, watch it fail): migrated schema has `recipe_source_records` and `public_version_jobs`, the new columns on `recipes` and the import item, and the widened CHECKs, in `packages/services/recipe-service/tests/e2e/publicVersionMigration.e2e.test.ts`. (needs #301)
 - [ ] T027 {P1} LOCAL e2e: partial `UNIQUE (source_page_key)` rejects a second public version of one page; `UNIQUE (page_key)` on live jobs rejects a second live job; the key is released on delete, 020 rejection and opt-out, and held while hidden by a report, in the same file.
 - [ ] T028 {P1} LOCAL e2e: `recipe_source_records` is append-only for every role (trigger), has no cook id, and survives deletion of the recipe; the job table cascades and is covered by erasure, in the same file.
+- [ ] T173 {P1} LOCAL e2e (write first, watch it fail): `recipe_source_records.language` exists, is nullable, and accepts only a two-letter lower-case code, in the same file as T026.
 - [ ] T029 {P1} Write migration `00NN_public_versions.sql`: `recipe_source_records`, `public_version_jobs`, `recipes.source_record_id` and `recipes.source_page_key`, and the import item `choice`. CHECKs inline only on new tables, `NOT VALID` on existing ones. In `RS/database/migrations/`.
 - [ ] T030 {P1} Write the `_validate` twin migration with the matching `VALIDATE CONSTRAINT` statements.
 - [ ] T031 {P1} Add Drizzle schema files `RS/database/schema/recipeSourceRecords.ts` and `RS/database/schema/publicVersionJobs.ts`, and the new `recipes` columns.
 - [ ] T032 {P1} Add `public_version_jobs` to `erasureSweepCoverage`, and `recipe_source_records` to `RETAINED_BY_RULING` with its reason. Add the job table to the test-principal purge and the 7-day retention sweeper (`RW/handlers/retentionSweeper.ts`).
 - [ ] T033 {P1} Add `NOT VALID` then `VALIDATE` pair and the `importSchemaParity` update for the item `choice` column. Run the guards (`npm run test` for repoGuards) and fix any parity failure.
+- [ ] T174 {P1} Add the nullable `language` column (ISO 639-1) to `recipe_source_records` in the migration pair and the Drizzle schema.
 - [ ] T151 {P0} Test first: unit tests that `rightsLabelOf` gives "Steps written by Commise" and `licenceOf` gives `cc-by-sa-4.0` for `commise_written` and for no other source type, in `RC/__tests__/rightsLabel.test.ts`; and a LOCAL e2e that the migrated schema accepts `source_type = 'commise_written'` with no `source_kind` and no `statement_kind`, and refuses it with a `source_kind`, in `packages/services/recipe-service/tests/e2e/commiseWrittenSourceType.e2e.test.ts`.
 - [ ] T152 {P0} Add `commise_written` to the source types: every exhaustive switch over the source type, `RC/rightsLabel.ts` (`rightsLabelOf` and `licenceOf`, derived from `source_type`, no column), and the expand-only migration pair that widens the existing `source_type` CHECKs (`NOT VALID`, then `VALIDATE`). It cannot be declared by a cook.
 
@@ -105,6 +114,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 - [ ] T034 {P3} [P] [US6] Unit test: `classifySource` allowlist (own claimed site with a live claim, honoured licence read from structured data, curator public domain, listed US federal publisher), every unknown open-test input reads third-party, an unread paid, opt-out or signature signal reads `unknown`, CC BY-NC is not open, `.gov` alone is not open, an aggregator is third-party, in `RS/import/domain/__tests__/sourceClassification.test.ts`.
 - [ ] T035 {P3} [P] [US2] Unit test: `paidPublicEligibility` (stated publisher opt-out, clearly read signature recipe, age against `PAID_CONTENT_HOLD_MONTHS`, undated page counted from the first import; an unread paywall, opt-out or signature signal returns `unknown`, never a hold), returns `allowed`, `unknown` or one reason, with boundary cases at the hold edge, in `RS/import/domain/__tests__/paidPublicEligibility.test.ts`.
 - [ ] T036 {P3} [P] [US1] Unit test: the offer Specification maps every case of the contract's `offer` union (choice free and paid, an `unknown` paid, opt-out or signature signal giving a choice with `credit.written` only and never `privateOnly`, each `privateOnly` reason with `holdEndsOn` only for a known `paidRecent` date, `publicExists` with status `published`, `writing` and `inReview`, `publicOnly`, `deadEnd` `paid` and `noWrite`) and the server alone computes it, in `RS/import/publicVersion/__tests__/offer.test.ts`.
+- [ ] T175 {P3} [P] [US1] Unit test: a recipe whose source language is null, or has no registry entry, gets `{ kind: 'privateOnly', reason: 'languageUnsupported' }`, and a language with an entry is unaffected, in the offer Specification's test file.
 - [ ] T037 {P8} [P] [US5] Unit test: wording guard decides on a stored fingerprint; stale key version re-checks with the old key, then a missing key version answers `checkUnavailable` and raises an alarm; a save that makes the version private runs no check; at Publish a missing key version gives `rewriteNeeded` (`rewriteNeeded.body`); title equality and 2-word shingles, in `RS/recipes/domain/__tests__/publicVersionWordingGuard.test.ts`.
 - [ ] T038 {P6} [P] [US1] Unit test: job state transitions of the data model (every edge, and no write outside `pending` or `writing` after `cancelled`), in `RS/import/publicVersion/__tests__/jobState.test.ts`.
 - [ ] T039 {P6} [US1] Integration test (database mocked): choice to job; a second call returns the same job; `409 publicExists`; `409 offerChanged` when the sent `shownOffer` differs from the offer computed now on the fields the contract compares per kind (not `holdEndsOn`, not `recipeId`), on start and on publish; the offer excludes the caller's own live job; `409 publicExists` wins over `offerChanged` when another cook's version holds the page; no allowance unit spent; 404 for another cook's job, in `packages/services/recipe-service/tests/publicVersion.integration.test.ts`.
@@ -120,6 +130,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 - [ ] T145 {P10} [P] [US3] Integration test (database mocked): `GET /api/v1/recipes/{id}/public-version/offer` returns `200 { offer }` to the owner and `404` for another cook's recipe, a missing recipe and a recipe with no source record; the recipe read carries `hasSourceRecord` for the owner only; Start on the later route answers `409 offerChanged` when the offer differs from the shown one, and writes no allowance row (neither does an import-path job); in `packages/services/recipe-service/tests/publicVersionOffer.integration.test.ts`.
 - [ ] T156 {P2} [P] Unit test: fingerprint key custody reads every key version, caches with a short TTL, and reports a missing or unreadable version as a typed error; and a CDK synth test that the keyring secret is retained in prod and granted by name, in `RS/import/publicVersion/__tests__/fingerprintKey.test.ts` and `packages/services/recipe-service/infra/__tests__/RecipeSchemaStack.test.ts`.
 - [ ] T157 {P4} [P] Unit and integration tests (database mocked): the source-record write stores the classification inputs, the 5-shingle step fingerprint, the 2-shingle title fingerprint, the format and key versions, `page_key` and `published_on`, in the same transaction as the item save or job creation, in `RS/import/publicVersion/__tests__/sourceRecords.dal.test.ts` and `packages/services/recipe-service/tests/sourceRecords.integration.test.ts`.
+- [ ] T177 {P4} [P] Unit and integration tests (database mocked): language detection takes the page's declared language first (`evidence.page.language`), then a language detector run on the steps text only and limited to the languages that have entries, and otherwise gives no language. The result is stored on the source record.
 - [ ] T158 {P10} [P] Unit test and CDK synth test: the rate alarm counts public versions per source over 24 hours from configuration and never blocks, and its alarm resource exists with the configured threshold, in `RS/import/publicVersion/__tests__/publicVersionRate.test.ts`.
 
 ### Implementation
@@ -127,10 +138,12 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 - [ ] T048 {P3} Implement `RS/import/domain/sourceClassification.ts` (`classifySource`, `paidPublicEligibility`, pure, fail closed). The paid list, honoured-licence list and federal-publisher list are injected as data ports. `@pattern Specification`.
 - [ ] T049 {P3} Implement the one `PAID_CONTENT_HOLD_MONTHS` constant (6) in `RC/sourceRules.ts`, defined once and configurable.
 - [ ] T050 {P3} Implement the offer Specification and the item read fields (`source`, `offer`) in `RS/import/publicVersion/offer.ts` and the import view builder (`RS/import/importView.builder.ts`).
+- [ ] T176 {P3} Add `languageUnsupported` to the `privateOnly` reasons of the offer schema and the offer Specification, and its copy row `privateOnly.language`.
 - [ ] T051 {P4} Implement `RS/import/publicVersion/publicVersionJob.dal.ts` and `sourceRecords.dal.ts` (insert and read only for the records).
 - [ ] T052 {P7} Implement the title builder (`RS/import/publicVersion/titleBuilder.ts`) from the facts sheet, with no model call and never the source title.
 - [ ] T053 {P2} Implement the fingerprint key custody: Secrets Manager read with versions, a cache with a short TTL, and a missing key version reported as `checkUnavailable` on a later save and as `rewriteNeeded` at Publish. In `RS/import/publicVersion/fingerprintKey.ts`.
 - [ ] T054 {P4} Implement the source-record write (classification inputs, fingerprint of steps and title, format and key version, `page_key`, `published_on`) in the same transaction as the item save or job creation. (needs #301)
+- [ ] T178 {P4} Implement the server-side language detection (declared language, then a detector on the steps text limited to the registry's languages, else unsupported) and store `language` in the source-record write.
 - [ ] T055 {P6} Implement `RS/import/publicVersion/publicVersion.service.ts`: start (import path and the later route), read, cancel, Publish Command through `RecipesService.create`, with the `publishAgeAllowed` check at Publish only (`403 ageConfirmNeeded`) the Publish confirmation row (wording `publicVersionConfirm.v1`), and the page-key idempotency.
 - [ ] T056 {P8} Implement `RS/recipes/domain/publicVersionWordingGuard.ts` and call it inside `RecipesService.update` and version restore for any recipe with a `source_page_key`. A missing key version answers a retryable `503 checkUnavailable` and raises an alarm. A save that makes the version private skips the check.
 - [ ] T057 {P8} Implement the page-key release in the delete, 020 rejection and opt-out transactions (FR-034a).
@@ -149,6 +162,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 ### Tests first
 
 - [ ] T063 {P5} [P] [US3] Worker test: ceiling denial ends `budgetSpent`, refunds in full, and acks (no redelivery); an unreadable counter retries; a late result after `cancelled` is dropped; a 10-minute job ends `failed`; at most 3 calls per item; a deleted private copy mid-job is discarded; in `RW/handlers/__tests__/publicVersionWorker.test.ts`.
+- [ ] T179 {P5} [P] Worker test: the worker selects the registry entry by the source record's language, and a job whose language has no entry ends without calling the writer.
 - [ ] T064 {P5} [P] [US1] Worker test: the facts snapshot and output are set to NULL at any terminal state, and the writer prompt holds facts only (no source wording, address, title or headnote), in the same file.
 - [ ] T065 {P5} [P] Unit test: `createGatedStepWriter` selects a non-Anthropic model and refuses an Anthropic model id, in `RW/stepWriting/__tests__/gatedStepWriter.test.ts`.
 - [ ] T066 {P5} [P] Guard test updates (fail first): `SPEND_CALL_SITES` gains `import-public-rewrite`, `llmSpendGuards` still shows one Bedrock grantee, `natEgressConsumers` lists the new Lambda, in `packages/tools/repoGuards/__tests__/` and `RW/__tests__/`.
@@ -158,6 +172,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 
 - [ ] T068 {P5} Implement `RW/stepWriting/gatedStepWriter.ts` (Template Method over `gatedConverse`, terminal `budgetSpent` override as 004-FR-059). `@pattern Adapter`.
 - [ ] T069 {P5} Implement `RW/handlers/publicVersionWorker.ts` with the state edges of the data model and the single claim.
+- [ ] T180 {P5} Select the language entry (prompt, lexicon, limits) in the worker from the source record's language.
 - [ ] T070 {P5} Add the call site `import-public-rewrite` to `SPEND_CALL_SITES` in the shared spend module (`RC/spend/`), operating cost, never charged to a cook's uses.
 - [ ] T071 {P5} Add the Lambda, queue, DLQ, reserved concurrency and the NAT row to `packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts` and to ADR-0004's `nat-consumers` table.
 - [ ] T072 {D0} Amend ADR-0024 §3 with the third no-retry path (done in the feature ADR of Phase 0; link it here).
@@ -179,6 +194,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 
 - [ ] T077 {B1} [P] Unit test: `sourceLinkKey` (fragment and `utm_*` removed, normalised) is one pure function in `RC/sourceLink.ts`, the single key that replaces #301's `sourceKeyOf` (that function moves here and `RS/recipes/domain/sourceEvidence.ts` imports it); a paste with no detected address has no key, in `RC/__tests__/sourceLink.test.ts`.
 - [ ] T078 {B2} [P] Unit test: admission reads a source hint through `parseSourceLink`, keeps only a usable public web link, sets kind `paid_site` and suggests the paid label for a domain in the paid-site list, in `RS/import/__tests__/importEvidenceAdmission.test.ts`. (needs #301)
+- [ ] T181 {B2} [P] Unit test: admission carries the page's declared language (the page `lang` or JSON-LD `inLanguage`) on the import evidence as `evidence.page.language`, and leaves it empty when the page declares none.
 - [ ] T079 {B3} [P] Unit test: the ordered `needs` list (`importItemIssueOf`, `importSaveGap`) gives statement and attestation rows per item in one order, in `RS/import/__tests__/importNeeds.test.ts`. (needs #301)
 - [x] T080 {done} [P] Unit test: the one import allowance counts every user-facing import (paste, link, file, button) once per item, a test principal has no limit, in `RS/import/__tests__/importAllowance.test.ts`. Done: the allowance already takes the principal kind, so test principals are unlimited.
 - [ ] T081 {B3} Integration test (database mocked): a paste item with evidence on the import save route saves an evidence row in the same transaction, in `packages/services/recipe-service/tests/importPaste.integration.test.ts`. (needs #301)
@@ -192,6 +208,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 ### Implementation
 
 - [ ] T084 {B2} Add the three source lists as data (the `recipe_source_lists` table: one row per list and value, with the lists `paidSite`, `federalPublisher` and `honouredLicence`) in a migration pair, and inject them into `classifySource` (Phase 3). The paid-site and federal-publisher lists are seeded only after the owner approves them (FR-012b).
+- [ ] T182 {B2} Implement `evidence.page.language` in the evidence schema and the admission step.
 - [ ] T085 {B3} Extend the import item schema and `RS/recipes/import.schema.ts` with the evidence part, the per-item statement and attestation fields, and the source-page key; run `contract:generate`. (needs #301)
 - [ ] T086 {B4} Implement the duplicate lookup `GET /api/v1/import/copies` (indexed on the cook and `source_key`) in `RS/import/import.controller.ts`, with the response shape of the contract: `everPublished` from `first_published_at` (never from status), and `total` counting every copy of the page the cook holds, from the same query.
 - [ ] T087 {B4} Implement Replace as a new version of the same recipe through `RecipesService.update` with an `afterWrite` that claims the item inside the version-checked transaction. (needs #301)
@@ -292,7 +309,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 
 ## Dependencies and order
 
-- Phase 0 gates everything. Phase 1 gates 3, 4 and 5. Phase 2 gates 3 and 4. Phases 3 and 4 can overlap after 1 and 2
+- Phase 0 gates everything. Phase 1 gates 3, 4 and 5. A1b lands before P4. Phase 2 gates 3 and 4. Phases 3 and 4 can overlap after 1 and 2
   (the worker needs the job table and the call site, the service needs the engine).
 - Phase 5 needs Phase 4 and can overlap Phase 6. 003B cannot launch until Phase 5 is done.
 - Phase 6 needs PR #301 and the source-page key from Phases 2 and 3. Phase 7 needs the contract from Phases 3 and 6.

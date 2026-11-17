@@ -95,7 +95,7 @@ the same fact).
 
 | Part                                                                          | Location                                                                |
 | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Fact sheet, closed verb/equipment/safety lexicons                             | `packages/shared/recipe-core/src/stepWriting/factsSheet.ts`             |
+| Fact sheet; the lexicons live in the language entry                           | `packages/shared/recipe-core/src/stepWriting/factsSheet.ts`             |
 | Prompt builder + pinned system prompt                                         | `…/stepWriting/stepPrompt.ts`                                           |
 | Answer parser (zod, data only)                                                | `…/stepWriting/stepAnswer.ts`                                           |
 | Two-way fact check                                                            | `…/stepWriting/factCheck.ts`                                            |

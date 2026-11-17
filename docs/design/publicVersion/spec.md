@@ -35,7 +35,7 @@ Settled before this spec. It specifies them and does not reopen them.
 | V7  | The credit discloses AI: `Steps written by Commise with AI, checked by {cook}.` A free site adds the domain line. A paid site names no site.                                                              | 003B agent notes, copy v3     |
 | V8  | The dead end shows the free ways out first, then Pro with its real terms. "Upgrade to Pro" opens the payment page at Pro, with both billing periods shown and neither chosen. "Not now" is the same size. | 003B `FR-073`, `FR-074`       |
 | V9  | With 010's switch off, or `account.paidFeatures = hidden`, no paid plan is named: the dead end has one "Close" button.                                                                                    | 003B `FR-075`, 010 `FR-042j`  |
-| V10 | Publishing is for cooks 16 or over. The app asks once, at the first Publish.                                                                                                                              | 003B `FR-016`, copy v3        |
+| V10 | Publishing is for cooks 16 or over. The app asks when Publish answers `403 ageConfirmNeeded` (X7).                                                                                                        | 003B `FR-016`, copy v3        |
 | V11 | Every state ships on web and mobile in the same release.                                                                                                                                                  | 003B `FR-091`                 |
 | V12 | The paste spec's sizes hold: web 1280 with breakpoints 1024 and 768, and web below 840 behaves like a phone (paste D14).                                                                                  | Paste spec D14, owner P5      |
 
@@ -51,7 +51,7 @@ touching the wire.
 | S3  | After a choice of "For everyone" or "Both", the group shows the credit of the public version. It shows `creditPreview.label` (new), then `credit.written`. A free site adds `credit.basedOn`.                                                                                                                                                                      | The cook sees their name on a public page before they commit to it. It is also the only visible difference between the two `credit` offers at the choice.                          |
 | S4  | A `privateOnly` or `publicExists` state uses the heading "Who can see it" (reuse). Its one line follows. On Free, the slot line `private.hint` comes last.                                                                                                                                                                                                         | The slot count is still true and still useful. Reusing the heading keeps one block in one place on the page.                                                                       |
 | S5  | `publicExists.published` adds a link (`publicExists.link`, new, §7.2). It opens the public version in the same tab, and Back returns to the review with nothing lost.                                                                                                                                                                                              | The copy names the action but gives it no key of its own.                                                                                                                          |
-| S6  | `publicExists` for a Free cook with no slot left shows the line and the link, then the dead end (§6.5), with no "Save my copy".                                                                                                                                                                                                                                    | Nothing can be saved, so it is the dead end with one extra line. The 003B state table shows `publicExists.*` and then the dead end (C-28 open).                                    |
+| S6  | `publicExists` for a Free cook with no slot left shows the line and the link, with no "Save my copy" and no dead end (C-28).                                                                                                                                                                                                                                       | A public version never uses a private slot, so the cook can open it and nothing else is offered. 003B C-28 rules this.                                                             |
 | S7  | The writing wait, the public version review and the refusals are their own pushed page (P7 and P8), entered from P5. P5 stays under them in history. On success P8 is replaced by recipe detail.                                                                                                                                                                   | Same as paste: Back from the recipe never lands in a finished flow.                                                                                                                |
 | S8  | The dead end replaces P5's content with one column: the recipe title, the notice, the plan card, `notNow.note` and the two buttons. The ingredient lines are not shown.                                                                                                                                                                                            | Nothing can be saved, so the lines are noise. One column reads like a plan page.                                                                                                   |
 | S9  | The plan card shows both prices as two equal figures ("$9.99 a month" and "$99.99 a year"), with `pro.saving` under them. Neither is a control. The payment page shows both periods with neither selected.                                                                                                                                                         | "Neither chosen" holds without a selector the cook must operate before Upgrade. A selector here is a second place to choose a period. The payment page already owns that choice.   |
@@ -63,17 +63,18 @@ touching the wire.
 
 ### 0.2 Input conflicts, rulings for the 003B lead
 
-These are differences between the inputs. Each has a ruling and this spec follows it. The 003B lead applied X1 to X4 and X6 on 2026-11-17
+These are differences between the inputs. Each has a ruling and this spec follows it. The 003B lead applies X1 to X4, X6 and X7
 to the 003B state table, the contract and research.
 
-| #   | Conflict                                                                                                                                                                                                                                                                                    | Ruling                                                                                                                                                                                                                                                                  |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| X1  | 003B's state table uses `exists.*`, `paid.*`, `optOut.line`, `review.credit`, `review.creditPaid`, `deadEnd.bodyNoWrite` and `deadEnd.bodyPaid`. Copy v3 replaces them with `publicExists.*`, `privateOnly.*`, `credit.written`, `credit.basedOn` and `deadEnd.body`, and deletes `paid.*`. | The 003B table and contract are to use the v3 keys. The 003B lead applied 2026-11-17.                                                                                                                                                                                   |
-| X2  | The contract's `privateOnly` reasons list `optOut` twice and have no `aiOptOut` or `noSourceAddress`.                                                                                                                                                                                       | The contract is to use the reasons `paidRecent`, `paidSignature`, `publisherOptOut`, `aiOptOut`, `budget`, `noSteps`, `noSourceAddress` and `switchOff`. `paidRecent` carries `holdEndsOn`, which fills `{date}`. Applied 2026-11-17. `under16` is not a reason (C-17). |
-| X3  | The contract lists `publicPending` and `publicReview` as `privateOnly` reasons. Copy v3 shows the same situations as `publicExists` states `writing` and `inReview`.                                                                                                                        | The contract is to make `publicExists.status` one of `published`, `writing` or `inReview`, with `recipeId` when there is one, and to remove `publicPending` and `publicReview`. The 003B lead applied 2026-11-17.                                                       |
-| X4  | The 003B state table has `hidden.owner.*`, `hidden.superseded` and `hidden.reader`. Copy v3 has `publicPage.hiddenOwner` and `publicPage.hiddenReader`, and no superseded line.                                                                                                             | The 003B table is to use `publicPage.hiddenOwner` and `publicPage.hiddenReader`. They are out of this spec's boards (recipe detail) and belong to the detail spec. The 003B lead applied 2026-11-17.                                                                    |
-| X5  | The brief named the mobile phone size 402. The mobile canvas's existing boards are Iphone390 and Android384.                                                                                                                                                                                | Phone boards are drawn at 390. §12.2 uses Iphone390, Android384, Ipad834 and Ipad1194.                                                                                                                                                                                  |
-| X6  | 003B FR-050a gives `blocked.rewrite` as the button label "Write it again". 003B research R8 gives it as a sentence.                                                                                                                                                                         | This spec follows the copy: the blocked state shows `blocked.body` with the `flag.rewrite` "Write it again" button and `review.notNow`. `rewriteNeeded.body` is the separate rewriteNeeded offer. Applied 2026-11-17.                                                   |
+| #   | Conflict                                                                                                                                                                                                                                                                                    | Ruling                                                                                                                                                                                                                                                                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| X1  | 003B's state table uses `exists.*`, `paid.*`, `optOut.line`, `review.credit`, `review.creditPaid`, `deadEnd.bodyNoWrite` and `deadEnd.bodyPaid`. Copy v3 replaces them with `publicExists.*`, `privateOnly.*`, `credit.written`, `credit.basedOn` and `deadEnd.body`, and deletes `paid.*`. | The 003B table and contract are to use the v3 keys. The 003B lead applies this.                                                                                                                                                                                                                                                                                         |
+| X2  | The contract's `privateOnly` reasons list `optOut` twice and have no `aiOptOut` or `noSourceAddress`.                                                                                                                                                                                       | The contract is to use the reasons `paidRecent`, `paidSignature`, `publisherOptOut`, `aiOptOut`, `budget`, `noSteps`, `noSourceAddress` and `switchOff`. `paidRecent` carries `holdEndsOn`, which fills `{date}`. The 003B lead applies this.                                                                                                                           |
+| X3  | The contract lists `publicPending` and `publicReview` as `privateOnly` reasons. Copy v3 shows the same situations as `publicExists` states `writing` and `inReview`.                                                                                                                        | The contract is to make `publicExists.status` one of `published`, `writing` or `inReview`, with `recipeId` when there is one, and to remove `publicPending` and `publicReview`. The 003B lead applies this.                                                                                                                                                             |
+| X4  | The 003B state table has `hidden.owner.*`, `hidden.superseded` and `hidden.reader`. Copy v3 has `publicPage.hiddenOwner` and `publicPage.hiddenReader`, and no superseded line.                                                                                                             | The 003B table is to use `publicPage.hiddenOwner` and `publicPage.hiddenReader`. They are out of this spec's boards (recipe detail) and belong to the detail spec. The 003B lead applies this.                                                                                                                                                                          |
+| X5  | The brief named the mobile phone size 402. The mobile canvas's existing boards are Iphone390 and Android384.                                                                                                                                                                                | Phone boards are drawn at 390. §12.2 uses Iphone390, Android384, Ipad834 and Ipad1194.                                                                                                                                                                                                                                                                                  |
+| X6  | 003B FR-050a gives `blocked.rewrite` as the button label "Write it again". 003B research R8 gives it as a sentence.                                                                                                                                                                         | This spec follows the copy: the blocked state shows `blocked.body` with the `flag.rewrite` "Write it again" button and `review.notNow`. `rewriteNeeded.body` is the separate rewriteNeeded offer. The 003B lead aligns FR-050a and R8 to that.                                                                                                                          |
+| X7  | The contract's `privateOnly` reasons include `under16`. X2's list drops it.                                                                                                                                                                                                                 | `under16` is not a `privateOnly` reason until spec 016 ships a real age check, because nothing can produce it. The age is asked when the cook presses Publish: the server answers `403 ageConfirmNeeded` and the `ageConfirm.v1` dialog opens (screen P10 in this spec). The 003B lead amends FR-016, C-17, `plan.md` and the contract (ruling on PR #343, 2026-11-17). |
 
 `offerChanged` comes from a server `409` with the body `{ code: 'offerChanged', offer }`, on the start-job and the
 publish requests. The client re-renders the visibility area from that `offer` (§5.2).
@@ -97,10 +98,10 @@ choice says it in the hint of each option, and the credit preview shows the cook
 
 ```
 P5 Review (paste spec) ── visibility area = offer ──┬─ choice ─ Continue ─┬─ Just for me ─────────────► P6 Recipe detail (private)
-                                                     │                     ├─ For everyone ─► P7 Writing ─► P8 Review ─ Publish ─► [P10 age, first time] ─► P6 Recipe detail (public)
+                                                     │                     ├─ For everyone ─► P7 Writing ─► P8 Review ─ Publish ─► [P10 on 403] ─► P6 Recipe detail (public)
                                                      │                     └─ Both ─ (copy saved) ─► P7 Writing ─► P8 Review ─ Publish ─► … ─► P6 (private copy, with link)
                                                      ├─ privateOnly ─ Save my copy ─► P6 (private)
-                                                     ├─ publicExists ─ Save my copy ─► P6 (private)       (no slot: dead end)
+                                                     ├─ publicExists ─ Save my copy ─► P6 (private)       (no slot: no button)
                                                      ├─ publicOnly ─ Write the public version ─► P7 ─► P8 ─► …
                                                      └─ deadEnd ─► P9 Dead end ─ Upgrade to Pro ─► the payment page (modal) ─► back to P5, choice open
                                                                                 └─ Not now / Close ─► import ends, nothing saved
@@ -175,12 +176,9 @@ two buttons sit in one row, equal width, Upgrade first. Below 840 they stack, eq
 
 ### 3.5 P6 Recipe detail (B9)
 
-Unchanged layout. Under the badge row:
-
-- **Private copy:** `editor.source.rightsLabel` (paste spec §7.4). A page that names an author adds
-  `editor.source.authorLabel`. On the Both path, the link `done.linkPublic` follows.
-- **Public version:** `credit.written`, `credit.basedOn` (free site), `review.licence`, the owner-only link
-  `done.linkPrivate` on the Both path, then `publicPage.report`. Never `rightsLabel`.
+Unchanged layout. The credit block under the badge row, for the private copy and the public version, is owned by
+`docs/design/publicVersion/detailSpec.md` §1. The cook landing here is the owner, and an owner never sees "Report a
+problem" (detailSpec D2).
 
 ---
 
@@ -203,7 +201,7 @@ Unchanged layout. Under the badge row:
 | Dead end buttons         | One row, equal width, Upgrade first                                        | Stacked, equal width, Upgrade at the bottom                                                                                               | moved       | Reach. "Upgrade to Pro" and "Not now" never wrap at full width                                                                            |
 | Plan prices              | Two figures in one row                                                     | Same, wrapping as units below 360                                                                                                         | kept        | "$99.99" never breaks inside the figure                                                                                                   |
 | Upgrade                  | Opens the subscription page as a modal at Pro's payment page (010 FR-042a) | Opens the store purchase sheet for Pro, both periods shown, neither chosen                                                                | translated  | The store owns the payment page on mobile                                                                                                 |
-| Age question             | Centred dialog, buttons in one row, equal                                  | Centred blocking dialog on every size. On phones the buttons are stacked, equal, "I'm 16 or over" at the bottom                           | moved       | Reach                                                                                                                                     |
+| Age question             | Centred dialog, buttons in one row, equal                                  | Centred blocking dialog on every size. On phones the buttons are stacked, equal, "I’m 16 or over" at the bottom                           | moved       | Reach                                                                                                                                     |
 | Live announcements       | One polite `LiveRegion`                                                    | `AccessibilityInfo.announceForAccessibility` through the same `LiveRegion` primitive                                                      | kept        |                                                                                                                                           |
 
 **Primary action per platform.** Below 840 on web and on phones, the primary sits at the bottom, full width (thumb zone,
@@ -222,7 +220,7 @@ treat each row as one radio.
 | Radio hint                 | `public.hint` (about 170)                   | Wraps, no limit                                                                                       |
 | Review not-now action      | "Keep it just for me" (19)                  | Full-width ghost below 840. In the 320 column it fits                                                 |
 | Dead end buttons           | "Upgrade to Pro" (14)                       | Equal width. Wrap to 2 lines, never truncate                                                          |
-| Age question buttons       | "I'm 16 or over" (14)                       | Equal width. Stacked on phones                                                                        |
+| Age question buttons       | "I’m 16 or over" (14)                       | Equal width. Stacked on phones                                                                        |
 | Prices                     | "$99.99" (and long currencies: "CHF 99.90") | One figure never breaks. The two figures wrap as units                                                |
 | Recipe name field          | A title up to the recipe title cap          | Field is column width. Text scrolls inside the field                                                  |
 | Step text                  | A step of 500 characters                    | Wraps. `overflow-wrap: anywhere` for unbroken strings                                                 |
@@ -258,14 +256,14 @@ the design system owner.
 The import item read carries `offer`. A pure render map (a discriminated union over `offer.kind`, exhaustive) picks the
 visibility area's render component and the button. The client never computes an offer.
 
-| `offer`                                       | Visibility area                                                         | Button                                       |
-| --------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------- |
-| `choice` (`credit: free` or `paid`)           | Choice group                                                            | Follows the choice. "Continue" with none     |
-| `privateOnly` (`reason`)                      | One line for the reason, slot line on Free                              | "Save my copy"                               |
-| `publicExists` (published, writing, inReview) | One line. A link for published. The slot line on Free                   | "Save my copy", or the dead end with no slot |
-| `publicOnly`                                  | `full.line`, `full.free`, `public.hint`. Then, for upsell, the Pro card | "Write the public version"                   |
-| `deadEnd` (`paid` or `noWrite`)               | P9 replaces P5's content                                                | Upgrade to Pro and Not now, or Close         |
-| none (own recipe or open source)              | The editor's visibility ("Who can see it?", reuse)                      | "Save recipe" (reuse)                        |
+| `offer`                                       | Visibility area                                                         | Button                                    |
+| --------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------- |
+| `choice` (`credit: free` or `paid`)           | Choice group                                                            | Follows the choice. "Continue" with none  |
+| `privateOnly` (`reason`)                      | One line for the reason, slot line on Free                              | "Save my copy"                            |
+| `publicExists` (published, writing, inReview) | One line. A link for published. The slot line on Free                   | "Save my copy", or no button with no slot |
+| `publicOnly`                                  | `full.line`, `full.free`, `public.hint`. Then, for upsell, the Pro card | "Write the public version"                |
+| `deadEnd` (`paid` or `noWrite`)               | P9 replaces P5's content                                                | Upgrade to Pro and Not now, or Close      |
+| none (own recipe or open source)              | The editor's visibility ("Who can see it?", reuse)                      | "Save recipe" (reuse)                     |
 
 ### 5.2 Per control
 
@@ -284,7 +282,7 @@ visibility area's render component and the button. The client never computes an 
 - **Show my copy / Hide my copy.** A disclosure. Its state is not kept across visits.
 - **Edit steps.** Turns the steps into fields. The button becomes "Done editing" (reuse the editor's key).
 - **Write it again.** Starts a new attempt of the same job (up to 3). Returns to P7.
-- **Publish.** First publish of this cook's account: P10 first. Then `POST …/publish` with the edited title and steps.
+- **Publish.** `POST …/publish` with the edited title and steps. A `403 ageConfirmNeeded` answer opens P10 (X7).
   `422 flags` shows the flags group. `422 tooSimilar` shows B8 blocked. `422 rewriteNeeded` shows B8 rewriteNeeded.
   `409 privateCopyChanged` (Both) shows the flags group's rewrite action with `flag.fix` (no new string).
 - **Keep it just for me / `Don't publish` / Cancel import.** For everyone: saves the private copy (a slot) and ends the
@@ -315,13 +313,14 @@ Every state names its copy and key. Keys are under `importMessages.choice.*` unl
 
 One line, the slot line on Free, "Save my copy".
 
-| Reason                                                                                   | Key                      | Copy                                                                                                           |
-| ---------------------------------------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| `paidRecent` with `{date}`                                                               | `privateOnly.paidRecent` | "This one is saved just for you. You can share a public version after {date}."                                 |
-| `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, `paidRecent` without a date | `privateOnly.line`       | `This one is saved just for you. We can’t write a public version of it.`                                       |
-| `noSteps`                                                                                | `privateOnly.noSteps`    | "There are no steps to write from yet. Save it, add steps in the editor, then share a public version."         |
-| `noSourceAddress`                                                                        | `privateOnly.noSource`   | "We need the page's link to share this one. Save it, add the link as its source, then share a public version." |
-| `budget`                                                                                 | reuse `budget.line`      | `We can’t write public versions right now. Save it just for you.`                                              |
+| Reason                                                                                   | Key                      | Copy                                                                                                                     |
+| ---------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `paidRecent` with `{date}`                                                               | `privateOnly.paidRecent` | "This one is saved just for you. You can share a public version after {date}."                                           |
+| `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, `paidRecent` without a date | `privateOnly.line`       | `This one is saved just for you. We can't write a public version of it.`                                                 |
+| `noSteps`                                                                                | `privateOnly.noSteps`    | "There are no steps to write from yet. Save it, add steps in the editor, then share a public version."                   |
+| `noSourceAddress`                                                                        | `privateOnly.noSource`   | "We need the page's link to share this one. Save it, add the link as its source, then share a public version."           |
+| `languageUnsupported`                                                                    | `privateOnly.language`   | "We can’t write a public version in this recipe’s language yet. Your copy stays private." (copy pending designer review) |
+| `budget`                                                                                 | reuse `budget.line`      | `We can’t write public versions right now. Save it just for you.`                                                        |
 
 Slot line on Free: `private.hint`. Pro: none.
 
@@ -332,7 +331,7 @@ Slot line on Free: `private.hint`. Pro: none.
 | published | `publicExists.published` | `There's already a public version of this recipe.`  | `publicExists.link` (new, §7.2) |
 | writing   | `publicExists.writing`   | "A public version of this recipe is being written." | none                            |
 | inReview  | `publicExists.inReview`  | `A public version of this recipe is being checked.` | none                            |
-| no slot   | the state's line         | then the dead end (§6.5)                            | no "Save my copy"               |
+| no slot   | the state's line         | the link, when published                            | no "Save my copy", no dead end  |
 
 ### 6.4 publicOnly (B4)
 
@@ -365,7 +364,7 @@ Slot line on Free: `private.hint`. Pro: none.
 | Editing               | The editor's step field, and "Done editing" (reuse)                                                                                                                                                                                                     |
 | Fact flags            | `flag.title` (ICU), `flag.step`, `flag.allergen`, `flag.fix`, `flag.rewrite`. Focus to the group's heading. Publish stays enabled                                                                                                                       |
 | Credit, paid site     | `credit.written`, `review.licence`. No site named or linked                                                                                                                                                                                             |
-| Both path             | `review.notNow` reads `Don't publish`                                                                                                                                                                                                                   |
+| Both path             | `review.notNowBoth` reads `Don’t publish` (003B C-29: one key per string)                                                                                                                                                                               |
 | For everyone, no slot | reuse `importMessages.paste.cancel` instead of "Keep it just for me"                                                                                                                                                                                    |
 
 ### 6.8 Refused, failed and budget (B8)
@@ -391,8 +390,8 @@ Every one of these is `role="alert"`, and focus moves to the screen's heading or
 
 ### 6.10 Age question (B10)
 
-`ageConfirm.title`, `ageConfirm.body`, `ageConfirm.yes`, `ageConfirm.notNow`, recorded as `ageConfirm.v1`. Shown once
-per account, at the first Publish. "Not now" and Escape close it, publish nothing and return focus to Publish.
+`ageConfirm.title`, `ageConfirm.body`, `ageConfirm.yes`, `ageConfirm.notNow`, recorded as `ageConfirm.v1`. Shown when
+Publish answers `403 ageConfirmNeeded` (X7). "Not now" and Escape close it, publish nothing and return focus to Publish.
 
 ---
 
@@ -566,7 +565,7 @@ None of our own. Pushes, the dialog and the sheet use the platform's transitions
 | #   | Board                   | States shown                                                                                      | Sizes          |
 | --- | ----------------------- | ------------------------------------------------------------------------------------------------- | -------------- |
 | B1  | ImportPublicChoice      | Nothing chosen (full P5), For everyone with free and paid credit, Pro with Both, pickOne, offline | 1280, 390      |
-| B2  | ImportPublicPrivateOnly | paidRecent (full P5), line, noSteps, noSourceAddress, budget, Pro                                 | 1280, 390      |
+| B2  | ImportPublicPrivateOnly | paidRecent (full P5), line, noSteps, noSourceAddress, languageUnsupported, budget, Pro            | 1280, 390      |
 | B3  | ImportPublicExists      | published (full P5), writing, inReview, no slot                                                   | 1280, 390      |
 | B4  | ImportPublicOnly        | `full.line` with the Pro card (full P5), switch off                                               | 1280, 390      |
 | B5  | ImportPublicDeadEnd     | Trial eligible (full P9), trial used, switch off                                                  | 1280, 390      |
@@ -590,7 +589,7 @@ action is last in any stacked bar.
 | #   | Board                   | States drawn                                                                                                                                                                 | Sizes                                    |
 | --- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
 | M1  | ImportPublicChoice      | Review page before the sheet opens (phones), nothing chosen, For everyone with free and paid credit, Pro with Both, pickOne, offline. A sheet on phones, in the page on iPad | Iphone390, Android384, Ipad834, Ipad1194 |
-| M2  | ImportPublicPrivateOnly | paidRecent (full P5), line, noSteps, noSourceAddress, budget, Pro                                                                                                            | Iphone390, Ipad1194                      |
+| M2  | ImportPublicPrivateOnly | paidRecent (full P5), line, noSteps, noSourceAddress, languageUnsupported, budget, Pro                                                                                       | Iphone390, Ipad1194                      |
 | M3  | ImportPublicExists      | published (full P5), writing, inReview, no slot                                                                                                                              | Iphone390                                |
 | M4  | ImportPublicOnly        | `full.line` with the Pro card (full P5), switch off                                                                                                                          | Iphone390                                |
 | M5  | ImportPublicDeadEnd     | Trial eligible, trial used, switch off. Full page, stacked buttons, Upgrade last. The store sheet is the OS's, not drawn                                                     | Iphone390, Android384, Ipad834           |

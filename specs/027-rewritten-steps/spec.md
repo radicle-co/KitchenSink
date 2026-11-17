@@ -173,8 +173,9 @@ can always cook from the original steps.
 - Servings changed in Cooking Mode: Flow Steps, like the original steps, keep the recipe's own numbers and show the
   `008-FR-034a` note.
 - A step that says only "Enjoy!" or similar: carries no facts. The writer may drop it (FR-040 does not count it).
-- A recipe in a language other than the cook's app language: Flow Steps are written in the recipe's language. Only
-  English is offered at first (C-12).
+- A recipe in a language other than the cook's app language: Flow Steps are written in the recipe's own language, with no
+  translation. Only a language with a registry entry is written, and English is the only entry at first (C-12). A recipe in
+  another language, or one whose language cannot be read reliably, is not offered.
 - The recipe is under a takedown or a content hold: not offered while the hold stands (FR-003).
 - The model returns more steps, fewer steps, merged or split steps: allowed, as long as FR-040 passes.
 
@@ -404,7 +405,9 @@ can always cook from the original steps.
   so spec 003B builds the engine first (FR-045).
 - 005's ledger of uses is built before or with this feature. This feature does not build a second one.
 - The plan register (`010-FR-041b`) gains a Flow Steps entry.
-- English is the only writing language at first (`025`, English markets first).
+- English is the only writing language at first (`025`, English markets first). Each language is one registry entry with
+  its own scripts, sentence-end rule, segmentation locale, prompt and pin, fact lexicon, wording limits, title limits and
+  golden tests. Adding one is its own change.
 - The figures in FR-004, FR-042 and FR-064 are set in the plan and measured on the evaluation set.
 - Flow Steps never change ingredient lists, servings, photos, the title, or nutrition.
 

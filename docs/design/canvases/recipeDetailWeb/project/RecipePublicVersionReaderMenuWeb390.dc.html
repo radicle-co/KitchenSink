@@ -1,17 +1,18 @@
-<!DOCTYPE html>
-
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8"/>
-<title>Recipe detail, source card, proposal (web, 1280)</title>
-<script src="./support.js"></script>
-<link href="ds/commise/tokens.css" rel="stylesheet"/>
-<link href="ds/commise/bundle.css" rel="stylesheet"/>
-<script src="ds/commise/bundle.js"></script>
-<link href="ds/commise/redesign.css" rel="stylesheet"/></head>
-<body>
-<!-- Redesign canvas (workshop 5, round 9 system): a static redesigned copy of this board. Design artifact, not app code. -->
-<x-dc><helmet><style>
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe detail, public version, reader more menu (web, 390)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    <link rel="stylesheet" href="ds/commise/redesign.css" /></head>
+    <body>
+        <!-- Redesign canvas (workshop 5, round 9 system): a static redesigned copy of this board. Design artifact, not app code. -->
+        <x-dc
+            ><helmet
+                ><style>
                     body {
                         margin: 0;
                     }
@@ -1830,148 +1831,144 @@
                         width: 16px;
                         height: 16px;
                     }
-                </style></helmet>
-<svg aria-hidden="true" height="0" style="position: absolute" width="0">
-<defs>
-<symbol id="external" viewbox="0 0 24 24"><path d="M14 4.5h5.5V10"></path><path d="M19.5 4.5 11 13"></path><path d="M18 13.5v4a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"></path></symbol><symbol id="home" viewbox="0 0 24 24">
-<path d="M3.5 10.5 12 3.8l8.5 6.7V20a.8.8 0 0 1-.8.8H15v-6h-6v6H4.3a.8.8 0 0 1-.8-.8z"></path>
-</symbol>
-<symbol id="book" viewbox="0 0 24 24">
-<path d="M12 6.5C10.2 5 7.6 4.5 4 4.6v13.9c3.6-.1 6.2.4 8 1.9 1.8-1.5 4.4-2 8-1.9V4.6c-3.6-.1-6.2.4-8 1.9zM12 6.5v13.9"></path>
-</symbol>
-<symbol id="compass" viewbox="0 0 24 24">
-<circle cx="12" cy="12" r="8.5"></circle>
-<path d="m15.2 8.8-1.9 4.5-4.5 1.9 1.9-4.5z"></path>
-</symbol>
-<symbol id="chevL" viewbox="0 0 24 24"><path d="m14.5 6-6 6 6 6"></path></symbol>
-<symbol id="chevR" viewbox="0 0 24 24"><path d="m9.5 6 6 6-6 6"></path></symbol>
-<symbol id="chevDown" viewbox="0 0 24 24"><path d="m6 9.5 6 6 6-6"></path></symbol>
-<symbol id="chevUp" viewbox="0 0 24 24"><path d="m6 14.5 6-6 6 6"></path></symbol>
-<symbol id="dots" viewbox="0 0 24 24">
-<circle cx="6" cy="12" fill="currentColor" r="1.1"></circle>
-<circle cx="12" cy="12" fill="currentColor" r="1.1"></circle>
-<circle cx="18" cy="12" fill="currentColor" r="1.1"></circle>
-</symbol>
-<symbol id="lock" viewbox="0 0 24 24">
-<rect height="9" rx="2" width="13" x="5.5" y="10.5"></rect>
-<path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"></path>
-</symbol>
-<symbol id="pencil" viewbox="0 0 24 24"><path d="M15.5 5.5l3 3L9 18l-4 1 1-4z"></path></symbol>
-<symbol id="globe" viewbox="0 0 24 24">
-<circle cx="12" cy="12" r="8"></circle>
-<path d="M4 12h16M12 4c2.2 2.3 3.2 5 3.2 8s-1 5.7-3.2 8c-2.2-2.3-3.2-5-3.2-8s1-5.7 3.2-8z"></path>
-</symbol>
-<symbol id="history" viewbox="0 0 24 24">
-<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9M4.5 5v4h4"></path>
-<path d="M12 8v4l2.8 1.8"></path>
-</symbol>
-<symbol id="sun" viewbox="0 0 24 24">
-<circle cx="12" cy="12" r="3.5"></circle>
-<path d="M12 3.5v1.8M12 18.7v1.8M3.5 12h1.8M18.7 12h1.8M6 6l1.3 1.3M16.7 16.7 18 18M6 18l1.3-1.3M16.7 7.3 18 6"></path>
-</symbol>
-<symbol id="minus" viewbox="0 0 24 24"><path d="M6.5 12h11"></path></symbol>
-<symbol id="plus" viewbox="0 0 24 24"><path d="M12 6.5v11M6.5 12h11"></path></symbol>
-<symbol id="check" viewbox="0 0 24 24"><path d="m6 12.5 4 4 8-9"></path></symbol>
-<symbol id="timer" viewbox="0 0 24 24">
-<circle cx="12" cy="13.5" r="7"></circle>
-<path d="M12 13.5V10M10 3.5h4"></path>
-</symbol>
-<symbol id="star" viewbox="0 0 24 24">
-<path d="m12 3.2 2.6 5.6 6.1.7-4.5 4.2 1.2 6.1L12 16.8l-5.4 3 1.2-6.1-4.5-4.2 6.1-.7z"></path>
-</symbol>
-<symbol id="photo" viewbox="0 0 24 24">
-<rect height="13" rx="2.5" width="17" x="3.5" y="5.5"></rect>
-<circle cx="9" cy="10.5" r="1.6"></circle>
-<path d="m20.5 15.5-4.5-4.5-8.5 7.5"></path>
-</symbol>
-<symbol id="clock" viewbox="0 0 24 24">
-<circle cx="12" cy="12" r="8.5"></circle>
-<path d="M12 7.5V12l3 2"></path>
-</symbol>
-<symbol id="gauge" viewbox="0 0 24 24"><path d="M5 17V13M12 17V9M19 17V5"></path></symbol>
-<symbol id="bullet" viewbox="0 0 24 24">
-<circle cx="12" cy="12" fill="currentColor" r="2.5" stroke="none"></circle>
-</symbol>
-<symbol id="pause" viewbox="0 0 24 24"><path d="M9 6.5v11M15 6.5v11"></path></symbol>
-<symbol id="x" viewbox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></symbol>
-<symbol id="trash" viewbox="0 0 24 24">
-<path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10.5 10.5v6M13.5 10.5v6"></path>
-</symbol>
-<symbol id="alert" viewbox="0 0 24 24">
-<circle cx="12" cy="12" r="8.5"></circle>
-<path d="M12 7.5v5.2M12 16h.01"></path>
-</symbol>
-<symbol id="copy" viewbox="0 0 24 24">
-<rect height="11" rx="2.5" width="11" x="8.5" y="8.5"></rect>
-<path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"></path>
-</symbol>
-<symbol id="retry" viewbox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2.1-5M19 5v4h-4"></path></symbol>
-<symbol id="search" viewbox="0 0 24 24">
-<circle cx="11" cy="11" r="6.5"></circle>
-<path d="m16 16 4 4"></path>
-</symbol>
-<symbol id="list" viewbox="0 0 24 24">
-<path d="M8.5 7h11M8.5 12h11M8.5 17h11M4.5 7h.01M4.5 12h.01M4.5 17h.01"></path>
-</symbol>
-<symbol id="grid" viewbox="0 0 24 24">
-<rect height="6" rx="1.5" width="6" x="4.5" y="4.5"></rect>
-<rect height="6" rx="1.5" width="6" x="13.5" y="4.5"></rect>
-<rect height="6" rx="1.5" width="6" x="4.5" y="13.5"></rect>
-<rect height="6" rx="1.5" width="6" x="13.5" y="13.5"></rect>
-</symbol>
-<symbol id="rotate" viewbox="0 0 24 24">
-<path d="M4.5 12a7.5 7.5 0 1 1 2.2 5.3L4.5 15M4.5 19v-4h4"></path>
-</symbol>
-<symbol id="user" viewbox="0 0 24 24">
-<circle cx="12" cy="9" r="3.5"></circle>
-<path d="M5 19.5c.8-3.3 3.4-5 7-5s6.2 1.7 7 5"></path>
-</symbol>
-<symbol id="cloudOff" viewbox="0 0 24 24">
-<path d="M5 15.5a4 4 0 0 1 1.5-7.7 5.5 5.5 0 0 1 10.3 1.4A3.8 3.8 0 0 1 17 17H8M4 4l16 16"></path>
-</symbol>
-<symbol id="calendar" viewbox="0 0 24 24"><rect height="14.5" rx="2.5" width="16" x="4" y="5.5"></rect><path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5"></path></symbol></defs>
-</svg>
-<div class="rd" data-board="RecipeDetailReader" style="width: 1280px; height: 1792px">
-<div class="web">
-<nav aria-label="Main" class="side">
-<p class="brand">Commise</p>
-<a href="#"><svg aria-hidden="true" class="ic"><use href="#home"></use></svg>Home</a><a aria-current="page" class="on" href="#"><svg aria-hidden="true" class="ic"><use href="#book"></use></svg>Recipes</a><a href="#"><svg aria-hidden="true" class="ic"><use href="#compass"></use></svg>Discover</a><a href="#"><svg aria-hidden="true" class="ic"><use href="#calendar"></use></svg>Meal plan</a><span class="grow"></span><a href="#"><svg aria-hidden="true" class="ic"><use href="#chevL"></use></svg> Collapse</a>
-</nav>
-<div class="main">
-<div class="navRow">
-<a aria-label="Back to My recipes" class="crumb" href="#"><svg aria-hidden="true" class="ic sm"><use href="#chevL"></use></svg> My recipes</a><a aria-label="More actions" class="moreBtn" href="#"><span><svg aria-hidden="true" class="ic"><use href="#dots"></use></svg></span></a>
-</div>
-<div class="topCols">
-<div>
-<div class="sheet flat card">
-
-<h1 class="rTitle dish titleGap">Lemon and thyme roast chicken</h1>
-<p class="t13 soft factsCredit">From Serious Eats</p>
-
-<a aria-label="Open the recipe on Serious Eats, opens in your browser" class="btn primary startCook solo" href="#">Open the recipe on Serious Eats<svg aria-hidden="true" class="ic sm" style="margin-left: 4px"><use href="#external"></use></svg></a>
-
-<p class="t15 soft factsExplain">This recipe is on Serious Eats. Commise links to it.</p>
-
-
-</div>
-</div>
-<div>
-
-<div class="card rateCard">
-
-</div>
-
-</div>
-</div>
-<div style="margin-top: 24px">
-
-</div>
-
-</div>
-</div>
-</div></x-dc>
-<script data-dc-script="" data-props='{"$preview":{"width":1280,"height":1792}}' type="text/x-dc">
+                
+                    .rd .side .me { height: 64px; margin: -12px 0 12px; color: var(--ink); font-weight: 600; }
+                    .rd .side .me.on { background: var(--surface-muted); }
+                    .rd .avatar.sm { width: 32px; height: 32px; font-size: 12px; flex: none; }
+                    .rd .tabbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
+                    .rd .avatar.xs { width: 24px; height: 24px; font-size: 10px; box-shadow: inset 0 0 0 1px var(--line-divider); }
+                    .rd .tab.on .avatar.xs { box-shadow: 0 0 0 2px var(--ink); }
+</style><style>
+.rd .credit { display: grid; gap: 4px; margin: 16px 0 24px; }
+.rd .credit p { font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+.rd .credit a { color: var(--action-text); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+.rd .credit a.rep { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; font-weight: 500; text-decoration: none; }
+.rd .credit a.rep .ic { color: var(--ink-muted); }
+.rd .credit.tight { margin: 12px 0 0; }
+.rd .hiddenNote { margin-top: 12px; }
+.rd .sCap { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--ink-muted); margin: 0 0 8px; }
+.rd .sPanel { background: var(--paper); border-radius: var(--radius-lg); box-shadow: inset 0 0 0 1px var(--line-divider); padding: 20px; }
+.rd .sPanel .rTitle { margin: 0; }
+.rd .sStack { display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; }
+.rd .sStack.wide { padding: 32px 40px; max-width: 548px; margin: 0 auto; }
+.rd .sheetLine { padding: 4px 12px 12px; display: grid; gap: 12px; }
+.rd .sheetLine p { font-size: 16px; line-height: 24px; }
+.rd .sheetLine a.lnk { color: var(--action-text); font-weight: 500; text-decoration: underline; }
+.rd .menu.static { position: static; width: 264px; }
+.rd .menu .sheetLine a.lnk { display: inline; height: auto; padding: 0; justify-self: start; }
+.rd .doneBtn { display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: var(--radius-md); background: var(--action); color: var(--on-action); font-weight: 600; }
+.rd .annotNote { font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+.rd .hidTitle { font: 600 24px/32px var(--font-display); margin: 0; }
+</style></helmet
+            >
+            <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+                <defs>
+                    <symbol id="home" viewBox="0 0 24 24">
+                        <path d="M3.5 10.5 12 3.8l8.5 6.7V20a.8.8 0 0 1-.8.8H15v-6h-6v6H4.3a.8.8 0 0 1-.8-.8z" />
+                    </symbol>
+                    <symbol id="book" viewBox="0 0 24 24">
+                        <path
+                            d="M12 6.5C10.2 5 7.6 4.5 4 4.6v13.9c3.6-.1 6.2.4 8 1.9 1.8-1.5 4.4-2 8-1.9V4.6c-3.6-.1-6.2.4-8 1.9zM12 6.5v13.9"
+                        />
+                    </symbol>
+                    <symbol id="compass" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="8.5" />
+                        <path d="m15.2 8.8-1.9 4.5-4.5 1.9 1.9-4.5z" />
+                    </symbol>
+                    <symbol id="chevL" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6" /></symbol>
+                    <symbol id="chevR" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6" /></symbol>
+                    <symbol id="chevDown" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6" /></symbol>
+                    <symbol id="chevUp" viewBox="0 0 24 24"><path d="m6 14.5 6-6 6 6" /></symbol>
+                    <symbol id="dots" viewBox="0 0 24 24">
+                        <circle cx="6" cy="12" r="1.1" fill="currentColor" />
+                        <circle cx="12" cy="12" r="1.1" fill="currentColor" />
+                        <circle cx="18" cy="12" r="1.1" fill="currentColor" />
+                    </symbol>
+                    <symbol id="lock" viewBox="0 0 24 24">
+                        <rect x="5.5" y="10.5" width="13" height="9" rx="2" />
+                        <path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" />
+                    </symbol>
+                    <symbol id="pencil" viewBox="0 0 24 24"><path d="M15.5 5.5l3 3L9 18l-4 1 1-4z" /></symbol>
+                    <symbol id="globe" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="8" />
+                        <path d="M4 12h16M12 4c2.2 2.3 3.2 5 3.2 8s-1 5.7-3.2 8c-2.2-2.3-3.2-5-3.2-8s1-5.7 3.2-8z" />
+                    </symbol>
+                    <symbol id="history" viewBox="0 0 24 24">
+                        <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9M4.5 5v4h4" />
+                        <path d="M12 8v4l2.8 1.8" />
+                    </symbol>
+                    <symbol id="sun" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="3.5" />
+                        <path
+                            d="M12 3.5v1.8M12 18.7v1.8M3.5 12h1.8M18.7 12h1.8M6 6l1.3 1.3M16.7 16.7 18 18M6 18l1.3-1.3M16.7 7.3 18 6"
+                        />
+                    </symbol>
+                    <symbol id="minus" viewBox="0 0 24 24"><path d="M6.5 12h11" /></symbol>
+                    <symbol id="plus" viewBox="0 0 24 24"><path d="M12 6.5v11M6.5 12h11" /></symbol>
+                    <symbol id="check" viewBox="0 0 24 24"><path d="m6 12.5 4 4 8-9" /></symbol>
+                    <symbol id="timer" viewBox="0 0 24 24">
+                        <circle cx="12" cy="13.5" r="7" />
+                        <path d="M12 13.5V10M10 3.5h4" />
+                    </symbol>
+                    <symbol id="star" viewBox="0 0 24 24">
+                        <path d="m12 3.2 2.6 5.6 6.1.7-4.5 4.2 1.2 6.1L12 16.8l-5.4 3 1.2-6.1-4.5-4.2 6.1-.7z" />
+                    </symbol>
+                    <symbol id="photo" viewBox="0 0 24 24">
+                        <rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />
+                        <circle cx="9" cy="10.5" r="1.6" />
+                        <path d="m20.5 15.5-4.5-4.5-8.5 7.5" />
+                    </symbol>
+                    <symbol id="clock" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="8.5" />
+                        <path d="M12 7.5V12l3 2" />
+                    </symbol>
+                    <symbol id="gauge" viewBox="0 0 24 24"><path d="M5 17V13M12 17V9M19 17V5" /></symbol>
+                    <symbol id="bullet" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
+                    </symbol>
+                    <symbol id="pause" viewBox="0 0 24 24"><path d="M9 6.5v11M15 6.5v11" /></symbol>
+                    <symbol id="x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" /></symbol>
+                    <symbol id="trash" viewBox="0 0 24 24">
+                        <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10.5 10.5v6M13.5 10.5v6" />
+                    </symbol>
+                    <symbol id="alert" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="8.5" />
+                        <path d="M12 7.5v5.2M12 16h.01" />
+                    </symbol>
+                    <symbol id="copy" viewBox="0 0 24 24">
+                        <rect x="8.5" y="8.5" width="11" height="11" rx="2.5" />
+                        <path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2" />
+                    </symbol>
+                    <symbol id="retry" viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2.1-5M19 5v4h-4" /></symbol>
+                    <symbol id="search" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="6.5" />
+                        <path d="m16 16 4 4" />
+                    </symbol>
+                    <symbol id="list" viewBox="0 0 24 24">
+                        <path d="M8.5 7h11M8.5 12h11M8.5 17h11M4.5 7h.01M4.5 12h.01M4.5 17h.01" />
+                    </symbol>
+                    <symbol id="grid" viewBox="0 0 24 24">
+                        <rect x="4.5" y="4.5" width="6" height="6" rx="1.5" />
+                        <rect x="13.5" y="4.5" width="6" height="6" rx="1.5" />
+                        <rect x="4.5" y="13.5" width="6" height="6" rx="1.5" />
+                        <rect x="13.5" y="13.5" width="6" height="6" rx="1.5" />
+                    </symbol>
+                    <symbol id="rotate" viewBox="0 0 24 24">
+                        <path d="M4.5 12a7.5 7.5 0 1 1 2.2 5.3L4.5 15M4.5 19v-4h4" />
+                    </symbol>
+                    <symbol id="user" viewBox="0 0 24 24">
+                        <circle cx="12" cy="9" r="3.5" />
+                        <path d="M5 19.5c.8-3.3 3.4-5 7-5s6.2 1.7 7 5" />
+                    </symbol>
+                    <symbol id="cloudOff" viewBox="0 0 24 24">
+                        <path d="M5 15.5a4 4 0 0 1 1.5-7.7 5.5 5.5 0 0 1 10.3 1.4A3.8 3.8 0 0 1 17 17H8M4 4l16 16" />
+                    </symbol>
+                <symbol id="calendar" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5" /><path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5" /></symbol><symbol id="eyeOff" viewBox="0 0 24 24"><path d="M3 12s3.3-6 9-6 9 6 9 6-3.3 6-9 6-9-6-9-6z" /><circle cx="12" cy="12" r="2.5" /><path d="M4 4l16 16" /></symbol><symbol id="flag" viewBox="0 0 24 24"><path d="M6 20.5V4.5M6 5h10.5l-2 3.5 2 3.5H6" /></symbol></defs>
+            </svg>
+            <div data-you-tab="1" class="rd" data-board="RecipePublicVersionReaderMenuWeb390" style="width: 390px; height: 844px"> <div style="flex: 1">  <div class="sheet" style="margin-top: 0"> <div class="rateBlock"> <div class="rateLine"> <a href="#" aria-label="Rate this recipe" ><span class="stars big" aria-hidden="true" ><svg class="ic" aria-hidden="true"><use href="#star" /></svg ><svg class="ic" aria-hidden="true"><use href="#star" /></svg ><svg class="ic" aria-hidden="true"><use href="#star" /></svg ><svg class="ic" aria-hidden="true"><use href="#star" /></svg ><svg class="ic" aria-hidden="true"><use href="#star" /></svg></span></a ><span class="t17 tnum" ><span class="w600">4.8</span> <span class="t15 soft">· 12 ratings</span></span > </div> <p class="t13 soft">Tap a star to rate this recipe.</p> <a class="rowLink" href="#" >8 comments<svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg ></a> </div> <p class="eyebrow">British</p> <h1 class="rTitle dish titleGap">Baked chicken and vegetable pie</h1> <div class="byRow"> <span class="av" aria-hidden="true">ER</span ><span class="who" ><span class="l1" ><a href="#">Eliza Ramirez</a> <span class="soft">@eliza_ramirez</span></span ></span ><a class="followBtn" href="#">Follow</a> </div><div class="credit"><p>Steps written by Commise with AI, checked by Eliza Ramirez.</p><p>Based on a recipe at <a href="#" target="_blank" rel="noopener noreferrer" aria-label="allrecipes.com, opens in a new tab">allrecipes.com</a>. Not affiliated.</p><p>Shared under <a href="#">CC BY-SA 4.0</a>. Credit: Commise and contributors. Your edits are shared the same way.</p><p><a class="rep" href="#"><svg class="ic sm" aria-hidden="true"><use href="#flag" /></svg>Report a problem</a></p></div> <div class="facts tnum"> <div class="fact"> <p class="lab t13 soft"> <svg class="ic" aria-hidden="true"><use href="#clock" /></svg> Total </p> <p class="v">1 h 5 min</p> </div> <div class="fact"> <p class="lab t13 soft"> <svg class="ic" aria-hidden="true"><use href="#timer" /></svg> Prep </p> <p class="v">25 min</p> </div> <div class="fact"> <p class="lab t13 soft"> <svg class="ic" aria-hidden="true"><use href="#gauge" /></svg> Difficulty </p> <p class="v">Medium</p> </div> </div> <a class="btn primary startCook solo" href="#">Start cooking</a> <div class="quietActs"> <a href="#" ><svg class="ic sm" aria-hidden="true"><use href="#plus" /></svg>Add to plan</a ><a href="#" ><svg class="ic sm" aria-hidden="true"><use href="#copy" /></svg>Save a copy</a ><a href="#" role="switch" aria-checked="false" ><svg class="ic sm" aria-hidden="true"><use href="#sun" /></svg>Screen on</a > </div> <p class="desc"> A pie that makes a weeknight feel like a Sunday: chicken, carrots and peas in a thick sauce, under a golden puff pastry lid. One dish, no fuss, and the filling can be made the day before. </p> <a class="moreLink" href="#">Read more</a> <div class="tags"><span class="tag">dinner</span><span class="tag">comfort food</span><span class="tag">family</span></div> </div> <div class="card prep mx"> <div class="head"> <h3>Before you start</h3> <a class="discloseLink" href="#" aria-expanded="true" >Hide<svg class="ic" aria-hidden="true"><use href="#chevUp" /></svg ></a> </div> <div class="timeline" role="img" aria-label="25 minutes hands-on, 40 minutes in the oven, 10 minutes resting" > <i class="tl1" style="flex: 25"></i><i class="tl2" style="flex: 40"></i ><i class="tl3" style="flex: 10"></i> </div> <div class="legend t13 soft tnum"> <span><b class="tl1"></b>25 min hands-on</span ><span><b class="tl2"></b>40 min in the oven</span ><span><b class="tl3"></b>10 min rest</span> </div> <p class="t15 tnum" style="margin-top: 10px"> <span class="w600">About 1 h 15</span> <span class="soft">from start to the table. The rest is not in the total.</span> </p> <div class="firstUp"> <p class="t13 soft w600">Do first</p> <ul> <li> <svg class="ic" aria-hidden="true"><use href="#bullet" /></svg ><span>Heat the oven to 200°C (180°C fan).</span> </li> <li> <svg class="ic" aria-hidden="true"><use href="#bullet" /></svg ><span>Take the chicken out of the fridge while the oven heats.</span> </li> <li> <svg class="ic" aria-hidden="true"><use href="#bullet" /></svg ><span >Dice the chicken and the vegetables before you start. Nothing needs you while it bakes.</span > </li> </ul> </div> </div> <a class="card accordion mx" href="#" aria-expanded="false" ><span class="grow">Nutrition</span><span class="t15 soft tnum">612 cal per serving</span ><svg class="ic sm" aria-hidden="true"><use href="#chevDown" /></svg ></a> <div class="ingSpace"></div> <div class="card ingCard mx"> <div class="ingHeadRow"> <h2>Ingredients <span class="t15 soft w500">for 4</span></h2> <div class="stepper tnum" role="group" aria-label="Servings"> <a href="#" aria-label="Fewer servings" ><svg class="ic sm" aria-hidden="true"><use href="#minus" /></svg></a ><span class="n">4</span ><a href="#" aria-label="More servings" ><svg class="ic sm" aria-hidden="true"><use href="#plus" /></svg ></a> </div> </div> <p class="group">Filling</p> <ul class="ing tnum"><li><span class="box"></span><span><span class="q">450 g</span> chicken breast <span class="note">diced</span></span></li><li class="done"><span class="box on"><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span><span><span class="q">3</span> carrots <span class="note">diced</span></span></li><li><span class="box"></span><span><span class="q">1</span> onion <span class="note">diced</span></span></li><li><span class="box"></span><span><span class="q">150 g</span> frozen peas</span></li></ul> <p class="group">Sauce</p> <ul class="ing tnum"><li><span class="box"></span><span><span class="q">3 tbsp</span> butter</span></li><li><span class="box"></span><span><span class="q">3 tbsp</span> plain flour</span></li><li><span class="box"></span><span><span class="q">300 ml</span> chicken stock</span></li></ul> <p class="group">Pastry</p> <ul class="ing tnum"><li><span class="box"></span><span><span class="q">1 sheet</span> puff pastry</span></li><li><span class="box"></span><span><span class="q">1</span> egg <span class="note">beaten</span></span></li></ul> </div> <div class="secHead pad"><h2>Steps</h2></div> <ol class="steps"> <li class="step card done"> <span class="num" aria-label="Step 1, done" ><svg class="ic" aria-hidden="true"><use href="#check" /></svg ></span> <div> <p> Heat the oven to 200°C (180°C fan). Dice the <span class="amt">450 g</span> chicken breast and season it with salt and pepper. </p> </div> </li> <li class="step card cur"> <span class="num">2</span> <div> <span class="label t13 w600">You’re here</span> <p> Soften the <span class="amt">1</span> onion and <span class="amt">3</span> carrots in <span class="amt">3 tbsp</span> butter, then stir in <span class="amt">3 tbsp</span> flour and cook for 1 minute. </p> </div> </li> <li class="step card"> <span class="num">3</span> <div> <p> Whisk in <span class="amt">300 ml</span> stock and simmer until thick. Add the chicken and <span class="amt">150 g</span> peas, then tip the filling into a pie dish. </p> </div> </li> <li class="step card"> <span class="num">4</span> <div> <p> Lay the pastry over the dish, trim the edge and brush it with the beaten egg. Bake for 40 minutes, until golden. </p> <a class="timer tnum" href="#" ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg>40 min</a > </div> </li> <li class="step card"> <span class="num">5</span> <div> <p> Rest the pie for 10 minutes before serving. </p> <a class="timer tnum" href="#" ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg>10 min</a > </div> </li> <li class="step card"> <span class="num">6</span> <div> <p> Serve with greens. </p> </div> </li> </ol> <div class="endSpace"></div> </div> <nav class="tabbar" aria-label="Main"> <a class="tab" href="#" ><svg class="ic" aria-hidden="true"><use href="#home" /></svg>Home</a ><a class="tab on" href="#" aria-current="page" ><svg class="ic" aria-hidden="true"><use href="#book" /></svg>Recipes</a ><a class="tab" href="#" ><svg class="ic" aria-hidden="true"><use href="#compass" /></svg>Discover</a ><a class="tab" href="#" ><svg class="ic" aria-hidden="true"><use href="#calendar" /></svg>Meal plan</a ><a class="tab" href="#"><span class="avatar xs" aria-hidden="true">AL</span>You</a> </nav> <div class="scrim" aria-hidden="true"></div> <div class="bsheet" role="dialog" aria-modal="true"> <div class="grab" aria-hidden="true"></div> <div class="dlgHead"> <h2>More actions</h2> <a class="xBtn" href="#" aria-label="Close more actions" ><svg class="ic" aria-hidden="true"><use href="#x" /></svg ></a> </div> <div class="sheetMenu"> <a href="#" ><svg class="ic" aria-hidden="true"><use href="#copy" /></svg>Copy link</a > <hr /><a href="#"><svg class="ic" aria-hidden="true"><use href="#flag" /></svg>Report a problem</a> </div> </div> </div></x-dc
+        >
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
             class Component extends DCLogic { renderVals(){ return {}; } }
         </script>
-</body>
+    </body>
 </html>

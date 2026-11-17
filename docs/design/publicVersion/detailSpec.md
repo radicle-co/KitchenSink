@@ -39,7 +39,7 @@ the block.
 
 1. `credit.written`: "Steps written by Commise with AI, checked by {cook}." `{cook}` is the cook's display name, plain
    text (the cook row above it already links the profile).
-2. `credit.basedOn`, free site only: "Based on a recipe at {domain}. Not affiliated." `{domain}` is a link to the source
+2. `credit.basedOn`, free site only: "Based on a recipe at {site}. Not affiliated." `{site}` is a link to the source
    page. Web: a new tab, `rel="noopener noreferrer"`, with "opens in a new tab" in its accessible name. Mobile: the
    in-app browser. A paid site shows no line 2 (spec.md V7).
 3. `review.licence`: "Shared under {licenceName}. Credit: Commise and contributors. Your edits are shared the same way."
@@ -72,11 +72,10 @@ Under the badge row, same type:
 
 ## 2. C2 Hidden views
 
-| View                            | Who    | What shows                                                                                                                                                                                                                                                                                                |
-| ------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hidden after a report           | Owner  | The whole recipe, as before. Badge `publicPage.hiddenBadge` "Hidden". Under the title, a `StateNotice` (tone `attention`, glyph `eyeOff`) with `publicPage.hiddenOwner`: "Hidden after a report. Only you can see it now." The credit block follows unchanged. Edit, the menu and cooking work as before. |
-| Hidden, another version is live | Owner  | As above, with `publicPage.hiddenSuperseded` (new, §6) in the notice. FR-034a needs it, and copy v3 has no line for it.                                                                                                                                                                                   |
-| Hidden                          | Reader | The `RecipeNotFound*` layout: the app's navigation and back control, then `publicPage.hiddenReader` as the page's H1: "This recipe isn't available right now." Nothing else. The page is `noindex` and its document title is the app name only.                                                           |
+| View                  | Who    | What shows                                                                                                                                                                                                                                                                                                |
+| --------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hidden after a report | Owner  | The whole recipe, as before. Badge `publicPage.hiddenBadge` "Hidden". Under the title, a `StateNotice` (tone `attention`, glyph `eyeOff`) with `publicPage.hiddenOwner`: "Hidden after a report. Only you can see it now." The credit block follows unchanged. Edit, the menu and cooking work as before. |
+| Hidden                | Reader | The `RecipeNotFound*` layout: the app's navigation and back control, then `publicPage.hiddenReader` as the page's H1: "This recipe isn't available right now." Nothing else. The page is `noindex` and its document title is the app name only.                                                           |
 
 The reader view drops the second line of the not-found board, because that line names the wrong cause. It also drops "Back to My recipes", because a signed-out reader has none. The way out
 is the shell's back control (N8) and navigation, which exist for every role.
@@ -162,12 +161,11 @@ The layout reserves the credit block's height on load, so nothing shifts when it
 
 Keys are under `importMessages.choice.*`, as copy v3's `publicPage.*` keys are.
 
-| Key                           | Copy                                                                                | Where  |
-| ----------------------------- | ----------------------------------------------------------------------------------- | ------ |
-| `publicPage.hiddenBadge`      | "Hidden"                                                                            | §2, D5 |
-| `publicPage.hiddenSuperseded` | "Hidden because another version of this recipe is public. Only you can see it now." | §2     |
-| `publicPage.reportFailed`     | "We couldn't send your report. Try again."                                          | §4.3   |
-| `publicPage.reportOffline`    | "You're offline. Connect, then send your report."                                   | §4.3   |
+| Key                        | Copy                                              | Where  |
+| -------------------------- | ------------------------------------------------- | ------ |
+| `publicPage.hiddenBadge`   | "Hidden"                                          | §2, D5 |
+| `publicPage.reportFailed`  | "We couldn't send your report. Try again."        | §4.3   |
+| `publicPage.reportOffline` | "You're offline. Connect, then send your report." | §4.3   |
 
 Every other string is copy v3, spec.md §7.2, the paste spec, or `recipeLoadMessages`, as cited.
 
@@ -265,7 +263,7 @@ Sample values: spec.md S14 (public title "Baked chicken and vegetable pie", cook
 | RecipePublicVersion                  | Reader, signed in, free-site credit, "Report a problem"                                      | Web1280, Web390 | Iphone390, Android384, Ipad820 |
 | RecipePublicVersionStates            | Stacked: signed out, paid-site credit (no line 2), loading, offline cached, +35% credit      | Web1280, Web390 | Iphone390                      |
 | RecipePublicVersionOwner             | Owner, Both path, Checking badge, "See my copy", no Report                                   | Web1280, Web390 | Iphone390, Android384, Ipad820 |
-| RecipePublicVersionHidden            | Owner: hidden after a report, then superseded (stacked)                                      | Web1280, Web390 | Iphone390, Ipad820             |
+| RecipePublicVersionHidden            | Owner: hidden after a report                                                                 | Web1280, Web390 | Iphone390, Ipad820             |
 | RecipePublicVersionHiddenReader      | Reader view of a hidden version                                                              | Web1280, Web390 | Iphone390                      |
 | RecipePrivateImportMenu              | Private copy with rightsLabel and authorLabel, owner menu open with "Share a public version" | Web1280, Web390 | Iphone390, Android384, Ipad820 |
 | RecipePrivateImportShareLine         | Stacked: privateOnly paidRecent, budget, publicExists published, writing                     | Web1280, Web390 | Iphone390, Ipad820             |
@@ -287,8 +285,8 @@ On `reportsRulesAndYourRightsWeb` and `reportsRulesAndYourRightsMobile`, one boa
 
 1. **003B lead and `staff-architect`, contract.** The recipe read of a private import needs the server's `offer` for C3
    (§3). Today `offer` is only on the import item read. This is a wire change.
-2. **003B lead, key names.** `privateCopy.author` and `{domain}` in `editor.source.rightsLabel` in copy v3 are
-   superseded. The key is `editor.source.authorLabel`, and the parameter is `{site}`, as in the paste spec on main.
+2. **003B lead, key names.** `privateCopy.author` in copy v3 is replaced by `editor.source.authorLabel`. The site placeholder is `{site}`
+   everywhere (003B renames `{domain}`).
 3. **Drawn boards differ (D2).** B9 and M9 on `recipeImporting*` show "Report a problem" on the owner's public version.
    This spec removes it for the owner. Those boards are to drop the line.
 4. **016 owner.** The reader menu item "Report this recipe" becomes "Report a problem" on a public version (D4).

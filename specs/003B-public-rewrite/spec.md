@@ -167,7 +167,7 @@ The cook edits the public version later. Each save is checked so the source's wo
 wrote the steps, where the recipe is based, and can report a problem.
 
 **Independent Test**: On a Both recipe, paste the private copy's steps into the public version and save. The save is
-refused with `blocked.body`. A reader of the public page sees the credit, the licence and "Report a problem".
+refused with `blocked.bodyBoth`. A reader of the public page sees the credit, the licence and "Report a problem".
 
 **Acceptance Scenarios**:
 
@@ -276,8 +276,9 @@ later from its own menu. (C-6)
   decided with confidence. The server finds the language in this order:
     1. It takes the steps text and removes the ingredient-name spans, digits and units.
     2. It detects the language of each sentence and skips a sentence too short to judge.
-    3. A confident majority, weighted by letter count, wins. A recipe that mixes languages keeps the majority
-       language of its steps, and a mix is never a refusal and never makes the language uncertain.
+    3. The language of the confidently detected sentences, weighted by letter count, wins when it leads clearly. A recipe
+       that mixes languages keeps the leading language of its steps, and a mix is never a refusal. A recipe is
+       uncertain only when no language leads clearly (the threshold is set on golden fixtures, T183).
     4. Otherwise it uses the page's declared language (the page `lang` or JSON-LD `inLanguage`, carried on the import
        evidence as `evidence.page.language`), but only when that tag equals the detector's top candidate.
     5. Otherwise the language is uncertain and the recipe stays Private only (`languageUncertain`).
@@ -363,7 +364,7 @@ later from its own menu. (C-6)
   automatically. A second refusal ends the job `checkRefused`, and the cook sees the failed screen. (C-7)
 - **FR-032**: The public version MUST hold these parts, and no photo from the source:
     - the written steps.
-    - a descriptive title built by code from the facts sheet (the main foods and the method), with no model call. It
+    - a descriptive title built by code from the facts sheet (the main foods), with no model call. It
       is never the site's title, headnote or description. (C-8)
     - servings and times from the facts.
     - ingredient lines rebuilt from the matched facts (quantity, unit, food, preparation), not the source's line text.
@@ -401,7 +402,7 @@ later from its own menu. (C-6)
   Both path it is also reachable later from the public version (owner only, "See my copy").
 - **FR-042**: When the cook edits the written steps in the review, the two-way fact check MUST re-run on the server at
   "Publish", against the facts snapshot taken at import (the job's own copy, which also serves the "For everyone" path
-  where no private copy exists). The server never trusts a verdict from the client. Each missing fact, safety line or allergen shows as a flag (`flag.*`). Publish
+  where no private copy exists). The server never trusts a verdict from the client. Each missing fact or ingredient name shows as a flag (`flag.*`). Publish
   waits until each flag is resolved by an edit or by "Write it again". (C-9)
 - **FR-043**: The cook can change the title. The title then goes through the title check of FR-050.
 - **FR-044**: A cook with no slot left who reaches `review.notNow` on the "For everyone" path sees the reused `cancel`
@@ -490,13 +491,12 @@ later from its own menu. (C-6)
 
 #### J. Cost and failure
 
-- **FR-053a**: The machine checks work in any language. The fact check compares fact triples read from digits,
-  fractions, unit symbols, and times and temperatures written in digits, both ways. Every ingredient name in the
-  result matches the cook's ingredient list exactly. The step count is equal, and the sentence count stays within a set
-  range. The shingle fingerprint is built from word segments of the platform's segmenter. Length limits are a ratio of
-  the source's character count. The address and hidden-character rules apply unchanged. Verbs, equipment, safety words
-  and number words are not machine-checked: the cook's review covers them. A safety instruction with no number, or an
-  amount written as a word, is checked only by the cook's review.
+- **FR-053a**: 003B uses 027's checks (`027-FR-040` to `FR-042`), which work in any language: they read digits,
+  fractions, unit symbols and digit times and temperatures, match every ingredient name to the cook's ingredient list
+  exactly, keep the step and sentence counts within a set range, and cut words with the platform's segmenter. The
+  address and hidden-character rules apply unchanged. Verbs, equipment, safety words and number words are not
+  machine-checked: the cook's review covers them. A safety instruction with no number, or an amount written as a word,
+  is checked only by the cook's review.
 - **FR-080**: Every import from a third-party source MUST write an internal source record, append-only and never shown
   to cooks or readers. It extends ADR-0089 §6's evidence record with these fields:
     - the classification and its inputs, the paid signal and the licence signal.
@@ -583,7 +583,7 @@ is never charged to a cook's uses (FR-081).
 
 ### Measurable Outcomes
 
-- **SC-001**: In a human audit of 200 public versions, 0 drop or change an amount, time, temperature or safety line
+- **SC-001**: In a human audit of 200 public versions, 0 drop or change an amount, time, temperature or ingredient
   from the cook's copy.
 - **SC-002**: 0 public versions are published whose wording check against their source exceeds the threshold, at any
   save (measured from the source records).

@@ -29,7 +29,7 @@ Each item gives the decision, the reason, and the options set aside.
 
 ## R4. Title
 
-- **Decision**: built by code from the facts sheet: the two main foods by weight, and the main method.
+- **Decision**: built by code from the facts sheet: the two main foods by weight.
 - **Reason**: 027 never changes a title, so a title field in the engine answer is a mode flag. A code title costs
   nothing and never echoes the source.
 - **Set aside**: a title in the engine answer. A second prompt now. It stays the fallback for poor code titles in the bake-off.

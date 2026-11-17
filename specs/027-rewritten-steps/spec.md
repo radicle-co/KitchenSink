@@ -43,8 +43,9 @@ and AI rewrites change amounts and drop steps (`CK-006`), which is the trust pro
 (`docs/research/userNeeds/synthesis.md`).
 
 Flow Steps rewrites a recipe's steps into a cook-ready form: one action per step, prep gathered before the heat where
-the recipe allows it, waits made visible, and the whole job previewed. It keeps every amount, temperature, time,
-ingredient and safety line, and it adds none. The cook asks for it, recipe by recipe. The cook then either keeps it
+the recipe allows it, waits made visible, and the whole job previewed. It keeps every amount, temperature, time
+and ingredient, and it adds none. The wording of the steps, such as the actions and any safety instruction without a
+number, is covered by the cook's review. The cook asks for it, recipe by recipe. The cook then either keeps it
 beside the original (most useful in Cooking Mode) or uses it to replace the original.
 
 ## Dependencies
@@ -268,7 +269,7 @@ can always cook from the original steps.
       any language, because it reads digits, fractions, unit symbols and digit times and temperatures only. Verbs,
       equipment, safety words and number words are not machine-checked. A safety instruction with no number, or an
       amount written as a word, is checked only by the cook's review.
-      Steps may be merged, split or reordered, within a set range for the sentence count. A result that fails is never
+      Steps may be merged, split or reordered, within a set range for the step and sentence counts. A result that fails is never
       shown, stored or charged.
 - **FR-041**: A safety line is a statement in the steps in one of these seven categories. Code checks only the part of
   a safety line that carries a number (an internal or doneness temperature, a time). The rest of a safety line, such
@@ -396,7 +397,7 @@ can always cook from the original steps.
 ### Measurable Outcomes
 
 - **SC-001**: On the evaluation set (at least 200 real recipes of mixed length and source), 0 Flow Steps shown to a
-  cook are missing or adding an amount, temperature, time, ingredient or safety line, measured by an independent
+  cook are missing or adding an amount, temperature, time or ingredient, measured by an independent
   human audit of a 50-recipe sample as well as by the checks.
 - **SC-002**: At least 90% of requests on the evaluation set end with Flow Steps shown (the rest end in a stated
   refusal, never a silent one).
@@ -452,7 +453,7 @@ Each answer is the best-justified default. Each is **Assumed, owner to confirm**
   update only when the cook asks, because an update spends a use. (FR-022) _Assumed, owner to confirm._
 - **C-11. Undo a replace.** Q: How does the cook go back? → A: From the recipe's version history. A recipe must have
   been saved as a recipe once, so a version always exists (ADR-0058). (FR-003, FR-031) _Assumed, owner to confirm._
-- **C-12. Language.** Q: Which language? → A: The recipe's own language, for every language the detector supports. The cook's review is the language check.
+- **C-12. Language.** Q: Which language? → A: The recipe's own language, for every language the detector supports. The cook's review is the language check (owner ruling, 2026-11-17).
 - **C-13. What counts as a safety line.** Q: Which statements must survive? → A: The seven categories in FR-041.
   _Assumed, owner to confirm._
 - **C-14. What makes it out of date.** Q: Steps only, or ingredients too? → A: Steps, ingredient lines and language,

@@ -156,6 +156,20 @@
       "w": 820,
       "h": 1180,
       "title": "Reports, rules and your rights, ai disclosure (mobile, iPad 820)"
+    },
+    "RightsReportStatesIphone390.dc.html": {
+      "x": 0,
+      "y": 4996,
+      "w": 390,
+      "h": 4492,
+      "title": "Reports, rules and your rights, report states (mobile, iPhone 390)"
+    },
+    "RightsReportStatesIpad820.dc.html": {
+      "x": 0,
+      "y": 10184,
+      "w": 820,
+      "h": 4268,
+      "title": "Reports, rules and your rights, report states (mobile, iPad 820)"
     }
   },
   "order": [
@@ -179,7 +193,9 @@
     "RightsRulesIpad820.dc.html",
     "RightsYourDataIpad820.dc.html",
     "RightsEraseIpad820.dc.html",
-    "RightsAiDisclosureIpad820.dc.html"
+    "RightsAiDisclosureIpad820.dc.html",
+    "RightsReportStatesIphone390.dc.html",
+    "RightsReportStatesIpad820.dc.html"
   ],
   "notes": {
     "row0": {
@@ -200,6 +216,20 @@
       "x": 0,
       "y": 2996,
       "text": "Reports, rules and your rights: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowPV100": {
+      "x": 0,
+      "y": 4736,
+      "text": "Reports, rules and your rights: report states, mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowPV101": {
+      "x": 0,
+      "y": 9924,
+      "text": "Reports, rules and your rights: report states, mobile, iPad 820 (820 x 1180)",
       "kind": "title1",
       "maxW": 2400
     }

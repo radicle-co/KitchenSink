@@ -259,28 +259,28 @@
       "x": 0,
       "y": 14260,
       "w": 1280,
-      "h": 3879,
+      "h": 3903,
       "title": "Recipe importing, choice (web, 1280)"
     },
     "ImportPublicPrivateOnlyWeb1280.dc.html": {
       "x": 1360,
       "y": 14260,
       "w": 1280,
-      "h": 1959,
+      "h": 1983,
       "title": "Recipe importing, private only (web, 1280)"
     },
     "ImportPublicExistsWeb1280.dc.html": {
       "x": 2720,
       "y": 14260,
       "w": 1280,
-      "h": 2315,
+      "h": 2339,
       "title": "Recipe importing, public version exists (web, 1280)"
     },
     "ImportPublicOnlyWeb1280.dc.html": {
       "x": 4080,
       "y": 14260,
       "w": 1280,
-      "h": 2407,
+      "h": 2431,
       "title": "Recipe importing, public only, no slot (web, 1280)"
     },
     "ImportPublicDeadEndWeb1280.dc.html": {
@@ -336,28 +336,28 @@
       "x": 0,
       "y": 20760,
       "w": 390,
-      "h": 7658,
+      "h": 7682,
       "title": "Recipe importing, choice (web, 390)"
     },
     "ImportPublicPrivateOnlyWeb390.dc.html": {
       "x": 470,
       "y": 20760,
       "w": 390,
-      "h": 4616,
+      "h": 4640,
       "title": "Recipe importing, private only (web, 390)"
     },
     "ImportPublicExistsWeb390.dc.html": {
       "x": 940,
       "y": 20760,
       "w": 390,
-      "h": 4021,
+      "h": 4045,
       "title": "Recipe importing, public version exists (web, 390)"
     },
     "ImportPublicOnlyWeb390.dc.html": {
       "x": 1410,
       "y": 20760,
       "w": 390,
-      "h": 3326,
+      "h": 3350,
       "title": "Recipe importing, public only, no slot (web, 390)"
     },
     "ImportPublicDeadEndWeb390.dc.html": {

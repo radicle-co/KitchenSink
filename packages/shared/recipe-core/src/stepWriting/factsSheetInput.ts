@@ -16,12 +16,51 @@
  */
 import { ALPHABET_BY_LANGUAGE, canonicalText, isOutputLanguage } from './alphabet.js';
 import { firstShapeFault } from './factsSheetShape.js';
+import { INSTRUCTION_WORDS, MAX_INGREDIENT_NAME_WORDS } from './stepLexicons.js';
+import { TIME_UNIT_WORDS } from '../timeUnitWords.js';
 
 import type { OutputLanguage } from './alphabet.js';
 import type { FactsSheet } from './factsSheet.types.js';
 
 /** The longest name, unit, action, equipment word or safety fact, in code points. */
 export const MAX_FACT_TEXT_CHARS = 80;
+
+/** What a word of a name is made of, as a regex class body: letters, marks, numbers and apostrophes of either kind. */
+export const NAME_WORD_CHARS = String.raw`\p{L}\p{M}\p{N}'\u2019`;
+
+const NAME_WORD = new RegExp(`[${NAME_WORD_CHARS}]+`, 'gu');
+
+/**
+ * The words of a phrase: runs of {@link NAME_WORD_CHARS}.
+ *
+ * @param phrase - Any text.
+ * @returns Its words, in order. Pure.
+ */
+export function wordsOf(phrase: string): string[] {
+    return phrase.match(NAME_WORD) ?? [];
+}
+
+/** A number, then a time word: "10 minutes", "10minutes", "2 h". A hyphen is not a space, so "1-minute oats" is not a time. */
+const TIME_IN_NAME = new RegExp(`\\p{Nd}\\s*(?:${Object.keys(TIME_UNIT_WORDS).join('|')})(?![\\p{L}\\p{N}])`, 'iu');
+
+/**
+ * Whether an ingredient name reads as a sentence or a method step: more words than a name has, a word no name holds, or
+ * a time. A tripwire for the common shapes, not a boundary: a short instruction made of ordinary words passes.
+ *
+ * @param name - An ingredient name that is already plain.
+ * @returns True when it reads as step text. Pure.
+ */
+function readsAsStepText(name: string): boolean {
+    // Folded as the address check folds: full-width letters and digits read as the plain ones they imitate.
+    const folded = name.normalize('NFKC');
+    const words = wordsOf(folded);
+
+    return (
+        words.length > MAX_INGREDIENT_NAME_WORDS ||
+        words.some((word) => INSTRUCTION_WORDS.has(word.toLowerCase())) ||
+        TIME_IN_NAME.test(folded)
+    );
+}
 
 /**
  * Whether the text is a plain fact name: short, made only of the language's alphabet, and not an address.
@@ -40,6 +79,21 @@ export function isPlainFactText(text: string, language: OutputLanguage = 'en'): 
     return (
         [...composed].length <= MAX_FACT_TEXT_CHARS && alphabet.name.test(composed) && !alphabet.addressRule(composed)
     );
+}
+
+/**
+ * Refuse a name that is not a plain ingredient name: not plain text, or step text. The one rule for every ingredient
+ * name, so the builder and the sheet check name the field the same way.
+ *
+ * @param field - The field the name is in, for the error.
+ * @param name - The name.
+ * @param language - The output language. Defaults to English.
+ * @throws {FactsSheetInvalidError} Naming the field, never the name. Pure.
+ */
+export function assertIngredientName(field: string, name: string, language: OutputLanguage = 'en'): void {
+    if (!isPlainFactText(name, language) || readsAsStepText(name)) {
+        throw new FactsSheetInvalidError(field);
+    }
 }
 
 /** A sheet field that is not a fact. The message names the field and never echoes its text. */
@@ -90,20 +144,49 @@ export function toPlainFactsSheet(sheet: FactsSheet): FactsSheet {
         return canonical;
     };
 
+    const plainName = (field: string, text: string): string => {
+        const canonical = canonicalText(text);
+
+        assertIngredientName(field, canonical, language);
+
+        return canonical;
+    };
+
+    const ingredientNames = sheet.ingredientNames.map((name, i) => plainName(`ingredientNames[${i}]`, name));
+
     return {
         language,
-        ingredientNames: sheet.ingredientNames.map((name, i) => plain(`ingredientNames[${i}]`, name)),
+        ingredientNames,
         steps: sheet.steps.map((step, s) => {
             const at = `steps[${s}]`;
 
+            // A step can only name an ingredient the recipe lists, so the writer is never handed a name from nowhere.
+            const ingredients = step.ingredients.map((text, i) => {
+                const name = plainName(`${at}.ingredients[${i}]`, text);
+
+                if (!ingredientNames.includes(name)) {
+                    throw new FactsSheetInvalidError(`${at}.ingredients[${i}]`);
+                }
+
+                return name;
+            });
+
             return {
                 actions: step.actions.map((text, i) => plain(`${at}.actions[${i}]`, text)),
-                ingredients: step.ingredients.map((text, i) => plain(`${at}.ingredients[${i}]`, text)),
+                ingredients,
                 equipment: step.equipment.map((text, i) => plain(`${at}.equipment[${i}]`, text)),
-                amounts: step.amounts.map((amount, i) => ({
-                    quantity: amount.quantity,
-                    unit: amount.unit === null ? null : plain(`${at}.amounts[${i}].unit`, amount.unit),
-                })),
+                amounts: step.amounts.map((amount, i) => {
+                    // The writer is told which ingredient an amount measures, so the step must name it.
+                    if (amount.ingredient !== null && !ingredients.includes(canonicalText(amount.ingredient))) {
+                        throw new FactsSheetInvalidError(`${at}.amounts[${i}].ingredient`);
+                    }
+
+                    return {
+                        quantity: amount.quantity,
+                        unit: amount.unit === null ? null : plain(`${at}.amounts[${i}].unit`, amount.unit),
+                        ingredient: amount.ingredient === null ? null : canonicalText(amount.ingredient),
+                    };
+                }),
                 temperatures: step.temperatures.map(({ value, scale }) => ({ value, scale })),
                 durations: step.durations.map((duration, i) => {
                     if (duration.minSeconds < 0) {

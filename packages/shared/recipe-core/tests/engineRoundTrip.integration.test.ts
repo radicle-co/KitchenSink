@@ -29,7 +29,7 @@ const SHEET: FactsSheet = {
     steps: [
         {
             actions: ['preheat', 'melt'],
-            amounts: [{ quantity: 2, unit: 'tbsp' }],
+            amounts: [{ quantity: 2, unit: 'tbsp', ingredient: null }],
             temperatures: [{ value: 400, scale: 'F' }],
             durations: [],
             ingredients: ['butter'],

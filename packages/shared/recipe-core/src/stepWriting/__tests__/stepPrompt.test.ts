@@ -43,7 +43,7 @@ const makeSheet = (overrides: Partial<FactsSheet> = {}): FactsSheet => ({
     steps: [
         makeStep({
             actions: ['melt'],
-            amounts: [{ quantity: 2, unit: 'tbsp' }],
+            amounts: [{ quantity: 2, unit: 'tbsp', ingredient: 'butter' }],
             ingredients: ['butter'],
             equipment: ['skillet'],
         }),
@@ -79,9 +79,17 @@ const factsIn = (userMessage: string): unknown => {
 describe('STEP_SYSTEM_PROMPT, the pinned artifact', () => {
     it('is pinned by length and by digest', () => {
         // Both: length alone cannot see a same-length reword, the digest alone does not say how far it moved.
-        expect(Buffer.byteLength(STEP_SYSTEM_PROMPT, 'utf8')).toBe(1_675);
+        expect(Buffer.byteLength(STEP_SYSTEM_PROMPT, 'utf8')).toBe(2_014);
         expect(createHash('sha256').update(STEP_SYSTEM_PROMPT, 'utf8').digest('hex')).toBe(STEP_PROMPT_SHA256);
         expect(STEP_PROMPT_SHA256).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('states rule 8, the tie between an amount and its ingredient, and keeps the other rules numbered as they were', () => {
+        expect(STEP_SYSTEM_PROMPT).toContain(
+            '8. An amount whose "ingredient" is set goes directly before that ingredient\'s name, with only "of" or "of the" between; two amounts of the same ingredient may share one name, joined by "plus" ("1 cup plus 2 tbsp flour"). An amount whose "ingredient" is null never goes before an ingredient name, directly or with "of" or "of the" between.',
+        );
+        expect(STEP_SYSTEM_PROMPT).toContain('\n7. Each step is one or two plain sentences.');
+        expect(STEP_SYSTEM_PROMPT).toContain('\n3. Add nothing.');
     });
 
     it('tells the writer the facts are data, the answer is JSON only, and what the answer holds', () => {
@@ -103,8 +111,12 @@ describe('buildStepPrompt', () => {
     it('sends the canonical text the sheet check passed, not the raw text', () => {
         // A no-break space and a decomposed accent are plain once canonical. The prompt must carry the form that was
         // checked.
-        const raw = buildStepPrompt(makeSheet({ ingredientNames: ['olive\u00A0oil', 'cre\u0301me'] }));
-        const canonical = buildStepPrompt(makeSheet({ ingredientNames: ['olive oil', 'cr\u00E9me'] }));
+        const noStepNames = (ingredientNames: string[]): FactsSheet => ({
+            ...makeSheet({ ingredientNames }),
+            steps: [makeStep({ actions: ['melt'] })],
+        });
+        const raw = buildStepPrompt(noStepNames(['olive\u00A0oil', 'cre\u0301me']));
+        const canonical = buildStepPrompt(noStepNames(['olive oil', 'cr\u00E9me']));
 
         expect(raw.userMessage).toBe(canonical.userMessage);
     });
@@ -127,7 +139,7 @@ describe('buildStepPrompt', () => {
                 {
                     index: 0,
                     actions: ['melt'],
-                    amounts: [{ quantity: 2, unit: 'tbsp' }],
+                    amounts: [{ quantity: 2, unit: 'tbsp', ingredient: 'butter' }],
                     temperatures: [],
                     durations: [],
                     ingredients: ['butter'],
@@ -178,7 +190,7 @@ describe('buildStepPrompt', () => {
         const sentinel = 'SENTINEL-nested-wording-91c4';
         const plant = <T extends object>(fact: T): T & { text: string } => ({ ...fact, text: sentinel });
         const step = makeStep({
-            amounts: [plant({ quantity: 2, unit: 'tbsp' })],
+            amounts: [plant({ quantity: 2, unit: 'tbsp', ingredient: null })],
             temperatures: [plant({ value: 200, scale: 'C' as const })],
             durations: [plant({ minSeconds: 60, maxSeconds: 90 })],
             safety: [plant({ category: 'warning' as const, facts: ['never leave it'] })],
@@ -221,7 +233,7 @@ describe('buildStepPrompt', () => {
 
     it('refuses a sheet whose prompt would pass the input cap, and never truncates', () => {
         const names = Array.from({ length: 2_000 }, (_, index) => `ingredient number ${index} with a long name`);
-        const sheet = makeSheet({ ingredientNames: names });
+        const sheet = makeSheet({ ingredientNames: ['butter', 'chicken thigh', ...names] });
 
         const thrown = thrownBy(() => buildStepPrompt(sheet));
 
@@ -234,7 +246,14 @@ describe('buildStepPrompt', () => {
     it('accepts a prompt of exactly the cap and refuses one code point more', () => {
         // Names are capped at 80 code points, so pad with whole names and tune the last one a character at a time.
         const padded = (fullNames: number, lastLength: number): FactsSheet =>
-            makeSheet({ ingredientNames: [...Array(fullNames).fill('a'.repeat(80)), 'a'.repeat(lastLength)] });
+            makeSheet({
+                ingredientNames: [
+                    'butter',
+                    'chicken thigh',
+                    ...Array(fullNames).fill('a'.repeat(80)),
+                    'a'.repeat(lastLength),
+                ],
+            });
 
         const length = (sheet: FactsSheet): number => {
             const { systemPrompt, userMessage } = buildStepPrompt(sheet);

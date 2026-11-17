@@ -52,8 +52,8 @@ describe('@kitchensink/recipe-import-core barrel', () => {
         // policy deciding what the merged parse is and what the disagreement was, and its consumer is
         // recipe-workers' parse pipeline (U22) — a DIFFERENT package, reachable only through this door,
         // since the `exports` map publishes nothing but `.`. Its `modifierLexicon` collaborator is
-        // deliberately NOT here: KTD-11b's vocabulary is an implementation detail of the comparator, the
-        // same way `WHOLE_NUMBER_WORDS` is of the pre-normalizer, and its word sets are not functions.
+        // deliberately NOT here: KTD-11b's vocabulary is an implementation detail of the comparator, and its
+        // word sets are not functions.
         // ⚠️ GREW BY TWO in U22's promotion layer, and they are the pair that lets an ENGINE'S output
         // become a `ParsedLine` at all — the step nothing in the tree performed, and without which
         // `compareParses` (which consumes two of them) had no producer but a test fixture. They are public
@@ -179,7 +179,7 @@ describe('@kitchensink/recipe-import-core barrel', () => {
         }
     });
 
-    it('does not re-export the lexicon, which is an implementation detail of the pre-normalizer', () => {
+    it('does not re-export recipe-core’s number lexicon', () => {
         expect(Object.keys(publicApi)).not.toContain('WHOLE_NUMBER_WORDS');
         expect(Object.keys(publicApi)).not.toContain('FRACTION_WORD_DENOMINATORS');
     });

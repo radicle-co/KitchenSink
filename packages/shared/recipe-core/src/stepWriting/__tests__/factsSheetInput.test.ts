@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { PLAIN_FACT_PUNCTUATION } from '../alphabet.js';
 import {
     FactsSheetInvalidError,
-    assertFactsSheetPlain,
+    toPlainFactsSheet,
     isFactsSheetInvalidError,
     isPlainFactText,
 } from '../factsSheetInput.js';
@@ -38,7 +38,7 @@ const WORDING = 'Preheat the oven to 400 degrees. Melt the butter in a large ski
 
 const faultOf = (sheet: FactsSheet): unknown => {
     try {
-        assertFactsSheetPlain(sheet);
+        toPlainFactsSheet(sheet);
     } catch (error) {
         return error;
     }
@@ -46,7 +46,7 @@ const faultOf = (sheet: FactsSheet): unknown => {
     return undefined;
 };
 
-describe('assertFactsSheetPlain', () => {
+describe('toPlainFactsSheet', () => {
     it('accepts a plain sheet', () => {
         expect(faultOf(makeSheet())).toBeUndefined();
     });

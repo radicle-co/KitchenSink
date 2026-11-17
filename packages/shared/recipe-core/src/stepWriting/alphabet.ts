@@ -52,8 +52,7 @@ export const PLAIN_FACT_PUNCTUATION = " '\u2019\u2018,()&%\u00B0.+/#\u00D7\u2026
  * What a written step may hold besides letters and digits: the name set, plus semicolon, colon, exclamation and
  * question marks, double quotes and dashes.
  */
-const PLAIN_PROSE_PUNCTUATION =
-    ' .,;:!?\'\u2019\u2018"\u201C\u201D()-\u2013\u2014/%\u00B0&+#\u00D7\u2026\u00AE\u2122\u2103';
+const PLAIN_PROSE_PUNCTUATION = `${PLAIN_FACT_PUNCTUATION};:!?"\u201C\u201D\u2013\u2014`;
 
 /**
  * The accented Latin letters English recipe text really uses (French, Spanish, Portuguese, German, Scandinavian and

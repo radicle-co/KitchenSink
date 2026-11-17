@@ -3,9 +3,9 @@
  *
  * The prompt is facts only, so every string a sheet carries must be a fact: a short plain name, never a sentence of
  * source wording, and a language the writer answers in. Any code that hands a sheet to the writer calls
- * {@link assertFactsSheetPlain} first.
+ * {@link toPlainFactsSheet} and sends the sheet it returns.
  *
- * Names are plain by construction: normalised to NFC, then made only of what the language's alphabet allows (see
+ * Names are plain by construction: canonical (NFC, spaces folded), then made only of what the language's alphabet allows (see
  * `alphabet.ts`), at most {@link MAX_FACT_TEXT_CHARS} code points, and nothing the language's address rule flags. A
  * sentence runs past the length, a link fails the address rule, and markup needs an angle bracket, so none passes.
  *
@@ -59,12 +59,14 @@ export function isFactsSheetInvalidError(error: unknown): error is FactsSheetInv
 }
 
 /**
- * Refuse a sheet that carries anything but plain facts.
+ * Parse a sheet into its plain form: the same sheet with every free text in canonical form (see `canonicalText`), or a
+ * refusal. The prompt is built from the returned sheet, so what was checked is what is sent.
  *
  * @param sheet - The facts sheet.
+ * @returns A copy whose texts are canonical.
  * @throws {FactsSheetInvalidError} On the first field that is not a plain fact. Pure.
  */
-export function assertFactsSheetPlain(sheet: FactsSheet): void {
+export function toPlainFactsSheet(sheet: FactsSheet): FactsSheet {
     const shapeFault = firstShapeFault(sheet);
 
     if (shapeFault !== null) {
@@ -77,38 +79,47 @@ export function assertFactsSheetPlain(sheet: FactsSheet): void {
         throw new FactsSheetInvalidError('language');
     }
 
-    const plain = (field: string, text: string): void => {
-        if (!isPlainFactText(text, language)) {
+    const plain = (field: string, text: string): string => {
+        const canonical = canonicalText(text);
+
+        if (!isPlainFactText(canonical, language)) {
             throw new FactsSheetInvalidError(field);
         }
+
+        return canonical;
     };
 
-    sheet.ingredientNames.forEach((name, i) => plain(`ingredientNames[${i}]`, name));
-    sheet.steps.forEach((step, s) => {
-        const at = `steps[${s}]`;
+    return {
+        language,
+        ingredientNames: sheet.ingredientNames.map((name, i) => plain(`ingredientNames[${i}]`, name)),
+        steps: sheet.steps.map((step, s) => {
+            const at = `steps[${s}]`;
 
-        step.actions.forEach((text, i) => plain(`${at}.actions[${i}]`, text));
-        step.ingredients.forEach((text, i) => plain(`${at}.ingredients[${i}]`, text));
-        step.equipment.forEach((text, i) => plain(`${at}.equipment[${i}]`, text));
-        step.amounts.forEach((amount, i) => {
-            if (amount.unit !== null) {
-                plain(`${at}.amounts[${i}].unit`, amount.unit);
-            }
-        });
-        step.durations.forEach((duration, i) => {
-            const min = `${at}.durations[${i}].minSeconds`;
-            const max = `${at}.durations[${i}].maxSeconds`;
+            return {
+                ...step,
+                actions: step.actions.map((text, i) => plain(`${at}.actions[${i}]`, text)),
+                ingredients: step.ingredients.map((text, i) => plain(`${at}.ingredients[${i}]`, text)),
+                equipment: step.equipment.map((text, i) => plain(`${at}.equipment[${i}]`, text)),
+                amounts: step.amounts.map((amount, i) => ({
+                    ...amount,
+                    unit: amount.unit === null ? null : plain(`${at}.amounts[${i}].unit`, amount.unit),
+                })),
+                durations: step.durations.map((duration, i) => {
+                    if (duration.minSeconds < 0) {
+                        throw new FactsSheetInvalidError(`${at}.durations[${i}].minSeconds`);
+                    }
 
-            if (duration.minSeconds < 0) {
-                throw new FactsSheetInvalidError(min);
-            }
+                    if (duration.minSeconds > duration.maxSeconds) {
+                        throw new FactsSheetInvalidError(`${at}.durations[${i}].maxSeconds`);
+                    }
 
-            if (duration.minSeconds > duration.maxSeconds) {
-                throw new FactsSheetInvalidError(max);
-            }
-        });
-        step.safety.forEach((line, i) => {
-            line.facts.forEach((text, f) => plain(`${at}.safety[${i}].facts[${f}]`, text));
-        });
-    });
+                    return duration;
+                }),
+                safety: step.safety.map((line, i) => ({
+                    ...line,
+                    facts: line.facts.map((text, f) => plain(`${at}.safety[${i}].facts[${f}]`, text)),
+                })),
+            };
+        }),
+    };
 }

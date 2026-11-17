@@ -4,7 +4,7 @@
  *
  * The sheet is kept as jsonb, so the type alone does not hold at runtime: a field can be missing, null or the wrong
  * type, and an enum can hold another value. Which strings are plain facts, and which numbers are in range, is for
- * `assertFactsSheetPlain`. Extra properties are allowed here, because the prompt names the fields it reads and ignores
+ * `toPlainFactsSheet`. Extra properties are allowed here, because the prompt names the fields it reads and ignores
  * the rest.
  */
 import { z } from 'zod';

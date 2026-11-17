@@ -100,6 +100,15 @@ describe('buildStepPrompt', () => {
         expect(buildStepPrompt.length).toBe(1);
     });
 
+    it('sends the canonical text the sheet check passed, not the raw text', () => {
+        // A no-break space and a decomposed accent are plain once canonical. The prompt must carry the form that was
+        // checked.
+        const raw = buildStepPrompt(makeSheet({ ingredientNames: ['olive\u00A0oil', 'cre\u0301me'] }));
+        const canonical = buildStepPrompt(makeSheet({ ingredientNames: ['olive oil', 'cr\u00E9me'] }));
+
+        expect(raw.userMessage).toBe(canonical.userMessage);
+    });
+
     it('returns the pinned system prompt and the facts as the one user turn', () => {
         const prompt = buildStepPrompt(makeSheet());
 

@@ -285,38 +285,49 @@ describe('readPastedContent over a whole synthetic page', () => {
         });
     });
 
-    // Round-5 review, High 1: an ingredient-name check over every jump link cost jump tokens × ingredient tokens, outside
-    // the comparison budget (5 s on this 679 KB page). A jump link is now matched only by its short text on a closed list.
+    // Round-5 review, High 1: an ingredient-name check over every item cost item tokens × ingredient tokens, outside the
+    // comparison budget (5 s on this 679 KB page). An item is now matched by one lookup of its short text.
     // Round-6, Medium 2: the page must get PAST every item, or the walk never runs. So each of the 340 long items is
     // furniture the card tolerates (a meta fact with a long value), the schema is extracted, and the cost is counted: the
     // characters the page's items hand to the tokenizer, which the item policy and the token lookups both use, stay within
     // a small multiple of the page's own text. A wall-time ceiling backs the count for work the count cannot see.
-    it('reads a card after 340 long tolerated items and 340 jump links, at a cost bounded by the page', () => {
-        const filler = (count: number) => Array.from({ length: count }, () => 'q').join(' ');
-        const lines = Array.from({ length: 200 }, (_, index) => `${filler(40)} u${String(index)}`);
-        const steps = ['Mix it all.', 'Bake until golden.'];
-        const meta = `<li>Keywords: ${filler(600)} z</li>`.repeat(340);
-        const jumps = '<li><a href="#ing">Ingredients</a></li>'.repeat(340);
-        const page = makePage({
-            jsonLd: [makeRecipeNode({ recipeIngredient: lines, recipeInstructions: steps })],
-            body: `<article><div class="jump"><div><ul>${meta}${jumps}</ul></div></div><div id="ing"><ul>${lines.map((line) => `<li>${line}</li>`).join('')}</ul></div><ol>${steps.map((step) => `<li>${step}</li>`).join('')}</ol></article>`,
+    // Round-8 ruling (option d): the 340 jump links before the lines are no longer tolerated, so that page is refused. This
+    // test asserted `extracted` for it. It now holds the cost of both pages: the tolerated meta facts alone, extracted,
+    // and the same page with the jump links, refused.
+    describe.each([
+        ['340 long tolerated items', '', { kind: 'extracted' }],
+        [
+            '340 long tolerated items and 340 jump links',
+            '<li><a href="#ing">Ingredients</a></li>'.repeat(340),
+            { kind: 'notExtractable', reason: 'pageDisagreesWithSchema' },
+        ],
+    ])('a card after %s', (_name, jumps, expected) => {
+        it('is answered at a cost bounded by the page', () => {
+            const filler = (count: number) => Array.from({ length: count }, () => 'q').join(' ');
+            const lines = Array.from({ length: 200 }, (_, index) => `${filler(40)} u${String(index)}`);
+            const steps = ['Mix it all.', 'Bake until golden.'];
+            const meta = `<li>Keywords: ${filler(600)} z</li>`.repeat(340);
+            const page = makePage({
+                jsonLd: [makeRecipeNode({ recipeIngredient: lines, recipeInstructions: steps })],
+                body: `<article><div class="jump"><div><ul>${meta}${jumps}</ul></div></div><div id="ing"><ul>${lines.map((line) => `<li>${line}</li>`).join('')}</ul></div><ol>${steps.map((step) => `<li>${step}</li>`).join('')}</ol></article>`,
+            });
+
+            expect(page.length).toBeGreaterThan(400_000);
+
+            vi.mocked(tokensOf).mockClear();
+
+            const started = performance.now();
+            const { result, works } = readCounted(page);
+            const elapsedMs = performance.now() - started;
+            const charsTokenized = vi.mocked(tokensOf).mock.calls.reduce((sum, [text]) => sum + text.length, 0);
+
+            expect(result).toMatchObject(expected);
+            expectBoundedWalks(works);
+            // Measured again after the jump tolerance went: the page's text is tokenized once over (0.99 and 0.97 times its length). The bound is 1.25 times, so a second
+            // tokenize of each item (1.86 times) fails it, and a scan of each item against the lines fails it by far more.
+            expect(charsTokenized).toBeLessThanOrEqual(1.25 * page.length);
+            expect(elapsedMs).toBeLessThan(1_500);
         });
-
-        expect(page.length).toBeGreaterThan(400_000);
-
-        vi.mocked(tokensOf).mockClear();
-
-        const started = performance.now();
-        const { result, works } = readCounted(page);
-        const elapsedMs = performance.now() - started;
-        const charsTokenized = vi.mocked(tokensOf).mock.calls.reduce((sum, [text]) => sum + text.length, 0);
-
-        expect(result).toMatchObject({ kind: 'extracted' });
-        expectBoundedWalks(works);
-        // Measured: the page's text is tokenized once over (0.97 times its length). The bound is 1.25 times, so a second
-        // tokenize of each item (1.86 times) fails it, and a scan of each item against the lines fails it by far more.
-        expect(charsTokenized).toBeLessThanOrEqual(1.25 * page.length);
-        expect(elapsedMs).toBeLessThan(1_500);
     });
 
     describe('a block nested 100,000 deep, under the byte cap', () => {

@@ -62,7 +62,7 @@ describe('tokensOf', () => {
     });
 });
 
-// Round 9 (code-reviewer LOW 6 on #324): one definition of a word's material, for the tokenizer, the fragment-link count
+// Round 9 (code-reviewer LOW 6 on #324): one definition of a word's material, for the tokenizer
 // and the gate, so a combining mark counts the same everywhere.
 describe('isWordMaterial', () => {
     it.each(['a', 'É', '\u0301', '\u093F', '7', '\u0663'])('is true for %j', (char) => {

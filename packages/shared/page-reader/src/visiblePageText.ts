@@ -12,7 +12,7 @@
  * Only linear whitespace and newline splits run over page text, and no pattern can backtrack.
  */
 import { MAX_TOKEN_COMPARISONS, MAX_VISIBLE_NODES, MAX_VISIBLE_TOKENS } from './pageCaps.js';
-import { UNUSABLE_ID, type ElementExtent, type PageDocument, type VisibleBlock } from './pageDocument.js';
+import { type ElementExtent, type PageDocument, type VisibleBlock } from './pageDocument.js';
 import { tokensOf } from './pageTokens.js';
 
 /** Whether a run was found, was not, or could not be looked for within the page's comparison budget. */
@@ -57,13 +57,6 @@ export interface VisibleText {
 export interface CardItem {
     /** Its text, with every run of white space one space. */
     readonly text: string;
-    /**
-     * It is a jump link to the lines read: all of its word material sits inside its own fragment links, and each names
-     * an `id` whose first element (as a browser follows it) holds a block the runs read (`#ingredients`) and does not hold
-     * the item itself. So a link to the whole card, or to anything around it, is no jump link. What its text says is the
-     * policy's to judge.
-     */
-    readonly jumpsToReadLines: boolean;
     /** It is an item of an ordered list. */
     readonly ordered: boolean;
     /** Where it sits against the blocks the runs read: before the first, after the last, or between. */
@@ -152,17 +145,10 @@ interface Tokenized {
     readonly blocks: readonly BlockSpan[];
     /** The block elements of the body, by number (`VisibleBlock.element`). */
     readonly elements: readonly ElementExtent[];
-    /** The first shown element of the body with each `id` (`VisibleRead.firstIds`). */
-    readonly firstIds: ReadonlyMap<string, number>;
-    /** The ids no other element of the document carries (`PageDocument.uniqueIds`). */
-    readonly uniqueIds: ReadonlySet<string>;
 }
 
 interface BlockSpan {
     readonly text: string;
-    readonly fragmentLinksOnly: boolean;
-    readonly fragmentTargets: readonly string[];
-    readonly fostered: boolean;
     readonly ordered: boolean;
     readonly first: number;
     readonly last: number;
@@ -221,54 +207,27 @@ function listParentsOf(elements: readonly ElementExtent[], item: number): readon
     return [parent, parentIn(elements, parent)];
 }
 
-/**
- * What the read blocks sit in: the parents and grandparents of their lists, and every element that holds one (a read
- * block's element and its ancestors), by number. With the element each id first names, as a browser follows it.
- */
+/** What the read blocks sit in: the parents and grandparents of their lists, by number. */
 interface ReadAncestry {
     readonly listParents: ReadonlySet<number>;
     readonly listGrandparents: ReadonlySet<number>;
-    readonly holders: ReadonlySet<number>;
-    /** The elements that hold a read block a browser would move out of its table (foster parenting). */
-    readonly fosterHolders: ReadonlySet<number>;
-    readonly elementById: ReadonlyMap<string, number>;
-    readonly uniqueIds: ReadonlySet<string>;
 }
 
-/** The {@link ReadAncestry} of the blocks in `read`: one walk up from each, stopped at an ancestor already held. */
-function readAncestryOf(
-    elements: readonly ElementExtent[],
-    elementById: ReadonlyMap<string, number>,
-    uniqueIds: ReadonlySet<string>,
-    read: readonly BlockSpan[],
-): ReadAncestry {
+/** The {@link ReadAncestry} of the blocks in `read`. */
+function readAncestryOf(elements: readonly ElementExtent[], read: readonly BlockSpan[]): ReadAncestry {
     const listParents = new Set<number>();
     const listGrandparents = new Set<number>();
-    const holders = new Set<number>();
-    const fosterHolders = new Set<number>();
 
     for (const block of read) {
-        for (
-            let element = block.element;
-            block.fostered && element > 0 && !fosterHolders.has(element);
-            element = parentIn(elements, element)
-        ) {
-            fosterHolders.add(element);
-        }
-
         if (block.item > 0) {
             const [parent, grandparent] = listParentsOf(elements, block.item);
 
             listParents.add(parent);
             listGrandparents.add(grandparent);
         }
-
-        for (let element = block.element; element > 0 && !holders.has(element); element = parentIn(elements, element)) {
-            holders.add(element);
-        }
     }
 
-    return { listParents, listGrandparents, holders, fosterHolders, elementById, uniqueIds };
+    return { listParents, listGrandparents };
 }
 
 /** The first and the last token the read blocks span. */
@@ -286,30 +245,6 @@ function positionOf(block: BlockSpan, span: ReadSpan): CardItem['position'] {
     return block.first > span.last ? 'after' : 'between';
 }
 
-/**
- * Whether `target`, an id, is one a jump link in `block` may name: exactly one element of the document carries it, a
- * shown block element the body walk met, that holds read lines no browser moves out of a table, and does not hold `block`
- * itself. Any other id (one in the head, on a hidden element or on `<html>`) is met by no shown block, so it refuses.
- */
-function isJumpTarget(
-    elements: readonly ElementExtent[],
-    ancestry: ReadAncestry,
-    target: string,
-    block: BlockSpan,
-): boolean {
-    const holder = ancestry.elementById.get(target);
-
-    // The `?? 0` cannot fire: `holder` is an element number from `elements` (DD19).
-    return (
-        ancestry.uniqueIds.has(target) &&
-        holder !== undefined &&
-        holder !== UNUSABLE_ID &&
-        ancestry.holders.has(holder) &&
-        !ancestry.fosterHolders.has(holder) &&
-        !(holder <= block.element && block.element <= (elements[holder]?.last ?? 0))
-    );
-}
-
 /** The card item an unread list item is, as the card policy sees it. */
 function cardItemOf(
     block: BlockSpan,
@@ -321,10 +256,6 @@ function cardItemOf(
 
     return {
         text: block.text,
-        jumpsToReadLines:
-            block.fragmentLinksOnly &&
-            block.fragmentTargets.length > 0 &&
-            block.fragmentTargets.every((target) => isJumpTarget(elements, ancestry, target, block)),
         ordered: block.ordered,
         position: positionOf(block, span),
         besideReadList:
@@ -334,7 +265,7 @@ function cardItemOf(
 
 /** Whether the blocks that runs were read from leave a line of their list, or a list item of their card, unread. */
 function leavesLinesUnread(
-    { blocks, elements, firstIds, uniqueIds }: Tokenized,
+    { blocks, elements }: Tokenized,
     covered: Uint8Array,
     tolerates: (item: CardItem) => boolean,
 ): boolean {
@@ -360,7 +291,7 @@ function leavesLinesUnread(
 
     const card = cardOf(elements, read);
     const cardLast = elements[card]?.last ?? 0;
-    const ancestry = readAncestryOf(elements, firstIds, uniqueIds, read);
+    const ancestry = readAncestryOf(elements, read);
     const span: ReadSpan = { first: read[0]?.first ?? 0, last: read.at(-1)?.last ?? 0 };
 
     // Loose text (group 0) is not a list: any other block is a line of the list its siblings are. A list item inside the
@@ -488,7 +419,7 @@ export const DEFAULT_VISIBLE_CAPS: VisibleCaps = Object.freeze({
 /** The tokens of `blocks`, or `undefined` when they pass `maxTokens`: a page that long is never half read. */
 function tokenizedBlocks(
     blocks: readonly VisibleBlock[],
-    { elements, firstIds, uniqueIds }: Pick<Tokenized, 'elements' | 'firstIds' | 'uniqueIds'>,
+    { elements }: Pick<Tokenized, 'elements'>,
     maxTokens: number,
 ): Tokenized | undefined {
     const tokens: string[] = [];
@@ -508,9 +439,6 @@ function tokenizedBlocks(
         if (tokens.length > first) {
             spans.push({
                 text: block.text,
-                fragmentLinksOnly: block.fragmentLinksOnly,
-                fragmentTargets: block.fragmentTargets,
-                fostered: block.fostered,
                 ordered: block.ordered,
                 first,
                 last: tokens.length - 1,
@@ -530,7 +458,7 @@ function tokenizedBlocks(
         blockEnds[span.last] = 1;
     });
 
-    return { tokens, blockStarts, blockEnds, blocks: spans, elements, firstIds, uniqueIds };
+    return { tokens, blockStarts, blockEnds, blocks: spans, elements };
 }
 
 /**
@@ -552,13 +480,13 @@ export function visibleTextOf(page: PageDocument, caps: VisibleCaps = DEFAULT_VI
         return { kind: 'noBody' };
     }
 
-    const { blocks, elements, firstIds, truncated } = body.visibleText(caps.maxNodes);
+    const { blocks, elements, truncated } = body.visibleText(caps.maxNodes);
 
     if (truncated) {
         return { kind: 'tooComplex' };
     }
 
-    const tokenized = tokenizedBlocks(blocks, { elements, firstIds, uniqueIds: page.uniqueIds() }, caps.maxTokens);
+    const tokenized = tokenizedBlocks(blocks, { elements }, caps.maxTokens);
 
     return tokenized === undefined ? { kind: 'tooComplex' } : { kind: 'ok', text: textOfTokens(tokenized) };
 }

@@ -344,280 +344,70 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
         expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
     });
 
-    // Rewritten: the links said "Jump to ingredients" and "Jump to instructions", which no page of the tuning corpus
-    // shows. A jump link's text must be on the closed list (`jumpPhrases.ts`), so the links say "Ingredients" and "Method".
-    it('reads a card with jump links before the lines to the elements that hold them', () => {
-        const page = makePage({
-            jsonLd: [NODE],
-            body: `<article><div class="jump"><div><ul><li><a href="#ingredients">Ingredients</a></li><li><a href="#instructions">Method</a></li></ul></div></div><div id="ingredients"><ul>${items(INGREDIENTS)}</ul></div><div id="instructions"><ol>${items(STEPS)}</ol></div></article>`,
-        });
-
-        expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
-    });
-
-    // A jump link is furniture only when its text is on the closed list of jump phrases (`jumpPhrases.ts`), every target
-    // holds a read line, and no target holds the item itself. The read lines sit in `#ing`; `#page` wraps the whole card.
-    // Each structural case uses a phrase on the list, so only its own rule refuses it.
+    // Round-8 ruling (staff-architect, option d): the jump-list tolerance is removed. htmlparser2 does not build the tree a
+    // browser does, so a rule that vouches for where "Jump to recipe" goes kept leaking wrong yeses. Before the lines the
+    // reader now reads only a meta fact as furniture, so a card with a jump list refuses. A spec tree builder may bring the
+    // tolerance back (issue #349). These tests asserted the tolerance and now assert the refusal.
     describe('a jump link before the lines', () => {
-        const jumpPage = (item: string, wrapperId?: string): string => {
-            const card = `<article><div class="jump"><div><ul>${item}</ul></div></div><div id="ing"><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`;
-
-            return makePage({
-                jsonLd: [NODE],
-                body: wrapperId === undefined ? card : `<div id="${wrapperId}">${card}</div>`,
-            });
-        };
-
         const refused = { kind: 'notExtractable', reason: 'pageDisagreesWithSchema' };
+        const cardWith = (item: string, listOpen = '<div id="ing">', head = ''): string =>
+            makePage({
+                jsonLd: [NODE],
+                head,
+                body: `<article><div class="jump"><div><ul>${item}</ul></div></div>${listOpen}<ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`,
+            });
 
-        it.each([['Jump to recipe'], ['Ingredients'], ['  JUMP TO RECIPE ']])(
-            'reads one to the read list that says %j',
+        it.each([['Jump to recipe'], ['Ingredients'], ['  JUMP TO RECIPE '], ['Skip to recipe'], ['Method']])(
+            'refuses one to a real, unique id that holds the read list, whose text is %j',
             (text) => {
-                expect(readPastedContent(jumpPage(`<li><a href="#ing">${text}</a></li>`))).toMatchObject({
-                    kind: 'extracted',
-                });
+                expect(readPastedContent(cardWith(`<li><a href="#ing">${text}</a></li>`))).toMatchObject(refused);
             },
         );
 
+        it('refuses a card with jump links to the elements that hold the ingredients and the method', () => {
+            const page = makePage({
+                jsonLd: [NODE],
+                body: `<article><div class="jump"><div><ul><li><a href="#ingredients">Ingredients</a></li><li><a href="#instructions">Method</a></li></ul></div></div><div id="ingredients"><ul>${items(INGREDIENTS)}</ul></div><div id="instructions"><ol>${items(STEPS)}</ol></div></article>`,
+            });
+
+            expect(readPastedContent(page)).toMatchObject(refused);
+        });
+
+        // Each of these once separated a jump link a tolerance could vouch for from one it could not. None is tolerated now.
         it.each([
             ['an omitted ingredient', '<li><a href="#ing">One onion</a></li>'],
-            ['a plural ingredient', '<li><a href="#ing">Onions</a></li>'],
-            ['an amount in words', '<li><a href="#ing">Half a lemon</a></li>'],
+            ['an omitted ingredient in words', '<li><a href="#ing">Half a lemon</a></li>'],
             ['two ingredients, two links', '<li><a href="#ing">Onions</a>, <a href="#ing">garlic</a></li>'],
-            ['an ingredient the schema names in another form', '<li><a href="#ing">Egg</a></li>'],
             ['an ingredient the schema names', '<li><a href="#ing">Salt</a></li>'],
-            ['a phrase on the list with more words', '<li><a href="#ing">Jump to recipe now</a></li>'],
-        ])('refuses a jump link whose text is not a jump phrase: %s', (_name, item) => {
-            expect(readPastedContent(jumpPage(item))).toMatchObject(refused);
+            ['a phrase with more words', '<li><a href="#ing">Jump to recipe now</a></li>'],
+            ['a phrase only part of which is a link', '<li>Jump to <a href="#ing">recipe</a></li>'],
+            ['a link with a block inside it', '<li><a href="#ing"><div></div>Ingredients</a></li>'],
+            ['a link to no element', '<li><a href="#nowhere">Jump to recipe</a></li>'],
+            ['a link to a percent-encoded id', '<li><a href="#ing%20x">Ingredients</a></li>'],
+            ['a link with a tab in its href', '<li><a href="#in\tg">Ingredients</a></li>'],
+            ['a link opened inside a link', '<li><a href="#ing">Jump <b><a href="#ing">to</a></b> recipe</a></li>'],
+        ])('refuses a card whose jump item is %s', (_name, item) => {
+            expect(readPastedContent(cardWith(item))).toMatchObject(refused);
         });
 
-        it('refuses an omitted ingredient linked to one step', () => {
-            const page = makePage({
-                jsonLd: [NODE],
-                body: `<article><div class="jump"><div><ul><li><a href="#s2">One onion</a></li></ul></div></div><ul>${items(INGREDIENTS)}</ul><ol><li>${STEPS[0] ?? ''}</li><li id="s2">${STEPS[1] ?? ''}</li><li>${STEPS[2] ?? ''}</li></ol></article>`,
-            });
+        it.each([
+            ['the id given first to an inline element', '<span id="ing">x</span>', '<div id="ing">'],
+            ['the id given first to a hidden element', '<div hidden id="ing">x</div>', '<div id="ing">'],
+            ['a read list with no id at all', '', '<div>'],
+        ])('refuses it with %s', (_name, carrier, listOpen) => {
+            const page = cardWith('<li><a href="#ing">Ingredients</a></li>', `${carrier}${listOpen}`);
 
             expect(readPastedContent(page)).toMatchObject(refused);
         });
 
-        it.each([
-            ['a link to an element around the whole card', '<li><a href="#page">Jump to recipe</a></li>', 'page'],
-            ['a link with a block inside it', '<li><a href="#ing"><div></div>Ingredients</a></li>', undefined],
-            [
-                'one link to the read list and one to no read line',
-                '<li><a href="#ing">Jump to</a> <a href="#notes">recipe</a></li>',
-                undefined,
-            ],
-            ['a phrase only part of which is a link', '<li>Jump to <a href="#ing">recipe</a></li>', undefined],
-            [
-                'a list inside a jump link, its item holding a jump link of its own',
-                '<a href="#ing"><li>Jump to <a href="#ing">recipe</a></li></a>',
-                undefined,
-            ],
-        ])('refuses %s', (_name, item, wrapperId) => {
-            expect(readPastedContent(jumpPage(item, wrapperId))).toMatchObject(refused);
-        });
-
-        it('refuses a link to an element that holds no read line', () => {
-            const page = makePage({
-                jsonLd: [NODE],
-                body: `<article><div class="jump"><div><ul><li><a href="#notes">Ingredients</a></li></ul></div></div><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol><div id="notes"><p>Serve warm.</p></div></article>`,
-            });
-
-            expect(readPastedContent(page)).toMatchObject(refused);
-        });
-
-        it('refuses a link to an element that holds read lines and the link itself', () => {
-            const page = makePage({
-                jsonLd: [NODE],
-                body: `<article><div id="ing"><div class="jump"><div><ul><li><a href="#ing">Ingredients</a></li></ul></div></div><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`,
-            });
-
-            expect(readPastedContent(page)).toMatchObject(refused);
-        });
-
-        // A browser follows the FIRST element with an id. Here that is the link's own container, not the read list.
-        it.each([
-            [
-                'the jump list itself',
-                `<article><div class="jump" id="ing"><div><ul><li><a href="#ing">Ingredients</a></li></ul></div></div><div id="ing"><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`,
-            ],
-            [
-                'the link item itself',
-                `<article><div class="jump"><div><ul><li id="ing"><a href="#ing">Ingredients</a></li></ul></div></div><div id="ing"><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`,
-            ],
-        ])('refuses a link whose id is first given to %s', (_name, body) => {
-            expect(readPastedContent(makePage({ jsonLd: [NODE], body }))).toMatchObject(refused);
-        });
-
-        // Round-6, Medium 1: a browser follows the first element with the id, whatever it is: an inline one, or one the
-        // cook cannot see. The read list further down is then not where the link goes, so the item refuses.
-        const withFirstCarrier = (carrier: string, jump = '<li><a href="#ing">Ingredients</a></li>'): string =>
-            makePage({
-                jsonLd: [NODE],
-                body: `<article><div class="jump"><div><ul>${jump}</ul></div></div>${carrier}<div id="ing"><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`,
-            });
-
-        it.each([
-            ['an inline element', '<span id="ing">x</span>'],
-            ['a hidden element', '<div hidden id="ing">x</div>'],
-            ['an element a style hides', '<div style="display:none" id="ing">x</div>'],
-            ['an element inside a hidden one', '<div hidden><p id="ing">x</p></div>'],
-            ['an element in a closed details', '<details><summary>More</summary><p id="ing">x</p></details>'],
-            ['a template itself', '<template id="ing"><p>x</p></template>'],
-        ])('refuses a link whose id is first given to %s', (_name, carrier) => {
-            expect(readPastedContent(withFirstCarrier(carrier))).toMatchObject(refused);
-        });
-
-        // Round-7 ruling: ids compare EXACTLY, as a browser compares them (HTML Standard 7.4.6.4, "find a potential
-        // indicated element": "an ID equal to fragment"). An id padded by white space is another id, so it does not
-        // claim `#ing`, and the read list below it is where the link goes.
-        it('reads a link past an element whose id is only padded by white space: exact compare', () => {
-            expect(readPastedContent(withFirstCarrier('<span id=" ing ">x</span>'))).toMatchObject({
-                kind: 'extracted',
-            });
-        });
-
-        // The read list is the one with the padded id, so `#ing` names nothing a browser would find.
-        it.each([
-            ['an id padded by spaces', '<div id=" ing ">', '#ing'],
-            ['an id with a no-break space (not stripped)', '<div id="ing\u00a0">', '#ing'],
-            ['an id in another case', '<div id="ING">', '#ing'],
-            ['an empty id and an empty target', '<div id="">', '#'],
-            ['a no-break space before the #, which is no fragment link', '<div id="ing">', '\u00a0#ing'],
-        ])('refuses a link when the read list has %s', (_name, listOpen, href) => {
-            const page = makePage({
-                jsonLd: [NODE],
-                body: `<article><div class="jump"><div><ul><li><a href="${href}">Ingredients</a></li></ul></div></div>${listOpen}<ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`,
-            });
-
-            expect(readPastedContent(page)).toMatchObject(refused);
-        });
-
-        // URL standard: the parser strips leading and trailing C0 controls and spaces, then tabs and newlines anywhere.
-        it.each([
-            ['a tab inside', '#in\tg'],
-            ['a newline inside', '#in\ng'],
-            ['a carriage return inside', '#i\rng'],
-            ['spaces and a C0 control around it', '\u0001 #ing \u001f'],
-        ])('reads a jump link whose href has %s, as a browser strips it', (_name, href) => {
-            const page = withFirstCarrier('', `<li><a href="${href}">Ingredients</a></li>`);
-
-            expect(readPastedContent(page)).toMatchObject({ kind: 'extracted' });
-        });
-
-        // HTML Standard 7.4.6.4: the fragment is percent-decoded when no element matches it as written, so `#ing%20x`
-        // may reach an element the id never spells. A fragment with a % is refused, whatever the ids say.
-        it('refuses a link whose target holds a percent sign, even when an id spells it', () => {
-            const page = makePage({
-                jsonLd: [NODE],
-                body: `<article><div class="jump"><div><ul><li><a href="#ing%20x">Ingredients</a></li></ul></div></div><div id="ing%20x"><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`,
-            });
-
-            expect(readPastedContent(page)).toMatchObject(refused);
-        });
-
-        // One id on two elements anywhere in the document, the head, `<html>` and `<body>` included, and a browser may
-        // follow either. The body walk sees only the shown body, so the page counts every element once.
-        describe('an id that occurs twice in the document', () => {
-            const page = (edit: (html: string) => string, head = ''): string =>
-                edit(
-                    makePage({
-                        jsonLd: [NODE],
-                        head,
-                        body: `<article><div class="jump"><div><ul><li><a href="#ing">Ingredients</a></li></ul></div></div><div id="ing"><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`,
-                    }),
-                );
-
-            it('reads the page when the id occurs once', () => {
-                expect(readPastedContent(page((html) => html))).toMatchObject({ kind: 'extracted' });
-            });
-
-            it.each([
-                ['a meta in the head', (html: string) => html, '<meta id="ing" name="x" content="y">'],
-                ['the body element', (html: string) => html.replace('<body>', '<body id="ing">'), ''],
-                ['the html element', (html: string) => html.replace('<html>', '<html id="ing">'), ''],
-                ['a flow element inside the head', (html: string) => html, '<div id="ing"></div>'],
-                [
-                    'a hidden element after the list',
-                    (html: string) => html.replace('</article>', '<div hidden id="ing"></div></article>'),
-                    '',
-                ],
-            ])('refuses it when %s carries the id too', (_name, edit, head) => {
-                expect(readPastedContent(page(edit, head))).toMatchObject(refused);
-            });
-        });
-
-        // A browser may read the link against another document (`<base>`), or find the read list inside a shadow root.
-        // The reader models neither, so a page with one is refused whole.
-        describe('a page the reader cannot model as a browser builds it', () => {
-            const card = `<article><div class="jump"><div><ul><li><a href="#ing">Ingredients</a></li></ul></div></div><div id="ing"><ul>${items(INGREDIENTS)}</ul></div><ol>${items(STEPS)}</ol></article>`;
-
-            it.each([
-                ['a base element', '<base href="https://other.example/">', card],
-                [
-                    'a declarative shadow root beside the card',
-                    '',
-                    `${card}<div><template shadowrootmode="open"><p>x</p></template></div>`,
-                ],
-                [
-                    'a legacy declarative shadow root beside the card',
-                    '',
-                    `${card}<div><template shadowroot="open"><p>x</p></template></div>`,
-                ],
-                [
-                    'a declarative shadow root around the card',
-                    '',
-                    `<div><template shadowrootmode="open">${card}</template></div>`,
-                ],
-            ])('refuses a page with %s', (_name, head, body) => {
-                expect(readPastedContent(makePage({ jsonLd: [NODE], head, body }))).toMatchObject(refused);
-            });
-        });
-
-        // HTML Standard 13.2.6.1 ("the appropriate place for inserting a node", foster parenting): content a table
-        // cannot hold is moved out in front of the table, so the table is not where a browser keeps these lines.
-        describe('a read list a browser would not keep where the markup puts it', () => {
-            const jump = '<div class="jump"><div><ul><li><a href="#ing">Ingredients</a></li></ul></div></div>';
-            const withList = (list: string): string =>
-                makePage({ jsonLd: [NODE], body: `<article>${jump}${list}<ol>${items(STEPS)}</ol></article>` });
-
-            it.each([
-                ['items straight in a table', `<table id="ing">${items(INGREDIENTS)}</table>`],
-                ['items in a row but no cell', `<table id="ing"><tr>${items(INGREDIENTS)}</tr></table>`],
-                ['items in a table body', `<table><tbody id="ing">${items(INGREDIENTS)}</tbody></table>`],
-                ['items in a table head', `<table><thead id="ing">${items(INGREDIENTS)}</thead></table>`],
-                ['items in a table foot', `<table><tfoot id="ing">${items(INGREDIENTS)}</tfoot></table>`],
-                ['a list in a paragraph', `<p id="ing"><ul>${items(INGREDIENTS)}</ul></p>`],
-            ])('refuses a link to %s', (_name, list) => {
-                expect(readPastedContent(withList(list))).toMatchObject(refused);
-            });
-
-            it('reads a link to a list inside a table cell', () => {
-                const list = `<table id="ing"><tbody><tr><td><ul>${items(INGREDIENTS)}</ul></td></tr></tbody></table>`;
-
-                expect(readPastedContent(withList(list))).toMatchObject({ kind: 'extracted' });
-            });
-        });
-
-        // A browser closes the open link when another opens (adoption agency), so the inner link is no part of the first.
-        // htmlparser2 closes an open link itself when another opens directly in it, as a browser does. Through an inline
-        // element it does not, and the browser's adoption agency still does: the two trees then differ, so it refuses.
-        it.each([
-            ['a link', '<li><a href="#ing">Jump <b><a href="#ing">to</a></b> recipe</a></li>'],
-            ['an anchor with no href', '<li><a href="#ing">Jump <b><a name="x">to</a></b> recipe</a></li>'],
-        ])('refuses a jump link with %s opened inside it', (_name, item) => {
-            expect(readPastedContent(withFirstCarrier('', item))).toMatchObject(refused);
-        }); // An element inside a template is not in the page, and a link's trailing space is not part of its target.
-        it.each([
-            [
-                'an id inside a template',
-                '<template><p id="ing">x</p></template>',
+        it('refuses it on a page with a base element', () => {
+            const page = cardWith(
                 '<li><a href="#ing">Ingredients</a></li>',
-            ],
-            ['a target with a trailing space', '', '<li><a href="#ing ">Ingredients</a></li>'],
-        ])('still reads a jump link with %s', (_name, carrier, jump) => {
-            expect(readPastedContent(withFirstCarrier(carrier, jump))).toMatchObject({ kind: 'extracted' });
+                '<div id="ing">',
+                '<base href="https://o.example/">',
+            );
+
+            expect(readPastedContent(page)).toMatchObject(refused);
         });
     });
 
@@ -840,13 +630,20 @@ describe('G-CORR on a card shaped like a recipe plugin’s', () => {
         });
     });
 
-    // Round 8 ruling: jump links are links, and the nutrition list sits after the method, so neither is a part of the
-    // recipe the schema left out.
-    it.each([
-        ['a nutrition list', { equipment: false, nutrition: true, jumps: false }],
-        ['jump links', { equipment: false, nutrition: false, jumps: true }],
-    ])('reads the card when it also holds %s', (_name, lists) => {
-        expect(readPastedContent(page(lists))).toMatchObject({ kind: 'extracted' });
+    // The nutrition list sits after the method, so it is no part of the recipe the schema left out.
+    it('reads the card when it also holds a nutrition list', () => {
+        expect(readPastedContent(page({ equipment: false, nutrition: true, jumps: false }))).toMatchObject({
+            kind: 'extracted',
+        });
+    });
+
+    // Round-8 ruling (option d): the jump-list tolerance is gone, so jump links before the ingredients refuse the card.
+    // This asserted `extracted` while the tolerance stood.
+    it('refuses the card when it also holds jump links before the ingredients', () => {
+        expect(readPastedContent(page({ equipment: false, nutrition: false, jumps: true }))).toMatchObject({
+            kind: 'notExtractable',
+            reason: 'pageDisagreesWithSchema',
+        });
     });
 
     // Rewritten for round 9 (code-reviewer HIGH 2 on #324): an equipment list before the ingredients ("Mixing bowl") was

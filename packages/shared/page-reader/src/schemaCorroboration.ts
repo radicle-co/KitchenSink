@@ -16,7 +16,7 @@
  * does, so "flour" is not "2 cups flour"), the steps are read in order, a list the lines sit in has no line the schema
  * leaves out, and the recipe CARD (the smallest element holding every line and step read) has no list item the schema
  * leaves out but its furniture ({@link isCardFurniture}: outside the read lines and beside no read list, an unnumbered
- * item with no leading amount that comes after the lines, or before them is a listed jump phrase or meta fact), so a schema
+ * item with no leading amount that comes after the lines, or before them is a meta fact), so a schema
  * missing a line, an ingredient group or a second method is
  * caught as surely as a page missing one. The per-card rule counts only list items (`<li>`), so it does not see three
  * kinds of line unless the schema reads a sibling of theirs: a table row (`<tr>`, as in an ingredient or nutrition
@@ -35,7 +35,6 @@ import { readCooksMeasure } from '@kitchensink/recipe-core/parsing/measure-reade
 
 import { CARD_META_LABELS, type CardMetaKind, DURATION_JOINS, DURATION_WORDS } from './cardMetaLabels.js';
 import { instructionOf } from './instructionSteps.js';
-import { JUMP_PHRASES, MAX_JUMP_PHRASE_CHARS } from './jumpPhrases.js';
 import type { ExtractionTier, PageCandidate, PageRecipe } from './pageRecipeCandidate.js';
 import { namesAMeasure, tokensOf } from './pageTokens.js';
 import type { CardItem, VisibleText, VisibleTextResult } from './visiblePageText.js';
@@ -100,23 +99,15 @@ function isMetaFact(text: string): boolean {
 }
 
 /**
- * Whether `text` (white space already folded) is, whole, a jump phrase on the closed list ({@link JUMP_PHRASES}). The
- * length check bounds the work, not the answer: no phrase is longer, so a long text is never folded to be looked up.
- */
-const isJumpPhrase = (text: string): boolean =>
-    text.length <= MAX_JUMP_PHRASE_CHARS && JUMP_PHRASES.has(text.toLowerCase());
-
-/**
  * The card's furniture: an unread list item of the card that is no part of the recipe the schema left out. An item is
  * never furniture when it is between the first line the schema reads and the last (an equipment list, an omitted
  * group), when its list sits beside a list the schema reads (a group the schema left out), when it is numbered (a
  * second method) or when it opens with an amount (an ingredient). Past those checks:
  * - an item after the last read line is furniture (notes, nutrition, related recipes);
- * - an item before the first read line is furniture only when it is a jump link to an element that holds the lines read
- *   and not the link, whose whole text is a jump phrase on the closed list ({@link isJumpPhrase}), or a meta fact: a
- *   label on the closed list and a value of that label's shape ({@link isMetaFact}). Any other item there, a link to the
- *   lines or another page included, may be an omitted group ("One onion", "Eggs: 2", "Мука: 200 г"), so the card is
- *   refused.
+ * - an item before the first read line is furniture only when it is a meta fact: a label on the closed list and a value
+ *   of that label's shape ({@link isMetaFact}). Any other item there, a link ("Jump to recipe") included, may be an
+ *   omitted group ("One onion", "Eggs: 2", "Мука: 200 г"), so the card is refused. A jump-link list is not tolerated: the
+ *   reader's tree is not a browser's, so where a link goes cannot be vouched for (issue #349).
  * Any doubt is no.
  */
 function isCardFurniture(item: CardItem): boolean {
@@ -129,7 +120,7 @@ function isCardFurniture(item: CardItem): boolean {
         return false;
     }
 
-    return item.position === 'after' || (item.jumpsToReadLines && isJumpPhrase(item.text)) || isMetaFact(item.text);
+    return item.position === 'after' || isMetaFact(item.text);
 }
 
 /** G-CORR over a page's visible text: the card the cook reads is the ingredient lines and the steps, no more and no less. */

@@ -204,34 +204,6 @@ describe('parsePage', () => {
         expect(page.work().visits).toBe(5 + 4 + 2);
     });
 
-    describe('uniqueIds', () => {
-        const idsOf = (html: string): string[] => [...parsePage(html).uniqueIds()].sort();
-
-        it('lists the ids that occur once, compared exactly, in the head, html and body too', () => {
-            expect(
-                idsOf(
-                    '<html id="h"><head><meta id="m"></head><body id="b"><p id="a">x</p><p id="a ">y</p><p id="A">z</p><p id="">w</p></body></html>',
-                ),
-            ).toEqual(['A', 'a', 'a ', 'b', 'h', 'm']);
-        });
-
-        it('drops an id that two elements carry, wherever they are', () => {
-            expect(idsOf('<head><meta id="a"></head><body><p id="a">x</p><p id="c">y</p></body>')).toEqual(['c']);
-        });
-
-        it('does not count the content of a template, which is not in the document tree', () => {
-            expect(idsOf('<body><template><p id="a">x</p></template><p id="a">y</p></body>')).toEqual(['a']);
-        });
-
-        it.each([
-            ['a base element', '<head><base href="https://o.example/"></head>'],
-            ['a declarative shadow root', '<div><template shadowrootmode="open"><p>x</p></template></div>'],
-            ['a legacy declarative shadow root', '<div><template shadowroot="open"><p>x</p></template></div>'],
-        ])('is empty for a page with %s', (_name, markup) => {
-            expect(idsOf(`<body><p id="a">x</p>${markup}</body>`)).toEqual([]);
-        });
-    });
-
     it('reads siblings far past the depth cap: width is not depth, so nothing is cut', () => {
         const siblings = MAX_ELEMENT_DEPTH * 10;
         const wide = parsePage(`<div>${'<i>a</i>'.repeat(siblings)}</div>`);

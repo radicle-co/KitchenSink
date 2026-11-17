@@ -5,7 +5,7 @@
  * `@kitchensink/recipe-core/parsing/number-words` — a vocabulary is a piece of knowledge, and it is filed apart from
  * the policy that consumes it (`parseComparator.ts`) for the reason §1 gives: a file that is a policy AND a word list
  * is two files wearing one name. Nothing here is on the package barrel; the classification is an
- * implementation detail of the comparator, as the number lexicon's word tables are of the pre-normalizer.
+ * implementation detail of the comparator.
  *
  * ## The ruling this carries (KTD-11b, owner ruling 2026-08-23)
  *

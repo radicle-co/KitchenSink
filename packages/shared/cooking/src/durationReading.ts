@@ -1,6 +1,9 @@
 /**
  * What a line says about time, and the one way a reading is built.
  *
+ * DESIGN PATTERN: Smart Constructor — `oneReading` is the only way a `one` reading is built, and it holds the range
+ * invariant (the high end is above the low end, or absent).
+ *
  * Both layers of the reader (`duration.ts` for digits, `durationWords.ts` for words) end in a `one` reading, so the
  * range rule lives here once.
  */

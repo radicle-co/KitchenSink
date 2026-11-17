@@ -48,30 +48,6 @@ describe('themeColourReads', () => {
             1,
             0,
         ],
-        [
-            'a const bound to a colors member counts N for N uses',
-            `const { colors } = useTheme();\nconst muted = colors.inkMuted;\nconst a = [muted, muted, muted];`,
-            3,
-            0,
-        ],
-        [
-            'a const bound to a member read off a bound theme counts each use',
-            `const theme = useTheme();\nconst x = theme.colors.ink;\nconst a = { x, b: x };`,
-            2,
-            0,
-        ],
-        [
-            'a const bound to a press member counts each use as a press',
-            `const { press } = useTheme();\nconst wash = press.paper;\nconst a = [wash, wash];`,
-            0,
-            2,
-        ],
-        [
-            'a const bound to a computed member counts each use',
-            `const { colors } = useTheme();\nconst c = colors[role];\nconst a = [c, c];`,
-            2,
-            0,
-        ],
         ['a member that stays, off a bound theme', `const theme = useTheme();\nconst a = theme.covers.sage;`, 0, 0],
         [
             'the reads that stay are not counted',

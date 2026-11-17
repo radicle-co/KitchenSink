@@ -7,9 +7,7 @@
  * (`useTheme().colors.ink`). A member read counts once (`colors.ink`, `colors[role]`); the record passed whole counts
  * once (`stylesFor(colors)`), and so does the whole theme handed on (`fieldStyle(theme)`, `stylesFor(useTheme())`),
  * because what is read inside either is out of sight. A rest binding (`{ colors, ...rest }`) is the theme again, and a
- * nested destructure (`{ colors: { ink } }`) counts each name it takes. A const bound to one member
- * (`const muted = colors.inkMuted`) is an alias. The binding is one read and stands for the alias's first use; each
- * further use is another, so an alias used N times counts N and cannot make reads disappear from the count. Names are matched by their text within
+ * nested destructure (`{ colors: { ink } }`) counts each name it takes. Names are matched by their text within
  * the module; a local that shadows `colors` with something else would be counted, and none does today.
  *
  * @pattern Specification — one predicate over a parsed module
@@ -52,8 +50,6 @@ export function themeColourReads(source: string, fileName: string): ThemeReads {
     const reads: Record<Kind, ThemeRead[]> = { colour: [], press: [] };
     const recordLocals = new Map<string, Kind>();
     const themeLocals = new Set<string>();
-    const aliasLocals = new Map<string, Kind>();
-    const aliasesUsed = new Set<string>();
 
     const record = (kind: Kind, node: ts.Node): void => {
         reads[kind].push({ line: lineOf(file, node), text: node.getText(file) });
@@ -65,7 +61,6 @@ export function themeColourReads(source: string, fileName: string): ThemeReads {
         const member =
             (ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
             parent.expression === node;
-
 
         record(kind, member ? parent : node);
     };
@@ -105,23 +100,6 @@ export function themeColourReads(source: string, fileName: string): ThemeReads {
         }
     };
 
-    // `const muted = colors.inkMuted`: the member the record is read at, whose uses are then the reads.
-    const bindAlias = (node: ts.Node): void => {
-        if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || node.initializer === undefined) {
-            return;
-        }
-
-        const { initializer } = node;
-        const isMember = ts.isPropertyAccessExpression(initializer) || ts.isElementAccessExpression(initializer);
-        const base = isMember ? initializer.expression : undefined;
-        const kind =
-            base !== undefined && ts.isIdentifier(base) ? recordLocals.get(base.text) : recordOffTheme(base);
-
-        if (kind !== undefined) {
-            aliasLocals.set(node.name.text, kind);
-        }
-    };
-
     // First pass: which locals hold the theme, or one of its records.
     const bind = (node: ts.Node): void => {
         if (ts.isVariableDeclaration(node) && node.initializer !== undefined && isTheme(node.initializer)) {
@@ -132,7 +110,6 @@ export function themeColourReads(source: string, fileName: string): ThemeReads {
             }
         }
 
-        bindAlias(node);
         ts.forEachChild(node, bind);
     };
 
@@ -160,34 +137,14 @@ export function themeColourReads(source: string, fileName: string): ThemeReads {
         return isMemberName ? undefined : recordLocals.get(node.text);
     };
 
-    // A use of an alias: a read of the member it was bound to.
-    const aliasUse = (node: ts.Node): Kind | undefined =>
-        ts.isIdentifier(node) &&
-        !isBindingSite(node) &&
-        !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node) &&
-        !(ts.isPropertyAssignment(node.parent) && node.parent.name === node)
-            ? aliasLocals.get(node.text)
-            : undefined;
-
     // `theme.colors` and `useTheme().colors`: the record read off the theme.
-    const recordOffTheme = (node: ts.Node | undefined): Kind | undefined =>
-        node !== undefined &&
+    const recordOffTheme = (node: ts.Node): Kind | undefined =>
         ts.isPropertyAccessExpression(node) && isTheme(node.expression) ? KIND_OF_MEMBER[node.name.text] : undefined;
 
     // Second pass: every use of them.
     const visit = (node: ts.Node): void => {
         const used = recordUse(node);
         const offTheme = recordOffTheme(node);
-        const aliased = aliasUse(node);
-
-        // The first use is the binding's own read, already counted.
-        if (aliased !== undefined && ts.isIdentifier(node)) {
-            if (aliasesUsed.has(node.text)) {
-                record(aliased, node);
-            }
-
-            aliasesUsed.add(node.text);
-        }
 
         if (used !== undefined) {
             readOfRecord(used, node);

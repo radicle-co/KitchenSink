@@ -33,28 +33,28 @@ Append-only for every role, by trigger, as the evidence record of ADR-0089 §6 d
 
 ## `public_version_jobs`
 
-| Column                                    | Type              | Rule                                                                                                                                |
-| ----------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                                      | uuid PK           |                                                                                                                                     |
-| `source_record_id`                        | uuid NOT NULL     | FK `recipe_source_records`.                                                                                                         |
-| `page_key`                                | text NOT NULL     | Copied from the source record. One live job per page, across cooks (FR-034).                                                        |
-| `user_id`                                 | id NOT NULL       | The requester. 404 for anyone else.                                                                                                 |
-| `import_item_id`                          | uuid NULL         | Set on the import path. NULL on the later route.                                                                                    |
-| `private_recipe_id`                       | uuid NULL         | The Both path and the later route. FK `recipes` ON DELETE SET NULL.                                                                 |
-| `private_digest`                          | char(64) NULL     | Digest of the private copy at writing time (FR-045). Set on the Both path and on the later route.                                   |
-| `state`                                   | text NOT NULL     | CHECK in (`pending`, `writing`, `ready`, `checkRefused`, `budgetSpent`, `failed`, `cancelled`, `published`).                        |
-| `attempts`                                | smallint NOT NULL | 0 to 3 (C-7). Each claim from `pending` to `writing` adds one.                                                                      |
-| `engine_version`                          | text NULL         | `{modelId}#{promptSha256}` of the call that wrote the output. Copied to the public version at Publish.                              |
-| `facts_snapshot`                          | jsonb NULL        | The facts sheet from import (or, on the later route, from the private copy). Cleared only on entering a terminal state (see below). |
-| `output`                                  | jsonb NULL        | `{ title, steps[] }` from the writer and the title builder. Cleared only on entering a terminal state.                              |
-| `created_at`, `claimed_at`, `finished_at` | timestamptz       | `finished_at` set iff terminal.                                                                                                     |
+| Column                                                        | Type              | Rule                                                                                                                                |
+| ------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                                                          | uuid PK           |                                                                                                                                     |
+| `source_record_id`                                            | uuid NOT NULL     | FK `recipe_source_records`.                                                                                                         |
+| `page_key`                                                    | text NOT NULL     | Copied from the source record. One live job per page, across cooks (FR-034).                                                        |
+| `user_id`                                                     | id NOT NULL       | The requester. 404 for anyone else.                                                                                                 |
+| `import_item_id`                                              | uuid NULL         | Set on the import path. NULL on the later route.                                                                                    |
+| `private_recipe_id`                                           | uuid NULL         | The Both path and the later route. FK `recipes` ON DELETE SET NULL.                                                                 |
+| `private_digest`                                              | char(64) NULL     | Digest of the private copy at writing time (FR-045). Set on the Both path and on the later route.                                   |
+| `state`                                                       | text NOT NULL     | CHECK in (`pending`, `writing`, `ready`, `checkRefused`, `budgetSpent`, `failed`, `cancelled`, `published`).                        |
+| `attempts`                                                    | smallint NOT NULL | 0 to 3 (C-7). Each claim from `pending` to `writing` adds one.                                                                      |
+| `engine_version`                                              | text NULL         | `{modelId}#{promptSha256}` of the call that wrote the output. Copied to the public version at Publish.                              |
+| `facts_snapshot`                                              | jsonb NULL        | The facts sheet from import (or, on the later route, from the private copy). Cleared only on entering a terminal state (see below). |
+| `output`                                                      | jsonb NULL        | `{ title, steps[] }` from the writer and the title builder. Cleared only on entering a terminal state.                              |
+| `created_at`, `claimed_at`, `state_changed_at`, `finished_at` | timestamptz       | `state_changed_at` is set on every transition and starts every expiry window below. `finished_at` set iff terminal.                 |
 
 Indexes:
 
 - `UNIQUE (page_key) WHERE state IN ('pending','writing','ready')`: one live job per source page. A second cook who collides is told there is a version on its way (`publicExists.writing`) and keeps Private. A job re-entering `pending` meets the same index, and a collision there answers `409 publicExists`.
 - `(user_id, created_at)`: the cook's own job list.
 
-A job expires lazily, in the data layer, in the same transaction before an insert and again on every read: a job in
+Every expiry counts from `state_changed_at`, so a retry starts a fresh window. A job expires lazily, in the data layer, in the same transaction before an insert and again on every read: a job in
 `pending` or `writing` for more than 10 minutes becomes `failed`, and a job in `ready` for more than 24 hours becomes
 `cancelled`, and so is a resting `checkRefused` (fewer than 3 attempts) after 24 hours. No timer process is needed, and a job nobody reads cannot hold its page key past the next insert for that page.
 

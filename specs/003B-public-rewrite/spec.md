@@ -539,7 +539,7 @@ later from its own menu. (C-6)
 - **FR-081**: The writer call MUST reserve and settle against the one ADR-0024 pool under its own call site. It is
   operating cost (ADR-0024 §6 item 1), never a cook's AI use. (C-15)
 - **FR-082**: A ceiling denial MUST end the job `budgetSpent` at once, refund the reservation and never redeliver
-  (`004-FR-059` pattern). An unreadable counter or a transport failure retries. A job older than 10 minutes ends
+  (`004-FR-059` pattern). An unreadable counter or a transport failure retries. A job in `pending` or `writing` for more than 10 minutes ends
   `failed`. (C-25)
 - **FR-083**: Writer calls are bounded by the site-wide spend ceiling (FR-082), one public version per source page
   (FR-034) and at most 3 attempts per job (C-7). Making a public version spends no import unit (FR-016a). There is no
@@ -611,8 +611,8 @@ is never charged to a cook's uses (FR-081).
 
 - **Import choice**: the cook's answer for one import item: `private`, `public` or `both`. Stored on the item.
 - **Public version**: a recipe row owned by the cook, public, label "Steps written by Commise", licence CC BY-SA 4.0,
-  linked to its import item and its source record, and (Both) to the private copy.
-- **Public-version job**: one writer job for one import item: `pending`, `writing`, `ready`, `checkRefused`,
+  linked to its import item (or, on the later route, its private copy) and its source record, and (Both) to the private copy.
+- **Public-version job**: one writer job for one import item or one private copy: `pending`, `writing`, `ready`, `checkRefused`,
   `budgetSpent`, `failed`, `cancelled`, `published`.
 - **Source record**: the append-only evidence of FR-080.
 
@@ -679,6 +679,8 @@ pointer to it. The exception ends when 016's age assurance ships and the `under1
 
 Still owed:
 
+- ADR-0093 §4 and `016-FR-077` say the writer sees facts only. This feature changes that: the writer reads the facts
+  sheet and the source step text (`027-FR-035`, owner to confirm). The feature ADR records the amendment, owed (T004).
 - ADR-0024 §3 (a third no-retry path) and the label, licence, provenance and stored-credit (`recipes.public_credit`)
   one-way doors (FR-060, FR-061, FR-062, data-model), in the feature ADR, owed (T004).
 
@@ -733,7 +735,7 @@ Still owed:
 - **C-24. Does making a public version cost an allowance unit?** Ruled 2026-11-17: no unit is spent. Making a public
   version is part of the original import, in the same import and on the later "Share a public version" route. The
   import's own unit and every existing import limit stay unchanged.
-- **C-25. How long may a writer job run?** Assumed: 10 minutes, then it ends `failed`. Owner to confirm.
+- **C-25. How long may a writer job run?** Assumed: 10 minutes in `pending` or `writing`, counted from when it last entered that state, then it ends `failed`. Owner to confirm.
 - **C-26. Key custody for the wording fingerprint?** Assumed: a secret in AWS Secrets Manager under this feature's
   custody, with rotation that keeps old versions readable. A save with an old key version re-checks with that key.
   A key is never deleted, so a missing one is an operator fault: the save answers a retryable `checkUnavailable` and

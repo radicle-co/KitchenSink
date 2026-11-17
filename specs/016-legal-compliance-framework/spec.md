@@ -625,7 +625,7 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
     - The import rewrites the instructions of every public-facing recipe from a source that is not on the copy-outright
       allowlist, or that `020`'s reviewer check flags. The allowlist is: the cook's own verified site (`FR-067`), an open
       licence stated in the page's structured data (`FR-012b`), public-domain works (`FR-015k`), and US government works.
-    - Every public version: the writer sees the facts only, never the source wording. A similarity check runs on every
+    - Every public version: the writer sees the facts sheet and the source step text only, as `027-FR-035` says, and never the address, the statement or the source title. A similarity check runs on every
       save, with a two-way fact and safety check. The cook confirms before it publishes. "Report a problem" hides it
       until staff look (`020`). It uses no source photos and has a descriptive title. AI is disclosed plainly, for
       example "Steps written by Commise with AI, checked by {cook}" (wording to be confirmed, `FR-046`). A free-site

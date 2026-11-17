@@ -602,7 +602,7 @@
       "x": 18800,
       "y": 9096,
       "w": 390,
-      "h": 3300,
+      "h": 3372,
       "title": "Recipe detail, cooking in progress (web, 390)"
     },
     "RecipeFactsWeb1280.dc.html": {
@@ -667,6 +667,13 @@
       "w": 2800,
       "h": 3884,
       "title": "Recipe detail, S3b exit-from-cooking-mode snackbar (web)"
+    },
+    "RecipeDetailDockS4bWeb.dc.html": {
+      "x": 0,
+      "y": 17284,
+      "w": 2800,
+      "h": 5298,
+      "title": "Recipe detail, S4b timer dock (web: 1280, 1024, 768, 390, 320 at 200%)"
     }
   },
   "order": [
@@ -763,7 +770,8 @@
     "RecipeFactsBookWeb390.dc.html",
     "RecipeSourceCardWeb390.dc.html",
     "RecipeFactsSaveCopyWeb390.dc.html",
-    "RecipeDetailExitSnackbarS3bWeb.dc.html"
+    "RecipeDetailExitSnackbarS3bWeb.dc.html",
+    "RecipeDetailDockS4bWeb.dc.html"
   ],
   "notes": {
     "row0": {
@@ -798,6 +806,13 @@
       "x": 0,
       "y": 12720,
       "text": "Recipe detail: S3b exit snackbar (plan 0111)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nRecipeDetailDockS4bWeb": {
+      "x": 0,
+      "y": 17024,
+      "text": "Recipe detail: S4b timer dock on the recipe page",
       "kind": "title1",
       "maxW": 2400
     }

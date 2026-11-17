@@ -4,15 +4,15 @@
     "packageName": "@commise/features-cooking",
     "layer": "feature",
     "coverage": {
-        "components": 12,
-        "implementations": 24,
-        "props": 87,
-        "documentedComponents": 12,
-        "implementationsWithModuleDoc": 24,
-        "implementationsWithComponentDoc": 24,
-        "documentedProps": 76,
-        "classifiedComponents": 12,
-        "componentsWithPatternTag": 7,
+        "components": 13,
+        "implementations": 25,
+        "props": 88,
+        "documentedComponents": 13,
+        "implementationsWithModuleDoc": 25,
+        "implementationsWithComponentDoc": 25,
+        "documentedProps": 77,
+        "classifiedComponents": 13,
+        "componentsWithPatternTag": 8,
         "crossPlatformComponents": 12
     },
     "components": [
@@ -272,7 +272,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingFrame — the web cooking surface: full screen, outside AppShell, because cooking is a\nfocused task.\n\nOne centred column at every band: the top bar pinned at the top, the foot pinned at the bottom (the\nNext preview above the actions), and only the body between them scrolls, so a focus line taller than the screen at\nthe largest text never pushes the place or Back / Next away. The foot keeps a gap above it, so a line cut off at the\nbottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the\nshort-screen height rule, and is busy while the recipe loads.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingFrame — the web cooking surface: full screen, outside AppShell, because cooking is a\nfocused task.\n\nOne centred column at every band: the top bar pinned at the top, the foot pinned at the bottom (the\nNext preview above the actions), and only the body between them scrolls, so a focus line taller than the screen at\nthe largest text never pushes the place or Back / Next away. The foot keeps a gap above it, so a line cut off at the\nbottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the\nshort-screen height rule, and is busy while the recipe loads.\n\nThe route's offline notice (`CookingNoticeSlot`) is the first thing in the centred column, above the top bar and\nstarting where it starts.\n\nPresentational: props → JSX, plus the notice slot it reads from context.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -916,6 +916,64 @@
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingNoticeSlot",
+            "name": "CookingNoticeSlot",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "orchestration",
+            "patterns": [
+                "Dependency Injection — the route supplies the notice; the frame only reads it"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingNoticeSlot",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingNoticeSlot.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingNoticeSlot — the one place on the web cooking surface where the route's offline notice is drawn.\n\nCooking mode's package does not import `@commise/query`, so it cannot mount the notice itself. The route (which does)\nhands the notice in through this slot, and `CookingFrame`, the one frame every cooking screen draws, puts it first in\nthe surface, above the top bar, with no prop threaded through the screens. Without a provider the slot is empty.\n\nOrchestration: it supplies a value to its subtree and draws no markup of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingNoticeSlot — the one place on the web cooking surface where the route's offline notice is drawn."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Dependency Injection — the route supplies the notice; the frame only reads it"
+                        }
+                    ],
+                    "description": "Supplies the notice to every `CookingFrame` below.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "notice",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The notice the frame draws above its top bar.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingNoticeSlot.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]

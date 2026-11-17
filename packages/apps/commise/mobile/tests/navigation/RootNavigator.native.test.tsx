@@ -29,6 +29,7 @@ import { renderWithProviders } from '@commise/test-utils';
 import { useBackIntercept } from '@commise/ui/back-intercept';
 import { installHardwareBackHandler, type HardwareBackHandle } from '@commise/ui/testing/hardware-back';
 
+import { ReportFocusedRootRouteContext } from '../../src/navigation/focusedRootRoute.js';
 import { navigationRef } from '../../src/navigation/navigationRef.js';
 
 vi.mock('@sentry/react-native', () => ({ captureException: vi.fn() }));
@@ -766,5 +767,41 @@ describe('the snackbar host', () => {
 
         expect(status.textContent).toBe('Removed Pasta');
         expect(getComputedStyle(status).bottom).toBe('88px');
+    });
+});
+
+describe('the focused root route, reported to the gate', () => {
+    function renderReporting(): { readonly reported: (string | undefined)[] } {
+        const reported: (string | undefined)[] = [];
+        back = installHardwareBackHandler();
+        renderWithProviders(
+            <ReportFocusedRootRouteContext value={(name) => reported.push(name)}>
+                <AppRoot />
+            </ReportFocusedRootRouteContext>,
+        );
+
+        return { reported };
+    }
+
+    it('reports the cooking task while it is focused, and the tabs again once it is left', () => {
+        const { reported } = renderReporting();
+        expect(reported.at(-1)).toBe('Tabs');
+
+        press('Open Lamb');
+        press('Start cooking');
+        expect(reported.at(-1)).toBe('CookingMode');
+
+        press('Leave');
+        expect(reported.at(-1)).toBe('Tabs');
+    });
+
+    it('reports the editor, not cooking, after Edit replaces cooking', () => {
+        const { reported } = renderReporting();
+
+        press('Open Lamb');
+        press('Start cooking');
+        press('Edit');
+
+        expect(reported.at(-1)).toBe('RecipeEdit');
     });
 });

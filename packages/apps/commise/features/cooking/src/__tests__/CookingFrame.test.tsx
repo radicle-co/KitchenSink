@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { CookingFrame } from '../CookingFrame.js';
+import { CookingNoticeSlot } from '../CookingNoticeSlot.js';
 import { COOKING_COLUMN } from '../cookingLayout.js';
 import { htmlElementOf } from '../__fixtures__/htmlElementOf.js';
 
@@ -113,5 +114,34 @@ describe('CookingFrame', () => {
         frame(false, 'none');
 
         expect(screen.queryByRole('button', { name: 'Next step' })).toBeNull();
+    });
+
+    describe('the notice slot', () => {
+        const slotted = () =>
+            render(
+                <CookingNoticeSlot notice={<p>You’re offline</p>}>
+                    <CookingFrame topBar={<button type="button">Exit</button>} body={<p>Body</p>} busy={false} />
+                </CookingNoticeSlot>,
+            );
+
+        it('draws the notice first inside the surface, above the top bar', () => {
+            slotted();
+
+            const notice = screen.getByText('You’re offline');
+            const exit = screen.getByRole('button', { name: 'Exit' });
+
+            expect(screen.getByRole('main').contains(notice)).toBe(true);
+            // The same centred column as the top bar, so the title starts where Exit starts at every width.
+            expect(notice.parentElement).toBe(exit.parentElement);
+            expect(notice.compareDocumentPosition(exit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        });
+
+        it('draws nothing extra when no slot is provided', () => {
+            frame(false, 'none');
+
+            expect(screen.getByRole('main').firstElementChild).toBe(
+                screen.getByRole('button', { name: 'Exit' }).parentElement,
+            );
+        });
     });
 });

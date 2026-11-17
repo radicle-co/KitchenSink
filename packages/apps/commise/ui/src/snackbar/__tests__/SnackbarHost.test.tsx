@@ -1,11 +1,11 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useContext, type JSX } from 'react';
+import { useContext, useState, type JSX } from 'react';
 
 import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
 import { SnackbarClearanceContext } from '../snackbarClearanceContext.js';
 import { SnackbarHost } from '../SnackbarHost.js';
-import type { SnackbarInput } from '../props.js';
+import type { SnackbarHandle, SnackbarInput } from '../props.js';
 import { useSnackbar } from '../useSnackbar.js';
 
 /**
@@ -296,3 +296,43 @@ describe('UndoSnackbar (web)', () => {
 });
 
 type ResizeObserverCallbackStub = () => void;
+
+describe('SnackbarHost (web): withdraw', () => {
+    it('takes the snackbar away without committing it, and answers the time it had left', () => {
+        const onTimeout = vi.fn();
+        const answers: (number | undefined)[] = [];
+
+        function Withdrawing(): JSX.Element {
+            const { show, withdraw } = useSnackbar();
+            const [handle, setHandle] = useState<SnackbarHandle | undefined>(undefined);
+
+            return (
+                <>
+                    <button type="button" onClick={() => setHandle(show({ message: 'Removed', onTimeout }))}>
+                        open
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => answers.push(handle === undefined ? undefined : withdraw(handle))}
+                    >
+                        take
+                    </button>
+                </>
+            );
+        }
+
+        render(
+            <SnackbarHost>
+                <Withdrawing />
+            </SnackbarHost>,
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'open' }));
+        advance(1000);
+        fireEvent.click(screen.getByRole('button', { name: 'take' }));
+        advance(10_000);
+
+        expect(answers).toEqual([5000]);
+        expect(statusText()).toBe('');
+        expect(onTimeout).not.toHaveBeenCalled();
+    });
+});

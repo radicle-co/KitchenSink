@@ -61,17 +61,19 @@ touching the wire.
 | S13 | Edit steps turns each written step into a field in place (the editor's step field). It does not open the editor.                                                                                                                                                                                                                                                   | The review is a check, and the fact check runs against these steps at Publish.                                                                                                     |
 | S14 | Sample values on every board. Recipe "Chicken pot pie" from `allrecipes.com`, public title "Baked chicken and vegetable pie", cook "Eliza Ramirez". Slots: 12 left of `{limit}` 50. Prices $9.99 and $99.99, saving $19.89. Trial: 14 days, ending 1 December 2026. `{aiUses}` 30. `{licenceName}` "CC BY-SA 4.0". Paid-site example domain `pantrypress.example`. | One set of values makes the boards comparable. The paid example is not a real site.                                                                                                |
 
-### 0.2 Input conflicts, resolved by the 003B lead
+### 0.2 Input conflicts, rulings for the 003B lead
 
-These were differences between the inputs. Each is resolved, and the spec follows the answer.
+These are differences between the inputs. Each has a ruling and this spec follows it. The 003B lead applies the
+rulings to the 003B state table, the contract and research. §15 item 1 is the one place that tracks this.
 
-| #   | Conflict                                                                                                                                                                                                                                                                                    | Resolved                                                                                                                                                                                                  |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| X1  | 003B's state table used `exists.*`, `paid.*`, `optOut.line`, `review.credit`, `review.creditPaid`, `deadEnd.bodyNoWrite` and `deadEnd.bodyPaid`. Copy v3 replaces them with `publicExists.*`, `privateOnly.*`, `credit.written`, `credit.basedOn` and `deadEnd.body`, and deletes `paid.*`. | The state table uses the v3 keys.                                                                                                                                                                         |
-| X2  | The contract's `privateOnly` reasons listed `optOut` twice and had no `aiOptOut` or `noSourceAddress`.                                                                                                                                                                                      | The reasons are `paidRecent`, `paidSignature`, `publisherOptOut`, `aiOptOut`, `budget`, `under16`, `noSteps`, `noSourceAddress` and `switchOff`. `paidRecent` carries `holdEndsOn`, which fills `{date}`. |
-| X3  | The contract listed `publicPending` and `publicReview` as `privateOnly` reasons. Copy v3 shows the same situations as `publicExists` states `writing` and `inReview`.                                                                                                                       | `publicExists.status` is one of `published`, `writing` or `inReview`, with `recipeId` when there is one. `publicPending` and `publicReview` are removed.                                                  |
-| X4  | The 003B state table had `hidden.owner.*`, `hidden.superseded` and `hidden.reader`. Copy v3 has `publicPage.hiddenOwner` and `publicPage.hiddenReader`, and no superseded line.                                                                                                             | The hidden keys are `publicPage.hiddenOwner` and `publicPage.hiddenReader`. They are out of this spec's boards (recipe detail) and belong to the detail spec.                                             |
-| X5  | The brief named the mobile phone size 402. The mobile canvas's existing boards are Iphone390 and Android384.                                                                                                                                                                                | Phone boards are drawn at 390. §12.2 uses Iphone390, Android384, Ipad834 and Ipad1194.                                                                                                                    |
+| #   | Conflict                                                                                                                                                                                                                                                                                    | Ruling (applied by the 003B lead, §15 item 1)                                                                                                                                                                                |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| X1  | 003B's state table uses `exists.*`, `paid.*`, `optOut.line`, `review.credit`, `review.creditPaid`, `deadEnd.bodyNoWrite` and `deadEnd.bodyPaid`. Copy v3 replaces them with `publicExists.*`, `privateOnly.*`, `credit.written`, `credit.basedOn` and `deadEnd.body`, and deletes `paid.*`. | The 003B table is to use the v3 keys.                                                                                                                                                                                        |
+| X2  | The contract's `privateOnly` reasons list `optOut` twice and have no `aiOptOut` or `noSourceAddress`.                                                                                                                                                                                       | The contract is to use the reasons `paidRecent`, `paidSignature`, `publisherOptOut`, `aiOptOut`, `budget`, `under16`, `noSteps`, `noSourceAddress` and `switchOff`. `paidRecent` carries `holdEndsOn`, which fills `{date}`. |
+| X3  | The contract lists `publicPending` and `publicReview` as `privateOnly` reasons. Copy v3 shows the same situations as `publicExists` states `writing` and `inReview`.                                                                                                                        | The contract is to make `publicExists.status` one of `published`, `writing` or `inReview`, with `recipeId` when there is one, and to remove `publicPending` and `publicReview`.                                              |
+| X4  | The 003B state table has `hidden.owner.*`, `hidden.superseded` and `hidden.reader`. Copy v3 has `publicPage.hiddenOwner` and `publicPage.hiddenReader`, and no superseded line.                                                                                                             | The 003B table is to use `publicPage.hiddenOwner` and `publicPage.hiddenReader`. They are out of this spec's boards (recipe detail) and belong to the detail spec.                                                           |
+| X5  | The brief named the mobile phone size 402. The mobile canvas's existing boards are Iphone390 and Android384.                                                                                                                                                                                | Phone boards are drawn at 390. §12.2 uses Iphone390, Android384, Ipad834 and Ipad1194.                                                                                                                                       |
+| X6  | 003B FR-050a gives `blocked.rewrite` as the button label "Write it again". 003B research R8 gives it as a sentence.                                                                                                                                                                         | This spec follows the copy: the blocked state shows `blocked.body` with the `flag.rewrite` "Write it again" button and `review.notNow`. `rewriteNeeded.body` is the separate rewriteNeeded offer. The lead is to align R8.   |
 
 `offerChanged` comes from a server `409` with the body `{ code: 'offerChanged', offer }`, on the start-job and the
 publish requests. The client re-renders the visibility area from that `offer` (§5.2).
@@ -176,7 +178,7 @@ two buttons sit in one row, equal width, Upgrade first. Below 840 they stack, eq
 Unchanged layout. Under the badge row:
 
 - **Private copy:** `editor.source.rightsLabel` (paste spec §7.4). A page that names an author adds
-  `importMessages.paste.privateCopy.author`. On the Both path, the link `done.linkPublic` follows.
+  `editor.source.authorLabel`. On the Both path, the link `done.linkPublic` follows.
 - **Public version:** `credit.written`, `credit.basedOn` (free site), `review.licence`, the owner-only link
   `done.linkPrivate` on the Both path, then `publicPage.report`. Never `rightsLabel`.
 
@@ -416,9 +418,9 @@ exclamation marks, no reason clauses, and none of the banned words (one list, `b
 
 ### 7.3 Reused keys
 
-- Keys: `importMessages.paste.review.offline`, `importMessages.paste.cancel`, `importMessages.wizard.retry` (in
-  `features/recipes/src/import/messages.ts`) and `budget.line`.
-- The private copy's lines: `editor.source.rightsLabel` and `importMessages.paste.privateCopy.author` (§3.5).
+- Keys: `importMessages.wizard.retry` is in `features/recipes/src/import/messages.ts`. `importMessages.paste.review.offline`,
+  `importMessages.paste.cancel` and `budget.line` are new in paste spec §6 and §7.
+- The private copy's lines: `editor.source.rightsLabel` and `editor.source.authorLabel` (§3.5).
 - From the editor: the visibility heading "Who can see it", the discard dialog and "Done editing".
 - From the paste spec: the Save area line, `importMessages.paste.review.confirmSource` (S8).
 
@@ -453,7 +455,7 @@ Each has a web leaf and a `.native.tsx` leaf with one shared props file. All are
 
 `ProPlanCard` belongs with the subscription feature (010) once it exists. Until then it lives here.
 
-### 8.3 Design-system additions
+### 8.3 Dependencies and design-system additions
 
 Needed from this spec:
 
@@ -607,7 +609,7 @@ Both.
 
 ## 15. Open questions
 
-1. **Lead:** the 003B table and the contract change to match X1 to X3.
+1. **Lead:** apply the rulings in §0.2 (X1 to X3 and X6) to the 003B table, the contract and research R8.
 2. **Lead:** the new strings in §7.2.
 3. **Design system owner:** `ButtonPair` and the `RadioList` selected fill (§8.3).
 4. **010 owner:** the mobile store sheet opening at Pro with both periods shown (§4, Upgrade).

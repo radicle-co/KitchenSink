@@ -68,6 +68,8 @@ export interface SourceStatementMessages {
     readonly hintAuthored: string;
     /** `statementPublicWeb.v1`. */
     readonly answerWeb: string;
+    /** The label of the link field "from a web page" reveals. */
+    readonly webLinkLabel: string;
     /** The hint under "from a web page" and "from a cookbook or magazine": the recipe stays private. */
     readonly hintPrivate: string;
     /** `statementBook.v1`. */
@@ -233,6 +235,7 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             hintAuthored:
                 'It’s my own recipe, in my own words, and any photos are mine. It isn’t copied from a website, book or another person. Goes public.',
             answerWeb: 'From a web page',
+            webLinkLabel: 'Link to the page',
             hintPrivate: 'Stays private to you.',
             answerBook: 'From a cookbook or magazine',
             bookTitleLabel: 'Book or magazine title',

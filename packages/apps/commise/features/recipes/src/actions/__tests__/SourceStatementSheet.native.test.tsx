@@ -133,13 +133,13 @@ describe('SourceStatementSheet (native) — answered', () => {
 
     it('reveals the link field for a web page, and the title field for a cookbook, and none otherwise', () => {
         renderSheet({ state: { answer: 'publicWeb' } });
-        expect(screen.getByLabelText('Source')).toBeTruthy();
+        expect(screen.getByLabelText('Link to the page')).toBeTruthy();
         expect(screen.queryByLabelText('Book or magazine title')).toBeNull();
 
         cleanup();
         renderSheet({ state: { answer: 'book' } });
         expect(screen.getByLabelText('Book or magazine title')).toBeTruthy();
-        expect(screen.queryByLabelText('Source')).toBeNull();
+        expect(screen.queryByLabelText('Link to the page')).toBeNull();
 
         cleanup();
         renderSheet({ state: { answer: 'authored' } });
@@ -189,6 +189,20 @@ describe('SourceStatementSheet (native) — busy and error', () => {
         expect(onDismiss).not.toHaveBeenCalled();
     });
 
+    // The designer's approval fixes: the sheet itself says it is busy, so a screen reader hears that the whole question is waiting.
+    it('busy: the sheet is busy to a screen reader, and it is not while the cook is answering', () => {
+        renderSheet({ surface: 'recipePage', state: { answer: 'authored', status: 'busy' } });
+        // The window's own dialog wraps the sheet's, so the sheet's is the nearest one around its title.
+        const sheet = (): HTMLElement | null =>
+            screen.getByRole('heading', { name: 'Where is this recipe from?' }).closest('[role="dialog"]');
+
+        expect(sheet()?.getAttribute('aria-busy')).toBe('true');
+
+        cleanup();
+        renderSheet({ surface: 'recipePage', state: { answer: 'authored' } });
+        expect(sheet()?.getAttribute('aria-busy')).not.toBe('true');
+    });
+
     it('error: an alert in the sheet, and the confirm retries', () => {
         const { onConfirm } = renderSheet({ surface: 'recipePage', state: { answer: 'authored', status: 'failed' } });
 
@@ -232,7 +246,11 @@ describe('SourceStatementSheet (native) — dismiss', () => {
 describe('SourceStatementSheet (native) — the field message is said above the field', () => {
     it.each([
         ['book', 'Book or magazine title', 'Add the book or magazine title.'],
-        ['publicWeb', 'Source', 'That isn’t a web link. Paste the page address, like https://example.com/recipe.'],
+        [
+            'publicWeb',
+            'Link to the page',
+            'That isn’t a web link. Paste the page address, like https://example.com/recipe.',
+        ],
     ] as const)(
         'says the %s field error before the field, where the keyboard cannot hide it',
         (answer, label, message) => {

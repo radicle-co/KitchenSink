@@ -59,6 +59,7 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
             closeLabel={m.close}
             size="content"
             presentation="dialog"
+            busy={view.busy}
             footer={
                 <div className="flex flex-col gap-3">
                     <p id={effectId} className="text-meta text-ink-muted">

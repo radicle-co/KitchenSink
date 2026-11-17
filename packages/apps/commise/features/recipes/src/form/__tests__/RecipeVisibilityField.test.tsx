@@ -585,6 +585,7 @@ describe('RecipeVisibilityField (web) - an unavailable Public card and the focus
             {...extra}
         />
     );
+
     const cardOf = (title: string): HTMLElement => {
         const card = screen.getByText(title).closest('label');
 

@@ -170,14 +170,14 @@ describe('SourceStatementSheet (web) — answered', () => {
         const { dispatch } = renderSheet({ state: { answer: 'publicWeb' } });
 
         expect(screen.queryByLabelText('Book or magazine title')).toBeNull();
-        await userEvent.type(screen.getByLabelText('Source'), 'h');
+        await userEvent.type(screen.getByLabelText('Link to the page'), 'h');
         expect(dispatch).toHaveBeenCalledWith({ type: 'link', text: 'h' });
     });
 
     it('reveals the title field for a cookbook only', async () => {
         const { dispatch } = renderSheet({ state: { answer: 'book' } });
 
-        expect(screen.queryByLabelText('Source')).toBeNull();
+        expect(screen.queryByLabelText('Link to the page')).toBeNull();
         await userEvent.type(screen.getByLabelText('Book or magazine title'), 'J');
         expect(dispatch).toHaveBeenCalledWith({ type: 'bookTitle', text: 'J' });
     });
@@ -212,7 +212,7 @@ describe('SourceStatementSheet (web) — field error', () => {
         renderSheet({ state: { answer: 'publicWeb', attempted: true, link } });
 
         expect(screen.getByText(message)).toBeTruthy();
-        expect(screen.getByLabelText('Source').getAttribute('aria-invalid')).toBe('true');
+        expect(screen.getByLabelText('Link to the page').getAttribute('aria-invalid')).toBe('true');
     });
 
     it('shows no error before Confirm was pressed', () => {
@@ -233,6 +233,16 @@ describe('SourceStatementSheet (web) — busy and error', () => {
                 .every((radio) => (radio as HTMLButtonElement).disabled),
         ).toBe(true);
         expect((screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    // The designer's approval fixes: the sheet itself says it is busy, so a screen reader hears that the whole question is waiting.
+    it('busy: the sheet is aria-busy, and it is not while the cook is answering', () => {
+        renderSheet({ surface: 'recipePage', state: { answer: 'authored', status: 'busy' } });
+        expect(dialog().getAttribute('aria-busy')).toBe('true');
+
+        cleanup();
+        renderSheet({ surface: 'recipePage', state: { answer: 'authored' } });
+        expect(dialog().getAttribute('aria-busy')).toBeNull();
     });
 
     it('busy: Escape, the Close control and the dismiss do not dismiss it', async () => {

@@ -63,6 +63,7 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
             closeLabel={m.close}
             size="content"
             presentation="dialog"
+            busy={view.busy}
             footer={
                 <Footer>
                     <Text typeRole="meta" color="$inkMuted">

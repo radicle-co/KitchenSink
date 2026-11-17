@@ -35,11 +35,11 @@ interface StatementFieldView {
 }
 
 /**
- * Words the sheet takes from where they already live, so each is said by one key: the Source field's label and errors (the
- * link field is the editor's own) and the recipe page's "couldn't change who can see this recipe".
+ * Words the sheet takes from where they already live, so each is said by one key: the Source field's errors (the link field is
+ * the editor's own; its label here is the sheet's own, "Link to the page") and the recipe page's "couldn't change who can see this recipe".
  */
 export interface StatementSharedCopy {
-    readonly source: Pick<EditorMessages['source'], 'label' | 'invalid' | 'ownSite'>;
+    readonly source: Pick<EditorMessages['source'], 'invalid' | 'ownSite'>;
     /** Said above the footer when the change fails (`visibility.error`). */
     readonly failure: string;
 }
@@ -121,7 +121,7 @@ function fieldViewOf(
     if (state.answer === 'publicWeb') {
         return {
             kind: 'link',
-            label: shared.source.label,
+            label: m.webLinkLabel,
             value: state.link,
             inputMode: 'url',
             autoCapitalize: 'none',

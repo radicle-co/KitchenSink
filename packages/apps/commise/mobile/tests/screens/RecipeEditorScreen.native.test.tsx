@@ -1197,3 +1197,69 @@ describe('RecipeEditorScreen (native) — Discard with a parked save', () => {
         expect(update).toHaveBeenCalledTimes(1);
     });
 });
+
+/**
+ * ADR-0095, offline: the editor has no busy sheet. The cook's answer goes into the save that is queued, so a Publish made with no
+ * connection still carries the statement the cook gave, and the sheet closes at once instead of waiting on the network.
+ */
+describe('RecipeEditorScreen (native) — a Publish with no connection (ADR-0095)', () => {
+    afterEach(() => {
+        onlineManager.setOnline(true);
+    });
+
+    it('⛔ the answer goes with the queued save, and the sheet closes without waiting', async () => {
+        const client = createFakeRecipeServiceClient();
+        const store = createMemoryOutboxStore();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({
+                id: 'rec_pasted',
+                title: 'Pasted Stew',
+                cuisine: 'Irish',
+                status: RecipeStatus.DRAFT,
+                visibility: RecipeVisibility.PUBLIC,
+                currentVersion: 2,
+                publicNeedsStatement: true,
+            }),
+        );
+        const update = vi.spyOn(client, 'updateRecipe');
+        const handlers = { onFinished: vi.fn(), onClose: vi.fn(), onDiscarded: vi.fn() };
+
+        renderWithRecipeClient(
+            withFoodClient(
+                <SnackbarHost>
+                    <SyncProvider subject="user_cook" send={recipeSender(() => client)} store={store}>
+                        <RecipeEditorScreen {...handlers} recipeId="rec_pasted" />
+                    </SyncProvider>
+                </SnackbarHost>,
+            ),
+            client,
+        );
+        await screen.findByDisplayValue('Pasted Stew');
+        // The recipe is read; the connection goes before the cook publishes.
+        act(() => onlineManager.setOnline(false));
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        });
+        const sheet = (await screen.findByRole('heading', { name: 'Where is this recipe from?' })).closest(
+            '[role="dialog"]',
+        ) as HTMLElement;
+        fireEvent.click(within(sheet).getByRole('radio', { name: /^I wrote this/u }));
+        await act(async () => {
+            fireEvent.click(within(sheet).getByRole('button', { name: 'Publish' }));
+        });
+
+        await waitFor(() => expect(screen.queryByRole('heading', { name: 'Where is this recipe from?' })).toBeNull());
+        await waitFor(async () => expect((await loadOutbox(store, 'user_cook')).records).toHaveLength(1));
+        const [record] = (await loadOutbox(store, 'user_cook')).records;
+
+        expect(record?.payload).toMatchObject({
+            input: {
+                status: 'published',
+                statement: { kind: 'authored', wording: { version: 'statementAuthored.v1' } },
+            },
+        });
+        // Nothing reached the server: the write waits in the journal, with the answer in it.
+        expect(update).not.toHaveBeenCalled();
+    });
+});

@@ -204,8 +204,8 @@ test.describe('a pasted recipe asks where it is from before it goes public (ADR-
         expect(writes.some((w) => w.body?.['visibility'] === 'private')).toBe(true);
     });
 
-    // At 320 px the pinned footer takes a third of the sheet, so the field's message sat partly under it.
-    test('at 320 px the field error is fully visible above the pinned footer', async ({ page }) => {
+    // At 320 px the pinned footer takes a third of the sheet, so the field and its message sat partly under it.
+    test('at 320 px the title field and its error scroll into view above the pinned footer', async ({ page }) => {
         await page.setViewportSize({ width: 320, height: 640 });
         await pastedRecipeReady(page);
 
@@ -218,12 +218,18 @@ test.describe('a pasted recipe asks where it is from before it goes public (ADR-
             'If your answer isn’t true, we can remove the recipe and limit your account.',
         );
 
+        const field = sheetOf(page).getByLabel('Book or magazine title');
+
+        await expect(field).toBeInViewport({ ratio: 1 });
         await expect(error).toBeInViewport({ ratio: 1 });
+        const fieldBox = await field.boundingBox();
         const errorBox = await error.boundingBox();
         const footerBox = await footerNote.boundingBox();
 
+        expect(fieldBox).not.toBeNull();
         expect(errorBox).not.toBeNull();
         expect(footerBox).not.toBeNull();
+        expect(fieldBox!.y + fieldBox!.height).toBeLessThanOrEqual(footerBox!.y);
         expect(errorBox!.y + errorBox!.height).toBeLessThanOrEqual(footerBox!.y);
     });
 

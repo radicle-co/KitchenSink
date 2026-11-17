@@ -11,11 +11,12 @@ import { CookMarksProvider, recipeActionMessages } from '@commise/features-recip
 import { recipeLoadMessages } from '@commise/features-recipes/detail';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, onlineManager } from '@tanstack/react-query';
 import { useState, type ReactElement } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import { NavigationContext, NavigationRouteContext } from '@react-navigation/native';
 
+import { withPlatformOs } from '@commise/ui/testing/platform-os';
 import { contrastRatio, renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
 import { palette } from '@commise/ui';
 import { role } from '@commise/ui/colors';
@@ -35,6 +36,7 @@ import { RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 import { RecipeDetailScreen } from '../../src/screens/RecipeDetailScreen.js';
 import { useSessionClaims } from '../../src/hooks/useSessionClaims.js';
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
+import { installOnlineManager } from '../../src/query/connectivity.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
 import { resolvedColour } from '@commise/ui/testing/tamagui';
 
@@ -80,6 +82,19 @@ vi.mock('@commise/query/sync', async (importOriginal) => {
 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({
     useUserProfile: vi.fn(),
+}));
+
+/** What the device's connectivity library says. On a device this feeds the app's one connectivity reader (`installOnlineManager`). */
+const connectivity = vi.hoisted(() => ({ isConnected: true }));
+
+vi.mock('@react-native-community/netinfo', () => ({
+    default: {
+        addEventListener: (listener: (state: { isConnected: boolean }) => void) => {
+            listener({ isConnected: connectivity.isConnected });
+
+            return () => undefined;
+        },
+    },
 }));
 
 vi.mock('../../src/hooks/useSessionClaims.js', () => ({
@@ -1435,5 +1450,58 @@ describe('RecipeDetailScreen — Start cooking', () => {
         render(<RecipeDetailScreen recipeId="rec_1" onEdit={vi.fn()} />);
 
         expect(screen.queryByRole('button', { name: 'Start cooking' })).toBeNull();
+    });
+});
+
+/**
+ * ADR-0095, offline on iOS. The app reads connectivity from NetInfo (an iOS simulator has no airplane mode, so no device flow
+ * reaches this), through the ONE reader the app installs. Make public needs the server, so the row stays in the menu, is
+ * unavailable, and says why in the words it already had.
+ */
+describe('RecipeDetailScreen — offline on iOS, through NetInfo (ADR-0095)', () => {
+    afterEach(() => {
+        connectivity.isConnected = true;
+        // Put TanStack's online manager back to what a test file that never installed NetInfo has.
+        onlineManager.setEventListener((setOnline) => {
+            setOnline(true);
+
+            return () => undefined;
+        });
+    });
+
+    const OFFLINE = 'You’re offline. Try again when you’re back online.';
+
+    function openMenu(): void {
+        seedSlots('unlimited');
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: RecipeVisibility.PRIVATE }));
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'granted'));
+        render(<RecipeDetailScreen recipeId="rec_1" />);
+        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
+    }
+
+    it('⛔ shows Make public unavailable with the offline reason, and a press opens nothing', () => {
+        connectivity.isConnected = false;
+        installOnlineManager();
+
+        withPlatformOs('ios', openMenu);
+        const row = screen.getByRole('menuitem', { name: /^Make public/u });
+
+        // The row stays on the cursor, drawn dimmed, with the reason as visible text; a press runs nothing.
+        expect(getComputedStyle(row).opacity).not.toBe('1');
+        expect(within(row).getByText(OFFLINE)).toBeTruthy();
+        fireEvent.click(row);
+        expect(screen.queryByRole('heading', { name: 'Make this recipe public?' })).toBeNull();
+        expect(screen.queryByRole('heading', { name: 'Where is this recipe from?' })).toBeNull();
+    });
+
+    it('offers Make public as usual once NetInfo says the device is connected', () => {
+        connectivity.isConnected = true;
+        installOnlineManager();
+
+        withPlatformOs('ios', openMenu);
+        const row = screen.getByRole('menuitem', { name: /^Make public/u });
+
+        expect(getComputedStyle(row).opacity).toBe('1');
+        expect(screen.queryByText(OFFLINE)).toBeNull();
     });
 });

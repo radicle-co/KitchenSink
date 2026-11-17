@@ -94,9 +94,9 @@ appId: ${APP_ID}
       timeout: 40000
 - assertVisible: 'www.allrecipes.com'
 
-# Removing a SAVED source: Remove focuses the empty Source field, so the keyboard opens at once, and "Source removed." must
-# ride above it, in view (it was drawn under the keyboard, where no one saw it). The notice lasts 6 s, so the tap does not
-# wait for the keyboard to settle (maestroTransientNoticeWait.test.ts).
+# Removing a SAVED source: Remove does NOT focus the emptied field, so no keyboard opens over the sheet's note. "Source removed."
+# shows at the foot, and the held note is on screen beside the Public card, which is drawn unavailable. The notice lasts 6 s,
+# so the tap does not wait for the screen to settle (maestroTransientNoticeWait.test.ts).
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
@@ -132,3 +132,5 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Source removed.'
       timeout: 10000
+# No keyboard rose: the held note is in view, with the Public card it explains.
+- assertVisible: 'This recipe was saved with a source, so it stays private.'

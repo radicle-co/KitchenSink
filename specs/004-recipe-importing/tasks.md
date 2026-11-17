@@ -118,7 +118,7 @@ test-first. A task names its tier and its test file. A test path marked "(planne
       dead-letter queue and reserved concurrency, VPC-attached, with call site `'text-extraction'` and a row in ADR-0004's
       `nat-consumers` table. Line numbers only, a pinned prompt builder, the 48,000-byte cap refused and never truncated,
       the opt-out skip, `budgetSpent` not retried, a result row with an expiry, and the same advance steps and one
-      allowance as every import. Depends on T-032. The mobile paste row stays behind a flag until this ships. Tiers:
+      allowance as every import. Depends on T-032's web surfaces. The mobile paste row stays behind a flag until this ships. Tiers:
       unit and worker tests for the cases in `spec.md`'s criteria for `FR-056` to `FR-063`
       `packages/services/recipe-workers/src/__tests__/textExtract.test.ts` (planned); integration; LOCAL e2e on the
       result table and erasure; service e2e; Playwright and Maestro flows for the read, `budgetSpent`, over-cap and

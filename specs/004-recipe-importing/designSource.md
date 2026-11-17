@@ -35,7 +35,7 @@ Both are registered in [`docs/design/canvases/registry.json`](../../docs/design/
 | Public version choice (every channel) | Public version design spec                                                                                                                 | `ImportPublic*`                                                                                   |
 | Link                                  | Partly designed. The server AI fallback for a link import has no states yet. The paid-site and private-only link boards are being redrawn. | `ImportLinkProgress*`, `ImportImportFailed*`                                                      |
 | File and library (bulk)               | Designed                                                                                                                                   | `ImportModeChoice*`, `ImportWizard*`, `ImportLibrary*`, `ImportFlaggedLine*`, `ImportStatements*` |
-| Shared link from a social app         | Gated (FR-009). Check the boards against FR-009 before building.                                                                           | `ImportVideo*`, `ImportShareCapture*`                                                             |
+| Shared link from a social app         | Gated only on the Instagram official-API path (D-002). Check the boards against FR-009 before building.                                    | `ImportVideo*`, `ImportShareCapture*`                                                             |
 | "Save to Commise" button              | No design yet (FR-053)                                                                                                                     | none                                                                                              |
 | Photo                                 | Not this feature: spec 011 owns it.                                                                                                        | none                                                                                              |
 
@@ -47,7 +47,7 @@ Each needs a design spec section and boards on both canvases before it is built:
   the on, off and unavailable states.
 - Ownership claim at import and later (FR-014a item 4, FR-055): offered, in progress, verified, failed and declined.
 - The paid-list admin screen (FR-014): designed with the server link fetch.
-- The bulk "Already in your library" state (FR-026).
+- The bulk "Already in your library" state (FR-068).
 
 ## Rules that hold on every import screen
 
@@ -55,7 +55,7 @@ Each needs a design spec section and boards on both canvases before it is built:
 - The cook never reviews the extraction. The review shows holds, the statement and the food matches.
 - The chooser lists only methods that have shipped. Paste and link are separate methods, and a pasted link is never
   opened.
-- A private copy shows the source page's main photo. The device fetches it and syncs it to the copy. If that fails,
+- A private copy shows the source page's main photo (gated, spec 004 D-020). The device fetches it and syncs it to the copy. If that fails,
   the photo is shown from the source page and never saved. If that fails too, a link to the page shows instead. The
   cook's own photo always comes first. A public version never uses a source photo. The states and copy are in the paste
   design spec ("Photo from the page").

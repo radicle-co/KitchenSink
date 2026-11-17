@@ -100,8 +100,8 @@ the page's wording and shows the source author's name. Then clone it and verify 
 4. **Given** a page with no yield, no cuisine or no time, **When** the cook imports it, **Then** the item is held under
    "Needs servings", "Needs a cuisine" or "Needs times" until the cook enters the value, and no value is invented
    (`FR-015`, `FR-021`).
-5. _(Photo import is 011's. 004's residual obligation: **Given** a caller submits recipes to the import route declaring
-   `sourceType = imported_physical`, **When** they are saved, **Then** each is private with no public source
+5. _(Photo import is 011's. 004's residual obligation: **Given** a caller submits recipes to the import route with the
+   statement "from a book", **When** they are saved as `imported_physical`, **Then** each is private with no public source
    attribution, `FR-013`.)_
 6. **Given** a recipe imported from Instagram, **When** it is displayed, **Then** the original creator's handle and the
    post link are visible as attribution.
@@ -116,8 +116,9 @@ the page's wording and shows the source author's name. Then clone it and verify 
 10. **Given** a pasted page that every device tier answers "no" for, **When** the import runs, **Then** it goes to the
     server AI fallback (`FR-056`) or the cook is told the page cannot be read. The cook is never asked to review the
     extraction (`FR-064`). The ingredient food-match review still runs (ADR-0071).
-11. **Given** a cook has spent the import allowance, **When** the cook imports on any channel, **Then** the import is
-    refused with the allowance's code (`FR-022`, `FR-067`). **Given** a test principal, **Then** no limit applies.
+11. **Given** a cook has spent the import allowance, **When** the cook imports on any channel, **Then** the items past the
+    allowance wait as `waitingForAllowance` and resume after the time it reopens, and a single paste is refused at once
+    with that time (`FR-022`, `FR-067`). **Given** a test principal, **Then** no limit applies.
 12. **Given** a detected third-party source that the cook changes to "I wrote this", **When** the cook saves, **Then** the
     recipe saves normally and stays private until a person clears it for public (`FR-014a`).
 
@@ -209,7 +210,7 @@ them. So the import never invents a value:
 > channel. 011 inherits the rules in this spec that say "the photo channel": the private-slot rule on
 > `imported_physical` (`FR-028`) and the deletion of a source image after extraction (`FR-012`). 004 keeps two
 > obligations for photos: the chooser lists the method only when 011 ships (`FR-046`), and the import route accepts
-> `sourceType = imported_physical` without a contract change (`FR-047`). The `sourceType` mapping of `FR-011` stays here.
+> the statement "from a book" (`imported_physical`) without a contract change (`FR-047`). The `sourceType` mapping of `FR-011` stays here.
 
 **The one import pipeline and the public choice**
 
@@ -305,7 +306,7 @@ them. So the import never invents a value:
   to the asynchronous AI text-extraction fallback (`FR-056` to `FR-063`).
     - A paste is a one-recipe import through the same pipeline as every other channel (`FR-047`). Unparseable ingredient
       lines are kept verbatim and flagged (`FR-020`).
-    - The label comes from the cook's statement (`FR-014a`). `sourceType` is declared and whitelisted on the server
+    - The label comes from the cook's statement (`FR-014a`). The server derives `sourceType` from the statement
       (`FR-025`). A pasted web link is `imported_public` and private only, and a paste can be `imported_physical` or
       `imported_paid` from the cook's statement. The paste offers the five on-screen choices of the paste design spec
       (D27): I wrote this, from a web page, from a cookbook or magazine, from another person, keep it private. "From
@@ -389,9 +390,10 @@ them. So the import never invents a value:
   011, a gated channel) is not listed. The chooser's surface is designed in [designSource.md](./designSource.md).
 - **FR-047**: Every import channel MUST converge at recipe creation, the one place that classifies provenance, enforces
   the allowance, creates the recipe and reports the per-recipe outcome (`FR-027`). A channel's own job is to produce
-  candidate recipe records from its source plus the `sourceType` that records provenance. `sourceType` is declared by the
-  invoking surface and whitelisted on the server (`FR-025`), never inferred from the payload. Adding a channel is an
-  adapter plus a `sourceType` member, not a new pipeline. Each domain runs its own processor (recipe's import, 011's image
+  candidate recipe records from its source plus the cook's per-recipe statement. The server derives `sourceType` from the
+  statement (`FR-014a`, `packages/services/recipe-service/src/recipes/import.schema.ts`), and the import wire carries no
+  `sourceType`, source address or visibility, so a recipe cannot assert them itself. Adding a channel is an
+  adapter plus a statement kind, not a new pipeline. Each domain runs its own processor (recipe's import, 011's image
   branch, food's resolution pipeline) and they meet at recipe creation.
 - **FR-048**: The live status of a recipe import is ADR-0072 §2's import view. The client reads it, and each `advance`
   returns it with a `version`, a digest of what the view was built from. The client compares `version` with the last one
@@ -554,7 +556,8 @@ them. So the import never invents a value:
     - A cook's own `statement` on `POST /api/v1/recipes`, a pasted public web link, is a second way to set
       `imported_public` and needs no grant ([ADR-0089](../../docs/architecture/decisions/0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md)).
       The server derives the label, the address and the site from the link and stores the source kind `public_web`. A
-      recipe with that kind is private only. The statement stays editable until the first publish and is frozen after it
+      recipe with that kind is private only. The statement stays editable before and after the first publish. It is locked only when the stored source is not
+      one the cook states by link (the curator's text, a book or a paid-site recipe) or when a clone inherited the source
       (ADR-0089 §6). It never travels with the curator's `source`.
     - On the link and social routes the server sets the label from the channel it observed, except with statement 1a.
       With it the label is `user_created`, accepted only with its own origin, and the own origin MUST be the page or
@@ -583,12 +586,16 @@ them. So the import never invents a value:
   `FR-063`. Passing robots.txt does not clear a source to fetch: the public-domain cookbook corpus is downloaded by an
   operator out of band, and nothing 004 deploys fetches it (ADR-0023).
 - **FR-022**: System MUST enforce one per-cook daily import allowance across all channels (`FR-067` has the numbers).
-  Exceeding it returns a distinct, machine-readable error carrying the time the allowance reopens
-  (`IMPORT_QUOTA_EXCEEDED` with `details.resetsAt`), not a generic rate-limit response. The allowance is a product
-  allowance, not a transport rate limit: it is evaluated in the domain layer and varies by plan. Per-minute burst
-  limiting stays the shipped throttler's job (D-006). A bulk `advance` that reaches the allowance does the work it can
-  still pay for and answers the import view with the allowance and `resetsAt`. The editor's ingredient-list paste spends
-  one unit from the same allowance (ADR-0072 §8). The OCR sub-quota stays with 011.
+  The allowance is a product allowance, not a transport rate limit: it is evaluated in the domain layer and varies by
+  plan. Per-minute burst limiting stays the shipped throttler's job (D-006).
+    - An `advance` that reaches the allowance does the work it can still pay for and answers the import view with the
+      allowance and `resetsAt`. Each unpaid item shows `waitingForAllowance`, and the next call after `resetsAt` resumes
+      the import. `advance` never answers `IMPORT_QUOTA_EXCEEDED` (ADR-0072 §8).
+    - A single paste reads the view's allowance and refuses at once with the reset time, because the cook is looking at
+      the screen.
+    - The editor's ingredient-list paste spends one unit from the same allowance, and its refusal is
+      `IMPORT_QUOTA_EXCEEDED` (`429`) with `details.resetsAt`, not a generic rate-limit response.
+    - The OCR sub-quota stays with 011.
 - **FR-018**: System MUST delete an import's working data, with any held or refused item in it, 30 days after the import's
   last activity (ADR-0072 §9, `packages/services/recipe-workers/src/import/importPurge.ts`). Every saved recipe stays. A
   source image the cook hands over is deleted after extraction unless the cook asks to keep it (`FR-012`).
@@ -933,7 +940,9 @@ Normative sources: [`docs/CODING_STANDARDS.md` §15.4](../../docs/CODING_STANDAR
   on evidence. A paste is never fetched, so robots.txt never applies to it.
 - **D-006 (Import limits)**: Two layers, deliberately different mechanisms. **Burst**: the shipped `@nestjs/throttler`
   with per-route overrides, a transport limit on every write route. **Daily allowance**: a domain quota (`FR-067`)
-  evaluated in the import services and returning `IMPORT_QUOTA_EXCEEDED` (`429`) with `resetsAt`. It is not a second
+  evaluated in the import services. Bulk `advance` waits (`waitingForAllowance`) and a single paste is refused at once with
+  the time the allowance reopens. Only the editor's ingredient-list paste is refused with `IMPORT_QUOTA_EXCEEDED` (`429`)
+  and `resetsAt`. It is not a second
   registered throttler, because `@nestjs/throttler` v6 ANDs every registered throttler across every route, so a daily
   throttler would apply service-wide. Treating the allowance as domain policy also puts it where 010's plan rules need it.
 - **D-005 (Working-data retention)**: An import's working data, with any held or refused item in it, is deleted 30 days

@@ -93,8 +93,9 @@ a private address, and IPv6 and IPv4-mapped forms. The policy is under the mutat
 
 `robots.txt` is fetched once per host and cached with a TTL. Group selection follows RFC 9309: the group that names our
 agent binds the fetch, and if no group names it the `*` group binds it. Both a bare `Disallow: /` and a path-specific
-`Disallow` block. A `robots.txt` that is unreachable or unparseable is treated as permissive, and a fetch of it that times
-out does not extend the import's own budget. A paste is never checked.
+`Disallow` block. A `robots.txt` that answers `4xx` means no rules apply. One that is unreachable (`5xx`, timeout or network error) is a
+full disallow, reported as `IMPORT_SOURCE_BLOCKED`. For unparseable content, parse what can be read (RFC 9309). A fetch of
+it that times out does not extend the import's own budget. A paste is never checked.
 
 The same pre-fetch step reads TDMRep (`/.well-known/tdmrep.json` and the `tdm-reservation` header), `noai` and
 `noimageai` tags, AI-crawler blocks (GPTBot, ClaudeBot, Google-Extended, CCBot) and Content Signals `ai-input=no`. A pure

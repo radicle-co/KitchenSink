@@ -25,7 +25,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
   ADR-0095, and "imports save private only". Tasks marked `(needs #301)` touch those interfaces and wait for it.
 - **Paths**: `RS` is `packages/services/recipe-service/src`, `RW` is `packages/services/recipe-workers/src`, `RC` is
   `packages/shared/recipe-core/src`, `FR` is `packages/apps/commise/features/recipes/src`. File names follow
-  `docs/CODING_STANDARDS.md` §1. `plan.md` carries the final names (BLUEPRINT done).
+  `docs/CODING_STANDARDS.md` §1. the paths in this file are final.
 
 ## User stories
 
@@ -44,7 +44,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 **Purpose**: the decisions and gates the spec says come first. Nothing below is built until these are done.
 
 - [ ] T001 {D0} Confirm PR #301 (evidence table, statement attestations, ADR-0095, private-only imports) is merged, and note the final table and column names in `plan.md` "Unmerged dependencies". Phases 2, 3 and 6 wait for it.
-- [x] T002 {D0} Run `staff-architect` BLUEPRINT (opus) for 003B, including the C1 and C2 phases. Record the exact files, contracts and pattern register in `plan.md`.
+- [x] T002 {D0} Run `staff-architect` BLUEPRINT (opus) for 003B, including the C1 and C2 phases. Record the exact files in `tasks.md` and the contracts and pattern register in `plan.md`.
 - [ ] T003 {D0} Run `staff-ux-engineer` SPECIFY (opus) for the choice, writing, review, flags, blocked, failed, budget, dead-end and Pro screens, web and mobile, with the §3.6 translation. Record the result in `docs/design/` and keep every owner screen decision.
 - [ ] T004 {D0} Write the paste and link import ADR and the feature ADR (public versions). The feature ADR covers the three one-way doors (rights label "Steps written by Commise", licence `cc-by-sa-4.0`, the provenance pair for a public version), the fingerprint format and key custody, the `publicVersion` allowance channel, and the ADR-0024 §3 third no-retry path.
 - [x] T005 {D0} Confirm with 027 owners that 003B builds the engine first, and make the edits to 027 that the plan lists (FR-045 wording, shingle SETS API, FR-032 no gate, FR-044 one banned-word module, FR-043 no credit key of its own) in `specs/027-rewritten-steps/`.
@@ -125,7 +125,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 ### Implementation
 
 - [ ] T048 {P3} Implement `RS/import/domain/sourceClassification.ts` (`classifySource`, `paidPublicEligibility`, pure, fail closed). The paid list, honoured-licence list and federal-publisher list are injected as data ports. `@pattern Specification`.
-- [ ] T049 {P3} Implement the one `PAID_CONTENT_HOLD_MONTHS` constant (6) in `RC/sourceRules.ts` or its BLUEPRINT home, defined once and configurable.
+- [ ] T049 {P3} Implement the one `PAID_CONTENT_HOLD_MONTHS` constant (6) in `RC/sourceRules.ts`, defined once and configurable.
 - [ ] T050 {P3} Implement the offer Specification and the item read fields (`source`, `offer`) in `RS/import/publicVersion/offer.ts` and the import view builder (`RS/import/importView.builder.ts`).
 - [ ] T051 {P4} Implement `RS/import/publicVersion/publicVersionJob.dal.ts` and `sourceRecords.dal.ts` (insert and read only for the records).
 - [ ] T052 {P7} Implement the title builder (`RS/import/publicVersion/titleBuilder.ts`) from the facts sheet, with no model call and never the source title.
@@ -196,7 +196,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 - [ ] T086 {B4} Implement the duplicate lookup `GET /api/v1/import/copies` (indexed on the cook and `source_key`) in `RS/import/import.controller.ts`, with the response shape of the contract: `everPublished` from `first_published_at` (never from status), and `total` counting every copy of the page the cook holds, from the same query.
 - [ ] T087 {B4} Implement Replace as a new version of the same recipe through `RecipesService.update` with an `afterWrite` that claims the item inside the version-checked transaction. (needs #301)
 - [ ] T088 {B5} HELD until link import has a design (link import has no UI in the first web release). Implement the server link import: device result accepted first, server fetch second, never for a known paid site (answer: ask the cook to paste), and a paste never fetches. No safe-fetch client exists in the tree: this task builds it in slice B5 (a maintained request-filtering agent over `node:https`, a robots reader, redirect, time and size limits), and it stays off by default.
-- [ ] T089 {B2} Implement the paste switch (`IMPORT_PASTE_MODE`, signed grant `recipes:import:paste`) and one pure `pasteImportAllowed(mode, scopes)` in `RC/`, if the BLUEPRINT keeps it.
+- [ ] T089 {B2} Implement the paste switch (`IMPORT_PASTE_MODE`, signed grant `recipes:import:paste`) and one pure `pasteImportAllowed(mode, scopes)` in `RC/`.
 - [ ] T090 {B4} Service e2e (deployed) for `copies` and a create against the preview, and a k6 scenario `packages/services/recipe-service/tests/load/importCopies.load.js` (hand-run only).
 
 ## Phase 6b: Age assurance and the Publish gate
@@ -220,7 +220,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 - [ ] T160 {P12} [P] Unit test (fail first): the input door refuses raw text containing any of U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F or U+061C, and accepts text without them; a reversed step wrapped in U+202E is refused, and the check runs before any fold (FR-053), in `RS/recipes/domain/__tests__/bidiControlsRefused.test.ts`.
 - [ ] T161 {P12} [P] Integration test (database mocked): a save of a title, a door-two rewrite, and an edit and a restore under FR-050 and FR-052 each answer the `blocked.body` refusal when the text has a bidi control, and no row is written, in `RS/recipes/tests/bidiControlsRefused.integration.test.ts`.
 - [ ] T162 {P12} Implement the check as one pure predicate in `RS/recipes/domain/bidiControlsRefused.ts`, called inside the recipe write ahead of the fingerprint fold, for steps and titles (FR-053).
-- [ ] T163 {P12} blocked: owner ruling. Look-alike letters in cook-typed public text are not covered by FR-053. Swapping one Cyrillic letter, or using ı, ɑ or ɡ, makes a copy score 0 on the wording check. The fix is a letter allowlist at the same input door. Tracked here until the owner rules on the allowed letters; write no code for it before then.
+- [ ] T163 {P12} blocked: owner ruling. Cook-typed public text accepts only letters on an allowlist, checked at the same input door as FR-053. The owner rules on the list. Write no code before then.
 
 ## Phase 7: Clients and UI (web and mobile together)
 
@@ -266,7 +266,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 
 ### Paste screens, web ("C2")
 
-**Purpose**: the web paste screens of `docs/design/pasteImport/spec.md`. Web only for now: the mobile chooser row stays hidden until the mobile paste PR (owner exception), so no Maestro flow for these. Depends on Phase 6. The BLUEPRINT finalises files.
+**Purpose**: the web paste screens of `docs/design/pasteImport/spec.md`. Web only for now: the mobile chooser row stays hidden until the mobile paste PR (owner exception), so no Maestro flow for these. Depends on Phase 6. The files are named in each task.
 
 - [ ] T118 {C2b} [P] Component tests: add-a-recipe chooser, paste screen (every state and refusal), pick one, already saved with Replace and its confirm step, one-recipe review with needs list and statement block, success and held-from-public, in `FR/import/paste/__tests__/`.
 - [ ] T119 {C2a} [P] Unit tests: `classifyPaste` use by the orchestration, the reducer for the paste flow, in `FR/import/paste/__tests__/`.
@@ -281,7 +281,7 @@ quickstart.md, agentNotes.md) and `specs/027-rewritten-steps/` (agentNotes.md, p
 - [x] T123 {D0} Amend `specs/010-subscriptions/` (US6 scenario 2 and FR-042c) for the dead-end screen only. Done in this PR; see 003B FR-074. Do not restate the ADR-0093 amendments.
 - [ ] T124 {D0} Update `docs/design/pasteImport/spec.md` D8 line only if the ADR sweep did not already; check with `git grep`.
 - [ ] T125 {L1} Turn the per-market switch on in every market at launch (ADR-0093 §6a) and check there is no other door (`git grep` for test overrides).
-- [ ] T126 {L1} Run `quickstart.md` steps 1 to 10 on web, Android and iOS, and update the file if a step has changed.
+- [ ] T126 {L1} Run every step of `quickstart.md` on web, Android and iOS, and update the file if a step has changed.
 - [ ] T127 {L1} Confirm success criteria SC-001 to SC-006 are measured: the audit (SC-001), the source-record check (SC-002, SC-003), the 30-second ready time (SC-004), the accessibility run (SC-005), and the pool counter (SC-006).
 - [ ] T128 {L1} Run `staff-architect` REVIEW and `code-reviewer` (opus) over the diff, then `staff-code-quality` GATE once when the PR is ready (not before).
 - [ ] T129 {L1} Run `npm run e2e:plan -- --base origin/main` and the impacted web and mobile suites. Report which tiers ran and which did not.

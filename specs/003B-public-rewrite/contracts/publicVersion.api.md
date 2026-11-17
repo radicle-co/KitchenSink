@@ -50,7 +50,7 @@ ShownOffer =
 The server compares exactly these fields with the offer it computes now, and answers `409 { code: 'offerChanged', offer }`
 on a difference. The client never decides on its own that the offer changed. When the server computes the offer at Start
 and at Publish, it excludes the caller's own live job, so the same cook's job never reads as `publicExists`. If the page
-is now held by another cook's version, the answer is `409 { code: 'publicExists', recipeId }`, which takes precedence over
+is now held by another cook's version, the answer is `409 { code: 'publicExists', recipeId }` (`recipeId` as for starting a job), which takes precedence over
 `offerChanged`. The later route sends the `shownOffer` it got from `GET /api/v1/recipes/{recipeId}/public-version/offer`.
 
 ## Read the offer for a private copy

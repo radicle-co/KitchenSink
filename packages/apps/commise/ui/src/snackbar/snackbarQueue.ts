@@ -86,7 +86,8 @@ export function snackbarReducer(state: SnackbarState, action: SnackbarQueueActio
                 ...state,
                 current: {
                     ...state.current,
-                    remainingMs: state.current.remainingMs - (action.now - state.current.runningSince),
+                    // A pause that lands after the snackbar was due banks nothing: the time left is never negative.
+                    remainingMs: Math.max(0, state.current.remainingMs - (action.now - state.current.runningSince)),
                     runningSince: null,
                 },
             };

@@ -37,13 +37,26 @@ function ownSetOf<T>(messages: LocalizedMessages<T>, locale: Locale): T | undefi
     return (messages as Partial<Record<Locale, T>>)[locale];
 }
 
+/** The set served for a locale, and the locale it is in. */
+interface ServedSet<T> {
+    readonly locale: Locale;
+    readonly set: T;
+}
+
+/** The ONE fallback rule: the catalog's own set for `locale`, else the required {@link DEFAULT_LOCALE} set. Pure. */
+function serve<T>(messages: LocalizedMessages<T>, locale: Locale): ServedSet<T> {
+    const own = ownSetOf(messages, locale);
+
+    return own === undefined ? { locale: DEFAULT_LOCALE, set: messages[DEFAULT_LOCALE] } : { locale, set: own };
+}
+
 /**
  * The locale of the set {@link resolveMessages} returns for `locale`: `locale` when the catalog holds its own set, else the
  * required {@link DEFAULT_LOCALE}. What a record of "the words the cook was shown" must name, because a fallback shows English
- * whatever was asked (the pseudo-locale is English, accented). This is the ONE fallback rule, and `resolveMessages` follows it. Pure.
+ * whatever was asked (the pseudo-locale is English, accented). Pure.
  */
 export function servedLocaleOf<T>(messages: LocalizedMessages<T>, locale: Locale): Locale {
-    return ownSetOf(messages, locale) === undefined ? DEFAULT_LOCALE : locale;
+    return serve(messages, locale).locale;
 }
 
 /**
@@ -53,8 +66,7 @@ export function servedLocaleOf<T>(messages: LocalizedMessages<T>, locale: Locale
  * be a negotiated/supported tag. Pure.
  */
 export function resolveMessages<T>(messages: LocalizedMessages<T>, locale: Locale): T {
-    const served = servedLocaleOf(messages, locale);
-    const set = ownSetOf(messages, served) ?? messages[DEFAULT_LOCALE];
+    const { locale: served, set } = serve(messages, locale);
 
     // Only the pseudo-locale's fallback is accented: a locale with its own set, and `en` itself, are served as written.
     return served !== locale && locale === PSEUDO_LOCALE ? pseudoOf(set) : set;

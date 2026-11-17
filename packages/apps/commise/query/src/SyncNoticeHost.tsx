@@ -9,7 +9,7 @@
  * sync notice. The host keeps the count at which the cook dismissed as derived state, with no effect and no ref
  * (`specSharedSystem.md` §17).
  *
- * The host has two forms, chosen by its mount (plan 0010 KTD1), and the leaves stay mode-free: `cooking` shows the
+ * The host has two forms, chosen by its mount, and the leaves stay mode-free: `cooking` shows the
  * title only while offline and nothing else.
  *
  * @pattern Orchestration — it reads the queue's facts, maps them through pure Specifications, and hands the result
@@ -33,7 +33,7 @@ import { useSyncQueue } from './syncProvider.js';
 export interface SyncNoticeHostProps {
     /** The app's localized strings. */
     readonly copy: SyncNoticeCopy & { readonly regionLabel: string };
-    /** `app` (default): the full notice. `cooking`: title only while offline, nothing else (plan 0010 KTD2). */
+    /** `app` (default): the full notice. `cooking`: title only while offline, nothing else. */
     readonly form?: 'app' | 'cooking';
 }
 

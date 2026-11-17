@@ -146,7 +146,7 @@ describe('dismissalFor', () => {
     });
 });
 
-/** Plan 0010 KTD2 and decisions/0025: cooking mode shows the title only while offline, and nothing else ever. */
+/** Cooking mode shows the title only while offline, and nothing else ever. */
 describe('cookingNoticeStateOf', () => {
     it('gives the title alone while offline, with no body key at all', () => {
         const state = cookingNoticeStateOf(true, COPY);

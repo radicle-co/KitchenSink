@@ -93,7 +93,7 @@ export function syncNoticeState(facts: SyncFacts, copy: SyncNoticeCopy): SyncNot
 }
 
 /**
- * What the notice shows in cooking mode (plan 0010 KTD2, D60): offline gives the title only; every other fact,
+ * What the notice shows in cooking mode: offline gives the title only; every other fact,
  * "back online" and syncing included, gives hidden. The count is not shown while cooking. Pure.
  *
  * @param offline - Whether the device is offline.

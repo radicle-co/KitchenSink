@@ -19,7 +19,7 @@ export type SyncNoticeState =
     | {
           readonly kind: 'offline';
           readonly title: string;
-          /** Absent in cooking mode: title only, no blank row (D60, plan 0010 KTD3). */
+          /** Absent in cooking mode: title only, no blank row. */
           readonly body?: string;
       }
     | { readonly kind: 'syncing'; readonly title: string; readonly body: string };

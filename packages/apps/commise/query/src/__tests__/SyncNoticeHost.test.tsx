@@ -174,7 +174,7 @@ describe('SyncNoticeHost — unreadable work', () => {
     });
 });
 
-/** Plan 0010 KTD2 and decisions/0025: the cooking form shows the title alone while offline, and never a count or "Back online". */
+/** The cooking form shows the title alone while offline, and never a count or "Back online". */
 describe('SyncNoticeHost — cooking form', () => {
     const cooking = () => <SyncNoticeHost copy={copy} form="cooking" />;
 

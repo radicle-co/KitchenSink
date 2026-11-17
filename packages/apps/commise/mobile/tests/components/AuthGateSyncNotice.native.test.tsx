@@ -8,6 +8,7 @@
  */
 import { onlineManager } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { useContext, type JSX } from 'react';
 import { Text } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +16,7 @@ import { SyncProvider } from '@commise/query/sync';
 import { appendToQuarantine, createMemoryOutboxStore, storeKeyFor } from '@kitchensink/sync';
 
 import { AuthGate } from '../../src/components/AuthGate.js';
+import { ReportFocusedRootRouteContext } from '../../src/navigation/focusedRootRoute.js';
 import { useAuth } from '../../src/hooks/useAuth.js';
 import { render } from '@commise/ui/testing/tamagui';
 
@@ -138,5 +140,93 @@ describe('AuthGate — the notices on mobile', () => {
 
         expect(screen.getByText('stub-login')).toBeTruthy();
         expect(screen.queryByText('You’re offline')).toBeNull();
+    });
+});
+
+describe('AuthGate — the cooking form of the notice', () => {
+    const BODY = 'Anything you change is saved on this device and syncs when you’re back online.';
+
+    /** Stands in for the navigator: it reports the focused root route through the gate's context. */
+    function Navigator(): JSX.Element {
+        const report = useContext(ReportFocusedRootRouteContext);
+
+        return (
+            <>
+                <Text onPress={() => report('CookingMode')}>open cooking</Text>
+                <Text onPress={() => report('Tabs')}>open tabs</Text>
+            </>
+        );
+    }
+
+    function offlineApp(): void {
+        act(() => {
+            onlineManager.setOnline(false);
+        });
+        render(
+            <SyncProvider subject="user_a" send={vi.fn()} store={createMemoryOutboxStore()}>
+                <AuthGate>
+                    <Navigator />
+                </AuthGate>
+            </SyncProvider>,
+        );
+    }
+
+    it('shows the app form on the tabs, with its body', () => {
+        offlineApp();
+
+        expect(screen.getAllByText('You’re offline')).toHaveLength(1);
+        expect(screen.getByText(BODY)).toBeTruthy();
+    });
+
+    it('⛔ shows exactly one notice, title only, while the cooking task is focused', () => {
+        offlineApp();
+
+        fireEvent.click(screen.getByText('open cooking'));
+
+        expect(screen.getAllByText('You’re offline')).toHaveLength(1);
+        expect(screen.queryByText(BODY)).toBeNull();
+    });
+
+    it('brings the app form back on leaving cooking, with its body', () => {
+        offlineApp();
+        fireEvent.click(screen.getByText('open cooking'));
+
+        fireEvent.click(screen.getByText('open tabs'));
+
+        expect(screen.getAllByText('You’re offline')).toHaveLength(1);
+        expect(screen.getByText(BODY)).toBeTruthy();
+    });
+
+    it('⛔ does not announce the title again when the form switches: the same text node stays', () => {
+        offlineApp();
+        const title = screen.getByText('You’re offline');
+
+        fireEvent.click(screen.getByText('open cooking'));
+        expect(screen.getByText('You’re offline')).toBe(title);
+
+        fireEvent.click(screen.getByText('open tabs'));
+        expect(screen.getByText('You’re offline')).toBe(title);
+    });
+
+    it('hides syncing while cooking, and shows it again in the app form', async () => {
+        const store = createMemoryOutboxStore();
+        const send = vi.fn(() => new Promise<never>(() => undefined));
+        act(() => {
+            onlineManager.setOnline(false);
+        });
+        render(
+            <SyncProvider subject="user_a" send={send} store={store}>
+                <AuthGate>
+                    <Navigator />
+                </AuthGate>
+            </SyncProvider>,
+        );
+        fireEvent.click(screen.getByText('open cooking'));
+        act(() => {
+            onlineManager.setOnline(true);
+        });
+
+        expect(screen.queryByText('Back online')).toBeNull();
+        expect(screen.queryByText(/Syncing/u)).toBeNull();
     });
 });

@@ -4,15 +4,15 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 89,
-        "implementations": 89,
-        "props": 105,
-        "documentedComponents": 86,
-        "implementationsWithModuleDoc": 67,
-        "implementationsWithComponentDoc": 63,
-        "documentedProps": 62,
-        "classifiedComponents": 39,
-        "componentsWithPatternTag": 34,
+        "components": 90,
+        "implementations": 90,
+        "props": 106,
+        "documentedComponents": 87,
+        "implementationsWithModuleDoc": 68,
+        "implementationsWithComponentDoc": 64,
+        "documentedProps": 63,
+        "classifiedComponents": 40,
+        "componentsWithPatternTag": 35,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -916,6 +916,60 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/app/[locale]/recipes/[id]/cook/CookingNoticeMount",
+            "name": "CookingNoticeMount",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter — the app's host and copy, to the cooking package's notice slot"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingNoticeMount",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/CookingNoticeMount.tsx",
+                    "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook",
+                    "moduleDoc": "The cook route's offline notice: the one `SyncNoticeHost` in its cooking form (title only while offline, quiet on\nreconnect), handed to the cooking surface's notice slot, which draws it first inside the surface, above the top bar.\nThe route and the segment's loading frame both wrap their screen in it, so a cook offline sees one notice on every\ncooking screen.\n\nOrchestration: it reads the app's offline copy and mounts the host, and draws no markup of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — the app's host and copy, to the cooking package's notice slot"
+                        }
+                    ],
+                    "description": "Supplies the cooking-form offline notice to every cooking frame below.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cooking screen the notice belongs to.",
+                            "declaredIn": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/CookingNoticeMount.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]

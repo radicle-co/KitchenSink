@@ -1,8 +1,7 @@
 /**
  * The words that follow a number when the number is a time, and the unit each names.
  *
- * One list, read by everything that reads a time: the step facts sheet and the duration reader of
- * `@kitchensink/cooking-core`. Reachable ONLY as `@kitchensink/recipe-core/time-unit-words`, never from the barrel:
+ * Reachable ONLY as `@kitchensink/recipe-core/time-unit-words`, never from the barrel:
  * `contract-gen` hashes the barrel, and a time-word list is no part of any wire shape, so exporting it there would move
  * `CONTRACT_HASH` for nothing. It is a module of its own, not part of `units.ts`, so the subpath publishes this list and
  * not the unit tables the barrel keeps back.

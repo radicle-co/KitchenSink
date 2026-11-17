@@ -611,7 +611,7 @@ describe('ingredient names and language are plain facts', () => {
     });
 
     it('refuses a name with a hidden character, so no name is split or invented', () => {
-        for (const name of ['bu\u200Btter', 'sal\u00ADt']) {
+        for (const name of ['bu\u200Btter', 'sal\u00ADt', 'Bro\u2065ccoli', 'Bro\uFFF0ccoli']) {
             expect(() => sheetOf([], ['butter', name])).toThrow(/ingredientLines\[1\]/u);
         }
     });
@@ -639,6 +639,7 @@ describe('ingredient names and language are plain facts', () => {
             { quantity: 2, unit: 'cup', ingredient: 'flour' },
         ]);
         expect(stepOf('Ch\u00ADop the onion.').actions).toEqual(['chop']);
+        expect(stepOf('Add bro\u2065ccoli.', ['broccoli']).ingredients).toEqual(['broccoli']);
         expect(stepOf('Bake at 200\u2060\u00B0C.').temperatures).toEqual([{ value: 200, scale: 'C' }]);
         expect(stepOf('Add bu\u200Btter.', ['butter']).ingredients).toEqual(['butter']);
     });

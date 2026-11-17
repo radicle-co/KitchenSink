@@ -175,7 +175,7 @@ const numberOf = (token: string): number | undefined => amountAt([token], 0)?.lo
  */
 function readTemperatures(text: string): { temperatures: PlacedTemperature[]; rest: string } {
     const temperatures: PlacedTemperature[] = [];
-    let rest = text;
+    const spans: Span[] = [];
 
     for (const match of text.matchAll(TEMPERATURE)) {
         const { low, high, sign, signWord, degree, word, bare } = match.groups ?? {};
@@ -200,10 +200,10 @@ function readTemperatures(text: string): { temperatures: PlacedTemperature[]; re
             scale,
             start,
         });
-        rest = `${rest.slice(0, match.index)}${' '.repeat(match[0].length)}${rest.slice(match.index + match[0].length)}`;
+        spans.push({ start, end: start + match[0].length });
     }
 
-    return { temperatures, rest };
+    return { temperatures, rest: blanked(text, spans) };
 }
 
 // ── Ingredients ──
@@ -213,17 +213,19 @@ interface IngredientMatcher {
     readonly matcher: RegExp;
 }
 
+/** What draws nothing: format characters (`\p{Cf}`) and the default-ignorable ones, as a regex class body. */
+const HIDDEN = String.raw`\p{Cf}\p{Default_Ignorable_Code_Point}`;
+
 /**
- * What a name may not be cleaned of: a hidden character (`\p{Cf}`) is kept, so the alphabet refuses it and no name is
+ * What a name is cleaned of. A hidden character is not cleaned: it stays, so the alphabet refuses it and no name is
  * split or invented. Anything else outside letters, marks, numbers and the plain punctuation becomes a space.
  */
-const OUTSIDE_PLAIN_NAME = new RegExp(`[^\\p{L}\\p{M}\\p{N}\\p{Cf}${escapeRegExp(PLAIN_FACT_PUNCTUATION)}]`, 'gu');
+const OUTSIDE_PLAIN_NAME = new RegExp(`[^\\p{L}\\p{M}\\p{N}${HIDDEN}${escapeRegExp(PLAIN_FACT_PUNCTUATION)}]`, 'gu');
 
-/** Characters that draw nothing: zero-width spaces and joiners, soft hyphens and the like. A step is read without them. */
-const HIDDEN_CHARACTER = /\p{Default_Ignorable_Code_Point}/gu;
+const HIDDEN_CHARACTERS = new RegExp(`[${HIDDEN}]`, 'gu');
 
 /** A step's text without its hidden characters, in NFC, so none can split a word or hide a fact from a reader. */
-const readableStep = (text: string): string => text.replaceAll(HIDDEN_CHARACTER, '').normalize('NFC');
+const readableStep = (text: string): string => text.replaceAll(HIDDEN_CHARACTERS, '').normalize('NFC');
 
 /**
  * A line's text as a plain name, in NFC, so the sheet holds the form that was checked: what is outside the plain set
@@ -457,7 +459,8 @@ function readAmounts(text: string): ReadAmount[] {
 const SECONDS_PER_LONG_UNIT: Readonly<Record<LongTimeUnit, number>> = { day: 86_400, week: 604_800 };
 
 /** A time in days or weeks. The duration reader does not read these, so the sheet reads each one alone. */
-const isLongTime = (read: ReadAmount): boolean => read.timeUnit === 'day' || read.timeUnit === 'week';
+const isLongTime = (read: ReadAmount): read is ReadAmount & { readonly timeUnit: LongTimeUnit } =>
+    read.timeUnit === 'day' || read.timeUnit === 'week';
 
 /** What may sit between two parts of one time: "1 hour 30 minutes", "1 hour, 30 minutes", "1 hour and 30 minutes". */
 const TIME_JOINER = /^\s*(?:,\s*)?(?:and\s+)?$/iu;
@@ -515,7 +518,7 @@ function timesOf(
             continue;
         }
 
-        if (first.timeUnit === 'day' || first.timeUnit === 'week') {
+        if (isLongTime(first)) {
             const seconds = SECONDS_PER_LONG_UNIT[first.timeUnit];
 
             durations.push({ minSeconds: (low ?? 0) * seconds, maxSeconds: (high ?? low ?? 0) * seconds });
@@ -614,14 +617,17 @@ const TERM_MATCHERS: ReadonlyMap<SafetyTerm, RegExp> = new Map(
 const keysIn = (text: string, terms: readonly SafetyTerm[]): string[] =>
     terms.filter((term) => TERM_MATCHERS.get(term)?.test(text) === true).map((term) => term.fact);
 
+/** The same matchers, global, so every match of a term can be found. */
+const GLOBAL_TERM_MATCHERS: ReadonlyMap<SafetyTerm, RegExp> = new Map(
+    [...TERM_MATCHERS].map(([term, matcher]): [SafetyTerm, RegExp] => [term, new RegExp(matcher.source, 'giu')]),
+);
+
 /** Where each match of the terms ends in the text. */
 function cueEndsOf(text: string, terms: readonly SafetyTerm[]): number[] {
     return terms.flatMap((term) => {
-        const matcher = TERM_MATCHERS.get(term);
+        const matcher = GLOBAL_TERM_MATCHERS.get(term);
 
-        return matcher === undefined
-            ? []
-            : [...text.matchAll(new RegExp(matcher.source, 'giu'))].map((match) => match.index + match[0].length);
+        return matcher === undefined ? [] : [...text.matchAll(matcher)].map((match) => match.index + match[0].length);
     });
 }
 

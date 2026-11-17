@@ -92,6 +92,8 @@ ready ──Not now / flow ends──────────────▶ can
 - Allowance: the item's own unit covers the public version that its import path writes. The later route
   (`POST /api/v1/recipes/{recipeId}/public-version`) spends one unit on the new channel `publicVersion`, so the
   `import_allowance_events` channel CHECK gains that value (alongside `paste` and `bulk`).
+- Recipe read, owner only: `hasSourceRecord` (boolean, no column). True when a `recipe_source_records` row has a
+  `page_key` equal to the recipe's evidence `source_key`. Omitted for any other viewer.
 - Monitoring counts public versions per `source_key` from `recipes.source_page_key` and the source records, for the
   rate alarm only. There is no per-source ledger and there are no caps (owner ruling 2026-11-15).
 - Publish confirmation: one row in `recipe_statement_attestations` (ADR-0095): mode implicit, choice `publicConfirm`, action `create`, wording `publicVersionConfirm.v1`. Licence acceptance (FR-062) is that confirmation.

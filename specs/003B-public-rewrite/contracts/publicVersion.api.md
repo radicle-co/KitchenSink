@@ -10,11 +10,20 @@ or recipe answers 404, never 403.
 
 ```text
 source: { classification: 'open' | 'thirdParty' | 'paid', domain: string | null }
-offer:  { kind: 'choice', credit: 'free' | 'paid' }
+offer:  PublicVersionOffer
+```
+
+`PublicVersionOffer` is one zod schema, `publicVersionOfferSchema`, authored in recipe-service
+`import/publicVersion/publicVersion.schema.ts`. The import item view and the offer route below both use it:
+
+```text
+PublicVersionOffer =
+          { kind: 'choice', credit: 'free' | 'paid' }
         | { kind: 'privateOnly', reason: 'paidRecent' | 'paidSignature' | 'publisherOptOut' | 'aiOptOut' | 'budget'
                                 | 'noSteps' | 'noSourceAddress' | 'switchOff',
                                 holdEndsOn?: string }
           // holdEndsOn is an ISO date, present only for paidRecent when the date is known.
+          // A schema refine rejects holdEndsOn on any other reason.
           // 'under16' is not a reason: age is checked at Publish. Spec 016 adds it back.
         | { kind: 'publicExists', status: 'published' | 'writing' | 'inReview', recipeId: string | null }
           // one public version per source page (FR-034). recipeId is null until a recipe exists.
@@ -24,6 +33,20 @@ offer:  { kind: 'choice', credit: 'free' | 'paid' }
 ```
 
 The server computes `offer`. The client renders it and never derives it.
+
+## Read the offer for a private copy
+
+`GET /api/v1/recipes/{recipeId}/public-version/offer` → `200 { offer: PublicVersionOffer }`. Owner only, and it needs a
+token. It answers `404` for another cook's recipe, a missing recipe, or a recipe with no source record. The recipe read
+carries the owner-only field `hasSourceRecord: boolean` (see below), which tells the client whether to show "Share a
+public version" at all. The client calls this route on tap, with no cache (`usePublicVersionOffer(recipeId, { enabled:
+false })`, `staleTime` 0). If the offer changes after that, the `409 offerChanged` of Start covers it.
+
+## Owner-only field on the recipe read
+
+`GET /api/v1/recipes/{id}` gains `hasSourceRecord: boolean`: true when a `recipe_source_records` row exists whose
+`page_key` equals the recipe's evidence `source_key`. It is present for the owner only and omitted for every other
+viewer, like the other owner-only fields (ADR-0090, #301). It is computed the way #301 computes `publicNeedsCheck`.
 
 ## Start a public version
 

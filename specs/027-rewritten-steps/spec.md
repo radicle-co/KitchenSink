@@ -279,7 +279,7 @@ can always cook from the original steps.
     - after a replace on a public recipe the cook wrote: "Steps written by Commise with AI, checked by {cook}."
       (`recipes.flowSteps.credit.publicOwn`);
     - after a replace on a private copy of another site's recipe: "Steps written by Commise. Based on a recipe at
-      {domain}." (`recipes.flowSteps.credit.privateSourced`). It replaces the copy's "Saved from {domain}" wording,
+      {site}." (`recipes.flowSteps.credit.privateSourced`). It replaces the copy's "Saved from {site}" wording,
       which no longer describes the steps (C-19).
       A public version of an imported recipe keeps the credit lines of spec 003B (`credit.written`, plus `credit.basedOn` for a free site).
       This feature adds no key for it (C-20).

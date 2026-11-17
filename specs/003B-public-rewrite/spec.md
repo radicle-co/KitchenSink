@@ -132,7 +132,8 @@ The cook can still keep the recipe and make a public version later.
 3. **Given** the writer fails after its retry (FR-031), **Then** `failed.title` and `failed.body` show with "Try again"
    and "Save my copy". On the Both path the private copy is already saved and the screen shows `failed.bodyBoth`.
 4. **Given** a saved private copy whose public version did not get written, **When** the cook picks "Share a public
-   version" from the recipe's menu, **Then** the review flow of User Story 1 runs from the saved copy.
+   version" from the recipe's menu (shown to the owner of a private recipe with a source record, FR-092), **Then** the
+   offer is read from the server and the review flow of User Story 1 runs from the saved copy.
 5. **Given** the cook goes offline while the writer runs, **Then** `writing.offline` shows with "Try again".
 
 ### User Story 4 - No private spots left and no public version possible (Priority: P2)
@@ -388,7 +389,7 @@ later from its own menu. (C-6)
 #### G. Credit, label and licence
 
 - **FR-060**: A public version from a free (non-paid) source MUST show, wherever it is shown, the credit of ADR-0093 §4
-  (`credit.written` with the AI disclosure, and `credit.basedOn` with the domain line). `{domain}` is the registrable domain and a link.
+  (`credit.written` with the AI disclosure, and `credit.basedOn` with the domain line). `{site}` is the registrable domain and a link.
   `{cook}` is the display name, or the username. The wording is in research R8. Its schema.org data carries
   `isBasedOn` with the source address.
 - **FR-061**: A public version's rights label MUST be a new derived label, "Steps written by Commise", never "Written by
@@ -463,6 +464,12 @@ later from its own menu. (C-6)
   the cook's market does not gate publishing. There is one switch for each market, all on at launch. With the feature
   switch off, imports behave as today (private only, offer reason `switchOff`).
 - **FR-091**: Web and mobile MUST ship every state in the same release (`CODING_STANDARDS.md` §14).
+- **FR-092**: The recipe menu MUST show "Share a public version" (`later.action`) when the viewer is the owner, the
+  recipe is private, and the recipe read's owner-only `hasSourceRecord` is true. Inside that set the item always shows,
+  and the offer decides the next screen. On tap the client reads the offer from
+  `GET /api/v1/recipes/{recipeId}/public-version/offer` (owner only; `404` for another cook's recipe, a missing recipe
+  or a recipe with no source record), and renders it as the import choice does (FR-020 to FR-024, FR-034). If the offer
+  changes before Start, the `409 offerChanged` of Start covers it. See `contracts/publicVersion.api.md`.
 
 ### UI states and localisation keys
 
@@ -492,7 +499,7 @@ owner-approved v3 draft over v2 (staff-ux-engineer). `staff-ux-engineer` SPECIFY
 | Dead end, no paid plan                                                                               | `deadEnd.close`, `deadEnd.closeNote`                                                                                                                                                                                                                                                                                               |
 | Success                                                                                              | `done.private`, `done.public`, `done.both`, **reuse** `saved`, `savedPublic`                                                                                                                                                                                                                                                       |
 | Links between the two recipes                                                                        | `done.linkPublic`, `done.linkPrivate`                                                                                                                                                                                                                                                                                              |
-| Later route                                                                                          | `later.action` ("Share a public version")                                                                                                                                                                                                                                                                                          |
+| Later route                                                                                          | `later.action` ("Share a public version"), shown by FR-092; the offer decides the next screen                                                                                                                                                                                                                                      |
 | Age question (after `403 ageConfirmNeeded` at Publish; a second `403` shows **reuse** `failed.body`) | `ageConfirm.title`, `ageConfirm.body`, `ageConfirm.yes`, `ageConfirm.notNow`, recorded as `ageConfirm.v1`                                                                                                                                                                                                                          |
 | Public page                                                                                          | `credit.written`, `credit.basedOn` (free site), `review.licence`, `publicPage.report`                                                                                                                                                                                                                                              |
 

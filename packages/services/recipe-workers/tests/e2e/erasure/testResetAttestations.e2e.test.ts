@@ -145,12 +145,16 @@ describe('a test-principal reset relabels the principal’s statement records an
 
         await attest(mine, PRINCIPAL);
 
-        await expect(swapOf(PRINCIPAL)).rejects.toMatchObject({ cause: { message: expect.stringMatching(/append-only/) } });
+        await expect(swapOf(PRINCIPAL)).rejects.toMatchObject({
+            cause: { message: expect.stringMatching(/append-only/) },
+        });
 
         // A queued reset has not started: only a running one may swap.
         await db.execute(sql`INSERT INTO test_reset_jobs (user_id, status) VALUES (${PRINCIPAL}, 'queued')`);
 
-        await expect(swapOf(PRINCIPAL)).rejects.toMatchObject({ cause: { message: expect.stringMatching(/append-only/) } });
+        await expect(swapOf(PRINCIPAL)).rejects.toMatchObject({
+            cause: { message: expect.stringMatching(/append-only/) },
+        });
         expect(await countFor(PRINCIPAL)).toBe(1);
     });
 

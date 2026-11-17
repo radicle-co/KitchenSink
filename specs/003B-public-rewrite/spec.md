@@ -174,7 +174,7 @@ refused with `blocked.body`. A reader of the public page sees the credit, the li
 1. **Given** any save of a public version's steps or title, **Then** the wording check of FR-050 runs before the save
    is accepted.
 2. **Given** the check refuses, **Then** nothing is saved, and the cook sees `blocked.body` with "Write it again" and
-   "Keep it just for me".
+   the path's not-now key.
 3. **Given** a reader, signed in or out, **Then** the page shows `credit.written`, `credit.basedOn` (free site), `review.licence` and
    `publicPage.report`, and never `editor.source.rightsLabel`.
 4. **Given** "Report a problem", **Then** the version is hidden from every reader at once and stays hidden until staff
@@ -275,7 +275,8 @@ later from its own menu. (C-6)
   `languageUnsupported`. The server finds the language in this order: (1) the page's declared language (the page
   `lang` or JSON-LD `inLanguage`, carried on the import evidence as `evidence.page.language`); (2) otherwise a language
   detector, run on the steps text only and limited to the languages that have entries; (3) otherwise the language is
-  unsupported. The result is stored on the source record (`recipe_source_records.language`, ISO 639-1, set at the import
+  unsupported. A declared tag is reduced to its primary language subtag, lower-cased, and a tag with no two-letter
+  primary subtag reads as no language. The result is stored on the source record (`recipe_source_records.language`, ISO 639-1, set at the import
   save).
 - **FR-013**: The classification MUST be one pure rule that reads the detected evidence, the cook's statement, the live
   site claim, the honoured-licence list, the federal-publisher list and the paid-site list. A missing or unreadable

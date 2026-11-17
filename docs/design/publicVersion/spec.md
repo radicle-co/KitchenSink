@@ -549,7 +549,7 @@ None of our own. Pushes, the dialog and the sheet use the platform's transitions
 - **The private copy changes during writing (Both).** `409 privateCopyChanged` at Publish: `flag.fix` with "Write it
   again".
 - **Under 16 learned at the age question.** "Not now" publishes nothing. The cook can still keep a private copy from P8
-  ("Keep it just for me").
+  (`review.notNow`; on the Both path the copy is already saved).
 - **App killed during writing.** The job ends on its own (10 minutes). The import item waits under "To review". On the
   Both path the copy is saved.
 - **Long currencies and prices.** §4.

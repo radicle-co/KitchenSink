@@ -68,6 +68,15 @@ describe('SyncNotice (native)', () => {
         expect(region.textContent).toContain('2 changes are saved on this device.');
     });
 
+    it('⛔ shows the title alone when an offline state has no body: no empty row', () => {
+        render(<SyncNotice state={{ kind: 'offline', title: 'You’re offline' }} regionLabel={LABEL} />);
+
+        const region = screen.getByLabelText(LABEL);
+
+        expect(region.textContent).toBe('You’re offline');
+        expect(region.children).toHaveLength(1);
+    });
+
     it('shows the syncing state the same way', () => {
         render(
             <SyncNotice

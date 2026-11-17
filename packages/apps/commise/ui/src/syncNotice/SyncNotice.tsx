@@ -24,7 +24,7 @@ export const SyncNotice: FC<SyncNoticeProps> = ({ state, regionLabel }) => (
         {state.kind !== 'hidden' && (
             <Surface tone="muted" className="rounded-lg px-4 py-3">
                 <p className="text-body-sm font-semibold text-ink">{state.title}</p>
-                <p className="text-body-sm text-ink-muted">{state.body}</p>
+                {state.body !== undefined && <p className="text-body-sm text-ink-muted">{state.body}</p>}
             </Surface>
         )}
     </div>

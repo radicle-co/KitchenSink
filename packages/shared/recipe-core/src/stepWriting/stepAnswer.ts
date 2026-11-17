@@ -91,10 +91,6 @@ export function parseStepAnswer(text: string, cap: number, language: OutputLangu
         return { refused: extraKey && !otherFault ? 'outsideList' : 'unreadable' };
     }
 
-    if (parsed.data.steps.length > cap) {
-        return { refused: 'overCap' };
-    }
-
     const { prose, addressRule } = ALPHABET_BY_LANGUAGE[language];
     // Canonical first: a decomposed letter composes and passes, and other space characters become a plain space.
     // The steps handed back are the canonical text that was checked.

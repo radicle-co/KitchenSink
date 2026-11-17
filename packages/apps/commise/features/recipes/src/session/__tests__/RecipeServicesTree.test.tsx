@@ -151,7 +151,7 @@ describe('RecipeServicesTree', () => {
     });
 
     it.each([undefined, null, 'user_a'])(
-        'hands the kept store the raw cook %s (KTD4), not a collapsed one',
+        'hands the kept store the raw cook %s (ADR-0094 section 5), not a collapsed one',
         (subject) => {
             const kept = makeKeptStub();
 

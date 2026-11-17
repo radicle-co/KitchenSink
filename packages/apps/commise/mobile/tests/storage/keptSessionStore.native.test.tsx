@@ -1,6 +1,6 @@
 /**
- * The mobile kept cooking-session store (plan 0003 KTD2, KTD5): AsyncStorage behind the store's port, and one serial
- * queue per lock name as its exclusion. AsyncStorage is swapped for an in-memory double.
+ * The mobile kept cooking-session store (ADR-0094 sections 3 and 6): AsyncStorage behind the store's port, and one
+ * serial queue per lock name as its exclusion. AsyncStorage is swapped for an in-memory double.
  */
 import { describe, expect, it, vi } from 'vitest';
 

@@ -1,7 +1,8 @@
 /**
  * The v1 record is a one-way door (ADR 0094 section 2), so its bytes are frozen here by a literal written by hand. A
  * rename that the writer and the reader share would pass a round trip, and only this test catches it. A second test
- * classifies every timer field by where its value comes from (staff S63), so a new field fails until someone decides.
+ * classifies every timer field by where its value comes from (ADR-0094 section 2), so a new field fails until someone
+ * decides.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -110,7 +111,7 @@ describe('the v1 kept record, frozen', () => {
     });
 });
 
-/** Where a stored timer field gets its value (staff S63): the reducer, the record alone, or nowhere. */
+/** Where a stored timer field gets its value (ADR-0094 section 2): the reducer, the record alone, or nowhere. */
 const COMMON = ['id', 'recipeId', 'stepIndex', 'stepDigest', 'ordinal', 'run', 'durationMs', 'state'] as const;
 
 const FIELD_SOURCES = {

@@ -43,7 +43,7 @@ describe('useKeptSessionScope (ADR-0094 section 5)', () => {
 
     it('swallows a rejection from the store (the store reports its own failures)', async () => {
         const { store } = makeStore(() => Promise.reject(new Error('port failed')));
-        const unhandled = vi.fn();
+        const unhandled = vi.fn<(reason: unknown) => void>();
 
         process.on('unhandledRejection', unhandled);
         renderHook(() => useKeptSessionScope(store, 'user_a'));

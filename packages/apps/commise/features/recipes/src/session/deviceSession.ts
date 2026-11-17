@@ -45,7 +45,7 @@ export async function endDeviceSession(
     clearStoredCookMarks();
 
     // ⛔ BEFORE THE EARLY RETURN: the store's own writer queues the removal behind every write already waiting, and bumps
-    // its generation so none of them lands afterwards (KTD3). A failed removal must not stop the rest.
+    // its generation so none of them lands afterwards (ADR-0094 section 4). A failed removal must not stop the rest.
     const clearKept = kept.clear(subject).catch(() => undefined);
 
     if (subject === undefined) {

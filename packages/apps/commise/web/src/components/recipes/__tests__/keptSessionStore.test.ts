@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The web's kept cooking-session port (plan 0003 KTD2, KTD5): `localStorage` behind the store's port, with the three
- * events that tell a tab another tab (or a restored page) changed the record.
+ * The web's kept cooking-session port (ADR-0094 sections 3 and 6): `localStorage` behind the store's port, with the
+ * three events that tell a tab another tab (or a restored page) changed the record.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

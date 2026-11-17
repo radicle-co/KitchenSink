@@ -46,7 +46,7 @@ const withSession = serializeKeptDocument(makeDoc({ rev: 1, entries: { r1: makeC
 const setStep6: KeptCommand = { type: 'setStep', recipeId: 'r1', step: step(5) };
 const tickButter: KeptCommand = { type: 'tickPage', recipeId: 'r1', ingredientId: 'butter', ticked: true };
 
-describe('two tabs over one record (R12, AE13, RT1)', () => {
+describe('two tabs over one record (ADR-0094 section 6)', () => {
     it('tab 1 writes step 6, then tab 2 at the older rev ticks butter: both are stored at rev 3 (mutant: last write wins)', async () => {
         const { a, b, stored } = await twoTabs({ [KEY]: withSession });
 
@@ -153,7 +153,7 @@ describe('a recipe edited under a kept session (ADR-0094 section 9)', () => {
     });
 });
 
-describe('a write never brings back a cleared or newer record (KTD2, KTD3)', () => {
+describe('a write never brings back a cleared or newer record (ADR-0094 sections 3 and 4)', () => {
     it('B clears, then A, still holding the old session in memory, ticks: nothing from before the clear returns (mutant: base is memory when the key is absent)', async () => {
         const { a, b, stored } = await twoTabs({ [KEY]: withSession });
 
@@ -176,7 +176,7 @@ describe('a write never brings back a cleared or newer record (KTD2, KTD3)', () 
     });
 });
 
-describe('sign-out while a write waits (AE10, KTD3)', () => {
+describe('sign-out while a write waits (ADR-0094 section 4)', () => {
     it('leaves no cook.v2.* key (mutant: the clear outside the lock, or no generation check)', async () => {
         const base = makeFakeLocks();
         const door = { gate: Promise.resolve(), open: () => undefined as void };
@@ -202,7 +202,7 @@ describe('sign-out while a write waits (AE10, KTD3)', () => {
     });
 });
 
-describe('sign-out during a write (KTD3)', () => {
+describe('sign-out during a write (ADR-0094 section 4)', () => {
     it("does not publish the signed-out cook's document as ready (mutant: no generation check after the write)", async () => {
         const fake = makeFakePort({ [KEY]: withSession });
         const door = { gate: Promise.resolve(), open: () => undefined as void, writing: false };

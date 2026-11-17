@@ -150,7 +150,7 @@ describe('endDeviceSession', () => {
         expect(kept.clear).toHaveBeenCalledWith('user_a');
     });
 
-    it('⛔ clears the kept record even when nobody was signed in, before the early return (KTD3)', async () => {
+    it('⛔ clears the kept record even when nobody was signed in, before the early return (ADR-0094 section 4)', async () => {
         const kept = makeKeptStub();
 
         await endDeviceSession(createMemoryOutboxStore(), undefined, makeRecentStore(), kept);

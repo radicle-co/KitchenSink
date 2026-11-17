@@ -17,7 +17,7 @@ import {
 } from '../__fixtures__/keptFixtures.js';
 
 describe('keptKeyFor', () => {
-    it('is the per-user key of ADR 0004 condition 3', () => {
+    it('is the per-user key of ADR-0094 section 8, condition 3', () => {
         expect(keptKeyFor('user_1')).toBe('cook.v2.user_1');
         expect(KEPT_RECORD_VERSION).toBe(1);
     });
@@ -95,8 +95,9 @@ describe('parseKeptDocument', () => {
             ['an ordinal that is not an integer', { ordinal: 1.5 }],
         ])('with %s is dropped and reported, beside a good timer and the entry', (_name, over) => {
             const good = makeTimer({ id: timerId(2) });
-            const bad = JSON.parse(JSON.stringify({ ...make({}), ...over }));
-            const parsed = ok(JSON.stringify(makeDoc({ entries: { r1: makeCooking() }, timers: [bad, good] })));
+            const parsed = ok(
+                rawKeptDocument({ entries: { r1: makeCooking() }, timers: [{ ...make({}), ...over }, good] }),
+            );
 
             expect(parsed.doc.timers).toEqual([good]);
             expect(parsed.doc.entries['r1']).toEqual(makeCooking());
@@ -129,7 +130,7 @@ describe('parseKeptDocument', () => {
         ['a ringing timer with no endedAt', { ...makeEnded('ringing'), endedAt: undefined }],
         ['an endedAway timer with no endedAt', { ...makeEnded('endedAway'), endedAt: undefined }],
         [
-            'a ringing timer that still has endsAt (staff S63: the end is endedAt alone)',
+            'a ringing timer that still has endsAt (the end is endedAt alone)',
             { ...makeEnded('ringing'), endsAt: iso(T0) },
         ],
         ['an endedAway timer that still has endsAt', { ...makeEnded('endedAway'), endsAt: iso(T0) }],

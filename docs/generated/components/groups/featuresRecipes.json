@@ -35151,7 +35151,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The app's one kept cooking-session store (plan 0003 KTD0), scoped here to the cook.",
+                            "description": "The app's one kept cooking-session store (ADR-0094 section 1), scoped here to the cook.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/session/RecipeServicesTree.tsx"
                         },
                         {
@@ -35169,7 +35169,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Clerk's raw `userId`: `undefined` while it loads, `null` once nobody is signed in, else the cook. Never a\nplaceholder. The kept store needs all three (KTD4); everything else here takes it collapsed with `?? undefined`.",
+                            "description": "Clerk's raw `userId`: `undefined` while it loads, `null` once nobody is signed in, else the cook. Never a\nplaceholder. The kept store needs all three (ADR-0094 section 5); everything else here takes it collapsed with\n`?? undefined`.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/session/RecipeServicesTree.tsx"
                         },
                         {

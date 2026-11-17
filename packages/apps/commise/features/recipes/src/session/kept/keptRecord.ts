@@ -15,7 +15,7 @@ export const KEPT_KEY_PREFIX = 'cook.v2.';
  * The storage key of one cook's record.
  *
  * @param clerkUserId - The signed-in cook's id.
- * @returns The storage key of that cook's record (ADR 0004 condition 3).
+ * @returns The storage key of that cook's record (ADR-0094 section 8, condition 3).
  */
 export const keptKeyFor = (clerkUserId: string): string => `${KEPT_KEY_PREFIX}${clerkUserId}`;
 

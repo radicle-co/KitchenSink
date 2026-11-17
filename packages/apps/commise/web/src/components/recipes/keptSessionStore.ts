@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * @module @commise/web — the browser's kept cooking-session store (plan 0003 KTD2, KTD5): `localStorage`, not the tab's
- * `sessionStorage`, because the record is shared by every tab of the cook. One tab writes at a time through Web Locks;
- * where they are missing the store keeps the session in memory and writes nothing.
+ * @module @commise/web — the browser's kept cooking-session store (ADR-0094 sections 3 and 6): `localStorage`,
+ * not the tab's `sessionStorage`, because the record is shared by every tab of the cook. One tab writes at a time
+ * through Web Locks; where they are missing the store keeps the session in memory and writes nothing.
  *
  * Every browser global is resolved at first use, so a server render that imports this touches nothing.
  *

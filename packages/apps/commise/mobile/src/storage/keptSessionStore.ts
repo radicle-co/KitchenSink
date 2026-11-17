@@ -1,5 +1,5 @@
 /**
- * @module mobile/storage — the phone's kept cooking-session store (plan 0003 KTD2, KTD5): AsyncStorage behind the
+ * @module mobile/storage — the phone's kept cooking-session store (ADR-0094 sections 3 and 6): AsyncStorage behind the
  * store's port, and one serial queue per lock name as its exclusion, so two writes in the same tick both land.
  *
  * @pattern Adapter — AsyncStorage behind the store's `KeptPort`.

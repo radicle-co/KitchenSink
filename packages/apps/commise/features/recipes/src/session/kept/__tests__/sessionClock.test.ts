@@ -76,7 +76,7 @@ describe('sessionClock (ADR-0094 section 8)', () => {
     });
 });
 
-describe('timerClock (P19)', () => {
+describe('timerClock', () => {
     const at = (ms: number) => iso(T0 + ms);
     const running = makeTimer({ endsAt: at(0) });
 

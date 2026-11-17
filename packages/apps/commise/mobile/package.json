@@ -58,7 +58,7 @@
         "expo-constants": "~57.0.15",
         "expo-crypto": "~57.0.1",
         "expo-font": "~57.0.1",
-        "expo-glass-effect": "~57.0.4",
+        "expo-glass-effect": "~58.0.5",
         "expo-image": "~57.0.1",
         "expo-image-picker": "~57.0.6",
         "expo-keep-awake": "~57.0.2",

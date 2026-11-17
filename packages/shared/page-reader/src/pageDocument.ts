@@ -38,8 +38,11 @@ export interface VisibleBlock {
     readonly item: number;
     /** Whether that `<li>` is an item of an ordered list (`<ol>`), as a method is. */
     readonly ordered: boolean;
-    /** Whether every letter and digit of the block sits inside a link (`<a>`): a button, a jump link, a related recipe. */
-    readonly linkOnly: boolean;
+    /**
+     * Whether all of the block's word material sits inside fragment links (`<a href="#...">`): a jump link to a part of
+     * the same page ("Jump to recipe", "Print"). A link to another page is not one, so a linked ingredient is not.
+     */
+    readonly fragmentLinksOnly: boolean;
 }
 
 /** Where a block element sits among the others: numbered in document order, so its descendants are a range. */
@@ -281,10 +284,13 @@ class BlockEnd {
 
 const LOOSE_TEXT: Owner = { group: 0, isHeading: false, element: 0, item: 0, ordered: false };
 
-/** The end of a link: the text read after it is no longer link text. */
-const LINK_END = Symbol('linkEnd');
+/** The end of a fragment link: the text read after it is no longer that link's text. */
+const FRAGMENT_LINK_END = Symbol('fragmentLinkEnd');
 
-/** How many characters of word material (`isWordMaterial`) `text` holds: a link must hold all of its block's. */
+/** Whether a link goes to a fragment of the same page: its `href` starts with `#`. */
+const isFragmentLink = (element: DomElement): boolean => (element.attribs['href'] ?? '').trim().startsWith('#');
+
+/** How many characters of word material (`isWordMaterial`) `text` holds. */
 function lettersIn(text: string): number {
     let count = 0;
 
@@ -314,10 +320,10 @@ function blocksOf(
     const groups = new Map<unknown, number>();
     let owner = LOOSE_TEXT;
     let current = '';
-    // Letters and digits of the current block, and how many of them sat inside a link.
+    // Word material of the current block, and how much of it sat inside fragment links.
     let letters = 0;
-    let linkedLetters = 0;
-    let linkDepth = 0;
+    let fragmentLetters = 0;
+    let fragmentDepth = 0;
 
     const flush = (): void => {
         const text = collapseSpace(current);
@@ -330,20 +336,20 @@ function blocksOf(
                 element: owner.element,
                 item: owner.item,
                 ordered: owner.ordered,
-                linkOnly: letters > 0 && linkedLetters === letters,
+                fragmentLinksOnly: letters > 0 && fragmentLetters === letters,
             });
         }
 
         current = '';
         letters = 0;
-        linkedLetters = 0;
+        fragmentLetters = 0;
     };
 
     const addText = (data: string): void => {
         const count = lettersIn(data);
 
         letters += count;
-        linkedLetters += linkDepth > 0 ? count : 0;
+        fragmentLetters += fragmentDepth > 0 ? count : 0;
 
         if (!newlineBreaks) {
             current += data;
@@ -361,7 +367,7 @@ function blocksOf(
     };
 
     // A node to read, or the end of a block element.
-    const stack: (DomNode | BlockEnd | typeof LINK_END)[] = [...roots].reverse();
+    const stack: (DomNode | BlockEnd | typeof FRAGMENT_LINK_END)[] = [...roots].reverse();
 
     let visited = 0;
     let next = stack.pop();
@@ -369,8 +375,8 @@ function blocksOf(
     for (; next !== undefined && visited < maxNodes; next = stack.pop()) {
         visited += 1;
 
-        if (next === LINK_END) {
-            linkDepth -= 1;
+        if (next === FRAGMENT_LINK_END) {
+            fragmentDepth -= 1;
         } else if (next instanceof BlockEnd) {
             flush();
             elements[next.element] = { parent: next.previous.element, last: elements.length - 1 };
@@ -397,9 +403,9 @@ function blocksOf(
                 };
             }
 
-            if (next.name === 'a') {
-                linkDepth += 1;
-                stack.push(LINK_END);
+            if (next.name === 'a' && isFragmentLink(next)) {
+                fragmentDepth += 1;
+                stack.push(FRAGMENT_LINK_END);
             }
 
             pushReversed(stack, shownChildren(next));

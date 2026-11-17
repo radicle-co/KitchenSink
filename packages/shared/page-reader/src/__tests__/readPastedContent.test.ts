@@ -460,10 +460,92 @@ describe('readPastedContent', () => {
                         },
                     ],
                     ['a list holding false', { '@graph': [recipe({ isAccessibleForFree: [true, false] })] }],
+                    // Re-review of d700c5ed1, MEDIUM 4 and 5.
+                    [
+                        'the schema.org address of False',
+                        { '@graph': [recipe({ isAccessibleForFree: 'https://schema.org/False' })] },
+                    ],
+                    ['the compact schema:False', { '@graph': [recipe({ isAccessibleForFree: 'schema:False' })] }],
+                    ['a JSON-LD value object', { '@graph': [recipe({ isAccessibleForFree: { '@value': 'false' } })] }],
+                    [
+                        "the recipe's own mainEntityOfPage, over the recipe's true",
+                        recipe({
+                            isAccessibleForFree: true,
+                            mainEntityOfPage: { '@type': 'WebPage', isAccessibleForFree: false },
+                        }),
+                    ],
+                    [
+                        "the recipe's isPartOf",
+                        recipe({ isPartOf: { '@type': 'CreativeWork', isAccessibleForFree: false } }),
+                    ],
+                    [
+                        "a paywalled WebPageElement in the recipe's hasPart",
+                        recipe({
+                            isAccessibleForFree: true,
+                            hasPart: { '@type': 'WebPageElement', isAccessibleForFree: false, cssSelector: '.paywall' },
+                        }),
+                    ],
+                    [
+                        "a paywalled WebPageElement in the page node's hasPart",
+                        {
+                            '@graph': [
+                                {
+                                    '@type': 'NewsArticle',
+                                    hasPart: { '@type': 'WebPageElement', isAccessibleForFree: 'False' },
+                                },
+                                recipe(),
+                            ],
+                        },
+                    ],
                 ])('reads isAccessibleForFree false from %s', (_name, block) => {
                     expect(evidence(makePage({ jsonLd: [block], body: makeRecipeCard(recipe()) }))).toMatchObject({
                         isAccessibleForFree: false,
                     });
+                });
+
+                it.each([
+                    ['http://schema.org/True', true],
+                    ['https://schema.org/False', false],
+                    ['schema:True', true],
+                ])('reads the schema.org form %j as %j', (value, read) => {
+                    expect(
+                        evidence(
+                            makePage({
+                                jsonLd: [recipe({ isAccessibleForFree: value })],
+                                body: makeRecipeCard(recipe()),
+                            }),
+                        ),
+                    ).toMatchObject({ isAccessibleForFree: read });
+                });
+
+                // Re-review of d700c5ed1, MEDIUM 4: a statement the reader cannot read may be a paywall, so it never lets the
+                // answer be true. The answer is unknown (absent) instead.
+                it.each([
+                    [
+                        'a container that says "no"',
+                        {
+                            '@graph': [
+                                { '@type': 'WebPage', isAccessibleForFree: 'no' },
+                                recipe({ isAccessibleForFree: true }),
+                            ],
+                        },
+                    ],
+                    [
+                        'a list holding an unreadable value',
+                        { '@graph': [recipe({ isAccessibleForFree: [true, 'paywalled'] })] },
+                    ],
+                ])('leaves isAccessibleForFree absent, not true, with %s', (_name, block) => {
+                    expect(evidence(makePage({ jsonLd: [block], body: makeRecipeCard(recipe()) }))).not.toHaveProperty(
+                        'isAccessibleForFree',
+                    );
+                });
+
+                it('reads a microdata link to the schema.org address of False', () => {
+                    const body = makeMicrodataBody(
+                        '<link itemprop="isAccessibleForFree" href="https://schema.org/False">',
+                    );
+
+                    expect(evidence(makePage({ body }))).toMatchObject({ isAccessibleForFree: false });
                 });
 
                 it('reads isAccessibleForFree true when only the container says so', () => {
@@ -538,6 +620,17 @@ describe('readPastedContent', () => {
                 ['a Google-Extended meta', '<meta name="Google-Extended" content="noindex">', true],
                 // Fail-safe, documented: a meta a cook cannot see still states the page's reservation.
                 ['a robots noai inside noscript', '<noscript><meta name="robots" content="noai"></noscript>', true],
+                // Re-review of d700c5ed1, LOW 7: every agent segment of one X-Robots-Tag value is read.
+                [
+                    'an X-Robots-Tag whose second agent is an AI crawler',
+                    '<meta http-equiv="X-Robots-Tag" content="googlebot: noindex, gptbot: none">',
+                    true,
+                ],
+                [
+                    'an X-Robots-Tag noai after a directive with a value',
+                    '<meta http-equiv="X-Robots-Tag" content="max-snippet: 50, noai">',
+                    true,
+                ],
                 [
                     'a non-reservation beside a noai',
                     '<meta name="tdm-reservation" content="0"><meta name="robots" content="noai">',
@@ -554,6 +647,10 @@ describe('readPastedContent', () => {
                 ['a robots noindex, which is about search, not AI', '<meta name="robots" content="noindex">'],
                 ['a crawler meta that allows', '<meta name="GPTBot" content="index, follow">'],
                 ['a search crawler meta', '<meta name="googlebot" content="noindex">'],
+                [
+                    'an X-Robots-Tag noindex for a search crawler',
+                    '<meta http-equiv="X-Robots-Tag" content="googlebot: noindex">',
+                ],
             ])('leaves aiOptOut absent with %s', (_name, head) => {
                 expect(evidence(makePage({ jsonLd: [credited()], head }))).not.toHaveProperty('aiOptOut');
             });

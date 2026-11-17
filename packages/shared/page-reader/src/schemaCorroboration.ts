@@ -16,7 +16,7 @@
  * does, so "flour" is not "2 cups flour"), the steps are read in order, a list the lines sit in has no line the schema
  * leaves out, and the recipe CARD (the smallest element holding every line and step read) has no list item the schema
  * leaves out but its furniture ({@link isCardFurniture}: outside the read lines and beside no read list, an unnumbered
- * item with no leading amount that is a link, comes after the lines, or is a labelled fact before them), so a schema
+ * item with no leading amount that comes after the lines, or before them is a jump link or a listed meta fact), so a schema
  * missing a line, an ingredient group or a second method is
  * caught as surely as a page missing one. The per-card rule counts only list items (`<li>`), so it does not see three
  * kinds of line unless the schema reads a sibling of theirs: a table row (`<tr>`, as in an ingredient or nutrition
@@ -33,9 +33,10 @@
  */
 import { readCooksMeasure } from '@kitchensink/recipe-core/parsing/measure-reader';
 
+import { CARD_META_LABELS } from './cardMetaLabels.js';
 import { instructionOf } from './instructionSteps.js';
 import type { ExtractionTier, PageCandidate, PageRecipe } from './pageRecipeCandidate.js';
-import { namesAMeasure, tokensOf } from './pageTokens.js';
+import { tokensOf } from './pageTokens.js';
 import type { CardItem, VisibleText, VisibleTextResult } from './visiblePageText.js';
 
 /** Why the page and its structured data are not taken together as one recipe. */
@@ -53,22 +54,26 @@ const AGREES: Corroboration = Object.freeze({ ok: true });
 
 const refusal = (reason: CorroborationReason): Corroboration => Object.freeze({ ok: false, reason });
 
-/**
- * A labelled fact: a short label with no digit, a colon (ASCII or full-width), then a value ("Prep Time: 10 minutes",
- * "Сложность: сложно", "調理時間：30分"). The label is bounded, so the test is linear and cannot backtrack.
- */
-const LABELLED_FACT = /^[^:\uFF1A\p{N}]{1,40}[:\uFF1A]\s*\S/u;
+/** A meta fact's label: the text before its first colon (ASCII or full-width), bounded, so the test is linear. */
+const META_LABEL = /^([^:\uFF1A]{1,40})[:\uFF1A]\s*\S/u;
+
+/** Whether `text` is a meta fact under a label on the closed list ({@link CARD_META_LABELS}): "Prep Time: 10 minutes". */
+function isMetaFact(text: string): boolean {
+    const label = META_LABEL.exec(text.trim())?.[1];
+
+    return label !== undefined && CARD_META_LABELS.has(label.trim().replace(/\s+/gu, ' ').toLowerCase());
+}
 
 /**
  * The card's furniture: an unread list item of the card that is no part of the recipe the schema left out. An item is
  * never furniture when it is between the first line the schema reads and the last (an equipment list, an omitted
  * group), when its list sits beside a list the schema reads (a group the schema left out), when it is numbered (a
  * second method) or when it opens with an amount (an ingredient). Past those checks:
- * - a link-only item is furniture (Print, Rate, jump links, tags, related recipes);
- * - an item after the last read line is furniture (notes, nutrition);
- * - an item before the first read line is furniture only when it is a labelled fact that names no measure (meta:
- *   "Prep Time: 10 minutes"), so a group whose amounts are words ("A pinch of saffron", "One onion") is refused.
- * Any doubt is no. The amount and measure tests read English units only, so they can only refuse more.
+ * - an item after the last read line is furniture (notes, nutrition, related recipes);
+ * - an item before the first read line is furniture only when it is a jump link to the same page (`href="#..."`) or a
+ *   meta fact under a label on the closed list ({@link isMetaFact}). Any other item there, a link to another page
+ *   included, may be an omitted group ("One onion", "Eggs: 2", "Мука: 200 г"), so the card is refused.
+ * Any doubt is no.
  */
 function isCardFurniture(item: CardItem): boolean {
     if (
@@ -80,11 +85,7 @@ function isCardFurniture(item: CardItem): boolean {
         return false;
     }
 
-    if (item.linkOnly || item.position === 'after') {
-        return true;
-    }
-
-    return LABELLED_FACT.test(item.text.trim()) && !namesAMeasure(item.text);
+    return item.position === 'after' || item.fragmentLinksOnly || isMetaFact(item.text);
 }
 
 /** G-CORR over a page's visible text: the card the cook reads is the ingredient lines and the steps, no more and no less. */

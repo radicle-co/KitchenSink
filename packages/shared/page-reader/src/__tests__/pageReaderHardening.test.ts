@@ -283,17 +283,40 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
     });
 
     // Round 9 (code-reviewer HIGH 2 on #324): an amount written as words ("A pinch of", "Half a", "One") is no leading
-    // amount, so an omitted group before the lines read as furniture. Before the lines, an unread item that is not a link
-    // is furniture only when it is a labelled fact ("Prep Time: 10 minutes") that names no measure word: any doubt is no.
+    // amount, so an omitted group before the lines read as furniture. Before the lines, an unread item is furniture only
+    // when it is a jump link (`href="#..."`) or a meta fact under a label on the closed list (`cardMetaLabels.ts`).
+    // Re-review of d700c5ed1 (CRITICAL 1): the open "Label: value" rule read a group whose units the English unit list
+    // does not know. Every label off the closed list is refused now. Re-review HIGH 2 and HIGH 3: a link to another page
+    // is no jump link, so a linked group, or a line with one linked word, is refused too.
     it.each([
         ['an amount written as words', ['A pinch of saffron', 'Half a lemon', 'One onion']],
         ['no amount at all', ['Salt to taste', 'Fresh herbs']],
         ['a labelled line that names a measure', ['Flour: 200 g', 'Sugar: a pinch']],
         ['a label that is all a line says', ['Equipment', 'Air fryer']],
+        ['a Russian labelled amount', ['Мука: 200 г']],
+        ['Japanese labelled amounts', ['砂糖：大さじ1', '卵：2個']],
+        ['Italian labelled amounts', ['Farina: 200 gr', 'Uova: 2']],
+        ['an English labelled count', ['Eggs: 2']],
+        ['a label off the list', ['Garnish: fresh parsley']],
+        ['another label off the list', ['Optional: chopped chives']],
     ])('refuses an omitted group before the lines, nested deeper than the read lists, with %s', (_name, lines) => {
         const page = makePage({
             jsonLd: [NODE],
             body: `<article><div class="group"><div><ul>${items(lines)}</ul></div></div><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol></article>`,
+        });
+
+        expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
+    });
+
+    it.each([
+        ['a linked line with its amount in words', '<li><a href="/x">One onion</a></li>'],
+        ['a linked group', '<li><a href="/salt">Salt</a></li><li><a href="/pepper">Pepper</a></li>'],
+        ['a line with one word linked to a page', '<li>A pinch of <a href="/saffron">saffron</a></li>'],
+        ['a line with one word linked to a fragment', '<li>A pinch of <a href="#saffron">saffron</a></li>'],
+    ])('refuses an omitted group before the lines, nested deeper than the read lists, with %s', (_name, lines) => {
+        const page = makePage({
+            jsonLd: [NODE],
+            body: `<article><div class="group"><div><ul>${lines}</ul></div></div><ul>${items(INGREDIENTS)}</ul><ol>${items(STEPS)}</ol></article>`,
         });
 
         expect(readPastedContent(page)).toMatchObject({ kind: 'notExtractable', reason: 'pageDisagreesWithSchema' });
@@ -317,6 +340,15 @@ describe('G-CORR per recipe card: every list in the card is the schema’s', () 
     // opens with an amount reads as furniture. Telling it from a notes list needs a signal no structure gives.
     it('reads, as furniture, an omitted group after the method, in a container of its own, whose lines state no amount', () => {
         const extra = '<div class="extra"><div><ul><li>Salt to taste</li><li>Fresh herbs</li></ul></div></div>';
+
+        expect(readPastedContent(cardPage(NODE, { extra }))).toMatchObject({ kind: 'extracted' });
+    });
+
+    // ⚠️ ACCEPTED RISK, pinned (re-review of d700c5ed1, item 6): after the method, an omitted group whose amounts are
+    // written as words reads as furniture too. After the lines, a notes list and such a group have the same structure,
+    // so refusing it would refuse every notes list.
+    it('reads, as furniture, an omitted group after the method whose amounts are written as words', () => {
+        const extra = '<div class="extra"><div><ul><li>A pinch of saffron</li><li>One onion</li></ul></div></div>';
 
         expect(readPastedContent(cardPage(NODE, { extra }))).toMatchObject({ kind: 'extracted' });
     });

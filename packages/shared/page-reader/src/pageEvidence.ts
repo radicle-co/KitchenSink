@@ -63,15 +63,43 @@ const MAX_DATE_CHARS = 40;
 const ISO_DATE =
     /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(?:Z|[+-](\d{2}):?(\d{2}))?)?$/u;
 
-/** One stated boolean: `true`, `false`, or the text of either in any case. Anything else is not one. */
-function statedBoolean(raw: unknown): boolean | undefined {
+/** schema.org's Boolean values written as an address or a compact name: `https://schema.org/False`, `schema:True`. */
+const SCHEMA_BOOLEAN = /^(?:https?:\/\/schema\.org\/|schema:)(true|false)$/u;
+
+/** How one `isAccessibleForFree` statement reads: true, false, or present and unreadable. */
+type FreeStatement = boolean | 'unreadable';
+
+/**
+ * One stated boolean: `true`, `false`, the text of either in any case, schema.org's address or compact form of either,
+ * or a JSON-LD value object (`{"@value": "false"}`) holding one. Anything else is present but unreadable.
+ */
+function statedBoolean(raw: unknown): FreeStatement {
     if (typeof raw === 'boolean') {
         return raw;
     }
 
-    const text = typeof raw === 'string' ? raw.trim().toLowerCase() : undefined;
+    const value = isSchemaNode(raw) ? field(raw, '@value') : raw;
 
-    return text === 'true' ? true : text === 'false' ? false : undefined;
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    const text = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    const word = SCHEMA_BOOLEAN.exec(text)?.[1] ?? text;
+
+    return word === 'true' ? true : word === 'false' ? false : 'unreadable';
+}
+
+/**
+ * The answer from every statement: `false` when any says false; unknown (`undefined`) when none does but one cannot be
+ * read, since it may be a paywall; `true` when every statement says true; `undefined` when there is none.
+ */
+function freeOf(statements: readonly FreeStatement[]): boolean | undefined {
+    if (statements.includes(false)) {
+        return false;
+    }
+
+    return statements.length > 0 && statements.every((statement) => statement === true) ? true : undefined;
 }
 
 /** An ISO 8601 date as written, when its calendar date, time and zone are real ("2024-02-30" and "T23:60" are not). */
@@ -141,13 +169,22 @@ function hasMainEntity(container: SchemaNode, recipe: SchemaNode): boolean {
     );
 }
 
+/** The properties by which a recipe names the page it is on, or a part of that page (Google's paywall markup). */
+const RECIPE_LINKS: readonly string[] = ['mainEntityOfPage', 'isPartOf', 'hasPart'];
+
+/** The nodes a node embeds under `keys`, in order. A reference by `@id` alone states nothing and is read as a node. */
+function linkedNodes(node: SchemaNode, keys: readonly string[]): readonly SchemaNode[] {
+    return keys.flatMap((key) => items(field(node, key)).filter(isSchemaNode));
+}
+
 /**
  * Read what a Recipe node, and the page around it, state about access and age.
  *
- * The recipe is read first, then its containers: a node whose `mainEntity` is the recipe, then a page node
- * ({@link isPageNode}). `isAccessibleForFree` is `false` when any of them says false (in a list too), so a paywall stated
- * on the article is never lost behind a recipe that says nothing; otherwise `true` when any says true. `datePublished`
- * is the first usable one in that order.
+ * The recipe is read first, then the nodes it embeds as `mainEntityOfPage`, `isPartOf` and `hasPart`, then its
+ * containers: a node whose `mainEntity` is the recipe, then a page node ({@link isPageNode}); for `isAccessibleForFree`
+ * also each container's `hasPart` (a `WebPageElement`, Google's paywall markup). `isAccessibleForFree` is `false` when
+ * any statement says false (in a list too); unknown when one cannot be read ("no"), since it may be a paywall; `true`
+ * only when every statement says true. `datePublished` is the first usable one in that order.
  *
  * @param node - A JSON-LD Recipe node or a microdata item shaped like one.
  * @param containers - The page's other nodes that may contain it: page nodes and nodes with a `mainEntity`. Any other
@@ -155,15 +192,15 @@ function hasMainEntity(container: SchemaNode, recipe: SchemaNode): boolean {
  * @returns The facts; a field no source states usably is absent. Pure.
  */
 export function accessOf(node: SchemaNode, containers: readonly SchemaNode[]): PageAccess {
-    const sources = [
-        node,
+    const pageNodes = [
         ...containers.filter((container) => container !== node && hasMainEntity(container, node)),
         ...containers.filter((container) => container !== node && isPageNode(container)),
     ];
-    const free = sources.flatMap((source) =>
-        items(field(source, 'isAccessibleForFree')).flatMap((value) => statedBoolean(value) ?? []),
+    const sources = [node, ...linkedNodes(node, RECIPE_LINKS), ...pageNodes];
+    const statements = [...sources, ...pageNodes.flatMap((page) => linkedNodes(page, ['hasPart']))].flatMap((source) =>
+        items(field(source, 'isAccessibleForFree')).map(statedBoolean),
     );
-    const isAccessibleForFree = free.length === 0 ? undefined : !free.includes(false);
+    const isAccessibleForFree = freeOf(statements);
     const datePublished = sources
         .map((source) => isoDate(field(source, 'datePublished')))
         .find((date) => date !== undefined);
@@ -216,16 +253,36 @@ export interface PageMeta {
 /** The robots tokens of a value, split on spaces, commas and semicolons, lower case. */
 const robotsTokens = (value: string): readonly string[] => value.split(/[\s,;]+/u).filter((token) => token !== '');
 
-/** Whether an `X-Robots-Tag` value reserves the page: an AI token for all, or a named AI crawler's `agent: tokens`. */
-function headerReserves(value: string): boolean {
-    const colon = value.indexOf(':');
-    const agent = colon === -1 ? undefined : value.slice(0, colon).trim();
+/** X-Robots-Tag directives that take a value after a colon (`max-snippet: 50`): no user agent. */
+const VALUE_DIRECTIVES: ReadonlySet<string> = new Set([
+    'max-snippet',
+    'max-image-preview',
+    'max-video-preview',
+    'unavailable_after',
+]);
 
-    if (agent !== undefined && AI_CRAWLERS.has(agent)) {
-        return robotsTokens(value.slice(colon + 1)).some((token) => NAMED_AI_CRAWLER_TOKENS.has(token));
+/**
+ * Whether an `X-Robots-Tag` value reserves the page. A word that ends in a colon and starts with a letter names the user
+ * agent the tokens after it are for (`googlebot: noindex, gptbot: none`), unless it is a directive that takes a value.
+ * Tokens for every agent reserve with an AI token; tokens for a named AI crawler also with `noindex` or `none`; tokens
+ * for any other agent never. One pass over the tokens, so it is linear.
+ */
+function headerReserves(value: string): boolean {
+    let agent: string | undefined;
+
+    for (const token of robotsTokens(value.replaceAll(':', ': '))) {
+        const name = token.endsWith(':') ? token.slice(0, -1) : undefined;
+
+        if (name !== undefined) {
+            agent = /^\p{L}/u.test(name) && !VALUE_DIRECTIVES.has(name) ? name : agent;
+        } else if (
+            agent === undefined ? NO_AI_TOKENS.has(token) : AI_CRAWLERS.has(agent) && NAMED_AI_CRAWLER_TOKENS.has(token)
+        ) {
+            return true;
+        }
     }
 
-    return robotsTokens(value).some((token) => NO_AI_TOKENS.has(token));
+    return false;
 }
 
 /** Whether one meta reserves the page from AI. */

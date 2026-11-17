@@ -56,8 +56,8 @@ export interface VisibleText {
 /** A list item of the card that no run read, as the card-rule policy sees it. */
 export interface CardItem {
     readonly text: string;
-    /** Every letter and digit of it sits inside a link. */
-    readonly linkOnly: boolean;
+    /** All of its word material sits inside fragment links (`href="#..."`): a jump link to the same page. */
+    readonly fragmentLinksOnly: boolean;
     /** It is an item of an ordered list. */
     readonly ordered: boolean;
     /** Where it sits against the blocks the runs read: before the first, after the last, or between. */
@@ -150,7 +150,7 @@ interface Tokenized {
 
 interface BlockSpan {
     readonly text: string;
-    readonly linkOnly: boolean;
+    readonly fragmentLinksOnly: boolean;
     readonly ordered: boolean;
     readonly first: number;
     readonly last: number;
@@ -262,7 +262,7 @@ function leavesLinesUnread(
                 block.item <= cardLast &&
                 !tolerates({
                     text: block.text,
-                    linkOnly: block.linkOnly,
+                    fragmentLinksOnly: block.fragmentLinksOnly,
                     ordered: block.ordered,
                     position: positionOf(block),
                     besideReadList: besideReadList(block.item),
@@ -405,7 +405,7 @@ function tokenizedBlocks(
         if (tokens.length > first) {
             spans.push({
                 text: block.text,
-                linkOnly: block.linkOnly,
+                fragmentLinksOnly: block.fragmentLinksOnly,
                 ordered: block.ordered,
                 first,
                 last: tokens.length - 1,

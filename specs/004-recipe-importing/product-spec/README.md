@@ -1,10 +1,10 @@
 # Product Spec Index: Recipe Importing (004)
 
-| File                                     | Purpose                                                       |
-| ---------------------------------------- | ------------------------------------------------------------- |
-| [product-spec.md](./product-spec.md)     | Product goal, principles, plans and limits, and the story map |
-| [metrics.md](./metrics.md)               | North star, quality, cook choices, reliability and invariants |
-| [../designSource.md](../designSource.md) | Where the screen designs live                                 |
+| File                                     | Purpose                                                        |
+| ---------------------------------------- | -------------------------------------------------------------- |
+| [product-spec.md](./product-spec.md)     | Product goal, principles, plans and limits, and the story map  |
+| [metrics.md](./metrics.md)               | North star, quality, cook choices, availability and invariants |
+| [../designSource.md](../designSource.md) | Where the screen designs live                                  |
 
 ## Upstream
 

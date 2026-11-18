@@ -882,14 +882,14 @@
       "x": 9366,
       "y": 55053,
       "w": 390,
-      "h": 1076,
+      "h": 1100,
       "title": "Recipe importing, library, already in your library (mobile, iPhone 390)"
     },
     "ImportLibraryAlreadyInLibraryAndroid384.dc.html": {
       "x": 9836,
       "y": 55053,
       "w": 384,
-      "h": 1071,
+      "h": 1095,
       "title": "Recipe importing, library, already in your library (mobile, Android 384)"
     },
     "ImportLibraryAlreadyInLibraryIpad834.dc.html": {
@@ -903,7 +903,7 @@
       "x": 11214,
       "y": 55053,
       "w": 1194,
-      "h": 995,
+      "h": 1019,
       "title": "Recipe importing, library, already in your library (mobile, iPad 1194)"
     },
     "ImportPasteReviewPhotoIphone390.dc.html": {

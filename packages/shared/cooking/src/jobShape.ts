@@ -91,6 +91,7 @@ const rowsOf = (classed: readonly ClassedStep[]): readonly JobRow[] => {
             case 'readStep':
                 rows.push({ kind: 'readStep', stepNumber });
                 break;
+
             case 'untimed': {
                 const last = rows.at(-1);
 

@@ -11,7 +11,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
     checkoutProject,
+    composeContainersFrom,
     isInvalidStackPortError,
+    ownershipRefusal,
     publishedHostPort,
     onPublishedPorts,
     refusalLine,
@@ -335,5 +337,99 @@ describe('publishedHostPort reads `docker port` output', () => {
     it('answers undefined for empty or unrecognised output', () => {
         expect(publishedHostPort('')).toBeUndefined();
         expect(publishedHostPort('Error: no public port')).toBeUndefined();
+    });
+});
+
+describe('ownershipRefusal: one R9 line for each way this checkout may not start a project', () => {
+    const canon = (value: string): string => value;
+    const A = '/work/A';
+    const C = '/work/C';
+    const at = (project: string, dir: string): ComposeContainer => ({ project, workingDir: `${dir}/.local-sandbox` });
+    const base = {
+        door: 'local:up',
+        project: 'local-sandbox',
+        checkout: C,
+        canon,
+        volumeExists: false,
+        record: undefined,
+        recordFile: '/state/localSandbox/local-sandbox.owner',
+    };
+
+    it('passes when nothing is running and there is no volume', () => {
+        expect(ownershipRefusal({ ...base, containers: [] })).toBeUndefined();
+    });
+
+    it('passes when this checkout runs the project', () => {
+        expect(ownershipRefusal({ ...base, containers: [at('local-sandbox', C)] })).toBeUndefined();
+    });
+
+    it('AE7: refuses when another checkout runs the target project, and names it', () => {
+        expect(ownershipRefusal({ ...base, containers: [at('local-sandbox', A)] })).toBe(
+            'local:up refused: project local-sandbox runs from /work/A, not this checkout. ' +
+                'Run local:down there, or pick another LOCAL_SANDBOX_PORT.',
+        );
+    });
+
+    it('RT2: a stopped container counts, because the caller passes every container (ps -a)', () => {
+        // The predicate sees whatever list it is given; the caller reads `docker ps -a`. A stopped A is still A.
+        expect(ownershipRefusal({ ...base, containers: [at('local-sandbox', A)] })).toContain('runs from /work/A');
+    });
+
+    it('H2: refuses when this checkout already runs another project, though the target has no container', () => {
+        expect(ownershipRefusal({ ...base, containers: [at('local-sandbox-3100', C)] })).toBe(
+            'local:up refused: this checkout already runs project local-sandbox-3100, and its generated folder holds ' +
+                'one stack. Run local:down for that project first.',
+        );
+    });
+
+    it('RT3: refuses a volume whose record names another checkout, and names both', () => {
+        expect(ownershipRefusal({ ...base, containers: [], volumeExists: true, record: A })).toBe(
+            'local:up refused: volume local-sandbox_local-sandbox-pgdata holds Postgres data owned by /work/A, not ' +
+                'this checkout. Start the project there, or remove the volume.',
+        );
+    });
+
+    it('RT3: refuses a volume with no record and no container, and says how to claim it', () => {
+        expect(ownershipRefusal({ ...base, containers: [], volumeExists: true })).toBe(
+            'local:up refused: volume local-sandbox_local-sandbox-pgdata holds Postgres data and nothing names its ' +
+                "owner. If it is this checkout's, write this checkout's path into " +
+                '/state/localSandbox/local-sandbox.owner, or remove the volume.',
+        );
+    });
+
+    it('passes a volume this checkout owns by record, and one a live label of this checkout names', () => {
+        expect(ownershipRefusal({ ...base, containers: [], volumeExists: true, record: C })).toBeUndefined();
+        expect(
+            ownershipRefusal({ ...base, containers: [at('local-sandbox', C)], volumeExists: true, record: A }),
+        ).toBeUndefined();
+    });
+
+    it('local:down does not check the volume', () => {
+        expect(
+            ownershipRefusal({ ...base, door: 'local:down', containers: [], volumeExists: true, checkVolume: false }),
+        ).toBeUndefined();
+    });
+});
+
+describe('composeContainersFrom reads `docker ps -a` label output', () => {
+    it('gives one entry per container with its project and working dir', () => {
+        expect(
+            composeContainersFrom(
+                'local-sandbox\t/work/A/.local-sandbox\nlocal-sandbox-3100\t/work/B/.local-sandbox\n',
+            ),
+        ).toEqual([
+            { project: 'local-sandbox', workingDir: '/work/A/.local-sandbox' },
+            { project: 'local-sandbox-3100', workingDir: '/work/B/.local-sandbox' },
+        ]);
+    });
+
+    it('skips blank lines and containers with no project label', () => {
+        expect(composeContainersFrom('\n\t\nlocal-sandbox\t/work/A/.local-sandbox\n')).toEqual([
+            { project: 'local-sandbox', workingDir: '/work/A/.local-sandbox' },
+        ]);
+    });
+
+    it('skips a container with no working dir, because it names no checkout', () => {
+        expect(composeContainersFrom('local-sandbox\t\n')).toEqual([]);
     });
 });

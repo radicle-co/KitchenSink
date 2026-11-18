@@ -303,3 +303,108 @@ export function publishedHostPort(output: string): number | undefined {
 
     return matched?.[1] === undefined ? undefined : Number(matched[1]);
 }
+
+/** What {@link ownershipRefusal} reads. Every fact is passed in: a door reads Docker and the file system. */
+export interface OwnershipInput {
+    /** The door that refuses: `local:up` or `local:down`. */
+    readonly door: string;
+    /** The target project. */
+    readonly project: string;
+    /** This checkout. */
+    readonly checkout: string;
+    /** Every Compose container on the host, stopped ones included (`docker ps -a`). */
+    readonly containers: readonly ComposeContainer[];
+    /** Whether the target project's Postgres volume exists. */
+    readonly volumeExists: boolean;
+    /** The checkout the owner record names, if the record exists. */
+    readonly record: string | undefined;
+    /** The owner record's path, for the fix line. */
+    readonly recordFile: string;
+    /** Resolves a path to its real path. */
+    readonly canon: (value: string) => string;
+    /** Whether to check the volume. `local:down` does not: it removes nothing it cannot name. Default `true`. */
+    readonly checkVolume?: boolean;
+}
+
+/**
+ * The refusal, as one R9 line, when this checkout may not act on the target project: another checkout runs it, this
+ * checkout already runs a different project (the generated folder holds one stack), or the project's data volume
+ * belongs to another checkout. A live label beats the owner record. `undefined` means go ahead. Pure.
+ *
+ * @param input - The facts.
+ * @returns The line, or `undefined`.
+ */
+export function ownershipRefusal(input: OwnershipInput): string | undefined {
+    const { door, project, checkout, containers, canon } = input;
+    const isUp = door === 'local:up';
+    const owner = targetOwner(containers, project, canon);
+
+    if (owner !== undefined && owner !== canon(checkout)) {
+        return refusalLine(
+            door,
+            `project ${project}`,
+            `runs from ${owner}, not this checkout`,
+            isUp ? 'Run local:down there, or pick another LOCAL_SANDBOX_PORT.' : 'Run local:down there.',
+        );
+    }
+
+    const other = checkoutProject(containers, checkout, project, canon);
+
+    if (other !== undefined) {
+        return refusalLine(
+            door,
+            'this checkout',
+            `already runs project ${other}, and its generated folder holds one stack`,
+            isUp ? 'Run local:down for that project first.' : `Set LOCAL_SANDBOX_PORT to the port that project uses.`,
+        );
+    }
+
+    if (input.checkVolume === false) {
+        return undefined;
+    }
+
+    const verdict = volumeOwnerVerdict({
+        volumeExists: input.volumeExists,
+        record: input.record,
+        containers: containers.filter((container) => container.project === project),
+        checkout,
+        canon,
+    });
+
+    if (verdict.ok) {
+        return undefined;
+    }
+
+    const volume = `${project}_local-sandbox-pgdata`;
+
+    return verdict.owner === undefined
+        ? refusalLine(
+              door,
+              `volume ${volume}`,
+              'holds Postgres data and nothing names its owner',
+              `If it is this checkout's, write this checkout's path into ${input.recordFile}, or remove the volume.`,
+          )
+        : refusalLine(
+              door,
+              `volume ${volume}`,
+              `holds Postgres data owned by ${verdict.owner}, not this checkout`,
+              'Start the project there, or remove the volume.',
+          );
+}
+
+/**
+ * The Compose containers in `docker ps -a --format '{{.Label "com.docker.compose.project"}}<TAB>{{.Label
+ * "com.docker.compose.project.working_dir"}}'` output. A line without both labels names no checkout and is skipped.
+ *
+ * @param output - stdout of that command, one container per line.
+ * @returns The containers. Pure.
+ */
+export function composeContainersFrom(output: string): readonly ComposeContainer[] {
+    return output.split('\n').flatMap((line) => {
+        const [project, workingDir] = line.split('\t');
+
+        return project === undefined || project === '' || workingDir === undefined || workingDir === ''
+            ? []
+            : [{ project, workingDir }];
+    });
+}

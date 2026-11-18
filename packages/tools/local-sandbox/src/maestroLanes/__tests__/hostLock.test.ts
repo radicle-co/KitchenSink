@@ -115,3 +115,15 @@ describe('acquireHostLock — one orchestrator per host', () => {
         expect(currentBootId()).toMatch(/^[0-9a-f-]{36}$/u);
     });
 });
+
+describe('acquireHostLock names the door the lock was taken for', () => {
+    it('says local:up in the held message when the caller passes it, and maestro:lanes otherwise', () => {
+        const file = lockPath();
+        acquireHostLock(file, 101, alive([101, 202]), BOOT, 'local:up');
+
+        expect(() => acquireHostLock(file, 202, alive([101, 202]), BOOT, 'local:up')).toThrow(
+            /another local:up run \(pid 101\)/u,
+        );
+        expect(() => acquireHostLock(file, 202, alive([101, 202]), BOOT)).toThrow(/another maestro:lanes run/u);
+    });
+});

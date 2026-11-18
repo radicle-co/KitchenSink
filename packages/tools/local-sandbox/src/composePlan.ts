@@ -16,6 +16,8 @@ export interface ComposeInput {
     readonly containers: readonly string[];
 }
 
+import type { Stack } from './stackPorts.js';
+
 /** One of OUR services, ready to run from a locally-built image. */
 export interface ServiceContainer {
     /** Compose service name, e.g. `food`. */
@@ -48,6 +50,8 @@ export interface SidecarContainer {
 }
 
 export interface ComposeOptions {
+    /** The stack being planned: it decides the host side of every published port. */
+    readonly stack: Stack;
     /** Logical databases the CDK named, each created on first start. */
     readonly databases: readonly string[];
     /** Services built from this repo's own Dockerfiles. */
@@ -84,12 +88,11 @@ export interface ComposePlan {
  */
 const LOCALSTACK_IMAGE = 'localstack/localstack:4.4.0';
 
-/** Local Postgres credentials and the host port it binds. Fixed and known — there is no secret to fetch locally. */
+/** Local Postgres credentials. Fixed and known — there is no secret to fetch locally. The host port is the stack's. */
 export const LOCAL_DB = Object.freeze({
     user: 'postgres',
     password: 'postgres',
     bootstrapDatabase: 'postgres',
-    hostPort: 5432,
 });
 
 /**
@@ -105,7 +108,7 @@ export function planCompose(requirements: ComposeInput, options: ComposeOptions)
     if (requirements.localstackServices.length > 0) {
         services['localstack'] = {
             image: LOCALSTACK_IMAGE,
-            ports: ['4566:4566'],
+            ports: [`${String(options.stack.hostPort('localstack', 4566))}:4566`],
             environment: {
                 // Sorted, so a reordered inventory is not a diff.
                 SERVICES: [...requirements.localstackServices].sort().join(','),
@@ -129,7 +132,7 @@ export function planCompose(requirements: ComposeInput, options: ComposeOptions)
     if (postgresImage !== undefined) {
         services['postgres'] = {
             image: postgresImage,
-            ports: [`${String(LOCAL_DB.hostPort)}:5432`],
+            ports: [`${String(options.stack.hostPort('postgres', 5432))}:5432`],
             environment: {
                 POSTGRES_USER: LOCAL_DB.user,
                 POSTGRES_PASSWORD: LOCAL_DB.password,

@@ -4,7 +4,7 @@
  * world is seeded and before the device signs in.
  *
  * Reads `CLERK_SECRET_KEY`, `COMMISE_E2E_SHARD` (absent is shard 1) and `MAESTRO_PLATFORM` (absent is android) from the
- * environment. The database is the one the running `local-sandbox-identity` container reads, found from that container's own `DB_NAME`, so this can
+ * environment. The database is the one the running identity container of the stack (`LOCAL_SANDBOX_PORT`) reads, found from that container's own `DB_NAME`, so this can
  * never align a database the service does not serve.
  *
  * @sideEffect Reads Clerk's Backend API and the identity container's environment; writes the local identity database.
@@ -22,18 +22,17 @@ import pg from 'pg';
 import { LOCAL_DB } from '../src/composePlan.js';
 import { alignmentSlots, laneFromEnv } from '../src/alignmentLane.js';
 import { alignPoolIdentities, type AlignmentPorts } from '../src/identityAlignment.js';
-
-const IDENTITY_CONTAINER = 'local-sandbox-identity';
+import { publishedHostPort, stackFrom } from '../src/stackPorts.js';
 
 /**
  * The database the identity container reads.
  *
  * @sideEffect Runs `docker inspect`.
  */
-function identityDatabase(): string {
+function identityDatabase(identityContainer: string): string {
     const result = spawnSync(
         'docker',
-        ['inspect', '--format', '{{range .Config.Env}}{{println .}}{{end}}', IDENTITY_CONTAINER],
+        ['inspect', '--format', '{{range .Config.Env}}{{println .}}{{end}}', identityContainer],
         {
             encoding: 'utf8',
         },
@@ -45,7 +44,7 @@ function identityDatabase(): string {
 
     if (result.status !== 0 || name === undefined || name === '') {
         throw new Error(
-            `alignIdentities: ${IDENTITY_CONTAINER} is not running or names no DB_NAME — run \`npm run local:up\``,
+            `alignIdentities: ${identityContainer} is not running or names no DB_NAME — run \`npm run local:up\``,
         );
     }
 
@@ -62,12 +61,24 @@ async function main(): Promise<void> {
     // The lane's own platform: an iOS lane has pool users of its own (2026-10-13), which this used to skip.
     const slots = alignmentSlots(laneFromEnv(process.env));
 
+    const stack = stackFrom(process.env);
+    const identityContainer = stack.containerName('identity');
+    const postgresContainer = stack.containerName('postgres');
+    // The port the running stack publishes, read from Docker: a door never recomputes it from the environment.
+    const postgresPort = publishedHostPort(
+        spawnSync('docker', ['port', postgresContainer, '5432'], { encoding: 'utf8' }).stdout ?? '',
+    );
+
+    if (postgresPort === undefined) {
+        throw new Error(`alignIdentities: ${postgresContainer} publishes no port 5432 — run \`npm run local:up\``);
+    }
+
     const pool = new pg.Pool({
         host: '127.0.0.1',
-        port: LOCAL_DB.hostPort,
+        port: postgresPort,
         user: LOCAL_DB.user,
         password: LOCAL_DB.password,
-        database: identityDatabase(),
+        database: identityDatabase(identityContainer),
     });
     const db = drizzle(pool);
     const lease = clerkLeasePort(secretKey);

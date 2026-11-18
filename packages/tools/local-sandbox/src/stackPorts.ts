@@ -290,3 +290,16 @@ export function volumeOwnerVerdict(input: VolumeOwnerInput): VolumeOwnerVerdict 
 
     return input.canon(owner) === here ? { ok: true } : { ok: false, owner };
 }
+
+/**
+ * The host port in the output of `docker port <container> <port>`, which is how a door learns the port a running
+ * stack publishes (it does not recompute it from the environment).
+ *
+ * @param output - stdout of `docker port`, one `address:port` mapping per line.
+ * @returns The host port of the first mapping, or `undefined` when there is none. Pure.
+ */
+export function publishedHostPort(output: string): number | undefined {
+    const matched = /:(\d+)\s*$/mu.exec(output.trim().split('\n')[0] ?? '');
+
+    return matched?.[1] === undefined ? undefined : Number(matched[1]);
+}

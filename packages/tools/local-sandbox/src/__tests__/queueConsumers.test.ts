@@ -23,6 +23,7 @@ import {
     consumerEnvironment,
     discoverQueueConsumers,
     LOCAL_QUEUE_CONSUMERS,
+    localstackEndpointOf,
     planQueueConsumers,
     type QueueConsumer,
     type QueueConsumerPlan,
@@ -255,5 +256,12 @@ describe('consumerEnvironment', () => {
         expect(() => consumerEnvironment(runnable(workersTemplate()), { ...context, ssmParameters: {} })).toThrow(
             /RECIPE_DB_NAME/u,
         );
+    });
+});
+
+describe('localstackEndpointOf reads the endpoint from the queue url the plan stored', () => {
+    it('is the origin of the url, so a shifted stack polls its own LocalStack', () => {
+        expect(localstackEndpointOf('http://localhost:4566/000000000000/q')).toBe('http://localhost:4566');
+        expect(localstackEndpointOf('http://localhost:4666/000000000000/q')).toBe('http://localhost:4666');
     });
 });

@@ -358,3 +358,14 @@ export function readConsumerPlan(file: string): readonly PersistedConsumer[] {
 
     return parsed.data;
 }
+
+/**
+ * The LocalStack endpoint a persisted consumer polls: the origin of its stored queue url, which `local:up` wrote with
+ * the stack's published LocalStack port. One source, so the runner cannot disagree with the plan.
+ *
+ * @param queueUrl - The consumer's `queueUrl`.
+ * @returns The `http://localhost:<port>` origin. Pure.
+ */
+export function localstackEndpointOf(queueUrl: string): string {
+    return new URL(queueUrl).origin;
+}

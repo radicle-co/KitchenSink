@@ -484,19 +484,25 @@ export interface LocalSeedOutcome {
  * @param bundleDir - The asset root, `<outDir>/asset.<hash>/`.
  * @param module - The module the function's handler names, relative to the bundle.
  * @param database - The database to seed.
+ * @param postgresPort - The host port the stack's Postgres publishes.
  * @returns What the seed did.
  * @throws {Error} for a module that does not export the core, or whatever the seed or its verifier throws; the seed's
  *   transaction is rolled back and nothing is recorded.
  * @sideEffect Imports the bundle; connects to the local database; writes the catalog and the ledger.
  */
-export async function seedLocalCatalog(bundleDir: string, module: string, database: string): Promise<LocalSeedOutcome> {
+export async function seedLocalCatalog(
+    bundleDir: string,
+    module: string,
+    database: string,
+    postgresPort: number,
+): Promise<LocalSeedOutcome> {
     const modulePath = path.join(bundleDir, module);
     const seed = readSeedBundleModule(modulePath, await import(pathToFileURL(modulePath).href));
     const target = {
         bundleDir,
         connection: {
             host: 'localhost',
-            port: LOCAL_DB.hostPort,
+            port: postgresPort,
             user: LOCAL_DB.user,
             password: LOCAL_DB.password,
             database,
@@ -523,15 +529,16 @@ export async function seedLocalCatalog(bundleDir: string, module: string, databa
  * Count the live catalog roots in one local database.
  *
  * @param database - The database.
+ * @param postgresContainer - The stack's Postgres container name.
  * @returns The count, or 0 when the query fails (a missing table reads as an empty catalog).
  * @sideEffect Runs `psql` in the local postgres container.
  */
-export function countLiveFoods(database: string): number {
+export function countLiveFoods(database: string, postgresContainer: string): number {
     const result = spawnSync(
         'docker',
         [
             'exec',
-            'local-sandbox-postgres',
+            postgresContainer,
             'psql',
             '-U',
             LOCAL_DB.user,

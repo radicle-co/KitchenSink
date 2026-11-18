@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
     checkoutProject,
     isInvalidStackPortError,
+    publishedHostPort,
     onPublishedPorts,
     refusalLine,
     stackFrom,
@@ -322,5 +323,17 @@ describe('the refusal line and the status line', () => {
         expect(stackLine('local-sandbox-3100', { recipes: 3010, identity: 3101, food: 3102 }, '/work/B')).toBe(
             'stack: local-sandbox-3100 (recipes 3010, identity 3101, food 3102) from /work/B',
         );
+    });
+});
+
+describe('publishedHostPort reads `docker port` output', () => {
+    it('takes the host port of the first mapping', () => {
+        expect(publishedHostPort('0.0.0.0:5532\n[::]:5532\n')).toBe(5532);
+        expect(publishedHostPort('127.0.0.1:4666\n')).toBe(4666);
+    });
+
+    it('answers undefined for empty or unrecognised output', () => {
+        expect(publishedHostPort('')).toBeUndefined();
+        expect(publishedHostPort('Error: no public port')).toBeUndefined();
     });
 });

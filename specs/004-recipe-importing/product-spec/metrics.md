@@ -39,7 +39,7 @@ Q-1 is a switch-on gate, not a dashboard. A tier that misses it stays off (`SC-0
 | C-4 | Statement mix                 | Share of each statement the cook chooses                                                   | (observe) | `FR-014a` |
 | C-5 | Held items completed          | Held items the cook completes ÷ held items                                                 | (observe) | `FR-015`  |
 
-## Availability and performance
+## Reliability and performance
 
 | ID  | Metric                               | Target                                         | Source   |
 | --- | ------------------------------------ | ---------------------------------------------- | -------- |

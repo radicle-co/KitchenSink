@@ -16,8 +16,8 @@
  *   `"one-half teaspoon salt"` — which is the notation an entire 1900s cookbook is written in.
  * - `fraction.js@5.3.4` (MIT, ~51M dl/wk) — USED for every rational operation by its user, `normalizeQuantity`.
  *   Fraction arithmetic is never done by hand and `2/3` is never allowed to become `0.6666666666666666` internally.
- * - `numerizer@0.0.4` — REJECTED. Last published 2022-06-22 (dormant — the same criterion `tech-stack.md`
- *   used to reject `recipe-ingredient-parser-v2`), and measured to emit the CORRUPTED string
+ * - `numerizer@0.0.4` — REJECTED. Last published 2022-06-22 (dormant, the same reason
+ *   `recipe-ingredient-parser-v2` was rejected), and measured to emit the CORRUPTED string
  *   `"2-<frac>2 pounds of beef"` for `"one and one-half pounds of beef"`.
  * - `words-to-numbers@1.5.1` (~41k dl/wk, maintained) — REJECTED for fractions. Measured to produce
  *   `"1-half"` for `"one-half"` and `"2-thirds"` for `"two-thirds"`: it cannot represent a fraction at all.

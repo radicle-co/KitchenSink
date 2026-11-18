@@ -18,7 +18,8 @@
         "maestro:macUsage": "tsx bin/macLaneUsage.ts",
         "maestro:lanes": "tsx bin/maestroLanes.ts",
         "typecheck": "tsc --noEmit",
-        "up": "tsx bin/up.ts"
+        "up": "tsx bin/up.ts",
+        "down": "tsx bin/down.ts"
     },
     "devDependencies": {
         "@aws-sdk/cloudfront-signer": "^3.1138.0",

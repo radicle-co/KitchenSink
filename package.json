@@ -60,7 +60,7 @@
         "format:check:python": "ruff format --check packages",
         "prepare": "husky || true",
         "local:up": "npm run up --workspace=@kitchensink/local-sandbox",
-        "local:down": "docker compose -f .local-sandbox/compose.yml -p local-sandbox down",
+        "local:down": "npm run down --workspace=@kitchensink/local-sandbox",
         "local:audit": "npm run audit --workspace=@kitchensink/local-sandbox",
         "local:maestro": "npm run maestro --workspace=@kitchensink/local-sandbox --",
         "local:dev": "npm run local:up && turbo run dev"

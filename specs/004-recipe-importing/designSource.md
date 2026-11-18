@@ -54,7 +54,8 @@ Each needs a design spec section and boards on both canvases before it is built:
 ## Rules that hold on every import screen
 
 - Choose each surface by the [modal ruling](../../docs/design/modalUsage.md): a centred modal only when the task must block
-  everything, such as a destructive confirm.
+  everything, such as a destructive confirm. The Replace confirm (paste design spec S31) and the confirms in the public version
+  design spec stay centred modals.
 - Save is never disabled. A missing value is a hold in "Needed before saving" (paste design spec D7).
 - The cook never reviews the extraction. The review shows holds, the statement and the food matches.
 - The chooser lists only methods that have shipped. Paste and link are separate methods, and a pasted link is never

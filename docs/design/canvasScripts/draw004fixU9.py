@@ -551,7 +551,12 @@ def detail_photo(canvas: str, host: str, state: str) -> str:
         start, end = wide.start(), balanced_div(s, wide.start())
         if state == "Saved":
             hero = re.sub(r'aria-label="Photo 1 of 3: [^"]*"', f'aria-label="{alt}"', s[start:end])
-            hero = re.sub(r'<a class="edge (prev|next)Img".*?</a\s*>|<div class="dots".*?</div>', "", hero, flags=re.S)
+            hero = re.sub(
+                r'<a [^>]*class="edge (?:prev|next)Img"[^>]*>.*?</a\s*>|<div [^>]*class="dots"[^>]*>.*?</div>',
+                "",
+                hero,
+                flags=re.S,
+            )
             s = s[:start] + hero + PHOTO_CREDIT + note + s[end:]
         elif state == "Loading":
             s = (

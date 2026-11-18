@@ -113,9 +113,7 @@ def set_meta(s: str, title: str, screen_id: str, width: int, height: int, *, ext
         r'"\$preview": \{"width": \d+, "height": \d+\}', f'"$preview": {{"width": {width}, "height": {height}}}', s
     )
     s = re.sub(r'(class="screen[^"]*"[^>]*style="width: \d+px; )height: \d+px', rf"\1height: {height}px", s, count=1)
-    s = re.sub(
-        r'(class="[^"]*\bvp\b[^"]*"[^>]*style="width: \d+px; )height: \d+px', rf"\1height: {height}px", s, count=1
-    )
+    # A `.vp` viewport keeps the host's screen height: the device frame around it sets the board height.
     s = re.sub(
         r'(class="nv-device[^"]*" style="width: \d+px; )min-height: \d+px', rf"\1min-height: {height}px", s, count=1
     )

@@ -262,12 +262,12 @@ def web_link_paste() -> str:
         "F-31 · A link we may not fetch: paste the page instead",
         (
             '<h1 class="pi-h1">Paste this page to import it</h1><p class="pi-meta" style="margin-top:8px">From a link ·'
-            ' cooking.nytimes.com/recipes/1023456-sheet-pan-gnocchi</p><p style="margin-top:16px">We can’t open this page'
+            ' elizacooks.example/recipes/sheet-pan-gnocchi</p><p style="margin-top:16px">We can’t open this page'
             ' for you. Open it in your browser, copy the whole page, and paste it here.</p><p class="u9-lock"><svg'
             ' class="ic sm" aria-hidden="true"><use href="#lock" /></svg><span>Your copy stays private to you.</span></p>'
             '<div class="pi-actions">'
             + wbtn("Paste the page", "primary")
-            + f'<a class="pi-btn" href="#">Open cooking.nytimes.com{EXT}</a>'
+            + f'<a class="pi-btn" href="#">Open elizacooks.example{EXT}</a>'
             + wbtn("Write it yourself", "ghost")
             + "</div>"
         ),
@@ -282,6 +282,12 @@ LIB_ITEMS = [
     ("Banana bread", "kingarthurbaking.com", "Banana bread, less sugar"),
     ("Pad see ew", "hot-thai-kitchen.com", "Pad see ew"),
 ]
+# One row drawn after the cook switched it (FR-068): its way back is Skip.
+SWITCHED_ROW = 1
+SWITCHED = (
+    '<span class="u9-lock" style="margin-top:4px;color:var(--ink)"><svg class="ic sm" aria-hidden="true">'
+    '<use href="#check" /></svg><span>We will import this as a new copy.</span></span>'
+)
 LIB_INTRO = "We skipped these 6 because a recipe you have has the same web address. Import any of them as a new copy."
 
 
@@ -289,8 +295,13 @@ def web_library(*, narrow: bool = False) -> str:
     """FR-068 on web; narrow stacks each row."""
     rows = "".join(
         f'<div class="pi-copy"><span class="grow"><span class="t">{t}</span><span class="m">{site} · You have: {mine}'
-        f"</span></span>" + wbtn("Import as a new copy") + "</div>"
-        for t, site, mine in LIB_ITEMS
+        + (
+            f"</span>{SWITCHED}</span>" + wbtn("Skip")
+            if i == SWITCHED_ROW
+            else "</span></span>" + wbtn("Import as a new copy")
+        )
+        + "</div>"
+        for i, (t, site, mine) in enumerate(LIB_ITEMS)
     )
     return wpanel(
         "FR-068 · Already in your library (bulk)",
@@ -432,14 +443,14 @@ def mob_link_paste() -> str:
         "F-31 A link we may not fetch: paste the page instead",
         (
             '<h1 class="title" style="margin-top: 4px">Paste this page to import it</h1><p class="pgMeta">From a link ·'
-            ' cooking.nytimes.com/recipes/1023456-sheet-pan-gnocchi</p><p class="pgHint" style="font-size:16px;'
+            ' elizacooks.example/recipes/sheet-pan-gnocchi</p><p class="pgHint" style="font-size:16px;'
             ' line-height:24px; color:var(--ink)">We can’t open this page for you. Open it in your browser, copy the'
             ' recipe’s text, and paste it here.</p><p class="pgPriv"><svg aria-hidden="true" class="ic "><use'
             ' href="#lock"></use></svg><span>Your copy stays private to you.</span></p>'
         ),
         [
             mbtn("Write it yourself", "ghost"),
-            f'<a class="btn secondary block" href="#">Open cooking.nytimes.com{EXT}</a>',
+            f'<a class="btn secondary block" href="#">Open elizacooks.example{EXT}</a>',
             mbtn("Paste the page", "primary"),
         ],
     )
@@ -450,9 +461,9 @@ def mob_library() -> str:
     rows = "".join(
         f'<div class="pgRow" role="listitem"><span class="t" style="display:block;font-weight:600">{t}</span><span'
         f' class="pgNote" style="display:block;margin:0">{site} · You have: {mine}</span>'
-        + mbtn("Import as a new copy")
+        + (SWITCHED + mbtn("Skip") if i == SWITCHED_ROW else mbtn("Import as a new copy"))
         + "</div>"
-        for t, site, mine in LIB_ITEMS
+        for i, (t, site, mine) in enumerate(LIB_ITEMS)
     )
     return msec(
         "FR-068 Already in your library (bulk)",

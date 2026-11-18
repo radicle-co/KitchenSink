@@ -59,14 +59,15 @@ describe('a rate per weight is no wait, over a step the real splitter made', () 
             id: '01JCOOKINGWORDSINTEG00099',
             recipeId: RECIPE_ID,
             stepNumber: 1,
-            instruction: 'Roast 20 minutes per pound. Rest 10 minutes. Carve 5 minutes to the pound.',
+            instruction:
+                'Roast 20 minutes per pound. Rest 10 minutes. Carve 5 minutes to the pound. Baste five minutes per pound. Glaze ten minutes to the pound.',
         }),
     ]);
 
     it('offers only the rest, and no line of the rate reads a time', () => {
         const lines = step?.lines ?? [];
 
-        expect(lines.map((line) => readDuration(line).kind)).toEqual(['none', 'one', 'none']);
+        expect(lines.map((line) => readDuration(line).kind)).toEqual(['none', 'one', 'none', 'none', 'none']);
         expect(lines.flatMap((line) => offerSecondsOf({ line }) ?? [])).toEqual([600]);
     });
 });

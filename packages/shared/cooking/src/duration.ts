@@ -15,7 +15,7 @@
 import { amountAt } from '@kitchensink/recipe-core/parsing/measure-reader';
 
 import { oneReading, type DurationReading } from './durationReading.js';
-import { readWordDuration } from './durationWords.js';
+import { RATE_PHRASES, readWordDuration } from './durationWords.js';
 import { isValidTimerMs } from './timer.js';
 
 const SECONDS_PER_UNIT: Readonly<Record<string, number>> = { h: 3_600, m: 60, s: 1 };
@@ -66,10 +66,14 @@ const UNREAD_TIME_AFTER = new RegExp(String.raw`^${JOINER}\d+(?:[.,]\d+)?\s*[ms]
 const UNREAD_TIME_BEFORE = new RegExp(String.raw`(?<![\d.,])\d+(?:[.,]\d+)?\s*[ms]${JOINER}$`, 'iu');
 
 /**
- * A rate per weight or per piece right after the span ("10 minutes per pound", "20 minutes to the pound"): the time
- * grows with the food, so it is no wait and offers no timer. A wrong number the cook trusts is worse than no offer.
+ * Any rate word right after the span ("10 minutes per pound", "20 minutes to the pound"): the line reads none. The
+ * rule is on the words, not on what follows them, so "per side", "per batch" and "to the boil" read none on purpose. A
+ * wrong number the cook trusts is worse than no offer. The words are the word reader's, plain lower-case letters.
  */
-const RATE_AFTER = /^\s*(?:per|to\s+the)(?![a-z])/iu;
+const RATE_AFTER = new RegExp(
+    String.raw`^\s*(?:${RATE_PHRASES.map((phrase) => phrase.join(String.raw`\s+`)).join('|')})(?![a-z])`,
+    'iu',
+);
 
 /** One whole span of time: amounts joined by space, comma or "and", then an optional bare minute part. */
 const SPAN = new RegExp(`${amountSource(false)}(?:${JOINER}${amountSource(false)})*${BARE_MINUTES}?`, 'giu');

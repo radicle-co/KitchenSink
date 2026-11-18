@@ -39,7 +39,7 @@ These are settled. This spec specifies them and does not reopen them.
 | D13 | The drifted boards are redrawn this round (§12.3).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | UI Designer                                                   |
 | D14 | Sizes: phone 390 (iOS) and 384 (Android), tablet 834 and 1194, web 1280 with breakpoints 1024 and 768. Web below 840 behaves like a phone.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | UI Designer, owner P5                                         |
 | D15 | `TextArea` always gets a `maxRows` cap here. The card is its own render component, chosen by the orchestration.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | UI Designer                                                   |
-| D16 | A paste spends the one import allowance: the one import allowance (spec 004 `FR-067`). There is no paste counter. Quota copy names the import allowance.                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Owner ruling 2026-11-15. ADR-0072 §8.                         |
+| D16 | A paste spends the one import allowance (spec 004 `FR-067`). There is no paste counter. Quota copy names the import allowance.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Owner ruling 2026-11-15. ADR-0072 §8.                         |
 | D17 | The paste box lives on the chooser path. The editor's Paste sheet stays for ingredient and step lists. No "Paste from clipboard" button on mobile (Settled 34). Section names keep the "For the glaze: " step prefix as plain text. Pasted imports appear in "Your imports".                                                                                                                                                                                                                                                                                                                                                    | UI Designer                                                   |
 | D18 | A change from a detected third-party source to "I wrote this" saves normally. The recipe cannot go public until a person clears it. Private is never blocked.                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Owner ruling 2026-11-15                                       |
 | D19 | At the AI spend ceiling the paste ends with a clear message and a path to type the recipe. It never waits for next month. The page's main photo follows §6.8.                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Owner rulings 2026-11-15                                      |
@@ -797,50 +797,50 @@ guess chip. Controlled. New, because "Where is it from?" exists only on the boar
 3. **`@commise/ui/create-menu`, a new package export with two render components and one item type.** Both are needed
    for PR C on web, and for mobile when the spec 004 AI fallback ships.
 
-```ts
-/** One way to add a recipe. There is no `disabled` field: an item with no destination is absent. */
-interface CreateMenuItem {
-    readonly id: string;
-    readonly icon: IconName;
-    readonly title: string;
-    readonly hint: string;
-    readonly onSelect: () => void;
-}
-interface CreateMenuProps {
-    /** The control's visible label and name: "New recipe". */
-    readonly label: string;
-    /** The menu's accessible name: "Add a recipe". */
-    readonly menuLabel: string;
-    /** Two or more, in order. The host renders no menu for one. */
-    readonly items: readonly CreateMenuItem[];
-    readonly focusRequested?: boolean;
-    readonly onFocusRequestHandled?: () => void;
-}
-interface CreateFabMenuProps extends CreateMenuProps {
-    /** The open FAB's name: "Close Add a recipe". */
-    readonly closeLabel: string;
-}
-```
+    ```ts
+    /** One way to add a recipe. There is no `disabled` field: an item with no destination is absent. */
+    interface CreateMenuItem {
+        readonly id: string;
+        readonly icon: IconName;
+        readonly title: string;
+        readonly hint: string;
+        readonly onSelect: () => void;
+    }
+    interface CreateMenuProps {
+        /** The control's visible label and name: "New recipe". */
+        readonly label: string;
+        /** The menu's accessible name: "Add a recipe". */
+        readonly menuLabel: string;
+        /** Two or more, in order. The host renders no menu for one. */
+        readonly items: readonly CreateMenuItem[];
+        readonly focusRequested?: boolean;
+        readonly onFocusRequestHandled?: () => void;
+    }
+    interface CreateFabMenuProps extends CreateMenuProps {
+        /** The open FAB's name: "Close Add a recipe". */
+        readonly closeLabel: string;
+    }
+    ```
 
-- **`CreateMenuButton`** (anchored menu). Web leaf: Radix `DropdownMenu` with `modal={false}`, the same base as
-  `ActionMenu`'s web leaf, so it inherits the APG menu-button keyboard model. The trigger is the design-system
-  `Button` (primary, `plus`, trailing `chevronDown`). Native leaf (iPad): an anchored Tamagui `Popover` with no
-  adapt-to-sheet, holding `menuitem` rows. This is new: `Popover.native` and `ActionMenu.native` are both sheets
-  today, because a phone has no room to anchor. An iPad does.
-- **`CreateFabMenu`** (speed dial). Composes `CreateFab` for the closed face and keeps every `CreateFab` rule
-  (placement, shrink on scroll, hidden with the keyboard, yields in first run). Open: the scrim, the item stack and
-  the close face (§3.1). Web leaf: Radix `DropdownMenu`, modal, with the scrim as its overlay. Native leaf: a
-  Tamagui `Portal` over the screen, with `BackInterceptProvider` for Android Back.
-- Both reuse `ActionMenu`'s held-item rule: a chosen item runs once the menu has gone, so the screen it opens never
-  meets the menu.
-- Why not extend `ActionMenu`: its contract is a row's actions behind a `⋯` named for that row, with a structural
-  destructive slot and a sheet on native. A create menu has a labelled primary trigger, hints, no destructive
-  action, and two native forms. Folding both into one component needs a mode prop that switches behaviour, which
-  the house forbids. The two share the Radix base, not the component.
-- Why not `Popover`: it is a titled `role="dialog"` with a Close control. A list of actions is a menu.
-- Retired prior art: `features/recipes/src/speedDial/SpeedDial.tsx` (commits `d53f2b08f`, `644a5b5e4`), built on
-  the owner ruling of 2026-08-25 and retired by uiOverhaul D4. Read it in history for its tests. Do not restore it into the
-  feature package: the menu now lives in the design system, so web and native and every create surface share it.
+    - **`CreateMenuButton`** (anchored menu). Web leaf: Radix `DropdownMenu` with `modal={false}`, the same base as
+      `ActionMenu`'s web leaf, so it inherits the APG menu-button keyboard model. The trigger is the design-system
+      `Button` (primary, `plus`, trailing `chevronDown`). Native leaf (iPad): an anchored Tamagui `Popover` with no
+      adapt-to-sheet, holding `menuitem` rows. This is new: `Popover.native` and `ActionMenu.native` are both sheets
+      today, because a phone has no room to anchor. An iPad does.
+    - **`CreateFabMenu`** (speed dial). Composes `CreateFab` for the closed face and keeps every `CreateFab` rule
+      (placement, shrink on scroll, hidden with the keyboard, yields in first run). Open: the scrim, the item stack and
+      the close face (§3.1). Web leaf: Radix `DropdownMenu`, modal, with the scrim as its overlay. Native leaf: a
+      Tamagui `Portal` over the screen, with `BackInterceptProvider` for Android Back.
+    - Both reuse `ActionMenu`'s held-item rule: a chosen item runs once the menu has gone, so the screen it opens never
+      meets the menu.
+    - Why not extend `ActionMenu`: its contract is a row's actions behind a `⋯` named for that row, with a structural
+      destructive slot and a sheet on native. A create menu has a labelled primary trigger, hints, no destructive
+      action, and two native forms. Folding both into one component needs a mode prop that switches behaviour, which
+      the house forbids. The two share the Radix base, not the component.
+    - Why not `Popover`: it is a titled `role="dialog"` with a Close control. A list of actions is a menu.
+    - Retired prior art: `features/recipes/src/speedDial/SpeedDial.tsx` (commits `d53f2b08f`, `644a5b5e4`), built on
+      the owner ruling of 2026-08-25 and retired by uiOverhaul D4. Read it in history for its tests. Do not restore it into the
+      feature package: the menu now lives in the design system, so web and native and every create surface share it.
 
 4. **`CreateFab` yields from the medium viewport.** The recipes canvases draw the search-row button from 600 (N1), and
    `RecipeCreateButton` still floats the FAB below 840. `createFabPolicy` answers `hidden` from `medium`, and the

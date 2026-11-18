@@ -9,9 +9,9 @@
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
 
-import type { SnackbarAction, SnackbarApi } from './props.js';
+import type { SnackbarApi } from './props.js';
 import { msUntilExpiry, type SnackbarEntry } from './snackbarQueue.js';
-import { createSnackbarStore } from './snackbarStore.js';
+import { createSnackbarStore, type SnackbarStore } from './snackbarStore.js';
 
 /** What a host leaf drives the queue with. */
 export interface SnackbarQueue {
@@ -20,9 +20,10 @@ export interface SnackbarQueue {
     readonly show: SnackbarApi['show'];
     readonly withdraw: SnackbarApi['withdraw'];
     /** Take the current snackbar's action: it closes without committing. */
-    readonly act: (id: number, action: SnackbarAction) => void;
-    readonly pause: (id: number) => void;
-    readonly resume: (id: number) => void;
+    readonly act: SnackbarStore['act'];
+    /** Banks the time left. Stable, like `act` and `resume`: they belong to the store, which lives as long as the hook. */
+    readonly pause: SnackbarStore['pause'];
+    readonly resume: SnackbarStore['resume'];
 }
 
 /**

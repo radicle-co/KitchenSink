@@ -198,4 +198,17 @@ describe('act, pause and resume read the store clock', () => {
         expect(onAction).toHaveBeenCalledTimes(1);
         expect(onTimeout).not.toHaveBeenCalled();
     });
+
+    it('act closes before the action runs: a snackbar the action shows replaces nothing, so the old one never commits', () => {
+        const { store } = setup();
+        const onTimeoutA = vi.fn();
+        store.show({ message: 'A', onTimeout: onTimeoutA });
+        const id = store.getState().current?.id ?? -1;
+
+        store.act(id, { label: 'Undo', onAction: () => store.show({ message: 'B' }) });
+        runSettled(store);
+
+        expect(onTimeoutA).not.toHaveBeenCalled();
+        expect(store.getState().current?.input.message).toBe('B');
+    });
 });

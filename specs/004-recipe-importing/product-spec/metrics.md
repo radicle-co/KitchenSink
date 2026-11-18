@@ -31,34 +31,34 @@ Q-1 is a switch-on gate, not a dashboard. A tier that misses it stays off (`SC-0
 
 ## Cook choices
 
-| ID  | Metric                        | Definition                                                                                 | Target                                                        | Source    |
-| --- | ----------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------- | --------- |
-| C-1 | Private / Public / Both share | Share of saved imports by the cook's choice. Public and Both appear once 003B ships.       | (observe)                                                     | `FR-065`  |
-| C-2 | Duplicate choices             | Share of Duplicate, Replace, Cancel and "Import as a new copy" when a page is already held | (observe) Not shipped: the duplicate choice is not built yet. | `FR-008`  |
-| C-3 | Bulk skips kept               | "Already in your library" items left skipped ÷ such items                                  | (observe) Not shipped: `FR-068` is not built yet.             | `FR-068`  |
-| C-4 | Statement mix                 | Share of each statement the cook chooses                                                   | (observe)                                                     | `FR-014a` |
-| C-5 | Held items completed          | Held items the cook completes ÷ held items                                                 | (observe)                                                     | `FR-015`  |
+| ID  | Metric                        | Definition                                                                                 | Target                                                         | Source    |
+| --- | ----------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | --------- |
+| C-1 | Private / Public / Both share | Share of saved imports by the cook's choice. Public and Both appear once 003B ships.       | (observe)                                                      | `FR-065`  |
+| C-2 | Duplicate choices             | Share of Duplicate, Replace, Cancel and "Import as a new copy" when a page is already held | (observe). Not shipped: the duplicate choice is not built yet. | `FR-008`  |
+| C-3 | Bulk skips kept               | "Already in your library" items left skipped ÷ such items                                  | (observe). Not shipped: `FR-068` is not built yet.             | `FR-068`  |
+| C-4 | Statement mix                 | Share of each statement the cook chooses                                                   | (observe)                                                      | `FR-014a` |
+| C-5 | Held items completed          | Held items the cook completes ÷ held items                                                 | (observe)                                                      | `FR-015`  |
 
 ## Reliability and performance
 
-| ID  | Metric                               | Target                                                                                              | Source   |
-| --- | ------------------------------------ | --------------------------------------------------------------------------------------------------- | -------- |
-| R-1 | Link import on the server fetch path | p95 15 s or less, p99 30 s or less Not shipped: the server fetch path is not built yet.             | `SC-004` |
-| R-2 | Save                                 | p95 400 ms or less                                                                                  | `SC-004` |
-| R-3 | robots.txt blocks                    | (observe), counted per `IMPORT_SOURCE_BLOCKED` Not shipped: the server fetch path is not built yet. | `FR-023` |
+| ID  | Metric                               | Target                                                                                               | Source   |
+| --- | ------------------------------------ | ---------------------------------------------------------------------------------------------------- | -------- |
+| R-1 | Link import on the server fetch path | p95 15 s or less, p99 30 s or less. Not shipped: the server fetch path is not built yet.             | `SC-004` |
+| R-2 | Save                                 | p95 400 ms or less                                                                                   | `SC-004` |
+| R-3 | robots.txt blocks                    | (observe), counted per `IMPORT_SOURCE_BLOCKED`. Not shipped: the server fetch path is not built yet. | `FR-023` |
 
 ## Invariants
 
 Any non-zero reading is an incident, not a trend.
 
-| ID  | Invariant                                                              | Target                                                 | Source             |
-| --- | ---------------------------------------------------------------------- | ------------------------------------------------------ | ------------------ |
-| I-1 | A second import of a page not matched to the first                     | 0 Not shipped: the duplicate lookup is not built yet.  | `SC-005`           |
-| I-2 | A third-party recipe made public by any door other than the two routes | 0                                                      | `003B-FR-015`      |
-| I-3 | A paid-site recipe whose source wording is public                      | 0                                                      | `FR-014`, `FR-065` |
-| I-4 | A server fetch of a known paid site                                    | 0 Not shipped: the server fetch path is not built yet. | `FR-014`, `FR-064` |
-| I-5 | A value the source did not state, filled in by the import              | 0                                                      | `FR-015`, `FR-021` |
-| I-6 | A server download of a video                                           | 0                                                      | `FR-009`           |
+| ID  | Invariant                                                              | Target                                                  | Source             |
+| --- | ---------------------------------------------------------------------- | ------------------------------------------------------- | ------------------ |
+| I-1 | A second import of a page not matched to the first                     | 0. Not shipped: the duplicate lookup is not built yet.  | `SC-005`           |
+| I-2 | A third-party recipe made public by any door other than the two routes | 0                                                       | `003B-FR-015`      |
+| I-3 | A paid-site recipe whose source wording is public                      | 0                                                       | `FR-014`, `FR-065` |
+| I-4 | A server fetch of a known paid site                                    | 0. Not shipped: the server fetch path is not built yet. | `FR-014`, `FR-064` |
+| I-5 | A value the source did not state, filled in by the import              | 0                                                       | `FR-015`, `FR-021` |
+| I-6 | A server download of a video                                           | 0                                                       | `FR-009`           |
 
 ## Not measured
 

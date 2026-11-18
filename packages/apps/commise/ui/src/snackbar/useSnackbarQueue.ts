@@ -21,7 +21,8 @@ export interface SnackbarQueue {
     readonly withdraw: SnackbarApi['withdraw'];
     /** Take the current snackbar's action: it closes without committing. */
     readonly act: SnackbarStore['act'];
-    /** Banks the time left. Stable, like `act` and `resume`: they belong to the store, which lives as long as the hook. */
+    /** Banks the time left. Stable, like `act` and `resume`: they belong to the store, which lives as long as
+     * the hook. */
     readonly pause: SnackbarStore['pause'];
     readonly resume: SnackbarStore['resume'];
 }

@@ -199,13 +199,17 @@ describe('act, pause and resume read the store clock', () => {
         expect(onTimeout).not.toHaveBeenCalled();
     });
 
-    it('act closes before the action runs: a snackbar the action shows replaces nothing, so the old one never commits', () => {
+    it('act closes before the action runs, so a snackbar the action shows never commits the old one', () => {
         const { store } = setup();
         const onTimeoutA = vi.fn();
         store.show({ message: 'A', onTimeout: onTimeoutA });
-        const id = store.getState().current?.id ?? -1;
+        const current = store.getState().current;
 
-        store.act(id, { label: 'Undo', onAction: () => store.show({ message: 'B' }) });
+        if (current === null) {
+            throw new Error('A is not showing');
+        }
+
+        store.act(current.id, { label: 'Undo', onAction: () => store.show({ message: 'B' }) });
         runSettled(store);
 
         expect(onTimeoutA).not.toHaveBeenCalled();

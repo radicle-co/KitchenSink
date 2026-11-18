@@ -5,7 +5,8 @@ Each new board is built from a sibling board at the same size: the sibling gives
 (side nav or device frame) and the size; this script replaces only the content area. It also makes the in-place copy
 edits (F-34, FR-068 results row), retires two board families, and adds the new boards to each canvas.json as one
 appended row. Heights come from `--heights <json>` (board -> px), measured from a render; without it a first guess is
-used. Run from the repository root: python3 docs/design/canvasScripts/draw004fixU9.py [--heights file.json]
+used. The committed heights are draw004fixU9Heights.json, measured by the canvas render.
+Run from the repository root: python3 docs/design/canvasScripts/draw004fixU9.py [--heights file.json]
 """
 
 import json
@@ -45,6 +46,9 @@ EXTRA_CSS = """
 .screen .pgRow + .pgRow { border-top: 1px solid var(--line-divider); }
 .screen .pgRow .btn { margin-top: 8px; }
 """
+
+# A device frame is never shorter than its screen (renderRepoCanvases measures the frame).
+DEVICE_FLOOR = {"Iphone390": 844, "Android384": 832, "Ipad834": 1194, "Ipad1194": 834, "Ipad820": 1180}
 
 WEB_SIZES = {
     "Web1280": "ImportPasteErrorsWeb1280",
@@ -93,7 +97,14 @@ def balanced_div(s: str, start: int) -> int:
     raise ValueError("unbalanced div")
 
 
-def set_meta(s: str, title: str, screen_id: str, width: int, height: int) -> str:
+def _meta_of(s: str) -> tuple[str, str]:
+    """The title and screen id a board already has."""
+    title = re.search(r"<title>(.*?)</title>", s).group(1)
+    screen = re.search(r'data-(?:screen|board)="([^"]*)"', s).group(1)
+    return title, screen
+
+
+def set_meta(s: str, title: str, screen_id: str, width: int, height: int, *, extra: bool = True) -> str:
     """Retitle and resize a board, and add the extra rules."""
     s = re.sub(r"<title>.*?</title>", f"<title>{title}</title>", s, count=1)
     s = re.sub(r'data-screen="[^"]*"', f'data-screen="{screen_id}"', s)
@@ -108,7 +119,7 @@ def set_meta(s: str, title: str, screen_id: str, width: int, height: int) -> str
     s = re.sub(
         r'(class="nv-device[^"]*" style="width: \d+px; )min-height: \d+px', rf"\1min-height: {height}px", s, count=1
     )
-    return s.replace("</style>", EXTRA_CSS + "</style>", 1)
+    return s.replace("</style>", EXTRA_CSS + "</style>", 1) if extra else s
 
 
 def web_board(host: str, content: str) -> str:
@@ -585,13 +596,16 @@ def detail_photo(canvas: str, host: str, state: str) -> str:
 
 def main() -> None:
     """Draw every board, edit copy in place, retire boards, and lay out canvas.json."""
-    heights = {}
+    heights_file = Path(__file__).with_name("draw004fixU9Heights.json")
     if "--heights" in sys.argv:
-        heights = json.loads(Path(sys.argv[sys.argv.index("--heights") + 1]).read_text())
+        heights_file = Path(sys.argv[sys.argv.index("--heights") + 1])
+    heights = json.loads(heights_file.read_text())
     made = {WEB: [], MOB: [], DWEB: [], DMOB: []}
 
     def emit(canvas: str, name: str, html: str, width: int, title: str, guess: int) -> None:
-        h = heights.get(name, guess)
+        h = max(
+            heights.get(name, guess), DEVICE_FLOOR.get(re.sub(r"^.*?((?:Iphone|Android|Ipad)\d+)$", r"\1", name), 0)
+        )
         board_path(canvas, name).write_text(set_meta(html, title, name, width, h))
         made[canvas].append((name, width, h, title))
 
@@ -650,7 +664,6 @@ def main() -> None:
         ]:
             host = f"RecipePrivateImportMenu{size}"
             host_h = json.loads((ROOT / canvas / "project/canvas.json").read_text())["boards"][f"{host}.dc.html"]["h"]
-            heights.pop(f"RecipePrivateImportPhoto{state}{size}", None)  # viewport boards keep the host's height
             emit(
                 canvas,
                 f"RecipePrivateImportPhoto{state}{size}",
@@ -689,6 +702,12 @@ def main() -> None:
                 (ROOT / canvas / "project" / n).unlink()
                 if n in d.get("order", []):
                     d["order"].remove(n)
+        for key, board in d["boards"].items():
+            # An existing board whose in-place copy edit made it taller (the FR-068 results row wraps on phones).
+            if key[: -len(".dc.html")] in heights and not any(key == f"{m[0]}.dc.html" for m in made[canvas]):
+                board["h"] = heights[key[: -len(".dc.html")]]
+                f = ROOT / canvas / "project" / key
+                f.write_text(set_meta(f.read_text(), *_meta_of(f.read_text()), board["w"], board["h"], extra=False))
         mine = {f"{m[0]}.dc.html" for m in made[canvas]}
         for key in mine & set(d["boards"]):
             del d["boards"][key]

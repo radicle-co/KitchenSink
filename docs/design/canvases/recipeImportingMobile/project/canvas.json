@@ -301,7 +301,7 @@
       "x": 9870,
       "y": 260,
       "w": 390,
-      "h": 1281,
+      "h": 1301,
       "title": "Recipe importing, library results (mobile, iPhone 390)"
     },
     "ImportPasteDuplicateIphone390.dc.html": {
@@ -532,7 +532,7 @@
       "x": 9744,
       "y": 4371,
       "w": 384,
-      "h": 1238,
+      "h": 1258,
       "title": "Recipe importing, library results (mobile, Android 384)"
     },
     "ImportPasteEmptyAndroid384.dc.html": {
@@ -840,7 +840,7 @@
       "x": 4056,
       "y": 55053,
       "w": 834,
-      "h": 940,
+      "h": 1194,
       "title": "Recipe importing, paste duplicate, public copy (S50, S51) (mobile, iPad 834)"
     },
     "ImportPasteDuplicatePublicIpad1194.dc.html": {
@@ -854,28 +854,28 @@
       "x": 6244,
       "y": 55053,
       "w": 390,
-      "h": 628,
+      "h": 844,
       "title": "Recipe importing, link, paste the page instead (mobile, iPhone 390)"
     },
     "ImportLinkPasteInsteadAndroid384.dc.html": {
       "x": 6714,
       "y": 55053,
       "w": 384,
-      "h": 611,
+      "h": 832,
       "title": "Recipe importing, link, paste the page instead (mobile, Android 384)"
     },
     "ImportLinkPasteInsteadIpad834.dc.html": {
       "x": 7178,
       "y": 55053,
       "w": 834,
-      "h": 495,
+      "h": 1194,
       "title": "Recipe importing, link, paste the page instead (mobile, iPad 834)"
     },
     "ImportLinkPasteInsteadIpad1194.dc.html": {
       "x": 8092,
       "y": 55053,
       "w": 1194,
-      "h": 495,
+      "h": 834,
       "title": "Recipe importing, link, paste the page instead (mobile, iPad 1194)"
     },
     "ImportLibraryAlreadyInLibraryIphone390.dc.html": {
@@ -896,7 +896,7 @@
       "x": 10300,
       "y": 55053,
       "w": 834,
-      "h": 995,
+      "h": 1194,
       "title": "Recipe importing, library, already in your library (mobile, iPad 834)"
     },
     "ImportLibraryAlreadyInLibraryIpad1194.dc.html": {
@@ -924,14 +924,14 @@
       "x": 13422,
       "y": 55053,
       "w": 834,
-      "h": 1170,
+      "h": 1194,
       "title": "Recipe importing, paste review with the source photo (P5, mobile, iPad 834)"
     },
     "ImportPasteReviewPhotoIpad1194.dc.html": {
       "x": 14336,
       "y": 55053,
       "w": 1194,
-      "h": 750,
+      "h": 834,
       "title": "Recipe importing, paste review with the source photo (P5, mobile, iPad 1194)"
     }
   },

@@ -59,8 +59,13 @@ describe('a rate per weight is no wait, over a step the real splitter made', () 
             id: '01JCOOKINGWORDSINTEG00099',
             recipeId: RECIPE_ID,
             stepNumber: 1,
-            instruction:
-                'Roast 20 minutes per pound. Rest 10 minutes. Carve 5 minutes to the pound. Baste five minutes per pound. Glaze ten minutes to the pound.',
+            instruction: [
+                'Roast 20 minutes per pound.',
+                'Rest 10 minutes.',
+                'Carve 5 minutes to the pound.',
+                'Baste five minutes per pound.',
+                'Glaze ten minutes to the pound.',
+            ].join(' '),
         }),
     ]);
 

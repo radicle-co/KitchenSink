@@ -22,36 +22,45 @@ as source and did not render them, so the visual notes about the existing boards
 
 These are settled. This spec specifies them and does not reopen them.
 
-| #   | Decision                                                                                                                                                                                                                                                                                                                                                       | Source                                |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| D1  | Direction A: one box that becomes a source card.                                                                                                                                                                                                                                                                                                               | UI Designer                           |
-| D2  | The chooser row reads "Paste a recipe", hint "Text, or a whole web page". The Add a recipe chooser is a deliverable.                                                                                                                                                                                                                                           | UI Designer                           |
-| D3  | The box becomes a card on any HTML signal (`<html`, `<script`, `application/ld+json`, case-insensitive) or plain text over 20,000 characters. Short text stays editable.                                                                                                                                                                                       | UI Designer                           |
-| D4  | "How to copy a whole page" is web only, collapsed, and never on phones. The shortcut copy is "verify before ship".                                                                                                                                                                                                                                             | UI Designer                           |
-| D5  | A detected address is a suggestion. It fills and selects the statement, and the cook confirms it at Save. It is never set automatically (ADR-0072 §9, ADR-0089 §1 and §7, spec 016 FR-014). The cook may change it to another source or to "I wrote this". An LLM guess (the spec 004 AI fallback) is only a question chip.                                    | UI Designer, review 2026-11-15        |
-| D6  | The one-recipe review looks like the bulk step without "1 of 1", Skip, Next, the rail or the mode choice.                                                                                                                                                                                                                                                      | UI Designer                           |
-| D7  | Save is never disabled. Holds sit in a "Needed before saving" group. Save with an unmet hold keeps the cook on the page, moves focus to the first unmet item and announces it.                                                                                                                                                                                 | UI Designer                           |
-| D8  | For a web copy, Public is hidden, with one line saying why and the private slot count.                                                                                                                                                                                                                                                                         | UI Designer                           |
-| D9  | Success opens recipe detail with the Checking badge (ADR-0074) and one polite announcement.                                                                                                                                                                                                                                                                    | UI Designer                           |
-| D10 | Several recipes on one page: a pick-one list on the device.                                                                                                                                                                                                                                                                                                    | UI Designer                           |
-| D11 | A copy of the same page already saved: the cook is told, with three actions, Duplicate, Replace and Cancel. Replace confirms first.                                                                                                                                                                                                                            | Owner ruling 1                        |
-| D12 | Lines from a page read "Pasted:". Typed text keeps "You wrote:".                                                                                                                                                                                                                                                                                               | Owner ruling 2                        |
-| D13 | The drifted boards are redrawn this round (§12.3).                                                                                                                                                                                                                                                                                                             | UI Designer                           |
-| D14 | Sizes: phone 390 (iOS) and 384 (Android), tablet 834 and 1194, web 1280 with breakpoints 1024 and 768. Web below 840 behaves like a phone.                                                                                                                                                                                                                     | UI Designer, owner P5                 |
-| D15 | `TextArea` always gets a `maxRows` cap here. The card is its own render component, chosen by the orchestration.                                                                                                                                                                                                                                                | UI Designer                           |
-| D16 | A paste spends the one import allowance: the one import allowance (spec 004 `FR-067`). There is no paste counter. Quota copy names the import allowance.                                                                                                                                                                                                       | Owner ruling 2026-11-15. ADR-0072 §8. |
-| D17 | The paste box lives on the chooser path. The editor's Paste sheet stays for ingredient and step lists. No "Paste from clipboard" button on mobile (Settled 34). Section names keep the "For the glaze: " step prefix as plain text. Pasted imports appear in "Your imports".                                                                                   | UI Designer                           |
-| D18 | A change from a detected third-party source to "I wrote this" saves normally. The recipe cannot go public until a person clears it. Private is never blocked.                                                                                                                                                                                                  | Owner ruling 2026-11-15               |
-| D19 | At the AI spend ceiling the paste ends with a clear message and a path to type the recipe. It never waits for next month. The page's main photo follows §6.8.                                                                                                                                                                                                  | Owner rulings 2026-11-15              |
-| D25 | At import the cook chooses Private, Public (a Commise-written version) or Both (spec 004 `FR-065`). If the rewrite cannot run, only Private is offered. Until the Commise-written version ships (spec 003B, planned), the rewrite cannot run, so a copy shows only Private, as D8 already draws.                                                               | Owner ruling 2026-11-15               |
-| D26 | The page is read on the device in tiers: schema.org data, then microdata, then a rule-based reader, then an on-device AI tier when the account setting allows it (on by default on mobile, off on web), each a strict yes or no (spec 004 `FR-064`). The cook never reviews the extraction. P5 keeps the ingredient match review (ADR-0071) and the statement. | Owner ruling 2026-11-15               |
-| D27 | "Where is this recipe from?" is asked only when part of the recipe was pasted and the cook gave no statement (S9). Its choices are: I wrote this; from a web page; from a cookbook or magazine; from another person; keep it private (spec 016). The §7.4 keys and the S9 boards are re-specified to that set.                                                 | Owner ruling 2026-11-15               |
-| D28 | The private copy keeps the page's wording, with food matching, and shows the source author's name (spec 004 `FR-066`).                                                                                                                                                                                                                                         | Owner ruling 2026-11-15               |
-| D29 | On the slots-full dead end (S17) the main button is "Upgrade to Pro", with "Compare plans" and a "Not now" button of equal size (`010-FR-042c`, amended for this screen only).                                                                                                                                                                                 | Owner ruling 2026-11-15               |
+| #   | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Source                                                        |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| D1  | Direction A: one box that becomes a source card.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | UI Designer                                                   |
+| D2  | The chooser row reads "Paste a recipe", hint "Text, or a whole web page". The Add a recipe chooser is a deliverable.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | UI Designer                                                   |
+| D3  | The box becomes a card on any HTML signal (`<html`, `<script`, `application/ld+json`, case-insensitive) or plain text over 20,000 characters. Short text stays editable.                                                                                                                                                                                                                                                                                                                                                                                                                                                        | UI Designer                                                   |
+| D4  | "How to copy a whole page" is web only, collapsed, and never on phones. The shortcut copy is "verify before ship".                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | UI Designer                                                   |
+| D5  | A detected address is a suggestion. It fills and selects the statement, and the cook confirms it at Save. It is never set automatically (ADR-0072 §9, ADR-0089 §1 and §7, spec 016 FR-014). The cook may change it to another source or to "I wrote this". An LLM guess (the spec 004 AI fallback) is only a question chip.                                                                                                                                                                                                                                                                                                     | UI Designer, review 2026-11-15                                |
+| D6  | The one-recipe review looks like the bulk step without "1 of 1", Skip, Next, the rail or the mode choice.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | UI Designer                                                   |
+| D7  | Save is never disabled. Holds sit in a "Needed before saving" group. Save with an unmet hold keeps the cook on the page, moves focus to the first unmet item and announces it.                                                                                                                                                                                                                                                                                                                                                                                                                                                  | UI Designer                                                   |
+| D8  | For a web copy, Public is hidden, with one line saying why and the private slot count.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | UI Designer                                                   |
+| D9  | Success opens recipe detail with the Checking badge (ADR-0074) and one polite announcement.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | UI Designer                                                   |
+| D10 | Several recipes on one page: a pick-one list on the device.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | UI Designer                                                   |
+| D11 | A copy of the same page already saved: the cook is told, with three actions, Duplicate, Replace and Cancel. Replace confirms first.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Owner ruling 1                                                |
+| D12 | Lines from a page read "Pasted:". Typed text keeps "You wrote:".                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Owner ruling 2                                                |
+| D13 | The drifted boards are redrawn this round (§12.3).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | UI Designer                                                   |
+| D14 | Sizes: phone 390 (iOS) and 384 (Android), tablet 834 and 1194, web 1280 with breakpoints 1024 and 768. Web below 840 behaves like a phone.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | UI Designer, owner P5                                         |
+| D15 | `TextArea` always gets a `maxRows` cap here. The card is its own render component, chosen by the orchestration.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | UI Designer                                                   |
+| D16 | A paste spends the one import allowance: the one import allowance (spec 004 `FR-067`). There is no paste counter. Quota copy names the import allowance.                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Owner ruling 2026-11-15. ADR-0072 §8.                         |
+| D17 | The paste box lives on the chooser path. The editor's Paste sheet stays for ingredient and step lists. No "Paste from clipboard" button on mobile (Settled 34). Section names keep the "For the glaze: " step prefix as plain text. Pasted imports appear in "Your imports".                                                                                                                                                                                                                                                                                                                                                    | UI Designer                                                   |
+| D18 | A change from a detected third-party source to "I wrote this" saves normally. The recipe cannot go public until a person clears it. Private is never blocked.                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Owner ruling 2026-11-15                                       |
+| D19 | At the AI spend ceiling the paste ends with a clear message and a path to type the recipe. It never waits for next month. The page's main photo follows §6.8.                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Owner rulings 2026-11-15                                      |
+| D25 | At import the cook chooses Private, Public (a Commise-written version) or Both (spec 004 `FR-065`). If the rewrite cannot run, only Private is offered. Until the Commise-written version ships (spec 003B, planned), the rewrite cannot run, so a copy shows only Private, as D8 already draws.                                                                                                                                                                                                                                                                                                                                | Owner ruling 2026-11-15                                       |
+| D26 | The page is read on the device in tiers: schema.org data, then microdata, then a rule-based reader, then an on-device AI tier when the account setting allows it (on by default on mobile, off on web), each a strict yes or no (spec 004 `FR-064`). The cook never reviews the extraction. P5 keeps the ingredient match review (ADR-0071) and the statement.                                                                                                                                                                                                                                                                  | Owner ruling 2026-11-15                                       |
+| D27 | "Where is this recipe from?" is asked only when part of the recipe was pasted and the cook gave no statement (S9). Its choices are: I wrote this; from a web page; from a cookbook or magazine; from another person; keep it private (spec 016). The §7.4 keys and the S9 boards are re-specified to that set.                                                                                                                                                                                                                                                                                                                  | Owner ruling 2026-11-15                                       |
+| D28 | The private copy keeps the page's wording, with food matching, and shows the source author's name (spec 004 `FR-066`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Owner ruling 2026-11-15                                       |
+| D29 | On the slots-full dead end (S17) the main button is "Upgrade to Pro", with "Compare plans" and a "Not now" button of equal size (`010-FR-042c`, amended for this screen only).                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Owner ruling 2026-11-15                                       |
+| D30 | Add a recipe (P1) is never a centred dialog or a sheet. The floating New recipe button (FAB) opens a speed dial. The inline New recipe button on the My recipes search row (N1) and the sidebar New recipe button (`RecipeCreateButton`) open an anchored menu. The options are spec 004's: Paste a recipe, Paste a link, Photograph a recipe card, More ways, and Write it yourself. There is no fixed cap: one item per way in that has shipped, up to spec 004's five. A way in whose flow has not shipped is absent. A centred modal is kept for a task that must block all interaction and context, and this one does not. | Owner comment on the ImportAddRecipeWeb1280 board, 2026-11-17 |
+| D31 | Paste is available on all devices: the web paste item shows in P1 on every web screen, touch browsers included. Nothing hides it by pointer type.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Owner answer 2026-11-17 (was O7)                              |
+| D32 | Leaving a started import has no confirm. Back just leaves, the import is already saved, and a short snackbar says where (`importMessages.leave.saved`). The "Leave the import?" dialog (`ImportWizardLeave`) is dropped.                                                                                                                                                                                                                                                                                                                                                                                                        | Owner answer 2026-11-17 (was Q7)                              |
 
 Governing documents read: `docs/design/uiRefreshWorkshop5/ownerFeedback.md` (N1, N8, P4, P5, C2, E1 apply),
 `docs/research/userNeeds/synthesis.md` (theme 1, need 2, designer point 1), ADR-0072 §3, ADR-0074 §3a, ADR-0089 §1, §5
 and §7, and the owner's type-scale and 28 pt rulings in memory (even sizes only, which overrides C1's 13, 15 and 17).
+
+D30 rests on the owner ruling of 2026-11-17. It widens `docs/design/uiOverhaul/createEntryC.md` §8, the "M3 FAB menu / speed dial" row, which
+flips to a speed dial on Android only, to iPhone and web 390 as well, and it overrides that file's objections to an
+extended FAB and to the iOS form. The flip condition alone ("the chooser becomes pure buttons") is not what carries it:
+P1 is now pure buttons, but the ruling is the authority. The conflicts D30 opens with older rulings are answered in D30
+to D32, and §15 lists what spec 004 must amend.
 
 ---
 
@@ -80,27 +89,27 @@ markup. R6 WCAG 2.2 AA on both platforms.
 
 ```
 My recipes ─ New recipe ─► P1 Add a recipe (chooser)
-                              ├─ Paste a recipe ─► P2 Paste screen ─ Import ─┬─► P3 Pick one (several recipes) ─┐
-                              │                                              ├─► P4 Already saved (duplicate) ──┤
-                              │                                              └──────────────────────────────────┴─► P5 Review ─ Save ─► P6 Recipe detail (Checking)
-                              └─ Write it yourself ─► editor (exists)
+ ├─ Paste a recipe ─► P2 Paste screen ─ Import ─┬─► P3 Pick one (several recipes) ─┐
+ │ ├─► P4 Already saved (duplicate) ──┤
+ │ └──────────────────────────────────┴─► P5 Review ─ Save ─► P6 Recipe detail (Checking)
+ └─ Write it yourself ─► editor (exists)
 ```
 
-| Screen           | Web, 840 and wider                                      | Web below 840, phone 390 and 384      | Tablet 834 and 1194                      |
-| ---------------- | ------------------------------------------------------- | ------------------------------------- | ---------------------------------------- |
-| P1 Add a recipe  | Centred dialog, at most 448 wide, from 640 (`sm`)       | Bottom sheet (web below 640, phones)  | Centred dialog, at most 448 wide         |
-| P2 Paste         | Full page in the Recipes area, eyebrow Back "‹ Recipes" | Pushed page, chevron Back only (N8)   | Pushed page, chevron Back with "Recipes" |
-| P3 Pick one      | Full page, replaces P2 in history                       | Pushed page                           | Pushed page                              |
-| P4 Already saved | Full page                                               | Pushed page                           | Pushed page                              |
-| P5 Review        | Two columns at the `wide` container class, else one     | One column, Save pinned at the bottom | 834: one column. 1194: two columns       |
-| P6 Recipe detail | Exists. Gains the Checking badge                        | Exists                                | Exists                                   |
+| Screen           | Web, 840 and wider                                        | Web below 840, phone 390 and 384                | Tablet 834 and 1194                        |
+| ---------------- | --------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------ |
+| P1 Add a recipe  | Menu anchored to the search-row New recipe (web from 600) | Speed dial from the FAB (web below 600, phones) | Menu anchored to the search-row New recipe |
+| P2 Paste         | Full page in the Recipes area, eyebrow Back "‹ Recipes"   | Pushed page, chevron Back only (N8)             | Pushed page, chevron Back with "Recipes"   |
+| P3 Pick one      | Full page, replaces P2 in history                         | Pushed page                                     | Pushed page                                |
+| P4 Already saved | Full page                                                 | Pushed page                                     | Pushed page                                |
+| P5 Review        | Two columns at the `wide` container class, else one       | One column, Save pinned at the bottom           | 834: one column. 1194: two columns         |
+| P6 Recipe detail | Exists. Gains the Checking badge                          | Exists                                          | Exists                                     |
 
 On mobile, until the spec 004 AI fallback ships, there is no P1: "New recipe" opens the editor directly, as it does
-today, and no one-row chooser is drawn or built. When it ships, mobile gets P1 with both rows (§14).
+today, and no one-item menu is drawn or built. When it ships, mobile gets P1 with both items (§14).
 
 Back from P5 returns to P2 with the card and the paste kept. Back from P3 or P4 returns to P2. P2's Back leaves the
 flow without a prompt: nothing is saved yet and the clipboard still holds the paste. Once an import exists (after
-Import), leaving keeps the item under "To review" in My recipes (S39).
+Import), leaving keeps the item under "To review" in My recipes and says so in a snackbar, with no confirm (S39, D32).
 
 Navigation on mobile is the Recipes tab's native stack (DD25). P2, P3, P4 and P5 are pushed screens. On success P5 is
 replaced by P6, so Back from the recipe goes to My recipes, never into a finished review.
@@ -115,23 +124,61 @@ from 840) and whether actions pin (below 840).
 
 ### 3.1 P1 Add a recipe
 
-- `Sheet` (`@commise/ui/sheet`) with `size="content"` and `presentation="dialog"`. That is a bottom sheet on a phone and
-  a centred dialog of at most 448 from the tablet width (web `sm`, native 600 dp), which matches the
-  `ImportAddRecipe*` boards (`.dlg` at 448 px and `.bsheet`).
-- Title "Add a recipe" (the sheet's title, `sectionTitle` role). Then rows. Each row is a whole-row link: glyph, title
-  (`cardTitle`), hint (`meta`, `inkMuted`), trailing `chevronRight`. Rows are at least 52 tall, separated by
-  `lineDivider` hairlines, as the boards draw them.
-- **Rows shipped in PR C, in this order:**
-    1. "Paste a recipe" / "Text, or a whole web page", glyph `clipboardPaste`.
-    2. "Write it yourself" / "Start from an empty recipe", glyph `pencilLine` (the board's `#pan` glyph does not exist in
-       `glyphs.ts`, and `pencilLine` says "write").
-- **Rows not shown until their flow ships:** the "Paste a link" field with Add, "Photograph a recipe card" and "More
-  ways: a file, or your library from another app". None has a destination in code today, and a row that leads nowhere
-  is a defect. Each is a registry entry that is absent, not disabled and not marked "soon". When the link field ships it
-  needs a `link` glyph, which `glyphs.ts` does not have (a design-system addition, §8.3).
-- N1 holds: the trigger is the existing "New recipe" button on the My recipes search row. Today it opens the editor.
-  After PR C it opens P1 on web. On mobile it keeps opening the editor until the spec 004 AI fallback ships, and then
-  opens P1 with both rows (§14).
+P1 is a menu of the ways to add a recipe. It is never a centred dialog or a sheet (D30). The control that opens it
+decides its form. The viewport class decides the control (`packages/apps/commise/ui/src/tokens/layout.ts`: compact
+below 600, medium below 840, expanded from 840).
+
+| Viewport                                      | Control                                                           | P1 form       | Boards                                      |
+| --------------------------------------------- | ----------------------------------------------------------------- | ------------- | ------------------------------------------- |
+| Compact: web below 600, iPhone, Android phone | The floating "New recipe" (`CreateFab`)                           | Speed dial    | Web390, Iphone390, Android384               |
+| Medium and expanded: web from 600, iPad       | The "New recipe" primary button on the My recipes search row (N1) | Anchored menu | Web768, Web1024, Web1280, Ipad834, Ipad1194 |
+| Expanded web, 840 and wider, every screen     | The sidebar "New recipe" (`RecipeCreateButton`)                   | Anchored menu | Web1024, Web1280                            |
+
+This follows the recipes canvases: `RecipesWeb390` and `RecipesIphone390` draw the FAB, `RecipesWeb768` and
+`RecipesIpad820` draw the search-row button with a chevron. At web 390 the anchored menu is not used, because the
+control there is the FAB. A sheet is not used either, because the owner ruled a speed dial for the FAB.
+
+**Anchored menu (button).**
+
+- It opens below the button, with its trailing edge on the button's trailing edge, 8 below it. When aligning the trailing edge would leave the window, it flips to align its leading edge with the button's leading edge. This is the case for the sidebar trigger, which sits in a 256 px sidebar. Width stays 320. When the
+  space below is too small, it opens above. It never covers the button.
+- Surface `paperOverlay`, radius 12, `shadows.lg`, a `lineDivider` hairline, 8 inner padding. No scrim. The page stays
+  visible and a click outside closes the menu (non-modal).
+- The button shows its open state: fill `actionPressed`, and the trailing `chevronDown` turns to point up.
+- No title and no Close control inside. The menu's name is "Add a recipe" (`chooser.title`).
+
+**Speed dial (FAB).**
+
+- The items stack above the FAB, 12 above it, 8 apart, at the trailing edge. They share one width:
+  `min(312, window - 32)`. Each item is a raised card: `paperOverlay`, radius 18, `shadows.lg`.
+- A scrim (`scrim`) covers the whole screen, the tab bar included. A tap on the scrim closes the dial.
+- The FAB becomes a 56 round button with the `x` glyph. Its name is "Close Add a recipe" (`chooser.close`).
+- When the items are taller than the space above the FAB, the item column scrolls inside itself. The FAB never moves.
+
+**Items, in both forms.** Each item is a whole-row control: glyph, title (`cardTitle`), hint (`meta`, `inkMuted`). No
+trailing chevron: an item is an action, not a list row. Each item is at least 56 tall. In the menu the glyph is plain, 24. In the dial it sits in a 36 `surfaceMuted` disc. Title and hint wrap. Nothing truncates.
+
+**Items, in this order on both platforms.** "Write it yourself" is always last.
+
+| #   | Item                     | Hint                                     | Glyph            | Present when                                                                               |
+| --- | ------------------------ | ---------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------ |
+| 1   | Paste a recipe           | Text, or a whole web page                | `clipboardPaste` | Web from PR C (page-only hint until the spec 004 AI fallback). Mobile from the AI fallback |
+| 2   | Paste a link             | A link to a recipe on the web            | `link` (new)     | The spec 004 link import ships. It opens its own screen. A field is not put in a menu      |
+| 3   | Photograph a recipe card | A card or a cookbook page                | `camera`         | The spec 011 photo route ships, for the cooks its plan rule allows                         |
+| 4   | More ways                | A file, or your library from another app | `fileUp` (new)   | The spec 004 file or library import ships (ADR-0072)                                       |
+| 5   | Write it yourself        | Start from an empty recipe               | `pencilLine`     | Always                                                                                     |
+
+- An item appears only when its flow has a destination. Until then it is absent. It is never disabled and never marked
+  "soon". The host builds the item list from the routes that exist (a registry), so a missing route cannot be drawn.
+- **With one item there is no menu.** When "Write it yourself" is the only item, the control opens the empty editor in
+  one tap, with no expanded state and no `aria-haspopup`. That is mobile until the spec 004 AI fallback ships (§14), and
+  the `ImportAddRecipeBeforeAiIphone390` board.
+- **No fixed cap on items (D30).** The chooser lists one item per way in that has shipped, up to the five above. uiOverhaul D4's
+  cap of three no longer applies.
+- **Paste is on every device (D31).** The web paste item shows on every web screen, a touch browser included. Nothing
+  hides it by pointer type. Before the AI fallback its hint is `chooser.pasteHintPageOnly`. A touch browser has no
+  page-source view, so a paste there that holds no recipe gets the S21 refusal (`paste.refused.noRecipePageOnly`).
+  Only the "How to copy a whole page" disclosure stays fine-pointer only (§3.6).
 
 ### 3.2 P2 Paste screen
 
@@ -199,20 +246,21 @@ reach, holds at both.
 
 ## 4. Platform translation (staff-ux §3.6)
 
-| Element                  | Web                                                           | Mobile                                                                                        | Disposition | Why                                                                                        |
-| ------------------------ | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
-| Chooser                  | Dialog from 640, sheet below                                  | Sheet on phones, dialog from 600 dp                                                           | kept        | One primitive (`presentation="dialog"`) decides by width on both                           |
-| Paste screen             | Page in the Recipes area                                      | Pushed screen in the Recipes stack                                                            | kept        | Same job                                                                                   |
-| How to copy a whole page | Disclosure, fine pointer only                                 | Absent                                                                                        | dropped     | Phones have no built-in source view (draft §1b, Apple Community 2026)                      |
-| Box height               | 10 to 16 rows                                                 | Phone 8 to 12 rows, tablet 10 to 16                                                           | collapsed   | The box and Import fit above the phone keyboard                                            |
-| Paste gesture            | Ctrl or Command+V, or the context menu                        | The system paste menu on long press. No paste button, so no clipboard prompt (Settled 34)     | translated  | No clipboard read                                                                          |
-| Import                   | End of an in-flow row from 840, content width                 | Phones and iPad 834: full width, pinned at the bottom, above the keyboard. iPad 1194: in flow | moved       | Thumb reach. Full width removes wrap risk on "Import recipe" at +35%                       |
-| Card URL                 | Wraps anywhere, at most 2 lines, then an ellipsis             | Same                                                                                          | kept        | The full address is in the review's Source field, so the card shows enough to recognise it |
-| Clear                    | Ghost button in the card                                      | Same, 44 pt or 48 dp target                                                                   | kept        | Always visible. No hover reveal                                                            |
-| Pick one                 | Radio list, Import in flow                                    | Radio list rows full width, Import pinned                                                     | moved       | Reach                                                                                      |
-| Review                   | Two columns at wide, else one                                 | One column, source before lines, Save pinned. 1194 two columns                                | moved       | Priority on a narrow screen is what blocks Save                                            |
-| Save                     | In flow at the foot of the right column at wide, pinned below | Pinned at the bottom                                                                          | moved       | Reach                                                                                      |
-| Duplicate actions        | One row, content width, primary first                         | Stacked, full width, primary nearest the thumb (bottom)                                       | moved       | Reach, and three labels do not fit one row at 320                                          |
+| Element                  | Web                                                                                                                      | Mobile                                                                                        | Disposition | Why                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------- |
+| Add a recipe (P1)        | Anchored menu from the search-row button from 600, or the sidebar New recipe from 840. Speed dial from the FAB below 600 | Speed dial from the FAB on phones. Anchored menu from the search-row button on iPad           | moved       | The control decides the form (D30). The FAB sits in thumb reach, so its items stack above it |
+| Paste item in P1         | Shown on every web screen, touch included                                                                                | Shown from the AI fallback (§14)                                                              | kept        | Paste is available on all devices (D31)                                                      |
+| Paste screen             | Page in the Recipes area                                                                                                 | Pushed screen in the Recipes stack                                                            | kept        | Same job                                                                                     |
+| How to copy a whole page | Disclosure, fine pointer only                                                                                            | Absent                                                                                        | dropped     | Phones have no built-in source view (draft §1b, Apple Community 2026)                        |
+| Box height               | 10 to 16 rows                                                                                                            | Phone 8 to 12 rows, tablet 10 to 16                                                           | collapsed   | The box and Import fit above the phone keyboard                                              |
+| Paste gesture            | Ctrl or Command+V, or the context menu                                                                                   | The system paste menu on long press. No paste button, so no clipboard prompt (Settled 34)     | translated  | No clipboard read                                                                            |
+| Import                   | End of an in-flow row from 840, content width                                                                            | Phones and iPad 834: full width, pinned at the bottom, above the keyboard. iPad 1194: in flow | moved       | Thumb reach. Full width removes wrap risk on "Import recipe" at +35%                         |
+| Card URL                 | Wraps anywhere, at most 2 lines, then an ellipsis                                                                        | Same                                                                                          | kept        | The full address is in the review's Source field, so the card shows enough to recognise it   |
+| Clear                    | Ghost button in the card                                                                                                 | Same, 44 pt or 48 dp target                                                                   | kept        | Always visible. No hover reveal                                                              |
+| Pick one                 | Radio list, Import in flow                                                                                               | Radio list rows full width, Import pinned                                                     | moved       | Reach                                                                                        |
+| Review                   | Two columns at wide, else one                                                                                            | One column, source before lines, Save pinned. 1194 two columns                                | moved       | Priority on a narrow screen is what blocks Save                                              |
+| Save                     | In flow at the foot of the right column at wide, pinned below                                                            | Pinned at the bottom                                                                          | moved       | Reach                                                                                        |
+| Duplicate actions        | One row, content width, primary first                                                                                    | Stacked, full width, primary nearest the thumb (bottom)                                       | moved       | Reach, and three labels do not fit one row at 320                                            |
 
 **Primary action per platform.** Import, Save and the duplicate primary sit bottom and full width on phones and on web
 below 840 (thumb zone, Fitts). From 840 on web they sit in flow at the end of the content, because the pointer is
@@ -225,16 +273,16 @@ There is no drag anywhere (WCAG 2.5.7 not engaged).
 
 **Longest strings.** Controls are sized to their longest realistic string with +35%:
 
-| Element           | Longest English                    | Overflow rule                                                                  |
-| ----------------- | ---------------------------------- | ------------------------------------------------------------------------------ |
-| Import button     | "Import recipe" (13)               | Full width on phone. From 840 min-width 160, wraps to 2 lines, never truncates |
-| Save button       | "Save and replace" (16)            | Same                                                                           |
-| Duplicate actions | "Replace my copy" (15)             | Stacked full width below 840. From 840 one row, each wraps to 2 lines          |
-| Chooser row title | "Paste a recipe"                   | Wraps, no limit. The hint wraps                                                |
-| Card recipe name  | A title up to the recipe title cap | Wraps, at most 3 lines, then ellipsis. Full name in the accessible name        |
-| Card URL          | Up to 2,000 characters             | `overflow-wrap: anywhere`, 2 lines, ellipsis                                   |
-| Review H1         | Recipe title                       | Wraps, never truncates                                                         |
-| Pick-one row      | Recipe title                       | Wraps, never truncates                                                         |
+| Element           | Longest English                                                                       | Overflow rule                                                                                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Import button     | "Import recipe" (13)                                                                  | Full width on phone. From 840 min-width 160, wraps to 2 lines, never truncates                                                                                                      |
+| Save button       | "Save and replace" (16)                                                               | Same                                                                                                                                                                                |
+| Duplicate actions | "Replace my copy" (15)                                                                | Stacked full width below 840. From 840 one row, each wraps to 2 lines                                                                                                               |
+| Menu item         | "Photograph a recipe card" (24), hint "A file, or your library from another app" (41) | Title and hint wrap, no line limit. Dial width `min(312, window - 32)`, menu 320. At +35% a hint wraps to 3 lines, and the dial column scrolls inside itself if it runs out of room |
+| Card recipe name  | A title up to the recipe title cap                                                    | Wraps, at most 3 lines, then ellipsis. Full name in the accessible name                                                                                                             |
+| Card URL          | Up to 2,000 characters                                                                | `overflow-wrap: anywhere`, 2 lines, ellipsis                                                                                                                                        |
+| Review H1         | Recipe title                                                                          | Wraps, never truncates                                                                                                                                                              |
+| Pick-one row      | Recipe title                                                                          | Wraps, never truncates                                                                                                                                                              |
 
 **320 CSS px.** At 320 the card, the review and the pick-one list reflow to one column with no horizontal page scroll
 (WCAG 1.4.10). The only long unbroken strings are the URL and pasted lines. Both take `overflow-wrap: anywhere`. The
@@ -250,8 +298,10 @@ keyboard (`KeyboardLift` in `@commise/ui/keyboard-avoider`, which measures the o
 view above the pinned Save bar (the field-reveal hooks in `@commise/ui/field-reveal` on native, `scroll-padding-bottom`
 keyed on `data-import-bar` on web, WCAG 2.4.11).
 
-**Back and dismissal.** iOS edge swipe and the header chevron, Android system back, web browser back. P1 closes on
-Escape, the scrim and the close control, and returns focus to New recipe (the `Sheet` does this).
+**Back and dismissal.** iOS edge swipe and the header chevron, Android system back, web browser back. The anchored
+menu closes on Escape, a click or tap outside, and Tab out, and focus returns to New recipe. The speed dial closes on a
+tap on the scrim, the FAB's close glyph, Escape on a hardware keyboard, and the Android system Back. Back closes only the
+dial and never leaves the screen (`BackInterceptProvider`, DD25). Focus returns to the FAB.
 
 **Rules that belong in a primitive.** (a) The `maxRows` cap: `TextArea` already takes it on both platforms
 (`TextAreaProps.maxRows` in `packages/apps/commise/ui/src/input/props.ts`). This screen sets it. No primitive change. (b) The pinned action bar that reserves room under a
@@ -284,18 +334,18 @@ of a large `TextInput` value is an open risk (§15, A1).
 
 ### 5.2 Per control
 
-| Control            | Behaviour                                                                                                                                                                                                                     | Disabled when                        | Latency budget and feedback                                                        |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------- |
-| Chooser row        | Navigates to its destination and closes P1.                                                                                                                                                                                   | Never                                | Instant                                                                            |
-| Box                | Plain text, no rich paste. On `page` or `longText` the orchestration swaps it for the card. `shortText` stays editable.                                                                                                       | Never                                | The swap happens in the same frame as the change on web. Reading over 1 s shows S2 |
-| Card Clear         | Empties the paste, drops any import id, puts the empty box back and focuses it.                                                                                                                                               | Never                                | Instant                                                                            |
-| Import             | `empty`: focuses the box and announces S1's alert. `shortText` or `longText` in PR C: S22. `page` with no recipe: S21. `several`: P3. Otherwise mints one import id per paste, creates the import and advances to the review. | Never. Busy while importing (`busy`) | Over 1 s S6, over 10 s S7 with Cancel                                              |
-| Cancel (S7)        | Stops polling, deletes the import (`DELETE /import/{id}`), keeps the card, returns to S4 or S5.                                                                                                                               | Never                                | Instant to the cook. The delete runs behind                                        |
-| Pick-one radio     | Selects one title.                                                                                                                                                                                                            | Never                                | Instant                                                                            |
-| Pick-one Import    | No choice: focuses the group, announces "Choose a recipe first." Otherwise continues as Import with the chosen recipe.                                                                                                        | Never                                | As Import                                                                          |
-| Statement controls | Change the statement. Each choice is recorded (`recordChoices`).                                                                                                                                                              | Never                                | Optimistic. A failed record shows S18 at Save                                      |
-| Save recipe        | Unmet hold: S15. Otherwise records choices, calls `leave`, advances until saved, then opens P6.                                                                                                                               | Never (D7). Busy while saving        | Over 1 s the button's busy state. Over 10 s S34's slow line                        |
-| Duplicate actions  | §6.5                                                                                                                                                                                                                          | Never                                | Instant                                                                            |
+| Control            | Behaviour                                                                                                                                                                                                                     | Disabled when                                | Latency budget and feedback                                                        |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Menu item          | Closes P1 first, then navigates to its destination (the held-item rule of `ActionMenu`).                                                                                                                                      | Never. An item with no destination is absent | Instant                                                                            |
+| Box                | Plain text, no rich paste. On `page` or `longText` the orchestration swaps it for the card. `shortText` stays editable.                                                                                                       | Never                                        | The swap happens in the same frame as the change on web. Reading over 1 s shows S2 |
+| Card Clear         | Empties the paste, drops any import id, puts the empty box back and focuses it.                                                                                                                                               | Never                                        | Instant                                                                            |
+| Import             | `empty`: focuses the box and announces S1's alert. `shortText` or `longText` in PR C: S22. `page` with no recipe: S21. `several`: P3. Otherwise mints one import id per paste, creates the import and advances to the review. | Never. Busy while importing (`busy`)         | Over 1 s S6, over 10 s S7 with Cancel                                              |
+| Cancel (S7)        | Stops polling, deletes the import (`DELETE /import/{id}`), keeps the card, returns to S4 or S5.                                                                                                                               | Never                                        | Instant to the cook. The delete runs behind                                        |
+| Pick-one radio     | Selects one title.                                                                                                                                                                                                            | Never                                        | Instant                                                                            |
+| Pick-one Import    | No choice: focuses the group, announces "Choose a recipe first." Otherwise continues as Import with the chosen recipe.                                                                                                        | Never                                        | As Import                                                                          |
+| Statement controls | Change the statement. Each choice is recorded (`recordChoices`).                                                                                                                                                              | Never                                        | Optimistic. A failed record shows S18 at Save                                      |
+| Save recipe        | Unmet hold: S15. Otherwise records choices, calls `leave`, advances until saved, then opens P6.                                                                                                                               | Never (D7). Busy while saving                | Over 1 s the button's busy state. Over 10 s S34's slow line                        |
+| Duplicate actions  | §6.5                                                                                                                                                                                                                          | Never                                        | Instant                                                                            |
 
 Nothing is undoable in this flow except by deleting the saved recipe from its own page. Replace is the one destructive
 action, so it confirms first (S31).
@@ -371,7 +421,7 @@ check in review reuses the existing no-AI-check copy (**reuse**, the `ImportPast
 | S37 | Lines from a page (D12)             | A matched line's original text, where the line list shows it, reads "Pasted:" for a paste and "You wrote:" for typed text.                                                                                                                                                                                                                                                                                                                                                             | "Pasted: “{line}”" (`review.linePasted`). "You wrote:" is **reuse** (the existing row view copy)                                                                                                                                                                                                                                                                                                                                                            |
 | S38 | Offline in review                   | A banner above the lines. Choices stay in memory on this device. Save shows S23's sentence as an alert if pressed.                                                                                                                                                                                                                                                                                                                                                                     | "You’re offline. Your choices are kept on this device. Save when you’re back online." (`review.offline`)                                                                                                                                                                                                                                                                                                                                                    |
 | S40 | Changed to "I wrote this" (D18)     | The cook changes a detected third-party source to "I wrote this". "Who can see it" appears with Private selected. A neutral note sits under the "Where is it from?" choice, its one position, in `inkMuted` `meta`, with no glyph and no colour. It shows whenever "I wrote this" replaced a detected source, whichever visibility is chosen. No dialog. The S8 note and the confirmation line "Saving confirms this recipe is from {site}." are removed, because they no longer hold. | `review.wroteItNote`: "If you make it public, a person checks it before others can see it. Private is not affected."                                                                                                                                                                                                                                                                                                                                        |
-| S39 | Leaving after Import                | Back from P2, or closing the app, after an import exists and before Save. A polite snackbar on the next screen.                                                                                                                                                                                                                                                                                                                                                                        | "{title} waits under “To review” in My recipes." (`review.waits`)                                                                                                                                                                                                                                                                                                                                                                                           |
+| S39 | Leaving after Import                | Back from P2, or closing the app, after an import exists and before Save. Back just leaves, with no confirm (D32). A polite snackbar on the next screen says where the import went.                                                                                                                                                                                                                                                                                                    | "Saved. Finish it from My recipes." (`importMessages.leave.saved`)                                                                                                                                                                                                                                                                                                                                                                                          |
 
 **Hold field labels.** The controls in S12 to S14 keep the editor's labels: the keys `cuisineLabel`, `servingsLabel`,
 `prepTimeLabel` and `cookTimeLabel` in `recipeFormMessages` (`packages/apps/commise/features/recipes/src/form/messages.ts`),
@@ -458,9 +508,19 @@ takes the same copy in the mobile round.
 
 This is the ADR-0074 review path, not a new state of the recipe. What makes it go to a person rather than clear on its own is a server rule (§15, A7). The copy never says why, never mentions the detected site and never asks the cook to justify the choice.
 
-### 6.7 Disclosure and chooser copy
+### 6.7 Disclosure and Add a recipe copy
 
-See §7.2 and §7.3. The states are numbered S1 to S51.
+See §7.2 and §7.3. The states are numbered S1 to S51. P1 has these states, and no others:
+
+| State    | What shows                                                                                             | Board                              |
+| -------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| Closed   | The control at rest: the search-row button with `chevronDown`, or the FAB with `plus` and "New recipe" | Recipes canvases                   |
+| Open     | The menu or the dial with the items that exist. Focus on the first item                                | `ImportAddRecipe*`                 |
+| One item | No menu. The control opens the editor                                                                  | `ImportAddRecipeBeforeAiIphone390` |
+| Full set | All five items, when spec 004 and spec 011 ship                                                        | `ImportAddRecipeFullSet*`          |
+
+P1 has no loading, empty, error or offline state of its own. The items come from code, not from a request. Offline, every
+item still shows. Each destination owns its own offline state (the editor works offline, ADR-0057).
 
 ---
 
@@ -521,25 +581,35 @@ to the source page). The alt text is "{title}, photo from {site}" (`privateCopy.
 | `howTo.firefox`    | "Firefox: press Ctrl+U, or Command+U on a Mac. Then select all and copy."                                                        |
 | `howTo.safari`     | "Safari: first turn on the Develop menu in Safari’s Settings, under Advanced. Then press Option+Command+U, select all and copy." |
 
-### 7.3 Chooser
+### 7.3 Add a recipe (P1)
 
-| Key                         | Copy                                 |
-| --------------------------- | ------------------------------------ |
-| `chooser.title`             | "Add a recipe"                       |
-| `chooser.close`             | "Close Add a recipe"                 |
-| `chooser.paste`             | "Paste a recipe"                     |
-| `chooser.pasteHint`         | "Text, or a whole web page"          |
-| `chooser.pasteHintPageOnly` | "Copy a whole web page and paste it" |
-| `chooser.write`             | "Write it yourself"                  |
-| `chooser.writeHint`         | "Start from an empty recipe"         |
+| Key                         | Copy                                       | Used by                                       |
+| --------------------------- | ------------------------------------------ | --------------------------------------------- |
+| `chooser.title`             | "Add a recipe"                             | The menu's accessible name, both forms        |
+| `chooser.close`             | "Close Add a recipe"                       | The FAB's name while the dial is open         |
+| `chooser.paste`             | "Paste a recipe"                           | Item 1                                        |
+| `chooser.pasteHint`         | "Text, or a whole web page"                | Item 1, after the spec 004 AI fallback        |
+| `chooser.pasteHintPageOnly` | "Copy a whole web page and paste it"       | Item 1 on web, until the spec 004 AI fallback |
+| `chooser.link`              | "Paste a link"                             | Item 2 (new)                                  |
+| `chooser.linkHint`          | "A link to a recipe on the web"            | Item 2 (new)                                  |
+| `chooser.photo`             | "Photograph a recipe card"                 | Item 3 (new)                                  |
+| `chooser.photoHint`         | "A card or a cookbook page"                | Item 3 (new)                                  |
+| `chooser.more`              | "More ways"                                | Item 4 (new)                                  |
+| `chooser.moreHint`          | "A file, or your library from another app" | Item 4 (new)                                  |
+| `chooser.write`             | "Write it yourself"                        | Item 5                                        |
+| `chooser.writeHint`         | "Start from an empty recipe"               | Item 5                                        |
 
-The chooser keys sit under `importMessages.chooser.*`, not `paste.*`, because the chooser outlives this feature.
+The trigger's name is the existing `list.createCta` ("New recipe") on both forms. It is not a new key, and it gains no
+suffix such as "choose how to add it": `aria-haspopup="menu"` and the expanded state already say it opens a menu.
 
-Until the spec 004 AI fallback ships, the web row uses `chooser.pasteHintPageOnly`, because plain text cannot be read yet and the hint must
-not promise it. P2 pairs it with `paste.hintPageOnly` and S21 with `paste.refused.noRecipePageOnly`. When the spec 004 AI
-fallback ships, the hint becomes `chooser.pasteHint` and the three page-only keys are deleted. Mobile has no chooser
-until the spec 004 AI fallback: "New recipe" opens the editor directly, with no one-row chooser. After it ships, mobile
-shows the chooser with both rows (§14, owner exception).
+The keys sit under `importMessages.chooser.*`, not `paste.*`, because P1 outlives this feature. The six new keys ship
+with the flows they name, not with PR C. A key with no item is dead copy.
+
+Until the spec 004 AI fallback ships, the web item uses `chooser.pasteHintPageOnly`, because plain text cannot be read
+yet and the hint must not promise it. P2 pairs it with `paste.hintPageOnly` and S21 with
+`paste.refused.noRecipePageOnly`. When the spec 004 AI fallback ships, the hint becomes `chooser.pasteHint` and the
+three page-only keys are deleted. Mobile has no menu until the spec 004 AI fallback: "New recipe" opens the editor
+directly. After it ships, mobile shows the menu with both items (§14, owner exception).
 
 ### 7.4 Statement block keys (`importMessages.statement.*`)
 
@@ -587,7 +657,7 @@ set of strings.
 
 ### 7.5 Your imports
 
-A pasted import lists like any import, wherever imports are listed (D17). No screen in code or on the canvases is named "Your imports" today, and the bulk copy sends waiting items to "To review" in My recipes (`leave.resume`), so S39 names that place (§15, U4). Its row reads the recipe title, then "Pasted · {site}" (`yourImports.fromSite`)
+A pasted import lists like any import, wherever imports are listed (D17). No screen in code or on the canvases is named "Your imports" today, and the bulk copy sends waiting items to "To review" in My recipes (`leave.resume`), so S39 names that place (§15, U4). The S39 snackbar is the new key `importMessages.leave.saved`. The existing `leave.resume` is the body of the dropped bulk "Save and leave?" dialog, with a `{next}` and plural text, so it is not reused. Its row reads the recipe title, then "Pasted · {site}" (`yourImports.fromSite`)
 or "Pasted text" (`yourImports.fromText`).
 
 ---
@@ -598,7 +668,7 @@ or "Pasted text" (`yourImports.fromText`).
 
 | Part                                                                                                          | Path                                                                                                                                                     |
 | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Sheet` (`presentation="dialog"`, `size="content"`)                                                           | `packages/apps/commise/ui/src/sheet/Sheet.tsx`, `Sheet.native.tsx`                                                                                       |
+| `CreateFab`, `ActionMenu` (its Radix base and held-item rule), `Button`                                       | `packages/apps/commise/ui/src/createFab/`, `ui/src/actionMenu/`, `ui/src/button/`                                                                        |
 | `TextArea` with `minRows`, `maxRows`                                                                          | `packages/apps/commise/ui/src/input/TextArea.tsx`, `TextArea.native.tsx`                                                                                 |
 | `FieldLabel`, `fieldHintId`                                                                                   | `packages/apps/commise/ui/src/input/`                                                                                                                    |
 | `Button` (`busy`, `description`, `focusRequested`)                                                            | `packages/apps/commise/ui/src/button/`                                                                                                                   |
@@ -617,26 +687,16 @@ or "Pasted text" (`yourImports.fromText`).
 
 Each has a web leaf and a `.native.tsx` leaf with one shared props file. All are presentational: props in, markup out.
 
-**`AddRecipeChooser`**. The P1 sheet and its rows.
+**The P1 host (feature, not a render component).** `RecipeCreateButton` (`features/recipes/src/list/`) already
+selects the create control by where it is drawn. It gains the item list and picks the form:
 
-```ts
-interface AddRecipeChooserProps {
-    readonly open: boolean;
-    readonly onOpenChange: (open: boolean) => void;
-    /** The rows that ship, in order. The host builds this list from the registry of routes that exist. */
-    readonly rows: readonly AddRecipeRow[];
-}
-interface AddRecipeRow {
-    readonly id: 'paste' | 'write';
-    readonly icon: IconName;
-    readonly title: string;
-    readonly hint: string;
-    readonly onChoose: () => void;
-}
-```
+- one item: today's control, which runs the item (no menu);
+- two or more, compact viewport: `CreateFabMenu` (§8.3);
+- two or more, medium or expanded: `CreateMenuButton` (§8.3) on the search row. The sidebar variant opens P1 as described in §3.1.
 
-The row is a plain pressable link row inside this component. `ChoiceRow` is not used: its contract is a selection
-(`chosen`, `busy`, `refused`), and these rows navigate.
+The item list comes from one pure registry, `addRecipeItemsOf(routes)`, which lists only the routes that exist, in the
+§3.1 order, with "Write it yourself" last. It is the only place that decides which items show. P1 needs no feature
+render component of its own: both forms are design-system primitives.
 
 **`PasteImportPage`**. The P2 frame: title, hint, the entry slot, the status slot, the disclosure (web), Import.
 
@@ -733,14 +793,66 @@ guess chip. Controlled. New, because "Where is it from?" exists only on the boar
 1. **`StatusBadge` gains `checking`.** `BADGE_STATUSES` has no checking value today, and ADR-0074 names the state. Words
    "Checking", glyph `clock`, tone the `note` tone. Key `checkingBadge` lives with the recipe detail copy, not here. If
    the content-source-check work already adds it, reuse that.
-2. **A `link` glyph**, when the chooser's link row ships. Not needed for PR C.
+2. **Glyphs `link` and `fileUp`**, when items 2 and 4 ship. Not needed for PR C.
+3. **`@commise/ui/create-menu`, a new package export with two render components and one item type.** Both are needed
+   for PR C on web, and for mobile when the spec 004 AI fallback ships.
+
+```ts
+/** One way to add a recipe. There is no `disabled` field: an item with no destination is absent. */
+interface CreateMenuItem {
+    readonly id: string;
+    readonly icon: IconName;
+    readonly title: string;
+    readonly hint: string;
+    readonly onSelect: () => void;
+}
+interface CreateMenuProps {
+    /** The control's visible label and name: "New recipe". */
+    readonly label: string;
+    /** The menu's accessible name: "Add a recipe". */
+    readonly menuLabel: string;
+    /** Two or more, in order. The host renders no menu for one. */
+    readonly items: readonly CreateMenuItem[];
+    readonly focusRequested?: boolean;
+    readonly onFocusRequestHandled?: () => void;
+}
+interface CreateFabMenuProps extends CreateMenuProps {
+    /** The open FAB's name: "Close Add a recipe". */
+    readonly closeLabel: string;
+}
+```
+
+- **`CreateMenuButton`** (anchored menu). Web leaf: Radix `DropdownMenu` with `modal={false}`, the same base as
+  `ActionMenu`'s web leaf, so it inherits the APG menu-button keyboard model. The trigger is the design-system
+  `Button` (primary, `plus`, trailing `chevronDown`). Native leaf (iPad): an anchored Tamagui `Popover` with no
+  adapt-to-sheet, holding `menuitem` rows. This is new: `Popover.native` and `ActionMenu.native` are both sheets
+  today, because a phone has no room to anchor. An iPad does.
+- **`CreateFabMenu`** (speed dial). Composes `CreateFab` for the closed face and keeps every `CreateFab` rule
+  (placement, shrink on scroll, hidden with the keyboard, yields in first run). Open: the scrim, the item stack and
+  the close face (§3.1). Web leaf: Radix `DropdownMenu`, modal, with the scrim as its overlay. Native leaf: a
+  Tamagui `Portal` over the screen, with `BackInterceptProvider` for Android Back.
+- Both reuse `ActionMenu`'s held-item rule: a chosen item runs once the menu has gone, so the screen it opens never
+  meets the menu.
+- Why not extend `ActionMenu`: its contract is a row's actions behind a `⋯` named for that row, with a structural
+  destructive slot and a sheet on native. A create menu has a labelled primary trigger, hints, no destructive
+  action, and two native forms. Folding both into one component needs a mode prop that switches behaviour, which
+  the house forbids. The two share the Radix base, not the component.
+- Why not `Popover`: it is a titled `role="dialog"` with a Close control. A list of actions is a menu.
+- Retired prior art: `features/recipes/src/speedDial/SpeedDial.tsx` (commits `d53f2b08f`, `644a5b5e4`), built on
+  the owner ruling of 2026-08-25 and retired by uiOverhaul D4. Read it in history for its tests. Do not restore it into the
+  feature package: the menu now lives in the design system, so web and native and every create surface share it.
+
+4. **`CreateFab` yields from the medium viewport.** The recipes canvases draw the search-row button from 600 (N1), and
+   `RecipeCreateButton` still floats the FAB below 840. `createFabPolicy` answers `hidden` from `medium`, and the
+   search-row button takes its place. `docs/design/uiOverhaul/buildSpec.md` §3.4 (tablet: always-extended FAB) is
+   superseded by N1 and the canvases on this point.
 
 No new token. No disclosure primitive (web only, native `<details>`).
 
 ### 8.4 Tokens used
 
 Type roles only (`packages/apps/commise/ui/src/tokens/typography.ts`): `largeTitle` 28 for H1s (the cap), `sectionTitle`
-18 for the sheet title, `cardTitle` 16, `body` 16, `label` 14, `meta` 14. Every size is even.
+18, `cardTitle` 16, `body` 16, `label` 14, `meta` 14. Every size is even.
 
 Colour: `ink`, `inkMuted`, `paper`, `paperRaised`, `lineDivider`, `lineControl`, `attention` for warning glyphs,
 `danger` for the unmet-hold outline and its error line, `action` only on the enabled primary button fill and the card's
@@ -752,19 +864,21 @@ group.
 
 ### 8.5 Pattern register
 
-| Unit                                                                              | `@pattern`                                                                                      |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `pastedContentKindOf` (classifier, §5.1)                                          | Specification: the card rule written once                                                       |
-| `pastedRecipeImport` reducer                                                      | State, with each transition a Command (blueprint)                                               |
-| `usePastedRecipeImport`                                                           | Headless hook: the orchestration that picks box or card, page or pick-one, and owns focus moves |
-| `PasteImportPage`                                                                 | Template: a fixed frame with an entry slot the host fills                                       |
-| `PastedContentCard`                                                               | Visitor, satisfied by the language: an exhaustive switch over `PastedContentSummary`            |
-| `NeededBeforeSaving`                                                              | Visitor, satisfied by the language: an exhaustive switch over `ImportHold`                      |
-| `ImportOneRecipeReview`                                                           | Template: the same slots as the bulk step, a different frame                                    |
-| `AddRecipeChooser` rows                                                           | Registry: the list of routes that exist, built once by the host                                 |
-| `AddRecipeChooser`, `PickOneRecipe`, `AlreadySavedNotice`, `ImportStatementBlock` | No tag beyond their layer, unless the builder finds one                                         |
+| Unit                                                          | `@pattern`                                                                                      |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `pastedContentKindOf` (classifier, §5.1)                      | Specification: the card rule written once                                                       |
+| `pastedRecipeImport` reducer                                  | State, with each transition a Command (blueprint)                                               |
+| `usePastedRecipeImport`                                       | Headless hook: the orchestration that picks box or card, page or pick-one, and owns focus moves |
+| `PasteImportPage`                                             | Template: a fixed frame with an entry slot the host fills                                       |
+| `PastedContentCard`                                           | Visitor, satisfied by the language: an exhaustive switch over `PastedContentSummary`            |
+| `NeededBeforeSaving`                                          | Visitor, satisfied by the language: an exhaustive switch over `ImportHold`                      |
+| `ImportOneRecipeReview`                                       | Template: the same slots as the bulk step, a different frame                                    |
+| `addRecipeItemsOf`                                            | Registry: the list of routes that exist, built once                                             |
+| `RecipeCreateButton`                                          | Strategy, selected by the host: no menu, `CreateFabMenu` or `CreateMenuButton`                  |
+| `CreateMenuButton`, `CreateFabMenu`                           | Menu Button (WAI-ARIA APG), an Adapter over Radix `DropdownMenu` on web and Tamagui on native   |
+| `PickOneRecipe`, `AlreadySavedNotice`, `ImportStatementBlock` | No tag beyond their layer, unless the builder finds one                                         |
 
-Preserved: `ImportWizardStep`, `ImportLineList`, `MatchLineList` and `Sheet` keep their contracts. Already satisfied, so
+Preserved: `ImportWizardStep`, `ImportLineList`, `MatchLineList`, `Sheet`, `ActionMenu` and `CreateFab` keep their contracts. Already satisfied, so
 add nothing: TanStack mutations are the Commands for create, record and leave. Focus requests use the existing
 `ControlFocus` request and acknowledge pair.
 
@@ -775,7 +889,7 @@ add nothing: TanStack mutations are the Commands for create, record and leave. F
 Claimed level: WCAG 2.2 AA, both platforms. EN 301 549 cites 2.1 AA, which 2.2 AA satisfies.
 
 - **Headings.** One H1 per screen (P2, P3, P4, P5). In P5 "Needed before saving", the source block and "Ingredients"
-  are H2. The chooser's title is the dialog's name.
+  are H2. P1 is a menu, so it has no heading. Its name is "Add a recipe" (§9a).
 - **Reading order (1.3.2, 2.4.3).** In P5's two columns the DOM order is header, Needed group, source and visibility,
   Save area, then lines. The grid places the lines in the left column. Visual order differs, but Tab and the screen
   reader reach Save without passing every line. One column uses the same DOM order.
@@ -797,8 +911,8 @@ Claimed level: WCAG 2.2 AA, both platforms. EN 301 549 cites 2.1 AA, which 2.2 A
 - **Glyphs.** Waiting states use a static glyph, not a spinner, except the `Button`'s own busy state (2.2.2, the house
   rule in `form/pasteStatusCopy.ts`).
 - **Cancel** in S7 is the exit from a wait over 10 s.
-- **Targets (2.5.8).** Clear, the chooser rows, the radio rows, the guess chip's Yes and No, and the duplicate actions
-  are at least 24 CSS px on web, and 44 pt on iOS and 48 dp on Android by platform convention.
+- **Targets (2.5.8).** Clear, the radio rows, the guess chip's Yes and No, and the duplicate actions
+  are at least 24 CSS px on web, and 44 pt on iOS and 48 dp on Android by platform convention. The P1 items are 56 (§9a).
 - **Focus not obscured (2.4.11).** The pinned bars reserve their height under a focused field (`data-import-bar` on web,
   field reveal on native).
 - **Contrast (1.4.3, 1.4.11).** Text on `paperRaised` uses `ink` and `inkMuted`. The card's `action` edge is decoration,
@@ -808,13 +922,38 @@ Claimed level: WCAG 2.2 AA, both platforms. EN 301 549 cites 2.1 AA, which 2.2 A
   "Replace my copy" on Keep.
 - **Route changes.** Every new screen moves focus to its H1. P6 follows recipe detail's existing landing.
 - **Voice control.** Every visible label is contained in its accessible name.
-- **Reduced motion.** No motion beyond the platform's own push and sheet transitions.
+- **Reduced motion.** No motion beyond the platform's own push and sheet transitions, and P1's (§9a).
+
+### 9a. P1 Add a recipe
+
+- **Roles (4.1.2).** Web: the trigger has `aria-haspopup="menu"`, `aria-expanded` and `aria-controls`. The menu is
+  `role="menu"`, named "Add a recipe". Each item is `role="menuitem"`, named by its title, with the hint as its
+  description (`aria-describedby`). Native: the trigger has `accessibilityRole="button"` and
+  `accessibilityState={{ expanded }}`. The item container has `accessibilityRole="menu"`, each item
+  `accessibilityRole="menuitem"` with the hint as `accessibilityHint`. The one-item control has no popup and no
+  expanded state.
+- **Focus (2.4.3, 2.1.1).** On open, focus moves to the first item (screen-reader focus on native). Arrow Up and Down
+  move between items and wrap. Home and End go to the first and last. Enter or Space runs the focused item. Escape
+  closes and returns focus to the trigger. On web Tab closes the menu and moves on. The speed dial traps focus in the
+  items and the close FAB while it is open, because the scrim blocks the rest of the screen.
+- **Dismissal.** The menu closes on Escape and on a click or tap outside. The dial closes on the scrim, the close FAB,
+  Escape, and Android Back. Every close returns focus to the control that opened it.
+- **Targets (2.5.8).** Items are at least 56 tall and full width of the menu, above 44 pt and 48 dp. The open FAB is 56.
+- **Name in label (2.5.3).** The trigger's name is its visible label, "New recipe". The open FAB has no visible label,
+  so its name is "Close Add a recipe", which a voice user reads from the `x` glyph's meaning.
+- **Contrast (1.4.3, 1.4.11).** Item text on `paperOverlay` uses `ink` and `inkMuted`. The focused item's 2 px
+  `focusRing` and the open button's `actionPressed` fill must reach 3:1 in light and dark. The designer checks both
+  on the boards.
+- **Reflow (1.4.10).** At 320 the dial is 288 wide and the menu is not used (320 is compact). Titles and hints wrap. No
+  horizontal scroll.
+- **Motion (2.3.3).** The items fade and rise 8 over the platform's short duration, staggered by at most 3 steps. Under
+  reduced motion they appear at once.
 
 ---
 
 ## 10. Motion
 
-None of our own. Screen pushes, the sheet and the dialog use the platform's and the primitives' transitions, which
+None of our own beyond P1. Screen pushes, the sheet and the dialog use the platform's and the primitives' transitions, which
 already honour reduced motion. The box-to-card swap is instant, with no cross-fade.
 
 ---
@@ -843,7 +982,7 @@ Each new board is drawn from the decisions and the existing `ImportWizardStep` a
 old paste board. Every redrawn board uses role names, even sizes only (the existing boards use 13, 15 and 17, which the
 type-scale ruling retired), and no Public option for a web page.
 
-The boards draw the state after the spec 004 AI fallback: both platforms show the paste row with "Text, or a whole web page". The web chooser
+The boards draw the state after the spec 004 AI fallback: both platforms show the paste item with "Text, or a whole web page". The web P1
 board adds one more variant with the page-only hint, `ImportPasteEmptyWeb1280` adds a page-only S1 frame, and W6 draws S21
 with `refused.noRecipePageOnly` and the S22 board, for the PR C release (§14).
 
@@ -854,57 +993,57 @@ slots: "12 are left". S27: an allowance of 200 recipes in 24 hours (ADR-0072), w
 
 ### 12.1 `recipeImportingWeb`
 
-| #   | Board                       | States shown                                                        | Sizes           |
-| --- | --------------------------- | ------------------------------------------------------------------- | --------------- |
-| W1  | ImportAddRecipe (redraw)    | P1 with the two shipped rows                                        | 1280, 1024, 768 |
-| W2  | ImportPasteEmpty            | S1, and S1 page only (PR C) at 1280. 1024 shows the disclosure open | 1280, 1024, 768 |
-| W3  | ImportPastePageCard         | S4 with a recipe name                                               | 1280, 768       |
-| W4  | ImportPasteTextCard         | S5, and S3 beside it                                                | 1280            |
-| W5  | ImportPasteWaiting          | S2, S6, S7                                                          | 1280            |
-| W6  | ImportPasteRefused          | S19, S21 (page only, PR C), S22, S25, S26                           | 1280, 768       |
-| W7  | ImportPasteErrors           | S23, S24, S27, S28                                                  | 1280            |
-| W8  | ImportPastePickOne          | S29                                                                 | 1280, 768       |
-| W9  | ImportPasteDuplicate        | S30, S31, S33 and S32, with S44's read-only statement               | 1280, 768       |
-| W10 | ImportPasteReview           | S8, S10, S37, S40                                                   | 1280, 1024, 768 |
-| W11 | ImportPasteReviewHolds      | S9, S11 to S15 after Save                                           | 1280, 768       |
-| W12 | ImportPasteSlotsFull        | S17, S18                                                            | 1280            |
-| W13 | ImportPasteSaved            | S35, and S41 (Private, In review and the held line) beside it       | 1280, 768       |
-| W14 | ImportPasteHeld             | S41                                                                 | 390             |
-| W15 | ImportPasteCopies           | S42, S43, and S42 at the 20-copy limit (1280 only)                  | 1280, 390       |
-| W16 | ImportPasteReplaceReview    | S44                                                                 | 1280, 390       |
-| W17 | ImportPasteReplaceDraft     | S45                                                                 | 1280, 390       |
-| W18 | ImportPasteReplaceConflict  | S46                                                                 | 1280, 390       |
-| W19 | ImportPasteReviewHolds      | S11 to S15 in their fixed order (W11 at 390)                        | 390             |
-| W20 | ImportPasteErrors (adds)    | S47, S48, S49 (phase 2, owed)                                       | 1280, 390       |
-| W21 | ImportPasteDuplicate (adds) | S50, S51 (phase 2, owed)                                            | 1280, 390       |
-| W22 | ImportPasteReview (adds)    | The P5 source-photo preview (phase 2, owed)                         | 1280, 390       |
-| W23 | `recipeDetailWeb`           | Photo states (1), (2) and (4), §6.8 (phase 2, owed)                 | Per that canvas |
+| #   | Board                       | States shown                                                                                                                                                                | Sizes                                                     |
+| --- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| W1  | ImportAddRecipe (redraw)    | P1 open, two items: the anchored menu from 768, the speed dial at 390 (D30). PageOnly at 1280: the PR C hint. FullSet: all five items, labelled as the state after spec 004 | 1280, 1024, 768, 390, PageOnly 1280, FullSet 1280 and 390 |
+| W2  | ImportPasteEmpty            | S1, and S1 page only (PR C) at 1280. 1024 shows the disclosure open                                                                                                         | 1280, 1024, 768                                           |
+| W3  | ImportPastePageCard         | S4 with a recipe name                                                                                                                                                       | 1280, 768                                                 |
+| W4  | ImportPasteTextCard         | S5, and S3 beside it                                                                                                                                                        | 1280                                                      |
+| W5  | ImportPasteWaiting          | S2, S6, S7                                                                                                                                                                  | 1280                                                      |
+| W6  | ImportPasteRefused          | S19, S21 (page only, PR C), S22, S25, S26                                                                                                                                   | 1280, 768                                                 |
+| W7  | ImportPasteErrors           | S23, S24, S27, S28                                                                                                                                                          | 1280                                                      |
+| W8  | ImportPastePickOne          | S29                                                                                                                                                                         | 1280, 768                                                 |
+| W9  | ImportPasteDuplicate        | S30, S31, S33 and S32, with S44's read-only statement                                                                                                                       | 1280, 768                                                 |
+| W10 | ImportPasteReview           | S8, S10, S37, S40                                                                                                                                                           | 1280, 1024, 768                                           |
+| W11 | ImportPasteReviewHolds      | S9, S11 to S15 after Save                                                                                                                                                   | 1280, 768                                                 |
+| W12 | ImportPasteSlotsFull        | S17, S18                                                                                                                                                                    | 1280                                                      |
+| W13 | ImportPasteSaved            | S35, and S41 (Private, In review and the held line) beside it                                                                                                               | 1280, 768                                                 |
+| W14 | ImportPasteHeld             | S41                                                                                                                                                                         | 390                                                       |
+| W15 | ImportPasteCopies           | S42, S43, and S42 at the 20-copy limit (1280 only)                                                                                                                          | 1280, 390                                                 |
+| W16 | ImportPasteReplaceReview    | S44                                                                                                                                                                         | 1280, 390                                                 |
+| W17 | ImportPasteReplaceDraft     | S45                                                                                                                                                                         | 1280, 390                                                 |
+| W18 | ImportPasteReplaceConflict  | S46                                                                                                                                                                         | 1280, 390                                                 |
+| W19 | ImportPasteReviewHolds      | S11 to S15 in their fixed order (W11 at 390)                                                                                                                                | 390                                                       |
+| W20 | ImportPasteErrors (adds)    | S47, S48, S49 (phase 2, owed)                                                                                                                                               | 1280, 390                                                 |
+| W21 | ImportPasteDuplicate (adds) | S50, S51 (phase 2, owed)                                                                                                                                                    | 1280, 390                                                 |
+| W22 | ImportPasteReview (adds)    | The P5 source-photo preview (phase 2, owed)                                                                                                                                 | 1280, 390                                                 |
+| W23 | `recipeDetailWeb`           | Photo states (1), (2) and (4), §6.8 (phase 2, owed)                                                                                                                         | Per that canvas                                           |
 
 W14 to W19 have no 768 board. Web below 840 lays these screens out as it does at 390: one column, actions pinned and
 stacked. The confirm dialog puts its buttons side by side at 768, as it does at 1280.
 
 ### 12.2 `recipeImportingMobile`
 
-| #   | Board                       | States shown                                        | Sizes                                    |
-| --- | --------------------------- | --------------------------------------------------- | ---------------------------------------- |
-| M1  | ImportAddRecipe (redraw)    | P1                                                  | Iphone390, Android384, Ipad834, Ipad1194 |
-| M2  | ImportPasteEmpty            | S1, keyboard closed                                 | Iphone390, Android384, Ipad834, Ipad1194 |
-| M3  | ImportPasteKeyboard         | S3 with the keyboard open, Import above it          | Iphone390, Android384                    |
-| M4  | ImportPasteTextCard         | S5                                                  | Iphone390, Android384                    |
-| M5  | ImportPastePageCard         | S4                                                  | Iphone390, Ipad1194                      |
-| M6  | ImportPasteWaiting          | S6, S7                                              | Iphone390                                |
-| M7  | ImportPasteRefused          | S25, S26                                            | Iphone390, Ipad834                       |
-| M8  | ImportPasteErrors           | S23, S27                                            | Iphone390                                |
-| M9  | ImportPastePickOne          | S29                                                 | Iphone390, Ipad1194                      |
-| M10 | ImportPasteDuplicate        | S30, S31                                            | Iphone390, Ipad834                       |
-| M11 | ImportPasteReview           | S8, S10, S40                                        | Iphone390, Android384, Ipad834, Ipad1194 |
-| M12 | ImportPasteReviewHolds      | S9, S15                                             | Iphone390, Android384, Ipad1194          |
-| M13 | ImportPasteSlotsFull        | S17                                                 | Iphone390                                |
-| M14 | ImportPasteSaved            | S35, S41 (Private, In review and the held line)     | Iphone390, Ipad834                       |
-| M15 | ImportPasteErrors (adds)    | S47, S48, S49 (phase 2, owed)                       | Iphone390                                |
-| M16 | ImportPasteDuplicate (adds) | S50, S51 (phase 2, owed)                            | Iphone390                                |
-| M17 | ImportPasteReview (adds)    | The P5 source-photo preview (phase 2, owed)         | Iphone390                                |
-| M18 | `recipeDetailMobile`        | Photo states (1), (2) and (4), §6.8 (phase 2, owed) | Per that canvas                          |
+| #   | Board                       | States shown                                                                                                                               | Sizes                                                                           |
+| --- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| M1  | ImportAddRecipe (redraw)    | P1 open, two items: the speed dial on phones, the anchored menu on iPad (D30). FullSet: all five items. BeforeAi: no menu, the FAB at rest | Iphone390, Android384, Ipad834, Ipad1194, FullSet Iphone390, BeforeAi Iphone390 |
+| M2  | ImportPasteEmpty            | S1, keyboard closed                                                                                                                        | Iphone390, Android384, Ipad834, Ipad1194                                        |
+| M3  | ImportPasteKeyboard         | S3 with the keyboard open, Import above it                                                                                                 | Iphone390, Android384                                                           |
+| M4  | ImportPasteTextCard         | S5                                                                                                                                         | Iphone390, Android384                                                           |
+| M5  | ImportPastePageCard         | S4                                                                                                                                         | Iphone390, Ipad1194                                                             |
+| M6  | ImportPasteWaiting          | S6, S7                                                                                                                                     | Iphone390                                                                       |
+| M7  | ImportPasteRefused          | S25, S26                                                                                                                                   | Iphone390, Ipad834                                                              |
+| M8  | ImportPasteErrors           | S23, S27                                                                                                                                   | Iphone390                                                                       |
+| M9  | ImportPastePickOne          | S29                                                                                                                                        | Iphone390, Ipad1194                                                             |
+| M10 | ImportPasteDuplicate        | S30, S31                                                                                                                                   | Iphone390, Ipad834                                                              |
+| M11 | ImportPasteReview           | S8, S10, S40                                                                                                                               | Iphone390, Android384, Ipad834, Ipad1194                                        |
+| M12 | ImportPasteReviewHolds      | S9, S15                                                                                                                                    | Iphone390, Android384, Ipad1194                                                 |
+| M13 | ImportPasteSlotsFull        | S17                                                                                                                                        | Iphone390                                                                       |
+| M14 | ImportPasteSaved            | S35, S41 (Private, In review and the held line)                                                                                            | Iphone390, Ipad834                                                              |
+| M15 | ImportPasteErrors (adds)    | S47, S48, S49 (phase 2, owed)                                                                                                              | Iphone390                                                                       |
+| M16 | ImportPasteDuplicate (adds) | S50, S51 (phase 2, owed)                                                                                                                   | Iphone390                                                                       |
+| M17 | ImportPasteReview (adds)    | The P5 source-photo preview (phase 2, owed)                                                                                                | Iphone390                                                                       |
+| M18 | `recipeDetailMobile`        | Photo states (1), (2) and (4), §6.8 (phase 2, owed)                                                                                        | Per that canvas                                                                 |
 
 ### 12.3 Redrawn this round (D13)
 
@@ -924,6 +1063,8 @@ except ImportWizardStep and ImportStatements, which are redrawn in place at Ipad
 The rights line has two forms. With the page's photo shown: "Saved from {site}. The words and photo belong to their author. Private to you." (`editor.source.rightsLabelWithPhoto`). Without one: "Saved from {site}. The words belong to their author. Private to you." (`editor.source.rightsLabel`). Both need a check before ship. Every `recipeImportingWeb` board and every `recipeImportingMobile` board that shows the line carries it. The author line (`editor.source.authorLabel`) is drawn on the boards that show the read-only statement (S33, S44,
 S46). The other web boards that show the attribution line, ImportPasteReview (W10) among them, add it at their next
 redraw.
+
+**Boards removed (D32).** `ImportWizardLeave` (`ImportWizardLeaveWeb1280`, `ImportWizardLeaveWeb390`, `ImportWizardLeaveIphone390`, `ImportWizardLeaveAndroid384`, `ImportWizardLeaveIpad820`) is deleted from both canvases. Leaving has no confirm. The wizard's leave snackbar is S39.
 
 **Further drift, flagged and not in this round's count.** All five `ImportWizardStates` boards and all five
 `ImportStatements` boards (Web1280, Web390, Iphone390, Android384, Ipad820) keep an `aria-disabled` Public radio on the
@@ -960,15 +1101,15 @@ The owner ruled on 2026-11-15, relayed by Nova Squad, that whole-page paste goes
 fallback, and accepted an exception to the rule that every user-facing feature ships to web and mobile in the same release
 (`docs/CODING_STANDARDS.md` §14).
 
-- **Web, from PR C:** the "Paste a recipe" row is live, with the page-only hint (`chooser.pasteHintPageOnly`), P2's
+- **Web, from PR C:** the "Paste a recipe" item is live, with the page-only hint (`chooser.pasteHintPageOnly`), P2's
   page-only hint (`paste.hintPageOnly`) and the page-only S21 (`paste.refused.noRecipePageOnly`). A whole page is
   imported. A plain text paste gets S22, which says plain text comes later and offers "Write it yourself".
-- **Mobile, until the spec 004 AI fallback:** no chooser. "New recipe" opens the editor directly, as today. A one-row
-  chooser is not drawn or built.
+- **Mobile, until the spec 004 AI fallback:** no menu. "New recipe" opens the editor directly, as today. A one-item
+  menu is not drawn or built (`ImportAddRecipeBeforeAiIphone390` draws this state).
 - **Why:** a phone cannot practically copy a page's source, so a phone paste is plain text. Nothing reads plain text
   before the spec 004 AI fallback, so a mobile row would refuse every paste. A desktop cook can copy a whole page, so web gets real value
   now.
-- **Ends when:** the spec 004 AI fallback ships. Then both platforms open the chooser with both rows, with the hint
+- **Ends when:** the spec 004 AI fallback ships. Then both platforms open P1 with both items, with the hint
   "Text, or a whole web page". S22 and the three page-only keys are removed, and P2 and S21 use `paste.hint` and
   `paste.refused.noRecipe`.
 - **Scope:** this feature only. It sets no precedent for other features.
@@ -1048,5 +1189,4 @@ These are decided. They change the open items above as follows.
 - **On U3.** Redraw `ImportWizardStep`, `ImportStatements` and `ImportWizardStates` in this round too. They offer Public for
   a web page, which ADR-0089 §5 forbids.
 - **On U4.** Use "To review" in My recipes. D17's "Your imports" means that list. Do not name a new list.
-- **On the chooser.** The sheet becomes a centred dialog at 640 px, as the component does. D14's "840" applies only to the
-  shell (tab bar or sidebar).
+- **On the chooser.** Superseded by D30 (2026-11-17).

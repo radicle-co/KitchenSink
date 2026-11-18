@@ -651,11 +651,13 @@ phone, top of page               phone, scrolled (pushed screen only)      840+ 
 
 ### 3.4 Create entry (D4)
 
-| Surface                                    | Where                                                                                              | Form                                                                                                                                                     | A tap or click does    |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| Phone (web < 600, iPhone, Android compact) | floating, bottom trailing corner, 16 px from the side, 16 px above the tab bar, plus the safe area | `CreateFab`, 56 tall, `plus` + "New recipe". It shrinks to a 56 px icon button while scrolling down and grows back on scroll up, at the top, or on focus | opens the empty editor |
-| Tablet (web 600–839, iPad, Android tablet) | the same corner, 24 px in from the side edge                                                       | always extended                                                                                                                                          | opens the empty editor |
-| Web 840 and wider                          | first item in the sidebar (§3.2), on **every** screen                                              | primary button                                                                                                                                           | opens the empty editor |
+D30 in `docs/design/pasteImport/spec.md` (owner, 2026-11-17) replaces what the button opens: the chooser's form, its paste-box lead and its three-choice cap. Placement and visibility above still stand.
+
+| Surface                                    | Where                                                                                              | Form                                                                                                                                                     | A tap or click does (replaced by D30) |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Phone (web < 600, iPhone, Android compact) | floating, bottom trailing corner, 16 px from the side, 16 px above the tab bar, plus the safe area | `CreateFab`, 56 tall, `plus` + "New recipe". It shrinks to a 56 px icon button while scrolling down and grows back on scroll up, at the top, or on focus | opens the empty editor                |
+| Tablet (web 600–839, iPad, Android tablet) | the same corner, 24 px in from the side edge                                                       | always extended                                                                                                                                          | opens the empty editor                |
+| Web 840 and wider                          | first item in the sidebar (§3.2), on **every** screen                                              | primary button                                                                                                                                           | opens the empty editor                |
 
 **Where the floating button shows (phone and tablet):**
 

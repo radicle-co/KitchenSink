@@ -74,23 +74,36 @@ const prepSecondsOf = (prepTimeMinutes: number | undefined): number | undefined 
 
 const roundedUp = (seconds: number): number => Math.ceil(seconds / TOTAL_STEP_SECONDS) * TOTAL_STEP_SECONDS;
 
-const rowsOf = (steps: readonly JobStepInput[], classes: readonly StepClass[]): readonly JobRow[] => {
+/** A step with its class, so the number and the class cannot drift apart. */
+interface ClassedStep {
+    readonly stepNumber: number;
+    readonly cls: StepClass;
+}
+
+const rowsOf = (classed: readonly ClassedStep[]): readonly JobRow[] => {
     const rows: JobRow[] = [];
 
-    steps.forEach(({ stepNumber }, index) => {
-        const cls = classes[index];
-        const last = rows.at(-1);
+    for (const { stepNumber, cls } of classed) {
+        switch (cls.kind) {
+            case 'wait':
+                rows.push({ kind: 'wait', stepNumber, waits: cls.waits });
+                break;
+            case 'readStep':
+                rows.push({ kind: 'readStep', stepNumber });
+                break;
+            case 'untimed': {
+                const last = rows.at(-1);
 
-        if (cls?.kind === 'wait') {
-            rows.push({ kind: 'wait', stepNumber, waits: cls.waits });
-        } else if (cls?.kind === 'readStep') {
-            rows.push({ kind: 'readStep', stepNumber });
-        } else if (last?.kind === 'untimed') {
-            rows[rows.length - 1] = { kind: 'untimed', fromStep: last.fromStep, toStep: stepNumber };
-        } else {
-            rows.push({ kind: 'untimed', fromStep: stepNumber, toStep: stepNumber });
+                if (last?.kind === 'untimed') {
+                    rows[rows.length - 1] = { kind: 'untimed', fromStep: last.fromStep, toStep: stepNumber };
+                } else {
+                    rows.push({ kind: 'untimed', fromStep: stepNumber, toStep: stepNumber });
+                }
+
+                break;
+            }
         }
-    });
+    }
 
     return rows;
 };
@@ -104,10 +117,11 @@ const rowsOf = (steps: readonly JobStepInput[], classes: readonly StepClass[]): 
  *   counts nothing, and a time over 24 hours is a wait that counts and offers no timer. Pure.
  */
 export function jobShapeOf(input: JobShapeInput): JobShape {
-    const classes = input.steps.map(classOf);
+    const classed = input.steps.map((step) => ({ stepNumber: step.stepNumber, cls: classOf(step) }));
+    const classes = classed.map(({ cls }) => cls);
     const prepSeconds = prepSecondsOf(input.prepTimeMinutes);
     const counted = classes.flatMap((cls) => (cls.kind === 'wait' ? cls.waits : []));
-    const rows = rowsOf(input.steps, classes);
+    const rows = rowsOf(classed);
 
     if (prepSeconds === undefined) {
         return { prepSeconds, total: counted.length > 0 ? { kind: 'noPrep' } : { kind: 'noTimes' }, rows };

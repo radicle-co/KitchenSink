@@ -1,4 +1,5 @@
 import {
+    MAX_TIMER_MS,
     cookingStepsOf,
     jobShapeOf,
     offerSecondsOf,
@@ -60,7 +61,7 @@ describe('one reading for the waits a screen shows and the timers cooking mode o
             const longLines = step.lines.filter((line) => {
                 const one = readDuration(line);
 
-                return one.kind === 'one' && one.seconds > 86_400;
+                return one.kind === 'one' && one.seconds > MAX_TIMER_MS / 1_000;
             });
 
             expect(reading.waits.filter((wait) => !wait.offers)).toHaveLength(longLines.length);

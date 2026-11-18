@@ -29,15 +29,15 @@ Both are registered in [`docs/design/canvases/registry.json`](../../docs/design/
 
 ## Channels
 
-| Channel                               | Design                                                                                                                                     | Boards                                                                                            |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| Paste (text or a whole web page)      | Paste design spec                                                                                                                          | `ImportPaste*`                                                                                    |
-| Public version choice (every channel) | Public version design spec                                                                                                                 | `ImportPublic*`                                                                                   |
-| Link                                  | Partly designed. The server AI fallback for a link import has no states yet. The paid-site and private-only link boards are being redrawn. | `ImportLinkProgress*`, `ImportImportFailed*`                                                      |
-| File and library (bulk)               | Designed                                                                                                                                   | `ImportModeChoice*`, `ImportWizard*`, `ImportLibrary*`, `ImportFlaggedLine*`, `ImportStatements*` |
-| Shared link from a social app         | Gated only on the Instagram official-API path (D-002). Check the boards against FR-009 before building.                                    | `ImportVideo*`, `ImportShareCapture*`                                                             |
-| "Save to Commise" button              | No design yet (FR-053)                                                                                                                     | none                                                                                              |
-| Photo                                 | Not this feature: spec 011 owns it.                                                                                                        | none                                                                                              |
+| Channel                               | Design                                                                                                  | Boards                                                                                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Paste (text or a whole web page)      | Paste design spec                                                                                       | `ImportPaste*`                                                                                                                      |
+| Public version choice (every channel) | Public version design spec                                                                              | `ImportPublic*`                                                                                                                     |
+| Link                                  | Partly designed. The server AI fallback for a link import has no states yet.                            | `ImportLinkProgress*`, `ImportImportFailed*`, `ImportLinkPasteInstead*`, `ImportLinkPrivateOnly*`, `ImportReviewDraft*`             |
+| File and library (bulk)               | Designed                                                                                                | `ImportModeChoice*`, `ImportWizard*`, `ImportLibrary*`, `ImportLibraryAlreadyInLibrary*`, `ImportFlaggedLine*`, `ImportStatements*` |
+| Shared link from a social app         | Gated only on the Instagram official-API path (D-002). Check the boards against FR-009 before building. | `ImportVideo*`, `ImportShareCapture*`                                                                                               |
+| "Save to Commise" button              | No design yet (FR-053)                                                                                  | none                                                                                                                                |
+| Photo                                 | Not this feature: spec 011 owns it.                                                                     | none                                                                                                                                |
 
 ## Owed designs
 
@@ -47,7 +47,6 @@ Each needs a design spec section and boards on both canvases before it is built:
   the on, off and unavailable states.
 - Ownership claim at import and later (FR-014a item 4, FR-055): offered, in progress, verified, failed and declined.
 - The paid-list admin screen (FR-014): designed with the server link fetch.
-- The bulk "Already in your library" state (FR-068).
 - The statement block's rows for statements 1a, 2 and 6 (`FR-014a`), and the bulk "Needs your statement" group. Until
   then the block offers only the paste design spec's §7.4 statements. The wording is confirmed before launch
   (`016-FR-050`).

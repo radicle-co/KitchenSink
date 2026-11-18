@@ -32,6 +32,13 @@ export function createLineTicks(): LineTicks {
 const sameKey = (a: LineKey, b: LineKey): boolean => a.stepIndex === b.stepIndex && a.lineIndex === b.lineIndex;
 
 /**
+ * Whether an index is a whole number inside a step's lines. `Number.isInteger` is not redundant: 1.5 passes the
+ * bounds.
+ */
+const isLineOf = (lineIndex: number, lineCount: number): boolean =>
+    Number.isInteger(lineIndex) && lineIndex >= 0 && lineIndex < lineCount;
+
+/**
  * Ticks one line. Ticking a ticked line changes nothing.
  *
  * @param ticks - The current ticks.
@@ -77,10 +84,6 @@ export function untickLine(ticks: LineTicks, key: LineKey): LineTicks {
 export function isLineTicked(ticks: LineTicks, key: LineKey): boolean {
     return ticks.ticked.some((ticked) => sameKey(ticked, key));
 }
-
-/** Whether an index is a whole number inside a step's lines. `Number.isInteger` is not redundant: 1.5 passes the bounds. */
-const isLineOf = (lineIndex: number, lineCount: number): boolean =>
-    Number.isInteger(lineIndex) && lineIndex >= 0 && lineIndex < lineCount;
 
 /**
  * The focus line of a step when nothing was tapped: its first unticked line. `focusLineOf` adds the tapped line.

@@ -56,10 +56,10 @@ export {
     TIMER_LIMIT,
     alarmQueue,
     isValidTimerMs,
+    isWaitingForCook,
     reduceTimer,
     timeLeftMs,
     timerOrder,
-    isWaitingForCook,
 } from './timer.js';
 export type {
     ActiveTimer,

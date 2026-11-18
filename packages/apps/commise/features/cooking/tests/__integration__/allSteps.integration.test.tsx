@@ -32,6 +32,9 @@ const STEPS = cookingStepsOf([
     { stepNumber: 5, instruction: 'Plate it. Garnish it. Serve it.' },
 ]);
 
+// The reducer takes its limit from the caller. The session holds three timers, so the test passes a limit of its own.
+const SESSION_TIMER_LIMIT = 10;
+
 const start = (id: string, stepIndex: number, durationMs: number, nowMs: number): TimerCommand => ({
     kind: 'start',
     id,
@@ -40,8 +43,7 @@ const start = (id: string, stepIndex: number, durationMs: number, nowMs: number)
     stepDigest: `s1:0000000${String(stepIndex)}`,
     name: undefined,
     durationMs,
-    // Any limit above the one under test; ten is the cook's real ceiling.
-    limit: 10,
+    limit: SESSION_TIMER_LIMIT,
     nowMs,
 });
 

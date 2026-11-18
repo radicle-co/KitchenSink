@@ -5,7 +5,7 @@ cites the spec for each rule.
 
 ## Product goal
 
-A cook brings a recipe they already have elsewhere into Commise in under a minute, from a link, a paste, a file or a
+A cook brings a recipe they already have elsewhere into Commise from a link, a paste, a file or a
 social post. The cook keeps a private copy in the source's own wording, with the source named. A recipe from someone
 else reaches the public by one of two routes only:
 
@@ -37,8 +37,8 @@ The cook's own recipes ("I wrote this") publish as the cook's own work.
 ## Plans and limits
 
 - Every channel is open to Free and paid cooks. No import channel needs Pro (`FR-028`).
-- The import allowance is 200 recipes a rolling day on Free and 1,000 on a paid plan (`FR-067`).
-- A recipe kept private uses one of a Free cook's 50 private slots. Pro has no limit (`FR-028`, `001-FR-003`).
+- Every import spends the one import allowance (`FR-067` has the numbers).
+- A recipe kept private uses a private slot on Free. Pro has no limit (`FR-028` has the numbers).
 
 ## Story map
 
@@ -47,31 +47,30 @@ gate.
 
 ### Must have
 
-| ID     | Story                                                                                     | Example                                                                                                                                                         | Spec                                         |
-| ------ | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| US-401 | As a cook, I import a recipe from a web page link, so I do not retype it.                 | Sam pastes a blog link into Link. Sam's phone reads the page, Sam chooses Private, finishes the food matches and saves. The recipe keeps the blog's wording.    | `FR-008`, `FR-064`, `FR-066`                 |
-| US-415 | As a cook, I paste a recipe page or plain text, so a recipe with no link still comes in.  | Ana pastes a recipe from a notes app. No device tier reads it, so the server AI fallback finds the title, ingredient lines and steps in Ana's own lines.        | `FR-052`, `FR-056`, `FR-057`, `FR-061`       |
-| US-411 | As a cook, I import one file or a whole export from another app.                          | Lee uploads an export with 300 recipes. Each recipe becomes one item. Two fail with a reason, and the other 298 are saved.                                      | `FR-019`, `FR-026`, `FR-027`                 |
-| US-410 | As a cook, I say where each recipe is from, and the label follows from what I say.        | Mia pastes a recipe from a cookbook and chooses "From a cookbook or magazine". She cites the book. Her copy stays private.                                      | `FR-014a`, `FR-011`, `FR-052`                |
-| US-416 | As a cook, a source the app guesses is only a question to me.                             | The paste holds a web address. The app suggests it as the source. The item waits under "Needs your statement" until Jo confirms or clears it.                   | `FR-060`                                     |
-| US-417 | As a cook, I choose Private, Public or Both at import.                                    | Ravi imports a free blog recipe and chooses Both. He keeps his private copy, and the public recipe is the Commise-written version.                              | `FR-065`, `FR-066`. Public is gated on 003B. |
-| US-418 | As a cook, I publish my own rewrite of an imported recipe as "Adapted by you".            | Kim rewrites the steps in her own words. The rewrite passes the similarity check and review, and it goes public as "Adapted by you".                            | `003B-FR-015`, `FR-054`                      |
-| US-407 | As a cook, a page I already hold does not pile up as copies.                              | Tom imports a page he imported last week. He chooses Duplicate, Replace or Cancel. His only copy is public, so he sees "Import as a new copy" and Cancel.       | `FR-008`, `SC-005`                           |
-| US-419 | As a cook, a bulk import skips recipes already in my library unless I ask for a new copy. | Lee's export holds 12 recipes whose web addresses are already in his library. Each shows "Already in your library" and is skipped. He switches one to a copy.   | `FR-068`                                     |
-| US-408 | As a cook, I fill in what the source left out, and nothing is guessed for me.             | A page has no yield. The item is held as "needs servings" until Sam enters 4.                                                                                   | `FR-015`, `FR-020`, `FR-021`                 |
-| US-409 | As a cook, a failed import tells me why and what to do next.                              | A page answers 404. Sam sees that the page cannot be reached and is offered the paste path. No recipe is saved.                                                 | `FR-016`, `FR-058`, `FR-059`, `FR-063`       |
-| US-420 | As a cook, I know when my allowance or my private slots run out, and when they come back. | A Free cook imports a file past the day's 200. The rest wait and resume after the time shown.                                                                   | `FR-022`, `FR-067`, `FR-028`                 |
-| US-403 | As a cook, I always see where an imported recipe came from, on web and on mobile.         | Sam's private copy names the blog's author. The Commise-written public version names and links the site, with "Not affiliated."                                 | `FR-010`, `FR-066`                           |
-| US-413 | As a cook, my recipe stays when its source page is deleted.                               | The blog removes the page. Sam's recipe stays, and its source shows as unverifiable.                                                                            | `FR-017`                                     |
-| US-421 | As a creator, I mark a recipe as mine, at import or later.                                | Dee imports from her own blog and chooses "This is my recipe, from my site or account". The label is "Written by you". A recipe saved earlier can claim it too. | `FR-014a` (1a), `FR-055`                     |
+| ID     | Story                                                                                     | Example                                                                                                                                                                                         | Spec                                         |
+| ------ | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| US-401 | As a cook, I import a recipe from a web page link, so I do not retype it.                 | Sam pastes a blog link into Link. Sam's phone reads the page, Sam chooses Private, finishes the food matches and saves. The recipe keeps the blog's wording.                                    | `FR-008`, `FR-064`, `FR-066`                 |
+| US-415 | As a cook, I paste a recipe page or plain text, so a recipe with no link still comes in.  | Ana pastes a recipe from a notes app. No device tier reads it, so the server AI fallback finds the title, ingredient lines and steps in Ana's own lines.                                        | `FR-052`, `FR-056`, `FR-057`, `FR-061`       |
+| US-411 | As a cook, I import one file or a whole export from another app.                          | Lee uploads an export with 300 recipes. Each recipe becomes one item. Two fail with a reason, and the other 298 are saved.                                                                      | `FR-019`, `FR-026`, `FR-027`                 |
+| US-410 | As a cook, I say where each recipe is from, and the label follows from what I say.        | Mia pastes a recipe from a cookbook and chooses "From a cookbook or magazine". She cites the book. Her copy stays private.                                                                      | `FR-014a`, `FR-011`, `FR-052`                |
+| US-416 | As a cook, a source the app guesses is only a question to me.                             | The paste holds a web address. The app suggests it as the source. The item waits under "Needs your statement" until Jo confirms or clears it.                                                   | `FR-060`                                     |
+| US-417 | As a cook, I choose Private, Public or Both at import.                                    | Ravi imports a free blog recipe and chooses Both. He keeps his private copy, and the public recipe is the Commise-written version.                                                              | `FR-065`, `FR-066`. Public is gated on 003B. |
+| US-418 | As a cook, I publish my own rewrite of an imported recipe as "Adapted by you".            | Kim rewrites the steps in her own words. The rewrite passes the similarity check and review, and it goes public as "Adapted by you".                                                            | `003B-FR-015`, `FR-054`                      |
+| US-407 | As a cook, a page I already hold does not pile up as copies.                              | Tom imports a page he imported last week as a private copy. He chooses Duplicate, Replace or Cancel. Had his only copy been public, he would see only "Import as a new copy" and Cancel.        | `FR-008`, `SC-005`                           |
+| US-419 | As a cook, a bulk import skips recipes already in my library unless I ask for a new copy. | Lee's export holds 12 recipes whose web addresses are already in his library. Each shows "Already in your library" and is skipped. He switches one to a copy.                                   | `FR-068`                                     |
+| US-408 | As a cook, I fill in what the source left out, and nothing is guessed for me.             | A page has no yield. The item is held as "needs servings" until Sam enters 4.                                                                                                                   | `FR-015`, `FR-020`, `FR-021`                 |
+| US-409 | As a cook, a failed import tells me why and what to do next.                              | A page answers 404. Sam sees that the page cannot be reached and is offered the paste path. No recipe is saved.                                                                                 | `FR-016`, `FR-058`, `FR-059`, `FR-063`       |
+| US-420 | As a cook, I know when my allowance or my private slots run out, and when they come back. | A Free cook imports a file past the day's allowance. The rest wait and resume after the time shown.                                                                                             | `FR-022`, `FR-067`, `FR-028`                 |
+| US-403 | As a cook, I always see where an imported recipe came from, on web and on mobile.         | Sam's private copy names the blog's author. The Commise-written public version names and links the site, with "Not affiliated."                                                                 | `FR-010`, `FR-066`                           |
+| US-413 | As a cook, my recipe stays when its source page is deleted.                               | The blog removes the page. Sam's recipe stays, and its source shows as unverifiable.                                                                                                            | `FR-017`                                     |
+| US-421 | As a creator, I mark a recipe as mine, at import or later.                                | Dee imports from her own blog and chooses "This is my recipe, from my site or account". The label is "Written by you". A recipe saved earlier can claim it too.                                 | `FR-014a` (1a), `FR-055`                     |
+| US-402 | As a cook, I import a recipe from a public TikTok, Instagram, YouTube or Facebook post.   | Ana shares a TikTok link. Her phone reads the public video briefly and keeps nothing. Her private copy names the creator. The Instagram official-API path waits on the Meta credential (D-002). | `FR-009`                                     |
 
 ### Must have, gated
 
-| ID     | Story                                                                                   | Example                                                                                                                   | Spec     | Gate                     |
-| ------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------ |
-| US-402 | As a cook, I import a recipe from a public TikTok, Instagram, YouTube or Facebook post. | Ana shares a TikTok link. Her phone reads the public video briefly and keeps nothing. Her private copy names the creator. | `FR-009` | Official-API path: D-002 |
-| US-422 | As a cook, my private copy keeps the page's main photo.                                 | Sam's phone saves the blog's main photo to his private copy. A public version never uses a source photo.                  | `FR-008` | D-020                    |
-| US-423 | As a reader of a food blog, I tap "Save to Commise" and the recipe comes in.            | Ana taps the button under a recipe card, signs in and taps Save. One import of that page starts.                          | `FR-053` | D-019                    |
+| ID     | Story                                                   | Example                                                                                                  | Spec     | Gate  |
+| ------ | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------- | ----- |
+| US-422 | As a cook, my private copy keeps the page's main photo. | Sam's phone saves the blog's main photo to his private copy. A public version never uses a source photo. | `FR-008` | D-020 |
 
 ### Should have
 
@@ -81,9 +80,10 @@ gate.
 
 ### Could have
 
-| ID     | Story                                                             | Example                                                                   | Spec              |
-| ------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------------- |
-| US-414 | As an admin, I add a paid site to the paid list without a deploy. | An admin adds a domain. The next server fetch for that domain is skipped. | `FR-014`, `D-004` |
+| ID     | Story                                                                        | Example                                                                                          | Spec              | Gate                               |
+| ------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------- | ---------------------------------- |
+| US-414 | As an admin, I add a paid site to the paid list without a deploy.            | An admin adds a domain. The next server fetch for that domain is skipped.                        | `FR-014`, `D-004` | None                               |
+| US-423 | As a reader of a food blog, I tap "Save to Commise" and the recipe comes in. | Ana taps the button under a recipe card, signs in and taps Save. One import of that page starts. | `FR-053`          | D-019. P3 in spec.md User Story 2. |
 
 ### Withdrawn ids
 

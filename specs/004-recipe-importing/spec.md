@@ -453,8 +453,7 @@ them. So the import never invents a value:
 - **FR-014a**: System MUST require, for any pasted or typed recipe the cook attests came from an external source, both an
   explicit source attestation and a source citation: a URL where one exists, otherwise a free-text citation (book title,
   author, page). Where the cited source is not a publicly reachable web page, the recipe is classified `imported_paid` or
-  `imported_physical`, and its verbatim copy stays private. The cook can publish their own Adapted version, in their own
-  words with credit, and it is judged by the Adapted rule. Automated detection heuristics run as a secondary signal that
+  `imported_physical`, and its verbatim copy stays private. For an `imported_physical` recipe, the cook can publish their own Adapted version, in their own words with credit, and it is judged by the Adapted rule. An `imported_paid` recipe's only public form is the Commise-written version (`FR-065`, `003B-FR-015`). Automated detection heuristics run as a secondary signal that
   flags a recipe for review. A heuristic never reclassifies a recipe or blocks a save.
     - **One statement, one label, on every channel.** The cook chooses one statement for each recipe. The table is the
       only place the mapping is stated, and it does not vary by channel. A channel offers the statements its own rules

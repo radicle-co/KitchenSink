@@ -14,6 +14,8 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { STACK_ENV_KEYS } from '../../src/stackEnv.js';
+
 const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 const SCRIPT = path.join(REPO_ROOT, 'packages/tools/local-sandbox/bin/localMaestro.sh');
 
@@ -488,13 +490,19 @@ describe('the local run uses its own pool users', () => {
     });
 });
 
+/**
+ * REWRITTEN 2026-11-19 (LS-PORT, TEST-CHANGE decisions/0044): the variable `LOCAL_MAESTRO_RECIPE_HOST_PORT` is gone. The
+ * recipe host port comes from the stack's published ports, which `LOCAL_SANDBOX_HOST_PORTS=recipes=<port>` moves; the door
+ * refuses the old variable by name. Old case to new case: "seeds against the moved host port, device keeps :3000" is the
+ * first case below with the new source; "defaults to the service's own port" is unchanged; the refusal is new.
+ */
 describe('a recipe host port something else holds', () => {
     it('seeds against the moved host port, while the device keeps addressing :3000', () => {
         const sandbox = makeSandbox();
         const result = run(
             sandbox,
             `local_maestro_seed_env '${sandbox.state}'; echo "$E2E_SEED_RECIPE_URL $LOCAL_MAESTRO_RECIPE_ORIGIN"`,
-            { LOCAL_MAESTRO_RECIPE_HOST_PORT: '3050' },
+            { E2E_SEED_RECIPE_URL: 'http://localhost:3050' },
         );
 
         expect(result.stdout.trim().split('\n').at(-1)).toBe('http://localhost:3050 http://localhost:3000');
@@ -505,6 +513,120 @@ describe('a recipe host port something else holds', () => {
         const result = run(sandbox, `local_maestro_seed_env '${sandbox.state}'; echo "$E2E_SEED_RECIPE_URL"`);
 
         expect(result.stdout.trim().split('\n').at(-1)).toBe('http://localhost:3000');
+    });
+
+    it('refuses the old variable with one R9 line, and runs nothing after it', () => {
+        const sandbox = makeSandbox();
+        const result = run(sandbox, 'local_maestro_stack_env local:maestro', {
+            LOCAL_MAESTRO_RECIPE_HOST_PORT: '3050',
+        });
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr.trim()).toBe(
+            'local:maestro refused: LOCAL_MAESTRO_RECIPE_HOST_PORT=3050 is gone. Unset it, and run local:up with ' +
+                'LOCAL_SANDBOX_HOST_PORTS=recipes=3050 to move the recipe port.',
+        );
+        expect(result.stdout).toBe('');
+        expect(readFileSync(sandbox.calls, 'utf8')).toBe('');
+    });
+});
+
+describe("local_maestro_stack_env — the door's first step", () => {
+    /** A fake `npx` that prints the given stackEnv output (and a `stack:` line on stderr), and records its argv. */
+    function withStackEnv(sandbox: Sandbox, stdout: string, status = 0): void {
+        writeFileSync(
+            path.join(sandbox.bin, 'npx'),
+            [
+                '#!/usr/bin/env bash',
+                `echo "npx $*" >> "${sandbox.calls}"`,
+                "echo 'stack: local-sandbox-3100 (recipes 3110, identity 3111, food 3112) from /w' >&2",
+                `printf '%s' '${stdout}'`,
+                `exit ${String(status)}`,
+                '',
+            ].join('\n'),
+        );
+        chmodSync(path.join(sandbox.bin, 'npx'), 0o755);
+    }
+
+    const LINES =
+        'MAESTRO_LOCAL_RECIPE_HOST_PORT=3110\nMAESTRO_LOCAL_IDENTITY_HOST_PORT=3111\nMAESTRO_LOCAL_FOOD_HOST_PORT=3112\n' +
+        'E2E_SEED_RECIPE_URL=http://localhost:3110\nLOCAL_MAESTRO_LOCALSTACK=http://localhost:4666\n' +
+        'LOCAL_MAESTRO_WORKER_DATABASE_URL=postgres://u:p@localhost:5532/d?x=y\n';
+
+    it('exports each accepted line whole, and asks stackEnv for this door', () => {
+        const sandbox = makeSandbox();
+        withStackEnv(sandbox, LINES);
+        const result = run(
+            sandbox,
+            'local_maestro_stack_env local:maestro; echo "$MAESTRO_LOCAL_RECIPE_HOST_PORT $MAESTRO_LOCAL_IDENTITY_HOST_PORT $MAESTRO_LOCAL_FOOD_HOST_PORT $LOCAL_MAESTRO_LOCALSTACK $LOCAL_MAESTRO_WORKER_DATABASE_URL"',
+        );
+
+        expect(result.stdout.trim()).toBe('3110 3111 3112 http://localhost:4666 postgres://u:p@localhost:5532/d?x=y');
+        expect(result.stderr).toContain('stack: local-sandbox-3100 (recipes 3110, identity 3111, food 3112) from /w');
+        expect(readFileSync(sandbox.calls, 'utf8')).toContain('stackEnv.ts local:maestro');
+    });
+
+    it('seeds against the moved stack: LOCAL_SANDBOX_HOST_PORTS=recipes=3050 reaches the seed URL, the device keeps :3000', () => {
+        const sandbox = makeSandbox();
+        withStackEnv(sandbox, 'E2E_SEED_RECIPE_URL=http://localhost:3050\n');
+        const result = run(
+            sandbox,
+            `local_maestro_stack_env local:maestro 2>/dev/null; local_maestro_seed_env '${sandbox.state}'; echo "$E2E_SEED_RECIPE_URL $LOCAL_MAESTRO_RECIPE_ORIGIN"`,
+        );
+
+        expect(result.stdout.trim().split('\n').at(-1)).toBe('http://localhost:3050 http://localhost:3000');
+    });
+
+    it('refuses a key it does not accept, exports nothing after it, and fails the door', () => {
+        const sandbox = makeSandbox();
+        withStackEnv(sandbox, 'MAESTRO_LOCAL_RECIPE_HOST_PORT=3110\nPATH=/evil\nMAESTRO_LOCAL_FOOD_HOST_PORT=3112\n');
+        const result = run(
+            sandbox,
+            'local_maestro_stack_env local:maestro; echo "[$PATH]" | grep -c evil; echo "${MAESTRO_LOCAL_FOOD_HOST_PORT-unset}"',
+        );
+
+        expect(result.stderr).toContain('stackEnv printed a key this door does not accept: PATH');
+        expect(result.stdout.trim().split('\n')).toEqual(['0', 'unset']);
+    });
+
+    it('fails the door, exporting nothing, when stackEnv refuses', () => {
+        const sandbox = makeSandbox();
+        withStackEnv(sandbox, '', 1);
+        const result = run(
+            sandbox,
+            'local_maestro_stack_env local:maestro || echo REFUSED; echo "${MAESTRO_LOCAL_RECIPE_HOST_PORT-unset}"',
+        );
+
+        expect(result.stdout.trim().split('\n')).toEqual(['REFUSED', 'unset']);
+    });
+
+    it('is the first step of the door: before the toolchain, the keys, the seed and any pool call', () => {
+        const body = run(makeSandbox(), 'declare -f local_maestro_main').stdout;
+        const at = (needle: string): number => body.indexOf(needle);
+
+        expect(at('local_maestro_stack_env')).toBeGreaterThan(-1);
+
+        for (const later of [
+            'local_maestro_toolchain',
+            'local_maestro_load_clerk_keys',
+            'local_maestro_seed_env',
+            'local_maestro_reset_pool',
+        ]) {
+            expect(at('local_maestro_stack_env')).toBeLessThan(at(later));
+        }
+    });
+
+    it('accepts exactly the keys stackEnv prints (the two lists are held equal)', () => {
+        const script = readFileSync(SCRIPT, 'utf8');
+        const block =
+            /local_maestro_stack_env\(\) \{[\s\S]*?case "\$key" in([\s\S]*?)\)\n\s+export/u.exec(script)?.[1] ?? '';
+        const accepted = block
+            .replace(/\\\n/gu, ' ')
+            .split('|')
+            .map((name) => name.trim())
+            .filter((name) => name !== '');
+
+        expect([...accepted].sort()).toEqual([...STACK_ENV_KEYS].sort());
     });
 });
 

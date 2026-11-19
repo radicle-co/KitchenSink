@@ -6,7 +6,7 @@
  * | --------------------------------- | ------------------------------------------------------------------------------ |
  * | `ANDROID_SERIAL`                  | `adb` reads it natively; `maestro` is handed `--device <serial>` before `test` |
  * | `MAESTRO_LOCAL=1`                 | drop the sandbox-only flows BEFORE packing, name them, reverse 3000-3002       |
- * | `MAESTRO_LOCAL_RECIPE_HOST_PORT`  | the host side of the device's :3000 when something else holds the host's 3000  |
+ * | `MAESTRO_LOCAL_{RECIPE,IDENTITY,FOOD}_HOST_PORT` | the host side of the device's :3000, :3001 and :3002 (the stack's own ports) |
  * | `MAESTRO_LOCK_DIR`                | run every role flow under `flock <dir>/roles.lock`                              |
  * | `MAESTRO_SKIP_INSTALL=1`          | do not install the app; the device adapter already did                         |
  *
@@ -28,6 +28,8 @@ const LANE_VARS = [
     'ANDROID_SERIAL',
     'MAESTRO_LOCAL',
     'MAESTRO_LOCAL_RECIPE_HOST_PORT',
+    'MAESTRO_LOCAL_IDENTITY_HOST_PORT',
+    'MAESTRO_LOCAL_FOOD_HOST_PORT',
     'MAESTRO_LOCK_DIR',
     'MAESTRO_SKIP_INSTALL',
     'MAESTRO_PLATFORM',
@@ -131,6 +133,8 @@ describe('run mode under a local lane', () => {
         ANDROID_SERIAL: 'emulator-5558',
         MAESTRO_LOCAL: '1',
         MAESTRO_LOCAL_RECIPE_HOST_PORT: '3100',
+        MAESTRO_LOCAL_IDENTITY_HOST_PORT: '3101',
+        MAESTRO_LOCAL_FOOD_HOST_PORT: '3102',
         MAESTRO_LOCK_DIR: lockDir,
         MAESTRO_SKIP_INSTALL: '1',
     });
@@ -159,17 +163,21 @@ describe('run mode under a local lane', () => {
      * REWRITTEN 2026-11-08: a lane now reverses through `maestro_local_reverse`, the one map `localMaestro.sh` uses too,
      * so it also carries the debug app's identity alias (:4000 onto :3001). The release test app never addresses :4000;
      * the alias is there because one map serves both apps.
+     *
+     * REWRITTEN again 2026-11-19 (LS-PORT, TEST-CHANGE decisions/0044): all three services reverse onto the host port the
+     * stack publishes (`MAESTRO_LOCAL_{RECIPE,IDENTITY,FOOD}_HOST_PORT`), so a second stack is reached. Three different
+     * ports, so a swap of identity and food fails; the identity alias :4000 follows identity.
      */
-    it('reverses the service ports through the one shared map, recipe onto its host port', () => {
+    it('reverses each service port onto its own host port through the one shared map', () => {
         const reverses = lane.calls
             .filter((call) => call[0] === 'adb' && call[1] === 'reverse')
             .map((call) => call.slice(2));
 
         expect(reverses).toEqual([
             ['tcp:3000', 'tcp:3100'],
-            ['tcp:3001', 'tcp:3001'],
-            ['tcp:3002', 'tcp:3002'],
-            ['tcp:4000', 'tcp:3001'],
+            ['tcp:3001', 'tcp:3101'],
+            ['tcp:3002', 'tcp:3102'],
+            ['tcp:4000', 'tcp:3101'],
         ]);
     });
 
@@ -182,6 +190,30 @@ describe('run mode under a local lane', () => {
             ['recipes/edit', 'lock=free'],
             ['recipes/paidFeaturesByRole', 'lock=held'],
         ]);
+    });
+});
+
+describe('run mode under a local lane with a host port missing', () => {
+    it.each([
+        ['MAESTRO_LOCAL_RECIPE_HOST_PORT'],
+        ['MAESTRO_LOCAL_IDENTITY_HOST_PORT'],
+        ['MAESTRO_LOCAL_FOOD_HOST_PORT'],
+    ])('refuses, names %s, and reverses nothing', (missing) => {
+        const env: Record<string, string> = {
+            MAESTRO_FLOW_SELECTOR: SELECTOR,
+            ANDROID_SERIAL: 'emulator-5558',
+            MAESTRO_LOCAL: '1',
+            MAESTRO_LOCAL_RECIPE_HOST_PORT: '3110',
+            MAESTRO_LOCAL_IDENTITY_HOST_PORT: '3111',
+            MAESTRO_LOCAL_FOOD_HOST_PORT: '3112',
+            MAESTRO_SKIP_INSTALL: '1',
+        };
+        delete env[missing];
+        const result = runMode(env);
+
+        expect(result.status).not.toBe(0);
+        expect(result.output).toContain(`${missing} is not set`);
+        expect(result.calls.filter((call) => call[0] === 'adb' && call[1] === 'reverse')).toEqual([]);
     });
 });
 

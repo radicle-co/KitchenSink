@@ -208,17 +208,21 @@ describe('the state folder — bash and stateRoot name the same place', () => {
 });
 
 describe('maestro_local_reverse — the one adb reverse map', () => {
-    it('reverses the services, recipe onto its host port, then each extra port onto itself', () => {
+    /**
+     * REWRITTEN 2026-11-19 (LS-PORT, TEST-CHANGE decisions/0044): the function takes all three host ports, because a second
+     * stack moves every one of them. Three different ports, so a swap of two services fails; the old case moved recipe only.
+     */
+    it('reverses each device port onto its own service host port, then each extra port onto itself', () => {
         const sandbox = makeSandbox();
-        const result = run(sandbox, 'maestro_local_reverse 3010 8081');
+        const result = run(sandbox, 'maestro_local_reverse 3110 3111 3112 8081');
 
         expect(result.status, result.stderr).toBe(0);
-        expect(reverses(sandbox)).toEqual(['3000->3010', '3001->3001', '3002->3002', '4000->3001', '8081->8081']);
+        expect(reverses(sandbox)).toEqual(['3000->3110', '3001->3111', '3002->3112', '4000->3111', '8081->8081']);
     });
 
     it('reverses every origin the lanes build the app with', () => {
         const sandbox = makeSandbox();
-        run(sandbox, 'maestro_local_reverse 3000');
+        run(sandbox, 'maestro_local_reverse 3000 3001 3002');
         const settings = settingsOf();
 
         for (const origin of [settings.recipeOrigin, settings.identityOrigin, settings.foodOrigin]) {
@@ -226,7 +230,11 @@ describe('maestro_local_reverse — the one adb reverse map', () => {
         }
     });
 
-    it('is the map the one-emulator install uses, plus Metro, with the moved recipe host port', () => {
+    /**
+     * REWRITTEN 2026-11-19 (LS-PORT): the host ports come from the stack's published ports (`MAESTRO_LOCAL_*_HOST_PORT`, which
+     * `stackEnv` prints), not from `LOCAL_MAESTRO_RECIPE_HOST_PORT`. The exact list is the same shape, with three ports.
+     */
+    it('is the map the one-emulator install uses, plus Metro, with the stack’s three host ports', () => {
         const sandbox = makeSandbox();
         const apk = path.join(mkdtempSync(path.join(tmpdir(), 'localSettings-apk-')), 'app-debug.apk');
         writeFileSync(apk, '');
@@ -234,10 +242,12 @@ describe('maestro_local_reverse — the one adb reverse map', () => {
 
         // The install fails at the bundle fetch (the fake curl), after the reverses this compares.
         run(sandbox, `LOCAL_MAESTRO_DEBUG_APK='${apk}'\nlocal_maestro_install_app '${sandbox.state}'`, {
-            LOCAL_MAESTRO_RECIPE_HOST_PORT: '3010',
+            MAESTRO_LOCAL_RECIPE_HOST_PORT: '3110',
+            MAESTRO_LOCAL_IDENTITY_HOST_PORT: '3111',
+            MAESTRO_LOCAL_FOOD_HOST_PORT: '3112',
         });
 
-        expect(reverses(sandbox)).toEqual(['3000->3010', '3001->3001', '3002->3002', '4000->3001', '8081->8081']);
+        expect(reverses(sandbox)).toEqual(['3000->3110', '3001->3111', '3002->3112', '4000->3111', '8081->8081']);
     });
 });
 

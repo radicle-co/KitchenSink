@@ -37,19 +37,19 @@ unreadable paid, opt-out or signature signal is `unknown` and takes the rewrite 
 
 ## Constitution Check
 
-| Principle                  | Status | Note                                                                                                                     |
-| -------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------ |
-| I Correctness / types      | PASS   | Classification and job state are discriminated unions. Wire types in-service zod (DD15).                                 |
-| II JSDoc                   | PASS   | `@pattern` on the Specification, the Command, the statechart module and the adapter.                                     |
-| III Imports / organisation | PASS   | No barrels. Subpath exports for the engine modules, as `parsing/parse-prompt` already does.                              |
-| IV Testing pyramid         | PASS   | Tier matrix below. The fact check, the fingerprint and the classifier each get a mutation suite.                         |
-| V Monorepo                 | PASS   | No new package. recipe-workers already depends on recipe-core.                                                           |
-| VII Accessibility / UX     | PASS   | Every state keyed (spec table). `staff-ux-engineer` SPECIFY done, EVALUATE owed (T117). One radio group, never disabled. |
-| VIII Cross-platform        | PASS   | Web and mobile in one release (FR-091).                                                                                  |
-| IX Patterns / seams        | PASS   | Register below.                                                                                                          |
-| ADR-0024 layer 4b          | PASS   | Runs under the one verification role. New `SPEND_CALL_SITES` member `import-public-rewrite`.                             |
-| ADR-0004 NAT list          | AMEND  | The new VPC Lambda adds a `nat-consumers` row (`natEgressConsumers.test.ts`).                                            |
-| ADR-0093                   | PASS   | Amended ADR-0082 §5 and §6 already. This feature builds what it rules.                                                   |
+| Principle                  | Status | Note                                                                                                                                          |
+| -------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| I Correctness / types      | PASS   | Classification and job state are discriminated unions. Wire types in-service zod (DD15).                                                      |
+| II JSDoc                   | PASS   | `@pattern` on the Specification, the Command, the statechart module and the adapter.                                                          |
+| III Imports / organisation | PASS   | No barrels. Subpath exports for the engine modules, as `parsing/parse-prompt` already does.                                                   |
+| IV Testing pyramid         | PASS   | Tier matrix below. The fact check, the fingerprint and the classifier each get a mutation suite.                                              |
+| V Monorepo                 | PASS   | No new package: the promoter, the job-expiry function and the capacity function live in recipe-core, which recipe-workers already depends on. |
+| VII Accessibility / UX     | PASS   | Every state keyed (spec table). `staff-ux-engineer` SPECIFY done, EVALUATE owed (T117). One radio group, never disabled.                      |
+| VIII Cross-platform        | PASS   | Web and mobile in one release (FR-091).                                                                                                       |
+| IX Patterns / seams        | PASS   | Register below.                                                                                                                               |
+| ADR-0024 layer 4b          | PASS   | Runs under the one verification role. New `SPEND_CALL_SITES` member `import-public-rewrite`.                                                  |
+| ADR-0004 NAT list          | AMEND  | The new VPC Lambda adds a `nat-consumers` row (`natEgressConsumers.test.ts`).                                                                 |
+| ADR-0093                   | PASS   | Amended ADR-0082 §5 and §6 already. This feature builds what it rules.                                                                        |
 
 ## Engine ownership (decision)
 
@@ -110,7 +110,7 @@ own second pinned prompt behind the same adapter, under its own call site.
 - `evaluateVisibility` and `provenancePolicy`. The classification is an input to them, not a replacement.
 - The ADR-0074 hold. A public version NOT APPROVED becomes private and takes a slot, over the limit where need be (ADR-0073).
 - The ADR-0073 per-user lock and live count, and the lock order of every paste and job transaction: the import header, the item, the allowance, the DD33 lock, the private recipe, then the job (FR-016a). The bulk save takes the same order through `ImportedCreate.beforeLocks` (T314), so there is no deadlock to retry.
-- The rest-public promoter (FR-087): a marker on the item (a transactional outbox row, not a job), a per-cook seat lock and a work-queue dispatcher that creates jobs up to the configured seat count. It matches and binds nothing, and no job waits behind the seat limit.
+- The rest-public promoter (FR-087): a marker on the item (a transactional outbox row, not a job) and one global `promote()` in recipe-core, a work-queue dispatcher that loops one-insert transactions under one fan-out advisory lock and creates jobs while the pending-or-writing count across all cooks is below the configured seat count. It matches and binds nothing, and no job waits behind the seat limit. The marker rule is stated once, in the data model.
 - `gatedConverse`, unrefactored.
 
 **Intent already satisfied (add nothing):** TanStack mutation as Command. The outcome union as Visitor. The unique
@@ -154,6 +154,7 @@ specs/003B-public-rewrite/
 ```text
 packages/shared/recipe-core/src/stepWriting/                  # 027's engine (built once, by 003B first: 027-FR-045)
 packages/shared/recipe-core/src/copy/bannedWords.ts            # the one banned-word list (FR-064)
+packages/shared/recipe-core/src/publicVersion/{promoter,jobExpiry,writerCapacity}.ts  # subpaths ./public-version/{promoter,job-expiry,writer-capacity}: the global promoter, the shared job-expiry function, publicVersionCapacity(stage) (T335, T343, T354)
 packages/services/recipe-service/src/import/domain/sourceClassification.ts
 packages/services/recipe-service/src/import/publicVersion/     # controller, schema, service, DAL, title builder
 packages/services/recipe-service/src/recipes/domain/publicVersionWordingGuard.ts
@@ -161,7 +162,7 @@ packages/services/recipe-service/src/recipes/domain/publishAgeAllowed.ts   # pur
 packages/services/identity/                                    # age_assurances migration, POST /api/v1/me/age-assurance (slice P3b)
 packages/services/recipe-service/src/database/migrations/00NN_public_versions.sql (+ _validate)
 packages/services/recipe-workers/src/handlers/publicVersionWorker.ts
-packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts  # Lambda, queue, DLQ, reserved concurrency, PublicVersionJobSweepBehindAlarm
+packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts  # Lambda, queue, DLQ, reserved concurrency (from publicVersionCapacity), PUBLIC_VERSION_FANOUT_SEATS, PublicVersionJobSweepBehindAlarm
 packages/services/recipe-workers/src/handlers/bandDrain.ts    # the job sweep runs on its 15-minute tick (no new Lambda)
 packages/schemas/recipe                                        # generated copy (contract:generate)
 packages/clients/recipe-service                                # hooks for the job, publish, cancel, keepPrivate

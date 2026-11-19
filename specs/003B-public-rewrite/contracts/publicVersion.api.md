@@ -195,17 +195,18 @@ screens on the public-only path (the job's `path` is `public`). It never infers 
 
 ## Make the rest public
 
-`POST /api/v1/import/{importId}/rest-public` with `{ items: { ordinal, shownOffer: ShownOffer }[] }` (the ticked rows only). One transaction under the import header lock, with the items `FOR UPDATE` in ordinal order, and no job row is written. An "I wrote this" item gets `choice = 'public'` and the advance saves it as today. Each eligible third-party item gets `choice = 'public'` and `public_requested_at`. Eligible means unsaved, not discarded, no job at all, and an offer of `choice` or `publicOnly`. A promoter, in its own transaction, then creates the jobs (data model, "Rest-public"). `200 { items: { ordinal, outcome }[] }` where `outcome` is one of:
+`POST /api/v1/import/{importId}/rest-public` with `{ items: { ordinal, shownOffer: ShownOffer }[] }` (the ticked rows only). One transaction under the import header lock, with the items `FOR UPDATE` in ordinal order, and no job row is written. An "I wrote this" item (`statement_kind = 'authored'`) gets `visibility = 'public'` (ADR-0072) and keeps `choice` NULL, and the advance saves it as today. Each eligible third-party item gets `choice = 'public'` and `public_requested_at`. Eligible means unsaved, not discarded, no job at all, and an offer of `choice` or `publicOnly`. A row whose current offer differs from the `shownOffer` it sent is not marked: it answers `skipped` with `offerChanged` (checked after `publicExists`, the order of Start). The global promoter then creates the jobs (data model, "Rest-public", which also states when the marker is set and cleared). `200 { items: { ordinal, outcome }[] }` where `outcome` is one of:
 
 ```text
 requested
 waiting                                  // not matched or not paid yet; the marker is kept
 skipped { reason: 'publicExists' | 'budget' | 'attemptsUsed' | 'alreadyStarted' | 'saved' | 'discarded' }
+skipped { reason: 'offerChanged', offer: PublicVersionOffer }   // the offer the server computes now
 ```
 
 A replay marks nothing that already has a job or a marker and never restarts a resting job, and answers for each item from its current state: a marked item with no job answers `requested` (or `waiting` when it is not matched or not paid), and an item with a job answers `skipped` with `alreadyStarted`. The route never answers `429`: a file item is already paid, and Publish's guard charges nothing for it.
 
-The import list entry (`GET /api/v1/import`) gains `publicVersions: { requested, writing, ready, needsYou, notWritten, published, nextReadyExpiresAt }` from one grouped query whose predicates are the table in the data model's "Rest-public" section, and the import item view gains `readyUntil` (the ISO date a ready draft's job expires, or `null`).
+The import list entry (`GET /api/v1/import`) gains `publicVersions: { requested, writing, ready, needsYou, notWritten, expiring, published, nextReadyExpiresAt, nextPurgeOn }` from one grouped query whose predicates are the table in the data model's "Rest-public" section, and the import item view gains `readyUntil` (the ISO date a ready draft's job expires, or `null`) and `purgeOn` (the ISO date of the import's 30-day purge, for an unsaved item).
 
 ## Recipe writes
 

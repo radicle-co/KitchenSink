@@ -1,7 +1,8 @@
 /**
  * @module cookingViewProps — the props of cooking mode: the screen's props (what the route adapter hands
- * `CookingScreen`), the step body's props and each leaf's props. Every string here is already localised and filled by the
- * screen: a render component never formats copy.
+ * `CookingScreen`), the step body's props and the props of the step leaves. The ingredients list's props live in
+ * `ingredients/cookingIngredientsListProps.ts`. Every string here is already localised and filled by the screen: a
+ * render component never formats copy.
  */
 import type { CookLinkInput } from '@kitchensink/cooking-core';
 import type { RecipeIngredientView } from '@kitchensink/recipe-core';

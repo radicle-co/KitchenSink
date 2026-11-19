@@ -8,8 +8,8 @@ Set `LOCAL_SANDBOX_PORT` to the recipe service's host port, for example `LOCAL_S
 Every other port moves by the same amount, and the stack gets its own Docker project, containers, images and data.
 Unset, empty or 3000 gives today's stack with today's names and ports.
 
-With `LOCAL_SANDBOX_PORT=3100`, the ports are: recipes 3100, identity 3101, food 3102, LocalStack 4666 and Postgres 5532.
-The Docker project is `local-sandbox-3100`.
+With `LOCAL_SANDBOX_PORT=3100`, the ports are: recipes 3100, identity 3101, food 3102, LocalStack 4666 and
+Postgres 5532. The Docker project is `local-sandbox-3100`.
 
 A full run on the second stack uses the same variable on every command:
 
@@ -35,5 +35,5 @@ there wins over the shift from `LOCAL_SANDBOX_PORT`.
   service's `.env.development`, which names the default ports.
 - A checkout on the older code reads the new three-part lock file as a lock with no holder, so it refuses. It fails
   closed. Once every checkout has this change, the limit is gone.
-- The services' LOCAL e2e suites use the default stack's ports from any checkout, with the variable set or not. A session
-  on another stack that runs them writes test data into the default stack.
+- The services' LOCAL e2e suites use the default stack's ports from any checkout, with the variable set or
+  not. A session on another stack that runs them writes test data into the default stack.

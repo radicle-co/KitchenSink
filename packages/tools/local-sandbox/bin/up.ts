@@ -1103,7 +1103,8 @@ async function materialize(localStack: Stack, found: Discovered): Promise<void> 
             "  tool repeats CI's own steps. The containers hold the ports their own env schemas default to.\n" +
             '\n  Hot-reload development instead: `npm run local:down`, then `npm run dev:local` — the watch\n' +
             '  processes bind those SAME ports, so stop the containers first.\n' +
-            `  Stop this:   ${localStack.isDefault ? '' : `LOCAL_SANDBOX_PORT=${String(localStack.port)} `}npm run local:down\n`,
+            `  Stop this:   ${localStack.isDefault ? '' : `LOCAL_SANDBOX_PORT=${String(localStack.port)} `}` +
+            'npm run local:down\n',
     );
 }
 

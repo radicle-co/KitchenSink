@@ -87,8 +87,8 @@ function main(): number {
 
     const containers = dockerContainers();
     const workerEnv: WorkerEnv = { SQS_ENDPOINT: sqs, RECIPE_PARSE_QUEUE_URL: queue, DATABASE_URL: database };
-    // A stack that is not running has no port to read, and Docker answers `docker port` with an error for it: the outcome
-    // says "run local:up" instead.
+    // A stack that is not running has no port to read, and Docker answers `docker port` with an error for it: the
+    // outcome says "run local:up" instead.
     const present = containers.some((container) => container.project === stack.project);
     const outcome = stackEnvOutcome({
         door,

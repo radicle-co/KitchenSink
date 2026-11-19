@@ -100,7 +100,8 @@ describe('stackEnv.ts against a stub Docker', () => {
         expect(result.status).toBe(1);
         expect(result.stdout).toBe('');
         expect(result.stderr.trim()).toBe(
-            `maestro:lanes refused: project ${PROJECT} has no containers. Run local:up with the same LOCAL_SANDBOX_PORT first.`,
+            `maestro:lanes refused: project ${PROJECT} has no containers. ` +
+                'Run local:up with the same LOCAL_SANDBOX_PORT first.',
         );
     });
 
@@ -112,7 +113,8 @@ describe('stackEnv.ts against a stub Docker', () => {
         expect(result.status).toBe(1);
         expect(result.stdout).toBe('');
         expect(result.stderr.trim()).toBe(
-            'maestro:lanes refused: docker ps -a failed (daemon down). Start Docker, or fix it, then run maestro:lanes again.',
+            'maestro:lanes refused: docker ps -a failed (daemon down). ' +
+                'Start Docker, or fix it, then run maestro:lanes again.',
         );
     });
 });

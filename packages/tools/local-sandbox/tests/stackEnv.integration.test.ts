@@ -105,6 +105,18 @@ describe('stackEnv.ts against a stub Docker', () => {
         );
     });
 
+    it('a stopped stack is still "run local:up" while another project of another checkout runs', () => {
+        installDocker('/work/B/.local-sandbox');
+        const result = stackEnv({ LOCAL_SANDBOX_PORT: '3200' });
+
+        expect(result.status).toBe(1);
+        expect(result.stdout).toBe('');
+        expect(result.stderr.trim()).toBe(
+            'maestro:lanes refused: project local-sandbox-3200 has no containers. ' +
+                'Run local:up with the same LOCAL_SANDBOX_PORT first.',
+        );
+    });
+
     it('a stack whose port read fails prints one refusal line and no KEY=value line', () => {
         installDocker(`${REPO_ROOT}/.local-sandbox`);
         writeFileSync(path.join(dir, 'docker'), "#!/bin/sh\necho 'daemon down' >&2\nexit 1\n");

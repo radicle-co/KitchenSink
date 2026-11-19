@@ -94,7 +94,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
     - Burn down `verify-report.md`: 5 critical / 2 warning → 0 / 0.
     - Close 337 untested + 178 missing trace refs.
 - **`003`**: Burn down 1 critical / 2 warning → 0 / 0. Close 131 untested + 107 missing trace refs.
-- **`004`**: `004` `spec.md`: every device extraction tier that is on passes `SC-002`, each tier's coverage is reported (`SC-003`), and `SC-004` and `SC-005` hold.
+- **`004`**: `spec.md`: every device extraction tier that is on passes `SC-002`, each tier's coverage is reported (`SC-003`), and `SC-004` and `SC-005` hold.
 - V-Model regen + test execution for all three.
 
 **Exit**:

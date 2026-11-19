@@ -117,6 +117,7 @@ describe('cooking mode ingredients against the recipe page', () => {
     it('ticks a line through the real list, and the page’s own marks binding sees it', async () => {
         const id = nextId();
         const user = userEvent.setup();
+
         // The cooking list and the page's marks binding sit under ONE provider, as the app root mounts them.
         const Screen: FC = () => {
             const cooking = useCookingIngredients({

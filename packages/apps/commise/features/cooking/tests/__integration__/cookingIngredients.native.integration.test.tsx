@@ -141,7 +141,8 @@ describe('cooking mode ingredients against the recipe page', () => {
                 ))}
             </ul>,
         );
-        await user.click(screen.getAllByRole('checkbox')[0] as HTMLElement);
+        const [firstTick] = screen.getAllByRole('checkbox');
+        await user.click(firstTick);
 
         expect([...both.result.current.marks.checkedLines]).toEqual(['ing_flour']);
     });

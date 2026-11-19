@@ -5,6 +5,7 @@
  *
  * The recipe's lines and its authored servings are SNAPSHOT at mount, so a refetch that reorders or adds lines under
  * the cook never moves a row they are reading. The cook's ticks stay keyed by ingredient id, which survives that.
+ * The snapshot assumes ONE recipe for each mount: a screen that opens another recipe must mount the hook again.
  *
  * @pattern Headless hook: no markup, only the data and the commands a list renders.
  * @pattern Command: `clearTicks` returns its inverse, which the session guard wraps.

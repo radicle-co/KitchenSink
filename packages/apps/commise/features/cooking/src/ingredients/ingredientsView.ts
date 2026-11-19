@@ -31,7 +31,7 @@ export interface CookingIngredientsViewInput {
 }
 
 /** One row of the list: the scaled line and whether the cook has ticked it. */
-export interface CookingIngredientRow {
+interface CookingIngredientRow {
     readonly ingredient: RecipeIngredientView;
     readonly checked: boolean;
 }

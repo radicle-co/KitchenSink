@@ -22,6 +22,7 @@ Rules that are easy to get wrong. Read before working on this feature.
 - **One engine.** 003B builds `recipe-core/src/stepWriting/` first. 027 and 020's
   suggestion consume it with their own call site, charge rule and sink. No mode flag inside the engine. The wording
   check runs on a hashed fingerprint of the original, never on stored text.
+  No consumer of the engine reaches a user before 003B's output-language check (003B T353) lands, because until then that check passes every result.
 - **One banned-word list**, defined by 003B-FR-064 and held in one module. A test enforces it over `recipes.flowSteps.*`.
 - **No credit key of its own** for a public version of an imported recipe: 027 uses 003B's `credit.written` and
   `credit.basedOn`.

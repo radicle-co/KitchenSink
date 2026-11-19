@@ -22,7 +22,7 @@ Numerical thresholds in this document are provisional defaults until the named o
 
 ## Release proof
 
-Each gate that names a feature below uses this rule. On the release-candidate commit, every `docs/CODING_STANDARDS.md` §7.1 test tier that the named features require is written and passed on that commit, with its evidence linked: the CI run for unit and integration, a whole-suite e2e run (`FULL_SUITE=1` or the deployed e2e workflow), and the k6 record per service.
+Each gate that links here uses this rule. On the release-candidate commit, every `docs/CODING_STANDARDS.md` §7.1 test tier that the named features require is written and passed on that commit, with its evidence linked: the CI run for unit and integration, a whole-suite e2e run (`FULL_SUITE=1` or the deployed e2e workflow), and the k6 record per service.
 
 Each feature has a proof table for that commit, a dated file `docs/reviews/releaseProof<feature number>On<yyyymmdd>.md` (for example `releaseProof004On20261201.md`). Its rows are exactly the feature spec's FR, NFR and SC ids and its acceptance scenarios (as `US<n>.<m>`) at that commit. Each row holds one of:
 

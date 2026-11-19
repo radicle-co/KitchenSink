@@ -681,7 +681,7 @@ describe('createRecipeRequestSchema — the optional `source` declaration', () =
 
     /**
      * `imported_physical` and `imported_paid` are not declarable through `source`, the curator's field. A cook gives a
-     * recipe `imported_physical` through a `book` statement. `paid_site` is not yet a member of the recipe's statement
+     * recipe `imported_physical` through a `book` statement. `paid_site` is not a member of the recipe's statement
      * (#374, #376). This refusal stays.
      */
     it.each(['imported_physical', 'imported_paid'])('REFUSES %s through source (#374)', (kind) => {

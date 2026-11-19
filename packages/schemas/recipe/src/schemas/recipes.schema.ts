@@ -282,7 +282,7 @@ export const CURATOR_IMPORT_SCOPE = 'recipes:import:public';
  * service enforces into a state the wire cannot express.
  *
  * ⛔ `imported_physical` and `imported_paid` are not declarable through `source`, which is the curator's field. A cook
- * gives a recipe `imported_physical` through the recipe's own `book` statement (`004-FR-014a`). `paid_site` is not yet a
+ * gives a recipe `imported_physical` through the recipe's own `book` statement (`004-FR-014a`). `paid_site` is not a
  * member of that statement (#374). A private recipe uses a private slot whatever its label (`004-FR-028`).
  *
  * ⛔ It is also NOT on {@link createRecipeRequestBaseSchema}. `updateRecipeRequestSchema` derives from that

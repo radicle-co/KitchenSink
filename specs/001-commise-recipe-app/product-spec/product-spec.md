@@ -230,7 +230,7 @@ The following are explicitly out of scope for the v1 product as specified in spe
 
 - Unauthenticated access (FR-045: all features require Clerk authentication)
 - Hard delete of individual recipes (default) — only soft delete; hard purge via explicit GDPR "Erase my data"
-- Paid-source recipe import (legal review required — see [004-recipe-importing](../../004-recipe-importing/spec.md) FR-014a)
+- Paid-source recipe import (see [004-recipe-importing](../../004-recipe-importing/spec.md) FR-014a)
 - Per-user sharing of individual recipes (covered by future spec)
 - Meal planning, grocery lists, cooking mode, nutrition planning (separate specs)
 - AI recipe generation (separate spec)

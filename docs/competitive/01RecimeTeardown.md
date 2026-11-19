@@ -293,8 +293,7 @@ onboarding — _paste a link, watch it work, then decide_ — inverts it.
   inline in instructions (tap to see the quantity without scrolling back up) and **orange tappable temperature
   text** (toggles °C/°F). Both are small, specific, and solve real in-kitchen friction. Worth stealing outright.
 - **Import** — screenshots stack as thumbnails bottom-left; the user **manually verifies formatting before
-  committing**, i.e. a review step, not a silent auto-commit. Good practice, and the same shape as our
-  `004-FR-015` draft-with-confidence model.
+  committing**, i.e. a review step, not a silent auto-commit. Our import differs: see `004-FR-015`.
 - **Meal plan** — weekly only, drag-and-drop onto day/meal slots.
 - **Grocery list** — aisle- or recipe-grouped, with in-app delivery ordering.
 - **Cook mode** — card-based, one step per card, checkable steps, screen stays awake. Plus-gated.

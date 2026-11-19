@@ -3,14 +3,15 @@
  * (`snackbarQueue.ts`) — the reducer, the one timer for the snackbar on screen, and running each committed snackbar's
  * `onTimeout` exactly once. The leaves own only where the snackbar is drawn and what pauses it.
  *
- * The queue lives in an external store (`snackbarStore.ts`) so `withdraw` can answer in the handler that asks. The
- * clock is read in the store and in the effects, never in the reducer.
+ * The queue lives in an external store (`snackbarStore.ts`) so `withdraw` can answer in the handler that asks. Every
+ * handler reads the store's clock; this hook reads `Date.now` only to arm the expiry timer, and the reducer never
+ * reads a clock.
  */
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 
-import type { SnackbarAction, SnackbarApi } from './props.js';
+import type { SnackbarApi } from './props.js';
 import { msUntilExpiry, type SnackbarEntry } from './snackbarQueue.js';
-import { createSnackbarStore } from './snackbarStore.js';
+import { createSnackbarStore, type SnackbarStore } from './snackbarStore.js';
 
 /** What a host leaf drives the queue with. */
 export interface SnackbarQueue {
@@ -19,9 +20,12 @@ export interface SnackbarQueue {
     readonly show: SnackbarApi['show'];
     readonly withdraw: SnackbarApi['withdraw'];
     /** Take the current snackbar's action: it closes without committing. */
-    readonly act: (id: number, action: SnackbarAction) => void;
-    readonly pause: (id: number) => void;
-    readonly resume: (id: number) => void;
+    readonly act: SnackbarStore['act'];
+    /**
+     * Banks the time left. Stable, like `act` and `resume`: they belong to the store, which lives as long as the hook.
+     */
+    readonly pause: SnackbarStore['pause'];
+    readonly resume: SnackbarStore['resume'];
 }
 
 /**
@@ -62,16 +66,12 @@ export function useSnackbarQueue(): SnackbarQueue {
         return () => clearTimeout(timer);
     }, [current, dispatch]);
 
-    // Stable across renders (`dispatch` is), so a leaf can name them as effect dependencies.
-    const act = useCallback(
-        (id: number, action: SnackbarAction) => {
-            dispatch({ type: 'act', id });
-            action.onAction();
-        },
-        [dispatch],
-    );
-    const pause = useCallback((id: number) => dispatch({ type: 'pause', id, now: Date.now() }), [dispatch]);
-    const resume = useCallback((id: number) => dispatch({ type: 'resume', id, now: Date.now() }), [dispatch]);
-
-    return { current, show: store.show, withdraw: store.withdraw, act, pause, resume };
+    return {
+        current,
+        show: store.show,
+        withdraw: store.withdraw,
+        act: store.act,
+        pause: store.pause,
+        resume: store.resume,
+    };
 }

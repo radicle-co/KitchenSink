@@ -86,7 +86,7 @@ export function snackbarReducer(state: SnackbarState, action: SnackbarQueueActio
                 ...state,
                 current: {
                     ...state.current,
-                    remainingMs: state.current.remainingMs - (action.now - state.current.runningSince),
+                    remainingMs: remainingMsOf(state.current, action.now),
                     runningSince: null,
                 },
             };

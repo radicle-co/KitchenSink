@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Recipe importing, add recipe, page-only hint (web, 1280)</title>
+<title>Recipe importing, add recipe, page only (web, 1280)</title>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -2050,6 +2050,28 @@ b, strong { font-weight: 600; }
 .screen .pi-shell .side a.me { height: 56px; font-weight: 600; color: var(--ink); }
 .screen .pi-shell .side .avatar.sm { width: 32px; height: 32px; font-size: 14px; flex: none; }
 .screen .tabbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
+
+/* Add a recipe (P1), owner ruling 2026-11-17: the FAB opens a speed dial, the inline New recipe button opens an
+   anchored menu. Tokens only. Type 14 and 16 only. Targets at least 44. */
+.cmScrim { position: absolute; inset: 0; z-index: 20; background: var(--scrim); }
+.cmDial { position: absolute; z-index: 21; right: 16px; width: min(312px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 8px; }
+.cmItem { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 16px 10px 10px; border-radius: 18px; background: var(--paper-overlay); box-shadow: var(--shadow-lg); color: var(--ink); text-decoration: none; }
+.cmDisc { flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--surface-muted); display: grid; place-items: center; color: var(--ink); }
+.cmDisc .ic { width: 20px; height: 20px; }
+.cmText { display: flex; flex-direction: column; min-width: 0; }
+.cmTitle { font-size: 16px; line-height: 24px; font-weight: 600; overflow-wrap: anywhere; }
+.cmHint { font-size: 14px; line-height: 20px; color: var(--ink-muted); overflow-wrap: anywhere; }
+.cmFab { position: absolute; z-index: 21; right: 16px; height: 56px; min-width: 56px; border: 0; border-radius: 28px; background: var(--action); color: var(--on-action); display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-shadow: var(--shadow-lg); font-size: 16px; line-height: 24px; font-weight: 600; text-decoration: none; }
+.cmFab.rest { padding: 0 20px 0 16px; z-index: 4; }
+.cmFab .ic { width: 24px; height: 24px; }
+.cmAnchor { position: relative; flex: none; display: inline-flex; }
+.cmTrig.open { background: var(--action-pressed); }
+.cmTrig .chev { width: 16px; height: 16px; margin-right: -4px; transform: rotate(180deg); }
+.cmPop { position: absolute; z-index: 21; top: calc(100% + 8px); right: 0; width: 320px; padding: 8px; border-radius: 12px; background: var(--paper-overlay); box-shadow: var(--shadow-lg), inset 0 0 0 1px var(--line-divider); display: flex; flex-direction: column; gap: 2px; text-align: left; }
+.cmPop .cmItem { background: transparent; box-shadow: none; border-radius: 8px; padding: 8px; }
+.cmPop .cmItem.focus { background: var(--surface-muted); box-shadow: inset 0 0 0 2px var(--focus-ring); }
+.cmPop .cmDisc { background: transparent; width: 24px; height: 24px; align-self: flex-start; margin-top: 2px; }
+.cmNote.cmNote { position: absolute; z-index: 30; left: 16px; right: 16px; padding: 8px 12px; border-radius: 8px; border: 1px dashed var(--line-control); background: var(--paper); font-size: 14px; line-height: 20px; color: var(--ink); }
 </style>
 </helmet>
 <div class="screen" data-screen="web1280ImportAddRecipePageOnly" style="width: 1280px; height: 800px">
@@ -2210,7 +2232,7 @@ b, strong { font-weight: 600; }
 </defs>
                 </svg>
 <div class="pi-shell"><nav class="side" aria-label="Main"><a href="#" class="me" aria-label="Profile, Eliza Ramirez"><span class="avatar sm">ER</span>Eliza Ramirez</a>
-<a href="#"><svg class="ic" aria-hidden="true"><use href="#home" /></svg>Home</a><a href="#" class="on" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#book" /></svg>Recipes</a><a href="#"><svg class="ic" aria-hidden="true"><use href="#compass" /></svg>Discover</a><a href="#"><svg class="ic" aria-hidden="true"><use href="#calendar" /></svg>Meal plan</a><span class="grow"></span><a href="#"><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg>Collapse</a></nav><div class="pi-main"><div style="padding:28px 40px;position:relative;flex:1"><h1 class="pi-h1">Recipes</h1><div style="display:flex;align-items:center;gap:16px;margin-top:16px;justify-content:space-between"><span class="pi-input" style="max-width:480px;color:var(--ink-muted)">Search your recipes</span><button type="button" class="pi-btn primary" style="min-width:0"><svg class="ic " aria-hidden="true"><use href="#plus" /></svg>New recipe</button></div><div class="pi-gridbg" style="--cols:3"><div class="c"><div class="ph"></div><p>Lemon and thyme roast chicken</p></div><div class="c"><div class="ph"></div><p>Overnight sourdough boule</p></div><div class="c"><div class="ph"></div><p>Lemon ricotta pancakes</p></div><div class="c"><div class="ph"></div><p>Chickpea and spinach curry</p></div><div class="c"><div class="ph"></div><p>Beef stew</p></div><div class="c"><div class="ph"></div><p>Banana bread</p></div></div></div></div></div><div class="pi-scrim"></div><div class="pi-dlg" role="dialog" aria-modal="true" aria-label="Add a recipe"><div class="pi-shead"><h2 class="pi-h2">Add a recipe</h2><button type="button" class="pi-iconbtn" aria-label="Close Add a recipe"><svg class="ic " aria-hidden="true"><use href="#x" /></svg></button></div><div><a class="pi-crow" href="#"><svg class="ic " aria-hidden="true"><use href="#paste" /></svg><div class="grow"><p class="t">Paste a recipe</p><p class="h">Copy a whole web page and paste it</p></div><svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg></a><a class="pi-crow" href="#"><svg class="ic " aria-hidden="true"><use href="#pi-pencil" /></svg><div class="grow"><p class="t">Write it yourself</p><p class="h">Start from an empty recipe</p></div><svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg></a></div></div>
+<a href="#"><svg class="ic" aria-hidden="true"><use href="#home" /></svg>Home</a><a href="#" class="on" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#book" /></svg>Recipes</a><a href="#"><svg class="ic" aria-hidden="true"><use href="#compass" /></svg>Discover</a><a href="#"><svg class="ic" aria-hidden="true"><use href="#calendar" /></svg>Meal plan</a><span class="grow"></span><a href="#"><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg>Collapse</a></nav><div class="pi-main"><div style="padding:28px 40px;position:relative;flex:1"><h1 class="pi-h1">Recipes</h1><div style="display:flex;align-items:center;gap:16px;margin-top:16px;justify-content:space-between"><span class="pi-input" style="max-width:480px;color:var(--ink-muted)">Search your recipes</span><div class="cmAnchor"><button type="button" class="pi-btn primary cmTrig open" style="min-width:0" aria-haspopup="menu" aria-expanded="true" aria-controls="cmMenu"><svg class="ic " aria-hidden="true"><use href="#plus" /></svg>New recipe<svg class="ic chev" aria-hidden="true"><use href="#chevD" /></svg></button><div class="cmPop" id="cmMenu" role="menu" aria-label="Add a recipe"><a class="cmItem focus" role="menuitem" href="#" aria-describedby="cmHint0"><span class="cmDisc"><svg class="ic" aria-hidden="true"><use href="#paste" /></svg></span><span class="cmText"><span class="cmTitle">Paste a recipe</span><span class="cmHint" id="cmHint0">Copy a whole web page and paste it</span></span></a><a class="cmItem" role="menuitem" href="#" aria-describedby="cmHint1"><span class="cmDisc"><svg class="ic" aria-hidden="true"><use href="#pi-pencil" /></svg></span><span class="cmText"><span class="cmTitle">Write it yourself</span><span class="cmHint" id="cmHint1">Start from an empty recipe</span></span></a></div></div></div><div class="pi-gridbg" style="--cols:3"><div class="c"><div class="ph"></div><p>Lemon and thyme roast chicken</p></div><div class="c"><div class="ph"></div><p>Overnight sourdough boule</p></div><div class="c"><div class="ph"></div><p>Lemon ricotta pancakes</p></div><div class="c"><div class="ph"></div><p>Chickpea and spinach curry</p></div><div class="c"><div class="ph"></div><p>Beef stew</p></div><div class="c"><div class="ph"></div><p>Banana bread</p></div></div></div></div></div>
 </div>
 <!--data-you-tab--></x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1280, "height": 800}}'>

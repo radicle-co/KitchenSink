@@ -1,7 +1,7 @@
 /**
  * The gate: whether a recipe read from a page is good enough to send, as a plain yes or no.
  *
- * DESIGN PATTERN: **Specification**, a composite of named predicates (G1 to G8 in the table below), with the numbers a
+ * DESIGN PATTERN: **Specification**, a composite of named predicates (G1 to G9 in the table below), with the numbers a
  * predicate compares against held as data per tier in {@link ACCEPTANCE_BY_TIER} (a **Registry**). It is the ONE owner of
  * "is this good enough": a strategy finds candidates and knows nothing of it, and it knows a recipe and the tier that read
  * it, never the page. The verdict is black and white (owner ruling 2026-11-15): there is no review in the middle.
@@ -15,10 +15,11 @@
  * | G5 | at least one step, each at least 3 characters trimmed                                             | `noSteps`             |
  * | G6 | no step is an amount and a canonical unit in at most 8 words (an ingredient in the method)        | `ingredientsInSteps`  |
  * | G7 | no line is in both the ingredients and the steps (a range read twice)                             | `ingredientsInSteps`  |
- * | G8 | no title, ingredient line or step holds U+FFFD or a C1 control character (U+0080 to U+009F), and none of them is without a letter or digit (`\p{L}`, `\p{N}`) | `garbledText`         |
+ * | G8 | no title, ingredient line or step holds U+FFFD or a C1 control character (U+0080 to U+009F), and none of them is without a letter, mark or digit (`isWordMaterial`) | `garbledText`         |
+ * | G9 | no ingredient line is a heading in capitals: no digit, no measure word, every cased letter (two at least) a capital | `headingInIngredients` |
  *
  * The first predicate that fails, in table order, is the reason. Every predicate here is language-neutral except G6's unit
- * test, which reads English units: a page it cannot read gives no, never a wrong yes (precision first). The step LIMITS
+ * test and G9's measure test, which read English units: a page it cannot read gives no, never a wrong yes (precision first). The step LIMITS
  * (count and length) stay with the caller's `importRecipeSchema`, which owns those numbers.
  *
  * Only linear whitespace and newline splits run over page text, and no pattern can backtrack: a line is scanned one character
@@ -32,6 +33,7 @@ import {
     classifyUnit,
 } from '@kitchensink/recipe-core';
 import type { ExtractionTier, PageRecipe } from './pageRecipeCandidate.js';
+import { isWordMaterial, namesAMeasure } from './pageTokens.js';
 import { folded } from './recipeSelection.js';
 
 /** Why a recipe that was read is still not sent. */
@@ -43,7 +45,8 @@ export type AcceptanceReason =
     | 'ingredientsNotSeparated'
     | 'noSteps'
     | 'ingredientsInSteps'
-    | 'garbledText';
+    | 'garbledText'
+    | 'headingInIngredients';
 
 /** The gate's answer. */
 export type Acceptance = { readonly ok: true } | { readonly ok: false; readonly reason: AcceptanceReason };
@@ -72,8 +75,8 @@ const MIN_STEP_CHARS = 3;
 /** G6: the most words an ingredient-shaped step may have; a longer one is a sentence that happens to start with an amount. */
 const MAX_INGREDIENT_STEP_WORDS = 8;
 
-/** G6: how far into a step a `:` may be and still end a section label such as "For the glaze". */
-const MAX_SECTION_LABEL_CHARS = 40;
+/** G6: how far into a step a `:` may be and still end a leading label: a step name the page shows ("For the glaze") or the site's own text. */
+const MAX_LEADING_LABEL_CHARS = 40;
 
 /** Whether `char` is an uppercase letter in some script: it changes when lowercased. */
 function isUpperCase(char: string): boolean {
@@ -96,6 +99,32 @@ function sentenceEnds(line: string): number {
     return ends;
 }
 
+/** A digit in any script. */
+const DIGIT = /^\p{N}$/u;
+
+/** Whether every cased letter of `line` is a capital, with two capitals at least, and no digit. */
+function isCapitalsOnly(line: string): boolean {
+    let capitals = 0;
+
+    for (const char of line) {
+        if (DIGIT.test(char) || (char !== char.toUpperCase() && char === char.toLowerCase())) {
+            return false;
+        }
+
+        capitals += char !== char.toLowerCase() ? 1 : 0;
+    }
+
+    return capitals >= 2;
+}
+
+/**
+ * G9: whether an ingredient line is a heading in capitals: no digit, and it names no measure ("CRUMBLE", "SHOP JAMIE'S
+ * SERVEWARE"). A script with no case has no capitals. A heading that ends in a colon is extraction's (R2,
+ * `pageRecipeCandidate.ts`), which drops it before this gate. ⚠️ A one-word ingredient in capitals ("SALT") reads as a
+ * heading: with no food lexicon it cannot be told from "FROSTING", so it is refused (pinned by a test).
+ */
+const isCapitalsHeading = (line: string): boolean => isCapitalsOnly(line.trim()) && !namesAMeasure(line);
+
 /** G8: whether `text` holds U+FFFD (a decoder's replacement) or a C1 control character (U+0080 to U+009F). One pass. */
 function isGarbled(text: string): boolean {
     for (let index = 0; index < text.length; index += 1) {
@@ -109,22 +138,19 @@ function isGarbled(text: string): boolean {
     return false;
 }
 
-/** A letter or a digit in any script. One character class, so the test is linear and cannot backtrack. */
-const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u;
+/** G8: whether `text` has no word material in it ("***", a zero-width space, emoji alone): nothing a cook can read. */
+const hasNoWordMaterial = (text: string): boolean => !Array.from(text).some(isWordMaterial);
 
-/** G8: whether `text` has no letter or digit in it ("***", a zero-width space, emoji alone): nothing a cook can read. */
-const hasNoLetterOrDigit = (text: string): boolean => !LETTER_OR_DIGIT.test(text);
-
-/** A step without its section label ("For the glaze: 1 cup sugar" → "1 cup sugar"). */
-function withoutSectionLabel(step: string): string {
+/** A step without its leading label, the text before a colon ("For the glaze: 1 cup sugar" → "1 cup sugar"). */
+function withoutLeadingLabel(step: string): string {
     const colon = step.indexOf(':');
 
-    return colon > 0 && colon <= MAX_SECTION_LABEL_CHARS ? step.slice(colon + 1) : step;
+    return colon > 0 && colon <= MAX_LEADING_LABEL_CHARS ? step.slice(colon + 1) : step;
 }
 
 /** G6: whether a step reads as an ingredient: an amount, then a canonical unit, in a few words. */
 function isIngredientStep(step: string): boolean {
-    const text = withoutSectionLabel(step).trim();
+    const text = withoutLeadingLabel(step).trim();
 
     if (text.split(/\s+/u).length > MAX_INGREDIENT_STEP_WORDS) {
         return false;
@@ -149,7 +175,7 @@ interface Predicate {
     readonly fails: (judged: Judged) => boolean;
 }
 
-/** G1 to G8, in the table's order: the first that fails is the reason. */
+/** G1 to G9, in the table's order: the first that fails is the reason. */
 const PREDICATES: readonly Predicate[] = [
     { reason: 'titleUnusable', fails: ({ recipe }) => !recipeTitleSchema.safeParse(recipe.title).success },
     {
@@ -184,7 +210,11 @@ const PREDICATES: readonly Predicate[] = [
         reason: 'garbledText',
         fails: ({ recipe, steps }) =>
             [recipe.title, ...recipe.ingredientLines, ...steps].some(isGarbled) ||
-            [recipe.title, ...recipe.ingredientLines, ...steps].some(hasNoLetterOrDigit),
+            [recipe.title, ...recipe.ingredientLines, ...steps].some(hasNoWordMaterial),
+    },
+    {
+        reason: 'headingInIngredients',
+        fails: ({ recipe }) => recipe.ingredientLines.some(isCapitalsHeading),
     },
 ];
 

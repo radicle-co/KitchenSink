@@ -9,7 +9,7 @@
  * @pattern Observer — a store over the pure reducer (State + Command), read by `useSnackbarQueue` through
  *     `useSyncExternalStore`
  */
-import type { SnackbarHandle, SnackbarInput } from './props.js';
+import type { SnackbarAction, SnackbarHandle, SnackbarInput } from './props.js';
 import {
     INITIAL_SNACKBAR_STATE,
     remainingMsOf,
@@ -27,12 +27,16 @@ export interface SnackbarStore {
     readonly show: (input: SnackbarInput) => SnackbarHandle;
     /** The remaining ms and a close without commit, only for the snackbar showing now. */
     readonly withdraw: (handle: SnackbarHandle) => number | undefined;
+    /** Takes the snackbar's action: it closes without committing, then the action runs. */
+    readonly act: (id: number, action: SnackbarAction) => void;
+    readonly pause: (id: number) => void;
+    readonly resume: (id: number) => void;
 }
 
 /**
  * A store for one queue.
  *
- * @param now - The clock, read when a snackbar is shown or withdrawn.
+ * @param now - The clock, read when a snackbar is shown, withdrawn, paused or resumed.
  * @returns The store.
  * @sideEffect Holds the queue's state and notifies its subscribers.
  */
@@ -82,6 +86,16 @@ export function createSnackbarStore(now: () => number): SnackbarStore {
             dispatch({ type: 'act', id: current.id });
 
             return remaining;
+        },
+        act: (id, action) => {
+            dispatch({ type: 'act', id });
+            action.onAction();
+        },
+        pause: (id) => {
+            dispatch({ type: 'pause', id, now: now() });
+        },
+        resume: (id) => {
+            dispatch({ type: 'resume', id, now: now() });
         },
     };
 }

@@ -112,7 +112,7 @@ The output is present only in `ready`. It holds no source text, and the job's `s
 
 `POST /api/v1/public-version-jobs/{jobId}/publish` with `{ title, steps: { text }[], shownOffer: ShownOffer }` (the cook's edited version).
 
-- `201 { recipeId }`, or `200 { recipeId }` for a job already published (idempotent on the source page key).
+- `201 { recipeId }`, or `200 { recipeId }` for a job already published (idempotent on the source page key). On the import path the same transaction records the recipe id and `saved_at` on the item and clears its draft step text.
 - The unit charge of FR-016a runs inside the Publish transaction, after the DD33 lock, on the same `allowance_spent_at` guard as keepPrivate. On the public-only path Publish charges the unit. On the Both path the private save already set the guard, so Publish charges nothing, and the later route (no import item) charges nothing. A refusal by `admit` rolls the transaction back and answers `429 IMPORT_QUOTA_EXCEEDED`, and the job stays `ready`. A replay never charges twice.
 - `422 { code: 'flags', flags: { kind: 'step' | 'allergen' | 'factAdded', line?, ingredient? }[] }` from the server fact check.
   `factAdded` carries the added `line`.

@@ -825,3 +825,5 @@ Still owed:
 - **C-29. One key, two strings?** Decided: two keys, so each copy cell holds one string. `review.notNow` is "Keep it
   just for me" (public path) and `review.notNowBoth` is "Don’t publish" (Both path). The designer mirrors the split in
   the boards.
+- **C-30. The `public.hint` line "We don’t keep your pasted copy".** Open: it is true only once the import ends, because an
+  unfinished import keeps its draft until ADR-0072's 30-day purge (FR-033). The designer rewords or drops it before T109.

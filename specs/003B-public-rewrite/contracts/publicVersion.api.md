@@ -40,7 +40,7 @@ PublicVersionOffer =
         | { kind: 'deadEnd', reason: 'paid' | 'noWrite' }
 ```
 
-The server computes `offer`. The client renders it and never derives it. With no free private slot the server answers `deadEnd`, never `privateOnly`, for every case that would end in "Save my copy" (reason `paid` for a paid source held back, `noWrite` for the other `privateOnly` reasons), because the save would be refused. A `publicExists` offer with no free slot offers `review.discard` as its exit.
+The server computes `offer`. The client renders it and never derives it. With no free private slot the server answers `deadEnd`, never `privateOnly`, for every case that would end in "Save my copy" (reason `paid` for a paid source held back, `noWrite` for the other `privateOnly` reasons), because the save would be refused. A `publicExists` offer with no free slot offers `review.discard` (`review.discardFile` on a file item) as its exit.
 
 ## The shown offer
 

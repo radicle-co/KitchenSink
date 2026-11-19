@@ -13,8 +13,8 @@ below, in this order of authority: the design spec, then the boards.
 - [Public version on recipe detail](../../docs/design/publicVersion/detailSpec.md): how recipe detail shows a public
   version and an import's private copy: the credit, hidden views, "Share a public version" and "Report a problem".
 
-**Do not build the paste design spec's "Add a recipe" (§3.1) presentation.** A change in review replaces it. Build the
-chooser rows only.
+The "Add a recipe" chooser (paste design spec §3.1, D30) is a speed dial on compact screens and an anchored menu on
+medium and expanded ones. It lists one row for each import method that has shipped.
 
 ## Canvases
 
@@ -29,15 +29,15 @@ Both are registered in [`docs/design/canvases/registry.json`](../../docs/design/
 
 ## Channels
 
-| Channel                               | Design                                                                                                                                     | Boards                                                                                            |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| Paste (text or a whole web page)      | Paste design spec                                                                                                                          | `ImportPaste*`                                                                                    |
-| Public version choice (every channel) | Public version design spec                                                                                                                 | `ImportPublic*`                                                                                   |
-| Link                                  | Partly designed. The server AI fallback for a link import has no states yet. The paid-site and private-only link boards are being redrawn. | `ImportLinkProgress*`, `ImportImportFailed*`                                                      |
-| File and library (bulk)               | Designed                                                                                                                                   | `ImportModeChoice*`, `ImportWizard*`, `ImportLibrary*`, `ImportFlaggedLine*`, `ImportStatements*` |
-| Shared link from a social app         | Gated only on the Instagram official-API path (D-002). Check the boards against FR-009 before building.                                    | `ImportVideo*`, `ImportShareCapture*`                                                             |
-| "Save to Commise" button              | No design yet (FR-053)                                                                                                                     | none                                                                                              |
-| Photo                                 | Not this feature: spec 011 owns it.                                                                                                        | none                                                                                              |
+| Channel                               | Design                                                                                                  | Boards                                                                                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Paste (text or a whole web page)      | Paste design spec                                                                                       | `ImportPaste*`                                                                                                                      |
+| Public version choice (every channel) | Public version design spec                                                                              | `ImportPublic*`                                                                                                                     |
+| Link                                  | Partly designed. The server AI fallback for a link import has no states yet.                            | `ImportLinkProgress*`, `ImportImportFailed*`, `ImportLinkPasteInstead*`, `ImportLinkPrivateOnly*`, `ImportReviewDraft*`             |
+| File and library (bulk)               | Designed                                                                                                | `ImportModeChoice*`, `ImportWizard*`, `ImportLibrary*`, `ImportLibraryAlreadyInLibrary*`, `ImportFlaggedLine*`, `ImportStatements*` |
+| Shared link from a social app         | Gated only on the Instagram official-API path (D-002). Check the boards against FR-009 before building. | `ImportVideo*`, `ImportShareCapture*`                                                                                               |
+| "Save to Commise" button              | No design yet (FR-053)                                                                                  | none                                                                                                                                |
+| Photo                                 | Not this feature: spec 011 owns it.                                                                     | none                                                                                                                                |
 
 ## Owed designs
 
@@ -47,13 +47,15 @@ Each needs a design spec section and boards on both canvases before it is built:
   the on, off and unavailable states.
 - Ownership claim at import and later (FR-014a item 4, FR-055): offered, in progress, verified, failed and declined.
 - The paid-list admin screen (FR-014): designed with the server link fetch.
-- The bulk "Already in your library" state (FR-068).
 - The statement block's rows for statements 1a, 2 and 6 (`FR-014a`), and the bulk "Needs your statement" group. Until
   then the block offers only the paste design spec's §7.4 statements. The wording is confirmed before launch
   (`016-FR-050`).
 
 ## Rules that hold on every import screen
 
+- Choose each surface by the [modal ruling](../../docs/design/modalUsage.md): a centred modal only when the task must block
+  everything, such as a destructive confirm. The Replace confirm (paste design spec S31) and the confirms in the public version
+  design spec stay centred modals.
 - Save is never disabled. A missing value is a hold in "Needed before saving" (paste design spec D7).
 - The cook never reviews the extraction. The review shows holds, the statement and the food matches.
 - The chooser lists only methods that have shipped. Paste and link are separate methods, and a pasted link is never

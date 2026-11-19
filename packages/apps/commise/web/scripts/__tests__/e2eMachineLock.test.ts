@@ -40,7 +40,7 @@ describe('withWebLock', () => {
             return Promise.resolve();
         });
 
-        expect(held).toBe('111 b\n');
+        expect(held).toBe('111 b test:e2e:web\n');
         expect(() => readFileSync(file, 'utf8')).toThrow(/ENOENT/u);
     });
 

@@ -80,11 +80,7 @@ const adapter = (shell: IosShell): IosAdapter =>
         shell,
         env: { LOCAL_MAESTRO_IOS_HOST: 'me@mac' },
         repoRoot: '/repo',
-        settings: {
-            recipeOrigin: 'http://localhost:3000',
-            identityOrigin: 'http://localhost:3001',
-            foodOrigin: 'http://localhost:3002',
-        },
+        hostPorts: { recipes: 3110, identity: 3111, food: 3112 },
     });
 
 /** The command string the adapter gave `ssh`: the last argument of every ssh call. */

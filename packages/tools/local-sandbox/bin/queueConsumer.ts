@@ -16,11 +16,10 @@ import { pathToFileURL } from 'node:url';
 
 import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 
-import { readConsumerPlan } from '../src/queueConsumers.js';
+import { localstackEndpointOf, readConsumerPlan, s3EndpointOf } from '../src/queueConsumers.js';
 import { messagesToDelete, sqsEventFor, type InvocationOutcome } from '../src/queueEvent.js';
 import { CONSUMER_PLAN } from './adapters.js';
 
-const LOCALSTACK = 'http://localhost:4566';
 const REGION = 'us-east-1';
 
 async function main(): Promise<void> {
@@ -41,11 +40,13 @@ async function main(): Promise<void> {
         delete process.env[key];
     }
 
+    const localstack = localstackEndpointOf(consumer.queueUrl);
+
     Object.assign(process.env, consumer.environment, {
-        AWS_ENDPOINT_URL: LOCALSTACK,
+        AWS_ENDPOINT_URL: localstack,
         // ⚠️ The handlers build `new S3Client({})`, which addresses a bucket VIRTUAL-HOSTED — `<bucket>.localhost` does
         // not resolve. LocalStack's own wildcard name does (to 127.0.0.1), so S3 gets that endpoint.
-        AWS_ENDPOINT_URL_S3: 'http://s3.localhost.localstack.cloud:4566',
+        AWS_ENDPOINT_URL_S3: s3EndpointOf(consumer.queueUrl),
         AWS_ACCESS_KEY_ID: 'test',
         AWS_SECRET_ACCESS_KEY: 'test',
         AWS_REGION: REGION,
@@ -66,7 +67,7 @@ async function main(): Promise<void> {
 
     const sqs = new SQSClient({
         region: REGION,
-        endpoint: LOCALSTACK,
+        endpoint: localstack,
         credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
     });
     const stop = new AbortController();

@@ -9,7 +9,7 @@
         "platform-singleton": 104,
         "ref-api": 22,
         "unclassified-layer": 96,
-        "undocumented-prop": 231
+        "undocumented-prop": 233
     },
     "findings": [
         {
@@ -5472,6 +5472,26 @@
             "evidence": [
                 "web: exit place",
                 "native: exit narrow place"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/ingredients/CookingIngredientsSheet",
+            "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsSheet.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "open"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/ingredients/CookingIngredientsSheet",
+            "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsSheet.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "open"
             ]
         },
         {

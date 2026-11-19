@@ -15,6 +15,7 @@ import { checkSignedUrl } from '@kitchensink/remote-search-edge/signature';
 import { describe, expect, it } from 'vitest';
 
 import { planCompose } from '../composePlan.js';
+import { stackFrom } from '../stackPorts.js';
 import { localContainerEnv } from '../localImages.js';
 import {
     foodRemoteSearchEnv,
@@ -138,7 +139,7 @@ describe('remoteSearchSidecar', () => {
     it('is carried into the compose plan as a service with no ports, started after LocalStack', () => {
         const plan = planCompose(
             { localstackServices: ['s3'], containers: [] },
-            { databases: [], sidecars: [sidecar] },
+            { databases: [], sidecars: [sidecar], stack: stackFrom({}) },
         );
         const planned = plan.services[sidecar.name];
 

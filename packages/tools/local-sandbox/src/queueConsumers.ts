@@ -358,3 +358,26 @@ export function readConsumerPlan(file: string): readonly PersistedConsumer[] {
 
     return parsed.data;
 }
+
+/**
+ * The LocalStack endpoint a persisted consumer polls: the origin of its stored queue url, which `local:up` wrote with
+ * the stack's published LocalStack port. One source, so the runner cannot disagree with the plan.
+ *
+ * @param queueUrl - The consumer's `queueUrl`.
+ * @returns The `http://localhost:<port>` origin. Pure.
+ */
+export function localstackEndpointOf(queueUrl: string): string {
+    return new URL(queueUrl).origin;
+}
+
+/**
+ * The S3 endpoint a persisted consumer uses. The handlers address a bucket virtual-hosted, and `<bucket>.localhost`
+ * does not resolve, so S3 gets LocalStack's own wildcard name (it resolves to 127.0.0.1) on the stack's LocalStack
+ * port.
+ *
+ * @param queueUrl - The consumer's `queueUrl`.
+ * @returns The S3 endpoint. Pure.
+ */
+export function s3EndpointOf(queueUrl: string): string {
+    return `http://s3.localhost.localstack.cloud:${new URL(queueUrl).port}`;
+}

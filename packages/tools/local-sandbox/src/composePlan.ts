@@ -9,6 +9,7 @@
  * The synthesised CDK says the answer is ten services. Nobody was going to keep that current by hand, which
  * is precisely why it had not been.
  */
+import { PGDATA_VOLUME_KEY, type Stack } from './stackPorts.js';
 
 /** What `summarizeRequirements` produced, narrowed to what a compose plan reads. */
 export interface ComposeInput {
@@ -44,10 +45,12 @@ export interface SidecarContainer {
     /** Bind mounts, relative to the generated compose file. */
     readonly volumes: readonly string[];
     readonly environment: Readonly<Record<string, string>>;
-    readonly healthcheck: Readonly<Record<string, unknown>>;
+    readonly healthcheck: Healthcheck;
 }
 
 export interface ComposeOptions {
+    /** The stack being planned: it decides the host side of every published port. */
+    readonly stack: Stack;
     /** Logical databases the CDK named, each created on first start. */
     readonly databases: readonly string[];
     /** Services built from this repo's own Dockerfiles. */
@@ -56,12 +59,20 @@ export interface ComposeOptions {
     readonly sidecars?: readonly SidecarContainer[];
 }
 
+/** A Compose `healthcheck`, every key the generated file writes. */
+interface Healthcheck {
+    readonly test: readonly string[];
+    readonly interval: string;
+    readonly timeout: string;
+    readonly retries: number;
+}
+
 /** One container in the generated stack. */
 export interface ComposeService {
     readonly image: string;
     readonly ports: readonly string[];
     readonly environment: Readonly<Record<string, string>>;
-    readonly healthcheck: Readonly<Record<string, unknown>>;
+    readonly healthcheck: Healthcheck;
     readonly volumes?: readonly string[];
     /** `network_mode`; a service that sets it publishes no `ports`. */
     readonly networkMode?: string;
@@ -84,12 +95,11 @@ export interface ComposePlan {
  */
 const LOCALSTACK_IMAGE = 'localstack/localstack:4.4.0';
 
-/** Local Postgres credentials and the host port it binds. Fixed and known — there is no secret to fetch locally. */
+/** Local Postgres credentials. Fixed and known — there is no secret to fetch locally. The host port is the stack's. */
 export const LOCAL_DB = Object.freeze({
     user: 'postgres',
     password: 'postgres',
     bootstrapDatabase: 'postgres',
-    hostPort: 5432,
 });
 
 /**
@@ -105,7 +115,7 @@ export function planCompose(requirements: ComposeInput, options: ComposeOptions)
     if (requirements.localstackServices.length > 0) {
         services['localstack'] = {
             image: LOCALSTACK_IMAGE,
-            ports: ['4566:4566'],
+            ports: [`${String(options.stack.hostPort('localstack'))}:4566`],
             environment: {
                 // Sorted, so a reordered inventory is not a diff.
                 SERVICES: [...requirements.localstackServices].sort().join(','),
@@ -129,7 +139,7 @@ export function planCompose(requirements: ComposeInput, options: ComposeOptions)
     if (postgresImage !== undefined) {
         services['postgres'] = {
             image: postgresImage,
-            ports: [`${String(LOCAL_DB.hostPort)}:5432`],
+            ports: [`${String(options.stack.hostPort('postgres'))}:5432`],
             environment: {
                 POSTGRES_USER: LOCAL_DB.user,
                 POSTGRES_PASSWORD: LOCAL_DB.password,
@@ -145,7 +155,7 @@ export function planCompose(requirements: ComposeInput, options: ComposeOptions)
             // to `/var/lib/postgresql/18/docker` and declares its VOLUME at the parent; on the old path the
             // named volume holds nothing while the real cluster lands in an anonymous one, and local data is
             // silently discarded on every recreate. The same note is on the file this replaces.
-            volumes: ['local-sandbox-pgdata:/var/lib/postgresql'],
+            volumes: [`${PGDATA_VOLUME_KEY}:/var/lib/postgresql`],
         };
     }
 

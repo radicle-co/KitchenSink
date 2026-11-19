@@ -22,16 +22,7 @@
  * @sideEffect Spawns CDK and docker, writes generated files under `.local-sandbox/`, and starts containers.
  */
 import { spawnSync } from 'node:child_process';
-import {
-    cpSync,
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readdirSync,
-    readFileSync,
-    realpathSync,
-    writeFileSync,
-} from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -53,6 +44,7 @@ import {
 import { LOCAL_DB, planCompose } from '../src/composePlan.js';
 import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/hostLock.js';
 import { runUp, type UpPorts } from '../src/runUp.js';
+import { canonicalPath } from '../src/canonicalPath.js';
 import { composeContainersFrom, stackLine, type Stack } from '../src/stackPorts.js';
 import {
     discoverDatabases,
@@ -1117,7 +1109,7 @@ function realPorts(): UpPorts {
     return {
         env: process.env,
         checkout: REPO_ROOT,
-        canon: (value) => realpathSync(value),
+        canon: canonicalPath,
         stateDir,
         containers: () =>
             composeContainersFrom(

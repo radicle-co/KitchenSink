@@ -4,13 +4,14 @@
  * @sideEffect Takes the project lock and runs `docker compose -p <project> down`.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, realpathSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 import { stateRoot } from '@kitchensink/e2e-plan/stampRun';
 
 import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/hostLock.js';
 import { runDown } from '../src/runDown.js';
+import { canonicalPath } from '../src/canonicalPath.js';
 import { composeContainersFrom } from '../src/stackPorts.js';
 import { REPO_ROOT } from './adapters.js';
 
@@ -19,7 +20,7 @@ const stateDir = path.join(stateRoot(), 'localSandbox');
 process.exitCode = runDown({
     env: process.env,
     checkout: REPO_ROOT,
-    canon: (value) => realpathSync(value),
+    canon: canonicalPath,
     stateDir,
     containers: () =>
         composeContainersFrom(

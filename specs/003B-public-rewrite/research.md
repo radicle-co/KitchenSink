@@ -15,7 +15,7 @@ Each item gives the decision, the reason, and the options set aside.
 - **Decision**: a `public_version_jobs` table of its own, keyed on the source record.
 - **Reason**: the import item is purged on the schedule of ADR-0072, and the later route (US3) has no
   item at all. The job also holds the writer's source step text (`source_steps`) until it ends (cleared at most 73 h 15 min after Start while the sweep runs, FR-033), so a retry on the public-only path sends the same text. The item's draft
-  (`recipe_import_items.payload`) follows FR-033: it clears only through `claimSave` (every save that ends the paste in a recipe, FR-016a), or goes with the import on an explicit discard, and otherwise ADR-0072's 30-day purge removes it.
+  (`recipe_import_items.payload`) follows FR-033: it clears only through `claimSave` (every save that ends the paste in a recipe, FR-016a), or goes with the import on an explicit discard, and otherwise ADR-0072's 30-day purge (its date is `recipe_import_purge_at`, data model) removes it.
   The sweep clears only the job's own text.
 - **Set aside**: columns on the import item.
 
@@ -26,7 +26,7 @@ Each item gives the decision, the reason, and the options set aside.
   The comparison form is the one defined in 027 research R3.
 - **Reason**: the "For everyone" path keeps no text once the import ends (Publish, keepPrivate or an explicit discard, FR-033), but FR-050 must still run on every save. A hash set answers
   Jaccard and containment with no text.
-- **Set aside**: keeping the pasted text after the import ends (the job's copy clears when the job ends, and the item's draft on Publish, keepPrivate or an explicit discard, or else at ADR-0072's 30-day purge, FR-033). Keeping only a digest (it cannot measure
+- **Set aside**: keeping the pasted text after the import ends (the job's copy clears when the job ends, and the item's draft on Publish, keepPrivate or an explicit discard, or else at ADR-0072's 30-day purge (its date is `recipe_import_purge_at`, data model), FR-033). Keeping only a digest (it cannot measure
   closeness).
 
 ## R4. Title

@@ -697,3 +697,4 @@ Both.
 2. **Designer:** the grouped file row (§6.11, §7.2) is final. A resting job (`checkRefused` or `failed`) shows no line on P6, and "Share a public version" stays.
 3. **Design system owner:** `ButtonPair` and the `RadioList` selected fill (§8.3).
 4. **010 owner:** the mobile store sheet opening at Pro with both periods shown (§4, Upgrade).
+5. **Designer:** does switching a file recipe to "I wrote this" while its public version is `ready` need a confirm or an undo snackbar? Today it has no confirm: the switch clears the recipe's choice and cancels its job (data model, "An authored statement write clears the choice").

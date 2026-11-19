@@ -12,6 +12,7 @@ import {
     type CreateAuthoredFoodInput,
     type CreateAuthoredFoodResult,
 } from '@kitchensink/food-service-client';
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -107,6 +108,24 @@ describe('toCreateRequest', () => {
         expect(request.ingredients.map((line) => line.ingredientId)).toEqual(
             lamb!.ingredients.map((line) => ids.get(line.name)),
         );
+    });
+
+    /** The service refuses a public create with no Public confirmation (attestation record), so a seed that skips it breaks. */
+    it('⛔ carries the Public confirmation on a public recipe and on no private one', () => {
+        const ids = new Map(manifest.recipes.flatMap((recipe) => recipe.ingredients.map((line) => [line.name, 'id'])));
+        const publics = manifest.recipes.filter((recipe) => recipe.visibility === 'public');
+        const privates = manifest.recipes.filter((recipe) => recipe.visibility === 'private');
+
+        expect(publics.length).toBeGreaterThan(0);
+        expect(privates.length).toBeGreaterThan(0);
+
+        for (const recipe of publics) {
+            expect(toCreateRequest(recipe, ids).publicConfirmation).toEqual(PUBLIC_CONFIRMATION_FOR_API_WRITERS);
+        }
+
+        for (const recipe of privates) {
+            expect(toCreateRequest(recipe, ids)).not.toHaveProperty('publicConfirmation');
+        }
     });
 });
 

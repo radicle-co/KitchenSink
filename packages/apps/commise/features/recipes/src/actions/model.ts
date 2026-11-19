@@ -7,7 +7,6 @@
  * presentational prop types. Each component fetches nothing and derives no remote state; the composing app
  * owns the mutations and feeds these props.
  */
-import type { RecipeMakePublicConsequence } from './recipePrivateGate.js';
 
 /**
  * Props for the delete-confirmation dialog (T068) — a controlled, presentational modal. Visibility is owned
@@ -39,8 +38,12 @@ export interface RecipeDeleteDialogProps {
 export interface RecipeMakePublicDialogProps {
     /** Whether the dialog is shown. When `false` the component renders nothing. */
     readonly open: boolean;
-    /** Why going public costs the cook something: the body's words (`recipeMakePublicConsequence`, never `none` here). */
-    readonly consequence: Exclude<RecipeMakePublicConsequence, 'none'>;
+    /**
+     * What the body says. `frees`: going public frees a private slot (`recipeMakePublicConsequence`), said first, then the
+     * passive line as a second paragraph. `confirm`: there is nothing to free, so the passive line itself is the body. The
+     * dialog always opens, because the line is what the cook confirms (ADR-0095).
+     */
+    readonly consequence: 'frees' | 'confirm';
     /** The change is in flight: the confirm spins and cannot fire again. */
     readonly busy?: boolean;
     /** When true, the last change failed: a localized alert inside the dialog. */

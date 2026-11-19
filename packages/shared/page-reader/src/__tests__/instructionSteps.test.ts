@@ -8,7 +8,7 @@ const readSteps = (value: unknown) => walkSteps(value).steps;
 
 const step = (text: string) => ({ '@type': 'HowToStep', text });
 
-/** The steps as the recipe states them with no step name shown: section labels only (today's behaviour). */
+/** The steps as the recipe states them with no step name shown. */
 const instructionSteps = (value: unknown) => readSteps(value).map((read) => instructionOf(read, false));
 
 describe('instructionSteps', () => {
@@ -52,7 +52,9 @@ describe('instructionSteps', () => {
             expect(readSteps([{ '@type': 'HowToStep', name: 'Bake.' }])).toEqual([{ text: 'Bake.' }]);
         });
 
-        it('lets a section label go first: a step that spent one has no name heading', () => {
+        // Rewritten for round 8: a section's name no longer goes in front of its first step, so a shown step name is the
+        // only heading a step gets.
+        it('gives a step inside a section only its own shown name', () => {
             const reads = readSteps({
                 '@type': 'HowToSection',
                 name: 'For the glaze',
@@ -60,7 +62,7 @@ describe('instructionSteps', () => {
             });
 
             expect(reads.map((read) => instructionOf(read, true))).toEqual([
-                'For the glaze: Combine sugar and milk.',
+                'Whisk: Combine sugar and milk.',
                 'Drizzle: Pour it over.',
             ]);
         });
@@ -90,17 +92,19 @@ describe('instructionSteps', () => {
         ).toEqual(['Mix.', 'Bake.', 'T']);
     });
 
-    it('flattens a HowToSection in order and puts its name at the start of its first step only', () => {
+    // Rewritten for round 8 (labelling ruling, round-6 adjudication): a section's name is a group heading, which is no part
+    // of the recipe, so it is not written into a step. It used to go in front of the section's first step.
+    it('flattens a HowToSection in order, with no section name in any step', () => {
         expect(
             instructionSteps([
                 step('Preheat.'),
                 { '@type': 'HowToSection', name: 'For the glaze', itemListElement: [step('Whisk.'), step('Drizzle.')] },
                 { '@type': 'HowToSection', name: 'Serve', itemListElement: [step('Slice.')] },
             ]),
-        ).toEqual(['Preheat.', 'For the glaze: Whisk.', 'Drizzle.', 'Serve: Slice.']);
+        ).toEqual(['Preheat.', 'Whisk.', 'Drizzle.', 'Slice.']);
     });
 
-    it('flattens a section inside a section, labelling each section once', () => {
+    it('flattens a section inside a section, with no section name in any step', () => {
         expect(
             instructionSteps({
                 '@type': 'HowToSection',
@@ -110,10 +114,10 @@ describe('instructionSteps', () => {
                     step('C.'),
                 ],
             }),
-        ).toEqual(['Inner: A.', 'B.', 'C.']);
+        ).toEqual(['A.', 'B.', 'C.']);
     });
 
-    it('does not label a section that has no steps, nor one with a blank name', () => {
+    it('reads a section that has no steps as nothing, and one with a blank name as its steps', () => {
         expect(
             instructionSteps([
                 { '@type': 'HowToSection', name: 'Empty', itemListElement: [] },
@@ -187,24 +191,6 @@ describe('instructionSteps', () => {
         expect(instructionSteps([step('Kept.'), nested])).toEqual(['Kept.']);
     });
 
-    describe('section names that already end in a colon', () => {
-        it.each(['Make the cookies:', 'Make the cookies\uFF1A'])('adds no second colon after %j', (name) => {
-            expect(
-                instructionSteps({ '@type': 'HowToSection', name, itemListElement: [step('Mix.'), step('Bake.')] }),
-            ).toEqual([`${name} Mix.`, 'Bake.']);
-        });
-
-        it('still adds ": " after a name that does not end in one', () => {
-            expect(
-                instructionSteps({
-                    '@type': 'HowToSection',
-                    name: 'Make: the cookies',
-                    itemListElement: [step('Mix.')],
-                }),
-            ).toEqual(['Make: the cookies: Mix.']);
-        });
-    });
-
     describe('HowToTip is skipped with its whole subtree', () => {
         const tip = (extra: Record<string, unknown> = {}) => ({
             '@type': 'HowToTip',
@@ -230,10 +216,10 @@ describe('instructionSteps', () => {
                     name: 'Dough',
                     itemListElement: [tip({ itemListElement: [step('Hidden.')] }), step('Mix.')],
                 }),
-            ).toEqual(['Dough: Mix.']);
+            ).toEqual(['Mix.']);
         });
 
-        it('gives no step for a section that holds only tips, and spends no label on it', () => {
+        it('gives no step for a section that holds only tips', () => {
             expect(
                 instructionSteps([
                     { '@type': 'HowToSection', name: 'Notes', itemListElement: [tip(), tip()] },

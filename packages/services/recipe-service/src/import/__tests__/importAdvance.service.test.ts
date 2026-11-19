@@ -312,7 +312,8 @@ interface World {
 }
 
 function build(world: World = {}) {
-    const header = makeHeader({ ...(world.header ?? {}) });
+    // Private unless a case says otherwise: an import saves Private only until the paste import carries wordings (ADR-0095 section 4).
+    const header = makeHeader({ visibility: 'private', ...(world.header ?? {}) });
     const store = itemStore(world.items ?? []);
     const imports = {
         findHeader: vi.fn<RecipeImportsDal['findHeader']>(async () => header),
@@ -1684,7 +1685,10 @@ describe('ImportAdvanceService — saving what is ready', () => {
     describe('private slots (ADR-0073)', () => {
         const none: PrivateSlotsPort = { hasAvailable: async () => false };
 
-        it('⛔ does not even try a PRIVATE save when no slot is free, and still saves the PUBLIC ones', async () => {
+        // Rewritten for the provenance review (finding 7): this case saved the PUBLIC item beside a paused private one. An import
+        // saves Private only now, so with no slot free NOTHING is saved: the private item is paused and the public choice is
+        // refused, never saved Public and never turned into a private recipe the cook did not choose.
+        it('⛔ does not try a PRIVATE save when no slot is free, and never saves a PUBLIC choice', async () => {
             const publicItem = matched(1, {
                 statementKind: 'authored',
                 visibility: 'public',
@@ -1700,8 +1704,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
 
             await answered;
 
-            expect(recipes.create).toHaveBeenCalledOnce();
-            expect(firstCreate(recipes).dto.visibility).toBe(RecipeVisibility.PUBLIC);
+            expect(recipes.create).not.toHaveBeenCalled();
         });
 
         // The save follows the item list's precedence (`importItemIssueOf`): a recipe that cannot be published uses no slot,

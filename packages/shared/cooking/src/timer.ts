@@ -77,6 +77,16 @@ export type HeldTimer = RunningTimer | PausedTimer;
 export type ActiveTimer = HeldTimer | RingingTimer | EndedAwayTimer;
 
 /**
+ * Whether a timer has ended and waits for the cook: ringing, or ended while the app was away. The one rule for it.
+ *
+ * @param timer - Any timer in the list.
+ * @returns `true` for a ringing or an ended-away timer. Pure.
+ */
+export function isWaitingForCook(timer: ActiveTimer): timer is RingingTimer | EndedAwayTimer {
+    return timer.kind === 'ringing' || timer.kind === 'endedAway';
+}
+
+/**
  * The whole state: the timers, and the one a cancel left for Undo. Only `cancel`, `restore` and `discardUndo` change
  * `undo`, and `rematch` may rehome it to the step its timer moved to.
  */
@@ -280,7 +290,7 @@ function addTime(state: TimerState, command: Extract<TimerCommand, { kind: 'addT
 
     assertDuration(command.addMs);
 
-    if (timer.kind === 'ringing' || timer.kind === 'endedAway') {
+    if (isWaitingForCook(timer)) {
         const next: RunningTimer = {
             ...baseOf(timer),
             kind: 'running',
@@ -448,7 +458,7 @@ export function reduceTimer(state: TimerState, command: TimerCommand): TimerResu
         case 'stop': {
             const timer = state.timers.find((t) => t.id === command.id);
 
-            return timer?.kind === 'ringing' || timer?.kind === 'endedAway'
+            return timer !== undefined && isWaitingForCook(timer)
                 ? quiet({ timers: withTimer(state, timer.id, undefined), undo: state.undo })
                 : quiet(state);
         }
@@ -460,10 +470,11 @@ export function reduceTimer(state: TimerState, command: TimerCommand): TimerResu
 
 /** Where a timer sorts in the cook's list: ended first, then running by end instant, then paused by time left. */
 function listKey(timer: ActiveTimer): readonly [rank: number, key: number] {
+    if (isWaitingForCook(timer)) {
+        return [0, timer.endedAt];
+    }
+
     switch (timer.kind) {
-        case 'ringing':
-        case 'endedAway':
-            return [0, timer.endedAt];
         case 'running':
             return [1, timer.endsAt];
         case 'paused':

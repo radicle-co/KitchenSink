@@ -4,7 +4,7 @@
 **Status**: Ready for UX discovery and low-/mid-fidelity mockups; high-fidelity design remains gated by open decisions listed in [05-open-decisions.md](./05-open-decisions.md).
 **Last updated**: 2026-05-10
 
-This package is the portfolio-level UX source of truth for Commise. Feature-level product specs, journeys, and wireframes are distributed across `specs/001-*` through `specs/014-*`; `001`–`010` have split-out journeys and wireframes, while `011`–`014` currently keep journey/mockup context inside their product specs. UX should use this directory as the starting point, then drill into the linked feature specs for detail.
+This package is the portfolio-level UX source of truth for Commise. Feature-level product specs, journeys, and wireframes are distributed across `specs/001-*` through `specs/014-*`; `001`–`010` have split-out journeys and wireframes (except `004`, whose design source is `004-recipe-importing/designSource.md`), while `011`–`014` currently keep journey/mockup context inside their product specs. UX should use this directory as the starting point, then drill into the linked feature specs for detail.
 
 For executive strategy, market, business-case, and readiness framing, use the companion [executive product packet](../executive/README.md).
 
@@ -37,7 +37,7 @@ UX should not treat this as final visual design approval. The V-Model and implem
 | 001 Recipe Management Core          | [product-spec](../001-commise-recipe-app/product-spec/product-spec.md)   | [journeys](../001-commise-recipe-app/product-spec/user-journey.md) | [wireframes](../001-commise-recipe-app/product-spec/wireframes/) |
 | 002 Clerk User Authentication       | [product-spec](../002-user-auth/product-spec/product-spec.md)            | [journeys](../002-user-auth/product-spec/user-journey.md)          | [wireframes](../002-user-auth/product-spec/wireframes/)          |
 | 003 USDA Food Data                  | [product-spec](../003-usda-food-data/product-spec/product-spec.md)       | [journeys](../003-usda-food-data/product-spec/user-journey.md)     | [wireframes](../003-usda-food-data/product-spec/wireframes/)     |
-| 004 Recipe Importing                | [product-spec](../004-recipe-importing/product-spec/product-spec.md)     | [journeys](../004-recipe-importing/product-spec/user-journey.md)   | [wireframes](../004-recipe-importing/product-spec/wireframes/)   |
+| 004 Recipe Importing                | [product-spec](../004-recipe-importing/product-spec/product-spec.md)     | none                                                               | [design source](../004-recipe-importing/designSource.md)         |
 | 005 AI Integration                  | [product-spec](../005-ai-integration/product-spec/product-spec.md)       | [journeys](../005-ai-integration/product-spec/user-journey.md)     | [wireframes](../005-ai-integration/product-spec/wireframes/)     |
 | 006 Meal Planning                   | [product-spec](../006-meal-planning/product-spec/product-spec.md)        | [journeys](../006-meal-planning/product-spec/user-journey.md)      | [wireframes](../006-meal-planning/product-spec/wireframes/)      |
 | 007 Grocery Lists & Online Ordering | [product-spec](../007-grocery-lists/product-spec/product-spec.md)        | [journeys](../007-grocery-lists/product-spec/user-journey.md)      | [wireframes](../007-grocery-lists/product-spec/wireframes/)      |

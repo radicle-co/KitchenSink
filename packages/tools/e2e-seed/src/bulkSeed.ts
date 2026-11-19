@@ -14,6 +14,7 @@
 import { clerkLeasePort, leaseSession } from '@kitchensink/e2e-fixtures/lease';
 import { slotFor } from '@kitchensink/e2e-fixtures/testPool';
 
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 
 import { clientFor } from './client.js';
@@ -65,6 +66,8 @@ function recipeAt(index: number, ingredientId: string): CreateRecipeRequest {
         description: `A ${pick(DIFFICULTIES, index)} weeknight ${pick(METHODS, Math.floor(index / 7)).toLowerCase()} seeded for library-scale review.`,
         // Public by default (FR-003), which is also what makes these visible on Discover.
         visibility: 'public',
+        // Published and public with no status means the server asks for the Public confirmation (attestation record).
+        publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS,
         difficulty: pick(DIFFICULTIES, index),
         servings: 2 + (index % 5),
         prepTimeMinutes: prep,

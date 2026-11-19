@@ -101,6 +101,10 @@ import {
     type RecipeLifecycle,
 } from '../editor/checkpointPolicy.js';
 import type { PrivateRefusal } from '../actions/privateGate.js';
+import { publicWordingOf, type StatementWrite } from '../actions/sourceStatement.js';
+import { statementPlanOf, type StatementPlan } from '../editor/statementGate.js';
+import { createStatementStore, type StatementStore } from '../editor/statementStore.js';
+import type { ShownWordings } from '../form/wire.js';
 import { toDraftValues, type DraftMemento, type DraftStore } from '../editor/draftStore.js';
 import {
     commandAddressOf,
@@ -109,6 +113,7 @@ import {
     liveHeldRebinds,
     seedEditorCore,
     serverIdOf,
+    storedRecipeOf,
     serverValuesOf,
     type ConflictInfo,
     type ConflictView,
@@ -134,7 +139,7 @@ import { VisibilityNotHeldError } from '../editor/visibilityNotHeldError.js';
 import { createLaneStore, isSettingVisibility, type LaneStore, type OutstandingWrite } from '../editor/writeLane.js';
 import type { DraftAction } from '../form/draftAction.js';
 import { isStoredLine, lineKeyAt, persistedLineKeysOf, type IngredientLineKey } from '../form/lineKey.js';
-import { derivedVisibility, draftSourceOf } from '../form/sourceLink.js';
+import { derivedVisibility, draftSourceOf, publicHeldOf } from '../form/sourceLink.js';
 import { meetsDraftFloor, validateRecipeForm } from '../form/validate.js';
 import { defaultRecipeFormValues, recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
 import { toRecipeFormValues } from '../form/wire.js';
@@ -166,7 +171,9 @@ export type EditorWriteAnswer =
     /** The server refused a Private for want of a slot (`403 PRIVATE_SLOTS_FULL`): what it counted, and the cook's limit. */
     | { readonly kind: 'recipeSlotsFull'; readonly used: number; readonly limit: number }
     /** The server refused a public recipe that holds foods only its author can see (`400 PRIVATE_FOODS_ON_PUBLIC_RECIPE`): the lines. */
-    | { readonly kind: 'recipePrivateFoods'; readonly lines: readonly PrivateFoodLine[] };
+    | { readonly kind: 'recipePrivateFoods'; readonly lines: readonly PrivateFoodLine[] }
+    /** The server refused a write until the cook says where the recipe is from (`400 STATEMENT_REQUIRED`, ADR-0095). */
+    | { readonly kind: 'recipeStatementRequired' };
 
 /** The server's refusal of a private food in a public recipe, as the editor holds it for its sheet. */
 export interface PrivateFoodRefusal {
@@ -336,6 +343,18 @@ export interface UseRecipeEditorResult {
      */
     readonly publishBlocked: PublishBlocked | undefined;
     /**
+     * The Publish asked where the recipe is from instead of going out (ADR-0095): the source-statement sheet is open. It comes
+     * after validation and before the slots question, and is asked once per session.
+     */
+    readonly statementAsk: boolean;
+    /**
+     * Whether the passive line is drawn under the Public card. ⛔ The ONE fact that decides whether a publishing write sends
+     * `publicConfirm.v1`: the line and the wording go together or not at all.
+     */
+    readonly confirmLineShown: boolean;
+    /** Whether a recorded source holds the recipe out of Public (`publicHeldOf`): the field refuses Public with the held note. */
+    readonly publicHeld: boolean;
+    /**
      * The server's refusal of a public recipe that holds a private food (designAnswers 2026-11-09): the lines it named, and a
      * count that is new for every refusal so a sheet the cook dismissed opens again for the next one. The refused write is
      * dropped from the outbox as it lands, so nothing stands in the lane and no Try again is offered; the cook's next Publish
@@ -402,6 +421,13 @@ export interface UseRecipeEditorResult {
      * the cook's Private stays. A no-op while no ask stands.
      */
     readonly keepAsDraft: () => void;
+    /**
+     * The cook confirmed the source sheet: the answer is held, a third-party answer or "Publish privately" moves the draft to
+     * Private, and the Publish runs again. A no-op while no ask stands.
+     */
+    readonly answerStatement: (write: StatementWrite) => void;
+    /** The cook dismissed the source sheet: nothing is sent and the draft stays as it is. */
+    readonly dismissStatement: () => void;
     /** Withdraw the parked write and send the draft again: the cook's consent to a parked record (ADR-0057). */
     readonly retry: () => void;
     /**
@@ -479,6 +505,8 @@ interface EditorContext {
     readonly publishBlocked: PublishBlocked | undefined;
     readonly setPublishBlocked: Dispatch<SetStateAction<PublishBlocked | undefined>>;
     readonly setPrivateFoodRefusal: Dispatch<SetStateAction<PrivateFoodRefusal | undefined>>;
+    /** The source question (ADR-0095): whether the sheet is open, and the answer the cook gave. */
+    readonly statement: StatementStore;
     readonly clearResume: () => void;
 }
 
@@ -712,6 +740,32 @@ function handOffSaved(ctx: EditorContext, detail: RecipeDetail): void {
     ctx.opts.onExit({ kind: 'changesSaved', recipe: detail });
 }
 
+/** What the editor does about the source question for the draft as it is now (ADR-0095). */
+function statementPlanNow(ctx: EditorContext): StatementPlan {
+    const { draft, server } = ctx.core.get();
+
+    return statementPlanOf({
+        draft,
+        recipe: storedRecipeOf(server),
+        answered: ctx.statement.get().answer !== undefined,
+    });
+}
+
+/**
+ * The wording this screen showed, for a write that publishes (ADR-0095): the passive line exactly when it is drawn under
+ * the Public card, and the sheet's answer. The Source row shows no wording of its own, so none is sent for its link. A client
+ * sends only what it showed.
+ */
+function shownWordingsOf(ctx: EditorContext): ShownWordings {
+    const { locale } = ctx.opts;
+    const statement = ctx.statement.get().answer?.statement;
+
+    return {
+        ...(statementPlanNow(ctx).confirmLineShown ? { publicConfirmation: publicWordingOf(locale) } : {}),
+        ...(statement === undefined ? {} : { statement }),
+    };
+}
+
 /** Submit the server write the policy asks for, if any. @sideEffect Submits to the outbox and moves the lane. */
 function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: boolean): void {
     const { draft, server } = ctx.core.get();
@@ -740,6 +794,7 @@ function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: bo
         ref: ensureRef(ctx),
         publish: write.publish,
         privateRefusal: ctx.opts.privateRefusal,
+        shown: shownWordingsOf(ctx),
     });
     const kind = intent.intentKind === 'create' ? 'create' : 'update';
     const finishing = isFinishingTrigger(trigger);
@@ -787,7 +842,11 @@ function writeVisibilityFirst(ctx: EditorContext, trigger: CheckpointTrigger): b
         return false;
     }
 
-    const followUp = visibilityFollowUp(derivedVisibility(draft), server.recipe, ctx.opts.privateRefusal);
+    const followUp = visibilityFollowUp(
+        derivedVisibility(draft, server.recipe),
+        server.recipe,
+        ctx.opts.privateRefusal,
+    );
 
     if (followUp.kind !== 'send') {
         return false;
@@ -881,7 +940,7 @@ function checkGate(
     entryText: string,
     trigger: CheckpointTrigger,
 ): Exclude<GateOutcome, { readonly kind: 'busy' }> {
-    const { draft } = ctx.core.get();
+    const { draft, server } = ctx.core.get();
     const found = validateRecipeForm(draft, entryText);
     const outcome = gateOutcomeOf(found);
     // ⛔ ADR-0073 section 12: a draft holds no slot, and PUBLISHING a private one takes it. Only the first Publish is asked:
@@ -891,13 +950,21 @@ function checkGate(
     const needsSlot =
         trigger === 'publish' &&
         ctx.opts.privateRefusal === 'slots' &&
-        derivedVisibility(draft) === RecipeVisibility.PRIVATE;
+        derivedVisibility(draft, storedRecipeOf(server)) === RecipeVisibility.PRIVATE;
 
     ctx.setGate((gate) => ({
         refused: refusedFieldsOf(found),
         attempted: gate.attempted || outcome.kind === 'refused' || needsSlot,
         entryText,
     }));
+
+    // ADR-0095: a Publish that ends public asks where the recipe is from, once. It comes after validation (a refused
+    // Publish is not asked) and before the slots question, so the cook answers in the order the gates are met.
+    if (outcome.kind === 'send' && trigger === 'publish' && statementPlanNow(ctx).asks) {
+        ctx.statement.ask(true);
+
+        return { kind: 'statementNeeded' };
+    }
 
     if (outcome.kind === 'send' && needsSlot) {
         // Owner ruling 2026-10-26: the Publish does not go out, and does not just refuse inline - it asks what the cook wants.
@@ -1087,6 +1154,18 @@ function privateFoodsRefusedByServer(ctx: EditorContext, event: Settlement, line
     });
 }
 
+/**
+ * The server refused the write until the cook says where the recipe is from (another device pasted into it, or the server
+ * holds evidence this one does not). The draft is untouched: the sheet opens, and its answer sends the draft again.
+ *
+ * @sideEffect The refused write leaves the outbox and the source sheet opens.
+ */
+function statementRefusedByServer(ctx: EditorContext, event: Settlement): void {
+    whenRefusedWriteLeaves(ctx, event, () => {
+        ctx.statement.ask(true);
+    });
+}
+
 /** A parked or dropped answer for the outstanding write. @sideEffect */
 function onRefused(ctx: EditorContext, event: Settlement, pending: OutstandingWrite): void {
     // A dropped record is already out of the log: it never waits for the cook.
@@ -1105,6 +1184,13 @@ function onRefused(ctx: EditorContext, event: Settlement, pending: OutstandingWr
         // What waited behind the refused write is not sent past it.
         ctx.lane.dispatch({ type: 'deferredTaken' });
         privateFoodsRefusedByServer(ctx, event, event.answer.lines);
+
+        return;
+    }
+
+    if (event.answer?.kind === 'recipeStatementRequired') {
+        ctx.lane.dispatch({ type: 'deferredTaken' });
+        statementRefusedByServer(ctx, event);
 
         return;
     }
@@ -1396,6 +1482,28 @@ function publishAsPublic(ctx: EditorContext): void {
         type: 'draftReplaced',
         draft: { ...ctx.core.get().draft, visibility: RecipeVisibility.PUBLIC },
     });
+    finish(ctx, ctx.gate.entryText, 'publish');
+}
+
+/**
+ * The cook answered the source sheet. The answer is held for the session so the Publish does not ask again, a third-party
+ * answer or "Publish privately" moves the draft's choice to Private (the server would force it), and the Publish runs again
+ * through the gate. @sideEffect
+ */
+function answerStatement(ctx: EditorContext, write: StatementWrite): void {
+    if (!ctx.statement.get().asking) {
+        return;
+    }
+
+    ctx.statement.answer(write);
+
+    if (write.visibility === RecipeVisibility.PRIVATE) {
+        ctx.core.dispatch({
+            type: 'draftReplaced',
+            draft: { ...ctx.core.get().draft, visibility: RecipeVisibility.PRIVATE },
+        });
+    }
+
     finish(ctx, ctx.gate.entryText, 'publish');
 }
 
@@ -1815,6 +1923,7 @@ function createEditorStores(seed: EditorSeed) {
     return {
         core: createEditorCoreStore(seeded.core),
         lane: createLaneStore<Settlement>(),
+        statement: createStatementStore(),
         resume: seeded.resumeSavedAt === undefined ? undefined : { savedAt: seeded.resumeSavedAt },
     };
 }
@@ -1967,6 +2076,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         entryText: '',
     });
     const [publishBlocked, setPublishBlocked] = useState<PublishBlocked | undefined>(undefined);
+    const statementState = useSyncExternalStore(stores.statement.subscribe, stores.statement.get, stores.statement.get);
     const [privateFoodRefusal, setPrivateFoodRefusal] = useState<PrivateFoodRefusal | undefined>(undefined);
     const ctx: EditorContext = {
         core: stores.core,
@@ -1982,6 +2092,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         publishBlocked,
         setPublishBlocked,
         setPrivateFoodRefusal,
+        statement: stores.statement,
         clearResume: () => {
             setResume(undefined);
         },
@@ -2031,6 +2142,9 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         refusedFields: gate.refused,
         publishAttempted: gate.attempted,
         publishBlocked,
+        statementAsk: statementState.asking,
+        confirmLineShown: statementPlanNow(ctx).confirmLineShown,
+        publicHeld: publicHeldOf(core.draft, storedRecipeOf(core.server)),
         privateFoodRefusal,
         lifecycle: view.lifecycle,
         recipeId: view.serverId,
@@ -2068,6 +2182,12 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         },
         keepAsDraft: () => {
             ctx.setPublishBlocked(undefined);
+        },
+        answerStatement: (write) => {
+            answerStatement(ctx, write);
+        },
+        dismissStatement: () => {
+            stores.statement.ask(false);
         },
         retry: () => {
             retry(ctx);

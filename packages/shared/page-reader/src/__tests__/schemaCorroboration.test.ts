@@ -72,7 +72,8 @@ describe('corroborate: G-CORR, the page shows what the JSON-LD says', () => {
         });
     });
 
-    it('reads the raw step, not the built text: a section heading the page lacks is no disagreement', () => {
+    // Rewritten for round 8: a section's name no longer goes into the built step, so the step is the page's text.
+    it('reads a step inside a section as its own text, which the page shows', () => {
         const { page, candidate } = jsonLdCase(
             {
                 ...NODE,
@@ -87,7 +88,7 @@ describe('corroborate: G-CORR, the page shows what the JSON-LD says', () => {
             '<ul><li>1 cup flour</li><li>2 eggs beaten</li></ul><p>Whisk it.</p>',
         );
 
-        expect(candidate.recipe.steps[0]?.instruction).toBe('For the glaze: Whisk it.');
+        expect(candidate.recipe.steps[0]?.instruction).toBe('Whisk it.');
         expect(corroborate(candidate, 'jsonLd', memoizedVisibleText(page))).toEqual({ ok: true });
     });
 

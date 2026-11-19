@@ -6,6 +6,7 @@
  *
  * Real hooks over the type-checked fake client; the write port is the fake outbox the lifecycle suite uses.
  */
+import { SnackbarHost } from '@commise/ui/snackbar';
 import type { PrivateRefusal } from '../../actions/privateGate.js';
 import { makeQuietFoodClient } from '@commise/test-utils';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
@@ -20,7 +21,7 @@ import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks'
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { recipeQueries, recipeServiceKeys, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -80,7 +81,7 @@ function mount(
         <QueryClientProvider client={queryClient}>
             <RecipeServiceProvider client={client}>
                 <FoodServiceProvider client={makeQuietFoodClient()} subject="user_cook">
-                    {children}
+                    <SnackbarHost>{children}</SnackbarHost>
                 </FoodServiceProvider>
             </RecipeServiceProvider>
         </QueryClientProvider>
@@ -145,7 +146,7 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
 
         // E8: the hand-off names how the editor finished, for the snackbar the next page shows.
         expect(nav.finished).toHaveBeenCalledWith('rec_9', { outcome: 'firstPublish', privateRefused: undefined });
-        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE));
+        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE, undefined));
     });
 
     /**
@@ -168,7 +169,7 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
         });
 
         expect(port.submitted).toHaveLength(0);
-        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE));
+        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE, undefined));
         await waitFor(() => expect(port.submitted).toHaveLength(1));
         expect(port.submitted[0]).toMatchObject({ intentKind: 'update', payload: { input: { status: 'published' } } });
     });
@@ -254,7 +255,7 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
             outcome: 'changesSaved',
             privateRefused: undefined,
         });
-        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE));
+        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_9', RecipeVisibility.PRIVATE, undefined));
     });
 
     it('⛔ a new recipe`s create never carries a Private the server refuses: it goes out public', async () => {
@@ -656,12 +657,10 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
         expect(view.result.current.editor.values).not.toHaveProperty('sourceLink');
         expect(view.result.current.source.row).toEqual({ kind: 'empty', text: '' });
         expect(view.result.current.source.privateRule).toBe('slots');
-        // After Remove the cook is back in the empty field: it is asked for focus, once.
-        expect(view.result.current.source.focusRequested).toBe(true);
-        act(() => {
-            view.result.current.source.onFocusHandled();
-        });
-        expect(view.result.current.source.focusRequested).toBe(false);
+        // REWRITTEN for the designer's approval fixes: the emptied field is NOT asked for focus (that raised the keyboard over the
+        // note). "Who can see it" is: the signal advances once, and nothing else in the Source asks for focus.
+        expect(view.result.current.source.visibilityFocus).toBe(1);
+        expect(view.result.current.source.pasteFocus).toBeUndefined();
 
         paste(view, ALLRECIPES);
 
@@ -679,11 +678,14 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
         expect(view.result.current.source.row).toMatchObject({ kind: 'filled', fromPaste: false });
     });
 
-    it('a published recipe locks the Source: the row is read only and a pasted link changes nothing', () => {
+    // Rewritten by the 2026-11-15 owner ruling: it said a published recipe locks the Source. The first publish locks nothing;
+    // a source a clone inherited does, so this proves the lock on that, published or not.
+    it('a published clone keeps the source it inherited: the row is read only and a pasted link changes nothing', () => {
         const view = mount({
             recipe: complete({
                 status: RecipeStatus.PUBLISHED,
                 firstPublishedAt: '2026-11-01T00:00:00.000Z',
+                clonedFromId: '00000000-0000-4000-8000-0000000000c1',
                 sourceType: RecipeSourceType.IMPORTED_PUBLIC,
                 sourceKind: 'public_web',
                 sourceUrl: ALLRECIPES,
@@ -697,11 +699,26 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
 
         expect(view.result.current.editor.values.sourceLink).toBe(ALLRECIPES);
         expect(view.result.current.source.notice?.text).toBe(
-            'Left out the link. A published recipe’s source can’t be added or changed.',
+            'Left out the link. This recipe’s source can’t be added or changed.',
         );
     });
 
-    it('the inline Remove takes the source off WITHOUT moving focus to the field: the paste control gets it back', () => {
+    it('a published recipe keeps its Source editable: a pasted link fills it', () => {
+        const view = mount({
+            recipe: complete({
+                status: RecipeStatus.PUBLISHED,
+                firstPublishedAt: '2026-11-01T00:00:00.000Z',
+                visibility: RecipeVisibility.PRIVATE,
+            }),
+        });
+
+        paste(view, BBC);
+
+        expect(view.result.current.editor.values.sourceLink).toBe(BBC);
+        expect(view.result.current.source.row).toMatchObject({ kind: 'filled' });
+    });
+
+    it('the inline Remove takes the source off WITHOUT moving focus to "Who can see it": the paste control gets it back', () => {
         const view = mount();
 
         act(() => {
@@ -710,11 +727,11 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
         expect(view.result.current.source.notice).toMatchObject({ kind: 'set', origin: 'ingredients' });
 
         act(() => {
-            view.result.current.source.remove({ focus: false });
+            view.result.current.source.remove('notice');
         });
 
         expect(view.result.current.editor.values).not.toHaveProperty('sourceLink');
-        expect(view.result.current.source.focusRequested).toBe(false);
+        expect(view.result.current.source.visibilityFocus).toBe(0);
         expect(view.result.current.source.pasteFocus).toBe('ingredients');
         expect(view.result.current.source.notice).toBeUndefined();
 
@@ -724,7 +741,7 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
         expect(view.result.current.source.pasteFocus).toBeUndefined();
     });
 
-    it('the row’s own Remove asks the Source field for focus and not a paste control', () => {
+    it('the row’s own Remove asks "Who can see it" for focus, once per Remove, and not a paste control', () => {
         const view = mount();
 
         paste(view, ALLRECIPES);
@@ -732,8 +749,15 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
             view.result.current.source.remove();
         });
 
-        expect(view.result.current.source.focusRequested).toBe(true);
+        expect(view.result.current.source.visibilityFocus).toBe(1);
         expect(view.result.current.source.pasteFocus).toBeUndefined();
+
+        paste(view, BBC);
+        act(() => {
+            view.result.current.source.remove();
+        });
+
+        expect(view.result.current.source.visibilityFocus).toBe(2);
     });
 
     it('an address that is not a link yet is plain text while the cook types, and the error once they leave the field', () => {
@@ -801,5 +825,84 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
 
         expect(createParseJob.mock.calls[0]?.[0]).toEqual({ text: '2 eggs\n1 cup flour' });
         expect(view.result.current.editor.values.sourceLink).toBe(ALLRECIPES);
+    });
+});
+
+/**
+ * ADR-0095: a paste that joins the draft marks it, so Publish asks where the recipe is from. Typing marks nothing.
+ */
+describe('useRecipeEditorSession — what marks a draft as pasted (ADR-0095)', () => {
+    it('pasted steps mark the draft', () => {
+        const view = mount();
+
+        act(() => {
+            view.result.current.appendSteps(['Boil the water.']);
+        });
+
+        expect(view.result.current.editor.values.pasted).toBe(true);
+    });
+
+    it('typing a title marks nothing', () => {
+        const view = mount();
+
+        act(() => {
+            view.result.current.editor.setField('title', 'Soup');
+        });
+
+        expect(view.result.current.editor.values.pasted).toBeUndefined();
+    });
+});
+
+/**
+ * ADR-0095: taking off a source the server records is said once, in the snackbar's polite live region. A source the draft
+ * only holds, or one the server records without a link to empty, is not.
+ */
+describe('useRecipeEditorSession — "Source removed." (ADR-0095)', () => {
+    const recorded = () =>
+        makeRecipeDetail({
+            id: 'rec_9',
+            status: RecipeStatus.DRAFT,
+            sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+            sourceKind: 'public_web',
+            sourceUrl: 'https://www.example.com/pie',
+        });
+
+    it('Remove says it once', () => {
+        const view = mount({ recipe: recorded() });
+
+        act(() => {
+            view.result.current.source.remove();
+        });
+
+        expect(screen.getAllByText('Source removed.')).toHaveLength(1);
+    });
+
+    it('emptying the field and leaving it says it once, and leaving it again says nothing more', () => {
+        const view = mount({ recipe: recorded() });
+
+        act(() => {
+            view.result.current.source.onChange('');
+        });
+        act(() => {
+            view.result.current.source.onTouched();
+        });
+        act(() => {
+            view.result.current.source.onTouched();
+        });
+
+        expect(screen.getAllByText('Source removed.')).toHaveLength(1);
+    });
+
+    it('says nothing for a recipe with no recorded source', () => {
+        const view = mount({ recipe: complete() });
+
+        act(() => {
+            view.result.current.source.onChange('');
+        });
+        act(() => {
+            view.result.current.source.onTouched();
+        });
+
+        expect(screen.queryByText('Source removed.')).toBeNull();
     });
 });

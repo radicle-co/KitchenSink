@@ -522,3 +522,126 @@ describe('RecipeVisibilityField (web) - over the limit after a downgrade', () =>
         expect(screen.queryByText(/They stay private/u)).toBeNull();
     });
 });
+
+/**
+ * ADR-0095: the passive line under the Public card, and the held note. The line is drawn only when the host gives it (the
+ * host gives it exactly when no sheet will ask), and a held recipe refuses Public with its own note and no line.
+ */
+describe('RecipeVisibilityField (web) - the passive line and the held note (ADR-0095)', () => {
+    const LINE =
+        'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.';
+    const facts: RecipePrivateFacts = { rule: 'slots', standing: { kind: 'unknown' }, state: 'granted' };
+    const fieldWith = (extra: { readonly confirmLine?: string; readonly publicHeld?: boolean }) => (
+        <RecipeVisibilityField
+            values={{ ...defaultRecipeFormValues(), visibility: 'public' }}
+            facts={facts}
+            heldVisibility="public"
+            privateRefusal={recipePrivateRefusalOf(facts)}
+            onFreeASlot={() => undefined}
+            onConfirmPublic={() => undefined}
+            onChange={() => undefined}
+            {...extra}
+        />
+    );
+
+    it('draws the line when the host gives it and the Public radio is described by it', () => {
+        render(fieldWith({ confirmLine: LINE }));
+
+        expect(screen.getByText(LINE)).toBeTruthy();
+        const describedBy = radio('Public').getAttribute('aria-describedby') ?? '';
+        expect(describedBy.split(' ').map((id) => document.getElementById(id)?.textContent)).toContain(LINE);
+    });
+
+    it('draws no line when the host gives none', () => {
+        render(fieldWith({}));
+
+        expect(screen.queryByText(LINE)).toBeNull();
+    });
+
+    it('a held recipe refuses Public with the held note and draws no line', () => {
+        render(fieldWith({ confirmLine: LINE, publicHeld: true }));
+
+        expect(screen.queryByText(LINE)).toBeNull();
+        expect(screen.getByText(v.publicHeldBySource)).toBeTruthy();
+    });
+});
+
+/**
+ * The designer's approval fixes. A Public card that cannot be chosen LOOKS unavailable (a muted border and a muted title: the opaque muted role,
+ * no opacity, `colors.ts` rule 3) while its reason stays at the full secondary colour; and after the cook removes a saved
+ * source, focus goes to the group so the note is read next.
+ */
+describe('RecipeVisibilityField (web) - an unavailable Public card and the focus signal', () => {
+    const facts: RecipePrivateFacts = { rule: 'slots', standing: { kind: 'unknown' }, state: 'granted' };
+    const fieldWith = (extra: { readonly publicHeld?: boolean; readonly focusSignal?: number }) => (
+        <RecipeVisibilityField
+            values={{ ...defaultRecipeFormValues(), visibility: 'private' }}
+            facts={facts}
+            heldVisibility="private"
+            privateRefusal={recipePrivateRefusalOf(facts)}
+            onFreeASlot={() => undefined}
+            onConfirmPublic={() => undefined}
+            onChange={() => undefined}
+            {...extra}
+        />
+    );
+
+    const cardOf = (title: string): HTMLElement => {
+        const card = screen.getByText(title).closest('label');
+
+        if (card === null) {
+            throw new Error(`No card is titled ${title}.`);
+        }
+
+        return card;
+    };
+
+    it('⛔ draws the held Public as unavailable: a muted border, a muted title, no opacity, the note at the secondary colour', () => {
+        render(fieldWith({ publicHeld: true }));
+
+        expect(cardOf(v.public).className).toContain('border-line-divider');
+        expect(cardOf(v.public).className).not.toContain('border-line-control');
+        expect(cardOf(v.public).className).toContain('cursor-not-allowed');
+        // The opaque muted role, never an alpha: an alpha-tinted text colour passes as a token and fails as a pixel.
+        expect(screen.getByText(v.public).classList.contains('text-ink-muted')).toBe(true);
+        expect(screen.getByText(v.public).classList.contains('text-ink')).toBe(false);
+        expect(cardOf(v.public).innerHTML).not.toMatch(/opacity/u);
+        expect(radio(v.public).getAttribute('aria-disabled')).toBe('true');
+        // The reason is the one thing on the card that must stay readable.
+        expect(screen.getByText(v.publicHeldBySource).className).toContain('text-ink-muted');
+    });
+
+    it('draws a Public that can be chosen, and the Private card beside it, at full strength', () => {
+        render(fieldWith({}));
+
+        expect(cardOf(v.public).className).toContain('border-line-control');
+        expect(screen.getByText(v.public).classList.contains('text-ink')).toBe(true);
+        expect(screen.getByText(v.private).classList.contains('text-ink')).toBe(true);
+        expect(radio(v.public).getAttribute('aria-disabled')).toBeNull();
+    });
+
+    it('moves focus to the "Who can see it" group when the signal advances and focus was lost', () => {
+        const { rerender } = render(fieldWith({ focusSignal: 0 }));
+
+        expect(document.activeElement).toBe(document.body);
+
+        rerender(fieldWith({ focusSignal: 1 }));
+
+        expect(document.activeElement).toBe(screen.getByRole('group', { name: v.legend }));
+    });
+
+    it('does not take focus from where the cook put it', () => {
+        const { rerender } = render(fieldWith({ focusSignal: 0 }));
+        radio(v.private).focus();
+
+        rerender(fieldWith({ focusSignal: 1 }));
+
+        expect(document.activeElement).toBe(radio(v.private));
+    });
+
+    it('moves no focus on first render, whatever the signal holds', () => {
+        render(fieldWith({ focusSignal: 3 }));
+
+        expect(document.activeElement).toBe(document.body);
+    });
+});

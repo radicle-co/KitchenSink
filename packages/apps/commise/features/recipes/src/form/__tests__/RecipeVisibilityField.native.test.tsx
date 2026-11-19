@@ -7,12 +7,16 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, within } from '@testing-library/react';
-import { render } from '@commise/ui/testing/tamagui';
+import { render, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC } from 'react';
 
 import { role, roleDark } from '@commise/ui/colors';
+import { dimmedOpacity } from '@commise/ui/scale';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
+
+/** The accessibility events the field sends: `sendAccessibilityEvent(node, 'focus')` moves the screen-reader cursor. */
+const focusMoved = vi.hoisted(() => vi.fn());
 
 /** What each radio card hands a screen reader, by its role and visible title: react-native-web drops most of it. */
 const handed = vi.hoisted(
@@ -35,6 +39,7 @@ vi.mock('react-native', async (importOriginal) => {
 
     return {
         ...actual,
+        AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: focusMoved },
         Pressable: (props: import('react-native').PressableProps) => {
             if (props.role === 'radio') {
                 handed.set(String(props.accessibilityLabel ?? ''), {
@@ -68,6 +73,7 @@ const PRO_BADGE = /^Pro$/u;
 
 afterEach(() => {
     handed.clear();
+    focusMoved.mockClear();
     cleanup();
     systemScheme.current = null;
 });
@@ -135,6 +141,17 @@ const Harness: FC<HarnessProps> = ({
  */
 const radio = (title: string): HTMLElement => screen.getByRole('radio', { name: new RegExp(`^${title}`, 'u') });
 
+/** A card's frame: the themed view inside the radio that owns the press, which carries the border and the fill. */
+const frameOf = (title: string): HTMLElement => {
+    const frame = radio(title).firstElementChild;
+
+    if (!(frame instanceof HTMLElement)) {
+        throw new Error(`The ${title} card has no frame.`);
+    }
+
+    return frame;
+};
+
 describe('RecipeVisibilityField (native)', () => {
     it('is a radio group named "Who can see it" of Public and Private, Public chosen by default', () => {
         render(<Harness paidFeatures="granted" />);
@@ -153,9 +170,9 @@ describe('RecipeVisibilityField (native)', () => {
         render(<Harness paidFeatures="granted" />);
         const theme = scheme === 'dark' ? roleDark : role;
 
-        expect(getComputedStyle(radio(v.public)).backgroundColor).toBe(rgb(theme.selectedFill));
-        expect(getComputedStyle(radio(v.private)).backgroundColor).toBe(rgb(theme.paper));
-        expect(getComputedStyle(radio(v.public)).minHeight).toBe('56px');
+        expect(resolvedColour(frameOf(v.public), 'backgroundColor')).toBe(rgb(theme.selectedFill));
+        expect(resolvedColour(frameOf(v.private), 'backgroundColor')).toBe(rgb(theme.paper));
+        expect(resolvedStyle(frameOf(v.public), 'minHeight')).toBe('56px');
     });
 
     it('a granted cook chooses Private, and back', () => {
@@ -465,5 +482,113 @@ describe('RecipeVisibilityField (native) - over the limit after a downgrade', ()
         render(<Harness paidFeatures="upsell" facts={slots(AT, 'upsell')} />);
 
         expect(screen.queryByText(/They stay private/u)).toBeNull();
+    });
+});
+
+/**
+ * ADR-0095: the passive line under the Public card, and the held note. The line is drawn only when the host gives it (the
+ * host gives it exactly when no sheet will ask), and a held recipe refuses Public with its own note and no line.
+ */
+describe('RecipeVisibilityField (native) - the passive line and the held note (ADR-0095)', () => {
+    const LINE =
+        'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.';
+    const facts: RecipePrivateFacts = { rule: 'slots', standing: { kind: 'unknown' }, state: 'granted' };
+    const fieldWith = (extra: { readonly confirmLine?: string; readonly publicHeld?: boolean }) => (
+        <RecipeVisibilityField
+            values={{ ...defaultRecipeFormValues(), visibility: 'public' }}
+            facts={facts}
+            heldVisibility="public"
+            privateRefusal={recipePrivateRefusalOf(facts)}
+            onFreeASlot={() => undefined}
+            onConfirmPublic={() => undefined}
+            onChange={() => undefined}
+            {...extra}
+        />
+    );
+
+    it('draws the line when the host gives it', () => {
+        render(fieldWith({ confirmLine: LINE }));
+
+        expect(screen.getByText(LINE)).toBeTruthy();
+    });
+
+    it('draws no line when the host gives none', () => {
+        render(fieldWith({}));
+
+        expect(screen.queryByText(LINE)).toBeNull();
+    });
+
+    it('a held recipe refuses Public with the held note and draws no line', () => {
+        render(fieldWith({ confirmLine: LINE, publicHeld: true }));
+
+        expect(screen.queryByText(LINE)).toBeNull();
+        expect(screen.getByText(v.publicHeldBySource)).toBeTruthy();
+    });
+});
+
+/**
+ * The designer's approval fixes. A Public card that cannot be chosen LOOKS unavailable (a muted border and a muted title: the opaque muted role,
+ * no opacity, `colors.ts` rule 3) while its reason stays at the full secondary colour; and after the cook removes a saved
+ * source, the screen-reader cursor goes to the group's first card, which reads the note.
+ */
+describe('RecipeVisibilityField (native) - an unavailable Public card and the focus signal', () => {
+    const facts: RecipePrivateFacts = { rule: 'slots', standing: { kind: 'unknown' }, state: 'granted' };
+    const fieldWith = (extra: { readonly publicHeld?: boolean; readonly focusSignal?: number }) => (
+        <RecipeVisibilityField
+            values={{ ...defaultRecipeFormValues(), visibility: 'private' }}
+            facts={facts}
+            heldVisibility="private"
+            privateRefusal={recipePrivateRefusalOf(facts)}
+            onFreeASlot={() => undefined}
+            onConfirmPublic={() => undefined}
+            onChange={() => undefined}
+            {...extra}
+        />
+    );
+
+    it.each(['light', 'dark'] as const)(
+        '⛔ draws the held Public as unavailable in the %s scheme: a muted border, a muted title, no opacity, the note at full strength',
+        (scheme) => {
+            systemScheme.current = scheme;
+            const theme = scheme === 'dark' ? roleDark : role;
+            render(fieldWith({ publicHeld: true }));
+
+            expect(resolvedColour(frameOf(v.public), 'borderTopColor')).toBe(rgb(theme.lineDivider));
+            // Private is the chosen card, so it keeps the selected edge.
+            expect(resolvedColour(frameOf(v.private), 'borderTopColor')).toBe(rgb(theme.selectedEdge));
+            // The opaque muted role, never an alpha (`colors.ts` rule 3): the colour changes, the opacity does not.
+            expect(resolvedColour(screen.getByText(v.public), 'color')).toBe(rgb(theme.inkMuted));
+            expect(resolvedColour(screen.getByText(v.private), 'color')).toBe(rgb(theme.ink));
+            expect(resolvedStyle(frameOf(v.public), 'opacity')).not.toBe(String(dimmedOpacity));
+            expect(resolvedStyle(screen.getByText(v.public), 'opacity')).not.toBe(String(dimmedOpacity));
+            // Still unavailable to a screen reader, and still not natively disabled.
+            expect(handed.get(v.public)).toMatchObject({ disabled: true, nativelyDisabled: undefined });
+            // The reason is the one thing on the card that must stay readable.
+            expect(resolvedColour(screen.getByText(v.publicHeldBySource), 'color')).toBe(rgb(theme.inkMuted));
+            expect(resolvedStyle(screen.getByText(v.publicHeldBySource), 'opacity')).not.toBe(String(dimmedOpacity));
+        },
+    );
+
+    it('draws a Public that can be chosen at full strength', () => {
+        render(fieldWith({}));
+
+        expect(resolvedColour(frameOf(v.public), 'borderTopColor')).toBe(rgb(role.lineControl));
+        expect(resolvedColour(screen.getByText(v.public), 'color')).toBe(rgb(role.ink));
+    });
+
+    it("moves the screen-reader cursor to the group's first card when the signal advances", () => {
+        const { rerender } = render(fieldWith({ focusSignal: 0 }));
+
+        expect(focusMoved).not.toHaveBeenCalled();
+
+        rerender(fieldWith({ focusSignal: 1 }));
+
+        expect(focusMoved).toHaveBeenCalledExactlyOnceWith(radio(v.public), 'focus');
+    });
+
+    it('moves nothing on first render, whatever the signal holds', () => {
+        render(fieldWith({ focusSignal: 3 }));
+
+        expect(focusMoved).not.toHaveBeenCalled();
     });
 });

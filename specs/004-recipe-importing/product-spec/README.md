@@ -2,12 +2,11 @@
 
 **Regenerated**: 2026-08-02
 
-| Artefact                             | Purpose                                                        |
-| ------------------------------------ | -------------------------------------------------------------- |
-| [product-spec.md](./product-spec.md) | Vision, personas, MoSCoW story map, scope boundaries           |
-| [user-journey.md](./user-journey.md) | Six end-to-end journeys, including failure paths               |
-| [metrics.md](./metrics.md)           | North star, quality/reliability/safety metrics, adoption gates |
-| [wireframes/](./wireframes/)         | Screen-level specifications                                    |
+| Artefact                                 | Purpose                                                        |
+| ---------------------------------------- | -------------------------------------------------------------- |
+| [product-spec.md](./product-spec.md)     | Vision, personas, MoSCoW story map, scope boundaries           |
+| [metrics.md](./metrics.md)               | North star, quality/reliability/safety metrics, adoption gates |
+| [../designSource.md](../designSource.md) | Where the screen designs live                                  |
 
 ## Upstream
 

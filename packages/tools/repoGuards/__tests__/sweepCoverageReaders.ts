@@ -48,6 +48,9 @@ export const OWNER_COLUMNS = [
     // `ingredients` by 0040; moved with the re-grain in 0051). An app-user ULID like every other member;
     // the private-food binding step of each recipe sweep reaches it.
     'food_owner_id',
+    // `recipe_statement_attestations.account_id` (0088): the cook who made a statement, kept after the recipe is gone
+    // (0090). An app-user ULID until erasure swaps it for a token, so a reset must reach it like any other owner column.
+    'account_id',
 ] as const;
 
 /**

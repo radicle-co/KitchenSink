@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @module @commise/features-recipes/form — `RecipeVisibilityField` (web): "Who can see it"
  * (`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), a radio group of two cards, Public and Private.
@@ -16,20 +18,43 @@
  *     note and that decision's input, it selects no second mode of the field
  */
 import { useMessages } from '@commise/i18n/react';
+import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
-import type { RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeVisibility as RecipeVisibilityValue, type RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
 import { heldVisibility } from '../actions/privateGate.js';
 import { editorMessages } from '../editor/messages.js';
-import { visibilityChoice, visibilityFieldOf, type RecipeVisibilityFieldProps } from './props.js';
+import {
+    visibilityChoice,
+    visibilityFieldOf,
+    type RecipeVisibilityFieldProps,
+    type VisibilityOption,
+} from './props.js';
 
 // Layout and state-independent chrome only. The two state classes below are mutually exclusive, never layered on each
 // other: Tailwind's emission order, not the attribute's, decides between two utilities of one property.
 const card = `flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-4 py-2 ${FOCUS_RING_CLASS.within}`;
 const cardResting = 'border-line-control bg-paper';
 const cardChosen = 'border-selected-edge bg-selected-fill';
-const cardRefused = 'cursor-not-allowed';
+// A card that cannot be chosen LOOKS it, by the opaque muted role and no opacity (`colors.ts` rule 3: an alpha-tinted text
+// colour passes as a token and fails as a pixel): the divider's edge and a muted title and radio. The design system has no
+// one disabled token across platforms (`dimmedOpacity` is native-only, and `RadioList` hard-codes its own web opacity), so
+// this is the one treatment both leaves of this field share. Its reason keeps the secondary colour, readable.
+const cardRefused = 'cursor-not-allowed border-line-divider bg-paper';
+const titleRefused = 'text-ink-muted';
+const titleAvailable = 'text-ink';
+const cardClasses = { refused: cardRefused, chosen: cardChosen, resting: cardResting } as const;
+const confirmLineId = 'recipe-visibility-confirm-line';
+
+/** A card's state classes: a refused card is refused whether or not it is the chosen one. Pure. */
+const cardClassOf = (option: VisibilityOption, chosen: boolean): string => {
+    if (option.refused) {
+        return `${card} ${cardClasses.refused}`;
+    }
+
+    return `${card} ${chosen ? cardClasses.chosen : cardClasses.resting}`;
+};
 
 /** "Who can see it": Public or Private. */
 export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
@@ -42,17 +67,23 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     onConfirmPublic,
     onFreeASlot,
     webSource,
+    publicHeld,
+    confirmLine: confirmText,
+    focusSignal = 0,
 }) => {
     const { visibility: v } = useMessages(editorMessages);
+    const group = useFocusOnSignal<HTMLFieldSetElement>(focusSignal);
     // Idempotent over a host that already passes the held value: the field enforces the rule rather than trusting it.
     const savedVisibility = heldVisibility(held, values.visibility);
-    const { shown, options, slotsFull } = visibilityFieldOf({
+    const { shown, options, slotsFull, confirmLine } = visibilityFieldOf({
         draft: values.visibility,
         saved: savedVisibility,
         facts,
         refusal: privateRefusal,
         messages: v,
         ...(webSource === undefined ? {} : { webSource }),
+        ...(publicHeld === undefined ? {} : { publicHeld }),
+        ...(confirmText === undefined ? {} : { confirmLine: confirmText }),
     });
 
     const choose = (chosen: RecipeVisibility): void => {
@@ -66,7 +97,8 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     };
 
     return (
-        <fieldset className="flex flex-col gap-2">
+        // Focusable by script only (`tabIndex={-1}`): after a Remove the group is the next thing to read, and the held note with it.
+        <fieldset ref={group} tabIndex={-1} className={`flex flex-col gap-2 ${FOCUS_RING_CLASS.offset}`}>
             <legend className="mb-2 text-label text-ink-muted">{v.legend}</legend>
             <div className="grid grid-cols-1 gap-2 @regular/main:grid-cols-2">
                 {options.map((option) => {
@@ -77,13 +109,16 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     // A refused card is described by its reason alone: the hint ("Anyone can find it in Discover") is not true of it.
                     const describedBy = option.refused
                         ? noteId
-                        : [hintId, ...(option.note === undefined ? [] : [noteId])].join(' ');
+                        : [
+                              hintId,
+                              ...(option.note === undefined ? [] : [noteId]),
+                              ...(option.value === RecipeVisibilityValue.PUBLIC && confirmLine !== undefined
+                                  ? [confirmLineId]
+                                  : []),
+                          ].join(' ');
 
                     return (
-                        <label
-                            key={option.value}
-                            className={`${card} ${chosen ? cardChosen : cardResting} ${option.refused ? cardRefused : ''}`}
-                        >
+                        <label key={option.value} className={cardClassOf(option, chosen)}>
                             <input
                                 type="radio"
                                 name="recipe-visibility"
@@ -94,10 +129,13 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                                 aria-describedby={describedBy}
                                 // Refused, not disabled: a natively disabled radio leaves the tab order and the reason with it.
                                 aria-disabled={option.refused ? true : undefined}
-                                className="size-5 shrink-0 accent-action"
+                                className={`size-5 shrink-0 ${option.refused ? 'accent-ink-muted' : 'accent-action'}`}
                             />
                             <span className="flex min-w-0 flex-1 flex-col">
-                                <span id={titleId} className="text-body font-semibold text-ink">
+                                <span
+                                    id={titleId}
+                                    className={`text-body font-semibold ${option.refused ? titleRefused : titleAvailable}`}
+                                >
                                     {option.title}
                                 </span>
                                 <span id={hintId} className="text-meta text-ink-muted">
@@ -113,6 +151,12 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     );
                 })}
             </div>
+            {confirmLine === undefined ? null : (
+                // ADR-0095: said before the cook chooses Public (WCAG 3.2.2); it describes the Public radio.
+                <p id={confirmLineId} className="text-meta text-ink-muted">
+                    {confirmLine}
+                </p>
+            )}
             {slotsFull === undefined ? null : (
                 // ADR-0073: the refusal's ways forward. Premium is among them only where paid features are shown.
                 <div role="group" aria-labelledby="recipe-visibility-ways" className="mt-1 flex flex-col gap-2">

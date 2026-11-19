@@ -7,7 +7,9 @@
  * field is a pill), a 1 px `lineControl` edge (3.31:1 on paper, SC 1.4.11), at least 48 px tall, 16 px of padding, and
  * the `body` role, which never goes below 16 px so iOS Safari does not zoom. The placeholder is `inkMuted` (5.24:1),
  * never a hairline tone. An invalid field takes the `danger` edge from its own `aria-invalid`, so the state and its
- * styling cannot disagree. The `focusRing` and the 40% disabled state are the state matrix's (§1.10).
+ * styling cannot disagree. An invalid field also keeps 96 px of scroll margin under it, so focusing it scrolls its message (which sits below, and wraps
+ * to several lines at 320 px) clear of a pinned sheet footer too. The `focusRing` and the 40% disabled state are the state
+ * matrix's (§1.10).
  */
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
@@ -17,5 +19,5 @@ import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
  */
 export const FIELD_CLASS =
     'min-h-12 rounded-md border border-line-control bg-paper px-4 py-3 text-body ' +
-    `placeholder:text-ink-muted aria-invalid:border-danger ${FOCUS_RING_CLASS.offset} ` +
+    `placeholder:text-ink-muted aria-invalid:border-danger aria-invalid:scroll-mb-24 ${FOCUS_RING_CLASS.offset} ` +
     'disabled:cursor-not-allowed disabled:opacity-40';

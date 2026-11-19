@@ -1221,3 +1221,27 @@ describe('× asks before it leaves', () => {
         expect(onClose).toHaveBeenCalledOnce();
     });
 });
+
+/**
+ * ADR-0095 (web): a paste into ANY field of the editor, by the keyboard or the context menu, marks the draft as pasted: the
+ * cook's own words in a field they typed into are not, and a paste is not asked about where it landed.
+ */
+describe('a paste into the page', () => {
+    it('marks the draft as pasted', () => {
+        const setField = vi.fn();
+        render(view(makeEditorResult({ setField })));
+
+        fireEvent.paste(screen.getByText('details body'), { clipboardData: { getData: () => 'Pasted words' } });
+
+        expect(setField).toHaveBeenCalledWith('pasted', true);
+    });
+
+    it('marks nothing while the cook types', async () => {
+        const setField = vi.fn();
+        render(view(makeEditorResult({ setField })));
+
+        await userEvent.setup().click(screen.getByText('details body'));
+
+        expect(setField).not.toHaveBeenCalled();
+    });
+});

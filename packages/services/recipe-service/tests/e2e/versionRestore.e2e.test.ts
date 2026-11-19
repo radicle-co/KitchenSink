@@ -21,6 +21,7 @@ import { asPrincipal } from '../support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../support/foodFake.js';
 import { deleteBindingsMatching } from '../support/bindingCleanup.js';
 import { recipeDb } from '../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -80,6 +81,7 @@ async function savedThenMoved(
     visibility: 'public' | 'private' = 'public',
 ): Promise<RecipeBody> {
     const created = await json<RecipeBody>('POST', '/api/v1/recipes', 201, {
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         title: `${SCOPE} ${label}`,
         visibility,
         servings: 2,

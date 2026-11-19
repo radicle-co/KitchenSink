@@ -17,6 +17,7 @@ import { asPrincipal } from '../support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../support/foodFake.js';
 import { deleteBindingsMatching } from '../support/bindingCleanup.js';
 import { recipeDb } from '../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -60,6 +61,7 @@ async function json<T>(method: string, path: string, expected: number, body?: un
 /** A body with one line and one step. */
 function recipeBody(fields: Record<string, unknown>): Record<string, unknown> {
     return {
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         title: `${SCOPE} pesto`,
         servings: 2,
         prepTimeMinutes: 5,
@@ -168,6 +170,7 @@ describe('a cuisine is required to publish (e2e)', () => {
             expectedVersion: draft.currentVersion,
             status: 'published',
             cuisine: 'nyonya',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(published.status).toBe('published');

@@ -63,35 +63,89 @@ export interface VisibilityPolicyInput extends ContainmentSubject {
      * none is needed.
      */
     readonly hasAvailablePrivateSlot: boolean;
+    /**
+     * Whether a third-party source was EVER stated for the recipe (`sourceConflictOf`, recipe-core: the ONE seam the
+     * feature-020 hold replaces). REQUIRED, never defaulted, so a call site that forgot it is a compile error. It refuses a
+     * request for Public only; Private is never refused by it. The caller reads the evidence in the write's own transaction.
+     */
+    readonly sourceConflict: boolean;
+    /**
+     * Whether the cook said this recipe is another person's (`fromPersonOf`, recipe-core). REQUIRED, never defaulted. It
+     * refuses a request for Public only; Private is never refused by it. It is a stored fact, so it holds at every route to
+     * Public, not only the request that stated it.
+     */
+    readonly fromPerson: boolean;
 }
 
 /**
- * The outcome of a visibility decision: allowed, or denied for one of three reasons a caller must answer differently.
+ * The outcome of a visibility decision: allowed, or denied for one of the reasons a caller must answer differently.
  *
  * - `policy` — C-004 refuses the transition (→ `400 INVALID_VISIBILITY`);
  * - `contained` — ADR-0040 refuses a contained test principal's publish (→ `403 TEST_PRINCIPAL_CONTAINED`);
  * - `privateSlots` — ADR-0073: a free cook has no private slot left (→ `403 PRIVATE_SLOTS_FULL`, with `used` and
- *   `limit`, which the caller holds and this pure module does not).
+ *   `limit`, which the caller holds and this pure module does not);
+ * - `sourceConflict` — a third-party source was once stated for the recipe, so it may not be Public (→ the same
+ *   `400 INVALID_VISIBILITY`, told apart by `details.reason: 'SOURCE_CONFLICT'`);
+ * - `fromPerson` — the cook said the recipe is another person's, so it may not be public (→ the same `400`,
+ *   `details.reason: 'FROM_PERSON_PRIVATE_ONLY'`);
+ * - `statementRequired` — the cook has not said "I wrote this" for a recipe whose content was pasted or that has evidence, so it
+ *   may not be left published and Public (→ the same `400`, `details.reason: 'STATEMENT_REQUIRED'`). It is a SEPARATE rule from
+ *   `sourceConflict` on purpose: the feature-020 hold replaces that one and not this.
  *
  * All carry a human-readable reason, surfaced as the error message.
  */
 export type VisibilityDecision =
     | { readonly allowed: true; readonly reason: string }
-    | { readonly allowed: false; readonly denial: 'policy' | 'contained' | 'privateSlots'; readonly reason: string };
+    | {
+          readonly allowed: false;
+          readonly denial:
+              'policy' | 'contained' | 'privateSlots' | 'sourceConflict' | 'fromPerson' | 'statementRequired';
+          readonly reason: string;
+      };
+
+/** A refusal of Public: a decision that is not an allow. */
+type Refusal = Extract<VisibilityDecision, { readonly allowed: false }>;
 
 /** Build an allow decision. Pure. */
 function allow(reason: string): VisibilityDecision {
     return { allowed: true, reason };
 }
 
-/** Build a C-004 deny decision. Pure. */
-function deny(reason: string): VisibilityDecision {
-    return { allowed: false, denial: 'policy', reason };
+/** Build a C-004 deny decision for a private-only label. Pure. */
+function denyPrivateOnly(sourceType: RecipeSourceType): Refusal {
+    return { allowed: false, denial: 'policy', reason: privateOnlyReason(sourceType) };
 }
 
 /** Build a slot-exhaustion deny decision (ADR-0073). Pure. */
 function denyNoSlot(reason: string): VisibilityDecision {
     return { allowed: false, denial: 'privateSlots', reason };
+}
+
+/** Build an evidence-rule deny decision. Pure. */
+function denySourceConflict(): Refusal {
+    return {
+        allowed: false,
+        denial: 'sourceConflict',
+        reason: 'A source other than the cook was stated for this recipe, so it may not be made public.',
+    };
+}
+
+/** Build a "from another person" deny decision. Pure. */
+function denyFromPerson(): Refusal {
+    return {
+        allowed: false,
+        denial: 'fromPerson',
+        reason: 'A recipe from another person stays private.',
+    };
+}
+
+/** Build a statement-rule deny decision. Pure. */
+function denyStatementRequired(): Refusal {
+    return {
+        allowed: false,
+        denial: 'statementRequired',
+        reason: 'Say where this recipe is from before making it public: that you wrote it, or its source.',
+    };
 }
 
 /** Why a private-only recipe may not be public. The only `imported_public` that is private-only is a web copy (ADR-0089). */
@@ -109,28 +163,78 @@ function privateOnlyReason(sourceType: RecipeSourceType): string {
 }
 
 /**
- * The state a write LEAVES (ADR-0089): a private-only recipe is never PUBLISHED and PUBLIC, whichever path made it public.
- * `evaluateVisibility` judges a requested move; this judges the result, so a public draft that reached its state by a race
- * is still refused at publish. An owner-only public DRAFT is allowed, because no one else can read it. Pure.
+ * The refusals of Public that BOTH policies ask, in the one order: containment (a contained test principal never publishes,
+ * ADR-0040), the private-only label, the evidence rule (`sourceConflict`, the feature-020 seam), then "from another person".
+ * `evaluateVisibility` judges a requested move with them and `evaluatePublishedState` judges the result with them, so neither
+ * can order them differently. The statement rule is NOT here: it refuses only a recipe left published and public, and it
+ * survives the feature-020 hold. Pure.
  *
- * @param input - The status and visibility after the write, and the source.
- * @returns A `policy` denial for a published, public, private-only recipe; else an allow.
+ * @param input - The caller's containment, the label and kind, and the two evidence-derived facts.
+ * @returns The first refusal, or `undefined` when none holds.
  */
-export function evaluatePublishedState(input: {
-    readonly status: RecipeStatus;
-    readonly visibility: RecipeVisibility;
-    readonly sourceType: RecipeSourceType;
-    readonly sourceKind: RecipeSourceKind | null;
-}): VisibilityDecision {
-    if (
-        input.status === RecipeStatus.PUBLISHED &&
-        input.visibility === RecipeVisibility.PUBLIC &&
-        privateRuleOf(input.sourceType, input.sourceKind) === 'privateOnly'
-    ) {
-        return deny(privateOnlyReason(input.sourceType));
+function publicRefusalOf(
+    input: ContainmentSubject & {
+        readonly sourceType: RecipeSourceType;
+        readonly sourceKind: RecipeSourceKind | null;
+        readonly sourceConflict: boolean;
+        readonly fromPerson: boolean;
+    },
+): Refusal | undefined {
+    const containment = evaluateContainment({
+        principalKind: input.principalKind,
+        containment: input.containment,
+        action: 'publish',
+    });
+
+    if (!containment.allowed) {
+        return { allowed: false, denial: 'contained', reason: containment.reason };
     }
 
-    return allow('The recipe is not left published and public while private-only.');
+    if (privateRuleOf(input.sourceType, input.sourceKind) === 'privateOnly') {
+        return denyPrivateOnly(input.sourceType);
+    }
+
+    if (input.sourceConflict) {
+        return denySourceConflict();
+    }
+
+    return input.fromPerson ? denyFromPerson() : undefined;
+}
+
+/**
+ * The state a write LEAVES (ADR-0089): a recipe is never PUBLISHED and PUBLIC unless every refusal below is answered, whichever
+ * path made it public. `evaluateVisibility` judges a requested move; this judges the result, so a public draft that reached its
+ * state by a race is still refused at publish. An owner-only public DRAFT is allowed, because no one else can read it.
+ *
+ * ⛔ The ORDER of refusals is the contract, and each route's composition meets it: containment (a contained test principal
+ * never publishes, ADR-0040), then private-only, then `sourceConflict` (the feature-020 seam), then `fromPerson`, then
+ * `statementRequired` (which survives 020). One call asks all five, so no route can ask them in another order. Pure.
+ *
+ * @param input - The status and visibility after the write, the source, the caller's containment, and the two evidence-derived facts.
+ * @returns The first refusal for a published, public result; else an allow.
+ */
+export function evaluatePublishedState(
+    input: ContainmentSubject & {
+        readonly status: RecipeStatus;
+        readonly visibility: RecipeVisibility;
+        readonly sourceType: RecipeSourceType;
+        readonly sourceKind: RecipeSourceKind | null;
+        /** Whether a third-party source was ever stated (`sourceConflictOf`). REQUIRED. */
+        readonly sourceConflict: boolean;
+        /** Whether the cook said the recipe is another person's (`fromPersonOf`). REQUIRED. */
+        readonly fromPerson: boolean;
+        /** Whether the cook must still say "I wrote this" (`statementRequiredOf`). REQUIRED. */
+        readonly statementRequired: boolean;
+    },
+): VisibilityDecision {
+    if (input.status !== RecipeStatus.PUBLISHED || input.visibility !== RecipeVisibility.PUBLIC) {
+        return allow('The recipe is not left published and public.');
+    }
+
+    return (
+        publicRefusalOf(input) ??
+        (input.statementRequired ? denyStatementRequired() : allow('The recipe may be left published and public.'))
+    );
 }
 
 /**
@@ -140,21 +244,7 @@ export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDeci
     const { sourceType, sourceKind, isPremium, hasAvailablePrivateSlot, requested } = input;
 
     if (requested === RecipeVisibility.PUBLIC) {
-        const containment = evaluateContainment({
-            principalKind: input.principalKind,
-            containment: input.containment,
-            action: 'publish',
-        });
-
-        if (!containment.allowed) {
-            return { allowed: false, denial: 'contained', reason: containment.reason };
-        }
-
-        if (privateRuleOf(sourceType, sourceKind) !== 'privateOnly') {
-            return allow('User-created and imported-public recipes may be public.');
-        }
-
-        return deny(privateOnlyReason(sourceType));
+        return publicRefusalOf(input) ?? allow('User-created and imported-public recipes may be public.');
     }
 
     // requested === RecipeVisibility.PRIVATE
@@ -185,7 +275,8 @@ export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDeci
  * `sourceType` and visibility: a clone of a PRIVATE source is `private` (FR-005c: only its owner can clone it, and the
  * copy stays as private as the original); `imported_physical`/`imported_paid` clones default to `private` (they may
  * not be public); everything else defaults to `public` — EXCEPT for a contained test principal (ADR-0040), whose clone
- * always defaults to `private`, because a default is a publish nobody asked for. Pure.
+ * always defaults to `private`, because a default is a publish nobody asked for, and so does a clone of a recipe held by the
+ * evidence rule (`sourceConflict`: the clone inherits the evidence) or said to be another person's (`fromPerson`). Pure.
  *
  * ⛔ A clone that lands `private` is a move to private like any other (ADR-0073 section 3): the caller takes the
  * per-user lock and the slot check before writing it. This function only says what the default IS.
@@ -195,8 +286,14 @@ export function defaultCloneVisibility(
     sourceKind: RecipeSourceKind | null,
     cloner: ContainmentSubject,
     sourceVisibility: RecipeVisibility,
+    held: { readonly sourceConflict: boolean; readonly fromPerson: boolean },
 ): RecipeVisibility {
-    if (isContained(cloner) || sourceVisibility === RecipeVisibility.PRIVATE) {
+    if (
+        isContained(cloner) ||
+        sourceVisibility === RecipeVisibility.PRIVATE ||
+        held.sourceConflict ||
+        held.fromPerson
+    ) {
         return RecipeVisibility.PRIVATE;
     }
 

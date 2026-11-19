@@ -9,7 +9,12 @@
  * `RecipesService.list` project through it; leaving it on the service would have made the assembler import
  * the orchestrator to render a response, inverting the dependency direction.
  */
-import { isBoundBy, type RecipeDetailNutrition, type RecipePhoto } from '@kitchensink/recipe-core';
+import {
+    isBoundBy,
+    type RecipeDetailNutrition,
+    type RecipePhoto,
+    type RecipeStatementKind,
+} from '@kitchensink/recipe-core';
 
 import type { IngredientRow } from '../../database/schema/index.js';
 import { quantityFromColumns } from '../dal/quantityColumns.js';
@@ -70,6 +75,13 @@ export function toIngredientResponse(
     };
 }
 
+/** What only a recipe's owner is told about its statement (see `RecipeResponse`). */
+export interface OwnerStatementView {
+    readonly statementKind?: RecipeStatementKind;
+    readonly publicNeedsCheck: boolean;
+    readonly publicNeedsStatement: boolean;
+}
+
 /** Optional projection extras layered onto a recipe response by the caller (detail vs. list). */
 export interface RecipeResponseExtras {
     /** Embedded photos (DETAIL reads only) — omitted on list/search metadata. */
@@ -80,6 +92,11 @@ export interface RecipeResponseExtras {
     coverPhotoUrl?: string;
     /** Whether any line is bound to a private food (the cook's own list only; ADR-0029 section 4). */
     holdsPrivateFood?: boolean;
+    /**
+     * The owner-only statement facts (DETAIL reads only): set by the assembler for the recipe's own owner and for nobody else, so
+     * a stranger's response carries none of the three keys.
+     */
+    ownerStatement?: OwnerStatementView;
     /**
      * The VIEWER's own rating (1–5), for the `RecipeDetail.viewerRating` field (FR-013). DETAIL reads only,
      * and only when the viewer has actually rated — ABSENT otherwise (never `0`). Resolved by the caller
@@ -151,6 +168,7 @@ export function toRecipeResponse(
 
     return {
         ...toRecipeBase(recipe, extras),
+        ...(extras.ownerStatement === undefined ? {} : extras.ownerStatement),
         // In author order (`sortOrder`). Empty only when the recipe genuinely has no lines.
         ingredients: ingredients.map((row) => {
             const view = lineViews.get(row.id);

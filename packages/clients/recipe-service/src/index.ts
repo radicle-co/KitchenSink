@@ -9,7 +9,7 @@
  * non-React consumer of the plain client never pulls React in.
  */
 export { DEFAULT_REQUEST_TIMEOUT_MS, RecipeServiceClient } from './client.js';
-export type { RecipeServiceClientOptions } from './client.js';
+export type { RecipeServiceClientOptions, SetRecipeVisibilityExtras } from './client.js';
 export type { TokenSource } from '@kitchensink/retry-after/bearer-replay';
 
 // P5 (W9) — the `queryOptions` repository-read-seam factories + the recipe-write invalidation registry.
@@ -59,6 +59,7 @@ export {
     // contract and NO request went out — a caller bug, distinct from the server's `400`, and the only one
     // where retrying the same body cannot work (see the three-way distinction in `errors.ts`).
     ImportQuotaExceededError,
+    InvalidVisibilityError,
     PrivateSlotsFullError,
     InvalidRequestError,
     NotFoundError,
@@ -80,6 +81,7 @@ export {
     isImportItemAlreadySavedError,
     isImportItemLockedError,
     isImportQuotaExceededError,
+    isInvalidVisibilityError,
     isPrivateSlotsFullError,
     isInvalidRequestError,
     isNotFoundError,

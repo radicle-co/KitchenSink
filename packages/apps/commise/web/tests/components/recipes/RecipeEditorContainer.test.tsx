@@ -5,6 +5,7 @@
  * five-minute auto-save retired; the lifecycle is pinned by `useRecipeEditor.test.tsx`, the frame by
  * `RecipeEditorView.test.tsx`, and the browser behaviour by `recipeEditor.spec.ts`.
  */
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -81,13 +82,15 @@ afterEach(() => {
 function renderEditor(client: RecipeServiceClient, recipeId?: string, store?: OutboxStore): void {
     renderWithRecipeClient(
         withFoodClient(
-            <SyncProvider
-                subject="user_cook"
-                send={recipeSender(() => client)}
-                {...(store === undefined ? {} : { store })}
-            >
-                <RecipeEditorContainer locale="en" {...(recipeId === undefined ? {} : { recipeId })} />
-            </SyncProvider>,
+            <SnackbarHost>
+                <SyncProvider
+                    subject="user_cook"
+                    send={recipeSender(() => client)}
+                    {...(store === undefined ? {} : { store })}
+                >
+                    <RecipeEditorContainer locale="en" {...(recipeId === undefined ? {} : { recipeId })} />
+                </SyncProvider>
+            </SnackbarHost>,
         ),
         client,
     );
@@ -348,7 +351,9 @@ describe('RecipeEditorContainer (web)', () => {
         });
 
         await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_failed_read?done=changesSaved'));
-        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_failed_read', RecipeVisibility.PRIVATE));
+        await waitFor(() =>
+            expect(setVisibility).toHaveBeenCalledWith('rec_failed_read', RecipeVisibility.PRIVATE, undefined),
+        );
     });
 
     it('a new recipe published private, that the server holds public, is made private', async () => {
@@ -399,7 +404,7 @@ describe('RecipeEditorContainer (web)', () => {
         });
 
         await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_new?done=firstPublish'));
-        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_new', RecipeVisibility.PRIVATE));
+        await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_new', RecipeVisibility.PRIVATE, undefined));
     });
 
     it('× leaves for the recipe it was editing, without asking', async () => {
@@ -813,9 +818,11 @@ describe('RecipeEditorContainer (web) — the signed-in cook changes', () => {
         const client = createFakeRecipeServiceClient();
         const tree = () =>
             withFoodClient(
-                <SyncProvider subject={auth.userId} send={recipeSender(() => client)} store={webDeviceStore}>
-                    <RecipeEditorContainer locale="en" />
-                </SyncProvider>,
+                <SnackbarHost>
+                    <SyncProvider subject={auth.userId} send={recipeSender(() => client)} store={webDeviceStore}>
+                        <RecipeEditorContainer locale="en" />
+                    </SyncProvider>
+                </SnackbarHost>,
             );
         const view = renderWithRecipeClient(tree(), client);
         await userEvent.type(await screen.findByRole('textbox', { name: /title/iu }), 'Soup of A');
@@ -853,9 +860,11 @@ describe('RecipeEditorContainer (web) — the signed-in cook changes', () => {
         vi.spyOn(client, 'updateRecipe').mockReturnValue(new Promise(() => undefined));
         const tree = () =>
             withFoodClient(
-                <SyncProvider subject={auth.userId} send={recipeSender(() => client)} store={webDeviceStore}>
-                    <RecipeEditorContainer locale="en" recipeId="rec_1" />
-                </SyncProvider>,
+                <SnackbarHost>
+                    <SyncProvider subject={auth.userId} send={recipeSender(() => client)} store={webDeviceStore}>
+                        <RecipeEditorContainer locale="en" recipeId="rec_1" />
+                    </SyncProvider>
+                </SnackbarHost>,
             );
         const view = renderWithRecipeClient(tree(), client);
         const title = await screen.findByRole('textbox', { name: /title/iu });
@@ -891,9 +900,11 @@ describe('RecipeEditorContainer (web) — a New recipe press on the new-recipe p
     function renderNewEditor(client: RecipeServiceClient) {
         const tree = () =>
             withFoodClient(
-                <SyncProvider subject="user_cook" send={recipeSender(() => client)}>
-                    <RecipeEditorContainer locale="en" />
-                </SyncProvider>,
+                <SnackbarHost>
+                    <SyncProvider subject="user_cook" send={recipeSender(() => client)}>
+                        <RecipeEditorContainer locale="en" />
+                    </SyncProvider>
+                </SnackbarHost>,
             );
 
         return { view: renderWithRecipeClient(tree(), client), tree };
@@ -1002,9 +1013,11 @@ describe('RecipeEditorContainer (web) — the URL after the first save', () => {
         window.history.replaceState(null, '', '/en/recipes/new');
         const view = renderWithRecipeClient(
             withFoodClient(
-                <SyncProvider subject="user_cook" send={recipeSender(() => createFakeRecipeServiceClient())}>
-                    <RecipeEditorContainer locale="en" />
-                </SyncProvider>,
+                <SnackbarHost>
+                    <SyncProvider subject="user_cook" send={recipeSender(() => createFakeRecipeServiceClient())}>
+                        <RecipeEditorContainer locale="en" />
+                    </SyncProvider>
+                </SnackbarHost>,
             ),
             createFakeRecipeServiceClient(),
         );
@@ -1433,5 +1446,71 @@ describe('RecipeEditorContainer (web) — Discard with a parked save', () => {
         await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
         await waitFor(async () => expect((await loadOutbox(store, 'user_cook')).records).toEqual([]));
         expect(update).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * ADR-0095, offline: the editor has no busy sheet. The cook's answer goes into the save that is queued, so a Publish made with no
+ * connection still carries the statement the cook gave, and the sheet closes at once instead of waiting on the network.
+ */
+describe('RecipeEditorContainer (web) — a Publish with no connection (ADR-0095)', () => {
+    afterEach(() => {
+        onlineManager.setOnline(true);
+    });
+
+    it('⛔ the answer goes with the queued save, and the sheet closes without waiting', async () => {
+        profile.paidFeatures = 'granted';
+        onlineManager.setOnline(false);
+        const ref = 'local:recipe:offlineAnswer';
+        await editorDraftsFor(webDeviceStore, 'user_cook')!.save({
+            recipeRef: ref,
+            baseVersion: null,
+            savedAt: '2026-11-16T09:00:00.000Z',
+            pendingRebinds: [],
+            values: {
+                ...defaultRecipeFormValues(),
+                title: 'Pasted Stew',
+                cuisine: 'Irish',
+                visibility: RecipeVisibility.PUBLIC,
+                pasted: true,
+                ingredients: [
+                    {
+                        key: mintLineKey(),
+                        isUserEntered: false,
+                        ingredientId: '00000000-0000-4000-8000-000000000001',
+                        name: 'Beef',
+                        quantity: 500,
+                        unit: 'g',
+                    },
+                ],
+                steps: [{ instruction: 'Simmer.' }],
+            },
+        });
+        window.history.replaceState(null, '', `/?draft=${ref}`);
+        const store = createMemoryOutboxStore();
+        const client = createFakeRecipeServiceClient();
+        const create = vi.spyOn(client, 'createRecipe');
+
+        renderEditor(client, undefined, store);
+        await screen.findByDisplayValue('Pasted Stew');
+        await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        const sheet = await screen.findByRole('dialog', { name: 'Where is this recipe from?' });
+        await userEvent.click(within(sheet).getByRole('radio', { name: 'I wrote this' }));
+        await userEvent.click(within(sheet).getByRole('button', { name: 'Publish' }));
+
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Where is this recipe from?' })).toBeNull());
+        await waitFor(async () => expect((await loadOutbox(store, 'user_cook')).records).toHaveLength(1));
+        const [record] = (await loadOutbox(store, 'user_cook')).records;
+
+        expect(record?.payload).toMatchObject({
+            input: {
+                title: 'Pasted Stew',
+                status: 'published',
+                contentPasted: true,
+                statement: { kind: 'authored', wording: { version: 'statementAuthored.v1' } },
+            },
+        });
+        // Nothing reached the server: the write waits in the journal, with the answer in it.
+        expect(create).not.toHaveBeenCalled();
     });
 });

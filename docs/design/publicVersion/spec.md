@@ -116,8 +116,8 @@ P5 Review (paste spec) ── visibility area = offer ──┬─ choice ─ Co
 | P10 Age question | `ConfirmDialog` over P8, centred                               | `ConfirmDialog`, centred and blocking, as on every size                                                                                                    | Dialog, centred                                    |
 | P6 Recipe detail | Exists. Gains the credit, the links and the Checking badge     | Exists                                                                                                                                                     | Exists                                             |
 
-Back from P7 acts as Stop: on the Both path it calls cancel and returns to P5 with the choice kept, and on the For everyone path it calls keepPrivate and lands on P6 with the saved private copy (with no slot, `publicOnly`, it calls cancel and returns to P5). On the For everyone path with no edit, Back from P8
-calls no route, asks nothing and returns to P5, and the job rests until Publish, a keep, a discard or the 24-hour expiry (a discard). After an edit it asks with `ConfirmDialog` (reuse the
+Back from P7 on the Both path acts as Stop: it calls cancel and returns to P5 with the choice kept. On the For everyone path Back from P7 calls no route, as the paste design does (D32 and S39 in `docs/design/pasteImport/spec.md`): the import stays in Your imports, nothing is spent, and the cook sees `importMessages.leave.saved`. On the For everyone path with no edit, Back from P8
+calls no route, asks nothing and returns to P5, and the job rests until Publish, a keep, a discard or the 24-hour expiry (the job ends, and the import stays in Your imports, §6.2). After an edit it asks with `ConfirmDialog` (reuse the
 editor's discard dialog). On the Both path the private copy is already saved, so leaving P8 keeps it.
 
 ---
@@ -140,7 +140,7 @@ A `pi-block` card with an H2 and its content, between the source block and the S
 ### 3.2 P7 Writing (B6)
 
 A still `pencilLine` glyph (32), H1 `writing.title`, `writing.body`, and on the Both path a status row with a check and
-`writing.bothSaved`. Stop is a secondary button. No progress bar and no time estimate.
+`writing.bothSaved`. Stop is a secondary button (on the For everyone path it reads `review.discard`). No progress bar and no time estimate.
 
 ### 3.3 P8 Review (B7)
 
@@ -278,7 +278,7 @@ visibility area's render component and the button. The client never computes an 
 - **Write the public version / Save and write.** Starts the job (`POST …/public-version`). Both saves the private copy
   first, which spends the paste's unit; if the allowance refuses it, the screen shows `allowanceRefused.line` and no job starts. On `409 offerChanged` (body `{ code: 'offerChanged', offer }`) the visibility area re-renders from `offer`, nothing selected, and shows
   `offerChanged.line`. On `409 publicExists` it re-renders as `publicExists`. Start spends no unit for the writer job (C-24).
-- **Stop.** Both: calls cancel, returns to P5 with the choice kept, the copy stays. For everyone: calls keepPrivate (the recipe is saved as a private copy, the unit is spent, and the cook lands on P6). With no slot left (`publicOnly`) Stop calls cancel: nothing is saved and nothing is spent. If keepPrivate answers `403 PRIVATE_SLOTS_FULL`, the writing screen offers `review.discard` and the reused `cancel`.
+- **Stop.** Both: calls cancel, returns to P5 with the choice kept, the copy stays. For everyone: an explicit discard. The control reads `review.discard` ("Discard this import"), calls cancel with no confirm, saves nothing and spends nothing, and the import leaves Your imports. Back never does this (it calls no route).
 - **Show my copy / Hide my copy.** A disclosure. Its state is not kept across visits.
 - **Edit steps.** Turns the steps into fields. The button becomes "Done editing" (reuse the editor's key).
 - **Write it again.** Calls the retry route, which starts a new attempt of the same job (up to 3). Returns to P7.
@@ -286,8 +286,8 @@ visibility area's render component and the button. The client never computes an 
   `422 flags` shows the flags group. `422 tooSimilar` shows B8 blocked. `503 checkUnavailable` shows B8 check unavailable, with Publish enabled to try again and the private exit.
   `409 privateCopyChanged` (Both) shows the flags group's rewrite action with `flag.fix` (no new string).
 - **Keep it just for me / `Don't publish` / Cancel import.** For everyone: saves the private copy (a slot) through keepPrivate, ends the
-  job, and spends the paste's one unit. Stop on this path does the same. With no slot left the keepPrivate answer is `403 PRIVATE_SLOTS_FULL`, and the screen offers the discard (`review.discard`) and the reused `cancel`, both of which call cancel and end the import with nothing saved and no unit spent. Both: Stop, `review.notNowBoth` and `failed.done` call cancel, the job ends and the copy stays.
-- **Discard.** `review.discard`, public path only. Calls cancel: nothing is saved and nothing is spent. Always an explicit action, never the label of a private exit. The 24-hour expiry ends the same way.
+  job, and spends the paste's one unit. With no slot left the keepPrivate answer is `403 PRIVATE_SLOTS_FULL`, and the screen offers the discard (`review.discard`) and the reused `cancel`, both of which call cancel and end the import with nothing saved and no unit spent. Both: Stop, `review.notNowBoth` and `failed.done` call cancel, the job ends and the copy stays.
+- **Discard.** `review.discard`, public path only, and the wording of Stop there. Calls cancel with no confirm: nothing is saved and nothing is spent. Always an explicit action, never the label of a private exit. The 24-hour expiry ends the job but not the import: it stays in Your imports as an ordinary unfinished import (§6.11).
 - **Allowance refused at save.** When the allowance refuses the unit as any save ends the paste (Save my copy, Save and write, keepPrivate or Publish), nothing is saved, the screen shows `allowanceRefused.line`, and the cook keeps the review as it was and can discard.
 - **Upgrade to Pro.** Opens the payment page (web modal, mobile store sheet). On success the cook returns to P5 with the offer
   re-read, and hears `pro.welcome`. On cancel or failure, back to P9 unchanged.
@@ -352,11 +352,11 @@ Slot line on Free: `private.hint`. Pro: none.
 
 ### 6.6 Writing (B6)
 
-| State                 | Keys                                                                                       |
-| --------------------- | ------------------------------------------------------------------------------------------ |
-| Writing, For everyone | `writing.title`, `writing.body`, `writing.stop`. Announced once: `writing.announce`        |
-| Writing, Both         | as above, plus `writing.bothSaved` once the server has the copy                            |
-| Offline while writing | `writing.offline` (alert), reuse `importMessages.wizard.retry`. Focus moves to the heading |
+| State                 | Keys                                                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Writing, For everyone | `writing.title`, `writing.body`, `review.discard` as the Stop control (an explicit discard, no confirm). Announced once: `writing.announce` |
+| Writing, Both         | as above, plus `writing.bothSaved` once the server has the copy                                                                             |
+| Offline while writing | `writing.offline` (alert), reuse `importMessages.wizard.retry`. Focus moves to the heading                                                  |
 
 ### 6.7 Review (B7)
 
@@ -368,7 +368,7 @@ Slot line on Free: `private.hint`. Pro: none.
 | Fact flags            | `flag.title` (ICU), `flag.step`, `flag.allergen`, `flag.added` (new, §7.2), `flag.fix`, `flag.rewrite`. Focus to the group's heading. Publish stays enabled                                                                                             |
 | Credit, paid site     | `credit.written`, `review.licence`. No site named or linked                                                                                                                                                                                             |
 | Both path             | `review.notNowBoth` reads `Don’t publish` (003B C-29: one key per string). It calls cancel                                                                                                                                                              |
-| For everyone, discard | `review.discard` (new, §7.2) calls cancel. With a slot, the only action on this path that saves nothing                                                                                                                                                 |
+| For everyone, discard | `review.discard` (new, §7.2) calls cancel. Stop on this path uses the same action and wording. With a slot, the only actions on this path that save nothing                                                                                             |
 | For everyone, no slot | on `403 PRIVATE_SLOTS_FULL`: `review.discard`, and the reused `importMessages.paste.cancel` instead of "Keep it just for me". Both call cancel                                                                                                          |
 | Allowance refused     | `allowanceRefused.line` (new, §7.2), after Save my copy, Save and write, keepPrivate or Publish. Nothing is saved                                                                                                                                       |
 
@@ -401,6 +401,21 @@ Every one of these is `role="alert"`, and focus moves to the screen's heading or
 `ageConfirm.title`, `ageConfirm.body`, `ageConfirm.yes`, `ageConfirm.notNow`, recorded as `ageConfirm.v1`. Shown when
 Publish answers `403 ageConfirmNeeded` (X7). "Not now" and Escape close it, publish nothing and return focus to Publish.
 
+### 6.11 Reopening an import (Your imports)
+
+An import that is not finished stays in Your imports, whether the cook left with Back, closed the app, or its job ended by the 24-hour expiry or the sweep. Opening it routes by the latest job's state, with no "expired" wording anywhere:
+
+| Latest job                                          | Opens                                                                                                                                           |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pending` or `writing`                              | P7 Writing                                                                                                                                      |
+| `ready`                                             | P8 Review                                                                                                                                       |
+| `checkRefused` or `failed`                          | The refused or failed screen (§6.8), with the actions its attempts allow                                                                        |
+| `budgetSpent`                                       | The budget screen (§6.8)                                                                                                                        |
+| `cancelled` by expiry or sweep, or no job           | P5 Choice again from a fresh offer. "For everyone" starts a new job. "Just for me" uses the paste's ordinary Save recipe, which spends the unit |
+| `published`, or the import already records a recipe | The recipe (P6), and the import is no longer listed                                                                                             |
+
+Attempts count per import item across its jobs, 3 in total, so reopening and starting a new job does not reset them. With 3 used, "For everyone" and "Both" answer `409 attemptsUsed` and the cook sees `failed.titleFinal`, `failed.bodyFinal` and `review.notNow`. (Lead default, owner may revise.) An import discarded with Stop or `review.discard` is not listed.
+
 ---
 
 ## 7. Content
@@ -412,27 +427,27 @@ exclamation marks, no reason clauses, and none of the banned words (one list, `b
 
 ### 7.2 New strings (not in copy v3 or v2)
 
-| Key                         | Copy                                                                                                                   | Where                                                 |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `button.none`               | "Continue"                                                                                                             | B1, B8                                                |
-| `creditPreview.label`       | "Your public version will say"                                                                                         | B1                                                    |
-| `publicExists.link`         | "See the public version" (same words as `done.linkPublic`)                                                             | B3                                                    |
-| `review.titleLabel`         | "Recipe name"                                                                                                          | B7                                                    |
-| `review.stepsHeading`       | "Steps"                                                                                                                | B7                                                    |
-| `review.oursHeading`        | "Public version"                                                                                                       | B7                                                    |
-| `review.yourCopyHeading`    | "Your copy"                                                                                                            | B7                                                    |
-| `checkUnavailable.body`     | "We can’t check this version right now. Try again in a moment, or keep it just for you."                               | B8                                                    |
-| `checkUnavailable.bodyBoth` | "We can’t check this version right now. Your copy is saved. Try again in a moment, or share it later from the recipe." | B8                                                    |
-| `flag.added`                | "Your edit adds “{line}”, which isn’t in the recipe you saved. Take it out in Edit steps, or let us write it again."   | B7                                                    |
-| `failed.done`               | "Done"                                                                                                                 | B8                                                    |
-| `review.discard`            | "Discard this import"                                                                                                  | B7, B8. Placeholder, copy pending designer review     |
-| `allowanceRefused.line`     | "You have used your imports for now. Nothing was saved."                                                               | B1, B7, B8. Placeholder, copy pending designer review |
-| `blocked.bodyFinal`         | "We can’t publish this version, and we can’t write it again. You can keep it just for you."                            | B8                                                    |
-| `blocked.bodyFinalBoth`     | "We can’t publish this version, and we can’t write it again. Your copy is saved."                                      | B8                                                    |
-| `failed.titleFinal`         | "We couldn’t write the public version"                                                                                 | B8                                                    |
-| `failed.bodyFinal`          | "We can’t try again for this one. You can keep it just for you."                                                       | B8                                                    |
-| `failed.bodyFinalBoth`      | "We can’t try again for this one. Your copy is saved."                                                                 | B8                                                    |
-| `offerChanged.line`         | "Something changed since you chose. Have a look and pick again."                                                       | B1, B8                                                |
+| Key                         | Copy                                                                                                                                                                                                                                                                     | Where                                                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `button.none`               | "Continue"                                                                                                                                                                                                                                                               | B1, B8                                                                                                             |
+| `creditPreview.label`       | "Your public version will say"                                                                                                                                                                                                                                           | B1                                                                                                                 |
+| `publicExists.link`         | "See the public version" (same words as `done.linkPublic`)                                                                                                                                                                                                               | B3                                                                                                                 |
+| `review.titleLabel`         | "Recipe name"                                                                                                                                                                                                                                                            | B7                                                                                                                 |
+| `review.stepsHeading`       | "Steps"                                                                                                                                                                                                                                                                  | B7                                                                                                                 |
+| `review.oursHeading`        | "Public version"                                                                                                                                                                                                                                                         | B7                                                                                                                 |
+| `review.yourCopyHeading`    | "Your copy"                                                                                                                                                                                                                                                              | B7                                                                                                                 |
+| `checkUnavailable.body`     | "We can’t check this version right now. Try again in a moment, or keep it just for you."                                                                                                                                                                                 | B8                                                                                                                 |
+| `checkUnavailable.bodyBoth` | "We can’t check this version right now. Your copy is saved. Try again in a moment, or share it later from the recipe."                                                                                                                                                   | B8                                                                                                                 |
+| `flag.added`                | "Your edit adds “{line}”, which isn’t in the recipe you saved. Take it out in Edit steps, or let us write it again."                                                                                                                                                     | B7                                                                                                                 |
+| `failed.done`               | "Done"                                                                                                                                                                                                                                                                   | B8                                                                                                                 |
+| `review.discard`            | "Discard this import"                                                                                                                                                                                                                                                    | B7, B8. Final. Also the wording of Stop on the public-only path                                                    |
+| `allowanceRefused.line`     | ICU plural. one: "You’ve used your import allowance of {count} recipe in 24 hours. You can import again from {time}. Nothing was saved." other: "You’ve used your import allowance of {count} recipes in 24 hours. You can import again from {time}. Nothing was saved." | B1, B7, B8. Final. `{time}` is `resetsAt`, formatted as in the paste design S27, with the day when it is not today |
+| `blocked.bodyFinal`         | "We can’t publish this version, and we can’t write it again. You can keep it just for you."                                                                                                                                                                              | B8                                                                                                                 |
+| `blocked.bodyFinalBoth`     | "We can’t publish this version, and we can’t write it again. Your copy is saved."                                                                                                                                                                                        | B8                                                                                                                 |
+| `failed.titleFinal`         | "We couldn’t write the public version"                                                                                                                                                                                                                                   | B8                                                                                                                 |
+| `failed.bodyFinal`          | "We can’t try again for this one. You can keep it just for you."                                                                                                                                                                                                         | B8                                                                                                                 |
+| `failed.bodyFinalBoth`      | "We can’t try again for this one. Your copy is saved."                                                                                                                                                                                                                   | B8                                                                                                                 |
+| `offerChanged.line`         | "Something changed since you chose. Have a look and pick again."                                                                                                                                                                                                         | B1, B8                                                                                                             |
 
 ### 7.3 Reused keys
 
@@ -563,7 +578,7 @@ None of our own. Pushes, the dialog and the sheet use the platform's transitions
 - **No slot left and a public version possible.** `publicOnly` (B4), never a dead end.
 - **The offer changes between read and press.** `409 offerChanged` (B8).
 - **Another device publishes first.** `409 publicExists`: the area re-renders as `publicExists.published`.
-- **Retry at 3 attempts.** `409 attemptsUsed`: the client refetches the job and re-renders from its state and attempts. The public path's private exit (Stop, `review.notNow`, `button.private`) calls the keepPrivate route, and with no free slot offers `review.discard` and the reused `cancel`, which call cancel. At 3 attempts the screens hide `wizard.retry` and `flag.rewrite` and show `blocked.bodyFinal` or `blocked.bodyFinalBoth` where blocked, and the failed Final variants where failed: `failed.titleFinal` with `failed.bodyFinal` and `review.notNow` on the public path, `failed.bodyFinalBoth` and `failed.done` on the Both path (B8).
+- **Retry at 3 attempts.** `409 attemptsUsed`: the client refetches the job and re-renders from its state and attempts. The public path's private exit (`review.notNow`, `button.private`) calls the keepPrivate route, and with no free slot offers `review.discard` and the reused `cancel`, which call cancel. At 3 attempts the screens hide `wizard.retry` and `flag.rewrite` and show `blocked.bodyFinal` or `blocked.bodyFinalBoth` where blocked, and the failed Final variants where failed: `failed.titleFinal` with `failed.bodyFinal` and `review.notNow` on the public path, `failed.bodyFinalBoth` and `failed.done` on the Both path (B8).
 - **The private copy changes during writing (Both).** `409 privateCopyChanged` at Publish: `flag.fix` with "Write it
   again".
 - **Under 16 learned at the age question.** "Not now" publishes nothing. The cook can still keep a private copy from P8

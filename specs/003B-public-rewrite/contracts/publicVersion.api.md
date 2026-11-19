@@ -88,6 +88,7 @@ viewer, like the other owner-only fields (ADR-0090, #301). It is computed the wa
 same paid-site rules.
 
 - `202 { jobId, state }`. A second call while a live job exists returns the same job.
+- `409 { code: 'attemptsUsed' }` on the import path when the item's `public_attempts` is already 3 (the cook reopened it and chose "For everyone" or "Both" again). It is checked first, before any save, so nothing is saved or charged. The client shows `failed.titleFinal`, `failed.bodyFinal` and `review.notNow`.
 - `409 { code: 'publicExists', recipeId: string | null }`: another version of this source page is already public (FR-034). The key is released by FR-034a.
 - `409 { code: 'offerChanged', offer }`: the offer the server computes now differs from the `shownOffer` the client sent
   (see "The shown offer"). `offer` is the current offer. Client copy: `offerChanged.line`. Publish answers the same way.
@@ -100,7 +101,7 @@ same paid-site rules.
 `GET /api/v1/public-version-jobs/{jobId}` →
 `{ state, attempts, output?: { title, steps: { text }[] }, refusal?: 'factMissing' | 'factAdded' | 'tooSimilar' | 'unreadable' }`.
 The output is present only in `ready`. It holds no source text, and the job's `source_steps` is never returned.
-The client reads `attempts` to decide which actions to show: at `attempts === 3` it hides `wizard.retry` and
+`attempts` is the import item's count across its jobs on the import path, and the job's own count on the later route. The client reads `attempts` to decide which actions to show: at `attempts === 3` it hides `wizard.retry` and
 `flag.rewrite` and shows the Final variants (FR-031).
 
 ## Publish
@@ -135,7 +136,7 @@ The client reads `attempts` to decide which actions to show: at `attempts === 3`
 
 `POST /api/v1/public-version-jobs/{jobId}/retry` → `202 { state: 'pending' }`. It serves "Write it again" (job `ready`
 after `422 flags`, `422 tooSimilar` or `409 privateCopyChanged`) and "Try again" (job `checkRefused` or `failed`), while
-fewer than 3 attempts are used. Attempts carry over and no allowance unit is spent.
+fewer than 3 attempts are used. Attempts carry over (per import item, FR-031) and no allowance unit is spent.
 
 - `409 { code: 'attemptsUsed' }` at 3 attempts. The client refetches the job (`GET`) and re-renders from its state and
   attempts.
@@ -150,15 +151,15 @@ fewer than 3 attempts are used. Attempts carry over and no allowance unit is spe
 end `cancelled`, and a `budgetSpent` job stays `budgetSpent`, so `state` is the job's state after the call. In the same
 UPDATE it clears `facts_snapshot`, `source_steps` and `output`, and the item's draft step text in the same transaction
 (FR-033). It saves nothing and spends no allowance unit (FR-016a). It is an explicit discard on the public-only path
-(`review.discard`, and the offer after `403 PRIVATE_SLOTS_FULL`), the exit of Stop and Back on the public-only path when
-the offer is `publicOnly` (no slot), and the exit on the Both path (Stop, `review.notNowBoth` and `failed.done`). The
-expiry at 24 hours and the sweep discard the same way. The public-only path's private exits, with a slot, do not use this
+(`review.discard`, Stop, and the offer after `403 PRIVATE_SLOTS_FULL`), and the exit on the Both path (Stop,
+`review.notNowBoth` and `failed.done`). Back calls no route (FR-044). The expiry at 24 hours and the sweep end the job the same way
+but clear only the job's own text, never the item's draft (FR-033). The public-only path's private exits do not use this
 route: they use keepPrivate below.
 
 ## Keep a private copy
 
 `POST /api/v1/public-version-jobs/{jobId}/keepPrivate` → `201 { recipeId }`, and a replay answers `200` with the same
-`recipeId`. It serves Stop, `review.notNow`, `button.private` and the private exits of the failed and blocked-final
+`recipeId`. It serves `review.notNow`, `button.private` and the private exits of the failed and blocked-final
 screens on the public-only path (the job has an import item and no private copy). Order of checks: first, when the item
 already records a recipe id it answers `200` with that same id, whatever the job's state. Then a job that is `cancelled`
 or `published`, or that is not public-only, answers `409 { code: 'notKeepable' }`.

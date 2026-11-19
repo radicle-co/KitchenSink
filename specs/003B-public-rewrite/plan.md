@@ -33,7 +33,7 @@ transaction, worker tests, Playwright, Maestro, and k6 by hand.
 **Performance Goals**: 95% of jobs ready within 30 s (SC-004).
 **Constraints**: writer input is the facts sheet plus the source step text, with no address, statement or source title (ruled 2026-11-17). No Anthropic model. The writer never fetches. A link import fetches on the device first, the server second (ADR-0093). Fail closed on spend and on the open test. An
 unreadable paid, opt-out or signature signal is `unknown` and takes the rewrite path. Job timeout 10 min.
-**Scale/Scope**: bounded by the spend ceiling, one public version per source page, and 3 attempts per job. A paste spends its import unit only at save (FR-016a, C-24).
+**Scale/Scope**: bounded by the spend ceiling, one public version per source page, and 3 attempts per import item. A paste spends its import unit only at save (FR-016a, C-24).
 
 ## Constitution Check
 
@@ -122,9 +122,9 @@ own second pinned prompt behind the same adapter, under its own call site.
 - **Charge.** Operating cost (ADR-0024 §6 item 1). Never a cook's use (010-FR-041d, 005-FR-015a).
 - **Per call.** ADR-0024 §6 estimates a recipe-sized call at about 1,750 tokens in and 900 out: about $0.003 on Nova 2
   Lite. The facts sheet is smaller than a full recipe, so this is an upper estimate. The bake-off measures it.
-- **Per job.** At most 3 writer attempts (one automatic retry, one by hand, C-7): at most about $0.009.
+- **Per import item.** At most 3 writer attempts, counted across its jobs (one automatic retry, one by hand, C-7): at most about $0.009.
 - **Per cook.** Not bounded by the import allowance (a paste spends its unit only at save, FR-016a). Bounded by one
-  public version per source page and 3 attempts per job. There is no separate cap (owner ruling 2026-11-15), so the
+  public version per source page and 3 attempts per import item. There is no separate cap (owner ruling 2026-11-15), so the
   pool's ceiling is the real bound.
 - **Denial.** Terminal `budgetSpent`, refund in full, ack the message, never redeliver (FR-082). The screen reads the
   counter as a hint only. The reservation is the gate.

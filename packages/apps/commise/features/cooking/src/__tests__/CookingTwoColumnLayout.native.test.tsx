@@ -2,7 +2,9 @@
  * The native two-column layout (L2, L3): the ingredients column on the left in its own 300 wide scrolling slot, and the
  * step column in the rest, at most 680 wide and centred. Pure layout, so nothing is mocked: the slots are plain text.
  */
-import { render } from '@commise/ui/testing/tamagui';
+import { nativeTokens } from '@commise/ui/native';
+import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
+import { render, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
 import { cleanup, screen } from '@testing-library/react';
 import { Text } from '@commise/ui/text';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -48,5 +50,23 @@ describe('CookingTwoColumnLayout (native)', () => {
 
         expect(step.contains(screen.getByText('Step here'))).toBe(true);
         expect(getComputedStyle(step).maxWidth).toBe('680px');
+    });
+
+    it('insets the column content 16 on every side, inside the scroll, on the canvas', () => {
+        layout();
+
+        const slot = screen.getByTestId('cooking-ingredients-slot');
+        const inset = screen.getByText('Ingredients here').closest('[data-testid="cooking-ingredients-inset"]');
+
+        expect(inset).not.toBeNull();
+        expect(screen.getByTestId('cooking-ingredients-scroll').contains(inset)).toBe(true);
+
+        const edge = `${String(nativeTokens.spacing[4])}px`;
+
+        for (const side of ['paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight'] as const) {
+            expect(resolvedStyle(inset as Element, side)).toBe(edge);
+        }
+
+        expect(resolvedColour(slot, 'backgroundColor')).toBe(rgb(rolesFor('light').canvas));
     });
 });

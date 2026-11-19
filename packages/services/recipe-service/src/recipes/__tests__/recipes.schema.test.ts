@@ -681,8 +681,8 @@ describe('createRecipeRequestSchema — the optional `source` declaration', () =
 
     /**
      * `imported_physical` and `imported_paid` are not declarable through `source`, the curator's field. A cook gives a
-     * recipe `imported_physical` through the recipe's own `statement` (`004-FR-014a`); the `imported_paid` case is open
-     * in #376, so this refusal stays.
+     * recipe `imported_physical` through a `book` statement today. A `paid_site` statement lands with #374's build, and
+     * its test is #376. This refusal stays (#374).
      */
     it.each(['imported_physical', 'imported_paid'])('REFUSES %s through source (#374)', (kind) => {
         expect(createAccepts({ source: { sourceType: kind, sourceAttribution: 'A book' } })).toBe(false);

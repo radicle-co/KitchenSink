@@ -15,7 +15,7 @@ Each item gives the decision, the reason, and the options set aside.
 - **Decision**: a `public_version_jobs` table of its own, keyed on the source record.
 - **Reason**: the import item is purged on the schedule of ADR-0072, and the later route (US3) has no
   item at all. The job also holds the writer's source step text (`source_steps`) until it ends (cleared at most 73 h 15 min after Start while the sweep runs, FR-033), so a retry on the public-only path sends the same text. The item's draft
-  (`recipe_import_items.payload`) follows FR-033: it clears only through `claimSave` (Publish, keepPrivate or the paste's ordinary Save after a reopen), or goes with the import on an explicit discard, and otherwise ADR-0072's 30-day purge removes it.
+  (`recipe_import_items.payload`) follows FR-033: it clears only through `claimSave` (every save that ends the paste in a recipe, FR-016a), or goes with the import on an explicit discard, and otherwise ADR-0072's 30-day purge removes it.
   The sweep clears only the job's own text.
 - **Set aside**: columns on the import item.
 

@@ -453,22 +453,21 @@ them. So the import never invents a value:
 - **FR-014a**: System MUST require, for any pasted or typed recipe the cook attests came from an external source, both an
   explicit source attestation and a source citation: a URL where one exists, otherwise a free-text citation (book title,
   author, page). Where the cited source is not a publicly reachable web page, the recipe is classified `imported_paid` or
-  `imported_physical`, and its verbatim copy stays private. The cook can publish their own Adapted version, in their own
-  words with credit, and it is judged by the Adapted rule. Automated detection heuristics run as a secondary signal that
+  `imported_physical`, and its verbatim copy stays private. For an `imported_physical` recipe, the cook can publish their own Adapted version, in their own words with credit, and it is judged by the Adapted rule. An `imported_paid` recipe's only public form is the Commise-written version (`FR-065`, `003B-FR-015`). Automated detection heuristics run as a secondary signal that
   flags a recipe for review. A heuristic never reclassifies a recipe or blocks a save.
     - **One statement, one label, on every channel.** The cook chooses one statement for each recipe. The table is the
       only place the mapping is stated, and it does not vary by channel. A channel offers the statements its own rules
       allow.
 
-        | Statement                                                  | Stored as                       | Label (`sourceType`)                                  | Visibility                                         |
-        | ---------------------------------------------------------- | ------------------------------- | ----------------------------------------------------- | -------------------------------------------------- |
-        | 1. "I wrote this"                                          | `authored`                      | `user_created`                                        | Private or public                                  |
-        | 1a. "This is my recipe, from my site or account"           | `authored`, with the own origin | `user_created`                                        | Private or public                                  |
-        | 2. "Adapted in my own words, from [credited source]"       | `adapted`                       | `user_created`, credit shown                          | Private or public                                  |
-        | 3. "From a public web page", with its link                 | `source`, `public_web`          | `imported_public`                                     | Private only                                       |
-        | 4. "From a cookbook or magazine", with a citation          | `source`, `book`                | `imported_physical`                                   | Verbatim private; public as a Commise version      |
-        | 5. "From a paid site", with a citation                     | `source`, `paid_site`           | `imported_paid`                                       | Verbatim private; public as a Commise version      |
-        | 6. "From a family member or friend, with their permission" | `family`                        | `user_created`, kind `family`, never "Written by you" | Private only, until 016's family source type ships |
+        | Statement                                                  | Stored as                       | Label (`sourceType`)                                  | Visibility                                                                               |
+        | ---------------------------------------------------------- | ------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+        | 1. "I wrote this"                                          | `authored`                      | `user_created`                                        | Private or public                                                                        |
+        | 1a. "This is my recipe, from my site or account"           | `authored`, with the own origin | `user_created`                                        | Private or public                                                                        |
+        | 2. "Adapted in my own words, from [credited source]"       | `adapted`                       | `user_created`, credit shown                          | Private or public. Private only when the credited source is a paid site (`003B-FR-015`). |
+        | 3. "From a public web page", with its link                 | `source`, `public_web`          | `imported_public`                                     | Private only                                                                             |
+        | 4. "From a cookbook or magazine", with a citation          | `source`, `book`                | `imported_physical`                                   | Verbatim private; public as a Commise version                                            |
+        | 5. "From a paid site", with a citation                     | `source`, `paid_site`           | `imported_paid`                                       | Verbatim private; public as a Commise version                                            |
+        | 6. "From a family member or friend, with their permission" | `family`                        | `user_created`, kind `family`, never "Written by you" | Private only, until 016's family source type ships                                       |
 
     - An "Adapted" method is rewritten, not trimmed (`016-FR-015b`). An AI rewrite is not the cook's own words
       (`016-FR-015i`). Statement 6 must say the giver agreed to sharing "publicly, on Commise and on the web". Naming the

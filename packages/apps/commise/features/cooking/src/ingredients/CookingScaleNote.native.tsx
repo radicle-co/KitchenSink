@@ -17,7 +17,7 @@ import type { CookingScaleNoteProps } from './cookingScaleNoteProps.js';
 /** The native scale note. */
 export const CookingScaleNote: FC<CookingScaleNoteProps> = ({ note, openLabel, onOpen }) => (
     <YStack role="note" gap="$2" alignItems="flex-start">
-        <XStack gap={10} alignItems="flex-start">
+        <XStack gap="$2" alignItems="flex-start">
             <Icon name="info" size={16} tone="inkMuted" />
             <Text typeRole="meta" color="$inkMuted" flexShrink={1}>
                 {note}

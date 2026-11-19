@@ -41,7 +41,7 @@ describe('cookingMessages', () => {
         expect(en.step.tickedSummary.other).toBe('You ticked {count} lines');
     });
 
-    // The S2 copy is the designer's D16 to D18, as the boards draw it. One test pins the words, so a reword is a
+    // The ingredients copy is the designer's, as the boards draw it. One test pins the words, so a reword is a
     // decision here and never a silent edit; every behaviour test reads the text through `cookingMessages.en`.
     it('says the ingredients list and the scale note as the designer decided', () => {
         expect(en.top.ingredients).toBe('Ingredients');

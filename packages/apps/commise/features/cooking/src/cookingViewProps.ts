@@ -16,7 +16,7 @@ export interface CookingRecipe {
     readonly title: string;
     readonly status: CookLinkInput['status'];
     readonly steps: UseCookingSessionInput['steps'];
-    /** The recipe's ingredient lines in stored order. Empty, never absent (R-9a): "no ingredients" is a held fact. */
+    /** The recipe's ingredient lines in stored order. Empty, never absent: "no ingredients" is a held fact. */
     readonly ingredients: readonly RecipeIngredientView[];
     /** The servings the recipe was authored with, the base of the cook's scaling. */
     readonly servings: number;

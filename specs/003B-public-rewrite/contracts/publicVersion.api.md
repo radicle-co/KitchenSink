@@ -195,7 +195,7 @@ screens on the public-only path (the job's `path` is `public`). It never infers 
 
 ## Switch a file item to "I wrote this"
 
-The review wizard's per-recipe statement choice and a reopening `upsertItems` that carries it write `statement_kind = 'authored'`, `choice = NULL` and `public_requested_at = NULL` in one UPDATE (the `choice` CHECK refuses an authored item with a choice). In the same transaction, after the items `FOR UPDATE` (header, item, job), they cancel the item's live or resting job, and `promote()` runs after commit when a live job was cancelled. The item's `visibility` is unchanged, and the switch shows no confirm dialog. Switching back to a third-party statement leaves `choice` NULL (data model, "An authored statement write clears the choice").
+The review wizard's per-recipe statement choice and a reopening `upsertItems` that carries it write `statement_kind = 'authored'`, `choice = NULL` and `public_requested_at = NULL` in one UPDATE (the `choice` CHECK refuses an authored item with a choice). In the same transaction, after the items `FOR UPDATE` (header, item, job), they cancel the item's live or resting job, and `promote()` runs after commit when a `pending` or `writing` job was cancelled. The item's `visibility` is unchanged, and the switch shows no confirm dialog. Switching back to a third-party statement leaves `choice` NULL (data model, "An authored statement write clears the choice").
 
 ## Make the rest public
 
@@ -210,7 +210,7 @@ skipped { reason: 'offerChanged', offer: PublicVersionOffer }   // the offer the
 
 A replay marks nothing that already has a job or a marker and never restarts a resting job, and answers for each item from its current state: a marked item with no job answers `requested` (or `waiting` when it is not matched or not paid), and an item with a job answers `skipped` with `alreadyStarted`. The route never answers `429`: a file item is already paid, and Publish's guard charges nothing for it.
 
-The import list entry (`GET /api/v1/import`) gains `publicVersions: { requested, writing, ready, needsYou, notWritten, expiring, published, nextReadyExpiresAt, nextPurgeOn }` from one grouped query whose predicates are the table in the data model's "Rest-public" section, and the import item view gains `readyUntil` (the ISO date a ready draft's job expires, or `null`) and `purgeOn` (the ISO date from the import's `recipe_import_purge_at`, for an unsaved item; a date already in the past shows nothing in the row).
+The import list entry (`GET /api/v1/import`) gains `publicVersions: { requested, writing, ready, needsYou, notWritten, expiring, published, nextReadyExpiresAt, nextPurgeOn }` from one grouped query whose predicates are the table in the data model's "Rest-public" section, and the import item view gains `readyUntil` (the ISO date a ready draft's job expires, or `null`) and `purgeOn` (the ISO date from the import's `recipe_import_purge_at`, or `null` when the function returns `infinity` (a live or resting job in the import) or the item is saved or discarded; a date already in the past shows nothing in the row).
 
 ## Recipe writes
 

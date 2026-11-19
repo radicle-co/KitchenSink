@@ -1,6 +1,7 @@
 /**
- * The lane door's first bash step. The stack's facts and the ownership refusals come before the toolchain, the Clerk keys,
- * the seed settings and the service checks, so a run aimed at another checkout's stack refuses before any of them (AE9).
+ * The lane door's first bash step. The stack's facts and the ownership refusals come before the toolchain, the Clerk
+ * keys, the seed settings and the service checks, so a run aimed at another checkout's stack refuses before any of them
+ * (AE9).
  */
 import { describe, expect, it } from 'vitest';
 

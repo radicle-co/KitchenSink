@@ -9,7 +9,7 @@
  */
 import {
     onPublishedPorts,
-    ownershipRefusal,
+    labelRefusal,
     refusalLine,
     stackLine,
     type ComposeContainer,
@@ -74,16 +74,13 @@ const PUBLISHED_SERVICES = ['recipes', 'identity', 'food', 'localstack', 'postgr
  */
 export function stackEnvOutcome(input: StackEnvInput): StackEnvOutcome {
     const { door, stack, published } = input;
-    const refusal = ownershipRefusal({
+    const refusal = labelRefusal({
         door,
         project: stack.project,
         checkout: input.checkout,
         containers: input.containers,
-        volumeExists: false,
-        record: undefined,
-        recordFile: '',
         canon: input.canon,
-        checkVolume: false,
+        fixes: { foreign: 'Run local:down there.', sibling: 'Set LOCAL_SANDBOX_PORT to the port that project uses.' },
     });
 
     if (refusal !== undefined) {
@@ -146,8 +143,8 @@ export function stackEnvOutcome(input: StackEnvInput): StackEnvOutcome {
 }
 
 /**
- * Read one line the way the shell does: the key must be one of {@link STACK_ENV_KEYS}, and the value is everything after
- * the first `=`. Values are not checked by a character class, because a database URL holds `@`.
+ * Read one line the way the shell does: the key must be one of {@link STACK_ENV_KEYS}, and the value is everything
+ * after the first `=`. Values are not checked by a character class, because a database URL holds `@`.
  *
  * @param line - One line of `stackEnv` output.
  * @returns The key and the value, or `undefined` for a line the shell refuses. Pure.

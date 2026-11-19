@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { HostLockHeldError } from '../maestroLanes/hostLock.js';
 import { runDown, type DownPorts } from '../runDown.js';
-import type { ComposeContainer } from '../stackPorts.js';
+import { DockerReadError, type ComposeContainer } from '../stackPorts.js';
 
 const C = '/work/C';
 const A = '/work/A';
@@ -125,5 +125,22 @@ describe('runDown', () => {
 
         expect(runDown(ports)).toBe(5);
         expect(calls.at(-1)).toBe('unlock');
+    });
+});
+
+describe('runDown treats a failed Docker read as a refusal', () => {
+    it('prints one R9 line, runs no down and frees the lock', () => {
+        const { ports, calls, errors } = harness({
+            containers: () => {
+                throw new DockerReadError('docker ps -a', 'Cannot connect to the Docker daemon');
+            },
+        });
+
+        expect(runDown(ports)).toBe(1);
+        expect(errors).toEqual([
+            'local:down refused: docker ps -a failed (Cannot connect to the Docker daemon). ' +
+                'Start Docker, or fix it, then run local:down again.',
+        ]);
+        expect(calls).toEqual(['lock', 'unlock']);
     });
 });

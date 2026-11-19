@@ -28,9 +28,9 @@ const BOOT = 'boot-a';
 describe('acquireHostLock — one orchestrator per host', () => {
     it('takes a free lock and writes its pid into it', () => {
         const file = lockPath();
-        const lock = acquireHostLock(file, 101, alive([101]), BOOT);
+        const lock = acquireHostLock(file, 101, alive([101]), BOOT, 'maestro:lanes');
 
-        expect(readFileSync(file, 'utf8').trim()).toBe('101 boot-a');
+        expect(readFileSync(file, 'utf8').trim()).toBe('101 boot-a maestro:lanes');
         expect(lock.reclaimedFrom).toBeUndefined();
         lock.release();
         expect(existsSync(file)).toBe(false);
@@ -38,12 +38,12 @@ describe('acquireHostLock — one orchestrator per host', () => {
 
     it('refuses a second acquire while the holder lives, and names the holder', () => {
         const file = lockPath();
-        acquireHostLock(file, 101, alive([101, 202]), BOOT);
+        acquireHostLock(file, 101, alive([101, 202]), BOOT, 'maestro:lanes');
 
         let caught: unknown;
 
         try {
-            acquireHostLock(file, 202, alive([101, 202]), BOOT);
+            acquireHostLock(file, 202, alive([101, 202]), BOOT, 'maestro:lanes');
         } catch (error) {
             caught = error;
         }
@@ -51,29 +51,29 @@ describe('acquireHostLock — one orchestrator per host', () => {
         expect(isHostLockHeldError(caught)).toBe(true);
         expect(isHostLockHeldError(caught) ? caught.holderPid : 0).toBe(101);
         expect(String(caught)).toMatch(/101/u);
-        expect(readFileSync(file, 'utf8').trim()).toBe('101 boot-a');
+        expect(readFileSync(file, 'utf8').trim()).toBe('101 boot-a maestro:lanes');
     });
 
     it('reclaims a lock whose holder is dead', () => {
         const file = lockPath();
         writeFileSync(file, '999\n');
 
-        expect(acquireHostLock(file, 202, alive([202]), BOOT).reclaimedFrom).toBe(999);
+        expect(acquireHostLock(file, 202, alive([202]), BOOT, 'maestro:lanes').reclaimedFrom).toBe(999);
 
-        expect(readFileSync(file, 'utf8').trim()).toBe('202 boot-a');
+        expect(readFileSync(file, 'utf8').trim()).toBe('202 boot-a maestro:lanes');
     });
 
     it('refuses a lock it cannot read a pid from, rather than guessing it stale', () => {
         const file = lockPath();
         writeFileSync(file, 'not a pid\n');
 
-        expect(() => acquireHostLock(file, 202, alive([202]), BOOT)).toThrow(/maestroLanes\.lock/u);
+        expect(() => acquireHostLock(file, 202, alive([202]), BOOT, 'maestro:lanes')).toThrow(/maestroLanes\.lock/u);
         expect(readFileSync(file, 'utf8')).toBe('not a pid\n');
     });
 
     it('releases only its own lock, never one another process now holds', () => {
         const file = lockPath();
-        const lock = acquireHostLock(file, 101, alive([101]), BOOT);
+        const lock = acquireHostLock(file, 101, alive([101]), BOOT, 'maestro:lanes');
         writeFileSync(file, '303 boot-a\n');
 
         lock.release();
@@ -85,10 +85,10 @@ describe('acquireHostLock — one orchestrator per host', () => {
         const file = lockPath();
         writeFileSync(file, '999\n');
         // The second reclaimer read the same dead pid, but runs after the first has already taken the lock.
-        acquireHostLock(file, 202, alive([202, 303]), BOOT);
+        acquireHostLock(file, 202, alive([202, 303]), BOOT, 'maestro:lanes');
 
-        expect(() => acquireHostLock(file, 303, alive([202, 303]), BOOT)).toThrow(/202/u);
-        expect(readFileSync(file, 'utf8').trim()).toBe('202 boot-a');
+        expect(() => acquireHostLock(file, 303, alive([202, 303]), BOOT, 'maestro:lanes')).toThrow(/202/u);
+        expect(readFileSync(file, 'utf8').trim()).toBe('202 boot-a maestro:lanes');
     });
 
     /**
@@ -99,16 +99,16 @@ describe('acquireHostLock — one orchestrator per host', () => {
         const file = lockPath();
         writeFileSync(file, '101 boot-old\n');
 
-        expect(acquireHostLock(file, 202, alive([101, 202]), BOOT).reclaimedFrom).toBe(101);
+        expect(acquireHostLock(file, 202, alive([101, 202]), BOOT, 'maestro:lanes').reclaimedFrom).toBe(101);
 
-        expect(readFileSync(file, 'utf8').trim()).toBe('202 boot-a');
+        expect(readFileSync(file, 'utf8').trim()).toBe('202 boot-a maestro:lanes');
     });
 
     it('treats a pid-only lock (the earlier format) as this boot: a live pid still holds it', () => {
         const file = lockPath();
         writeFileSync(file, '101\n');
 
-        expect(() => acquireHostLock(file, 202, alive([101, 202]), BOOT)).toThrow(/101/u);
+        expect(() => acquireHostLock(file, 202, alive([101, 202]), BOOT, 'maestro:lanes')).toThrow(/101/u);
     });
 
     it('reads the boot id of this machine', () => {
@@ -116,14 +116,22 @@ describe('acquireHostLock — one orchestrator per host', () => {
     });
 });
 
-describe('acquireHostLock names the door the lock was taken for', () => {
-    it('says local:up in the held message when the caller passes it, and maestro:lanes otherwise', () => {
+describe('a held lock names the door of the HOLDER, not the caller', () => {
+    it('local:down blocked by a running local:up says local:up', () => {
         const file = lockPath();
         acquireHostLock(file, 101, alive([101, 202]), BOOT, 'local:up');
 
-        expect(() => acquireHostLock(file, 202, alive([101, 202]), BOOT, 'local:up')).toThrow(
+        expect(() => acquireHostLock(file, 202, alive([101, 202]), BOOT, 'local:down')).toThrow(
             /another local:up run \(pid 101\)/u,
         );
-        expect(() => acquireHostLock(file, 202, alive([101, 202]), BOOT)).toThrow(/another maestro:lanes run/u);
+    });
+
+    it('a lock file written before the door was recorded says only "another run"', () => {
+        const file = lockPath();
+        writeFileSync(file, `101 ${BOOT}\n`);
+
+        expect(() => acquireHostLock(file, 202, alive([101, 202]), BOOT, 'local:down')).toThrow(
+            /another run \(pid 101\)/u,
+        );
     });
 });

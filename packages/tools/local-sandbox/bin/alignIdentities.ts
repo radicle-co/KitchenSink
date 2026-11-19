@@ -4,8 +4,8 @@
  * world is seeded and before the device signs in.
  *
  * Reads `CLERK_SECRET_KEY`, `COMMISE_E2E_SHARD` (absent is shard 1) and `MAESTRO_PLATFORM` (absent is android) from the
- * environment. The database is the one the running identity container of the stack (`LOCAL_SANDBOX_PORT`) reads, found from that container's own `DB_NAME`, so this can
- * never align a database the service does not serve.
+ * environment. The database is the one the running identity container of the stack (`LOCAL_SANDBOX_PORT`) reads, found
+ * from that container's own `DB_NAME`, so this can never align a database the service does not serve.
  *
  * @sideEffect Reads Clerk's Backend API and the identity container's environment; writes the local identity database.
  */
@@ -22,7 +22,8 @@ import pg from 'pg';
 import { LOCAL_DB } from '../src/composePlan.js';
 import { alignmentSlots, laneFromEnv } from '../src/alignmentLane.js';
 import { alignPoolIdentities, type AlignmentPorts } from '../src/identityAlignment.js';
-import { publishedHostPort, stackFrom } from '../src/stackPorts.js';
+import { stackFrom } from '../src/stackPorts.js';
+import { dockerPublishedPort } from './adapters.js';
 
 /**
  * The database the identity container reads.
@@ -65,9 +66,7 @@ async function main(): Promise<void> {
     const identityContainer = stack.containerName('identity');
     const postgresContainer = stack.containerName('postgres');
     // The port the running stack publishes, read from Docker: a door never recomputes it from the environment.
-    const postgresPort = publishedHostPort(
-        spawnSync('docker', ['port', postgresContainer, '5432'], { encoding: 'utf8' }).stdout ?? '',
-    );
+    const postgresPort = dockerPublishedPort(postgresContainer, 5432);
 
     if (postgresPort === undefined) {
         throw new Error(`alignIdentities: ${postgresContainer} publishes no port 5432 — run \`npm run local:up\``);

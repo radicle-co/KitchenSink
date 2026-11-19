@@ -1,6 +1,6 @@
 /**
- * `stackEnvOutcome` is what the shell door and the lane door read: the facts of the RUNNING stack, as `KEY=value` lines,
- * or one R9 refusal and no line at all. The ports come from what Docker publishes, never from the shell.
+ * `stackEnvOutcome` is what the shell door and the lane door read: the facts of the RUNNING stack, as `KEY=value`
+ * lines, or one R9 refusal and no line at all. The ports come from what Docker publishes, never from the shell.
  */
 import { describe, expect, it } from 'vitest';
 

@@ -12,7 +12,9 @@ import path from 'node:path';
 import { isHostLockHeldError, type HostLock } from './maestroLanes/hostLock.js';
 import {
     isInvalidStackPortError,
-    ownershipRefusal,
+    dockerReadRefusal,
+    isDockerReadError,
+    labelRefusal,
     refusalLine,
     stackFrom,
     type ComposeContainer,
@@ -86,16 +88,16 @@ export function runDown(ports: DownPorts): number {
 
     try {
         const containers = ports.containers();
-        const refusal = ownershipRefusal({
+        const refusal = labelRefusal({
             door: DOOR,
             project,
             checkout: ports.checkout,
             containers,
-            volumeExists: false,
-            record: undefined,
-            recordFile: '',
             canon: ports.canon,
-            checkVolume: false,
+            fixes: {
+                foreign: 'Run local:down there.',
+                sibling: 'Set LOCAL_SANDBOX_PORT to the port that project uses.',
+            },
         });
 
         if (refusal !== undefined) {
@@ -111,6 +113,14 @@ export function runDown(ports: DownPorts): number {
         }
 
         return ports.down(project);
+    } catch (error) {
+        if (isDockerReadError(error)) {
+            ports.err(dockerReadRefusal(DOOR, error));
+
+            return 1;
+        }
+
+        throw error;
     } finally {
         lock.release();
     }

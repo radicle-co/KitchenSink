@@ -37,10 +37,10 @@ export function composeYaml(plan: ComposePlan, localStack: Stack): string {
             '        environment:',
             ...Object.entries(service.environment).map(([key, value]) => `            ${key}: ${composeValue(value)}`),
             '        healthcheck:',
-            `            test: ${JSON.stringify((service.healthcheck as { test: string[] }).test)}`,
-            `            interval: ${String((service.healthcheck as { interval: string }).interval)}`,
-            `            timeout: ${String((service.healthcheck as { timeout: string }).timeout)}`,
-            `            retries: ${String((service.healthcheck as { retries: number }).retries)}`,
+            `            test: ${JSON.stringify(service.healthcheck.test)}`,
+            `            interval: ${service.healthcheck.interval}`,
+            `            timeout: ${service.healthcheck.timeout}`,
+            `            retries: ${String(service.healthcheck.retries)}`,
         );
 
         if (service.dependsOn !== undefined) {

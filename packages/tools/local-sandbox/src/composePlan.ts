@@ -46,7 +46,7 @@ export interface SidecarContainer {
     /** Bind mounts, relative to the generated compose file. */
     readonly volumes: readonly string[];
     readonly environment: Readonly<Record<string, string>>;
-    readonly healthcheck: Readonly<Record<string, unknown>>;
+    readonly healthcheck: Healthcheck;
 }
 
 export interface ComposeOptions {
@@ -60,12 +60,20 @@ export interface ComposeOptions {
     readonly sidecars?: readonly SidecarContainer[];
 }
 
+/** A Compose `healthcheck`, every key the generated file writes. */
+export interface Healthcheck {
+    readonly test: readonly string[];
+    readonly interval: string;
+    readonly timeout: string;
+    readonly retries: number;
+}
+
 /** One container in the generated stack. */
 export interface ComposeService {
     readonly image: string;
     readonly ports: readonly string[];
     readonly environment: Readonly<Record<string, string>>;
-    readonly healthcheck: Readonly<Record<string, unknown>>;
+    readonly healthcheck: Healthcheck;
     readonly volumes?: readonly string[];
     /** `network_mode`; a service that sets it publishes no `ports`. */
     readonly networkMode?: string;

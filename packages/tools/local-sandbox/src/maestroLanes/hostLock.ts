@@ -20,8 +20,11 @@ import { existsSync, linkSync, readFileSync, renameSync, rmSync, unlinkSync, wri
 export class HostLockHeldError extends Error {
     readonly holderPid: number;
 
-    constructor(file: string, holderPid: number, door = 'maestro:lanes') {
-        super(`another ${door} run (pid ${holderPid}) holds ${file} - wait for it, or stop it`);
+    /** @param holderDoor - The door the HOLDER took the lock for, or `undefined` for a lock file that does not say. */
+    constructor(file: string, holderPid: number, holderDoor: string | undefined) {
+        super(
+            `another ${holderDoor === undefined ? '' : `${holderDoor} `}run (pid ${holderPid}) holds ${file} - wait for it, or stop it`,
+        );
         this.name = 'HostLockHeldError';
         this.holderPid = holderPid;
         Object.setPrototypeOf(this, HostLockHeldError.prototype);
@@ -66,14 +69,20 @@ export function currentBootId(): string {
 interface Holder {
     readonly pid: number;
     readonly bootId?: string;
+    /** The door the holder named; a lock written before this field existed has none. */
+    readonly door?: string;
 }
 
 const readHolder = (file: string): Holder | undefined => {
-    const match = /^([1-9]\d*)(?: (\S+))?$/u.exec(readFileSync(file, 'utf8').trim());
+    const match = /^([1-9]\d*)(?: (\S+))?(?: (\S+))?$/u.exec(readFileSync(file, 'utf8').trim());
 
     return match === null
         ? undefined
-        : { pid: Number(match[1]), ...(match[2] === undefined ? {} : { bootId: match[2] }) };
+        : {
+              pid: Number(match[1]),
+              ...(match[2] === undefined ? {} : { bootId: match[2] }),
+              ...(match[3] === undefined ? {} : { door: match[3] }),
+          };
 };
 
 const isCode = (error: unknown, code: string): boolean => (error as NodeJS.ErrnoException | undefined)?.code === code;
@@ -86,7 +95,7 @@ const isCode = (error: unknown, code: string): boolean => (error as NodeJS.Errno
  * @param pid - This process's pid.
  * @param isAlive - Whether a pid is live (injected; {@link pidIsAlive} in production).
  * @param bootId - This boot's id ({@link currentBootId} in production).
- * @param door - The command the lock is taken for, named in the two messages (default `maestro:lanes`).
+ * @param door - The command the lock is taken for, written into the lock file, so a second door can name who holds it.
  * @throws {HostLockHeldError} When a live process holds it; an `Error` when the lock holds no pid.
  */
 export function acquireHostLock(
@@ -94,10 +103,10 @@ export function acquireHostLock(
     pid: number,
     isAlive: (pid: number) => boolean,
     bootId: string,
-    door = 'maestro:lanes',
+    door: string,
 ): HostLock {
     const mine = `${file}.${pid}`;
-    writeFileSync(mine, `${pid} ${bootId}\n`);
+    writeFileSync(mine, `${pid} ${bootId} ${door}\n`);
 
     let reclaimedFrom: number | undefined;
 
@@ -137,7 +146,7 @@ export function acquireHostLock(
             const sameBoot = holder.bootId === undefined || holder.bootId === bootId;
 
             if (sameBoot && isAlive(holder.pid)) {
-                throw new HostLockHeldError(file, holder.pid, door);
+                throw new HostLockHeldError(file, holder.pid, holder.door);
             }
 
             const aside = `${file}.stale.${pid}`;
@@ -147,7 +156,7 @@ export function acquireHostLock(
             if (renamed?.pid !== holder.pid || renamed.bootId !== holder.bootId) {
                 // Another reclaimer took the lock between the read and the rename: give its lock back.
                 renameSync(aside, file);
-                throw new HostLockHeldError(file, renamed?.pid ?? holder.pid, door);
+                throw new HostLockHeldError(file, renamed?.pid ?? holder.pid, renamed?.door ?? holder.door);
             }
 
             unlinkSync(aside);

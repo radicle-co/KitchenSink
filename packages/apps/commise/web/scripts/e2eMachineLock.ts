@@ -59,7 +59,7 @@ export async function withWebLock<T>(options: WebLockOptions, run: () => Promise
     let lock;
 
     try {
-        lock = acquireHostLock(options.file, options.pid, options.isAlive, options.bootId);
+        lock = acquireHostLock(options.file, options.pid, options.isAlive, options.bootId, 'test:e2e:web');
     } catch (error) {
         if (isHostLockHeldError(error)) {
             throw new Error(

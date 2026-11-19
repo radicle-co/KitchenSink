@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { HostLockHeldError } from '../maestroLanes/hostLock.js';
 import { runUp, type UpPorts } from '../runUp.js';
-import type { ComposeContainer } from '../stackPorts.js';
+import { DockerReadError, type ComposeContainer } from '../stackPorts.js';
 
 const C = '/work/C';
 const A = '/work/A';
@@ -120,7 +120,7 @@ describe('runUp refuses before it touches anything', () => {
         expect(calls.some((call) => call.startsWith('discover') || call === 'materialize')).toBe(false);
     });
 
-    it('C3: a busy port refuses before the record is written and before materialize (the builds and the writes)', async () => {
+    it('C3: a busy port refuses before the record is written and before the builds and writes', async () => {
         const { ports, calls, errors } = harness({ listening: () => [3000] });
 
         expect(await runUp(ports)).toBe(1);
@@ -209,5 +209,43 @@ describe('runUp runs the stages in order, under the lock', () => {
 
         expect(await runUp(ports)).toBe(1);
         expect(calls).not.toContain('materialize');
+    });
+});
+
+describe('runUp treats a failed Docker read as a refusal, never as "nothing there"', () => {
+    const reads = {
+        containers: 'docker ps -a',
+        volumeExists: 'docker volume ls',
+        listening: 'ss -lnt',
+        publishedBy: 'docker ps',
+    } as const;
+
+    for (const [name, command] of Object.entries(reads)) {
+        it(`${name} failing prints one R9 line, writes no record, starts nothing and frees the lock`, async () => {
+            const failing = {
+                [name]: () => {
+                    throw new DockerReadError(command, 'Cannot connect to the Docker daemon');
+                },
+            };
+            const { ports, calls, errors } = harness(failing);
+
+            expect(await runUp(ports)).toBe(1);
+            expect(errors).toEqual([
+                `local:up refused: ${command} failed (Cannot connect to the Docker daemon). ` +
+                    'Start Docker, or fix it, then run local:up again.',
+            ]);
+            expect(calls.filter((call) => call.startsWith('record') || call === 'materialize')).toEqual([]);
+            expect(calls.at(-1)).toBe('unlock /state/localSandbox/local-sandbox.lock');
+        });
+    }
+
+    it('a failure that is not a Docker read is not swallowed', async () => {
+        const { ports } = harness({
+            containers: () => {
+                throw new Error('boom');
+            },
+        });
+
+        await expect(runUp(ports)).rejects.toThrow('boom');
     });
 });

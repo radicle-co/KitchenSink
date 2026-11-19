@@ -13,7 +13,11 @@ import {
     checkoutProject,
     composeContainersFrom,
     isInvalidStackPortError,
-    ownershipRefusal,
+    DockerReadError,
+    dockerReadRefusal,
+    isDockerReadError,
+    labelRefusal,
+    volumeRefusal,
     publishedHostPort,
     onPublishedPorts,
     refusalLine,
@@ -340,7 +344,7 @@ describe('publishedHostPort reads `docker port` output', () => {
     });
 });
 
-describe('ownershipRefusal: one R9 line for each way this checkout may not start a project', () => {
+describe('labelRefusal: one R9 line when another checkout, or another project of this one, holds the stack', () => {
     const canon = (value: string): string => value;
     const A = '/work/A';
     const C = '/work/C';
@@ -350,47 +354,85 @@ describe('ownershipRefusal: one R9 line for each way this checkout may not start
         project: 'local-sandbox',
         checkout: C,
         canon,
-        volumeExists: false,
-        record: undefined,
-        recordFile: '/state/localSandbox/local-sandbox.owner',
+        fixes: {
+            foreign: 'Run local:down there, or pick another LOCAL_SANDBOX_PORT.',
+            sibling: 'Run local:down for that project first.',
+        },
     };
 
-    it('passes when nothing is running and there is no volume', () => {
-        expect(ownershipRefusal({ ...base, containers: [] })).toBeUndefined();
+    it('passes when nothing is running', () => {
+        expect(labelRefusal({ ...base, containers: [] })).toBeUndefined();
     });
 
     it('passes when this checkout runs the project', () => {
-        expect(ownershipRefusal({ ...base, containers: [at('local-sandbox', C)] })).toBeUndefined();
+        expect(labelRefusal({ ...base, containers: [at('local-sandbox', C)] })).toBeUndefined();
     });
 
-    it('AE7: refuses when another checkout runs the target project, and names it', () => {
-        expect(ownershipRefusal({ ...base, containers: [at('local-sandbox', A)] })).toBe(
+    it('AE7: refuses when another checkout runs the target project, and names it, with the fix the caller gave', () => {
+        expect(labelRefusal({ ...base, containers: [at('local-sandbox', A)] })).toBe(
             'local:up refused: project local-sandbox runs from /work/A, not this checkout. ' +
                 'Run local:down there, or pick another LOCAL_SANDBOX_PORT.',
         );
     });
 
     it('RT2: a stopped container counts, because the caller passes every container (ps -a)', () => {
-        // The predicate sees whatever list it is given; the caller reads `docker ps -a`. A stopped A is still A.
-        expect(ownershipRefusal({ ...base, containers: [at('local-sandbox', A)] })).toContain('runs from /work/A');
+        expect(labelRefusal({ ...base, containers: [at('local-sandbox', A)] })).toContain('runs from /work/A');
     });
 
     it('H2: refuses when this checkout already runs another project, though the target has no container', () => {
-        expect(ownershipRefusal({ ...base, containers: [at('local-sandbox-3100', C)] })).toBe(
+        expect(labelRefusal({ ...base, containers: [at('local-sandbox-3100', C)] })).toBe(
             'local:up refused: this checkout already runs project local-sandbox-3100, and its generated folder holds ' +
                 'one stack. Run local:down for that project first.',
         );
     });
 
-    it('RT3: refuses a volume whose record names another checkout, and names both', () => {
-        expect(ownershipRefusal({ ...base, containers: [], volumeExists: true, record: A })).toBe(
+    it('takes the door and the fixes from the caller, so local:down speaks for itself', () => {
+        expect(
+            labelRefusal({
+                ...base,
+                door: 'local:down',
+                fixes: {
+                    foreign: 'Run local:down there.',
+                    sibling: 'Set LOCAL_SANDBOX_PORT to the port that project uses.',
+                },
+                containers: [at('local-sandbox-3100', C)],
+            }),
+        ).toBe(
+            'local:down refused: this checkout already runs project local-sandbox-3100, and its generated folder ' +
+                'holds one stack. Set LOCAL_SANDBOX_PORT to the port that project uses.',
+        );
+    });
+});
+
+describe('volumeRefusal (RT3): the data volume must belong to this checkout', () => {
+    const canon = (value: string): string => value;
+    const A = '/work/A';
+    const C = '/work/C';
+    const at = (project: string, dir: string): ComposeContainer => ({ project, workingDir: `${dir}/.local-sandbox` });
+    const base = {
+        door: 'local:up',
+        project: 'local-sandbox',
+        checkout: C,
+        canon,
+        volumeExists: true,
+        record: undefined,
+        recordFile: '/state/localSandbox/local-sandbox.owner',
+        containers: [] as readonly ComposeContainer[],
+    };
+
+    it('passes when the project has no volume', () => {
+        expect(volumeRefusal({ ...base, volumeExists: false })).toBeUndefined();
+    });
+
+    it('refuses a volume whose record names another checkout, and names both', () => {
+        expect(volumeRefusal({ ...base, record: A })).toBe(
             'local:up refused: volume local-sandbox_local-sandbox-pgdata holds Postgres data owned by /work/A, not ' +
                 'this checkout. Start the project there, or remove the volume.',
         );
     });
 
-    it('RT3: refuses a volume with no record and no container, and says how to claim it', () => {
-        expect(ownershipRefusal({ ...base, containers: [], volumeExists: true })).toBe(
+    it('refuses a volume with no record and no container, and says how to claim it', () => {
+        expect(volumeRefusal(base)).toBe(
             'local:up refused: volume local-sandbox_local-sandbox-pgdata holds Postgres data and nothing names its ' +
                 "owner. If it is this checkout's, write this checkout's path into " +
                 '/state/localSandbox/local-sandbox.owner, or remove the volume.',
@@ -398,16 +440,30 @@ describe('ownershipRefusal: one R9 line for each way this checkout may not start
     });
 
     it('passes a volume this checkout owns by record, and one a live label of this checkout names', () => {
-        expect(ownershipRefusal({ ...base, containers: [], volumeExists: true, record: C })).toBeUndefined();
-        expect(
-            ownershipRefusal({ ...base, containers: [at('local-sandbox', C)], volumeExists: true, record: A }),
-        ).toBeUndefined();
+        expect(volumeRefusal({ ...base, record: C })).toBeUndefined();
+        expect(volumeRefusal({ ...base, containers: [at('local-sandbox', C)], record: A })).toBeUndefined();
     });
 
-    it('local:down does not check the volume', () => {
-        expect(
-            ownershipRefusal({ ...base, door: 'local:down', containers: [], volumeExists: true, checkVolume: false }),
-        ).toBeUndefined();
+    it('a live label of another checkout beats a record naming this one', () => {
+        expect(volumeRefusal({ ...base, containers: [at('local-sandbox', A)], record: C })).toContain(
+            'owned by /work/A',
+        );
+    });
+});
+
+describe('a Docker read that fails is a refusal, never an empty answer', () => {
+    it('dockerReadRefusal is one R9 line naming the read and the detail', () => {
+        const error = new DockerReadError('docker ps -a', 'Cannot connect to the Docker daemon');
+
+        expect(isDockerReadError(error)).toBe(true);
+        expect(dockerReadRefusal('local:up', error)).toBe(
+            'local:up refused: docker ps -a failed (Cannot connect to the Docker daemon). ' +
+                'Start Docker, or fix it, then run local:up again.',
+        );
+    });
+
+    it('is not any other error', () => {
+        expect(isDockerReadError(new Error('x'))).toBe(false);
     });
 });
 

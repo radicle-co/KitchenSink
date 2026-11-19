@@ -26,7 +26,7 @@ const DEFAULT_PORT = 3000;
 const DEFAULT_PROJECT = 'local-sandbox';
 
 /** Today's five published host ports, by compose service name. A shifted stack moves each by the same offset. */
-const DEFAULT_PORTS: readonly (readonly [string, number])[] = [
+export const DEFAULT_PORTS: readonly (readonly [string, number])[] = [
     ['recipes', 3000],
     ['identity', 3001],
     ['food', 3002],
@@ -63,7 +63,13 @@ export function stackLine(
     ports: { readonly recipes: number; readonly identity: number; readonly food: number },
     checkout: string,
 ): string {
-    return `stack: ${project} (recipes ${String(ports.recipes)}, identity ${String(ports.identity)}, food ${String(ports.food)}) from ${checkout}`;
+    const served = [
+        `recipes ${String(ports.recipes)}`,
+        `identity ${String(ports.identity)}`,
+        `food ${String(ports.food)}`,
+    ];
+
+    return `stack: ${project} (${served.join(', ')}) from ${checkout}`;
 }
 
 /** The value of `LOCAL_SANDBOX_PORT` the stack cannot use. It carries the three parts a door puts in its refusal. */
@@ -304,15 +310,64 @@ export function publishedHostPort(output: string): number | undefined {
     return matched?.[1] === undefined ? undefined : Number(matched[1]);
 }
 
-/** What {@link ownershipRefusal} reads. Every fact is passed in: a door reads Docker and the file system. */
-export interface OwnershipInput {
-    /** The door that refuses: `local:up` or `local:down`. */
+/** What {@link labelRefusal} reads. Every fact is passed in: a door reads Docker. */
+export interface LabelRefusalInput {
+    /** The door that refuses, for example `local:up`. */
     readonly door: string;
     /** The target project. */
     readonly project: string;
     /** This checkout. */
     readonly checkout: string;
     /** Every Compose container on the host, stopped ones included (`docker ps -a`). */
+    readonly containers: readonly ComposeContainer[];
+    /** Resolves a path to its real path. */
+    readonly canon: (value: string) => string;
+    /** The fix line for each case, chosen by the caller because each door has its own next step. */
+    readonly fixes: {
+        /** Another checkout runs the target project. */
+        readonly foreign: string;
+        /** This checkout already runs a different project. */
+        readonly sibling: string;
+    };
+}
+
+/**
+ * The refusal, as one R9 line, when this checkout may not act on the target project because another checkout runs it,
+ * or because this checkout already runs a different project (the generated folder holds one stack). A stopped container
+ * counts. `undefined` means go ahead. Pure.
+ *
+ * @param input - The facts.
+ * @returns The line, or `undefined`.
+ */
+export function labelRefusal(input: LabelRefusalInput): string | undefined {
+    const { door, project, checkout, containers, canon, fixes } = input;
+    const owner = targetOwner(containers, project, canon);
+
+    if (owner !== undefined && owner !== canon(checkout)) {
+        return refusalLine(door, `project ${project}`, `runs from ${owner}, not this checkout`, fixes.foreign);
+    }
+
+    const other = checkoutProject(containers, checkout, project, canon);
+
+    return other === undefined
+        ? undefined
+        : refusalLine(
+              door,
+              'this checkout',
+              `already runs project ${other}, and its generated folder holds one stack`,
+              fixes.sibling,
+          );
+}
+
+/** What {@link volumeRefusal} reads. */
+export interface VolumeRefusalInput {
+    /** The door that refuses. */
+    readonly door: string;
+    /** The target project. */
+    readonly project: string;
+    /** This checkout. */
+    readonly checkout: string;
+    /** Every Compose container on the host, stopped ones included. */
     readonly containers: readonly ComposeContainer[];
     /** Whether the target project's Postgres volume exists. */
     readonly volumeExists: boolean;
@@ -322,74 +377,81 @@ export interface OwnershipInput {
     readonly recordFile: string;
     /** Resolves a path to its real path. */
     readonly canon: (value: string) => string;
-    /** Whether to check the volume. `local:down` does not: it removes nothing it cannot name. Default `true`. */
-    readonly checkVolume?: boolean;
 }
 
 /**
- * The refusal, as one R9 line, when this checkout may not act on the target project: another checkout runs it, this
- * checkout already runs a different project (the generated folder holds one stack), or the project's data volume
- * belongs to another checkout. A live label beats the owner record. `undefined` means go ahead. Pure.
+ * The refusal, as one R9 line, when the project's data volume belongs to another checkout, or to nobody that can be
+ * named. A live label beats the owner record. Only `local:up` reads this: it is the one door that writes the record.
+ * Pure.
  *
  * @param input - The facts.
  * @returns The line, or `undefined`.
  */
-export function ownershipRefusal(input: OwnershipInput): string | undefined {
-    const { door, project, checkout, containers, canon } = input;
-    const isUp = door === 'local:up';
-    const owner = targetOwner(containers, project, canon);
-
-    if (owner !== undefined && owner !== canon(checkout)) {
-        return refusalLine(
-            door,
-            `project ${project}`,
-            `runs from ${owner}, not this checkout`,
-            isUp ? 'Run local:down there, or pick another LOCAL_SANDBOX_PORT.' : 'Run local:down there.',
-        );
-    }
-
-    const other = checkoutProject(containers, checkout, project, canon);
-
-    if (other !== undefined) {
-        return refusalLine(
-            door,
-            'this checkout',
-            `already runs project ${other}, and its generated folder holds one stack`,
-            isUp ? 'Run local:down for that project first.' : `Set LOCAL_SANDBOX_PORT to the port that project uses.`,
-        );
-    }
-
-    if (input.checkVolume === false) {
-        return undefined;
-    }
-
+export function volumeRefusal(input: VolumeRefusalInput): string | undefined {
     const verdict = volumeOwnerVerdict({
         volumeExists: input.volumeExists,
         record: input.record,
-        containers: containers.filter((container) => container.project === project),
-        checkout,
-        canon,
+        containers: input.containers.filter((container) => container.project === input.project),
+        checkout: input.checkout,
+        canon: input.canon,
     });
 
     if (verdict.ok) {
         return undefined;
     }
 
-    const volume = `${project}_local-sandbox-pgdata`;
+    const volume = `${input.project}_local-sandbox-pgdata`;
 
     return verdict.owner === undefined
         ? refusalLine(
-              door,
+              input.door,
               `volume ${volume}`,
               'holds Postgres data and nothing names its owner',
               `If it is this checkout's, write this checkout's path into ${input.recordFile}, or remove the volume.`,
           )
         : refusalLine(
-              door,
+              input.door,
               `volume ${volume}`,
               `holds Postgres data owned by ${verdict.owner}, not this checkout`,
               'Start the project there, or remove the volume.',
           );
+}
+
+/** A Docker read that failed. The answer to a failed read is a refusal: it is never "nothing is there". */
+export class DockerReadError extends Error {
+    /** The command that failed, for example `docker ps -a`. */
+    readonly command: string;
+    /** What Docker said, trimmed. */
+    readonly detail: string;
+
+    public constructor(command: string, detail: string) {
+        super(`${command} failed (${detail})`);
+        this.name = 'DockerReadError';
+        this.command = command;
+        this.detail = detail;
+        Object.setPrototypeOf(this, DockerReadError.prototype);
+    }
+}
+
+/** Whether a value is a {@link DockerReadError}. */
+export function isDockerReadError(value: unknown): value is DockerReadError {
+    return value instanceof DockerReadError;
+}
+
+/**
+ * The refusal line for a failed Docker read. Pure.
+ *
+ * @param door - The door that refuses.
+ * @param error - The failed read.
+ * @returns One R9 line.
+ */
+export function dockerReadRefusal(door: string, error: DockerReadError): string {
+    return refusalLine(
+        door,
+        error.command,
+        `failed (${error.detail})`,
+        `Start Docker, or fix it, then run ${door} again.`,
+    );
 }
 
 /**

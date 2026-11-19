@@ -1,7 +1,7 @@
 /**
  * What a lane reads from the running stack's environment (`MAESTRO_LOCAL_*_HOST_PORT`, `LOCAL_MAESTRO_WORKER_*`, which
- * `stackEnv` printed): the host ports of the three services, and the parse worker's overrides. A fact that is missing is a
- * refusal that names it, never a default.
+ * `stackEnv` printed): the host ports of the three services, and the parse worker's overrides. A fact that is missing
+ * is a refusal that names it, never a default.
  */
 import { describe, expect, it } from 'vitest';
 

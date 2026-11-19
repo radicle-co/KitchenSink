@@ -372,7 +372,8 @@ export function localstackEndpointOf(queueUrl: string): string {
 
 /**
  * The S3 endpoint a persisted consumer uses. The handlers address a bucket virtual-hosted, and `<bucket>.localhost`
- * does not resolve, so S3 gets LocalStack's own wildcard name (it resolves to 127.0.0.1) on the stack's LocalStack port.
+ * does not resolve, so S3 gets LocalStack's own wildcard name (it resolves to 127.0.0.1) on the stack's LocalStack
+ * port.
  *
  * @param queueUrl - The consumer's `queueUrl`.
  * @returns The S3 endpoint. Pure.

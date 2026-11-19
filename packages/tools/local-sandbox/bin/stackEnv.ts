@@ -6,41 +6,34 @@
  *
  * @sideEffect Runs `docker ps -a` and `docker port`; reads the parse worker's `.env.development`.
  */
-import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { canonicalPath } from '../src/canonicalPath.js';
 import { stackEnvOutcome, type WorkerEnv } from '../src/stackEnv.js';
 import {
-    composeContainersFrom,
+    dockerReadRefusal,
+    isDockerReadError,
     isInvalidStackPortError,
-    publishedHostPort,
     refusalLine,
     stackFrom,
 } from '../src/stackPorts.js';
-import { REPO_ROOT } from './adapters.js';
+import { dockerContainers, dockerPublishedPort, REPO_ROOT } from './adapters.js';
 
 const door = process.argv[2] ?? 'local:maestro';
 const WORKER_ENV_FILE = path.join(REPO_ROOT, 'packages/services/recipe-workers/.env.development');
 
-/** One value of the worker's own env file, which is the one source of its names. */
-function workerValue(text: string, key: string): string {
-    const line = text.split('\n').find((candidate) => candidate.startsWith(`${key}=`));
-
-    if (line === undefined) {
-        throw new Error(`${WORKER_ENV_FILE} states no ${key}`);
-    }
-
-    return line.slice(key.length + 1).trim();
+/** One value of the worker's own env file, which is the one source of its names. `undefined` when it states none. */
+function workerValue(text: string, key: string): string | undefined {
+    return text
+        .split('\n')
+        .find((candidate) => candidate.startsWith(`${key}=`))
+        ?.slice(key.length + 1)
+        .trim();
 }
 
-/** The host port a container publishes, or `undefined` when Docker answers nothing. */
-function published(container: string): number | undefined {
-    const result = spawnSync('docker', ['port', container], { encoding: 'utf8' });
-
-    return result.status === 0 ? publishedHostPort(result.stdout ?? '') : undefined;
-}
+/** The container port each service listens on inside its container. */
+const CONTAINER_PORTS = { recipes: 3000, identity: 3001, food: 3002, localstack: 4566, postgres: 5432 } as const;
 
 function main(): number {
     let stack;
@@ -58,35 +51,37 @@ function main(): number {
     }
 
     const workerText = readFileSync(WORKER_ENV_FILE, 'utf8');
-    const workerEnv: WorkerEnv = {
-        SQS_ENDPOINT: workerValue(workerText, 'SQS_ENDPOINT'),
-        RECIPE_PARSE_QUEUE_URL: workerValue(workerText, 'RECIPE_PARSE_QUEUE_URL'),
-        DATABASE_URL: workerValue(workerText, 'DATABASE_URL'),
-    };
-    const containers = composeContainersFrom(
-        spawnSync(
-            'docker',
-            [
-                'ps',
-                '-a',
-                '--format',
-                '{{.Label "com.docker.compose.project"}}\t{{.Label "com.docker.compose.project.working_dir"}}',
-            ],
-            { encoding: 'utf8' },
-        ).stdout ?? '',
-    );
+    const sqs = workerValue(workerText, 'SQS_ENDPOINT');
+    const queue = workerValue(workerText, 'RECIPE_PARSE_QUEUE_URL');
+    const database = workerValue(workerText, 'DATABASE_URL');
+
+    if (sqs === undefined || queue === undefined || database === undefined) {
+        const missing = [
+            ['SQS_ENDPOINT', sqs],
+            ['RECIPE_PARSE_QUEUE_URL', queue],
+            ['DATABASE_URL', database],
+        ].flatMap(([key, value]) => (value === undefined ? [key] : []));
+
+        process.stderr.write(
+            `${refusalLine(door, WORKER_ENV_FILE, `states no ${missing.join(', ')}`, 'Restore the file from git.')}\n`,
+        );
+
+        return 1;
+    }
+
+    const workerEnv: WorkerEnv = { SQS_ENDPOINT: sqs, RECIPE_PARSE_QUEUE_URL: queue, DATABASE_URL: database };
     const outcome = stackEnvOutcome({
         door,
         stack,
         checkout: REPO_ROOT,
         canon: canonicalPath,
-        containers,
+        containers: dockerContainers(),
         published: {
-            recipes: published(stack.containerName('recipes')),
-            identity: published(stack.containerName('identity')),
-            food: published(stack.containerName('food')),
-            localstack: published(stack.containerName('localstack')),
-            postgres: published(stack.containerName('postgres')),
+            recipes: dockerPublishedPort(stack.containerName('recipes'), CONTAINER_PORTS.recipes),
+            identity: dockerPublishedPort(stack.containerName('identity'), CONTAINER_PORTS.identity),
+            food: dockerPublishedPort(stack.containerName('food'), CONTAINER_PORTS.food),
+            localstack: dockerPublishedPort(stack.containerName('localstack'), CONTAINER_PORTS.localstack),
+            postgres: dockerPublishedPort(stack.containerName('postgres'), CONTAINER_PORTS.postgres),
         },
         workerEnv,
     });
@@ -103,4 +98,13 @@ function main(): number {
     return 0;
 }
 
-process.exitCode = main();
+try {
+    process.exitCode = main();
+} catch (error) {
+    if (!isDockerReadError(error)) {
+        throw error;
+    }
+
+    process.stderr.write(`${dockerReadRefusal(door, error)}\n`);
+    process.exitCode = 1;
+}

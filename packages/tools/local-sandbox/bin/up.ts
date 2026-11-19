@@ -45,7 +45,7 @@ import { LOCAL_DB, planCompose } from '../src/composePlan.js';
 import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/hostLock.js';
 import { runUp, type UpPorts } from '../src/runUp.js';
 import { canonicalPath } from '../src/canonicalPath.js';
-import { composeContainersFrom, stackLine, type Stack } from '../src/stackPorts.js';
+import { stackLine, type Stack } from '../src/stackPorts.js';
 import {
     discoverDatabases,
     discoverMigrations,
@@ -94,6 +94,10 @@ import {
     runCdkSynth,
     seedLocalCatalog,
     synthEnvFor,
+    dockerContainers,
+    dockerPublishedBy,
+    dockerVolumeExists,
+    listeningPorts,
 } from './adapters.js';
 
 const GENERATED_DIR = path.join(REPO_ROOT, '.local-sandbox');
@@ -265,14 +269,16 @@ async function discover(localStack: Stack): Promise<Discovered | undefined> {
             }),
         ).values(),
     ];
-    // A host port something else holds can be moved (`LOCAL_SANDBOX_HOST_PORTS=recipes=3010`); see `hostPortOverridesFrom`.
+    // A host port something else holds can be moved (`LOCAL_SANDBOX_HOST_PORTS=recipes=3010`); see
+    // `hostPortOverridesFrom`.
     const hostPortOverrides = hostPortOverridesFrom(process.env['LOCAL_SANDBOX_HOST_PORTS']);
     const knownServices = new Set(uniqueBuilds.map((build) => build.repository.replace(/^kitchensink-/u, '')));
     const unknownOverrides = Object.keys(hostPortOverrides).filter((name) => !knownServices.has(name));
 
     if (unknownOverrides.length > 0) {
         process.stderr.write(
-            `\nLOCAL_SANDBOX_HOST_PORTS names no service: ${unknownOverrides.join(', ')} (services: ${[...knownServices].join(', ')})\n`,
+            `\nLOCAL_SANDBOX_HOST_PORTS names no service: ${unknownOverrides.join(', ')} ` +
+                `(services: ${[...knownServices].join(', ')})\n`,
         );
 
         return undefined;
@@ -1111,36 +1117,10 @@ function realPorts(): UpPorts {
         checkout: REPO_ROOT,
         canon: canonicalPath,
         stateDir,
-        containers: () =>
-            composeContainersFrom(
-                spawnSync(
-                    'docker',
-                    [
-                        'ps',
-                        '-a',
-                        '--format',
-                        '{{.Label "com.docker.compose.project"}}\t{{.Label "com.docker.compose.project.working_dir"}}',
-                    ],
-                    { encoding: 'utf8' },
-                ).stdout ?? '',
-            ),
-        volumeExists: (project) =>
-            spawnSync('docker', ['volume', 'inspect', `${project}_local-sandbox-pgdata`], { encoding: 'utf8' })
-                .status === 0,
-        listening: () =>
-            [...(spawnSync('ss', ['-lntH'], { encoding: 'utf8' }).stdout ?? '').matchAll(/:(\d+)\s/gu)].flatMap((m) =>
-                m[1] === undefined ? [] : [Number(m[1])],
-            ),
-        publishedBy: (project) =>
-            [
-                ...(
-                    spawnSync(
-                        'docker',
-                        ['ps', '--filter', `label=com.docker.compose.project=${project}`, '--format', '{{.Ports}}'],
-                        { encoding: 'utf8' },
-                    ).stdout ?? ''
-                ).matchAll(/:(\d+)->/gu),
-            ].flatMap((match) => (match[1] === undefined ? [] : [Number(match[1])])),
+        containers: dockerContainers,
+        volumeExists: (project) => dockerVolumeExists(`${project}_local-sandbox-pgdata`),
+        listening: listeningPorts,
+        publishedBy: dockerPublishedBy,
         readRecord: (file) => (existsSync(file) ? readFileSync(file, 'utf8').trim() : undefined),
         writeRecord: (file, checkout) => {
             writeFileSync(file, `${checkout}\n`);

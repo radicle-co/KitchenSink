@@ -487,7 +487,13 @@ async function main(argv: readonly string[]): Promise<number> {
         lockDir: path.join(STATE_DIR, 'locks'),
         baseEnv: base,
         acquireLock: () =>
-            acquireHostLock(path.join(STATE_DIR, 'maestroLanes.lock'), process.pid, pidIsAlive, currentBootId()),
+            acquireHostLock(
+                path.join(STATE_DIR, 'maestroLanes.lock'),
+                process.pid,
+                pidIsAlive,
+                currentBootId(),
+                'maestro:lanes',
+            ),
         selectFlows: (platform, selector) => selectFlows(base, platform, selector),
         pack: async (platform, index, count, flows) => {
             const outcome = await run('bash', [RUNNER, 'pack', platform, String(index), String(count), ...flows]);

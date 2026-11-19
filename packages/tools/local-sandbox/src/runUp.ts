@@ -14,11 +14,14 @@ import { portConflicts } from './localImages.js';
 import { isHostLockHeldError, type HostLock } from './maestroLanes/hostLock.js';
 import {
     isInvalidStackPortError,
-    ownershipRefusal,
+    dockerReadRefusal,
+    isDockerReadError,
+    labelRefusal,
     refusalLine,
     stackFrom,
     type ComposeContainer,
     type Stack,
+    volumeRefusal,
 } from './stackPorts.js';
 
 const DOOR = 'local:up';
@@ -32,7 +35,7 @@ export interface UpPorts {
     readonly canon: (value: string) => string;
     /** `<state root>/localSandbox`: holds each project's lock and owner record. */
     readonly stateDir: string;
-    /** Every Compose container on the host, stopped ones included (`docker ps -a`). Read only. */
+    /** Every Compose container on the host, stopped ones included (`docker ps -a`). Throws on a failed read. */
     readonly containers: () => readonly ComposeContainer[];
     /** Whether the project's Postgres volume exists. Read only. */
     readonly volumeExists: (project: string) => boolean;
@@ -103,16 +106,30 @@ export async function runUp(ports: UpPorts): Promise<number> {
 
     try {
         const recordFile = path.join(ports.stateDir, `${stack.project}.owner`);
-        const refusal = ownershipRefusal({
+        const containers = ports.containers();
+        const labelled = labelRefusal({
             door: DOOR,
             project: stack.project,
             checkout: ports.checkout,
-            containers: ports.containers(),
-            volumeExists: ports.volumeExists(stack.project),
-            record: ports.readRecord(recordFile),
-            recordFile,
+            containers,
             canon: ports.canon,
+            fixes: {
+                foreign: 'Run local:down there, or pick another LOCAL_SANDBOX_PORT.',
+                sibling: 'Run local:down for that project first.',
+            },
         });
+        const refusal =
+            labelled ??
+            volumeRefusal({
+                door: DOOR,
+                project: stack.project,
+                checkout: ports.checkout,
+                containers,
+                volumeExists: ports.volumeExists(stack.project),
+                record: ports.readRecord(recordFile),
+                recordFile,
+                canon: ports.canon,
+            });
 
         if (refusal !== undefined) {
             ports.err(refusal);
@@ -144,6 +161,14 @@ export async function runUp(ports: UpPorts): Promise<number> {
         ports.writeRecord(recordFile, ports.checkout);
 
         return await ports.materialize(stack);
+    } catch (error) {
+        if (isDockerReadError(error)) {
+            ports.err(dockerReadRefusal(DOOR, error));
+
+            return 1;
+        }
+
+        throw error;
     } finally {
         lock.release();
     }

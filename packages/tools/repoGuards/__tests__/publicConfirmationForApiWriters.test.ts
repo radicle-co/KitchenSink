@@ -71,7 +71,8 @@ function constantUses(source: string, fileName: string): readonly string[] {
  *
  * A file is parsed only when its text holds the constant's name, because parsing is nearly all of the cost and a file
  * without the name has no use to find. The parser still decides what counts as a use, so a comment that names the
- * constant is read and found clean.
+ * constant is read and found clean. An escaped spelling of the name holds no literal name, so the filter skips that
+ * file. This is accepted: the guard catches mistakes, not evasion, and a split string would beat the parser anyway.
  *
  * @param root - The repository to scan; the real tree unless a test supplies a throwaway one.
  * @returns One line per use, with its file.
@@ -86,11 +87,15 @@ const offendersIn = (root: string): readonly string[] =>
             return source.includes(CONSTANT) ? constantUses(source, file).map((use) => `${file}: ${use}`) : [];
         });
 
-const offenders = (): readonly string[] => offendersIn(repoRoot);
-
 const scratch: string[] = [];
 
-/** A throwaway git repository holding the given files, each staged when its flag is set. */
+/**
+ * A throwaway git repository holding the given files.
+ *
+ * @param files - Each file's text and whether it is staged. An unstaged file is untracked.
+ * @returns The repository's root, removed after the test.
+ * @sideEffect Creates a directory under the system temp folder and runs `git init` and `git add` there.
+ */
 function scratchRepo(files: Readonly<Record<string, { readonly text: string; readonly staged: boolean }>>): string {
     const root = mkdtempSync(path.join(tmpdir(), 'publicConfirmationGuard-'));
 
@@ -187,7 +192,7 @@ describe('the API writers’ Public confirmation is named only by seeds, tests a
             ['a renamed import', `import { ${CONSTANT} as CONFIRM } from '@kitchensink/recipe-core';\n`],
             ['a re-export', `export { ${CONSTANT} } from '@kitchensink/recipe-core';\n`],
             ['a namespace member', `import * as core from 'x';\nexport const c = core.${CONSTANT};\n`],
-        ])('still reports %s: the name filter never hides what the parser flags', (_name, text) => {
+        ])('still reports %s, which spells the name in full', (_name, text) => {
             const root = scratchRepo({ 'packages/clients/x/src/alias.ts': { text, staged: true } });
 
             expect(offendersIn(root)).toHaveLength(1);
@@ -203,6 +208,6 @@ describe('the API writers’ Public confirmation is named only by seeds, tests a
     });
 
     it('is named nowhere else', () => {
-        expect(offenders()).toEqual([]);
+        expect(offendersIn(repoRoot)).toEqual([]);
     });
 });

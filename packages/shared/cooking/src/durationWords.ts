@@ -51,7 +51,7 @@ const REPEAT_WORDS: ReadonlySet<string> = new Set(['every', 'once', 'twice']);
 
 /**
  * The words that start a rate right after a span ("ten minutes per pound", "twenty minutes to the pound"). The time
- * grows with the food, so it is not the step's wait. The digit reader builds its own matcher from the same words.
+ * grows with the food, so it is not the step's wait.
  */
 export const RATE_PHRASES: readonly (readonly string[])[] = [['per'], ['to', 'the']];
 

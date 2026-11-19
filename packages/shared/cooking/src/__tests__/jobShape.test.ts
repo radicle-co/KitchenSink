@@ -33,13 +33,16 @@ describe('jobShapeOf, the roast', () => {
         });
     });
 
-    it.each([undefined, 0, -3, Number.NaN])('has no prep and reads noPrep for a prep of %s', (prepTimeMinutes) => {
-        const shape = jobShapeOf({ prepTimeMinutes, steps: ROAST });
+    it.each([undefined, 0, -3, Number.NaN, Number.POSITIVE_INFINITY])(
+        'has no prep and reads noPrep for a prep of %s',
+        (prepTimeMinutes) => {
+            const shape = jobShapeOf({ prepTimeMinutes, steps: ROAST });
 
-        expect(shape.prepSeconds).toBeUndefined();
-        expect(shape.total).toEqual({ kind: 'noPrep' });
-        expect(shape.rows).toHaveLength(5);
-    });
+            expect(shape.prepSeconds).toBeUndefined();
+            expect(shape.total).toEqual({ kind: 'noPrep' });
+            expect(shape.rows).toHaveLength(5);
+        },
+    );
 });
 
 describe('jobShapeOf, about and partial', () => {

@@ -16,7 +16,7 @@
 import type { IngredientLineDigestInput } from '@kitchensink/cooking-core';
 import { useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
 
-import { EMPTY_COOK_MARKS, hasCookMarks } from './cookMarks.js';
+import { EMPTY_COOK_MARKS } from './cookMarks.js';
 import { CookMarksContext } from './cookMarksContext.js';
 import { ingredientTickKeys, tickedPositions } from './ingredientTickKey.js';
 
@@ -42,7 +42,7 @@ export interface CookMarksBinding {
  * The cook's marks on one recipe.
  *
  * @param recipeId - The recipe.
- * @param lines - The recipe's stored, UNSCALED lines, in stored order. Scaled lines would key a tick to a servings count.
+ * @param lines - The recipe's stored, UNSCALED lines, in stored order. Scaled lines would key a tick to servings.
  * @returns The marks and the commands over them.
  * @throws {Error} Outside a `CookMarksProvider`, where no session would ever clear them.
  */
@@ -66,7 +66,8 @@ export function useCookMarks(recipeId: string, lines: readonly IngredientLineDig
     return {
         checkedLines,
         currentStep: marks.currentStep,
-        hasMarks: hasCookMarks(marks),
+        // What the cook sees: a stale key (its line was edited) is not a mark to clear.
+        hasMarks: checkedLines.size > 0 || marks.currentStep !== undefined,
         toggleLine: useCallback(
             (position: number) => {
                 const line = keys[position];

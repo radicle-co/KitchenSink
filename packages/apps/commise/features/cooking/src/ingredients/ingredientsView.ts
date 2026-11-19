@@ -38,7 +38,7 @@ export type CookingIngredientsView =
           readonly title: string;
           /** The lines scaled to the cook's servings, in the recipe's order, as the page's own runs take them. */
           readonly ingredients: readonly RecipeIngredientView[];
-          /** The positions ticked, as the cook marks hold them. Scaling keeps the order, so a position is a stored line. */
+          /** The positions ticked, as `useCookMarks` gives them. Scaling keeps the order, so one is a stored line. */
           readonly checked: ReadonlySet<number>;
           /** Whether any line OF THIS LIST is ticked, so a stale position left in the marks offers no Clear ticks. */
           readonly hasTicks: boolean;

@@ -18,7 +18,7 @@ const butter = (displayText: string) =>
 const LINES = [butter('crust butter'), butter('filling butter')];
 
 describe('IngredientRuns (native)', () => {
-    it('marks only the line at a ticked position, even when two lines share a food (mutant: checked.has(ingredientId))', () => {
+    it('marks only the line at a ticked position, though two share a food (mutant: checked.has(ingredientId))', () => {
         renderWithTamagui(
             <IngredientRuns ingredients={LINES} checked={new Set([0])} allRemoved={false} onToggle={vi.fn()} />,
             'light',

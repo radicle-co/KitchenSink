@@ -207,7 +207,7 @@ describe('CookingIngredientsList (native)', () => {
     });
 
     // ADR-0096: a tick belongs to its line, so two lines of one food are two rows with two ticks.
-    it('ticks one of two lines of the same food by position: the press reports it, and only that row is checked', async () => {
+    it('ticks one of two lines of one food by position: the press reports it, only that row is checked', async () => {
         const twin = { ...BUTTER };
         const props = mount({ lines: [BUTTER, twin], ticked: [1] });
 

@@ -35,6 +35,14 @@ describe('applyCookMark', () => {
         expect([...twice.lines]).toEqual([]);
     });
 
+    it('tells two lines of one digest apart: their ordinals are two keys (mutant: compare by digest)', () => {
+        const [first, second] = [tickKeyOf(9, 0), tickKeyOf(9, 1)];
+        const both = applyCookMark(marks([second]), { kind: 'toggleLine', line: first });
+
+        expect([...both.lines].sort()).toEqual([first, second]);
+        expect([...applyCookMark(marks([first, second]), { kind: 'toggleLine', line: first }).lines]).toEqual([second]);
+    });
+
     it('never mutates the state it was given', () => {
         const before = marks([ING_A]);
 
@@ -97,7 +105,7 @@ describe('the stored form', () => {
         expect(JSON.parse(serializeCookMarks(marks([ING_A])))).toEqual({ lines: [ING_A], step: null });
     });
 
-    it('drops a stored binding id and keeps every key, a newer version included (mutant: no filter, or l1 only)', () => {
+    it('drops a stored binding id and keeps every key, a newer version too (mutant: no filter, or l1 only)', () => {
         const raw = `{"lines":["01JINGREDIENT0000000000000A","${ING_A}","l2:deadbeef#0"],"step":2}`;
 
         const read = parseCookMarks(raw);

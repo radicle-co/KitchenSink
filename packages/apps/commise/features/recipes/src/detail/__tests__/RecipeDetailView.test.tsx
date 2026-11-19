@@ -967,8 +967,8 @@ describe('RecipeDetailView (web) — tap-to-check and the current step', () => {
         expect(flour.getAttribute('aria-checked')).toBe('false');
     });
 
-    // #155 and ADR-0096: a tick belongs to its LINE. Two lines of one food (identical text) are told apart by order, and
-    // the tick follows the line when the servings change, because the key comes from the stored, unscaled line.
+    // #155 and ADR-0096: a tick belongs to its LINE. Two lines of one food (identical text) are told apart by order,
+    // and the tick follows the line when the servings change, because the key comes from the stored, unscaled line.
     it('ticks ONE of two identical butter lines, and keeps that tick when the servings change', async () => {
         const user = userEvent.setup();
         const butter = () =>

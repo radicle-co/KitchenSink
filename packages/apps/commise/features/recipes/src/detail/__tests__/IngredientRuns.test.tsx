@@ -16,7 +16,7 @@ const butter = (displayText: string) =>
 const LINES = [butter('crust butter'), butter('filling butter')];
 
 describe('IngredientRuns (web)', () => {
-    it('marks only the line at a ticked position, even when two lines share a food (mutant: checked.has(ingredientId))', () => {
+    it('marks only the line at a ticked position, though two share a food (mutant: checked.has(ingredientId))', () => {
         render(<IngredientRuns ingredients={LINES} checked={new Set([0])} allRemoved={false} onToggle={vi.fn()} />);
 
         expect(screen.getByRole('checkbox', { name: /crust butter/u }).getAttribute('aria-checked')).toBe('true');

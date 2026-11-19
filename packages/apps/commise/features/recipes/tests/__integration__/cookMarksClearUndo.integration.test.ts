@@ -78,9 +78,9 @@ describe('Clear ticks and Undo through the real store', () => {
         expect(heard).toBe(3);
     });
 
-    // ADR-0096: the recipe page reads fresh lines and cooking mode reads the lines it saved when it opened. Content keys
-    // make them agree on one line even after the page's lines change underneath.
-    it('the page (fresh lines, one inserted above) and cooking mode (saved lines) agree on the same butter line', () => {
+    // ADR-0096: the recipe page reads fresh lines and cooking mode reads the lines it saved when it opened. Content
+    // keys make them agree on one line even after the page's lines change underneath.
+    it('the page (fresh lines, one inserted above) and cooking mode (saved lines) agree on the butter line', () => {
         const butter = { ingredientId: 'ing_butter', quantity: { kind: 'exact', value: 2 } as const, unit: 'tbsp' };
         const sugar = { ingredientId: 'ing_sugar', quantity: { kind: 'exact', value: 1 } as const, unit: 'cup' };
         const saved = [butter, { ...butter }, sugar];

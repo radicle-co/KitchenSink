@@ -23,7 +23,8 @@ const line = (over: Partial<IngredientLineDigestInput> = {}): IngredientLineDige
     displayText: 'butter',
     ...over,
 });
-const LINES = [line(), line(), line({ ingredientId: '01JINGREDIENT0000000000000B', displayText: 'flour' })];
+const FLOUR_ID = '01JINGREDIENT0000000000000B';
+const LINES = [line(), line(), line({ ingredientId: FLOUR_ID, displayText: 'flour' })];
 
 function Probe({ recipeId, label }: { readonly recipeId: string; readonly label: string }) {
     const marks = useCookMarks(recipeId, LINES);
@@ -58,6 +59,21 @@ describe('useCookMarks', () => {
         act(() => result.current.clear());
         expect(result.current.checkedLines.size).toBe(0);
         expect(result.current.currentStep).toBeUndefined();
+        expect(result.current.hasMarks).toBe(false);
+    });
+
+    it('a tick whose line was edited is stale: nothing visible is ticked, so there is nothing to clear', () => {
+        const { result, rerender } = renderHook(({ lines }) => useCookMarks('rec_stale', lines), {
+            initialProps: { lines: LINES },
+            wrapper: wrapperFor(memoryCookMarksBackend(), 'user_1'),
+        });
+
+        act(() => result.current.toggleLine(2));
+        expect(result.current.hasMarks).toBe(true);
+
+        rerender({ lines: [line(), line(), line({ ingredientId: FLOUR_ID, displayText: 'rye' })] });
+
+        expect(result.current.checkedLines.size).toBe(0);
         expect(result.current.hasMarks).toBe(false);
     });
 
@@ -162,7 +178,7 @@ describe('useCookMarks', () => {
         expect(result.current.currentStep).toBe(3);
     });
 
-    it('ticks ONE of two identical lines, and that tick survives a line inserted above (mutant: keying by ingredientId)', () => {
+    it('ticks ONE of two identical lines, and it survives an insert above (mutant: keying by ingredientId)', () => {
         const backend = memoryCookMarksBackend();
         const first = renderHook(({ lines }) => useCookMarks('rec_1', lines), {
             initialProps: { lines: LINES },

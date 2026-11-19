@@ -149,11 +149,11 @@ describe('cookingIngredientsView', () => {
             expect(hasTicksOf([1])).toBe(true);
         });
 
-        it('is false when the only ticked position is one that no line has, so a stale tick offers no Clear ticks', () => {
+        it('is false when the only ticked position is one no line has, so a stale tick offers no Clear ticks', () => {
             expect(hasTicksOf([7])).toBe(false);
         });
 
-        it('is true for a tick on one of two lines of the same food, by position (mutant: ticked.size, or by id)', () => {
+        it('is true for a tick on one of two lines of one food, by position (mutant: ticked.size, or by id)', () => {
             const twin: RecipeIngredientView = { ...SALT, displayText: 'salt for the dough' };
 
             expect(hasTicksOf([0], [SALT, twin])).toBe(true);

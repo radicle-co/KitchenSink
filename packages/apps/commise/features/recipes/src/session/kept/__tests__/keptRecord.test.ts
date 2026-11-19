@@ -35,7 +35,7 @@ describe('parseKeptDocument', () => {
     };
 
     // ADR-0096: a tick is a content key, of any digest version. An old binding id is not a key and drops by itself.
-    it('keeps ingredient tick keys of any version, drops an old binding id, and keeps the timers (mutant: strict regex)', () => {
+    it('keeps tick keys of any version, drops an old binding id, and keeps the timers (mutant: strict regex)', () => {
         const raw = rawKeptDocument({
             entries: { r1: makePage({ ticks: [] }) },
             timers: [makeTimer()],

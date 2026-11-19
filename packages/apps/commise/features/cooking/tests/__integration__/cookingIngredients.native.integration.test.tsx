@@ -16,6 +16,7 @@ import type { FC, ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { cookingMessages } from '../../src/messages.js';
+import { CookingIngredientsList } from '../../src/ingredients/CookingIngredientsList.native.js';
 import { useCookingIngredients } from '../../src/ingredients/useCookingIngredients.js';
 
 afterEach(() => {
@@ -113,37 +114,39 @@ describe('cooking mode ingredients against the recipe page', () => {
         expect(namesOfRows(rows)[0]).toBe('1½ cups flour');
     });
 
-    it('ticks a line through the real row, and the page’s own marks binding sees it', async () => {
+    it('ticks a line through the real list, and the page’s own marks binding sees it', async () => {
         const id = nextId();
         const user = userEvent.setup();
         // The cooking list and the page's marks binding sit under ONE provider, as the app root mounts them.
-        const both = renderHook(
-            () => ({
-                cooking: useCookingIngredients({ recipe: { id, ingredients: LINES, servings: 2 }, copy, locale: 'en' }),
-                marks: useCookMarks(id, LINES),
-            }),
-            { wrapper: Wrapper },
-        );
+        const Screen: FC = () => {
+            const cooking = useCookingIngredients({
+                recipe: { id, ingredients: LINES, servings: 2 },
+                copy,
+                locale: 'en',
+            });
+            const marks = useCookMarks(id, LINES);
 
-        render(
-            <ul>
-                {LINES.map((ingredient, position) => (
-                    <IngredientCheckRow
-                        key={ingredient.ingredientId}
-                        ingredient={ingredient}
-                        checked={false}
-                        allRemoved={false}
-                        onToggle={() => {
-                            both.result.current.cooking.toggle(position);
-                        }}
-                    />
-                ))}
-            </ul>,
-        );
+            return (
+                <>
+                    {cooking.view.kind === 'list' ? (
+                        <CookingIngredientsList
+                            view={cooking.view}
+                            copy={copy.ingredients}
+                            onToggle={cooking.toggle}
+                            onSetServings={cooking.setServings}
+                            onClear={() => void cooking.clearTicks()}
+                        />
+                    ) : null}
+                    <output aria-label="page ticks">{[...marks.checkedLines].join(',')}</output>
+                </>
+            );
+        };
+
+        render(<Screen />, { wrapper: Wrapper });
         const [firstTick] = screen.getAllByRole('checkbox');
         await user.click(firstTick);
 
-        expect([...both.result.current.marks.checkedLines]).toEqual([0]);
+        expect(screen.getByLabelText('page ticks').textContent).toBe('0');
     });
 
     it('clears the ticks, keeps the step, and Undo brings the cleared ticks back', () => {

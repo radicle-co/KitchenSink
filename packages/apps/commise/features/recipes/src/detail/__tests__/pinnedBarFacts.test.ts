@@ -62,7 +62,7 @@ describe('pinnedBarFactsOf', () => {
         expect(facts({ ticked: [7], count: 2 }).meta).toBe('2 items');
     });
 
-    it('counts a tick by its position: one of two lines of the same food is one ticked (#155; mutant: by ingredientId)', () => {
+    it('counts a tick by position: one of two lines of one food is one ticked (#155; mutant: by ingredientId)', () => {
         const bar = pinnedBarFactsOf({
             ingredients: [{ ingredientId: 'butter' }, { ingredientId: 'butter' }],
             checked: new Set([0]),

@@ -4,8 +4,8 @@
  * own Undo.
  *
  * The recipe's lines and its authored servings are SNAPSHOT at mount, so a refetch that reorders or adds lines under
- * the cook never moves a row they are reading. The cook's ticks are keyed by a line's content (ADR-0096), so the snapshot and the page's fresh lines agree on which
- * line is ticked.
+ * the cook never moves a row they are reading. The cook's ticks are keyed by a line's content (ADR-0096), so the
+ * snapshot and the page's fresh lines agree on which line is ticked.
  * The snapshot assumes ONE recipe for each mount: a screen that opens another recipe must mount the hook again.
  *
  * @pattern Headless hook: no markup, only the data and the commands a list renders.
@@ -43,7 +43,7 @@ export interface CookingIngredientsBinding {
     /**
      * Clear every tick and keep the current step.
      *
-     * @returns The Undo: it adds back the ticks this call cleared and removes none.
+     * @returns The Undo: it adds back the ticks this list showed and removes none.
      * @sideEffect Writes the cook's marks, which the recipe page reads too.
      */
     readonly clearTicks: () => () => void;

@@ -218,17 +218,18 @@ describe('ingredient ticks are content keys (ADR-0096)', () => {
     const NEWER = 'l2:deadbeef#0';
 
     it('ticking the second of two identical lines keeps the first, and unticking the first leaves the second', () => {
-        const page = makeDoc({ entries: { r1: makePage({ ticks: [TICK.butter] }) } });
-        const both = applied(run(page, { type: 'tickPage', recipeId: 'r1', line: TICK.salt, ticked: true }));
+        const { twinFirst, twinSecond } = TICK;
+        const page = makeDoc({ entries: { r1: makePage({ ticks: [twinFirst] }) } });
+        const both = applied(run(page, { type: 'tickPage', recipeId: 'r1', line: twinSecond, ticked: true }));
 
-        expect(both.entries['r1']).toMatchObject({ ticks: [TICK.butter, TICK.salt] });
+        expect(both.entries['r1']).toMatchObject({ ticks: [twinFirst, twinSecond] });
 
-        const off = applied(run(both, { type: 'tickPage', recipeId: 'r1', line: TICK.butter, ticked: false }));
+        const off = applied(run(both, { type: 'tickPage', recipeId: 'r1', line: twinFirst, ticked: false }));
 
-        expect(off.entries['r1']).toMatchObject({ ticks: [TICK.salt] });
+        expect(off.entries['r1']).toMatchObject({ ticks: [twinSecond] });
     });
 
-    it('a newer version’s key survives a tick and an untick of another line, byte for byte (mutant: filter to l1)', () => {
+    it('a newer version’s key survives a tick and an untick of another line (mutant: filter to l1)', () => {
         const raw = JSON.stringify(makeDoc({ entries: { r1: makePage({ ticks: [] }) } })).replace(
             '"ticks":[]',
             `"ticks":["${NEWER}"]`,

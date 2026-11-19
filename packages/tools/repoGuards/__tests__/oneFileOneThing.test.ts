@@ -132,12 +132,15 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             'GREW 2026-11-13 (S3a timer, plan 0110): cooking-core added `InvalidTimerDurationError` and ' +
             '`TimerAlreadyActiveError`, refusals of the same boundary: a timer length no timer can have, and a second ' +
             'timer while the app already holds one. ' +
-            'SHRANK (S6.U0): `TimerAlreadyActiveError` deleted; a start at the limit is a result, not an error.',
+            'SHRANK (S6.U0): `TimerAlreadyActiveError` deleted; a start at the limit is a result, not an error. ' +
+            'GREW 2026-11-16 (source statement, ADR-0095): the recipe client added `InvalidVisibilityError`, the 400 ' +
+            'that names why a visibility change was refused, which the recipe page answers with a different sentence ' +
+            'for each reason.',
         files: [
             { file: 'packages/apps/commise/features/account/src/authState.errors.ts', classes: 2, components: 0 },
             { file: 'packages/apps/commise/features/account/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/clients/food-service/src/errors.ts', classes: 18, components: 0 },
-            { file: 'packages/clients/recipe-service/src/errors.ts', classes: 21, components: 0 },
+            { file: 'packages/clients/recipe-service/src/errors.ts', classes: 22, components: 0 },
             { file: 'packages/clients/bedrock/src/errors.ts', classes: 6, components: 0 },
             { file: 'packages/clients/usda/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/shared/cooking/src/errors.ts', classes: 4, components: 0 },

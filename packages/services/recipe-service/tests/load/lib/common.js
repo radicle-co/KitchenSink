@@ -475,7 +475,12 @@ export function makeRecipePayload(label, ingredients) {
 export function makeRecipePayloadWithStatement(label, ingredients) {
     return {
         ...makeRecipePayload(label, ingredients),
-        statement: { kind: 'public_web', citation: `https://example.com/k6-load/${label}` },
+        statement: {
+            kind: 'public_web',
+            citation: `https://example.com/k6-load/${label}`,
+            // The wording the cook saw: a key of recipe-core's STATEMENT_WORDINGS_BY_CHOICE (k6 cannot import it).
+            wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+        },
     };
 }
 

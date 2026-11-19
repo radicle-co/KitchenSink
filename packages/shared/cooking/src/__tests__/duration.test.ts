@@ -11,10 +11,6 @@ describe('readDuration', () => {
     it.each([
         ['Roast for 1 h 30', 5_400],
         ['Roast for 1 h 30 min', 5_400],
-        ['Simmer 20 to 25 minutes', 1_200],
-        ['Simmer 20-25 min', 1_200],
-        ['Simmer 20–25 minutes', 1_200],
-        ['Simmer for 20 or 25 minutes', 1_200],
         ['Rest for 1 hour 5 minutes', 3_900],
         ['Rest for 1 hour and 5 minutes', 3_900],
         ['Rest 1 hr, 5 mins', 3_900],
@@ -33,12 +29,6 @@ describe('readDuration', () => {
         ['Bake 1/4 hour', 900],
         ['Bake 1 1/2 hours', 5_400],
         ['Bake 2 1/4 hours', 8_100],
-        ['Bake between 20 and 25 minutes', 1_200],
-        ['Bake 20‐25 minutes', 1_200],
-        ['Bake 20‑25 minutes', 1_200],
-        ['Bake 20‒25 minutes', 1_200],
-        ['Bake 20―25 minutes', 1_200],
-        ['Bake 20—25 minutes', 1_200],
         ['Boil 10 minutes 30', 600],
     ])('%s gives one duration of %i s', (line, seconds) => {
         expect(readDuration(line)).toEqual({ kind: 'one', seconds });
@@ -69,6 +59,42 @@ describe('readDuration', () => {
     });
 });
 
+describe('readDuration: a time that is a rate per weight or per piece is no wait', () => {
+    it.each([
+        '10 minutes per pound',
+        'Roast 10 minutes per pound.',
+        'Roast 20 minutes to the pound',
+        'Roast 1 hour per kilo',
+        'Cook 8 minutes per piece',
+        'Roast 10 to 12 minutes per pound',
+        'Roast 10 MINUTES PER POUND',
+    ])('%s gives none, so no offer and no wait', (line) => {
+        expect(readDuration(line)).toEqual({ kind: 'none' });
+        expect(offerSecondsOf({ line })).toBeUndefined();
+    });
+
+    it.each([
+        ['Bake 20 minutes. Serve per person.', 1_200],
+        ['Bake 20 minutes, then serve', 1_200],
+        ['Bake 20 minutes and a pound of potatoes', 1_200],
+        ['Bake 20 minutes perfectly', 1_200],
+        ['Bake 20 minutes to a crisp', 1_200],
+        ['Roast per pound: 20 minutes', 1_200],
+    ])('%s still gives %i s', (line, seconds) => {
+        expect(readDuration(line)).toEqual({ kind: 'one', seconds });
+    });
+});
+
+describe('readDuration rounds a fractional length to whole seconds, half up', () => {
+    it.each([
+        ['Whisk 1/8 minute', 8],
+        ['Whisk 3/8 minute', 23],
+        ['Whisk 1.5 minutes', 90],
+    ])('%s gives %i s', (line, seconds) => {
+        expect(readDuration(line)).toEqual({ kind: 'one', seconds });
+    });
+});
+
 describe('readDuration reads the number a cook wrote, or nothing', () => {
     it.each([
         ['Bake 1-1/2 hours', 5_400],
@@ -76,8 +102,6 @@ describe('readDuration reads the number a cook wrote, or nothing', () => {
         ['Bake 2-1/2 hours', 9_000],
         ['Bake .5 hours', 1_800],
         ['Bake 1,5 hours', 5_400],
-        ['Bake 1-2 hours', 3_600],
-        ['Bake between 20 and 25 minutes', 1_200],
     ])('%s gives %i s', (line, seconds) => {
         expect(readDuration(line)).toEqual({ kind: 'one', seconds });
     });
@@ -220,5 +244,42 @@ describe('elapsedParts: whole minutes since the end, floored and never rounded',
         [-5_000, { kind: 'justNow' }],
     ])('%i ms', (elapsedMs, expected) => {
         expect(elapsedParts(elapsedMs)).toEqual(expected);
+    });
+});
+
+describe('readDuration gives the high end of a digit range', () => {
+    it.each([
+        ['Simmer 20 to 25 minutes', 1_200, 1_500],
+        ['Simmer 20-25 min', 1_200, 1_500],
+        ['Simmer 20–25 minutes', 1_200, 1_500],
+        ['Simmer for 20 or 25 minutes', 1_200, 1_500],
+        ['Bake between 20 and 25 minutes', 1_200, 1_500],
+        ['Bake 20‐25 minutes', 1_200, 1_500],
+        ['Bake 20‑25 minutes', 1_200, 1_500],
+        ['Bake 20‒25 minutes', 1_200, 1_500],
+        ['Bake 20―25 minutes', 1_200, 1_500],
+        ['Bake 20—25 minutes', 1_200, 1_500],
+        ['Bake 1-2 hours', 3_600, 7_200],
+        ['Bake 1 to 1½ hours', 3_600, 5_400],
+    ])('%s gives %i s up to %i s', (line, seconds, highSeconds) => {
+        expect(readDuration(line)).toEqual({ kind: 'one', seconds, highSeconds });
+    });
+
+    it.each(['Rest for 1 hour 5 minutes', 'Roast for 1 h 30', 'Bake 1½ hours', 'Stir for 30 sec'])(
+        '%s carries no high end',
+        (line) => {
+            expect(readDuration(line)).not.toHaveProperty('highSeconds');
+        },
+    );
+
+    it.each([
+        ['Bake 25 to 20 minutes', 1_500],
+        ['Bake 20 to 20 minutes', 1_200],
+    ])('%s reads its low end alone: a reversed or equal range is never swapped', (line, seconds) => {
+        expect(readDuration(line)).toStrictEqual({ kind: 'one', seconds });
+    });
+
+    it('carries no high end on a range joined to another amount', () => {
+        expect(readDuration('Rest 1 to 2 hours 5 minutes')).not.toHaveProperty('highSeconds');
     });
 });

@@ -11,6 +11,8 @@
  * - The timer pauses while the pointer is over the snackbar or focus is inside it (SC 2.2.1); on native, while a
  *   screen reader is running, it does not run at all.
  * - It is a polite `status` and never takes focus.
+ * - `withdraw` is the one way to close a snackbar without committing it other than its own action, and it is
+ *   targeted: it acts only on the snackbar its handle names.
  */
 import type { ReactNode } from 'react';
 
@@ -34,10 +36,23 @@ export interface SnackbarInput {
     readonly durationMs?: number;
 }
 
+/** What `show` returns: names this snackbar, and only this one, to `withdraw`. Compared by identity. */
+export interface SnackbarHandle {
+    readonly snackbar: true;
+}
+
 /** What `useSnackbar` hands a screen. */
 export interface SnackbarApi {
     /** Show a snackbar, committing the one it replaces. */
-    readonly show: (input: SnackbarInput) => void;
+    readonly show: (input: SnackbarInput) => SnackbarHandle;
+    /**
+     * Take the snackbar away without committing it, when it is still the one showing. Runs neither its `onTimeout`
+     * nor its action.
+     *
+     * @returns The ms it had left, not counting time it was paused, or `undefined` when another snackbar replaced it,
+     *   it timed out, or it was acted on.
+     */
+    readonly withdraw: (handle: SnackbarHandle) => number | undefined;
 }
 
 /** The cross-platform `SnackbarHost` contract. */

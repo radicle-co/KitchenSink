@@ -66,7 +66,14 @@ export function cookingReadSourceOf(
         subject: viewer.id,
         recipe: lastReadGone
             ? undefined
-            : { id: recipe.id, title: recipe.title, status: recipe.status, steps: recipe.steps },
+            : {
+                  id: recipe.id,
+                  title: recipe.title,
+                  status: recipe.status,
+                  steps: recipe.steps,
+                  ingredients: recipe.ingredients,
+                  servings: recipe.servings,
+              },
         failure: lastReadGone ? { gone: true, offline: false } : undefined,
         viewer: {
             known: viewer.known,

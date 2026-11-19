@@ -17,9 +17,15 @@ import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
+import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import type { RecipeRow } from '../../../src/database/schema/index.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
@@ -131,6 +137,7 @@ const LINES = [
 ];
 
 const CREATE_BODY = {
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Spiced bread',
     cuisine: 'Italian',
     servings: 2,
@@ -199,6 +206,13 @@ beforeAll(async () => {
             { provide: FoodRefsGateway, useValue: { resolve } },
             { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
             { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
+            {
+                provide: RecipeSourceEvidenceDal,
+                useValue: {
+                    insert: async () => undefined,
+                    list: async () => [],
+                },
+            },
         ],
     });
 });
@@ -273,7 +287,12 @@ describe('PATCH /api/v1/recipes/{id}', () => {
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 1,
             status: 'published',
-            statement: { kind: 'public_web', citation: 'https://example.com/spiced-bread' },
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+            statement: {
+                kind: 'public_web',
+                citation: 'https://example.com/spiced-bread',
+                wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+            },
         });
 
         expect(response.status).toBe(200);

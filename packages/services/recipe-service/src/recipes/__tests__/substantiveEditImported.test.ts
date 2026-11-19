@@ -15,6 +15,7 @@ import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
 import { FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
 import type { RecipeTx } from '../../database/unitOfWork.js';
+import { fakeRecipesDal as sharedFakeRecipesDal } from '../__fixtures__/recipesDal.fixture.js';
 import { makeRecipesService } from '../__fixtures__/recipesService.fixture.js';
 
 /**
@@ -77,6 +78,8 @@ function service(existing: RecipeAggregate): { svc: RecipesService; update: Retu
         setVisibility: vi.fn(),
         // ADR-0029 section 4: no private foods in the database by default.
         privateFoodLines: vi.fn(async () => []),
+        // An edit of a PUBLISHED recipe reads its facts under the row lock (the statement rule): the shared double reads the same row.
+        lockSlotFacts: sharedFakeRecipesDal({ findById: vi.fn().mockResolvedValue(existing) }).lockSlotFacts,
         transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
     } as unknown as RecipesDal;
 

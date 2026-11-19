@@ -5,18 +5,18 @@
  * because a duration library adds up every unit in a string and cannot find exactly one span in prose or take the low
  * end of a range. It reads English only.
  *
- * shortcut: number words ("an hour", "half an hour", "two minutes") are not read and a step that only says them offers
- * no timer, upgrade when a real recipe needs them. A bare number after an hour unit reads as minutes ("1 h 30") only
- * at the end of the text or before punctuation, so "1 h 30 then flip" reads one hour.
+ * Times written in words ("an hour and a half", "ten to fifteen minutes") are read by `durationWords.ts`. That layer
+ * runs only when this digit layer matched no span, so a line with a digit time is never read by it.
+ *
+ * shortcut: a bare number after an hour unit reads as minutes ("1 h 30") only at the end of the text or before
+ * punctuation, so "1 h 30 then flip" reads one hour. Upgrade when a real recipe needs more.
  */
 
 import { amountAt } from '@kitchensink/recipe-core/parsing/measure-reader';
 
-import { isValidTimerMs } from './timer.js';
-
-/** What a line says: no duration, exactly one (in seconds), or several. */
-export type DurationReading =
-    { readonly kind: 'none' } | { readonly kind: 'one'; readonly seconds: number } | { readonly kind: 'many' };
+import { oneReading, type DurationReading } from './durationReading.js';
+import { RATE_PHRASES, readWordDuration } from './durationWords.js';
+import { MIN_TIMER_MS, isValidTimerMs } from './timer.js';
 
 const SECONDS_PER_UNIT: Readonly<Record<string, number>> = { h: 3_600, m: 60, s: 1 };
 
@@ -40,14 +40,15 @@ const DASH = '[-‐‑‒–—―]';
 const UNIT = String.raw`(?:hours?|hrs?|h|minutes?|mins?|seconds?|secs?)`;
 
 /**
- * One amount: a number, an optional range to a second number (only the first is read), an optional hyphen, and a unit.
+ * One amount: a number, an optional range to a second number (the first is the low end, the second the high end), an
+ * optional hyphen, and a unit.
  * A trailing `(?![a-z])` stops a unit word being a prefix of a longer word ("hash", "minced").
  */
 const amountSource = (capture: boolean): string => {
     const group = (inner: string): string => (capture ? `(${inner})` : `(?:${inner})`);
 
     // No amount starts inside a run of digits, points or commas, and the whitespace before the unit has one reading.
-    return `(?<![\\d.,])${group(NUMBER)}(?:\\s*(?:${DASH}|to|or)\\s*${NUMBER}|\\s+and\\s+${NUMBER})?\\s*(?:-\\s*)?${group(UNIT)}(?![a-z])`;
+    return `(?<![\\d.,])${group(NUMBER)}(?:(?:\\s*(?:${DASH}|to|or)\\s*|\\s+and\\s+)${group(NUMBER)})?\\s*(?:-\\s*)?${group(UNIT)}(?![a-z])`;
 };
 
 /** What may sit between two amounts of one duration: only space, a comma or "and". */
@@ -63,6 +64,14 @@ const BARE_MINUTES = String.raw`(?:\s+(?<bare>\d{1,2})(?=\s*(?:$|[.,;:!?)])))`;
  */
 const UNREAD_TIME_AFTER = new RegExp(String.raw`^${JOINER}\d+(?:[.,]\d+)?\s*[ms](?![a-z])`, 'iu');
 const UNREAD_TIME_BEFORE = new RegExp(String.raw`(?<![\d.,])\d+(?:[.,]\d+)?\s*[ms]${JOINER}$`, 'iu');
+
+/**
+ * Any rate word right after the span ("10 minutes per pound", "20 minutes to the pound"): the line reads none. The
+ * rule is on the words, not on what follows them, so "per side", "per batch" and "to the boil" read none on purpose. A
+ * wrong number the cook trusts is worse than no offer. The words are the word reader's, plain lower-case letters.
+ */
+const RATE_ALTERNATION = RATE_PHRASES.map((phrase) => phrase.join(String.raw`\s+`)).join('|');
+const RATE_AFTER = new RegExp(String.raw`^\s*(?:${RATE_ALTERNATION})(?![a-z])`, 'iu');
 
 /** One whole span of time: amounts joined by space, comma or "and", then an optional bare minute part. */
 const SPAN = new RegExp(`${amountSource(false)}(?:${JOINER}${amountSource(false)})*${BARE_MINUTES}?`, 'giu');
@@ -103,8 +112,9 @@ export function readDuration(line: string): DurationReading {
 
     const spans = [...line.matchAll(SPAN)];
 
+    // The word layer runs only when the digit layer matched no span. A span an UNREAD guard turns to none stays none.
     if (spans.length === 0) {
-        return { kind: 'none' };
+        return readWordDuration(line);
     }
 
     if (spans.length > 1) {
@@ -115,13 +125,16 @@ export function readDuration(line: string): DurationReading {
 
     const at = spans[0]?.index ?? 0;
 
-    if (UNREAD_TIME_BEFORE.test(line.slice(0, at)) || UNREAD_TIME_AFTER.test(line.slice(at + span.length))) {
+    const after = line.slice(at + span.length);
+
+    if (UNREAD_TIME_BEFORE.test(line.slice(0, at)) || UNREAD_TIME_AFTER.test(after) || RATE_AFTER.test(after)) {
         return { kind: 'none' };
     }
 
     const amounts = [...span.matchAll(AMOUNT)].map((amount) => ({
-        seconds: secondsOfAmount(amount[1] ?? '', amount[2] ?? ''),
-        rank: unitSeconds(amount[2] ?? ''),
+        seconds: secondsOfAmount(amount[1] ?? '', amount[3] ?? ''),
+        highSeconds: amount[2] === undefined ? undefined : secondsOfAmount(amount[2], amount[3] ?? ''),
+        rank: unitSeconds(amount[3] ?? ''),
     }));
 
     // An amount that is not a real number ("1/0") leaves the whole span unread, never a wrong total.
@@ -139,7 +152,14 @@ export function readDuration(line: string): DurationReading {
         amounts.reduce((sum, amount) => sum + (amount.seconds ?? 0), 0) +
         (bareMinutes === undefined ? 0 : Number.parseInt(bareMinutes, 10) * 60);
 
-    return total > 0 ? { kind: 'one', seconds: Math.round(total) } : { kind: 'none' };
+    if (total <= 0) {
+        return { kind: 'none' };
+    }
+
+    // Only a span that is exactly one range carries its high end.
+    const [only] = amounts;
+
+    return oneReading(total, amounts.length === 1 && bareMinutes === undefined ? only?.highSeconds : undefined);
 }
 
 /** The one duration a line reads, in seconds, or `undefined` when it reads none or several. */
@@ -171,6 +191,68 @@ export interface OfferInput {
  */
 export function offerSecondsOf(input: OfferInput): number | undefined {
     return validSeconds(input.storedSeconds) ?? validSeconds(secondsOfLine(input.line));
+}
+
+/** One wait a step line states. It is a timer the cook can start only when `offers` is set. */
+export interface Wait {
+    readonly seconds: number;
+    /** The high end of a range ("20 to 25 minutes"); `seconds` is its low end. */
+    readonly highSeconds?: number;
+    /** `false` for a time over the longest timer ("marinate 48 hours"): a wait that counts, with no timer. */
+    readonly offers: boolean;
+}
+
+/**
+ * The waits of one step. A stored timer is one wait of that length. Otherwise each line reads through
+ * {@link readDuration}, and `unread` is set when any line holds two or more times.
+ */
+export type StepWaits =
+    | { readonly kind: 'stored'; readonly seconds: number }
+    | { readonly kind: 'lines'; readonly waits: readonly Wait[]; readonly unread: boolean };
+
+/** The input to {@link stepWaitsOf}. */
+export interface StepWaitsInput {
+    /** The step's own stored timer, in seconds. It wins over the text when a timer can have that length. */
+    readonly storedSeconds?: number | undefined;
+    /** The step's lines. */
+    readonly lines: readonly string[];
+}
+
+/** The wait a reading states, or `undefined` when it states none or is under the shortest timer. */
+function waitOf(reading: DurationReading): Wait | undefined {
+    if (reading.kind !== 'one' || reading.seconds * 1_000 < MIN_TIMER_MS) {
+        return undefined;
+    }
+
+    const offers = isValidTimerMs(reading.seconds * 1_000);
+
+    return reading.highSeconds === undefined
+        ? { seconds: reading.seconds, offers }
+        : { seconds: reading.seconds, highSeconds: reading.highSeconds, offers };
+}
+
+/**
+ * The waits of a step, read the way {@link offerSecondsOf} reads them, so the screen and the timer offer never
+ * disagree. Every wait with `offers` set is a timer `offerSecondsOf` gives for that line.
+ *
+ * @param input - The stored timer and the lines.
+ * @returns A stored timer when it is a length a timer can have, else the waits of the lines. A time under
+ *   `MIN_TIMER_MS` is no wait. A line with two times sets `unread`, and a step with `unread` set counts nothing. Pure.
+ */
+export function stepWaitsOf(input: StepWaitsInput): StepWaits {
+    const stored = validSeconds(input.storedSeconds);
+
+    if (stored !== undefined) {
+        return { kind: 'stored', seconds: stored };
+    }
+
+    const readings = input.lines.map(readDuration);
+
+    return {
+        kind: 'lines',
+        waits: readings.flatMap((reading) => waitOf(reading) ?? []),
+        unread: readings.some((reading) => reading.kind === 'many'),
+    };
 }
 
 /** A length split into hours, minutes and seconds. */

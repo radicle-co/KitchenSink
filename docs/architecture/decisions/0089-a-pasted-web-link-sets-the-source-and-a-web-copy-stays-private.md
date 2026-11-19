@@ -3,11 +3,15 @@
 - **Status:** Accepted
 - **Date:** 2026-11-10
 - **Amends:** [ADR-0023](0023-curator-declared-provenance.md) §1a: `POST /api/v1/recipes` now also takes the cook's
-  `statement`, and a `PATCH` takes it until the first publish. The curator's `source` and its grant are unchanged.
+  `statement`, and a `PATCH` takes it, also after the first publish. The curator's `source` and its grant are unchanged.
   [ADR-0072](0072-bulk-recipe-import.md) §9: the statement list and the table of labels. A web statement is private
   only. [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md) §3: a recipe copied from a web
   page has one state, private, until the Commise-written version
   ([ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md)) ships.
+- **Amended by:** [ADR-0095](0095-a-recorded-source-is-kept-and-a-recipe-is-public-only-with-a-statement.md)
+  (2026-11-16): §6. The statement stays editable after the first publish, and a cook can now state a book too. Every
+  stated web, book or paid-site source is also kept as evidence that no route changes or clears. While evidence
+  exists, the recipe cannot be made public. Removing the statement still leaves visibility alone.
 - **Relates to:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md) §3:
   public versions have no caps, and aggregator sites follow the normal rules. [ADR-0058](0058-never-published-drafts-record-no-version.md): the
   first-publish fact. [ADR-0073](0073-free-tier-private-slots.md): a web copy uses a

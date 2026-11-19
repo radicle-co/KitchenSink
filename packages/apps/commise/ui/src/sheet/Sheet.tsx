@@ -92,6 +92,7 @@ export const Sheet: FC<SheetProps> = ({
     size,
     presentation = 'sheet',
     screenReaderLanding = 'title',
+    busy = false,
     toolbar,
     children,
     footer,
@@ -113,6 +114,7 @@ export const Sheet: FC<SheetProps> = ({
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                 <Dialog.Content
                     aria-modal="true"
+                    aria-busy={busy || undefined}
                     aria-labelledby={[titleId, ...labelledBy].join(' ')}
                     aria-describedby={describedBy.length > 0 ? describedBy.join(' ') : undefined}
                     onOpenAutoFocus={(event) => {

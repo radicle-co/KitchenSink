@@ -1,0 +1,138 @@
+appId: ${APP_ID}
+---
+# A pasted recipe asks where it is from before it goes public (ADR-0095). Mobile mirror of the web Playwright
+# `recipeSourceFromPaste.spec.ts` "asks where it is from" cases: Publish opens the source sheet and sends nothing, a book
+# answer with no title shows the field error, and "I wrote this" then publishes the recipe public.
+#
+# What only a device proves: the sheet over the editor with the keyboard up, the radio answers reachable on a small phone,
+# and the field error read at the field. The pure decisions are the component tests' subject on both platforms
+# (`SourceStatementSheet.native.test.tsx`, `useRecipeEditor.test.tsx`). The signer is Pro (`visibility.yaml`). Every flow is
+# reseeded before it runs.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Pasted Soup'
+- runFlow: common/chooseCuisine.yaml
+- runFlow: common/addTomatoAndStep.yaml
+
+# Paste one more step, so the draft is a pasted one.
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Steps'
+- tapOn: 'Paste steps'
+- tapOn:
+      text: 'Steps'
+      below: 'Paste steps'
+- inputText: 'Simmer the stock.'
+- assertVisible: 'Add 1 step'
+- tapOn: 'Add 1 step'
+- extendedWaitUntil:
+      notVisible: 'Add 1 step'
+      timeout: 20000
+
+# Publish asks first, and sends nothing.
+- runFlow: common/closeEditorKeyboard.yaml
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Publish'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible: 'Where is this recipe from?'
+      timeout: 20000
+- assertVisible: 'I wrote this'
+- assertVisible: 'From a web page'
+- assertVisible: 'From a cookbook or magazine'
+- assertVisible: 'From another person'
+- assertVisible: 'Publish privately'
+
+# A book answer with no title is refused at the field.
+- tapOn: 'From a cookbook or magazine'
+# Each answer tap is proved by the radio's own state, not by the next screen: a tap on a row clipped above the list (y < 0)
+# reads as "scroll to top" on iOS and checks nothing. Android reads `checked` from the radio. iOS publishes it only in the
+# radio's value ("radio button, checked"), so there the one checked radio is placed by the row beside it, which the tap
+# could not have changed.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'From a cookbook or magazine'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'radio button, checked'
+                above: 'From another person'
+- tapOn:
+      text: 'Publish'
+      below: 'Where is this recipe from?'
+- extendedWaitUntil:
+      visible: 'Add the book or magazine title.'
+      timeout: 10000
+- assertVisible: 'Where is this recipe from?'
+
+# With the keyboard up for the title field the list has scrolled to that field, so the first answer is above the visible
+# part of the list. Choose the answer in view (its first tap works with the keyboard up and removes the title field), and
+# "I wrote this" is back in view.
+- tapOn: 'From another person'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'From another person'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'radio button, checked'
+                below: 'From a cookbook or magazine'
+- assertNotVisible: 'Book or magazine title'
+- assertVisible: 'I wrote this'
+- tapOn: 'I wrote this'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'I wrote this'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'radio button, checked'
+                above: 'From a web page'
+- tapOn:
+      text: 'Publish'
+      below: 'Where is this recipe from?'
+      # Publishing moves the screen for seconds, and the notice below lasts 6 s (maestroTransientNoticeWait.test.ts).
+      waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Pasted Soup.*'
+      timeout: 40000
+- extendedWaitUntil:
+      visible:
+          text: '^Public$'
+      timeout: 40000

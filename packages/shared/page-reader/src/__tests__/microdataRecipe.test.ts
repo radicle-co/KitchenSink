@@ -75,6 +75,7 @@ describe('microdataRecipe', () => {
         expect(read(body).kind).toBe('candidates');
     });
 
+    // Rewritten for round 8: the section's name ("Glaze") is a group heading and no longer goes into its first step.
     it('reads steps written as nested HowToStep and HowToSection items', () => {
         const body = recipeScope(
             [
@@ -88,7 +89,7 @@ describe('microdataRecipe', () => {
         );
 
         expect(read(body)).toMatchObject({
-            candidates: [{ recipe: { steps: [{ instruction: 'Glaze: Whisk.' }, { instruction: 'Pour.' }] } }],
+            candidates: [{ recipe: { steps: [{ instruction: 'Whisk.' }, { instruction: 'Pour.' }] } }],
         });
     });
 

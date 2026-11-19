@@ -755,7 +755,10 @@ describe('updateRecipeRequestSchema — provenance is a CREATE-time fact and sta
 // ── The cook's statement: a pasted web link (ADR-0089) ─────────────────────────────────────────────
 
 describe('createRecipeRequestSchema — the optional `statement` (ADR-0089)', () => {
-    const WEB = { kind: 'public_web', citation: 'https://www.allrecipes.com/recipe/1/soup/' };
+    /** The shared member, which the bulk import composes and which carries no wording. */
+    const WEB_BARE = { kind: 'public_web', citation: 'https://www.allrecipes.com/recipe/1/soup/' };
+    /** A recipe's OWN member: the same address, and the wording the cook was shown. */
+    const WEB = { ...WEB_BARE, wording: { version: 'statementPublicWeb.v1', locale: 'en' } };
 
     it('accepts a public_web statement with an http(s) address', () => {
         expect(createAccepts({ statement: WEB })).toBe(true);
@@ -793,8 +796,8 @@ describe('createRecipeRequestSchema — the optional `statement` (ADR-0089)', ()
     });
 
     it('is the SAME member the bulk import statement uses, not a second copy of the shape', () => {
-        expect(importStatementSchema.safeParse(WEB).success).toBe(true);
-        expect(recipeStatementSchema.safeParse(WEB).success).toBe(true);
+        expect(importStatementSchema.safeParse(WEB_BARE).success).toBe(true);
+        expect(recipeStatementSchema.safeParse(WEB_BARE).success).toBe(true);
         // Composed REFINED: the import refuses what a recipe's own statement refuses (our domain, localhost, an IP).
 
         for (const citation of ['https://commise.app/x', 'https://localhost/a', 'https://10.0.0.5/a']) {
@@ -830,6 +833,15 @@ describe('createRecipeRequestSchema — the optional `statement` (ADR-0089)', ()
         expect(performance.now() - started).toBeLessThan(50);
     });
 
+    // Rewritten for the Source row: the editor's link states a source and shows no wording, so a recipe's own web statement
+    // may omit it (no attestation is recorded). The sheet's answers still carry one, and the import wire is unchanged.
+    it('ACCEPTS a web statement with no wording, and the import statement still takes none (its wire is unchanged)', () => {
+        expect(createAccepts({ statement: WEB_BARE })).toBe(true);
+        expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, statement: WEB_BARE }).success).toBe(true);
+        expect(importStatementSchema.safeParse({ kind: 'authored' }).success).toBe(true);
+        expect(importStatementSchema.safeParse({ ...WEB_BARE, wording: WEB.wording }).success).toBe(false);
+    });
+
     it('REFUSES a missing citation and a stray key (the member is strict)', () => {
         expect(createAccepts({ statement: { kind: 'public_web' } })).toBe(false);
         expect(createAccepts({ statement: { ...WEB, sourceType: 'imported_public' } })).toBe(false);
@@ -837,7 +849,11 @@ describe('createRecipeRequestSchema — the optional `statement` (ADR-0089)', ()
 });
 
 describe('updateRecipeRequestSchema — `statement` is nullable, and `source` is still never accepted', () => {
-    const WEB = { kind: 'public_web', citation: 'https://www.allrecipes.com/recipe/1/soup/' };
+    const WEB = {
+        kind: 'public_web',
+        citation: 'https://www.allrecipes.com/recipe/1/soup/',
+        wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+    };
 
     it('declares statement and still does NOT declare source', () => {
         expect(Object.keys(updateRecipeRequestSchema.shape)).toContain('statement');
@@ -1226,5 +1242,134 @@ describe('U34 - meal type, a CLOSED vocabulary on the BASE schema', () => {
 
     it('the RESPONSE schema carries it too, so a written meal type can be read back', () => {
         expect(recipeSchema.shape.mealType.unwrap()).toBe(recipeMealTypeSchema);
+    });
+});
+
+// ── The attestation record's wire: wordings on every statement, and the passive Public confirmation ──────────────────
+
+describe('a recipe’s own statement — every member names the wording the cook saw', () => {
+    const wording = (version: string, locale = 'en') => ({ version, locale });
+    const MEMBERS = {
+        authored: { kind: 'authored', wording: wording('statementAuthored.v1') },
+        public_web: {
+            kind: 'public_web',
+            citation: 'https://www.allrecipes.com/recipe/1/soup/',
+            wording: wording('statementPublicWeb.v1'),
+        },
+        book: { kind: 'book', citation: 'Joy of Cooking, p. 12', wording: wording('statementBook.v1') },
+        fromPerson: { kind: 'fromPerson', wording: wording('statementFromPerson.v1') },
+    } as const;
+
+    it.each(Object.entries(MEMBERS))('accepts a %s statement on create and on update', (_kind, statement) => {
+        expect(createAccepts({ statement })).toBe(true);
+        expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, statement }).success).toBe(true);
+    });
+
+    // Only the web member may omit its wording (the Source row shows none); every answer the sheet offers still names one.
+    it.each(Object.entries(MEMBERS).filter(([kind]) => kind !== 'public_web'))(
+        'REFUSES a %s statement with no wording',
+        (_kind, statement) => {
+            const { wording: _dropped, ...bare } = statement;
+
+            expect(createAccepts({ statement: bare })).toBe(false);
+        },
+    );
+
+    it('ACCEPTS a web statement with no wording, and still REFUSES a wording it was given that is not its own', () => {
+        const { wording: _dropped, ...bare } = MEMBERS.public_web;
+
+        expect(createAccepts({ statement: bare })).toBe(true);
+        expect(createAccepts({ statement: { ...bare, wording: MEMBERS.book.wording } })).toBe(false);
+    });
+
+    it.each(Object.entries(MEMBERS))('REFUSES a %s statement carrying another choice’s wording', (kind, statement) => {
+        const others = Object.values(MEMBERS).filter((member) => member.kind !== kind);
+
+        for (const other of others) {
+            expect(createAccepts({ statement: { ...statement, wording: other.wording } })).toBe(false);
+        }
+    });
+
+    it('REFUSES an unknown wording version, a one-character locale and a 36-character locale', () => {
+        for (const bad of [
+            wording('statementAuthored.v9'),
+            wording('statementAuthored.v1', 'e'),
+            wording('statementAuthored.v1', 'x'.repeat(36)),
+        ]) {
+            expect(createAccepts({ statement: { kind: 'authored', wording: bad } })).toBe(false);
+        }
+    });
+
+    it('REFUSES a stray key on the wording, and a citation on "from another person" (it states no source)', () => {
+        expect(
+            createAccepts({ statement: { ...MEMBERS.authored, wording: { ...MEMBERS.authored.wording, text: 'x' } } }),
+        ).toBe(false);
+        expect(createAccepts({ statement: { ...MEMBERS.fromPerson, citation: 'Aunt May' } })).toBe(false);
+    });
+
+    it('REFUSES a book with a blank citation, and a web statement with an address that is not a usable source', () => {
+        expect(createAccepts({ statement: { ...MEMBERS.book, citation: '   ' } })).toBe(false);
+        expect(createAccepts({ statement: { ...MEMBERS.public_web, citation: 'https://commise.app/x' } })).toBe(false);
+    });
+
+    it('accepts a statement and its absence on set-visibility, and refuses an explicit null there', () => {
+        expect(setRecipeVisibilityRequestSchema.safeParse({ visibility: 'public' }).success).toBe(true);
+        expect(
+            setRecipeVisibilityRequestSchema.safeParse({ visibility: 'private', statement: MEMBERS.book }).success,
+        ).toBe(true);
+        expect(setRecipeVisibilityRequestSchema.safeParse({ visibility: 'public', statement: null }).success).toBe(
+            false,
+        );
+    });
+});
+
+describe('publicConfirmation — the passive line beside the Public choice', () => {
+    const CONFIRM = { version: 'publicConfirm.v1', locale: 'en' };
+
+    it('is optional on create, update and set-visibility, and accepted on all three', () => {
+        expect(createAccepts({ publicConfirmation: CONFIRM })).toBe(true);
+        expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, publicConfirmation: CONFIRM }).success).toBe(
+            true,
+        );
+        expect(
+            setRecipeVisibilityRequestSchema.safeParse({ visibility: 'public', publicConfirmation: CONFIRM }).success,
+        ).toBe(true);
+    });
+
+    // The API-writer marker: the wire accepts exactly `{ apiWriter: true }`. WHO may send it is the service's decision, not the
+    // schema's (a real cook gets 400 INVALID_VISIBILITY), so the wire accepts it on all three routes.
+    it('accepts the API-writer marker on create, update and set-visibility', () => {
+        const marker = { apiWriter: true };
+
+        expect(createAccepts({ publicConfirmation: marker })).toBe(true);
+        expect(updateRecipeRequestSchema.safeParse({ expectedVersion: 1, publicConfirmation: marker }).success).toBe(
+            true,
+        );
+        expect(
+            setRecipeVisibilityRequestSchema.safeParse({ visibility: 'public', publicConfirmation: marker }).success,
+        ).toBe(true);
+    });
+
+    it.each([
+        ['the marker as false', { apiWriter: false }],
+        ['the marker as a string', { apiWriter: 'true' }],
+        ['the marker beside a wording', { apiWriter: true, version: 'publicConfirm.v1', locale: 'en' }],
+        ['the marker with a stray key', { apiWriter: true, text: 'x' }],
+        ['an empty object', {}],
+    ])('REFUSES %s', (_name, publicConfirmation) => {
+        expect(createAccepts({ publicConfirmation })).toBe(false);
+    });
+
+    it.each([
+        ['an unknown version', { version: 'publicConfirm.v2', locale: 'en' }],
+        ['a statement wording', { version: 'statementAuthored.v1', locale: 'en' }],
+        ['no locale', { version: 'publicConfirm.v1' }],
+        ['a stray key', { ...CONFIRM, text: 'x' }],
+        ['a null', null],
+    ])('REFUSES %s', (_name, publicConfirmation) => {
+        expect(createAccepts({ publicConfirmation })).toBe(false);
+        expect(setRecipeVisibilityRequestSchema.safeParse({ visibility: 'public', publicConfirmation }).success).toBe(
+            false,
+        );
     });
 });

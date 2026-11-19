@@ -34,6 +34,7 @@ import { recipes } from '../../../src/database/schema/recipes.js';
 import { collections } from '../../../src/database/schema/collections.js';
 import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE } from '../../../src/account/dto/erasure.dto.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The primary dev-bypass owner ULID this suite locks. */
 const OWNER = '01JERASURELOCKOWNERAAAAAAA';
@@ -42,6 +43,7 @@ const OTHER_OWNER = '01JERASURELOCKOWNERBBBBBBB';
 
 /** A minimal, valid `CreateRecipeRequest` body — the seeded flour ingredient keeps it self-contained. */
 const RECIPE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Erasure Lock Probe',
     servings: 2,
     prepTimeMinutes: 5,

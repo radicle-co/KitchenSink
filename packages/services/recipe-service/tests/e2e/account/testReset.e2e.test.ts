@@ -36,6 +36,7 @@ import { ensureFoodLookup } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
 import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE } from '../../../src/account/dto/erasure.dto.js';
 import { sha256Hex } from '../../../src/common/sha256.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 const AZP = 'https://recipes.example.com';
 /** A signed test principal the registry will learn from its first request. */
@@ -48,6 +49,7 @@ const REAL_USER = '01JZRESETINTEGRATIONREAL01';
 const VERIFIABLE_FOOD_ID = '01JCONTAINMENTVERIFYF00D01';
 
 const RECIPE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Containment Probe',
     servings: 2,
     prepTimeMinutes: 5,

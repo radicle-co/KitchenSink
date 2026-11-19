@@ -129,6 +129,41 @@ export function truncateStatement(tables: readonly string[]): string | undefined
     return `TRUNCATE TABLE ${targets.map((table) => `"${table}"`).join(', ')} RESTART IDENTITY CASCADE`;
 }
 
+/** A trigger that refuses `TRUNCATE` of its table (a table that is append-only says so for the owner too). */
+export interface TruncateGuard {
+    readonly table: string;
+    readonly trigger: string;
+}
+
+/**
+ * The statements that empty a schema's data when some tables refuse `TRUNCATE`.
+ *
+ * ⛔ A table that guards itself against `TRUNCATE` (a `BEFORE TRUNCATE` trigger that raises) refuses the harness as it refuses
+ * anyone, and `CASCADE` reaches it from any table it references. The harness is the ONE caller entitled to bypass the guard,
+ * and only inside one transaction: each guard is switched off, the single `TRUNCATE` runs, and each guard is switched on again.
+ * Run the result in a transaction, so a failure leaves every guard on.
+ *
+ * @param tables - Every table in the schema.
+ * @param guards - The `TRUNCATE` guards in the schema.
+ * @returns The statements in order, or none when there is nothing to empty. Pure.
+ */
+export function truncateScript(tables: readonly string[], guards: readonly TruncateGuard[]): string[] {
+    const truncate = truncateStatement(tables);
+
+    if (truncate === undefined) {
+        return [];
+    }
+
+    const alter = (guard: TruncateGuard, action: 'DISABLE' | 'ENABLE'): string =>
+        `ALTER TABLE ${pg.escapeIdentifier(guard.table)} ${action} TRIGGER ${pg.escapeIdentifier(guard.trigger)}`;
+
+    return [
+        ...guards.map((guard) => alter(guard, 'DISABLE')),
+        truncate,
+        ...guards.map((guard) => alter(guard, 'ENABLE')),
+    ];
+}
+
 /** Refuse a database name this fixture must not create, empty or rebuild. */
 function assertDisposable(database: string): void {
     if (database.startsWith(RESERVED_DATABASE_PREFIX)) {
@@ -244,10 +279,32 @@ export function roleDatabase(spec: RoleDatabaseSpec): RoleDatabase {
                     `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
                       WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relispartition`,
                 );
-                const statement = truncateStatement(tables.rows.map((row) => row.relname));
+                // 32 is PostgreSQL's TRIGGER_TYPE_TRUNCATE bit: the triggers that refuse this very statement.
+                const guards = await client.query<TruncateGuard>(
+                    `SELECT c.relname AS "table", t.tgname AS trigger FROM pg_trigger t
+                       JOIN pg_class c ON c.oid = t.tgrelid JOIN pg_namespace n ON n.oid = c.relnamespace
+                      WHERE n.nspname = 'public' AND NOT t.tgisinternal AND (t.tgtype & 32) <> 0`,
+                );
+                const script = truncateScript(
+                    tables.rows.map((row) => row.relname),
+                    guards.rows,
+                );
 
-                if (statement !== undefined) {
-                    await client.query(statement);
+                if (script.length === 0) {
+                    return;
+                }
+
+                try {
+                    await client.query('BEGIN');
+
+                    for (const statement of script) {
+                        await client.query(statement);
+                    }
+
+                    await client.query('COMMIT');
+                } catch (error) {
+                    await client.query('ROLLBACK');
+                    throw error;
                 }
             }),
     };

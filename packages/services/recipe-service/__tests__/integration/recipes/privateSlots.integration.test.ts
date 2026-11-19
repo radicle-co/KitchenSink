@@ -22,9 +22,15 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
+import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import type { RecipeRow } from '../../../src/database/schema/index.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
@@ -187,6 +193,13 @@ beforeAll(async () => {
             },
             { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
             { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
+            {
+                provide: RecipeSourceEvidenceDal,
+                useValue: {
+                    insert: async () => undefined,
+                    list: async () => [],
+                },
+            },
         ],
     });
 });
@@ -288,6 +301,7 @@ describe('POST /api/v1/recipes with visibility private', () => {
         const response = await call(FREE_COOK, ['default'], 'POST', '/api/v1/recipes', {
             ...CREATE_BODY,
             visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
         expect(response.status).toBe(201);
@@ -397,6 +411,96 @@ describe('PATCH /api/v1/recipes/{id} - publishing a private draft takes a slot',
         const response = await call(FREE_COOK, ['default'], 'PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
             expectedVersion: 1,
             title: 'Still a draft',
+        });
+
+        expect(response.status).toBe(200);
+        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * ADR-0095: a published recipe with no statement takes a third-party statement, and the statement forces Private in the same
+ * write. That is a published recipe becoming private, so it takes a slot like any other move to private.
+ */
+describe('a first statement after the first publish takes a slot, because it forces Private', () => {
+    const STATEMENTS = {
+        'a web link': {
+            kind: 'public_web',
+            citation: 'https://www.allrecipes.com/recipe/1/soup/',
+            wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+        },
+        'a cookbook': {
+            kind: 'book',
+            citation: 'Joy of Cooking, p. 12',
+            wording: { version: 'statementBook.v1', locale: 'en' },
+        },
+        'another person': { kind: 'fromPerson', wording: { version: 'statementFromPerson.v1', locale: 'en' } },
+    } as const;
+
+    beforeEach(() => {
+        stored = makeRecipeRow({
+            id: RECIPE_ID,
+            ownerId: FREE_COOK,
+            visibility: 'public',
+            status: 'published',
+            cuisine: 'Italian',
+            sourceType: 'user_created',
+            currentVersion: 1,
+        });
+    });
+
+    it.each(Object.entries(STATEMENTS))(
+        '⛔ PATCH with %s answers 403 PRIVATE_SLOTS_FULL for a free cook at the limit, and writes nothing',
+        async (_name, statement) => {
+            held = 50;
+
+            const response = await call(FREE_COOK, ['default'], 'PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+                expectedVersion: 1,
+                statement,
+            });
+
+            expect(await refusalOf(response)).toEqual({
+                status: 403,
+                code: 'PRIVATE_SLOTS_FULL',
+                details: { used: 50, limit: 50 },
+            });
+            expect(update).not.toHaveBeenCalled();
+        },
+    );
+
+    it.each(Object.entries(STATEMENTS))(
+        '⛔ set-visibility Private with %s answers 403 PRIVATE_SLOTS_FULL at the limit, and writes nothing',
+        async (_name, statement) => {
+            held = 50;
+
+            const response = await call(FREE_COOK, ['default'], 'PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+                visibility: 'private',
+                statement,
+            });
+
+            expect(await refusalOf(response)).toMatchObject({ status: 403, code: 'PRIVATE_SLOTS_FULL' });
+            expect(setVisibility).not.toHaveBeenCalled();
+        },
+    );
+
+    it('PATCH with a web link takes the slot with one free (49), counted under the lock', async () => {
+        held = 49;
+
+        const response = await call(FREE_COOK, ['default'], 'PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            statement: STATEMENTS['a web link'],
+        });
+
+        expect(response.status).toBe(200);
+        expect(lockAndCountPrivateSlots).toHaveBeenCalledWith({ __tx: true }, FREE_COOK);
+    });
+
+    it('PATCH with "I wrote this" forces nothing private, so it is never counted', async () => {
+        held = 50;
+
+        const response = await call(FREE_COOK, ['default'], 'PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } },
         });
 
         expect(response.status).toBe(200);

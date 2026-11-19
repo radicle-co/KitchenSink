@@ -6,15 +6,14 @@ import { makeRecipeDetail } from '@kitchensink/recipe-core/testing';
 
 import { cookingReadOf, cookingReadSourceOf, useCookingRead, type CookingReadSource } from '../cookingRead.js';
 import type { CookingRecipe } from '../cookingViewProps.js';
+import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
 
 afterEach(cleanup);
 
-const recipe: CookingRecipe = {
-    id: 'r1',
+const recipe: CookingRecipe = makeCookingRecipe({
     title: 'Weeknight roast',
-    status: RecipeStatus.PUBLISHED,
     steps: [{ stepNumber: 1, instruction: 'Heat the oil.' }],
-};
+});
 
 const retry = vi.fn();
 
@@ -138,7 +137,14 @@ describe('cookingReadSourceOf: a settled recipe and who is looking, as the read 
         const made = cookingReadSourceOf(detail, { id: 'user-1', known: true }, retry);
 
         expect(made).toMatchObject({ recipeId: 'r1', subject: 'user-1', failure: undefined, retry });
-        expect(made.recipe).toEqual({ id: 'r1', title: detail.title, status: detail.status, steps: detail.steps });
+        expect(made.recipe).toEqual({
+            id: 'r1',
+            title: detail.title,
+            status: detail.status,
+            steps: detail.steps,
+            ingredients: detail.ingredients,
+            servings: detail.servings,
+        });
     });
 
     it('offers no recipe to cook when the last read was a 404, so a fresh mount shows it gone', () => {

@@ -47,6 +47,21 @@ import {
 } from '@kitchensink/recipe-core';
 
 /**
+ * The `details.reason` values an `INVALID_VISIBILITY` answer can carry: the stable keys a client branches on. The server
+ * reads these same constants when it builds the answer, so the published set and the sent set cannot differ.
+ */
+export const INVALID_VISIBILITY_REASONS = [
+    'SOURCE_CONFLICT',
+    'STATEMENT_REQUIRED',
+    'PUBLIC_CONFIRMATION_REQUIRED',
+    'FROM_PERSON_PRIVATE_ONLY',
+    'API_WRITER_CONFIRMATION_FORBIDDEN',
+] as const;
+
+/** The same set as a schema, so a sender names a reason as `.enum.STATEMENT_REQUIRED` and a reordered list cannot swap two. */
+export const invalidVisibilityReasonSchema = z.enum(INVALID_VISIBILITY_REASONS);
+
+/**
  * The structured error envelope — the ONLY body a non-2xx response from this service carries.
  *
  * Shared VERBATIM with the food and identity services (ARCH-PS-2), so one client-side handler covers all three.
@@ -329,6 +344,17 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
         .loose(),
     z
         .object({
+            code: z.literal('INVALID_VISIBILITY'),
+            message: z.string(),
+            /**
+             * OPTIONAL: a plain refusal carries only the attempted visibility and source type. A refusal a client can act on
+             * names `reason`, one of {@link INVALID_VISIBILITY_REASONS}.
+             */
+            details: z.object({ reason: invalidVisibilityReasonSchema.optional() }).loose().optional(),
+        })
+        .loose(),
+    z
+        .object({
             code: z.literal('MAX_PHOTOS_EXCEEDED'),
             message: z.string(),
             /** The per-recipe photo cap. */
@@ -340,7 +366,6 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
     bare('RECIPE_NOT_FOUND'),
     bare('RECIPE_TOMBSTONED'),
     bare('NOT_OWNER'),
-    bare('INVALID_VISIBILITY'),
     bare('PHOTO_PROCESSING_FAILED'),
     bare('ARCHIVE_PENDING'),
     bare('ARCHIVE_DLQ'),

@@ -46,6 +46,7 @@ import {
 } from '@commise/features-recipes';
 import { RecipeDetailDialogs, RecipeDetailRating, useRecipeDetailController } from '@commise/features-recipes/detail';
 import { useMessages } from '@commise/i18n/react';
+import { useIsOffline } from '@commise/query';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { useSyncQueue } from '@commise/query/sync';
 import { ActionMenu } from '@commise/ui/action-menu';
@@ -67,6 +68,7 @@ import { RecipeReadError } from '@/components/recipes/RecipeReadError';
 import { recipesAfterDeleteHref } from '@/components/recipes/recipesAfterDeleteHref';
 import { useAddressNotice } from '@/hooks/useAddressNotice';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { reportErrorToSentry } from '@/lib/sentryErrorReporter';
 import { openFoodInNewTab } from '@/components/foods/foodHref';
 
 /** Props for {@link RecipeDetailContainer}. */
@@ -176,6 +178,8 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
         profile,
         finishRefused: finishRefusalFor === id,
         saving,
+        offline: useIsOffline(),
+        reportError: reportErrorToSentry,
         nav: {
             onVersions: () => router.push(versionsHref as Route),
             // A copy needs a real edit before it can be published (FR-005b), so it opens in the editor.

@@ -337,6 +337,18 @@ describe('Sheet (web)', () => {
         });
     });
 
+    // The designer's approval fixes: a host with a change in flight says so on the sheet itself, not only on its confirm.
+    describe('busy', () => {
+        it('marks the dialog aria-busy while the host says it is busy, and not otherwise', async () => {
+            await openHost(<Host overrides={{ busy: true }} />);
+            expect(screen.getByRole('dialog').getAttribute('aria-busy')).toBe('true');
+
+            cleanup();
+            await openHost(<Host />);
+            expect(screen.getByRole('dialog').getAttribute('aria-busy')).toBeNull();
+        });
+    });
+
     /**
      * Owner ruling 2026-10-26 (platform guidelines): a `dialog` presentation is a bottom sheet below `sm`, as `content`, and
      * from `sm` a CENTRED DIALOG at most 448 px wide (`max-w-md`) - one `sm:max-w-` utility, not two.

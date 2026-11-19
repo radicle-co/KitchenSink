@@ -7,6 +7,7 @@ import { resolveMessages } from '@commise/i18n';
 import { RecipeStatus } from '@kitchensink/recipe-core';
 import { describe, expect, it, vi } from 'vitest';
 
+import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
 import { cookingEntryOf } from '../cookingEntry.js';
 import { cookingEntryViewOf, type CookingEntryViewInput } from '../cookingEntryView.js';
 import type { CookingRecipe, CookingScreenRead } from '../cookingViewProps.js';
@@ -15,12 +16,8 @@ import { cookingMessages } from '../messages.js';
 
 const copy = resolveMessages(cookingMessages, 'en');
 
-const recipe = (instruction: string, status: CookingRecipe['status'] = RecipeStatus.PUBLISHED): CookingRecipe => ({
-    id: 'r1',
-    title: 'Roast',
-    status,
-    steps: [{ stepNumber: 1, instruction }],
-});
+const recipe = (instruction: string, status: CookingRecipe['status'] = RecipeStatus.PUBLISHED): CookingRecipe =>
+    makeCookingRecipe({ id: 'r1', title: 'Roast', status, steps: [{ stepNumber: 1, instruction }] });
 
 function view(read: CookingScreenRead, phase: LoadingPhase = 'blank') {
     const handlers = { onLeave: vi.fn(), onEdit: vi.fn(), onHome: vi.fn() };

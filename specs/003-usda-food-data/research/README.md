@@ -34,13 +34,12 @@ Success metrics and ROI hypothesis for the food data layer. Covers SLOs from `SC
 
 ## Relationship to Other Artifacts
 
-| Artifact                     | Role                                                      |
-| ---------------------------- | --------------------------------------------------------- |
-| `../spec.md`                 | Canonical requirements source (FR/NFR/SC/A)               |
-| `../plan.md`                 | Technical architecture and implementation sequencing      |
-| `../tasks.md`                | Execution-level decomposition                             |
-| `../product-spec/`           | Product/UX interpretation of this research                |
-| `../v-model/requirements.md` | Atomic requirement decomposition and verification framing |
+| Artifact           | Role                                                 |
+| ------------------ | ---------------------------------------------------- |
+| `../spec.md`       | Canonical requirements source (FR/NFR/SC/A)          |
+| `../plan.md`       | Technical architecture and implementation sequencing |
+| `../tasks.md`      | Execution-level decomposition                        |
+| `../product-spec/` | Product/UX interpretation of this research           |
 
 ## What Is Grounded vs. TBD
 

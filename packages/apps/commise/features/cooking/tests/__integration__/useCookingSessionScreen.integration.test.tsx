@@ -6,9 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { makeCookingRecipe } from '../../src/__fixtures__/makeCookingRecipe.js';
 import type { CookingRecipe } from '../../src/cookingViewProps.js';
+import { DONE_SETTLE_MS } from '../../src/doneSettle.js';
 import { useCookingSessionScreen } from '../../src/useCookingSessionScreen.js';
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+});
 
 /**
  * The session screen model over everything real: the locale provider and the resolved cooking messages, the session
@@ -80,7 +84,10 @@ describe('useCookingSessionScreen over the real session, copy and wake lock', ()
         expect(result.current.moves).toBe(1);
     });
 
+    // Done ignores a press for DONE_SETTLE_MS after it appears (S24, D15), so this test steps a fake clock past it: a
+    // press before then is ignored, which the first assertion below proves.
     it('holds the wake lock while cooking, lets go on Done with the plural title, and holds again on Cook again', async () => {
+        vi.useFakeTimers();
         const { result } = mount();
         await act(async () => undefined);
         expect(request).toHaveBeenCalledTimes(1);
@@ -95,6 +102,10 @@ describe('useCookingSessionScreen over the real session, copy and wake lock', ()
         expect(result.current.done?.screenOff).toBe('The screen can turn off again.');
         expect(release).toHaveBeenCalledTimes(1);
 
+        act(() => result.current.done?.cookAgain.onPress());
+        expect(result.current.done, 'a press inside the settle is ignored').not.toBeNull();
+
+        await act(async () => vi.advanceTimersByTimeAsync(DONE_SETTLE_MS));
         act(() => result.current.done?.cookAgain.onPress());
         await act(async () => undefined);
 

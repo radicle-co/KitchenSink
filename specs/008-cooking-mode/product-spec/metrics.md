@@ -3,7 +3,7 @@
 **Branch**: `008-cooking-mode`
 **Date**: 2026-05-09
 **Status**: Draft
-**Source**: [product-spec.md](./product-spec.md), [spec.md](../spec.md), [v-model/requirements.md](../v-model/requirements.md)
+**Source**: [product-spec.md](./product-spec.md), [spec.md](../spec.md)
 **Distinction from research/metrics-roi.md**: That file covers feature-level ROI and broader adoption framing. This file is story-level with per-story measurable outcomes.
 
 ---

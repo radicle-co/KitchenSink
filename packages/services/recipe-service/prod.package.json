@@ -17,6 +17,7 @@
         "@kitchensink/identity-core": "*",
         "@kitchensink/metric-dimensions": "*",
         "@kitchensink/nest-error-envelope": "*",
+        "@kitchensink/nest-http-setup": "*",
         "@kitchensink/observability-scrubbers": "*",
         "@kitchensink/rds-iam-auth": "*",
         "@kitchensink/recipe-core": "*",

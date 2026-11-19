@@ -19,7 +19,12 @@ import { describe, expect, it } from 'vitest';
 import { RecipeSourceType } from '@kitchensink/recipe-core';
 
 import { CURATOR_IMPORT_SCOPE } from '../../recipes.schema.js';
-import { evaluateProvenance, resolveStatementProvenance, type ProvenanceDecision } from '../provenancePolicy.js';
+import {
+    clonedStatementKindOf,
+    evaluateProvenance,
+    resolveStatementProvenance,
+    type ProvenanceDecision,
+} from '../provenancePolicy.js';
 
 /** A well-formed curated declaration — the only non-default shape the wire admits. */
 const CURATED = {
@@ -40,7 +45,7 @@ function expectDecision(decision: ProvenanceDecision, allowed: boolean): void {
     expect(decision.reason.length).toBeGreaterThan(0);
 }
 
-describe('evaluateProvenance — an absent declaration (004-FR-024: existing behaviour unchanged)', () => {
+describe('evaluateProvenance — an absent declaration (004-FR-024: no statement, no source)', () => {
     it('resolves to user_created with NO source fields, whatever the caller holds', () => {
         for (const grantedScopes of [[], [CURATOR_IMPORT_SCOPE], ['admin:users']]) {
             const decision = evaluateProvenance({ declared: undefined, grantedScopes });
@@ -51,6 +56,8 @@ describe('evaluateProvenance — an absent declaration (004-FR-024: existing beh
                 sourceUrl: null,
                 sourceAttribution: null,
                 sourceKind: null,
+                // No statement: only the cook's own "I wrote this" ever makes it `authored`.
+                statementKind: null,
             });
         }
     });
@@ -69,6 +76,8 @@ describe('evaluateProvenance — an explicit user_created declaration', () => {
             sourceUrl: null,
             sourceAttribution: null,
             sourceKind: null,
+            // The curator's own declaration of the default is not the cook's statement either.
+            statementKind: null,
         });
     });
 });
@@ -104,6 +113,8 @@ describe('evaluateProvenance — imported_public is grant-gated (004-FR-025 / AD
             sourceUrl: CURATED.sourceUrl,
             sourceAttribution: CURATED.sourceAttribution,
             sourceKind: null,
+            // The curator's text states no source KIND, so it takes no statement either (the 0087 pairing CHECK).
+            statementKind: null,
         });
     });
 
@@ -138,6 +149,7 @@ describe('resolveStatementProvenance — the one reading of a statement, for cre
                 sourceUrl: 'https://www.allrecipes.com/r/1/',
                 sourceAttribution: 'allrecipes.com',
                 sourceKind: 'public_web',
+                statementKind: 'source',
             },
         );
     });
@@ -146,43 +158,90 @@ describe('resolveStatementProvenance — the one reading of a statement, for cre
         ['book', 'imported_physical'],
         ['paid_site', 'imported_paid'],
     ] as const)('a %s statement is %s with its own kind and the citation as the credit', (kind, sourceType) => {
-        expect(resolveStatementProvenance({ kind, citation: 'Joy of Cooking, p. 12' })).toEqual({
+        const statement =
+            kind === 'book'
+                ? ({
+                      kind,
+                      citation: 'Joy of Cooking, p. 12',
+                      wording: { version: 'statementBook.v1', locale: 'en' },
+                  } as const)
+                : ({ kind, citation: 'Joy of Cooking, p. 12' } as const);
+
+        expect(resolveStatementProvenance(statement)).toEqual({
             sourceType,
             sourceUrl: null,
             sourceAttribution: 'Joy of Cooking, p. 12',
             sourceKind: kind,
+            statementKind: 'source',
         });
     });
 
-    it('"I wrote this" is the shipped default: user_created and no source at all', () => {
-        expect(resolveStatementProvenance({ kind: 'authored' })).toEqual({
+    it('"I wrote this" is user_created with no source at all, and it is the ONE resolution that is `authored`', () => {
+        expect(
+            resolveStatementProvenance({
+                kind: 'authored',
+                wording: { version: 'statementAuthored.v1', locale: 'en' },
+            }),
+        ).toEqual({
             sourceType: RecipeSourceType.USER_CREATED,
             sourceUrl: null,
             sourceAttribution: null,
             sourceKind: null,
+            statementKind: 'authored',
+        });
+    });
+
+    it('"from another person" states no source and no kind, and is stored as the `fromPerson` statement', () => {
+        expect(
+            resolveStatementProvenance({
+                kind: 'fromPerson',
+                wording: { version: 'statementFromPerson.v1', locale: 'en' },
+            }),
+        ).toEqual({
+            sourceType: RecipeSourceType.USER_CREATED,
+            sourceUrl: null,
+            sourceAttribution: null,
+            sourceKind: null,
+            statementKind: 'fromPerson',
         });
     });
 
     it('a web link that is not a usable source resolves to nothing', () => {
-        expect(resolveStatementProvenance({ kind: 'public_web', citation: 'https://commise.app/r/1' })).toBeUndefined();
+        expect(
+            resolveStatementProvenance({
+                kind: 'public_web',
+                citation: 'https://commise.app/r/1',
+                wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+            }),
+        ).toBeUndefined();
     });
 
     it('every resolution satisfies the pairing the 0071 CHECK enforces, so no import write can violate it', () => {
         for (const statement of [
-            { kind: 'public_web', citation: 'https://example.com/r' },
+            {
+                kind: 'public_web',
+                citation: 'https://example.com/r',
+                wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+            },
             { kind: 'book', citation: 'A book' },
             { kind: 'paid_site', citation: 'A site' },
         ] as const) {
             const resolved = resolveStatementProvenance(statement);
 
             expect(resolved?.sourceKind).toBe(statement.kind);
+            // The 0087 pairing CHECK: a stated kind is always the `source` statement.
+            expect(resolved?.statementKind).toBe('source');
             expect(resolved?.sourceType).toBe(PAIRING[statement.kind]);
             expect(statement.kind === 'public_web' ? resolved?.sourceUrl : 'n/a').not.toBeNull();
         }
     });
 
     it('the statement branch of evaluateProvenance IS this function, not a second copy', () => {
-        const statement = { kind: 'public_web', citation: 'https://www.allrecipes.com/r/1/' } as const;
+        const statement = {
+            kind: 'public_web',
+            citation: 'https://www.allrecipes.com/r/1/',
+            wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+        } as const;
         const decision = evaluateProvenance({ declared: undefined, statement, grantedScopes: [] });
 
         expect(decision.allowed && decision.provenance).toEqual(resolveStatementProvenance(statement));
@@ -190,7 +249,11 @@ describe('resolveStatementProvenance — the one reading of a statement, for cre
 });
 
 describe('evaluateProvenance — a pasted web link as the cook’s statement (ADR-0089)', () => {
-    const WEB = { kind: 'public_web', citation: 'https://www.allrecipes.com/recipe/1/soup/' } as const;
+    const WEB = {
+        kind: 'public_web',
+        citation: 'https://www.allrecipes.com/recipe/1/soup/',
+        wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+    } as const;
 
     it.each([[[]], [['admin:users']], [[CURATOR_IMPORT_SCOPE]]])(
         'is ALLOWED for any caller (grants %j) and resolves to a web copy of the registrable domain',
@@ -203,6 +266,7 @@ describe('evaluateProvenance — a pasted web link as the cook’s statement (AD
                 sourceUrl: 'https://www.allrecipes.com/recipe/1/soup/',
                 sourceAttribution: 'allrecipes.com',
                 sourceKind: 'public_web',
+                statementKind: 'source',
             });
         },
     );
@@ -220,7 +284,11 @@ describe('evaluateProvenance — a pasted web link as the cook’s statement (AD
     it('refuses an address that is not a usable source (our own site), whatever the schema let through', () => {
         const decision = evaluateProvenance({
             declared: undefined,
-            statement: { kind: 'public_web', citation: 'https://commise.app/recipes/1' },
+            statement: {
+                kind: 'public_web',
+                citation: 'https://commise.app/recipes/1',
+                wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+            },
             grantedScopes: [],
         });
 
@@ -234,5 +302,51 @@ describe('evaluateProvenance — a pasted web link as the cook’s statement (AD
 
             expect(decision.allowed && decision.provenance.sourceKind).toBeNull();
         }
+    });
+});
+
+describe('evaluateProvenance — an authored statement (Option B)', () => {
+    it.each([[[]], [['admin:users']], [[CURATOR_IMPORT_SCOPE]]])(
+        'is ALLOWED for any caller (grants %j) and resolves to user_created, `authored`, with no source',
+        (grantedScopes) => {
+            const decision = evaluateProvenance({
+                declared: undefined,
+                statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } },
+                grantedScopes,
+            });
+
+            expectDecision(decision, true);
+            expect(decision.allowed && decision.provenance).toEqual({
+                sourceType: RecipeSourceType.USER_CREATED,
+                sourceUrl: null,
+                sourceAttribution: null,
+                sourceKind: null,
+                statementKind: 'authored',
+            });
+        },
+    );
+
+    it('is the one resolution that is authored: no declaration, no curator text, no source reads as an attestation', () => {
+        const resolutions = [
+            evaluateProvenance({ declared: undefined, grantedScopes: [] }),
+            evaluateProvenance({ declared: { sourceType: RecipeSourceType.USER_CREATED }, grantedScopes: [] }),
+            evaluateProvenance({ declared: CURATED, grantedScopes: [CURATOR_IMPORT_SCOPE] }),
+        ];
+
+        for (const decision of resolutions) {
+            expect(decision.allowed && decision.provenance.statementKind).toBeNull();
+        }
+    });
+});
+
+describe('clonedStatementKindOf — whose attestation a clone carries', () => {
+    it.each([
+        ['"I wrote this"', 'authored', 'authored', null],
+        ['"from another person"', 'fromPerson', 'fromPerson', null],
+        ['a stated source (the source kind is copied, and the CHECK pairs it)', 'source', 'source', 'source'],
+        ['no statement', null, null, null],
+    ] as const)('%s: the cook’s own clone keeps it, another cook’s clone gets %s', (_label, stored, own, other) => {
+        expect(clonedStatementKindOf(stored, true)).toBe(own);
+        expect(clonedStatementKindOf(stored, false)).toBe(other);
     });
 });

@@ -429,8 +429,12 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  * ⚠️ It went 91 → 93 with the catalogue regeneration, not with a new component. `docs/generated/components` had fallen
  * behind the tree, so `MetaLine` and `MetaLeadContext` (the card meta line, `card/metaLine.tsx`) were in no census; neither
  * states a layer, and regenerating brought them in. Counted, not stamped: the figure is a census, not a backlog.
+ *
+ * ⚠️ It went 93 → 96 (2026-11-15) with three cook route segments (`error.tsx`, `loading.tsx`, `page.tsx`), shapes §11.2
+ * puts out of scope. They state no layer on purpose: a layer word or a layer-restating tag added to hold the count would
+ * be the stamping this note forbids.
  */
-const LAYER_UNSTATED_CENSUS = 93;
+const LAYER_UNSTATED_CENSUS = 96;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.

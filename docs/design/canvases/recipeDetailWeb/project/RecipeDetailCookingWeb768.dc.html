@@ -113,7 +113,7 @@
                         background-position: center;
                     }
                     .rd .imgHero {
-                        background-image: url('/_blob/dbde48c21efce7a1ae70c00938b976a6');
+                        background-image: url('assets/5024d8f60c578f87.webp');
                     }
                     .rd .vp {
                         height: 844px;
@@ -1170,57 +1170,6 @@
                         bottom: 28px;
                         width: 420px;
                     }
-                    .rd .web {
-                        display: grid;
-                        grid-template-columns: 232px 1fr;
-                        flex: 1;
-                        min-height: 0;
-                    }
-                    .rd .side {
-                        background: var(--paper);
-                        border-right: 1px solid var(--line-divider);
-                        padding: 22px 14px;
-                        display: flex;
-                        flex-direction: column;
-                        gap: 4px;
-                    }
-                    .rd .side .brand {
-                        font-family: var(--font-display);
-                        font-weight: 600;
-                        font-size: 16px;
-                        padding: 0 10px 18px;
-                    }
-                    .rd .side a {
-                        display: flex;
-                        align-items: center;
-                        gap: 12px;
-                        height: 44px;
-                        padding: 0 12px;
-                        border-radius: 12px;
-                        font-size: 14px;
-                        font-weight: 500;
-                        color: var(--ink-muted);
-                    }
-                    .rd .side a.on {
-                        background: var(--surface-muted);
-                        color: var(--ink);
-                        font-weight: 600;
-                    }
-                    .rd .side a.on .ic {
-                        color: var(--action-text);
-                    }
-                    .rd .side .grow {
-                        flex: 1;
-                    }
-                    .rd .rail {
-                        padding: 22px 12px;
-                        align-items: center;
-                    }
-                    .rd .rail a {
-                        width: 48px;
-                        justify-content: center;
-                        padding: 0;
-                    }
                     .rd .main {
                         padding: 28px 40px 48px;
                         min-width: 0;
@@ -1832,12 +1781,28 @@
                         height: 16px;
                     }
                 
-                    .rd .side .me { height: 64px; margin: -12px 0 12px; color: var(--ink); font-weight: 600; }
-                    .rd .side .me.on { background: var(--surface-muted); }
                     .rd .avatar.sm { width: 32px; height: 32px; font-size: 12px; flex: none; }
                     .rd .tabbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
                     .rd .avatar.xs { width: 24px; height: 24px; font-size: 10px; box-shadow: inset 0 0 0 1px var(--line-divider); }
+                    .rd .tab .avatar.xs { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-divider); }
                     .rd .tab.on .avatar.xs { box-shadow: 0 0 0 2px var(--ink); }
+
+/* S4b recipe-page timer dock: S3's CookingTimerRow in a region named "Timer". */
+.s4bDock { box-sizing: border-box; width: 100%; max-width: 600px; margin: 0 auto; padding: 0 8px 0 14px;
+  background: var(--paper-raised); color: var(--ink); border-radius: 18px; box-shadow: var(--shadow-lg);
+  font-family: Inter, system-ui, sans-serif; text-align: left; }
+.s4bDock * { box-sizing: border-box; }
+.s4bRow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 60px; padding: 6px 0; }
+.s4bGlyph { color: var(--action-text); flex: none; display: flex; }
+.s4bLab { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; }
+.s4bFig { font: 600 28px/32px Inter, system-ui, sans-serif; font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap; color: var(--ink); }
+.s4bMeta { font-size: 14px; line-height: 20px; color: var(--ink-muted); overflow-wrap: anywhere; }
+.s4bIcons { display: flex; gap: 8px; flex: none; margin-left: auto; }
+.s4bIb { width: 44px; height: 44px; border-radius: 22px; display: flex; align-items: center; justify-content: center;
+  color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; }
+/* Placement: 8 above the tab bar below 840 and on every native size. */
+.s4bSlot { padding: 0 12px 8px; flex: none; }
 </style></helmet
             >
             <svg width="0" height="0" style="position: absolute" aria-hidden="true">
@@ -1853,10 +1818,6 @@
                     <symbol id="compass" viewBox="0 0 24 24">
                         <circle cx="12" cy="12" r="8.5" />
                         <path d="m15.2 8.8-1.9 4.5-4.5 1.9 1.9-4.5z" />
-                    </symbol>
-                    <symbol id="calendar" viewBox="0 0 24 24">
-                        <rect x="4" y="5.5" width="16" height="14.5" rx="2.5" />
-                        <path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5" />
                     </symbol>
                     <symbol id="chevL" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6" /></symbol>
                     <symbol id="chevR" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6" /></symbol>
@@ -1949,22 +1910,7 @@
                 </defs>
             </svg>
             <div data-you-tab="1" class="rd" data-board="RecipeDetail768" style="width: 768px; height: 3004px">
-                <div class="web" style="grid-template-columns: 72px 1fr">
-                    <nav class="side rail" aria-label="Main"><a href="#" class="me" aria-label="Profile, Eliza Ramirez"><span class="avatar sm">ER</span></a>
-                        <a href="#" aria-label="Home"
-                            ><svg class="ic" aria-hidden="true"><use href="#home" /></svg></a
-                        ><a href="#" class="on" aria-current="page" aria-label="Recipes"
-                            ><svg class="ic" aria-hidden="true"><use href="#book" /></svg></a
-                        ><a href="#" aria-label="Discover"
-                            ><svg class="ic" aria-hidden="true"><use href="#compass" /></svg></a
-                        ><a href="#" aria-label="Meal plan"
-                            ><svg class="ic" aria-hidden="true"><use href="#calendar" /></svg></a
-                        ><span class="grow"></span
-                        ><a href="#" aria-label="Expand"
-                            ><svg class="ic" aria-hidden="true"><use href="#chevR" /></svg
-                        ></a>
-                    </nav>
-                    <div class="main" style="padding: 0 0 24px">
+                <div class="main" style="flex: 1; padding: 0 0 24px">
                         <div class="col640">
                             <div style="flex: 1">
                                 <div class="hero p imgHero" role="img" aria-label="Photo 1 of 3: the roast chicken">
@@ -2039,7 +1985,7 @@
                                         </div>
                                     </div>
                                     <a class="btn primary startCook solo" href="#" aria-describedby="resumeWhere"
-                                        >Resume cooking</a
+                                        >Continue cooking</a
                                     >
                                     <p
                                         id="resumeWhere"
@@ -2051,7 +1997,7 @@
                                             color: var(--ink-muted);
                                         "
                                     >
-                                        Step 4 of 6 · the roast has 43 min left
+                                        Step 4 of 6
                                     </p>
                                     <div class="quietActs">
                                         <a href="#"
@@ -2320,8 +2266,18 @@
                             </div>
                         </div>
                     </div>
-                </div></div
-        ></x-dc>
+                <div class="s4bSlot"><section class="s4bDock" aria-label="Timer"><div class="s4bRow"><span class="s4bGlyph"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"></line><line x1="12" x2="15" y1="14" y2="11"></line><circle cx="12" cy="14" r="8"></circle></svg></span><span class="s4bLab"><span class="s4bFig">43:12</span><span class="s4bMeta">Roast · step 4</span></span><span class="s4bIcons"><button type="button" class="s4bIb" aria-label="Pause Roast timer"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="4" width="4" height="16" rx="1"></rect><rect x="6" y="4" width="4" height="16" rx="1"></rect></svg></button><button type="button" class="s4bIb" aria-label="Cancel Roast timer"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button></span></div></section></div>
+                <nav class="tabbar" aria-label="Main">
+                    <a class="tab" href="#"
+                        ><svg class="ic" aria-hidden="true"><use href="#home" /></svg>Home</a
+                    ><a class="tab on" href="#" aria-current="page"
+                        ><svg class="ic" aria-hidden="true"><use href="#book" /></svg>Recipes</a
+                    ><a class="tab" href="#"
+                        ><svg class="ic" aria-hidden="true"><use href="#compass" /></svg>Discover</a
+                    ><a class="tab" href="#"><span class="avatar xs" aria-hidden="true">ER</span>You</a>
+                </nav>
+            </div></x-dc
+        >
         <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":768,"height":3004}}'>
             class Component extends DCLogic { renderVals(){ return {}; } }
         </script>

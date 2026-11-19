@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import { isDesignArtifactError } from '../../errors.js';
-import { chooseBaseline, driftVerdict, parseMarker, planCanvas, publishInput } from '../publishPlan.js';
+import { chooseBaseline, driftVerdict, parseMarker, planCanvas, publishInput, publishLabel } from '../publishPlan.js';
 
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
 const oid = (n: number): string => n.toString(16).padStart(40, '0');
 
 const tree = (entries: Record<string, string>): Map<string, string> => new Map(Object.entries(entries));
+
+/** A live file's oids: one oid, or the filtered and the raw oid git can give the same bytes. */
+const live = (entries: Record<string, string | string[]>): Map<string, string[]> =>
+    new Map(Object.entries(entries).map(([path, oids]) => [path, [oids].flat()]));
 
 describe('chooseBaseline', () => {
     it('uses the marker when the live canvas carries one', () => {
@@ -124,7 +128,7 @@ describe('driftVerdict', () => {
     it('is clean when every downloaded file equals the baseline', () => {
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
+            liveOids: live({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
             livePaths: allLive,
         });
 
@@ -139,7 +143,7 @@ describe('driftVerdict', () => {
     it('accepts a live file that already equals main (a drift import that merged, or a retry)', () => {
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(9), 'project/b.html': oid(2), 'project/z.html': oid(4) }),
+            liveOids: live({ 'project/a.html': oid(9), 'project/b.html': oid(2), 'project/z.html': oid(4) }),
             livePaths: [...allLive, 'project/z.html'],
         });
 
@@ -148,10 +152,53 @@ describe('driftVerdict', () => {
         expect(verdict.files.find((f) => f.path === 'project/z.html')?.state).toBe('atMain');
     });
 
+    it('is at baseline when the live bytes match the baseline through their second oid (raw blob before LFS)', () => {
+        const verdict = driftVerdict({
+            plan,
+            // The first oid is the LFS pointer the clean filter gives; the second is the raw bytes the baseline stored.
+            liveOids: live({ 'project/a.html': [oid(50), oid(1)], 'project/b.html': oid(2) }),
+            livePaths: allLive,
+        });
+
+        expect(verdict.verdict).toBe('clean');
+        expect(verdict.files.find((f) => f.path === 'project/a.html')?.state).toBe('atBaseline');
+    });
+
+    it('is at main when the live bytes match main through their second oid', () => {
+        const verdict = driftVerdict({
+            plan,
+            liveOids: live({ 'project/a.html': [oid(50), oid(9)], 'project/b.html': oid(2) }),
+            livePaths: allLive,
+        });
+
+        expect(verdict.files.find((f) => f.path === 'project/a.html')?.state).toBe('atMain');
+    });
+
+    it("is drift when none of a live file's oids equals the baseline or main", () => {
+        const verdict = driftVerdict({
+            plan,
+            liveOids: live({ 'project/a.html': [oid(50), oid(51)], 'project/b.html': oid(2) }),
+            livePaths: allLive,
+        });
+
+        expect(verdict.verdict).toBe('drift');
+        expect(verdict.files.find((f) => f.path === 'project/a.html')?.state).toBe('drift');
+    });
+
+    it('is drift for a live file with no oids at all', () => {
+        const verdict = driftVerdict({
+            plan,
+            liveOids: live({ 'project/a.html': [], 'project/b.html': oid(2) }),
+            livePaths: allLive,
+        });
+
+        expect(verdict.files.find((f) => f.path === 'project/a.html')?.state).toBe('drift');
+    });
+
     it('is drift when a live file equals neither the baseline nor main', () => {
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(77), 'project/b.html': oid(2) }),
+            liveOids: live({ 'project/a.html': oid(77), 'project/b.html': oid(2) }),
             livePaths: allLive,
         });
 
@@ -160,7 +207,7 @@ describe('driftVerdict', () => {
     });
 
     it('fails closed when a file that is live was not downloaded', () => {
-        const verdict = driftVerdict({ plan, liveOids: tree({ 'project/a.html': oid(1) }), livePaths: allLive });
+        const verdict = driftVerdict({ plan, liveOids: live({ 'project/a.html': oid(1) }), livePaths: allLive });
 
         expect(verdict.verdict).toBe('drift');
         expect(verdict.files.find((f) => f.path === 'project/b.html')?.state).toBe('drift');
@@ -169,7 +216,7 @@ describe('driftVerdict', () => {
     it('is drift when a path the repo adds is already live with other content', () => {
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(1), 'project/b.html': oid(2), 'project/z.html': oid(66) }),
+            liveOids: live({ 'project/a.html': oid(1), 'project/b.html': oid(2), 'project/z.html': oid(66) }),
             livePaths: [...allLive, 'project/z.html'],
         });
 
@@ -181,7 +228,7 @@ describe('driftVerdict', () => {
         // b.html is deleted in main: absent live equals main, so it is accepted.
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(1) }),
+            liveOids: live({ 'project/a.html': oid(1) }),
             livePaths: ['project/a.html', 'project/keep.html'],
         });
 
@@ -192,7 +239,7 @@ describe('driftVerdict', () => {
     it('is drift when a live board the baseline holds and main keeps is missing', () => {
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
+            liveOids: live({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
             livePaths: ['project/a.html', 'project/b.html'],
         });
 
@@ -203,7 +250,7 @@ describe('driftVerdict', () => {
     it('is drift when the live canvas holds a path neither tree has', () => {
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
+            liveOids: live({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
             livePaths: [...allLive, 'project/stray.html'],
         });
 
@@ -214,7 +261,7 @@ describe('driftVerdict', () => {
     it('ignores the marker and files outside project/ in the live list', () => {
         const verdict = driftVerdict({
             plan,
-            liveOids: tree({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
+            liveOids: live({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
             livePaths: [...allLive, 'project/published.json', 'index.html', 'artifact-type/x.js'],
         });
 
@@ -224,21 +271,70 @@ describe('driftVerdict', () => {
 });
 
 describe('publishInput', () => {
-    it('maps changed paths to files, deleted paths to null and adds the marker outside the canvas folder', () => {
-        const plan = planCanvas({
-            baseline: tree({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
-            main: tree({ 'project/a.html': oid(9) }),
-            from: 'marker',
+    const plan = planCanvas({
+        baseline: tree({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
+        main: tree({ 'project/a.html': oid(9) }),
+        from: 'marker',
+    });
+
+    it('maps changed paths to files and deleted paths to null, and leaves the marker out of files', () => {
+        const input = publishInput({
+            url: 'https://x/y',
+            folder: 'Home',
+            outDir: '/out',
+            plan,
+            baselineSha: SHA_B,
+            mainSha: SHA_A,
         });
-        const input = publishInput({ url: 'https://x/y', folder: 'Home', outDir: '/out', plan, mainSha: SHA_A });
 
         expect(input.url).toBe('https://x/y');
         expect(input.root).toBe('/out/Home');
-        expect(input.files).toEqual({
-            'project/a.html': '/out/Home/project/a.html',
-            'project/b.html': null,
-            'project/published.json': '/out/Home.published.json',
+        expect(input.files).toEqual({ 'project/a.html': '/out/Home/project/a.html', 'project/b.html': null });
+    });
+
+    // The Artifact tool refuses a publish of a typed artifact without `file_path`, which must be one of its own data
+    // files under `root`. The marker is the one file every publish sends, so it is that file. It sits in the staging
+    // directory, not the repository, so a commit never has to contain its own sha.
+    it('makes the marker the file_path, under root at project/published.json', () => {
+        const input = publishInput({
+            url: 'https://x/y',
+            folder: 'Home',
+            outDir: '/out',
+            plan,
+            baselineSha: SHA_B,
+            mainSha: SHA_A,
         });
-        expect(input.marker).toEqual({ path: '/out/Home.published.json', content: `{"sha":"${SHA_A}"}\n` });
+
+        expect(input.filePath).toBe('/out/Home/project/published.json');
+        expect(input.marker).toEqual({ path: '/out/Home/project/published.json', content: `{"sha":"${SHA_A}"}\n` });
+    });
+
+    it('gives an empty files map when nothing changed, so only the marker is sent', () => {
+        const unchanged = planCanvas({
+            baseline: tree({ 'project/a.html': oid(1) }),
+            main: tree({ 'project/a.html': oid(1) }),
+            from: 'snapshot',
+        });
+        const input = publishInput({
+            url: 'https://x/y',
+            folder: 'Home',
+            outDir: '/out',
+            plan: unchanged,
+            baselineSha: SHA_B,
+            mainSha: SHA_A,
+        });
+
+        expect(input.files).toEqual({});
+    });
+});
+
+describe('publishLabel', () => {
+    it('names both commits by their 12-character prefix', () => {
+        expect(publishLabel(SHA_B, SHA_A)).toBe(`canvas ${SHA_B.slice(0, 12)}..${SHA_A.slice(0, 12)}`);
+    });
+
+    // The Artifact tool caps `label` at 60 characters; the old form with the id and two full shas was 110.
+    it('fits the Artifact label limit of 60 characters', () => {
+        expect(publishLabel(SHA_B, SHA_A).length).toBeLessThanOrEqual(60);
     });
 });

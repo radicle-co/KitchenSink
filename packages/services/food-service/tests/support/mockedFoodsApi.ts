@@ -2,7 +2,7 @@
  * The MOCKED integration tier's app (`docs/CODING_STANDARDS.md` §7.1a: integration mocks its dependencies).
  *
  * Boots, over a real HTTP listener, exactly the request path a deployed food task runs for a `FoodsController`
- * route — the CORS policy (installed through `corsPolicyFromEnv`, as `main.ts` installs it), `FoodAuthGuard` (mounted
+ * route — the HTTP setup (`FOOD_HTTP_SETUP`: CORS and the JSON parser, as `main.ts` installs them), `FoodAuthGuard` (mounted
  * as `FoodsModule` mounts it), the global `ZodValidationPipe`, the controller, the REAL `FoodsService`, the pure domain
  * it calls, and `ApiExceptionFilter` — with the persistence doubled. No `DatabaseModule` is imported, so no pool
  * exists and no connection can be opened.
@@ -33,7 +33,7 @@ import { AUTHOR_ID, POOL_ID, STRANGER_ID } from '../../src/foods/__fixtures__/fo
 import { FoodAuthGuard } from '../../src/auth/foodAuth.guard.js';
 import { ApiExceptionFilter } from '../../src/common/filters/apiException.filter.js';
 import { throttlerModuleOptions } from '../../src/common/throttle/throttle.config.js';
-import { corsPolicyFromEnv } from '../../src/config/cors.js';
+import { FOOD_HTTP_SETUP } from '../../src/config/httpSetup.js';
 import type { Environment } from '../../src/config/env.schema.js';
 import { CatalogOwnerReader } from '../../src/foods/catalogOwnerReader.service.js';
 import { CitedSourcesService } from '../../src/foods/citedSources.service.js';
@@ -276,12 +276,15 @@ export async function bootMockedFoodsApi(doubles: MockedFoodsApiDoubles): Promis
     }
 
     // `abortOnError: false`: a module that cannot boot must fail the suite, not `process.abort()` the worker.
-    const app: INestApplication = await NestFactory.create(MockedFoodsApiModule, {
-        logger: false,
-        abortOnError: false,
-    });
-    // Before `listen`, through the same reader, exactly as `main.ts` does it.
-    app.enableCors(corsPolicyFromEnv().options);
+    const app: INestApplication = await NestFactory.create(
+        MockedFoodsApiModule,
+        FOOD_HTTP_SETUP.nestOptions({
+            logger: false,
+            abortOnError: false,
+        }),
+    );
+    // Before `listen`, through the same setup `main.ts` applies: CORS, the JSON parser, the refusal link.
+    FOOD_HTTP_SETUP.configure(app);
     await app.listen(0);
     const baseUrl = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
 

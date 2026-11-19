@@ -29,7 +29,6 @@ The artifacts are grounded in:
 - [`spec.md`](./spec.md)
 - [`product-spec/product-spec.md`](./product-spec/product-spec.md)
 - [`research.md`](./research.md)
-- [`v-model/`](./v-model/)
 
 ---
 
@@ -106,7 +105,7 @@ Rule: [GR-014](../governance-rules.md#gr-014-audience-and-sharing-model)
 
 ## Traceability and Test-Evidence Gap Status
 
-Source: [`v-model/release-audit-report.md`](./v-model/release-audit-report.md), [`v-model/traceability-matrix.md`](./v-model/traceability-matrix.md)
+Source: the V-Model release audit report and traceability matrix, both removed on 2026-11-13.
 
 Observed baseline at review time:
 

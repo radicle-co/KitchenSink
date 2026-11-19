@@ -41,6 +41,8 @@ android	recipes/deferredCalories	52	4
 android	recipes/delete	52	3
 android	recipes/detailBack	46	6
 android	recipes/detailCooking	56	5
+android	cooking/cookingModeFlow	108	0
+android	cooking/cookingSystemBack	108	0
 android	recipes/discoverBrowse	102	6
 android	recipes/discoverDetailSaveCopy	117	4
 android	recipes/discoverIngredientCap	116	6
@@ -119,6 +121,7 @@ ios	recipes/deferredCalories	131	4
 ios	recipes/delete	89	2
 ios	recipes/detailBack	72	3
 ios	recipes/detailCooking	96	4
+ios	cooking/cookingModeFlow	161	0
 ios	recipes/discoverDetailSaveCopy	117	4
 ios	recipes/discoverIngredientCap	132	3
 ios	recipes/discoverRecentSearches	275	2
@@ -167,5 +170,7 @@ ios	sessionHandoff	242	1
 ios	shell/overlaySwipeDismiss	161	0
 android	recipes/pinnedIngredients	108	0
 android	recipes/sourceFromPaste	168	5
+android	recipes/sourceStatement	168	1
 ios	recipes/pinnedIngredients	161	0
 ios	recipes/sourceFromPaste	174	3
+ios	recipes/sourceStatement	174	1

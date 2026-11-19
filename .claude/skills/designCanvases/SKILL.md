@@ -5,8 +5,9 @@ description: Find, read, edit or answer comments on the Commise design canvases 
 
 # Commise design canvases
 
-The screen designs and the Design System are claude.ai artifacts, not files in this repository. Several agents edit
-them at the same time.
+The screen designs and the Design System are claude.ai artifacts, and their source is in this repository. Each screen
+canvas is the folder `docs/design/canvases/<folder>/`, named by its registry `folder`: it changes on a branch, merges to `main`, and is then published
+from `main`. The Design System is built from `@commise/ui` by `packages/tools/designArtifact`.
 
 1. Find the canvas in `docs/design/canvases/registry.json`. Use the entries with status `current`. A link that is not
    in the registry is not a canvas to work on.

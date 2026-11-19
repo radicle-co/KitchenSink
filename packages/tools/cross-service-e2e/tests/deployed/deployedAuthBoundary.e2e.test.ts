@@ -207,6 +207,9 @@ const PROTECTED_ROUTES: readonly {
     { service: 'recipe', path: '/api/v1/recipes' },
     { service: 'recipe', path: '/api/v1/collections' },
     { service: 'recipe', path: '/api/v1/search?q=smoke' },
+    // The bulk import (ADR-0072): the list, and the literal route that must not fall through to `:importId`'s UUID pipe.
+    { service: 'recipe', path: '/api/v1/import' },
+    { service: 'recipe', path: '/api/v1/import/to-check-count' },
     {
         service: 'recipe',
         path: '/api/v1/ingredients/food-nutrition',

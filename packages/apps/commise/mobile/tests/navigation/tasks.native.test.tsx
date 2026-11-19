@@ -46,6 +46,9 @@ vi.mock('@commise/features-recipes/food-page/mobile', () => ({
     },
 }));
 
+// Cooking mode has its own suite; here only the screen's registration is read.
+vi.mock('../../src/screens/CookingModeScreen.js', () => ({ CookingModeScreen: () => null }));
+
 const { taskScreens } = await import('../../src/navigation/tasks.js');
 
 afterEach(() => {

@@ -64,7 +64,9 @@ function build(options: {
 
 const view = (
     options: Parameters<typeof build>[0] = {},
-    header = makeHeader(),
+    // Private: an import saves Private only until the paste import carries wordings (ADR-0095 section 4), so the view of an
+    // item that is not about visibility reads a private import.
+    header = makeHeader({ visibility: 'private' }),
     page = { limit: 100 },
     principal = makePrincipal(),
 ) => build(options).builder.build(principal, header, page);
@@ -121,9 +123,17 @@ describe('ImportViewBuilder', () => {
 
             await builder.build(makePrincipal({ roles: [...roles] }), makeHeader(), { limit: 100 });
 
-            expect(stateOf.mock.calls[0]?.[2]).toStrictEqual({ channel: 'bulk', isPremium });
+            expect(stateOf.mock.calls[0]?.[2]).toStrictEqual({ isPremium, principalKind: 'real' });
         },
     );
+
+    it('⛔ reads a test principal’s allowance as a test principal’s, which has no limit (owner ruling 2026-11-15)', async () => {
+        const { builder, stateOf } = build({});
+
+        await builder.build(makePrincipal({ principalKind: 'test' }), makeHeader(), { limit: 100 });
+
+        expect(stateOf.mock.calls[0]?.[2]).toStrictEqual({ isPremium: false, principalKind: 'test' });
+    });
 
     it('reads a cursor at the count as done (null) and a Save-and-leave header as closed', async () => {
         const answered = await view({}, makeHeader({ expectedTotal: 3, cursorOrdinal: 3, reviewClosedAt: new Date() }));
@@ -273,8 +283,14 @@ describe('ImportViewBuilder', () => {
             const free = cookKeyOf(visibilityFactsOf(makePrincipal()));
             const held = { decisionRev: 4, heldAtRev: 4 };
             const asPro = async (item: ListedImportItem) =>
-                (await view({ items: [item] }, makeHeader(), { limit: 100 }, makePrincipal({ roles: ['premium'] })))
-                    .items[0]?.issue;
+                (
+                    await view(
+                        { items: [item] },
+                        makeHeader({ visibility: 'private' }),
+                        { limit: 100 },
+                        makePrincipal({ roles: ['premium'] }),
+                    )
+                ).items[0]?.issue;
 
             expect(
                 await asPro(matchedItem({}, { ...held, heldReason: 'createRefused', heldCookKey: free })),

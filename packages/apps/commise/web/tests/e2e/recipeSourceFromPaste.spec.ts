@@ -2,8 +2,8 @@ import { expect, test, type Page, type Request } from '@playwright/test';
 
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
-import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import { chooseCuisine, editorSection, openNewRecipe } from './utils/recipeEditor';
+import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { addStep, chooseCuisine, editorSection, openNewRecipe, openRecipeEditor } from './utils/recipeEditor';
 
 const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
 
@@ -43,6 +43,11 @@ function recordRecipeWrites(page: Page): RecipeWrite[] {
  * (Clerk-authed).
  */
 test.describe('a pasted web link sets the recipe’s Source (ADR-0089)', () => {
+    /**
+     * The statement the editor sends carries NO wording for now: a wording is sent only when a screen showed it, and the
+     * Source row does not show that line yet. This expectation changed from the one that asserted an English wording sent
+     * without a screen. The step that shows the line restores the wording here.
+     */
     test('paste steps with a link → Source shown, Public unavailable → publish → a private recipe with its source', async ({
         page,
     }) => {
@@ -85,7 +90,7 @@ test.describe('a pasted web link sets the recipe’s Source (ADR-0089)', () => {
             'true',
         );
         await expect(
-            photosAndPublish.getByText(/copied from a web page, and its author owns the writing/u),
+            photosAndPublish.getByText('This recipe was saved with a source, so it stays private.'),
         ).toBeVisible();
         await expect(photosAndPublish.getByRole('radio', { name: /^Private/u })).toBeChecked();
         await expect(page.getByRole('textbox', { name: /^Step 1$/u })).toHaveValue('Simmer the stock.');
@@ -103,7 +108,10 @@ test.describe('a pasted web link sets the recipe’s Source (ADR-0089)', () => {
         expect(withStatement.length).toBeGreaterThan(0);
 
         for (const write of withStatement) {
-            expect(write.body?.['statement']).toEqual({ kind: 'public_web', citation: LINK });
+            expect(write.body?.['statement']).toEqual({
+                kind: 'public_web',
+                citation: LINK,
+            });
             // The server refuses a public web copy: the editor never sends Public with a statement.
             expect(write.body?.['visibility']).not.toBe('public');
         }
@@ -112,5 +120,215 @@ test.describe('a pasted web link sets the recipe’s Source (ADR-0089)', () => {
         // moves it to Private first (the visibility write comes BEFORE the first publish).
         expect(writes.some((write) => write.body?.['status'] === 'published')).toBe(true);
         expect(writes.some((write) => write.body?.['visibility'] === 'private')).toBe(true);
+    });
+});
+
+/**
+ * ADR-0095: a recipe whose steps were pasted asks where it is from before it goes public, and the answer decides what is
+ * sent. The recipe-service HTTP contract is intercepted; the service's own rule is covered by its e2e suite.
+ */
+test.describe('a pasted recipe asks where it is from before it goes public (ADR-0095)', () => {
+    /** A new recipe with one pasted step, ready to publish public. */
+    async function pastedRecipeReady(page: Page): Promise<RecipeWrite[]> {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
+        await mockFoodApi(page);
+        const writes = recordRecipeWrites(page);
+
+        await openNewRecipe(page);
+        await page.getByLabel('Title').fill('E2E Pasted Soup');
+        await chooseCuisine(page);
+        await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('salt');
+        await page
+            .getByRole('group', { name: 'Food catalog' })
+            .getByRole('option', { name: 'Salt', exact: true })
+            .click();
+        await page.getByRole('button', { name: 'Paste steps' }).click();
+        await page.getByRole('textbox', { name: 'Steps', exact: true }).fill('Simmer the stock.');
+        await page.getByRole('button', { name: 'Add 1 step' }).click();
+
+        return writes;
+    }
+
+    const sheetOf = (page: Page) => page.getByRole('dialog', { name: 'Where is this recipe from?' });
+    const published = (writes: readonly RecipeWrite[]) =>
+        writes.filter((write) => write.body?.['status'] === 'published');
+
+    test('⛔ Publish opens the sheet and publishes nothing; "I wrote this" then publishes it public with that statement', async ({
+        page,
+    }) => {
+        const writes = await pastedRecipeReady(page);
+
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(sheetOf(page)).toBeVisible();
+        expect(published(writes)).toEqual([]);
+
+        await sheetOf(page).getByRole('radio', { name: 'I wrote this' }).click();
+        await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(page.getByText('Recipe published.')).toBeVisible();
+        const [write] = published(writes);
+
+        expect(write?.body).toMatchObject({
+            contentPasted: true,
+            statement: { kind: 'authored', wording: { version: 'statementAuthored.v1' } },
+        });
+        expect(write?.body).not.toHaveProperty('publicConfirmation');
+        // Public stays public: no write moved it to Private.
+        expect(writes.some((w) => w.body?.['visibility'] === 'private')).toBe(false);
+    });
+
+    test('a book answer with no title shows the field error and sends nothing; with the title it publishes private', async ({
+        page,
+    }) => {
+        const writes = await pastedRecipeReady(page);
+
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+        await sheetOf(page).getByRole('radio', { name: 'From a cookbook or magazine' }).click();
+        await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(sheetOf(page).getByText('Add the book or magazine title.')).toBeVisible();
+        await expect(sheetOf(page).getByLabel('Title')).toBeFocused();
+        expect(published(writes)).toEqual([]);
+
+        await sheetOf(page).getByLabel('Title').fill('Joy of Cooking');
+        await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(page.getByText('Recipe published.')).toBeVisible();
+        expect(published(writes)[0]?.body).toMatchObject({
+            statement: { kind: 'book', citation: 'Joy of Cooking' },
+        });
+        // A third-party answer moves the recipe to Private before it publishes.
+        expect(writes.some((w) => w.body?.['visibility'] === 'private')).toBe(true);
+    });
+
+    // At 320 px the pinned footer takes a third of the sheet, so the field and its message sat partly under it.
+    test('at 320 px the title field and its error scroll into view above the pinned footer', async ({ page }) => {
+        await page.setViewportSize({ width: 320, height: 640 });
+        await pastedRecipeReady(page);
+
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+        await sheetOf(page).getByRole('radio', { name: 'From a cookbook or magazine' }).click();
+        await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
+
+        const error = sheetOf(page).getByText('Add the book or magazine title.');
+        const footerNote = sheetOf(page).getByText(
+            'If your answer isn’t true, we can remove the recipe and limit your account.',
+        );
+
+        const field = sheetOf(page).getByLabel('Book or magazine title');
+
+        await expect(field).toBeInViewport({ ratio: 1 });
+        await expect(error).toBeInViewport({ ratio: 1 });
+        const fieldBox = await field.boundingBox();
+        const errorBox = await error.boundingBox();
+        const footerBox = await footerNote.boundingBox();
+
+        expect(fieldBox).not.toBeNull();
+        expect(errorBox).not.toBeNull();
+        expect(footerBox).not.toBeNull();
+        expect(fieldBox!.y + fieldBox!.height).toBeLessThanOrEqual(footerBox!.y);
+        expect(errorBox!.y + errorBox!.height).toBeLessThanOrEqual(footerBox!.y);
+    });
+
+    test('Publish privately sends no statement; Keep as draft sends nothing and leaves the draft as it was', async ({
+        page,
+    }) => {
+        const writes = await pastedRecipeReady(page);
+
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+        await sheetOf(page).getByRole('button', { name: 'Keep as draft' }).click();
+
+        await expect(sheetOf(page)).toHaveCount(0);
+        expect(published(writes)).toEqual([]);
+
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+        await sheetOf(page).getByRole('radio', { name: 'Publish privately' }).click();
+        await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(page.getByText('Recipe published.')).toBeVisible();
+        const [write] = published(writes);
+
+        expect(writes.some((w) => w.body?.['visibility'] === 'private')).toBe(true);
+        expect(write?.body).not.toHaveProperty('statement');
+    });
+
+    test('a typed recipe is never asked: the passive line shows under Public and rides the publish', async ({
+        page,
+    }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
+        await mockFoodApi(page);
+        const writes = recordRecipeWrites(page);
+
+        await openNewRecipe(page);
+        await page.getByLabel('Title').fill('E2E Typed Soup');
+        await chooseCuisine(page);
+        await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('salt');
+        await page
+            .getByRole('group', { name: 'Food catalog' })
+            .getByRole('option', { name: 'Salt', exact: true })
+            .click();
+        await addStep(page, 'Simmer the stock.');
+
+        await expect(
+            page.getByText(
+                'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.',
+            ),
+        ).toBeVisible();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(page.getByText('Recipe published.')).toBeVisible();
+        await expect(sheetOf(page)).toHaveCount(0);
+        expect(published(writes)[0]?.body).toMatchObject({
+            publicConfirmation: { version: 'publicConfirm.v1', locale: 'en' },
+        });
+    });
+});
+
+/**
+ * ADR-0095: taking a SAVED source off. The recipe stays held out of Public by the source the server holds, so the Public card
+ * keeps its one note; the cook is told "Source removed."; and focus goes to "Who can see it", where that note is read next. It
+ * never goes into the emptied link field, which would raise a keyboard over the note on a phone.
+ */
+test.describe('removing a saved source (ADR-0095)', () => {
+    const HELD_NOTE = 'This recipe was saved with a source, so it stays private.';
+    const WEB_ID = 'ec000000-0000-4000-8000-0000000000f4';
+
+    test('says Source removed., keeps Public unavailable with the one note, and moves focus to Who can see it', async ({
+        page,
+    }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        const saved = makeRecipeDetail({
+            id: WEB_ID,
+            ownerId: viewerId,
+            title: 'Web Stew',
+            visibility: 'private',
+            status: 'published',
+            sourceType: 'imported_public',
+            sourceKind: 'public_web',
+            sourceUrl: LINK,
+        });
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [saved] });
+        await mockFoodApi(page);
+        await openRecipeEditor(page, WEB_ID);
+        const section = editorSection(page, 'Photos & publish');
+
+        // Before: the one note, on a Public card that is unavailable.
+        await expect(section.getByText(HELD_NOTE)).toBeVisible();
+        await expect(section.getByRole('radio', { name: /^Public/u })).toHaveAttribute('aria-disabled', 'true');
+
+        await section.getByRole('button', { name: 'Remove source' }).click();
+
+        await expect(page.getByText('Source removed.')).toBeVisible();
+        // After: the same note, the same unavailable card.
+        await expect(section.getByText(HELD_NOTE)).toBeVisible();
+        await expect(section.getByRole('radio', { name: /^Public/u })).toHaveAttribute('aria-disabled', 'true');
+        await expect(section.getByRole('group', { name: 'Who can see it' })).toBeFocused();
+        await expect(section.getByRole('textbox', { name: 'Source' })).not.toBeFocused();
     });
 });

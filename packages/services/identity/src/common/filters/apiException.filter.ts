@@ -1,6 +1,7 @@
 import { Catch, HttpException, HttpStatus, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
 import {
     GENERIC_STATUS_CODES,
+    normalizeBodyParserError,
     normalizeHttpException,
     normalizeUnstorableText,
 } from '@kitchensink/nest-error-envelope';
@@ -61,7 +62,9 @@ function resolve(exception: unknown): NormalizedFailure {
         return normalizeHttpException(exception, VOCABULARY);
     }
 
+    // The body parser's refusals are `http-errors` objects, not `HttpException`s, so they would answer `500` below.
     return (
+        normalizeBodyParserError(exception, VOCABULARY) ??
         normalizeUnstorableText(exception, VOCABULARY) ?? {
             status: HttpStatus.INTERNAL_SERVER_ERROR,
             // ⚠️ The message is a CONSTANT, never the throwable's. An unexpected `Error`'s message is the one

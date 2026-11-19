@@ -18,11 +18,11 @@ import { StatusBadge } from '@commise/ui/status-badge';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { Fragment, type FC } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '@commise/ui/text';
+import { Text, useTextScale } from '@commise/ui/text';
 
 import { PREP_JOINER } from '../format/prepJoiner.js';
 import { recipeMessages } from '../messages.js';
-import { IngredientCheckBoxSlot, IngredientReviewSlot, IngredientRowDivider } from './ingredientFrames.native.js';
+import { IngredientReviewSlot, IngredientRowDivider, rowTextInsetAt } from './ingredientFrames.native.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
 import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
@@ -45,10 +45,12 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
     const parts = variantPartTexts(ingredient.variant?.parts);
     const statuses = ingredientRowStatuses(ingredient, allRemoved, detail, reviewAction !== undefined);
     const notes = lineTailOf(ingredient);
+    // The same scale the design system grows the check box from, so the hairline starts where the grown box ends.
+    const textScale = useTextScale();
 
     return (
         <>
-            {divided && <IngredientRowDivider />}
+            {divided && <IngredientRowDivider marginLeft={rowTextInsetAt(textScale)} />}
             <Pressable
                 role="checkbox"
                 aria-checked={checked}
@@ -70,9 +72,8 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                     pressed ? { backgroundColor: wash } : null,
                 ]}
             >
-                <IngredientCheckBoxSlot>
-                    <CheckBoxGlyph checked={checked} />
-                </IngredientCheckBoxSlot>
+                {/* The glyph centres its box on the first line of the `body` text beside it, and grows with it. */}
+                <CheckBoxGlyph checked={checked} textRole="body" />
                 <View style={styles.text}>
                     {isStandInName(ingredient) ? (
                         <>
@@ -155,8 +156,10 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                     ))}
                 </View>
             </Pressable>
-            {/* A sibling of the checkbox, under the row text, indented to where the text starts (16 + 18 + 12). */}
-            {reviewAction !== undefined && <IngredientReviewSlot>{reviewAction}</IngredientReviewSlot>}
+            {/* A sibling of the checkbox, under the row text, indented to where the text starts, at the text scale in force. */}
+            {reviewAction !== undefined && (
+                <IngredientReviewSlot paddingLeft={rowTextInsetAt(textScale)}>{reviewAction}</IngredientReviewSlot>
+            )}
         </>
     );
 };

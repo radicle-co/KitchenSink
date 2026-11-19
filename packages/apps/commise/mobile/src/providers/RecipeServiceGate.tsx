@@ -37,6 +37,7 @@ import { NATIVE_JWT_TEMPLATE } from '../auth/nativeToken.js';
 import { env } from '../config/env.js';
 import { reportErrorToSentry } from '../observability/sentryErrorReporter.js';
 import { nativeDeviceStore } from '../storage/deviceSession.js';
+import { nativeKeptSessionStore } from '../storage/keptSessionStore.js';
 
 /**
  * Mount the recipe-service client provider for the subtree.
@@ -100,7 +101,8 @@ export function RecipeServiceGate({ children }: { readonly children: ReactNode }
             <RecipeServicesTree
                 clients={clients}
                 store={nativeDeviceStore}
-                subject={userId ?? undefined}
+                kept={nativeKeptSessionStore}
+                subject={userId}
                 useQueue={useSyncQueue}
             >
                 {children}

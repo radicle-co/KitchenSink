@@ -127,6 +127,24 @@ interface CookingGoneMessages {
     readonly home: string;
 }
 
+/** One row of All steps: its mark, and the plain text of its timers. */
+export interface CookingAllStepsMessages {
+    /** The mark of the step the session is on. */
+    readonly now: string;
+    /** The mark of a step the cook has finished. */
+    readonly done: string;
+    /** The mark of a step with every line ticked that the cook has not moved past. */
+    readonly allTicked: string;
+    /** The mark of a step with unticked lines: how many are left. */
+    readonly linesLeft: PluralText;
+    /** Timers that have ended and wait for the cook. */
+    readonly timersDone: PluralText;
+    readonly timersRunning: PluralText;
+    readonly timersPaused: PluralText;
+    /** What joins two timer parts. */
+    readonly timerJoin: string;
+}
+
 /** Every string the cooking surface says. */
 export interface CookingMessages {
     readonly top: CookingTopMessages;
@@ -139,6 +157,7 @@ export interface CookingMessages {
     readonly error: CookingErrorMessages;
     readonly empty: CookingEmptyMessages;
     readonly gone: CookingGoneMessages;
+    readonly allSteps: CookingAllStepsMessages;
 }
 
 export const cookingMessages: LocalizedMessages<CookingMessages> = {
@@ -210,6 +229,16 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
         gone: {
             title: 'This recipe isn’t available any more',
             home: 'Go to Home',
+        },
+        allSteps: {
+            now: 'Now',
+            done: 'Done',
+            allTicked: 'All lines ticked',
+            linesLeft: { one: '{count} line left', other: '{count} lines left' },
+            timersDone: { one: 'Timer done', other: '{count} timers done' },
+            timersRunning: { one: 'Timer running', other: '{count} timers running' },
+            timersPaused: { one: 'Timer paused', other: '{count} timers paused' },
+            timerJoin: ' \u00b7 ',
         },
     },
 };

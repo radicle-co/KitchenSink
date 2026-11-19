@@ -26,7 +26,7 @@ service.
   consented to, how it met the age floor, how many actioned notices it carries, and whether that tally
   terminates it. Identity already owns account lifecycle, including the erasure fan-out this feature reuses.
 - `NFR-006` requires the notice mechanism to remain reachable when the authenticated application is degraded.
-  Safe harbour depends on _receiving and acting on_ notices; a mechanism that shares a failure domain with the
+  Notices must be received and acted on even when the app is down; a mechanism that shares a failure domain with the
   app is not a mechanism. A Lambda behind API Gateway is a genuinely independent domain.
 - `identity-webhooks` already has everything the intake needs and nothing it does not: a public API Gateway
   route (the Clerk webhook is unauthenticated by design and verified inside the Lambda), a VPC attachment to
@@ -89,7 +89,7 @@ Rendering goes through the existing localization path.
 - `FR-003` requires the system to render _any version a given user accepted_. Git already versions text
   immutably and for free; a database table would need its own history, its own migration story, and its own
   guarantee that a row is never edited in place — which is the exact guarantee a commit already gives.
-- There is no editing audience. Counsel delivers text; an engineer commits it. A CMS would be capability built
+- There is no editing audience. Approved text arrives; an engineer commits it. A CMS would be capability built
   for a presumed future need — the definition of a YAGNI violation.
 
 **Rejected — documents as database rows.** Adds an editing surface nobody asked for, makes "render the version
@@ -179,7 +179,7 @@ protects the other direction — `FR-024` exists because the mechanism can be ai
 denial-of-service.
 
 **Rejected — a CAPTCHA or account requirement.** `FR-016` requires reachability without an account, and a
-rightsholder's counsel is exactly the user a friction gate turns away.
+rightsholder filing a notice is exactly the user a friction gate turns away.
 
 ---
 
@@ -225,7 +225,7 @@ notice, in exchange for deliverability we do not need at this volume.
 **Rejected — waiting for `014-notification-service`.** Specified, unbuilt, unscheduled. Shipping US2 without
 the channel that discharges `FR-018` would put a known hole in the obligation US2 exists to serve.
 
-⚠️ **The residual risk is deliverability, and it is real.** A statement of reasons that silently bounces is
+⚠️ **Deliverability is the open gap, and it is real.** A statement of reasons that silently bounces is
 worse than one never sent, because `SC-003` counts it as delivered. Bounce and complaint handling is part of
 slice 2, not a follow-up.
 
@@ -281,7 +281,7 @@ means a change to either can break the other, and the alarm would not say which.
 `nat-consumers` list, which the gate asserts in both directions.
 
 ⚠️ **`FR-052b` depends on a term this feature never defined**: "once the counter-notice window has closed."
-§512(g)(2)(C) uses 10–14 business days. It was the sixth clarification question and the quota cut it off. The
+The counter-notice restore rule (`FR-061`) uses 10–14 business days. It was the sixth clarification question and the quota cut it off. The
 sweep cannot be implemented until it is a number.
 
 ---
@@ -290,14 +290,14 @@ sweep cannot be implemented until it is a number.
 
 These are recorded rather than resolved, because they are not this plan's to resolve.
 
-| #   | Item                                                                                                                                                                                                                                                                                                                   | Owner              | Blocks                                                                                            |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------- |
-| 1   | `001-FR-005b` is unrepresentable while `001-FR-003` says free-tier recipes are always public — needs D4a or an unpublished-draft state                                                                                                                                                                                 | `001` / owner      | `GR-014` AC-014-g implementation, not this feature's slices                                       |
-| 2   | `001-FR-003a`'s PRO-badge derivation infers premium from privacy and must be fixed in the same change                                                                                                                                                                                                                  | `001`              | as above                                                                                          |
-| 3   | ~~Repeat-infringer threshold value and window~~ **RESOLVED** — 3 live strikes / rolling 12 months                                                                                                                                                                                                                      | Owner (clarify Q3) | Nothing                                                                                           |
-| 4   | Registered designated agent (`FR-025`) and counsel-drafted documents                                                                                                                                                                                                                                                   | Outside software   | Slice 1 ships the machinery with placeholder content; the machinery is testable without the words |
-| 5   | Whether recipe extraction is TDM for the EU reservation — now load-bearing for video, not just URL import                                                                                                                                                                                                              | Counsel (`FR-050`) | Slice 5's guardrails are correct either way; the _basis_ is what is unconfirmed                   |
-| 6   | **The counter-notice window is undefined** — `FR-052b` keys reporter pseudonymisation off it. §512(g)(2)(C) uses 10–14 business days                                                                                                                                                                                   | Owner / counsel    | **Blocks the retention sweep in slice 4.** Ask this first next clarify pass                       |
-| 7   | `002`'s admin-UI exclusion must be amended or narrowed (A-11)                                                                                                                                                                                                                                                          | `002` / owner      | **Blocks slice 3**                                                                                |
-| 8   | _(added 2026-11-03, ADR-0082)_ Item 5 widens. The extraction basis is per market: US fair use, EU DSM Art. 4 unless opted out, UK s.28A only, Australia none (spec `FR-027f`). The UK and Australian bases, the public-domain rule table (`FR-015k`), the CC BY grant wording and the aggregator cap are counsel items | Counsel (`FR-050`) | Slice 7's per-market switch defaults closed until each market is cleared                          |
-| 9   | _(added 2026-11-03, ADR-0082)_ The DMCA agent registration, in the company's legal name                                                                                                                                                                                                                                | Founder            | Safe harbor for anything stored before it                                                         |
+| #   | Item                                                                                                                                                                                                      | Owner              | Blocks                                                                                            |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------- |
+| 1   | `001-FR-005b` is unrepresentable while `001-FR-003` says free-tier recipes are always public — needs D4a or an unpublished-draft state                                                                    | `001` / owner      | `GR-014` AC-014-g implementation, not this feature's slices                                       |
+| 2   | `001-FR-003a`'s PRO-badge derivation infers premium from privacy and must be fixed in the same change                                                                                                     | `001`              | as above                                                                                          |
+| 3   | ~~Repeat-infringer threshold value and window~~ **RESOLVED** — 3 live strikes / rolling 12 months                                                                                                         | Owner (clarify Q3) | Nothing                                                                                           |
+| 4   | Registered designated agent (`FR-025`) and the drafted documents                                                                                                                                          | Outside software   | Slice 1 ships the machinery with placeholder content; the machinery is testable without the words |
+| 5   | Whether server-side extraction runs in each market (`FR-027f`)                                                                                                                                            | Owner (`FR-050`)   | Slice 5's guardrails are correct either way                                                       |
+| 6   | **The counter-notice window is undefined** — `FR-052b` keys reporter pseudonymisation off it. `FR-061` uses 10–14 business days                                                                           | Owner              | **Blocks the retention sweep in slice 4.** Ask this first next clarify pass                       |
+| 7   | `002`'s admin-UI exclusion must be amended or narrowed (A-11)                                                                                                                                             | `002` / owner      | **Blocks slice 3**                                                                                |
+| 8   | _(added 2026-11-03, ADR-0082)_ Item 5 widens: extraction is per market (spec `FR-027f`). The public-domain rule table (`FR-015k`), the CC BY grant wording and the source cap are confirmed before launch | Owner (`FR-050`)   | Slice 7 defaults closed until each market is cleared                                              |
+| 9   | _(added 2026-11-03, ADR-0082)_ The DMCA agent registration, in the company's legal name                                                                                                                   | Founder            | Launch (`FR-068`)                                                                                 |

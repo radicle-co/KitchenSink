@@ -39,6 +39,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates recipes as. */
 const OWNER = '01JU26PREPGRP0WNER000000AA';
@@ -66,6 +67,7 @@ interface RecipeBody {
 
 /** A create body carrying the given ingredient lines. */
 const createBody = (lines: readonly Record<string, unknown>[]): Record<string, unknown> => ({
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: `U26/U27 preparation + section ${Date.now()}-${Math.random()}`,
     description: 'Created by the U26/U27 spec.',
     servings: 4,

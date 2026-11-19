@@ -15,6 +15,7 @@
 import { ActionMenu } from '@commise/ui/action-menu';
 import { Icon } from '@commise/ui/icon';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { TOUCH_TARGET_CLASS } from '@commise/ui/touch-target';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
@@ -37,7 +38,7 @@ export const EditorHeader: FC<WebEditorHeaderProps> = ({ title, status, closeLab
             type="button"
             aria-label={closeLabel}
             onClick={onClose}
-            className={`inline-flex size-11 shrink-0 items-center justify-center rounded-md text-ink ${FOCUS_RING_CLASS.offset}`}
+            className={`inline-flex ${TOUCH_TARGET_CLASS.fixed} shrink-0 items-center justify-center rounded-md text-ink ${FOCUS_RING_CLASS.offset}`}
         >
             <Icon name="x" size={24} />
         </button>

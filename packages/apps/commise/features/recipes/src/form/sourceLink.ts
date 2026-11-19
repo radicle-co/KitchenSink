@@ -32,8 +32,13 @@ import type { RecipeFormValues } from './values.js';
 /** What the recipe the editor holds says of its source: the server's own answer, `undefined` before the first save. */
 type StoredRecipe = Pick<
     RecipeDetail,
-    'status' | 'firstPublishedAt' | 'sourceType' | 'sourceKind' | 'sourceUrl' | 'clonedFromId'
+    'status' | 'sourceType' | 'sourceKind' | 'sourceUrl' | 'clonedFromId' | 'publicNeedsCheck'
 >;
+
+type PublicWebStatement = Extract<RecipeStatementInput, { kind: 'public_web' }>;
+
+/** The wording a screen showed beside a pasted web link: what the attestation record stores beside the choice. */
+export type PublicWebWording = NonNullable<PublicWebStatement['wording']>;
 
 /** The Source field's text as the draft holds it, `''` when there is none. Pure. */
 const sourceTextOf = (values: Pick<RecipeFormValues, 'sourceLink'>): string => values.sourceLink ?? '';
@@ -64,8 +69,9 @@ export function draftSourceOf(values: Pick<RecipeFormValues, 'sourceLink'>): Dra
 
 /**
  * Whether the source can no longer change, by `recipe-core`'s ONE lock rule `sourceIsCorrectable`, the rule the server's
- * `PATCH` policy reads: published once, not stated through a link (the curator's text, a book, a paid site), or inherited by
- * a clone. So the field, the wire and the server's `SOURCE_LOCKED` agree. A recipe never saved has nothing to lock.
+ * `PATCH` policy reads: not stated by the cook (the curator's text, a paid site), inherited by a clone, or an unknown kind. The
+ * first publish does not lock it (ADR-0093 section 8). So the field, the wire and the server's `SOURCE_LOCKED` agree. A recipe
+ * never saved has nothing to lock.
  *
  * @param recipe - The server's recipe, or `undefined` before the first save.
  */
@@ -74,7 +80,6 @@ const sourceIsLocked = (recipe: StoredRecipe | undefined): boolean =>
     !sourceIsCorrectable({
         sourceType: recipe.sourceType,
         sourceKind: recipe.sourceKind ?? null,
-        firstPublishedAt: recipe.firstPublishedAt,
         clonedFromId: recipe.clonedFromId,
     });
 
@@ -113,32 +118,61 @@ export function draftPrivateRule(
 }
 
 /**
- * The visibility the draft is SENT with. A web copy is private only, so a draft with a link goes out Private whatever the
- * cook chose, and `values.visibility` is left alone: taking the link off brings their choice back.
+ * Whether a recorded source holds the recipe out of Public although the draft states none (ADR-0095): the server says so
+ * (`publicNeedsCheck`), or it stores a web or book source the cook has since taken off the draft. A source the server
+ * recorded stays on record, so taking it off does not give Public back; the draft's own link is `draftPrivateRule`'s.
  *
  * @param values - The draft.
- * @returns Private for a draft with a usable web link, else the draft's own visibility. Pure.
+ * @param recipe - The server's recipe, or `undefined` before the first save.
+ * @returns `true` when Public is held. Pure.
  */
-export function derivedVisibility(values: Pick<RecipeFormValues, 'sourceLink' | 'visibility'>): RecipeVisibility {
-    return draftSourceOf(values).kind === 'link' ? RecipeVisibility.PRIVATE : values.visibility;
+export function publicHeldOf(values: Pick<RecipeFormValues, 'sourceLink'>, recipe: StoredRecipe | undefined): boolean {
+    if (recipe === undefined) {
+        return false;
+    }
+
+    return (
+        recipe.publicNeedsCheck === true ||
+        ((recipe.sourceKind === 'public_web' || recipe.sourceKind === 'book') && draftSourceOf(values).kind === 'none')
+    );
+}
+
+/**
+ * The visibility the draft is SENT with. A web copy is private only, so a draft with a link goes out Private whatever the
+ * cook chose, and so does a recipe a recorded source holds out of Public ({@link publicHeldOf}); `values.visibility` is left
+ * alone: taking the link off a draft-only link brings their choice back.
+ *
+ * @param values - The draft.
+ * @param recipe - The server's recipe, or `undefined` before the first save.
+ * @returns Private for a draft with a usable web link or a held recipe, else the draft's own visibility. Pure.
+ */
+export function derivedVisibility(
+    values: Pick<RecipeFormValues, 'sourceLink' | 'visibility'>,
+    recipe: StoredRecipe | undefined,
+): RecipeVisibility {
+    return draftSourceOf(values).kind === 'link' || publicHeldOf(values, recipe)
+        ? RecipeVisibility.PRIVATE
+        : values.visibility;
 }
 
 /**
  * The `statement` a write carries.
  *
  * - Create (`recipe` is `undefined`): the link, when it parses.
- * - Update: only a CHANGE of source, and only before the first publish. A source the server holds already is not sent
+ * - Update: only a CHANGE of source, also after the first publish. A source the server holds already is not sent
  *   again, an emptied field removes a stored web source (`null`), and text that is not (yet) a link sends NOTHING: a
  *   checkpoint in the middle of typing must not erase the stored source or send a citation the server refuses.
  *
  * @param values - The draft.
  * @param recipe - The server's recipe, or `undefined` for a create.
+ * @param wording - The wording the screen showed beside the link. Without it the statement carries none.
  * @returns The statement, `null` to remove the stored one, or `undefined` to leave the source alone. Pure.
  */
 export function sourceStatementOf(
     values: Pick<RecipeFormValues, 'sourceLink'>,
     recipe: StoredRecipe | undefined,
-): RecipeStatementInput | null | undefined {
+    wording?: PublicWebWording,
+): PublicWebStatement | null | undefined {
     if (recipe !== undefined && sourceIsLocked(recipe)) {
         return undefined;
     }
@@ -151,7 +185,7 @@ export function sourceStatementOf(
 
             return stored?.ok === true && stored.link.url === source.link.url
                 ? undefined
-                : { kind: 'public_web', citation: source.link.url };
+                : { kind: 'public_web', citation: source.link.url, ...(wording === undefined ? {} : { wording }) };
         }
 
         case 'none':
@@ -221,9 +255,9 @@ export const isLinkOnly = (extraction: SourceLinkExtraction): boolean =>
 
 /** Every state of the Source row (the editor spec's table). */
 export type SourceRowModel =
-    /** Published with no source: nothing to show. */
+    /** A locked source with no web link: nothing to show. */
     | { readonly kind: 'hidden' }
-    /** Published with a web source: its site as a link and the address, read only. */
+    /** A locked web source: its site as a link and the address, read only. */
     | { readonly kind: 'locked'; readonly site: string; readonly url: string }
     | { readonly kind: 'empty'; readonly text: string }
     | { readonly kind: 'filled'; readonly text: string; readonly site: string; readonly fromPaste: boolean }

@@ -182,6 +182,7 @@ async function stageCommand(context: Context, id: string | undefined): Promise<n
         folder: canvas.folder,
         outDir: resolve(context.need('out')),
         plan,
+        baselineSha: baseline.sha,
         mainSha,
     });
 
@@ -193,12 +194,14 @@ async function stageCommand(context: Context, id: string | undefined): Promise<n
 
     await mkdir(dirname(input.marker.path), { recursive: true });
     await writeFile(input.marker.path, input.marker.content);
+    // The keys are the Artifact tool's own parameter names, so the output is passed to it unchanged.
     process.stdout.write(
         `${JSON.stringify({
             url: input.url,
             root: input.root,
+            file_path: input.filePath,
             files: input.files,
-            label: `canvas ${canvas.id}: ${baseline.sha}..${mainSha}`,
+            label: input.label,
         })}\n`,
     );
 

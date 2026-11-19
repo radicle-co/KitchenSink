@@ -43,6 +43,52 @@ interface RecipeMakePublicDialogMessages {
     readonly busy: string;
 }
 
+/**
+ * Copy for the source-statement sheet (ADR-0095): "where is this recipe from?", asked before a pasted recipe goes public.
+ *
+ * Each statement key is the wording version the answer records (`STATEMENT_WORDINGS_BY_CHOICE`): the version is the client's
+ * word that it showed THAT text, so a change to one of these strings is a new version in `recipe-core`, never an edit. A unit
+ * test pins the key-to-text map so a copy change cannot keep an old version.
+ */
+export interface SourceStatementMessages {
+    readonly title: string;
+    /** The sheet's icon-only Close control. */
+    readonly close: string;
+    readonly body: string;
+    /** What the answer will do, pinned in the footer so it is read before confirming. */
+    readonly effect: string;
+    /** The confirm, where the sheet publishes a recipe (the editor) and where it makes one public (the recipe page). */
+    readonly confirmEditor: string;
+    readonly confirmRecipePage: string;
+    /** The dismiss: nothing is sent. */
+    readonly dismissEditor: string;
+    readonly dismissRecipePage: string;
+    /** `statementAuthored.v1`. */
+    readonly answerAuthored: string;
+    readonly hintAuthored: string;
+    /** `statementPublicWeb.v1`. */
+    readonly answerWeb: string;
+    /** The label of the link field "from a web page" reveals. */
+    readonly webLinkLabel: string;
+    /** The hint under "from a web page" and "from a cookbook or magazine": the recipe stays private. */
+    readonly hintPrivate: string;
+    /** `statementBook.v1`. */
+    readonly answerBook: string;
+    readonly bookTitleLabel: string;
+    readonly bookTitleError: string;
+    /** `statementFromPerson.v1`. */
+    readonly answerPerson: string;
+    /** What "from another person" means, said under it. */
+    readonly hintPerson: string;
+    /** The editor's own fifth answer: publish, and keep it private. */
+    readonly answerPublishPrivately: string;
+}
+
+/** The passive line beside the Public choice (`publicConfirm.v1`): what the cook was shown when they chose Public. */
+export interface PublicConfirmMessages {
+    readonly line: string;
+}
+
 /** Copy for the public/private visibility toggle (T074). */
 export interface RecipeVisibilityToggleMessages {
     /** Accessible group label for the toggle. */
@@ -81,6 +127,10 @@ export interface RecipeActionMessages {
     readonly deleteDialog: RecipeDeleteDialogMessages;
     /** Copy for the make-public confirm. */
     readonly makePublicDialog: RecipeMakePublicDialogMessages;
+    /** Copy for the source-statement sheet. */
+    readonly sourceStatement: SourceStatementMessages;
+    /** The passive line shown beside Public. */
+    readonly publicConfirm: PublicConfirmMessages;
     /** Copy for the visibility toggle. */
     readonly visibility: RecipeVisibilityToggleMessages;
     /** Copy for the "More" overflow menu. */
@@ -141,6 +191,8 @@ export interface RecipeDetailActionMessages {
     readonly versionHistory: string;
     readonly makePrivate: string;
     readonly makePublic: string;
+    /** Why Make public cannot be used while the device is offline: the write needs the server (ADR-0095). */
+    readonly offline: string;
     /** Resets the cook's checks and current step; offered only while one is set. */
     readonly clearChecks: string;
     readonly deleteRecipe: string;
@@ -169,6 +221,31 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             confirm: 'Make public',
             keep: 'Keep private',
             busy: 'Making public…',
+        },
+        sourceStatement: {
+            title: 'Where is this recipe from?',
+            close: 'Close',
+            body: 'Part of this recipe was pasted in. Before it goes public, tell us where it’s from.',
+            effect: 'If your answer isn’t true, we can remove the recipe and limit your account.',
+            confirmEditor: 'Publish',
+            confirmRecipePage: 'Make public',
+            dismissEditor: 'Keep as draft',
+            dismissRecipePage: 'Cancel',
+            answerAuthored: 'I wrote this',
+            hintAuthored:
+                'It’s my own recipe, in my own words, and any photos are mine. It isn’t copied from a website, book or another person. Goes public.',
+            answerWeb: 'From a web page',
+            webLinkLabel: 'Link to the page',
+            hintPrivate: 'Stays private to you.',
+            answerBook: 'From a cookbook or magazine',
+            bookTitleLabel: 'Book or magazine title',
+            bookTitleError: 'Add the book or magazine title.',
+            answerPerson: 'From another person',
+            hintPerson: 'A recipe someone gave you, like family or a friend. Stays private to you.',
+            answerPublishPrivately: 'Publish privately',
+        },
+        publicConfirm: {
+            line: 'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.',
         },
         visibility: {
             groupLabel: 'Recipe visibility',
@@ -203,6 +280,7 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             versionHistory: 'Version history',
             makePrivate: 'Make private',
             makePublic: 'Make public',
+            offline: 'You’re offline. Try again when you’re back online.',
             clearChecks: 'Clear checks',
             deleteRecipe: 'Delete recipe',
             recipeDeleted: 'Recipe deleted',

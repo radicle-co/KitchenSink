@@ -21,6 +21,7 @@ import {
     ForbiddenError,
     InvalidRequestError,
     NotFoundError,
+    InvalidVisibilityError,
     PrivateFoodsOnPublicRecipeError,
     PrivateSlotsFullError,
     RecipeServiceClientError,
@@ -201,6 +202,31 @@ describe('recipeSender', () => {
             );
         },
     );
+
+    it.each([
+        ['a create', 'create', 'createRecipe'],
+        ['an update (a Publish)', 'update', 'updateRecipe'],
+    ] as const)(
+        '⛔ %s refused as STATEMENT_REQUIRED is a terminal 400 the drain DROPS, so the editor can ask where the recipe is from',
+        async (_label, kind, method) => {
+            const refuse = vi.fn().mockRejectedValue(new InvalidVisibilityError('x', 'STATEMENT_REQUIRED'));
+            const send = recipeSender(() => ({ [method]: refuse }) as never);
+
+            expect(await send(record(kind, { id: 'r1', input: {} }))).toStrictEqual({
+                outcome: 'failed',
+                status: 400,
+                answer: { kind: 'recipeStatementRequired' },
+                drop: true,
+            });
+        },
+    );
+
+    it('keeps every other INVALID_VISIBILITY reason a plain 400 the cook decides on', async () => {
+        const refuse = vi.fn().mockRejectedValue(new InvalidVisibilityError('x', 'SOURCE_CONFLICT'));
+        const send = recipeSender(() => ({ updateRecipe: refuse }) as never);
+
+        expect(await send(record('update', { id: 'r1', input: {} }))).toStrictEqual({ outcome: 'failed', status: 400 });
+    });
 
     /**
      * ⛔ A BODY THE CLIENT REFUSED LOCALLY IS TERMINAL, NOT `unknown`. `InvalidRequestError` is thrown from

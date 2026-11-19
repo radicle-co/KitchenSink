@@ -17,6 +17,8 @@
  */
 import { bootServiceApp, type BootedServiceApp } from '@kitchensink/service-test-harness';
 
+import { IDENTITY_HTTP_SETUP } from '../../src/config/httpSetup.js';
+
 /** Options for {@link bootIdentityApp}. */
 export interface BootIdentityAppOptions {
     /**
@@ -68,5 +70,6 @@ export async function bootIdentityApp(options: BootIdentityAppOptions = {}): Pro
             CLERK_JWT_KEY: 'e2e-harness-placeholder-key',
             CLERK_AUTHORIZED_PARTIES: 'http://localhost:3000',
         },
+        httpSetup: IDENTITY_HTTP_SETUP,
     });
 }

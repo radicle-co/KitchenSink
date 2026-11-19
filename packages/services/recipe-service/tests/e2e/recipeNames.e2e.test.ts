@@ -17,6 +17,7 @@ import { asPrincipal } from '../support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../support/foodFake.js';
 import { deleteBindingsMatching } from '../support/bindingCleanup.js';
 import { recipeDb } from '../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -83,6 +84,7 @@ async function createRecipe(
     displayText?: string,
 ): Promise<RecipeBody> {
     return json<RecipeBody>(AUTHOR, 'POST', '/api/v1/recipes', 201, {
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         title: `${SCOPE} ${title}`,
         visibility,
         servings: 2,

@@ -7,6 +7,8 @@ import { RecipeStatus } from '@kitchensink/recipe-core';
 import { htmlElementOf } from '../__fixtures__/htmlElementOf.js';
 import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
 import { CookingScreen } from '../CookingScreen.js';
+import { PREVIEW_IN_BODY } from '../cookingLayout.js';
+import { DONE_SETTLE_MS } from '../doneSettle.js';
 import type { CookingScreenProps, CookingScreenRead } from '../cookingViewProps.js';
 
 /**
@@ -252,16 +254,35 @@ describe('CookingScreen: a step', () => {
     });
 
     it('previews the next step with its first line, pinned above Back and Next, outside the scrolling step', () => {
-        setup();
+        const { container } = setup();
 
-        const overline = screen.getByText('Next · step 2');
+        const foot = within(htmlElementOf(container.querySelector('[data-cooking-foot]')));
         const region = screen.getByRole('region', { name: 'Step\u00a01 of 6' });
+        const overline = foot.getByText('Next · step 2');
 
-        expect(screen.getByText('Add 2 tbsp. butter.')).toBeTruthy();
+        expect(foot.getByText('Add 2 tbsp. butter.')).toBeTruthy();
         expect(screen.queryByText('Stir well.')).toBeNull();
         expect(region.contains(overline)).toBe(false);
         expect(overline.closest('[data-cooking-scroll]')).toBeNull();
         expect(overline.compareDocumentPosition(back()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    // D47: jsdom has no container queries, so both copies are drawn and each carries the class that shows it. The
+    // Playwright spec proves which one shows at 390 x 844, at 100% and 200% text.
+    it('draws the preview again as the last item of the scrolling step, for a frame under 40 rem tall', () => {
+        const { container } = setup();
+
+        const scroll = htmlElementOf(container.querySelector('[data-cooking-scroll]'));
+        const foot = htmlElementOf(container.querySelector('[data-cooking-foot]'));
+        const inStep = within(scroll).getByText('Next · step 2');
+        const inFoot = within(foot).getByText('Next · step 2');
+
+        expect(within(scroll).queryAllByText('Next · step 2')).toHaveLength(1);
+        expect(within(foot).queryAllByText('Next · step 2')).toHaveLength(1);
+        expect(htmlElementOf(inFoot.parentElement).className).toContain(PREVIEW_IN_BODY.footWebClassName);
+        expect(htmlElementOf(inStep.parentElement).className).toContain(PREVIEW_IN_BODY.bodyWebClassName);
+        expect(scroll.lastElementChild).toBe(inStep.parentElement);
+        expect(screen.getByRole('region', { name: 'Step\u00a01 of 6' }).contains(inStep)).toBe(false);
     });
 
     it('names Back for the recipe on step 1, and leaves with it', () => {
@@ -474,7 +495,7 @@ describe('CookingScreen: readingLarge and largeTitle never share a screen', () =
     it('draws no largeTitle on a step of several lines, with its preview', () => {
         const { container } = setup();
 
-        expect(screen.getByText('Next · step 2')).toBeTruthy();
+        expect(screen.getAllByText('Next · step 2')).toHaveLength(2);
         expect(largeTitles(container)).toHaveLength(0);
     });
 
@@ -735,9 +756,13 @@ describe('CookingScreen: Done', () => {
     });
 
     it('goes back to the recipe', () => {
+        vi.useFakeTimers();
         const { onLeave } = setup();
         finish();
 
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
         press('Back to the recipe');
 
         expect(onLeave).toHaveBeenCalledTimes(1);
@@ -767,10 +792,14 @@ describe('CookingScreen: Done', () => {
 
     // Android does not reliably speak text a live region mounts with, and Cook it again mounts the step's region again.
     it('mounts the step announcement empty and fills it, so Cook it again is spoken on Android', () => {
+        vi.useFakeTimers();
         setup();
         finish();
         liveRegions.announceOnMount = [];
 
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
         press('Cook it again');
 
         expect(liveRegions.announceOnMount.length).toBeGreaterThan(0);
@@ -778,16 +807,89 @@ describe('CookingScreen: Done', () => {
     });
 
     it('cooks it again from step 1, line 1, with every tick cleared', () => {
+        vi.useFakeTimers();
         setup();
         tick('Heat 1.5 tbsp. oil.');
         finish();
 
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
         press('Cook it again');
 
         expect(screen.getByText('Step 1 of 6')).toBeTruthy();
         expect(screen.getByText('Line 1 of 2')).toBeTruthy();
         expect(screen.queryByText(/You ticked/u)).toBeNull();
         expect(keepAwake.calls.at(-1)).toBe(true);
+    });
+});
+
+/** S24 and D15: Done ignores a press for 400 ms, so the tap on Finish cannot also choose a Done action. */
+describe('CookingScreen: the Done settle window', () => {
+    const toDone = () => {
+        for (let step = 1; step <= 6; step++) {
+            fireEvent.click(forward());
+        }
+    };
+
+    const after = (ms: number) => {
+        act(() => {
+            vi.advanceTimersByTime(ms);
+        });
+    };
+
+    it.each(['Cook it again', 'Back to the recipe'])(
+        'ignores %s at 100 ms and at 399 ms, and takes it at 400 ms',
+        (name) => {
+            vi.useFakeTimers();
+            const { onLeave } = setup();
+            toDone();
+            const acted = () =>
+                name === 'Back to the recipe'
+                    ? vi.mocked(onLeave).mock.calls.length > 0
+                    : screen.queryByRole('heading', { level: 1, name: 'All 6 steps done' }) === null;
+
+            after(100);
+            press(name);
+            expect(acted()).toBe(false);
+
+            after(299);
+            press(name);
+            expect(acted()).toBe(false);
+
+            after(1);
+            press(name);
+            expect(acted()).toBe(true);
+        },
+    );
+
+    it.each(['Cook it again', 'Back to the recipe'])('takes %s at 500 ms', (name) => {
+        vi.useFakeTimers();
+        const { onLeave } = setup();
+        toDone();
+
+        after(500);
+        press(name);
+
+        expect(
+            name === 'Back to the recipe'
+                ? vi.mocked(onLeave).mock.calls.length
+                : screen.queryByRole('heading', { level: 1, name: 'All 6 steps done' }),
+        ).toBe(name === 'Back to the recipe' ? 1 : null);
+    });
+
+    it('waits again when Done comes back after Cook it again', () => {
+        vi.useFakeTimers();
+        const { onLeave } = setup();
+        toDone();
+        after(DONE_SETTLE_MS);
+        press('Cook it again');
+        toDone();
+
+        after(100);
+        press('Back to the recipe');
+
+        expect(onLeave).not.toHaveBeenCalled();
     });
 });
 
@@ -952,6 +1054,7 @@ describe('CookingScreen: keyboard focus when the focused control goes away', () 
     });
 
     it('focuses step 1’s forward control and announces step 1 after Cook again', () => {
+        vi.useFakeTimers();
         setup();
 
         for (let step = 1; step <= 6; step++) {
@@ -959,6 +1062,9 @@ describe('CookingScreen: keyboard focus when the focused control goes away', () 
         }
 
         screen.getByRole('button', { name: 'Cook it again' }).focus();
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
         press('Cook it again');
 
         expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Next step, step 2' }));

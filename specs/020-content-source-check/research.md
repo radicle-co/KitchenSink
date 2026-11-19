@@ -135,7 +135,7 @@ choice of what to quote is neither, so a model item, even one whose quote code f
 That also makes `detected` known in the save, with no wait and no spend.
 
 **Rejected**: a model-only check. A model's confidence is not calibrated, and a block that rests on it cannot be
-explained or tested. Code-verifiable evidence is what makes `detected` defensible (spec FR-009, FR-010).
+explained or tested. Code-verifiable evidence is what makes `detected` explainable and testable (spec FR-009, FR-010).
 
 ## R-04. The model detector
 
@@ -239,7 +239,7 @@ sizes it.
 
 - **Labeled set**: at least 300 third-party items with markers, at least 300 own or public items, and a further
   group of third-party items with no markers. It includes photos: cooks' dish photos, photographed book pages and
-  screenshots of paid sites. Kept outside the repository, access limited to the operator, pending counsel (spec
+  screenshots of paid sites. Kept outside the repository, access limited to the operator, pending the labeled-set decision (spec
   FR-041).
 - **Metrics**:
     - precision of `detected`, with a Wilson 95% interval (SC-001: point at least 97%, lower bound at least 95%)
@@ -263,25 +263,17 @@ what a 95% lower bound at a 97% point needs.
 Inspection is not user evidence. This set measures detection. Whether cooks find holds fair, or the copy clear, needs
 a study.
 
-## R-09. Legal framing
+## R-09. Check posture
 
-These shape the design. Counsel confirms them (spec FR-041). This is not legal advice.
-
-- **No duty to monitor.** 17 U.S.C. §512(m) says safe harbour does not depend on monitoring. The check is voluntary.
-- **Knowledge.** Under §512(c)(1)(A), a host that knows, or is aware of facts that make infringement apparent, loses
-  safe harbour unless it acts. Courts have read this as knowledge of specific infringing material (Viacom v. YouTube,
-  2d Cir. 2012). Under Q2 a flagged recipe no longer publishes on the cook's word. The question moves to the reviewer:
-  what standard does a person apply when they clear a flagged recipe, and does the record show it? That is the counsel
-  item.
-- **EU.** DSA Art. 7 says voluntary own-initiative checks do not by themselves cost a host its exemption, and Art. 8
-  says there is no general monitoring duty. A hold restricts visibility, so Art. 17 requires a statement of reasons
-  that includes the use of automated means. Whether a hold pending a person's decision already needs one is a counsel
-  item.
-- **Profiling.** GDPR Art. 22 is about decisions based solely on automated processing with legal or similarly
-  significant effects. Every unsure case now goes to a person, and a `detected` hold can be appealed to one, so no
-  hold rests solely on automated processing for long.
-- **The check is not a shield** (016, finding 2). A `clear` outcome, or a person's clearance, is never evidence that a
-  recipe is lawful.
+- The check is voluntary. Nothing else in the product depends on it running.
+- Under Q2 a flagged recipe no longer publishes on the cook's word. The question moves to the reviewer: what standard
+  does a person apply when they clear a flagged recipe, and does the record show it? That is an open decision (spec
+  FR-041).
+- A hold restricts visibility, so it gets a statement of reasons that includes the use of automated means. Whether a
+  hold pending a person's decision already needs one is an open decision.
+- Every unsure case goes to a person, and a `detected` hold can be appealed to one, so no hold rests solely on
+  automated processing for long.
+- A `clear` outcome, or a person's clearance, is never presented as proof that a recipe is the cook's own.
 
 ## R-10. Review load, as information
 
@@ -330,7 +322,7 @@ an approval. Each breaks the owner's rulings.
 ground, the facts, automated means and the redress (spec FR-028). It is delivered through 016's mechanism.
 
 **Rationale**: model prose is AI-generated content shown to a user (`GR-010`, `016-FR-046`). It can misstate the
-evidence, and counsel cannot approve it in advance. Counsel can approve a template.
+evidence, and it cannot be approved in advance. A template can.
 
 ## R-12. Failure and the spent budget
 
@@ -555,22 +547,22 @@ allowed`.
 - The cook is told all this at election, before they confirm. The election screen is in the account closure plan
   (U3b), and spec FR-044a lists its amendment.
 
-**The deadline: 14 days** (owner ruling, 2026-10-26). GDPR Art. 12(3) gives one month from the request. Fourteen days
-leaves about sixteen for the rest of the erasure, the identity scrub and the Clerk deletion included. A donated recipe
-still waiting for staff after 14 days is deleted. Counsel confirms it is not undue delay (spec FR-041). A not-approved
+**The deadline: 14 days** (owner ruling, 2026-10-26). The whole erasure, the identity scrub and the Clerk deletion included,
+completes within one month of the request. A donated recipe
+still waiting for staff after 14 days is deleted. A not-approved
 recipe is never donated, and an elected recipe already in review waits the same 14 days.
 
 **Rejected**:
 
 - **Erase at once and keep the pending recipes, pseudonymised, until a person decides.** It removes the wait, but it
   needs a second recipe phase, a second scoped object sweep and a second removed-set capture, and it keeps the cook's
-  content after their account is gone. Kept as the fallback if counsel calls the wait undue delay.
+  content after their account is gone. Kept as the fallback if the 14-day wait is changed.
 - **Wait for staff without a deadline.** The owner ruled that erasure does not wait forever.
 - **Never donate a private recipe.** The owner ruled that one that passes may be donated.
 
 **A statement for an erased cook.** A person's hold during the wait can be emailed while the account still exists.
 After the identity record is scrubbed there is nobody to deliver to, so the decision row records
-`statement_undeliverable`. Counsel confirms that this is enough (spec FR-041).
+`statement_undeliverable`. Whether that is enough is an open decision (spec FR-041).
 
 ## R-19. Another cook's private recipe is never disclosed (owner ruling 3)
 
@@ -595,7 +587,7 @@ After the identity record is scrubbed there is nobody to deliver to, so the deci
   because it reads only the cook's own content.
 - **A closed ground and a generic fact.** A reviewer chooses the cook-facing ground from a closed set, and a match is
   always stated as the one generic fact. The reviewer's own words are an internal note. So a reviewer cannot disclose
-  the match by typing it. Counsel is asked whether the generic fact satisfies DSA Art. 17(3)(b) (spec FR-041).
+  the match by typing it. Whether the generic fact is enough is an open decision (spec FR-041).
 - **A private recipe with no person decision only routes.** It can send the new recipe to a person and never makes
   anything green (FR-047 row 4).
 - **Staff see the match and its earlier decision**, never a private recipe's content.

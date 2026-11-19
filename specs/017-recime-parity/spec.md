@@ -2,8 +2,7 @@
 
 **Feature Branch**: `chore/code-quality-enforcement-phase-1-2` (no new branch — standing owner directive)
 **Created**: 2026-08-22
-**Status**: Draft — clarifications resolved; **one cross-feature conflict flagged for 016**. 2026-10-27: one open
-question, FR-034k (Free households). 2026-10-28: FR-034k is answered (yes), and the household model is rebalanced.
+**Status**: Draft — clarifications resolved. FR-034k (Free households) is answered (yes), and the household model is rebalanced.
 Pro shares the household's content, not the payer's personal Pro (FR-034, FR-034a to FR-034m).
 **Input**: User description: "we want parity with the feature gaps against recime that
 911043cd-1ce2-4e5b-8608-50a8524b5b98 review and discovered. We also have the artifact
@@ -67,7 +66,7 @@ only for now_.
 | D4a, D4b, D5  | **Owned elsewhere.** D4a (free-tier privacy) is decided by ADR-0073: 50 private slots. **Feature `015` owns D4b and D5** (`imported_public` default, re-pricing). Duplicating them here would create the exact second-authority this spec exists to avoid.                                                                                                                                        |
 | D6            | Payment rails (external US web checkout + IAP). Monetisation mechanics, not a capability gap; coupled to D5, so it moves with `015`/`010`.                                                                                                                                                                                                                                                        |
 | **D23**       | **One-time / lifetime purchase tier — deferred by owner ruling 2026-08-22: _"we will only be doing subscriptions for now."_** Recorded rather than dropped: "subscription fatigue" remains a quoted, sourced churn driver on ReciMe's own subreddit, and FR-039's inference spend is precisely what makes a lifetime tier hard to price. Revisit in `010` when there is a cost model, not before. |
-| D24           | Registered DMCA agent + repeat-infringer policy. **Now owned by `016-FR-022`/`016-FR-026`**, which mandates exactly one notice-and-action pipeline portfolio-wide.                                                                                                                                                                                                                                |
+| D24           | Registered designated agent and repeat-offender policy. **Now owned by `016-FR-022`/`016-FR-026`**, which mandates exactly one notice-and-action pipeline portfolio-wide.                                                                                                                                                                                                                         |
 | D16, D17, D19 | The gap analysis files these under _"Strategic — to win rather than match"_. The owner scoped this feature to **parity**. (D18 was pulled out of this set — see above.)                                                                                                                                                                                                                           |
 
 ---
@@ -137,7 +136,7 @@ and multi-recipe meal-prep posts.
 **Acceptance Scenarios**:
 
 1. **Given** a Reel whose caption contains the full recipe, **When** the user imports it, **Then** the recipe
-   is extracted from the caption and the draft records that tier 1 produced it.
+   is extracted from the caption and the import records that tier 1 produced it.
 2. **Given** an ASMR video with no caption, no narration, and a full ingredient list burned into the frames,
    **When** the user imports it, **Then** tiers 1 and 2 yield nothing, tier 3 reads the on-screen text, and a
    complete recipe is produced. _(ReciMe fails this import entirely — Android Police four-app head-to-head.)_
@@ -148,10 +147,11 @@ and multi-recipe meal-prep posts.
    invisible to it.)_
 5. **Given** a meal-prep post containing five distinct recipes, **When** the user imports it, **Then** all
    five are surfaced and the user chooses which to save. _(ReciMe extracts only one.)_
-6. **Given** a login-gated or paywalled source, **When** the user imports it, **Then** the app states plainly
+6. **Given** a login-gated or payment-gated source, **When** the user imports it, **Then** the app states plainly
    that the source cannot be read and offers the screenshot/paste path — rather than failing silently.
-7. **Given** any successful video import, **When** the draft is presented, **Then** every ingredient quantity
-   carries the per-field confidence and food-service resolution `004-FR-015` already requires.
+7. **Given** any successful video import, **When** the recipe is saved, **Then** every ingredient line goes through the
+   same food matching as every other import (`004-FR-015`, `004-FR-020`), and a quantity the video never states stays
+   unstated (FR-010). The cook never reviews the extraction (`004-FR-064`).
 
 ---
 
@@ -162,23 +162,21 @@ sheet on phone, or a browser button on desktop — without first opening Commise
 
 **Why this priority**: The share sheet is ReciMe's **primary** capture path, and their Chrome extension has
 30,000 users. Import quality (US1) is worth nothing if reaching the importer costs the user a context switch;
-these two stories are one product and ship together. Instagram also rides here — `004-FR-009` is currently
-gated on a Meta app approval that does not exist, and user-initiated share capture routes around that gate
-entirely rather than waiting on Meta. It is also the **legally preferred** shape: `016` records that
-user-supplied bytes are a stronger position than server-side fetching.
+these two stories are one product and ship together. Instagram also rides here — only `004-FR-009`'s Instagram
+official-API path is gated on a Meta approval, and user-initiated share capture does not depend on it.
 
 **Independent Test**: From a cold app state on iOS, Android, and Chrome, share a recipe URL from a third-party
-app/site and confirm a draft is created without the user opening Commise first.
+app/site and confirm an import is created without the user opening Commise first.
 
 **Acceptance Scenarios**:
 
 1. **Given** the mobile app is installed and closed, **When** the user shares a TikTok post to Commise from
-   the OS share sheet, **Then** a draft import is created and the user is told it succeeded.
+   the OS share sheet, **Then** an import is created and the user is told it succeeded.
 2. **Given** a recipe blog open in Chrome, **When** the user activates the extension, **Then** the recipe is
    captured through the same import pipeline as every other channel.
 3. **Given** an Instagram post, **When** the user shares it to Commise, **Then** the import proceeds with no
    dependency on Meta Graph API approval.
-4. **Given** any capture surface, **When** it produces a draft, **Then** that draft is indistinguishable in
+4. **Given** any capture surface, **When** it produces an import, **Then** that import is indistinguishable in
    handling from one created through the in-app chooser of `004-FR-046`.
 5. **Given** a Pinterest pin that links to a recipe blog, **When** the user shares it to Commise, **Then** the blog
    page is imported and attributed, and the pin is not named as the source. _(Added 2026-10-27, FR-001c.)_
@@ -191,7 +189,7 @@ A cook with years of recipes in Paprika, AnyList, Copy Me That, or ReciMe moves 
 one operation — and can export their Commise library back out at any time.
 
 **Why this priority**: Switching cost is the moat, and ReciMe's own staff have confirmed they cannot do this:
-a 2,000-recipe Paprika backup cannot be imported, and there is no JSON or CSV export — only PDF, paywalled.
+a 2,000-recipe Paprika backup cannot be imported, and there is no JSON or CSV export — only PDF, behind a paid plan.
 Their users are asking for both **out loud**. This is cheap, uses the bulk-import machinery `004-FR-019`/
 `004-FR-026` already specify, and does not wait on US1.
 
@@ -218,7 +216,7 @@ A cook follows a recipe with wet hands, a dim room, a bad signal, and three thin
 
 **Why this priority**: Cook mode is where a recipe app is judged, and `008` currently carries **four FRs** —
 steps, navigation, timers, wake-lock — despite its own charter describing a _"hands-free cooking interface"_.
-ReciMe paywalls cook mode and unit conversion, has no dark mode at all, and its offline access is Plus-only.
+ReciMe locks cook mode and unit conversion behind a paid plan, has no dark mode at all, and its offline access is Plus-only.
 
 **Independent Test**: Complete a multi-timer recipe end to end, hands-free, in dark mode, in airplane mode,
 with the recipe's units converted from metric to imperial.
@@ -297,6 +295,10 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 11. **Given** a household on the household upgrade, **When** any member makes a recipe private past 50 or uses a
     personal AI feature, **Then** it works under Pro, with that member's own Pro uses (FR-034l). _(Added
     2026-10-28.)_
+12. **Given** a member's private recipes, one of them imported from a paid site, **When** another member opens the
+    member's library, **Then** they can read, cook, plan and list from each recipe but not edit or clone it, and for
+    the paid-site recipe they see only its Commise-written version, or nothing if none exists (FR-030d). _(Added
+    2026-11-15, Owner ruling, 2026-11-15.)_
 
 ---
 
@@ -305,13 +307,13 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 - **A video is a recipe _reaction_, not a recipe.** Import must be able to conclude "no recipe here" and say so,
   rather than hallucinating one from ambient food talk.
 - **Every tier fails.** The user gets an explicit, actionable failure naming what was tried — not a silent
-  empty draft. ReciMe's documented behaviour here is a generic error with "email us the URL"; that is the bar
+  empty result. ReciMe's documented behaviour here is a generic error with "email us the URL"; that is the bar
   to beat, not to match.
 - **The video is 45 minutes long.** Frame sampling and transcription must be bounded, and the bound must be
   stated, or a single import can consume an unbounded share of the inference budget.
 - **On-screen text is decorative or is a watermark/handle.** Tier 3 must not emit `@creator` as an ingredient.
 - **The capture is accepted but the user has notifications denied.** FR-013a's notification is the only signal
-  that a draft is ready. With it suppressed the draft must still be discoverable in-app — acceptance must never
+  that a recipe is ready. With it suppressed the recipe must still be discoverable in-app — acceptance must never
   depend on a channel the user can switch off.
 - **The extension is activated on a page with no recipe.** Activation-scoped access means we only learn this
   after the click; the extension must report "no recipe here" rather than appearing broken — the same
@@ -320,7 +322,7 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   must degrade that platform's imports only — never the feature. FR-001b's monitoring is what makes this
   visible rather than a slow silent decline in success rate.
 - **The source is deleted between import and retry.** A retried import of a dead URL must fail cleanly without
-  destroying the draft already extracted — and per FR-011a it resumes rather than restarting, so tiers already
+  destroying the import already extracted — and per FR-011a it resumes rather than restarting, so tiers already
   paid for are not re-attempted against a source that no longer exists.
 - **A tier commits, then the settle write fails.** ADR-0024 forbids retrying settle. The reservation stands and
   is reconciled by the period's own accounting; the capture still resumes from the committed tier.
@@ -369,32 +371,25 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 #### A. Video capture — D1, D8, D20
 
 - **FR-001** `→ 004 ADDED`: System MUST import recipes from public social video posts on TikTok, Instagram
-  Reels, YouTube (Shorts and long-form), and Facebook.
+  Reels, YouTube (Shorts and long-form), and Facebook, within the limits of `004-FR-009`.
 - **FR-001a** `→ 004 ADDED`: Retrieval MUST be **user-directed**: one item, on one explicit user action. System
   MUST NOT crawl, batch, pre-fetch, or speculatively retrieve, and MUST NOT rotate addresses, spoof a
-  user-agent, or otherwise evade a platform control. Where a platform blocks us or its terms forbid automated
-  access, the capture resolves `unreadable` (FR-008) and offers the screenshot/paste path. _(This is ReciMe's
-  own stated position — "does not use bots or automated tools" — so it is the floor, not caution. Our exposure
-  is strictly worse than theirs at equal posture, because we operate a public library and they do not. A green
-  `robots.txt` is not terms-of-use clearance.)_
-    > **Amended 2026-11-03 (owner ruling, ADR-0082): what binds a social fetch.** [Law] The server MUST NOT download
-    > TikTok, Instagram or YouTube video against their terms. It MUST use **official APIs under their terms**
-    > (oEmbed, the platform's data API where the terms allow it). Where none allows the import, the capture resolves
-    > `unreadable` (FR-008) and the fallback is the cook's **paste, share sheet or screenshot**. It MUST NOT pass a
-    > login or paywall, use a cook's password or cookies, pose as another bot or rotate addresses (17 U.S.C. §1201,
-    > CFAA after a revocation, _Facebook v. Power Ventures_, 844 F.3d 1058 (9th Cir. 2016)). It MUST honour robots.txt
-    > per RFC 9309 and the data-mining opt-outs of `004-FR-023`, and MUST log what each signal said per fetch. The
-    > result follows the per-market private-copy switch (`004-FR-008` ruling, D6): the EU and UK keep facts and a link
-    > only. Counsel review is owed before launch (`016-FR-050`).
+  user-agent, or otherwise evade a platform control. The server never downloads a video. What a social video import may
+  read is `004-FR-009`. Where none of that works, the capture resolves `unreadable` (FR-008) and offers the
+  screenshot/paste path. A link the cook imports, including one shared from a social app, is fetched on the cook's
+  device first and by the server if the device cannot (`004-FR-064`). The server fetch honours robots.txt and the
+  data-mining opt-outs of `004-FR-023`, logs what each signal said per fetch, never runs for a known paid site, and
+  never passes a login or a payment gate or uses a cook's password or cookies. The result is the cook's private copy,
+  which keeps the source's wording (`004-FR-066`), and the public choice of `004-FR-065`.
 - **FR-001b** `→ 004 ADDED`: System MUST monitor extraction success **per source platform**, MUST surface a
   defined degradation path when one platform stops working, and MUST NOT let any single platform be
   load-bearing for the feature's success criteria. _(ReciMe took a staff-acknowledged import outage across
   Instagram, TikTok and Facebook Reels in 2026 while running the conservative posture; platform access is an
   operational risk to be measured, not an assumption.)_
-- **FR-001c** `→ 004 ADDED` _(added 2026-10-27, owner ruling)_: System MUST import recipes from public Pinterest
+- **FR-001c** `→ 004 ADDED`: System MUST import recipes from public Pinterest
   pins. It works through the share sheet on iOS and Android and by a pasted link on the web. A video pin runs the
   waterfall of FR-002. A pin that links out to a recipe page follows that one link, once, on the user's action. The
-  page is then imported by `004-FR-008`, with its rights check and its attribution. The page is the source, not the
+  page is then imported by `004-FR-008`, with its attribution. The page is the source, not the
   pin. A pin with neither resolves `no_recipe` (FR-008).
 - **FR-001d** `→ 004 ADDED` _(added 2026-10-27)_: A share from TikTok, Instagram, YouTube or Pinterest often sends a
   short link, a link with tracking parameters, or text with a link inside it. System MUST find the link in the
@@ -408,12 +403,14 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 - **FR-002** `→ 004 ADDED`: System MUST attempt extraction as an ordered **waterfall**, stopping at the first
   tier that yields a structurally complete recipe: **(1)** caption/description text, **(2)** audio transcript,
   **(3)** on-screen text from sampled frames, **(4)** visual analysis of sampled frames, **(5)** lookup of the
-  original source site. The draft MUST record which tier produced each field.
-    > **Amended 2026-11-03 (owner ruling, ADR-0082).** Tiers 2 to 4 need the video itself. They run only on media the
-    > cook hands us (a shared file, a screen recording, a screenshot) or that an official API under its terms returns.
-    > They never run on a server-side download against a platform's terms. [Law, EU] Extraction's basis is per market:
-    > US fair use (a judgement, weakened by _Thomson Reuters v. Ross_), EU DSM Art. 4 unless opted out, UK s.28A only,
-    > and Australia has no matching exception. Counsel review is owed before launch (`016-FR-050`).
+  original source site. The import MUST record which tier produced the recipe.
+    - Tiers 2 to 4 need the video itself. They read only media the cook hands over (a shared file, a screen recording,
+      a screenshot), media an official API under its terms returns, or, for a public TikTok, Instagram or Facebook
+      video, the video the cook's phone fetches from the shared link and reads briefly (`004-FR-009`).
+    - The server never downloads a video. Nothing is kept: no video, no frames, no audio. No face recognition runs.
+    - YouTube has no fetch from the link. A YouTube import uses the caption, the description, the creator's site and
+      media the cook hands over.
+    - Where a source has opted out of data mining in a machine-readable way, extraction honours it (`004-FR-023`).
 - **FR-003** `→ 004 ADDED`: Tier 3 MUST recover recipe text that appears only as burned-in on-screen text,
   including where the post has neither caption nor speech.
 - **FR-004** `→ 004 ADDED`: Tier 4 MUST recover ingredients and steps that are demonstrated visually but never
@@ -423,11 +420,11 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 - **FR-006** `→ 004 ADDED`: Where a single post contains more than one recipe, System MUST surface all of them
   and let the user choose which to save.
 - **FR-007** `→ 004 ADDED`: System MUST consider recipe text posted in a post's comments as a candidate source.
-- **FR-008** `→ 004 ADDED`: Where a source is login-gated, paywalled, or otherwise unreadable, System MUST say
+- **FR-008** `→ 004 ADDED`: Where a source is login-gated, behind a payment gate, or otherwise unreadable, System MUST say
   so explicitly and offer the screenshot/paste path, distinguishing "cannot read this source" from "read it and
   found no recipe". _(Extends `004-FR-016`, which covers the message but not the distinction.)_
 - **FR-009** `→ 004 MODIFIED`: Instagram import MUST be reachable through user-initiated capture and MUST NOT
-  depend on Meta Graph API approval. **This closes gate D-002 on `004-FR-009`**; the Graph API path becomes an
+  depend on Meta Graph API approval. The Graph API path (`004-D-002`) becomes an
   optional enhancement, never a precondition.
 - **FR-010** `→ 004 MODIFIED`: Every **new** surface introduced by this feature — the waterfall (FR-002), unit
   conversion (FR-026), and export round-trip (FR-020) — MUST preserve an unstated quantity as unstated, never
@@ -437,14 +434,10 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   "salt to taste" is unrepresentable is **false against the shipped code**; the obligation here is not to break
   it. This matters most for D1 because video sources state quantities far less often than blog sources do.
 - **FR-011** `→ 004 ADDED`: Frame sampling, transcription, and visual analysis MUST each be bounded per import,
-  and the bound MUST be stated in the product. **No sampled frame, decoded audio, or derived rendition may be
-  persisted to operator-controlled storage** — analysis is transient and the artefacts are discarded with the
-  extraction that produced them. This satisfies `016-FR-027`, which prohibits _persisting_ a copy; it does not
-  by itself answer whether transient decode is a reproduction (see Dependencies).
-    > **Amended 2026-11-03 (owner ruling, ADR-0082).** The import MUST NOT keep video frames or audio at all, in any
-    > store, and MUST NOT run face recognition on frames (Illinois BIPA, 740 ILCS 14). [Law, EU] DSM Art. 4(2) limits
-    > retention of mining copies, and GDPR storage limitation applies where people appear. A screenshot or page image
-    > the cook gives us is deleted after extraction unless the cook asks to keep it (`011-FR-018`).
+  and the bound MUST be stated in the product. The import MUST NOT keep video frames, decoded audio or any derived
+  rendition at all, in any store: analysis is transient and its artefacts are discarded with the extraction that
+  produced them. It MUST NOT run face recognition on frames. A screenshot or page image the cook gives us is deleted
+  after extraction unless the cook asks to keep it (`011-FR-018`).
 
 #### B. Capture surfaces — D2, D3
 
@@ -453,8 +446,8 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   MUST NOT be paid for twice. _(ADR-0024's settle is deliberately never retried — `reserved + $delta` is not
   idempotent — and its own reasoning is that crashes correlate with the runaway the ceiling exists to stop, so
   a crash storm must not become a spend storm.)_
-- **FR-011b** `→ 004 ADDED`: A resumed capture MUST NOT consume the daily import quota (`004-FR-022`) a second
-  time. Quota is charged per **user intent**, not per worker attempt.
+- **FR-011b** `→ 004 ADDED`: A resumed capture MUST NOT spend the import allowance (`004-FR-067`) a second
+  time. The allowance is spent per **user intent**, not per worker attempt.
 - **FR-012** `→ 004 ADDED`: System MUST register as a share target on iOS and Android, accepting URLs, text,
   and images from any app's share sheet.
 - **FR-013** `→ 004 ADDED`: Share-sheet capture MUST **durably accept** the capture and confirm acceptance
@@ -462,7 +455,7 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   crash-safe — it does **not** wait for extraction. _(An iOS share extension runs under a hard memory and
   wall-clock budget, and tier 4 can exceed it; waiting would make the OS killing the extension a routine
   outcome.)_
-- **FR-013a** `→ 004 ADDED`: When extraction completes, System MUST notify the user that the draft is ready,
+- **FR-013a** `→ 004 ADDED`: When extraction completes, System MUST notify the user that the recipe is ready,
   via `014-FR-001`'s publish endpoint addressed to `recipient.kind = "user"`. A capture that resolves
   `no_recipe` or `unreadable` MUST notify too — silence is indistinguishable from a lost capture.
 - **FR-014** `→ 004 ADDED`: System MUST provide a desktop browser extension that captures the current page as a
@@ -472,19 +465,15 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   MUST NOT pre-scan pages the user has not activated it on. _(The browser-level expression of FR-001a. Widening
   this later triggers store re-review and can suspend the extension for existing users pending re-consent, so
   it is treated as an expensive-to-reverse boundary.)_
-    > **Amended 2026-11-03 (owner ruling, ADR-0082).** [Law] The extension runs in the cook's browser, with the cook's own
-    > session, after the cook's action. It captures what the cook can already see, including a page behind the cook's own
-    > subscription, so the server never fetches a paid site and never uses a cook's cookies. The captured page is a
-    > private copy under the per-market switch (D6, `004-FR-008` ruling), and its public form is a facts card. The
-    > extension follows the same signal rules as `004-FR-023` for any fetch the server makes on its behalf. Counsel
-    > review is owed before launch (`016-FR-050`).
+    - The extension runs in the cook's browser, with the cook's own session, after the cook's action. It captures what
+      the cook can already see, including a page behind the cook's own subscription, so the server never fetches a paid
+      site and never uses a cook's cookies. The captured page is the cook's private copy, which keeps the page's
+      wording (`004-FR-066`). Its public form is a Commise-written version (`004-FR-065`, `016-FR-077`). A fetch the
+      server makes on its behalf follows `004-FR-023`.
 - **FR-015** `→ 004 ADDED`: Every capture surface — chooser, share sheet, extension, migration — MUST route
-  through **one** import pipeline, so provenance, confidence, quota (`004-FR-022`), attestation
+  through **one** import pipeline (`004-FR-064`), so provenance, the import allowance (`004-FR-067`), attestation
   (`016-FR-014`), and policy behave identically regardless of entry point. Each surface MUST record its
-  channel classification per `016-FR-028` — **video import is `operator-performed retrieval`**, which is
-  the disfavoured side of `016-FR-029` and cannot be otherwise, since a user cannot hand us the bytes of a
-  hosted video. _(Amended 2026-11-03, ADR-0082: operator-performed retrieval is allowed only through official APIs
-  under their terms. Everything else is a cook-supplied paste, share or screenshot.)_
+  channel classification per `016-FR-028`.
 
 #### C. Portability — D15, D14
 
@@ -496,17 +485,17 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
     > So for these two apps, "import their library" cannot mean a file. FR-016a gives each a path that works.
 - **FR-016a** `→ 004 ADDED` _(added 2026-10-27, owner ruling)_: System MUST support these switching paths at launch:
 
-    | App          | What the user can export                                                             | How Commise reads it                                                                                   | Source                                                                                  |
-    | ------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-    | Paprika      | `.paprikarecipes`, "essentially a zip file containing gzipped JSON files". Also HTML | The whole file                                                                                         | [Paprika help](https://paprikaapp.com/help/ios/)                                        |
-    | Mela         | `.melarecipes`, a zipped folder of `.melarecipe` JSON files                          | The whole file                                                                                         | [Mela file format](https://mela.recipes/fileformat/index.html)                          |
-    | Plan to Eat  | CSV, one row per recipe, or TXT, from the website only                               | The CSV                                                                                                | [Plan to Eat help](https://learn.plantoeat.com/help/export-your-recipe-book)            |
-    | Mealie       | A JSON export, and zip backups                                                       | The JSON export                                                                                        | [Mealie features](https://mealie.io/documentation/getting-started/features/)            |
-    | Copy Me That | A download of every recipe. Only a third-party guide names the format                | The file, after a plan-time check of a real export                                                     | [Copy Me That](https://www.copymethat.com/features/recipe-manager/)                     |
-    | Crouton      | A zip of `.crumb` JSON files. Only a third-party guide says so                       | The file, after a plan-time check of a real export                                                     | [RecipeSage guide](https://docs.recipesage.com/docs/tutorials/settings/import/crouton/) |
-    | ReciMe       | One recipe at a time, as a PDF. No bulk export                                       | Each PDF the user uploads, read as text into a draft. Or each recipe shared from ReciMe's share button | ReciMe help, above                                                                      |
-    | AnyList      | One recipe at a time, by email. No bulk export                                       | The recipe text the user pastes or shares into paste import                                            | AnyList help, above                                                                     |
-    | Commise      | Our own export (FR-018)                                                              | The round-trip importer (FR-020)                                                                       | This spec                                                                               |
+    | App          | What the user can export                                                             | How Commise reads it                                                                                          | Source                                                                                  |
+    | ------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+    | Paprika      | `.paprikarecipes`, "essentially a zip file containing gzipped JSON files". Also HTML | The whole file                                                                                                | [Paprika help](https://paprikaapp.com/help/ios/)                                        |
+    | Mela         | `.melarecipes`, a zipped folder of `.melarecipe` JSON files                          | The whole file                                                                                                | [Mela file format](https://mela.recipes/fileformat/index.html)                          |
+    | Plan to Eat  | CSV, one row per recipe, or TXT, from the website only                               | The CSV                                                                                                       | [Plan to Eat help](https://learn.plantoeat.com/help/export-your-recipe-book)            |
+    | Mealie       | A JSON export, and zip backups                                                       | The JSON export                                                                                               | [Mealie features](https://mealie.io/documentation/getting-started/features/)            |
+    | Copy Me That | A download of every recipe. Only a third-party guide names the format                | The file, after a plan-time check of a real export                                                            | [Copy Me That](https://www.copymethat.com/features/recipe-manager/)                     |
+    | Crouton      | A zip of `.crumb` JSON files. Only a third-party guide says so                       | The file, after a plan-time check of a real export                                                            | [RecipeSage guide](https://docs.recipesage.com/docs/tutorials/settings/import/crouton/) |
+    | ReciMe       | One recipe at a time, as a PDF. No bulk export                                       | Each PDF the user uploads, read as text into an import item. Or each recipe shared from ReciMe's share button | ReciMe help, above                                                                      |
+    | AnyList      | One recipe at a time, by email. No bulk export                                       | The recipe text the user pastes or shares into paste import                                                   | AnyList help, above                                                                     |
+    | Commise      | Our own export (FR-018)                                                              | The round-trip importer (FR-020)                                                                              | This spec                                                                               |
 
     Every per-recipe path is user-directed. The user supplies the bytes, or acts once per recipe (FR-001a). Nothing
     signs in to another app for the user. Samsung Food is not listed, because no export was found. Its recipes come
@@ -522,7 +511,7 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
     - the review list of ADR-0072.
 
     For an app with no export file, the flow shows its per-recipe path instead. Before the upload, the flow states the
-    bulk allowance: 1,000 recipes a rolling day on a paid plan and 200 on Free (`004-FR-022`). It also gives the day the
+    bulk allowance (`004-FR-067`). It also gives the day the
     rest will follow.
 
 - **FR-016c** `→ 004 ADDED` _(added 2026-10-27)_: A migrated recipe still needs its own statement (ADR-0072 §9). The
@@ -540,10 +529,10 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
     > `/api/v1/recipes/migrations` is withdrawn (owner ruling, 2026-10-26). Bulk import already uses
     > `/api/v1/import` ([ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md)). The question, and
     > the two possible answers, are in [contracts/portability.md](contracts/portability.md). Note also that bulk
-    > import accepts a file of any size and allows 1,000 recipes a rolling day on a paid plan and 200 on Free (see SC-004).
+    > import accepts a file of any size and spends the one import allowance (`004-FR-067`).
 - **FR-018** `→ 001 MODIFIED`: Users MUST be able to export their entire recipe library as a lossless
   machine-readable file **from a product surface**, not only as a privacy-request endpoint. ⚠️ **Corrected by
-  research R-02:** `GET /api/v1/account/export` already ships a zod-contracted GDPR Art. 15/20 export covering
+  research R-02:** `GET /api/v1/account/export` already ships a zod-contracted account data export covering
   recipes, collections, memberships, photos, ratings, versions and author handles. The work is surfacing and
   re-using it — including revisiting its deliberately tightest-in-service rate limit for a routine action —
   not building a serializer.
@@ -606,11 +595,14 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   members, and MUST make it the ownership boundary for meal plans and grocery lists. Every account belongs to
   exactly one household, created implicitly at signup with that user as its only member, so that a solo user is
   a household of one and no code path needs a "no household" branch.
-  _(Amended 2026-11-03, owner ruling, ADR-0082.)_ [House rule] Sharing with the household is not publication, so it
-  starts no 020 check (`020-FR-072`). A member's clone of a shared private copy stays private and keeps the source's
-  label. The household has no public link, feed or export of another member's private recipes. Whether a household of
-  up to 6 accounts is a private circle in every market is a counsel item. Counsel review is owed before launch
-  (`016-FR-050`).
+  _(Amended 2026-11-03, ADR-0082; amended, Owner ruling, 2026-11-15.)_ Sharing with the household is not publication,
+  so it starts no 020 check (`020-FR-072`). The household sees members' private recipes read-only (FR-030d). The
+  household has no public link, feed or export of another member's private recipes.
+- **FR-030d** `→ 001 ADDED` _(added 2026-11-15, Owner ruling, 2026-11-15)_: Every active member MUST get a read-only
+  view of each other member's private recipes: they can open, cook, plan and list from them, but not edit or clone
+  them. The one exception is a paid site's own wording (`016-FR-080`): for such a recipe the household sees the
+  Commise-written public version if one exists, otherwise nothing. Like FR-034j, this is a household audience in the
+  read rule, not a visibility value.
 - **FR-030a** `→ 006 ADDED, → 007 ADDED`: Every **active member** MUST be able to create, edit and check off
   the household's meal plans, grocery lists and aisle taxonomy. Content capability is equal across roles —
   that equality is the point of a household.
@@ -881,16 +873,14 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   class in which the competitor's documented pipeline succeeds **0%** of the time, having no visual tier.
 - **SC-003a**: From tapping share in another app to **confirmed acceptance** takes under **2 seconds** at the
   median, with no app switch required — and this holds regardless of which tier ultimately resolves it.
-- **SC-003b**: From tapping share to the **draft being ready** takes under **20 seconds** at the median for
+- **SC-003b**: From tapping share to the **recipe being ready** takes under **20 seconds** at the median for
   captures resolved by tiers 1–2, which is the common case. Tiers 3–4 are notified on completion rather than
   waited on.
 - **SC-004**: A 2,000-recipe competitor export completes migration with a per-recipe outcome for every entry
   and **zero** silently dropped recipes.
-    > ⚠️ Owner rulings, 2026-10-26: a file of any size is accepted, and bulk import allows 1,000 recipes a rolling
-    > day on a paid plan and 200 on Free (2026-10-27). A 2,000-recipe export imports what fits on the first day. The
-    > rest follows as room frees up, so it completes on the second day at the earliest on a paid plan. On Free it
-    > takes ten days. "Completes" here means every entry reaches an outcome, not that
-    > it happens in one sitting.
+    - A file of any size is accepted and imports what fits in the one import allowance (`004-FR-067`). The rest follows as
+      room frees up, so a large export completes on a later day. "Completes" here means every entry reaches an outcome,
+      not that it happens in one sitting.
 - **SC-005**: An exported library re-imported into an empty account reproduces **100%** of user-visible fields,
   verified field-by-field rather than by spot check.
 - **SC-006**: A user completes a three-timer recipe end to end hands-free, in airplane mode, in dark mode, with
@@ -899,7 +889,7 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   delivery is counted as a defect, not a phase.
 - **SC-008**: Inference spend per successful import stays within the per-import bound of FR-011 and the monthly
   ceiling of ADR-0024, measured over a full month of real traffic — not modelled.
-- **SC-009**: For every draft, the tier that produced each field is inspectable by the user.
+- **SC-009**: For every import, the tier that produced the recipe is recorded and inspectable.
 - **SC-012**: Extraction success is reported **per source platform**, and no single platform contributes more
   than **50%** of the corpus behind SC-001 — so a platform-level block degrades the number visibly rather than
   invalidating the claim.
@@ -922,7 +912,7 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 3. **Chrome first for FR-014.** The gap analysis names Chrome; other browsers follow. A browser extension is a
    third distribution surface with its own review process, so `001-FR-044a`'s web+mobile parity rule is read as
    not extending to it (NFR-005).
-4. **Export is available on every tier** (FR-018/FR-019). ReciMe paywalls PDF export; portability is being
+4. **Export is available on every tier** (FR-018/FR-019). ReciMe locks PDF export behind a paid plan; portability is being
    positioned as a trust claim against a category that locks users in, so gating it would forfeit the claim.
    This is a monetisation decision that touches `010` — flagged, not silently assumed.
 5. **Tiers 3–4 are fallbacks, not defaults** (FR-039). Cost scales with the failure rate of tiers 1–2, not with
@@ -942,24 +932,22 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 
 ## Dependencies
 
-| Dependency                                              | Status                                        | Consequence if unmet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ⚠️ **Is transient frame decode a reproduction?**        | **Open — narrow question for `016`**          | _Corrected from an earlier, overstated flag._ `016-FR-027` prohibits **persisting** a copy to our storage, and `016-FR-027c` prohibits **derived renditions of a referenced photograph** for display — tiers 3–4 do neither, and FR-011 now states so explicitly. What remains genuinely open is narrower: decoding frames of a third-party video to _extract text and structure_, then discarding them, is closer to text-and-data-mining than to serving a thumbnail. Session `911043cd` already raised **DSM Art. 4** TDM and the machine-readable reservation against `004-FR-023`'s wildcard-`Disallow` carve-out; this is the same question on video. **Not a blocker to planning — a question to answer before tiers 3–4 ship.** |
-| ⚠️ **`016-FR-029` channel preference vs video import**  | **Accepted, recorded**                        | `016-FR-029` requires preferring _user-supplied bytes_ where a channel choice exists. Video import has no such alternative — a user cannot hand us the bytes of a hosted video — so tiers 1–5 are permanently `operator-performed retrieval` under `016-FR-028`. This weakens the §512(c) "storage at the direction of a user" posture that `016`'s US-5 rests on, for this channel specifically. It is a consequence of the owner's five-tier ruling, not a defect, but it belongs on the record.                                                                                                                                                                                                                                      |
-| **`016-FR-027e` offline photographs vs FR-025**         | **Resolved in FR-025**                        | `016` names this itself as "a known interaction with offline cook mode". Offline cook shows the placeholder; caching the referenced image to satisfy FR-025 is explicitly forbidden.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| **ADR-0024 cost model extended to import inference**    | ⚠️ Open                                       | The ceiling was sized for the LLM verification gate, not a vision waterfall. §8 open decision 4 says tiers 3–4 need costing **before** commitment. FR-039 is unenforceable until this lands.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| **D7 / FR-037 platform-managed inference**              | Open — in scope here                          | FR-003 and FR-004 cannot ship on BYOK.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| **`014-FR-001` notification publish**                   | Specified, not built                          | FR-013a needs it to tell the user a draft is ready. Without it, an accepted capture is silent and indistinguishable from a lost one. Note `014` is sequenced _after_ everything in the gap analysis's §7 ordering.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| **`016-FR-010`…`FR-014` content licence + attestation** | Specified; **A-1…A-8 amendments NOT applied** | Every capture surface added here increases the volume of content displayed under a licence that does not yet exist in the terms.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| **`016-FR-022`/`FR-026` notice-and-action**             | Specified, not built                          | Formerly tracked here as D24. Every delta here increases third-party-sourced content volume before safe harbour exists.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| **`docs/offline-strategy.md`** (GR-005 AC-005-d)        | ❌ Does not exist                             | FR-025 cannot enter implementation; GR-005 forbids inventing an ad-hoc offline approach.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **`004` implementation**                                | ❌ Nothing built                              | Every `→ 004` requirement here lands in a spec with no code behind it. This feature does not reduce that; it enlarges it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| **`006-FR-032` idempotency under multi-member editing** | Written for a single owner                    | FR-031 introduces concurrent editors that `006`'s idempotency key was not designed against.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| **Feature `015`**                                       | ⏸ Paused                                      | D4b/D5 (D4a decided by ADR-0073). See Assumption 2.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **D23 one-time / lifetime tier**                        | Deferred — subscriptions only                 | Revisit in `010` once FR-039 yields a real AI cost model.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| **`023` referrals and growth measurement**              | Specified 2026-10-27                          | Its reward rule refuses a friend in the inviter's household (`023-FR-030`). Its effective plan includes household coverage (FR-034b).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| **`staff-ux-engineer` DESIGN and SPECIFY**              | Owed at plan time (2026-10-27)                | The guided switch flow (FR-016b), the export promise (FR-018b), the coverage notices (FR-034d, FR-034e) and the pool display (FR-034c) are new surfaces. Each is designed before it is built.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| **`cross-feature-FR-index.md`** (GR-003 AC-003-b)       | Must be updated                               | This spec adds cross-feature citations to 001, 004, 005, 006, 007, 008, 010, 013, and 016.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Dependency                                              | Status                                                                                                                   | Consequence if unmet                                                                                                                                                                                               |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`016-FR-027e` offline photographs vs FR-025**         | **Resolved in FR-025**                                                                                                   | `016` names this itself as "a known interaction with offline cook mode". Offline cook shows the placeholder; caching the referenced image to satisfy FR-025 is explicitly forbidden.                               |
+| **ADR-0024 cost model extended to import inference**    | ⚠️ Open                                                                                                                  | The ceiling was sized for the LLM verification gate, not a vision waterfall. §8 open decision 4 says tiers 3–4 need costing **before** commitment. FR-039 is unenforceable until this lands.                       |
+| **D7 / FR-037 platform-managed inference**              | Open — in scope here                                                                                                     | FR-003 and FR-004 cannot ship on BYOK.                                                                                                                                                                             |
+| **`014-FR-001` notification publish**                   | Specified, not built                                                                                                     | FR-013a needs it to tell the user a draft is ready. Without it, an accepted capture is silent and indistinguishable from a lost one. Note `014` is sequenced _after_ everything in the gap analysis's §7 ordering. |
+| **`016-FR-010`…`FR-014` content licence + attestation** | Specified; **A-1…A-8 amendments NOT applied**                                                                            | Every capture surface added here increases the volume of content displayed under a licence that does not yet exist in the terms.                                                                                   |
+| **`016-FR-022`/`FR-026` notice-and-action**             | Specified, not built                                                                                                     | Formerly tracked here as D24. Every delta here increases third-party-sourced content volume before notice-and-action exists.                                                                                       |
+| **`docs/offline-strategy.md`** (GR-005 AC-005-d)        | ❌ Does not exist (planned)                                                                                              | FR-025 cannot enter implementation; GR-005 forbids inventing an ad-hoc offline approach.                                                                                                                           |
+| **`004` implementation**                                | Partly shipped: `/api/v1/import` and the page reader; the remainder is in [004 plan.md](../004-recipe-importing/plan.md) | Some `→ 004` requirements here land in the unbuilt remainder. This feature does not reduce that; it enlarges it.                                                                                                   |
+| **`006-FR-032` idempotency under multi-member editing** | Written for a single owner                                                                                               | FR-031 introduces concurrent editors that `006`'s idempotency key was not designed against.                                                                                                                        |
+| **Feature `015`**                                       | ⏸ Paused                                                                                                                 | D4b/D5 (D4a decided by ADR-0073). See Assumption 2.                                                                                                                                                                |
+| **D23 one-time / lifetime tier**                        | Deferred — subscriptions only                                                                                            | Revisit in `010` once FR-039 yields a real AI cost model.                                                                                                                                                          |
+| **`023` referrals and growth measurement**              | Specified 2026-10-27                                                                                                     | Its reward rule refuses a friend in the inviter's household (`023-FR-030`). Its effective plan includes household coverage (FR-034b).                                                                              |
+| **`staff-ux-engineer` DESIGN and SPECIFY**              | Owed at plan time (2026-10-27)                                                                                           | The guided switch flow (FR-016b), the export promise (FR-018b), the coverage notices (FR-034d, FR-034e) and the pool display (FR-034c) are new surfaces. Each is designed before it is built.                      |
+| **`cross-feature-FR-index.md`** (GR-003 AC-003-b)       | Must be updated                                                                                                          | This spec adds cross-feature citations to 001, 004, 005, 006, 007, 008, 010, 013, and 016.                                                                                                                         |
 
 ## Out of Scope
 
@@ -983,13 +971,6 @@ open in 010, not here: whether Pro with AI gets a household version ([010 O-13](
 Plan-time owners: `staff-architect` redraws the two-output plan computation (FR-034b) and the household AI charge
 (FR-034c, FR-034m). `staff-ux-engineer` runs DESIGN and SPECIFY for every household surface. 023 cites FR-034a and
 FR-034b, and its writer checks those citations against this amendment._
-
-An earlier draft of this spec flagged a blocking conflict with `016` over frame sampling. Reading `016-FR-027`
-and `016-FR-027c` closely, that was **overstated**: `016` prohibits _persisting_ a copy and _rendering derived
-renditions of a referenced photograph_, and tiers 3–4 do neither. FR-011 and FR-025 now state the alignment
-explicitly. What survives is one narrow question (is transient decode-for-extraction a reproduction?) and one
-accepted consequence (video import is permanently operator-performed retrieval under `016-FR-029`). Neither
-blocks planning; the first must be answered before tiers 3–4 ship.
 
 ⚠️ **A scope warning that belongs on the record.** This feature spans **seven owner specs, three backend
 services, and two client apps**, and pulling D18 in adds a first-class data-model entity. That is a

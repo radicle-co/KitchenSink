@@ -35,7 +35,12 @@
  * authority — a stronger control than "the server fetched a URL the caller chose", which attributes content
  * the caller may have written.
  */
-import { RecipeSourceType, parseSourceLink, type RecipeSourceKind } from '@kitchensink/recipe-core';
+import {
+    RecipeSourceType,
+    parseSourceLink,
+    type RecipeSourceKind,
+    type RecipeStatementKind,
+} from '@kitchensink/recipe-core';
 
 import type { ImportStatement } from '../import.schema.js';
 import { CURATOR_IMPORT_SCOPE, type RecipeSourceInput, type RecipeStatementInput } from '../recipes.schema.js';
@@ -82,6 +87,14 @@ export interface ResolvedProvenance {
      * what tells the curator's public-domain text (may be public) from a web copy (private only) under the same label.
      */
     readonly sourceKind: RecipeSourceKind | null;
+    /**
+     * What the cook STATED (`recipes.statement_kind`, migration 0087): `authored` for "I wrote this", `source` for any stated web
+     * page, book or paid site, `null` for no statement. ⛔ ONLY the cook's own statement sets a non-null kind: an absent
+     * declaration, the curator's `user_created` and the curator's public-domain text are all `null`, because "typed" is worked out
+     * live (`statementRequiredOf`) and is never stored as an attestation. It is `source` exactly when `sourceKind` is set, which is
+     * the pairing the `recipes_statement_kind_pairs_source_kind` CHECK enforces.
+     */
+    readonly statementKind: RecipeStatementKind | null;
 }
 
 /**
@@ -108,13 +121,20 @@ export type ProvenanceDecision =
           readonly reason: string;
       };
 
-/** The provenance of a recipe whose author declared none — the shipped default, unchanged (004-FR-024). */
+/**
+ * The provenance of a recipe whose author declared none (004-FR-024): `user_created`, no source, and NO statement. It is also
+ * what the curator's explicit `user_created` and a cleared source (`PATCH statement: null`) resolve to.
+ */
 const UNDECLARED: ResolvedProvenance = {
     sourceType: RecipeSourceType.USER_CREATED,
     sourceUrl: null,
     sourceAttribution: null,
     sourceKind: null,
+    statementKind: null,
 };
+
+/** The provenance of "I wrote this": the same label as {@link UNDECLARED}, with the cook's attestation on record. */
+const AUTHORED: ResolvedProvenance = { ...UNDECLARED, statementKind: 'authored' };
 
 /**
  * The ONE reading of a cook's statement as provenance (ADR-0072 section 9, ADR-0089). A recipe's own `statement` reads it
@@ -133,7 +153,7 @@ export function resolveStatementProvenance(
 ): ResolvedProvenance | undefined {
     switch (statement.kind) {
         case 'authored':
-            return UNDECLARED;
+            return AUTHORED;
 
         case 'public_web': {
             const parsed = parseSourceLink(statement.citation);
@@ -144,9 +164,15 @@ export function resolveStatementProvenance(
                       sourceUrl: parsed.link.url,
                       sourceAttribution: parsed.link.site,
                       sourceKind: 'public_web',
+                      statementKind: 'source',
                   }
                 : undefined;
         }
+
+        // "From another person" states no source, so the recipe stays the cook's own label, and it IS a statement: stored as
+        // `fromPerson`, which every route to Public refuses (`evaluateVisibility`, `evaluatePublishedState`).
+        case 'fromPerson':
+            return { ...UNDECLARED, statementKind: 'fromPerson' };
 
         case 'book':
             return {
@@ -154,6 +180,7 @@ export function resolveStatementProvenance(
                 sourceUrl: null,
                 sourceAttribution: statement.citation,
                 sourceKind: 'book',
+                statementKind: 'source',
             };
         case 'paid_site':
             return {
@@ -161,17 +188,37 @@ export function resolveStatementProvenance(
                 sourceUrl: null,
                 sourceAttribution: statement.citation,
                 sourceKind: 'paid_site',
+                statementKind: 'source',
             };
     }
+}
+
+/**
+ * The statement a CLONE starts with. "I wrote this" and "from another person" are the cook's own words about the cook's own
+ * recipe, so the cook's own clone keeps them, and another cook's clone starts with NO statement: the cloner makes their own. A
+ * stated source (`source`) is a fact about the copy and travels with the source kind the clone also inherits, which the
+ * pairing CHECK of migration 0087 requires. Pure.
+ *
+ * @param statementKind - What the source recipe's cook stated, or `null`.
+ * @param sameCook - Whether the cloner owns the source recipe.
+ * @returns The statement kind to store on the clone.
+ */
+export function clonedStatementKindOf(
+    statementKind: RecipeStatementKind | null,
+    sameCook: boolean,
+): RecipeStatementKind | null {
+    return sameCook || statementKind === 'source' ? statementKind : null;
 }
 
 /**
  * Evaluate whether a caller may declare the provenance in its create body, and resolve what will be
  * persisted. Pure — inputs only.
  *
- * An ABSENT declaration resolves to `user_created` with no source fields, which is byte-for-byte what
- * `RecipesService.create` hardcoded before this policy existed; that equivalence is what makes 004-FR-024's
- * "existing behaviour is unchanged" a checked property rather than a claim.
+ * An ABSENT declaration resolves to `user_created` with no source fields and no statement. That is what
+ * `RecipesService.create` hardcoded before this policy existed, plus `statementKind: null`: 004-FR-024's "existing behaviour is
+ * unchanged" no longer holds byte for byte, because the statement rule now reads that null (a recipe with no statement whose
+ * content was pasted cannot be left public until the cook attests). The change is deliberate and is pinned by the policy tests
+ * and the statement-rule integration blocks; the curator's declarations resolve exactly as before.
  *
  * @param input - The declared provenance (or its absence) and the caller's grants.
  * @returns An allow decision carrying the resolved provenance, or a denial naming the scope required.
@@ -225,8 +272,9 @@ export function evaluateProvenance(input: ProvenancePolicyInput): ProvenanceDeci
                     sourceType: RecipeSourceType.IMPORTED_PUBLIC,
                     sourceUrl: declared.sourceUrl,
                     sourceAttribution: declared.sourceAttribution,
-                    // The curator's reading is the one `imported_public` with NO kind (ADR-0089).
+                    // The curator's reading is the one `imported_public` with NO kind (ADR-0089), and so it states no statement.
                     sourceKind: null,
+                    statementKind: null,
                 },
                 reason: 'The caller holds the curator grant for public-domain imports.',
             };

@@ -24,7 +24,8 @@ export type DesignArtifactErrorCode =
     | 'unknown-canvas'
     | 'marker-not-on-main'
     | 'marker-not-downloaded'
-    | 'stale-main';
+    | 'stale-main'
+    | 'lfs-object-missing';
 
 /** A build input broke a rule the artifact depends on. */
 export class DesignArtifactError extends Error {

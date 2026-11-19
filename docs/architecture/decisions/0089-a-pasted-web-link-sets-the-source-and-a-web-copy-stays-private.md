@@ -3,13 +3,18 @@
 - **Status:** Accepted
 - **Date:** 2026-11-10
 - **Amends:** [ADR-0023](0023-curator-declared-provenance.md) §1a: `POST /api/v1/recipes` now also takes the cook's
-  `statement`, and a `PATCH` takes it until the first publish. The curator's `source` and its grant are unchanged.
+  `statement`, and a `PATCH` takes it, also after the first publish. The curator's `source` and its grant are unchanged.
   [ADR-0072](0072-bulk-recipe-import.md) §9: the statement list and the table of labels. A web statement is private
-  only. [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md) §3: the linked card is not built,
-  so a recipe copied from a web page has one state, private, until the card's read path ships.
-- **Relates to:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md) §3: a
-  recipe aggregator site never gets a public card. [ADR-0058](0058-never-published-drafts-record-no-version.md): the
-  first-publish fact that closes the correction window. [ADR-0073](0073-free-tier-private-slots.md): a web copy uses a
+  only. [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md) §3: a recipe copied from a web
+  page has one state, private, until the Commise-written version
+  ([ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md)) ships.
+- **Amended by:** [ADR-0095](0095-a-recorded-source-is-kept-and-a-recipe-is-public-only-with-a-statement.md)
+  (2026-11-16): §6. The statement stays editable after the first publish, and a cook can now state a book too. Every
+  stated web, book or paid-site source is also kept as evidence that no route changes or clears. While evidence
+  exists, the recipe cannot be made public. Removing the statement still leaves visibility alone.
+- **Relates to:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md) §3:
+  public versions have no caps, and aggregator sites follow the normal rules. [ADR-0058](0058-never-published-drafts-record-no-version.md): the
+  first-publish fact. [ADR-0073](0073-free-tier-private-slots.md): a web copy uses a
   slot, as any private recipe. [ADR-0035](0035-schema-stacks-decoupled-from-service-deploys.md): the migration is
   expand-only. [ADR-0014](0014-service-owned-api-contracts.md): the wire contract. Spec
   [004](../../../specs/004-recipe-importing/spec.md) `004-FR-025`.
@@ -23,8 +28,9 @@ A cook who copies a recipe from a web page leaves the page's address behind. Not
 where it came from: a text selection carries no address. Our rights label (ADR-0077) needs that fact, and a private
 copy of a web page needs it to say what it is.
 
-We never fetch a site, and we never recognise a site by its wording or layout. The only signal we trust is an address
-the cook pastes.
+Detection on a paste never fetches a site, and we never recognise a site by its wording or layout. The only signal we
+trust here is an address the cook pastes. A link import fetches the page on the device first and on the server if that
+fails (ADR-0093 §2).
 
 ## Decision
 
@@ -79,19 +85,17 @@ or a paid site. The kind is a required argument, so every caller is a compile er
 judges. The server refuses public (`400 INVALID_VISIBILITY`) on create and on set-visibility. The slot rule is unchanged.
 A web copy needs a cuisine to publish. Only the curator's reading is exempt. A clone of a web copy lands private.
 
-This fails closed on purpose: the card read path is not built (ADR-0077 §3), and ADR-0082 §3 never gives an aggregator a
-card.
+This fails closed on purpose: the Commise-written version is not built (ADR-0093).
 
-### 6. The source can be corrected until the first publish
+### 6. The cook's statement stays editable, and detected evidence stays locked
 
 The editor's draft checkpoints can create the server row before the cook pastes the link. So `PATCH` takes `statement`:
 a statement sets the source, `null` removes it, absent leaves it. The rule is one pure policy,
 `evaluateSourceCorrection`. Its lock is ONE pure rule in `recipe-core`, `sourceIsCorrectable`, which the editor's Source
-row reads too. The source can no longer change in any of these three cases:
+row reads too. The cook's statement stays editable before and after the first publish (owner ruling,
+2026-11-15). Source evidence the import detected is a separate record: it is append-only, and no route lets the cook
+edit or clear it. The statement can no longer change in either of these two cases:
 
-- The recipe was first published (`first_published_at`, ADR-0058). The fact is that column, not `status`, so a recipe set
-  back to draft stays locked. The row is read from the aggregate that the write's compare-and-swap on `expectedVersion`
-  then pins. Every route to a first publish is a `PATCH` that advances the version.
 - The stored source is not one the cook states by link, which means it is not "none" or a web copy. The curator's text, a
   book and a paid-site recipe are never overwritten by a pasted link.
 - A clone inherited the source (`cloned_from_id` is set and the kind is set). Without this rule, cloning is a way to
@@ -105,8 +109,8 @@ Otherwise:
   widens a contract both apps consume, for a refusal the editor prevents. `FORBIDDEN` already means "authenticated, but
   not permitted".
 
-After the first publish the source is frozen (ADR-0023 §1b, ADR-0077 §2, no relabel route). A client reads
-`sourceIsCorrectable` over the recipe it holds (`firstPublishedAt`, `sourceType`, `sourceKind`, `clonedFromId`).
+A first publish does not freeze the statement. A client reads `sourceIsCorrectable` over the recipe it holds
+(`sourceType`, `sourceKind`, `clonedFromId`). Detected evidence never changes, whatever the statement says.
 
 ### 7. The label states what the cook told us
 
@@ -116,9 +120,10 @@ not that.
 
 ## Where this departs from the request
 
-The owner wanted to publish allrecipes recipes. ADR-0082 §3 keeps recipe aggregator sites private, and ADR-0077 §3
-needs a card read path that does not exist. So a recipe with a pasted web link is private, and the cook is told why in
-the editor. This ADR does not decide the card. When the read path ships it replaces §5, and the kind is already there.
+The owner wanted to publish recipes from user-recipe sites. Those sites follow the normal rules (ADR-0082 §3), and the
+public form of a web copy is the Commise-written version (ADR-0093), which does not exist yet. So a recipe with a pasted web link is
+private, and the cook is told why in the editor. When the Commise-written version ships it replaces §5, and the kind is
+already there.
 
 ## Consequences
 

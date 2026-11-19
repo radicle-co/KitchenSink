@@ -17,6 +17,8 @@ import {
 } from '@kitchensink/recipe-core';
 
 import { apiError } from '../common/apiError.js';
+import { invalidVisibilityReasonSchema } from '../common/apiError.schema.js';
+import type { VisibilityDecision } from './domain/visibilityPolicy.js';
 
 /** A thrown recipe-domain error carrying a machine-readable {@link RecipeErrorCode}. */
 export class RecipeDomainError extends Error implements RecipeError {
@@ -211,6 +213,19 @@ export function importIdInUse(): RecipeDomainError {
     );
 }
 
+/**
+ * `IMPORT_STORAGE_FULL` (→ 409) — the cook already holds as many unpaid import bytes as one cook may (ADR-0072 §8). Not a
+ * `413`: a client halves its chunk on `413`, and a smaller chunk does not help. Paying (an `advance`) or deleting an import does.
+ *
+ * @returns The error.
+ */
+export function importStorageFull(): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.IMPORT_STORAGE_FULL,
+        'You are holding as many imported recipes that are waiting to be processed as one account may. Let them finish, or delete an import, and try again.',
+    );
+}
+
 /** `NOT_OWNER` — the authenticated principal does not own the recipe. */
 export function notOwner(id: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.NOT_OWNER, `Recipe ${id} is not owned by the caller.`);
@@ -270,6 +285,126 @@ export function invalidVisibility(reason: string, details?: Record<string, unkno
     return new RecipeDomainError(RecipeErrorCode.INVALID_VISIBILITY, reason, details);
 }
 
+/** The denials of a visibility decision that a plain `400 INVALID_VISIBILITY` stands for, derived so a new denial is a compile error here. */
+type PolicyDenial = Extract<VisibilityDecision, { readonly allowed: false }>['denial'];
+
+/**
+ * The error for a refusal the visibility policies answer with `400 INVALID_VISIBILITY`: the plain C-004 refusal, or one of the
+ * rules the same status tells apart by `details.reason`. The ONE place both `evaluateVisibility` and `evaluatePublishedState`
+ * denials are mapped, so the two cannot answer a rule differently.
+ *
+ * @param denial - The policy's denial discriminant.
+ * @param reason - The policy's deny-reason, surfaced as the error message.
+ * @param details - The attempted visibility and source type.
+ * @returns The error to throw.
+ */
+export function policyRefusal(
+    denial: PolicyDenial,
+    reason: string,
+    details: Record<string, unknown>,
+): RecipeDomainError {
+    switch (denial) {
+        case 'sourceConflict':
+            return sourceConflictRefused(reason, details);
+        case 'fromPerson':
+            return fromPersonPrivateOnly(reason, details);
+        case 'statementRequired':
+            return statementRequiredRefused(reason, details);
+        case 'policy':
+        case 'contained':
+        case 'privateSlots':
+            return invalidVisibility(reason, details);
+    }
+}
+
+/** `details.reason` of the `INVALID_VISIBILITY` the evidence rule answers with: the stable key a client branches on. */
+const SOURCE_CONFLICT_REASON = invalidVisibilityReasonSchema.enum.SOURCE_CONFLICT;
+
+/**
+ * `INVALID_VISIBILITY` with `details.reason: 'SOURCE_CONFLICT'` (→ 400) — a third-party source was once stated for the recipe,
+ * so it may not be Public, whatever the statement says now (the evidence rule, `sourceConflictOf`).
+ *
+ * ⚠️ Not a new published code, on the `SOURCE_LOCKED` precedent: `INVALID_VISIBILITY` is already the answer to "this recipe may
+ * not hold that visibility", and `details.reason` is the key a client branches on.
+ *
+ * @param reason - The policy's deny-reason, surfaced as the error message.
+ * @param details - The attempted visibility and source type, as {@link invalidVisibility} carries.
+ * @returns The error to throw.
+ */
+export function sourceConflictRefused(reason: string, details: Record<string, unknown> = {}): RecipeDomainError {
+    return invalidVisibility(reason, { ...details, reason: SOURCE_CONFLICT_REASON });
+}
+
+/** `details.reason` of the `INVALID_VISIBILITY` the statement rule answers with. */
+const STATEMENT_REQUIRED_REASON = invalidVisibilityReasonSchema.enum.STATEMENT_REQUIRED;
+
+/**
+ * `INVALID_VISIBILITY` with `details.reason: 'STATEMENT_REQUIRED'` (→ 400): the cook has not said "I wrote this" for a recipe
+ * whose content was pasted or that has source evidence, so it may not be left published and Public (`statementRequiredOf`).
+ * The same shape as {@link sourceConflictRefused}, and for the same reason: no new published code.
+ *
+ * @param reason - The policy's deny-reason, surfaced as the error message.
+ * @param details - The attempted visibility and source type, as {@link invalidVisibility} carries.
+ * @returns The error to throw.
+ */
+export function statementRequiredRefused(reason: string, details: Record<string, unknown> = {}): RecipeDomainError {
+    return invalidVisibility(reason, { ...details, reason: STATEMENT_REQUIRED_REASON });
+}
+
+/** `details.reason` of the `INVALID_VISIBILITY` a missing Public confirmation answers with. */
+const PUBLIC_CONFIRMATION_REQUIRED_REASON = invalidVisibilityReasonSchema.enum.PUBLIC_CONFIRMATION_REQUIRED;
+
+/**
+ * `INVALID_VISIBILITY` with `details.reason: 'PUBLIC_CONFIRMATION_REQUIRED'` (→ 400): the write would make the recipe
+ * published AND public, and the request carries no `publicConfirmation` (the attestation record). Nothing is live and nothing
+ * is shimmed, so a writer that does not send it is refused rather than recorded as having confirmed. The same shape as
+ * {@link statementRequiredRefused}, for the same reason: no new published code.
+ *
+ * @param details - The attempted visibility and source type, as {@link invalidVisibility} carries.
+ * @returns The error to throw.
+ */
+export function publicConfirmationRequired(details: Record<string, unknown> = {}): RecipeDomainError {
+    return invalidVisibility('Making a recipe public needs the cook’s confirmation.', {
+        ...details,
+        reason: PUBLIC_CONFIRMATION_REQUIRED_REASON,
+    });
+}
+
+/** `details.reason` of the `INVALID_VISIBILITY` a real cook's API-writer marker answers with. */
+const API_WRITER_CONFIRMATION_FORBIDDEN_REASON = invalidVisibilityReasonSchema.enum.API_WRITER_CONFIRMATION_FORBIDDEN;
+
+/**
+ * `INVALID_VISIBILITY` with `details.reason: 'API_WRITER_CONFIRMATION_FORBIDDEN'` (→ 400): a principal that is not a test
+ * principal sent the API-writer marker. The marker says no one was shown the confirmation line, which a real cook's request
+ * must never claim, and it records nothing; accepting it would let a cook publish with no confirmation on record. The same
+ * shape as {@link publicConfirmationRequired}, for the same reason: no new published code.
+ *
+ * @param details - The attempted visibility and source type, as {@link invalidVisibility} carries.
+ * @returns The error to throw.
+ */
+export function apiWriterConfirmationForbidden(details: Record<string, unknown> = {}): RecipeDomainError {
+    return invalidVisibility('Only a test principal may send the API-writer confirmation.', {
+        ...details,
+        reason: API_WRITER_CONFIRMATION_FORBIDDEN_REASON,
+    });
+}
+
+/** `details.reason` of the `INVALID_VISIBILITY` "from another person" answers with when asked to be public. */
+const FROM_PERSON_PRIVATE_ONLY_REASON = invalidVisibilityReasonSchema.enum.FROM_PERSON_PRIVATE_ONLY;
+
+/**
+ * `INVALID_VISIBILITY` with `details.reason: 'FROM_PERSON_PRIVATE_ONLY'` (→ 400): the cook said the recipe is another person's,
+ * so it may not be public, at any route to Public. The same shape as {@link statementRequiredRefused}, for the same reason: no
+ * new published code.
+ *
+ * @param reason - The policy's deny-reason, surfaced as the error message.
+ * @param details - The attempted visibility and source type, as {@link invalidVisibility} carries.
+ * @returns The error to throw.
+ */
+export function fromPersonPrivateOnly(reason: string, details: Record<string, unknown> = {}): RecipeDomainError {
+    return invalidVisibility(reason, { ...details, reason: FROM_PERSON_PRIVATE_ONLY_REASON });
+}
+
 /**
  * `FORBIDDEN` — the caller declared a provenance it is not granted to declare (004-FR-025, ADR-0023).
  *
@@ -296,18 +431,18 @@ export function provenanceNotPermitted(reason: string, details?: Record<string, 
 const SOURCE_LOCKED_REASON = 'SOURCE_LOCKED';
 
 /**
- * `FORBIDDEN` with `details.reason: 'SOURCE_LOCKED'` (→ 403) — a `PATCH` tried to change the source of a recipe that was
- * first published (or whose source the cook did not state), so it can no longer change (ADR-0089, ADR-0058).
+ * `FORBIDDEN` with `details.reason: 'SOURCE_LOCKED'` (→ 403) — a `PATCH` tried to change the source of a recipe whose
+ * source the cook did not state, or a clone inherited, so it can no longer change (ADR-0089). The first publish does not lock it.
  *
  * ⚠️ A 403 and NOT a 409, and not a new published code. An installed client reads an unknown 409 as a version conflict (the
  * same reason `PRIVATE_SLOTS_FULL` is a 403), and a new member of `recipeErrorCodeSchema` would widen a contract both apps
- * consume for a refusal the editor already prevents (it shows no field once `firstPublishedAt` is present). `FORBIDDEN` is
+ * consume for a refusal the editor already prevents (it shows no field for a locked source). `FORBIDDEN` is
  * "authenticated, but not permitted", which is this case; `details.reason` is the stable key.
  *
  * @returns The exception to throw.
  */
 export function sourceLocked(): HttpException {
-    return provenanceNotPermitted('The source of a recipe cannot be changed after it was first published.', {
+    return provenanceNotPermitted('The source of this recipe cannot be changed.', {
         reason: SOURCE_LOCKED_REASON,
     });
 }

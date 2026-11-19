@@ -11,7 +11,13 @@
  */
 import { cleanup, render } from '@testing-library/react';
 import type { ComponentProps, ReactNode } from 'react';
-import type { Pressable as PressableType, PressableStateCallbackType, StyleProp, ViewStyle } from 'react-native';
+import type {
+    Pressable as PressableType,
+    PressableStateCallbackType,
+    StyleProp,
+    ViewProps,
+    ViewStyle,
+} from 'react-native';
 import { StyleSheet } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,13 +26,19 @@ import type { RadioListOption } from '../props.js';
 
 type PressableProps = ComponentProps<typeof PressableType>;
 
-const seen = vi.hoisted(() => ({ rows: [] as PressableProps[] }));
+const seen = vi.hoisted(() => ({ rows: [] as PressableProps[], groups: [] as ViewProps[] }));
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
         ...actual,
+        // The group is the only `View` drawn: a row is a stand-in that draws nothing.
+        View: (props: ViewProps & { readonly children?: ReactNode }) => {
+            seen.groups.push(props);
+
+            return props.children;
+        },
         Pressable: (props: PressableProps & { readonly children?: ReactNode }) => {
             seen.rows.push(props);
 
@@ -41,6 +53,7 @@ const { RadioList } = await import('../RadioList.native.js');
 afterEach(() => {
     cleanup();
     seen.rows = [];
+    seen.groups = [];
 });
 
 const OPTIONS: readonly RadioListOption[] = [
@@ -65,6 +78,20 @@ describe('RadioList (native) — what the screen reader receives', () => {
         expect(seen.rows.map((row) => [row.accessibilityLabel, row.accessibilityHint])).toEqual([
             ['Pick the best match for me', undefined],
             ['Save lines as written', 'Every other line is saved as written.'],
+        ]);
+    });
+
+    // The platform's own role and state, as React Native maps them: Android names the container "radio group"
+    // (`ReactAccessibilityDelegate`) and every row reads "radio button" with its checked state on both platforms. React Native has
+    // no API that makes a container that is not itself an element a VoiceOver group, so iOS gets the rows' role and state and
+    // the group's label for the platforms that read it (review item 11).
+    it('is one radio group of radios, each stating whether it is checked and whether it is disabled', () => {
+        render(<RadioList label="How to match" options={OPTIONS} value="saveAsWritten" onChange={vi.fn()} disabled />);
+
+        expect(seen.groups[0]).toMatchObject({ role: 'radiogroup', 'aria-label': 'How to match' });
+        expect(seen.rows.map((row) => [row.role, row['aria-checked'], row['aria-disabled']])).toEqual([
+            ['radio', false, true],
+            ['radio', true, true],
         ]);
     });
 

@@ -34,7 +34,7 @@ Feature-level success and ROI model for cooking mode. Includes operational quali
 ## Source Fidelity Notes
 
 - This folder **augments** `../research.md` and does not replace it.
-- Canonical requirement IDs remain in `../spec.md` and `../v-model/requirements.md`.
+- Canonical requirement IDs remain in `../spec.md`.
 - Any net-new opportunity (ingredient checkoff, cook-time scaling, deeper voice automation) is documented as non-canonical unless promoted into FRs.
 
 ---

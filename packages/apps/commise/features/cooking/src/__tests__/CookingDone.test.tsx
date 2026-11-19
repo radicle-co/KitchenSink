@@ -38,6 +38,20 @@ describe('CookingDone', () => {
         }
     });
 
+    // D13 and the Done boards: Done reads from the left, like the step it came from. Centring it moves the h1 off the line
+    // the "Enjoy it" text starts on.
+    it('aligns its content to the start, never the centre', () => {
+        render(<CookingDone {...props()} />);
+
+        const section = screen.getByRole('heading', { level: 1 }).closest('section');
+        const classes = section?.className.split(' ') ?? [];
+
+        expect(classes).toContain('items-start');
+        expect(classes).toContain('text-start');
+        expect(classes).not.toContain('items-center');
+        expect(classes).not.toContain('text-center');
+    });
+
     it('holds no control: the actions are pinned in the foot', () => {
         render(<CookingDone {...props()} />);
 

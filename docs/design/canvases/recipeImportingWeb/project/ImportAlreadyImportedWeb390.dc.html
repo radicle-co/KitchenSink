@@ -355,6 +355,10 @@ body{margin:0}
                 width: 18px;
                 height: 18px;
             }
+            .btn.danger { background: var(--paper); color: var(--danger-text); box-shadow: inset 0 0 0 1px var(--danger); }
+            .btn.ghost { background: transparent; color: var(--ink); }
+            .pinbar { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--line-divider); background: var(--bar); flex: none; }
+            .pinbar .btn { width: 100%; }
             .linkBtn {
                 display: inline-flex;
                 align-items: center;
@@ -1501,22 +1505,22 @@ body{margin:0}
         
 
             .pc-chicken {
-                background-image: url(/_blob/8183ee29d15bd8b23b770f3d36cc47d7);
+                background-image: url(assets/5024d8f60c578f87.webp);
                 background-size: cover;
                 background-position: center;
             }
             .pc-padthai {
-                background-image: url(/_blob/1c876156287f04814f90f3417d632be9);
+                background-image: url(assets/b36717407bf33ebd.webp);
                 background-size: cover;
                 background-position: center;
             }
             .pc-pancakes {
-                background-image: url(/_blob/e8cd8e522b823a7df9c39d860d4cf761);
+                background-image: url(assets/e4799f8a1c8e7413.webp);
                 background-size: cover;
                 background-position: center;
             }
             .pc-cookies {
-                background-image: url(/_blob/50b1f6396ec48b9f28189316a6c178d0);
+                background-image: url(assets/30e4afaaf018ff63.webp);
                 background-size: cover;
                 background-position: center;
             }
@@ -2085,38 +2089,22 @@ b, strong { font-weight: 600; }
                         <div class="top">
                             <span class="flex" style="gap: 8px"
                                 ><a class="back" href="#" aria-label="Back to Recipes"
-                                    ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg></a></span
+                                    ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg>Recipes</a></span
                             ><span class="flex" style="gap: 8px"
                                 ></span
                             >
                         </div>
-                        <h1 class="title" style="margin-top: 4px">From a link</h1>
+                        <h1 class="title" style="margin-top: 4px">You already have this recipe</h1>
                         <div class="inp urlInp" style="margin-top: 20px">
                             <svg class="ic" aria-hidden="true"><use href="#link" /></svg
                             ><span class="grow" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
                                 >smittenkitchen.com/2016/09/broccoli-cheddar-soup</span
                             >
                         </div>
-                        <div class="clist" style="margin-top: 20px; padding: 16px">
-                            <p class="t15 w600">This recipe is already in Commise</p>
-                            <p class="t13 soft" style="margin-top: 4px">
-                                Another cook brought it in on 12 Oct, with the source shown. Open it, or save your own
-                                copy to change.
-                            </p>
-                            <div class="prow" style="margin-top: 8px">
-                                <span class="th cov" style="width: 56px; height: 56px"></span>
-                                <div class="tx">
-                                    <p class="t15 w600">Broccoli cheddar soup</p>
-                                    <p class="t13 soft">From Smitten Kitchen · by Deb Perelman</p>
-                                </div>
-                            </div>
-                            <div class="flex" style="gap: 10px; margin-top: 12px">
-                                <a class="btn primary" href="#">Open it</a
-                                ><a class="btn secondary" href="#">Save a copy</a>
-                            </div>
+                        <div class="clist" style="margin-top: 20px; padding: 16px"><p class="t15">You saved <a class="linkBtn" href="#" aria-label="Open Broccoli cheddar soup">Broccoli cheddar soup</a> from smittenkitchen.com on 2 November 2026.</p>
                         </div>
                     </div>
-                </div>
+                <div class="pinbar" role="group" aria-label="Already saved"><a class="btn ghost" href="#">Cancel</a><a class="btn danger" href="#">Replace my copy</a><a class="btn primary" href="#">Import as a new copy</a></div></div>
                 <nav class="tabbar" aria-label="Tabs">
                     <a class="tab" href="#"
                         ><svg class="ic" aria-hidden="true"><use href="#home" /></svg>Home</a

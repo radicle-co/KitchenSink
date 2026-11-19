@@ -741,6 +741,46 @@
             ],
             "type": "object"
         },
+        "authoredStatementSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "kind": {
+                    "const": "authored",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "kind"
+            ],
+            "type": "object"
+        },
+        "bookStatementSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "citation": {
+                    "maxLength": 2000,
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "kind": {
+                    "const": "book",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "kind",
+                "citation"
+            ],
+            "type": "object"
+        },
+        "citationTextSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+        },
         "cloneCollectionRequestSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -2277,6 +2317,10 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "contentPasted": {
+                    "const": true,
+                    "type": "boolean"
+                },
                 "cookTimeMinutes": {
                     "maximum": 2147483647,
                     "minimum": 0,
@@ -2517,6 +2561,44 @@
                     "minimum": 0,
                     "type": "integer"
                 },
+                "publicConfirmation": {
+                    "anyOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "publicConfirm.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "apiWriter": {
+                                    "const": true,
+                                    "type": "boolean"
+                                }
+                            },
+                            "required": [
+                                "apiWriter"
+                            ],
+                            "type": "object"
+                        }
+                    ]
+                },
                 "servings": {
                     "exclusiveMinimum": 0,
                     "maximum": 2147483647,
@@ -2565,23 +2647,159 @@
                     ]
                 },
                 "statement": {
-                    "additionalProperties": false,
-                    "properties": {
-                        "citation": {
-                            "format": "uri",
-                            "maxLength": 2000,
-                            "type": "string"
+                    "oneOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "kind": {
+                                    "const": "authored",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementAuthored.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "wording"
+                            ],
+                            "type": "object"
                         },
-                        "kind": {
-                            "const": "public_web",
-                            "type": "string"
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "format": "uri",
+                                    "maxLength": 2000,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "public_web",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementPublicWeb.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "book",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementBook.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation",
+                                "wording"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "kind": {
+                                    "const": "fromPerson",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementFromPerson.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "wording"
+                            ],
+                            "type": "object"
                         }
-                    },
-                    "required": [
-                        "kind",
-                        "citation"
-                    ],
-                    "type": "object"
+                    ]
                 },
                 "status": {
                     "enum": [
@@ -4086,6 +4304,21 @@
                 "review"
             ],
             "type": "string"
+        },
+        "importOrdinalParamsSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "ordinal": {
+                    "maximum": 2147483646,
+                    "minimum": 0,
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "ordinal"
+            ],
+            "type": "object"
         },
         "importPickRequestSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7639,6 +7872,17 @@
             ],
             "type": "object"
         },
+        "invalidVisibilityReasonSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "SOURCE_CONFLICT",
+                "STATEMENT_REQUIRED",
+                "PUBLIC_CONFIRMATION_REQUIRED",
+                "FROM_PERSON_PRIVATE_ONLY",
+                "API_WRITER_CONFIRMATION_FORBIDDEN"
+            ],
+            "type": "string"
+        },
         "leaveImportRequestSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -9086,6 +9330,45 @@
                     },
                     "required": [
                         "kind"
+                    ],
+                    "type": "object"
+                }
+            ]
+        },
+        "publicConfirmationSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "anyOf": [
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "locale": {
+                            "maxLength": 35,
+                            "minLength": 2,
+                            "type": "string"
+                        },
+                        "version": {
+                            "enum": [
+                                "publicConfirm.v1"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "version",
+                        "locale"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "apiWriter": {
+                            "const": true,
+                            "type": "boolean"
+                        }
+                    },
+                    "required": [
+                        "apiWriter"
                     ],
                     "type": "object"
                 }
@@ -10594,6 +10877,39 @@
                     "additionalProperties": {},
                     "properties": {
                         "code": {
+                            "const": "INVALID_VISIBILITY",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "reason": {
+                                    "enum": [
+                                        "SOURCE_CONFLICT",
+                                        "STATEMENT_REQUIRED",
+                                        "PUBLIC_CONFIRMATION_REQUIRED",
+                                        "FROM_PERSON_PRIVATE_ONLY",
+                                        "API_WRITER_CONFIRMATION_FORBIDDEN"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
                             "const": "MAX_PHOTOS_EXCEEDED",
                             "type": "string"
                         },
@@ -10659,23 +10975,6 @@
                     "properties": {
                         "code": {
                             "const": "NOT_OWNER",
-                            "type": "string"
-                        },
-                        "message": {
-                            "type": "string"
-                        }
-                    },
-                    "required": [
-                        "code",
-                        "message"
-                    ],
-                    "type": "object"
-                },
-                {
-                    "additionalProperties": {},
-                    "properties": {
-                        "code": {
-                            "const": "INVALID_VISIBILITY",
                             "type": "string"
                         },
                         "message": {
@@ -10863,6 +11162,23 @@
                     "properties": {
                         "code": {
                             "const": "IMPORT_ID_IN_USE",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "IMPORT_STORAGE_FULL",
                             "type": "string"
                         },
                         "message": {
@@ -11522,6 +11838,12 @@
                     "minimum": 0,
                     "type": "integer"
                 },
+                "publicNeedsCheck": {
+                    "type": "boolean"
+                },
+                "publicNeedsStatement": {
+                    "type": "boolean"
+                },
                 "ratingCount": {
                     "maximum": 9007199254740991,
                     "minimum": 0,
@@ -11557,6 +11879,16 @@
                 },
                 "sourceUrl": {
                     "format": "uri",
+                    "type": "string"
+                },
+                "statementKind": {
+                    "description": "unrecognised is client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.",
+                    "enum": [
+                        "authored",
+                        "source",
+                        "fromPerson",
+                        "unrecognised"
+                    ],
                     "type": "string"
                 },
                 "status": {
@@ -11687,6 +12019,7 @@
                 "PRIVATE_FOODS_ON_PUBLIC_RECIPE",
                 "IMPORT_ITEM_LOCKED",
                 "IMPORT_ID_IN_USE",
+                "IMPORT_STORAGE_FULL",
                 "UNAUTHORIZED",
                 "IDENTITY_SYNC_PENDING",
                 "FORBIDDEN",
@@ -12233,6 +12566,162 @@
                     "required": [
                         "state",
                         "reason"
+                    ],
+                    "type": "object"
+                }
+            ]
+        },
+        "recipeOwnStatementSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "oneOf": [
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "kind": {
+                            "const": "authored",
+                            "type": "string"
+                        },
+                        "wording": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "statementAuthored.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "wording"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "format": "uri",
+                            "maxLength": 2000,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "public_web",
+                            "type": "string"
+                        },
+                        "wording": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "statementPublicWeb.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "maxLength": 2000,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "book",
+                            "type": "string"
+                        },
+                        "wording": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "statementBook.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation",
+                        "wording"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "kind": {
+                            "const": "fromPerson",
+                            "type": "string"
+                        },
+                        "wording": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "statementFromPerson.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "wording"
                     ],
                     "type": "object"
                 }
@@ -14124,6 +14613,12 @@
                             "minimum": 0,
                             "type": "integer"
                         },
+                        "publicNeedsCheck": {
+                            "type": "boolean"
+                        },
+                        "publicNeedsStatement": {
+                            "type": "boolean"
+                        },
                         "ratingCount": {
                             "maximum": 9007199254740991,
                             "minimum": 0,
@@ -14159,6 +14654,16 @@
                         },
                         "sourceUrl": {
                             "format": "uri",
+                            "type": "string"
+                        },
+                        "statementKind": {
+                            "description": "unrecognised is client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.",
+                            "enum": [
+                                "authored",
+                                "source",
+                                "fromPerson",
+                                "unrecognised"
+                            ],
                             "type": "string"
                         },
                         "status": {
@@ -14354,6 +14859,199 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "publicConfirmation": {
+                    "anyOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "publicConfirm.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "apiWriter": {
+                                    "const": true,
+                                    "type": "boolean"
+                                }
+                            },
+                            "required": [
+                                "apiWriter"
+                            ],
+                            "type": "object"
+                        }
+                    ]
+                },
+                "statement": {
+                    "oneOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "kind": {
+                                    "const": "authored",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementAuthored.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "wording"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "format": "uri",
+                                    "maxLength": 2000,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "public_web",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementPublicWeb.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "book",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementBook.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation",
+                                "wording"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "kind": {
+                                    "const": "fromPerson",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementFromPerson.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "wording"
+                            ],
+                            "type": "object"
+                        }
+                    ]
+                },
                 "visibility": {
                     "enum": [
                         "public",
@@ -14461,6 +15159,10 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "contentPasted": {
+                    "const": true,
+                    "type": "boolean"
+                },
                 "cookTimeMinutes": {
                     "maximum": 2147483647,
                     "minimum": 0,
@@ -14655,6 +15357,44 @@
                     "minimum": 0,
                     "type": "integer"
                 },
+                "publicConfirmation": {
+                    "anyOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "publicConfirm.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "apiWriter": {
+                                    "const": true,
+                                    "type": "boolean"
+                                }
+                            },
+                            "required": [
+                                "apiWriter"
+                            ],
+                            "type": "object"
+                        }
+                    ]
+                },
                 "servings": {
                     "exclusiveMinimum": 0,
                     "maximum": 2147483647,
@@ -14663,23 +15403,159 @@
                 "statement": {
                     "anyOf": [
                         {
-                            "additionalProperties": false,
-                            "properties": {
-                                "citation": {
-                                    "format": "uri",
-                                    "maxLength": 2000,
-                                    "type": "string"
+                            "oneOf": [
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "kind": {
+                                            "const": "authored",
+                                            "type": "string"
+                                        },
+                                        "wording": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "locale": {
+                                                    "maxLength": 35,
+                                                    "minLength": 2,
+                                                    "type": "string"
+                                                },
+                                                "version": {
+                                                    "enum": [
+                                                        "statementAuthored.v1"
+                                                    ],
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "version",
+                                                "locale"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "wording"
+                                    ],
+                                    "type": "object"
                                 },
-                                "kind": {
-                                    "const": "public_web",
-                                    "type": "string"
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "citation": {
+                                            "format": "uri",
+                                            "maxLength": 2000,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "const": "public_web",
+                                            "type": "string"
+                                        },
+                                        "wording": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "locale": {
+                                                    "maxLength": 35,
+                                                    "minLength": 2,
+                                                    "type": "string"
+                                                },
+                                                "version": {
+                                                    "enum": [
+                                                        "statementPublicWeb.v1"
+                                                    ],
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "version",
+                                                "locale"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "citation"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "citation": {
+                                            "maxLength": 2000,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "const": "book",
+                                            "type": "string"
+                                        },
+                                        "wording": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "locale": {
+                                                    "maxLength": 35,
+                                                    "minLength": 2,
+                                                    "type": "string"
+                                                },
+                                                "version": {
+                                                    "enum": [
+                                                        "statementBook.v1"
+                                                    ],
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "version",
+                                                "locale"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "citation",
+                                        "wording"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "kind": {
+                                            "const": "fromPerson",
+                                            "type": "string"
+                                        },
+                                        "wording": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "locale": {
+                                                    "maxLength": 35,
+                                                    "minLength": 2,
+                                                    "type": "string"
+                                                },
+                                                "version": {
+                                                    "enum": [
+                                                        "statementFromPerson.v1"
+                                                    ],
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "version",
+                                                "locale"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "wording"
+                                    ],
+                                    "type": "object"
                                 }
-                            },
-                            "required": [
-                                "kind",
-                                "citation"
-                            ],
-                            "type": "object"
+                            ]
                         },
                         {
                             "type": "null"

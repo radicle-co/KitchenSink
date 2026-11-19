@@ -6,16 +6,19 @@
  * `tamaguiMotionProps.test.ts` fails for any other source of those props. Only a known `false` moves; `undefined` (not
  * read yet) is instant, the rule `Sheet.native.tsx` already held for the Modal's own slide.
  *
- * @pattern Strategy — a pure choice of motion by the reduce-motion answer, over the one named spring in the config
+ * @pattern Strategy — a pure choice of motion by the reduce-motion answer, over the named springs in the config
  */
 
-/** The name of the one spring in `tamaguiConfig.native.ts`; `tamaguiConfig.native.test.tsx` pins the config's keys to it. */
+/** The Sheet's spring in `tamaguiConfig.native.ts`; `tamaguiConfig.native.test.tsx` pins the config's keys to it and to CHECK_SPRING. */
 const SPRING = 'sheet';
+
+/** The check mark's spring in the same config (§1.9: stiffness 600, damping 28). */
+const CHECK_SPRING = 'check';
 
 /** An instant move: Tamagui's explicit `transitionConfig` always wins over a named `transition`. */
 const INSTANT = { type: 'timing', duration: 0 } as const;
 
-/** The props to spread onto the Sheet and onto its overlay. */
+/** The props to spread onto the Sheet, onto its overlay and onto a check mark. */
 export interface MotionProps {
     readonly sheet: { readonly transition: typeof SPRING } | { readonly transitionConfig: typeof INSTANT };
     /**
@@ -27,10 +30,17 @@ export interface MotionProps {
     readonly overlay:
         | { readonly transition: typeof SPRING; readonly opacity: '1 enter:0 exit:0' }
         | { readonly transition: typeof SPRING };
+    /**
+     * The check mark of a checked box, which springs in from 0.9 of its size (§1.9). Like the overlay it keeps its
+     * `transition` in both modes, and only a known `false` has the `enter:` clause that moves it.
+     */
+    readonly check:
+        | { readonly transition: typeof CHECK_SPRING; readonly scale: '1 enter:0.9' }
+        | { readonly transition: typeof CHECK_SPRING };
 }
 
 /**
- * The Sheet's and overlay's motion props for a reduce-motion answer. Pure.
+ * The Sheet's, overlay's and check mark's motion props for a reduce-motion answer. Pure.
  *
  * @param reduceMotion - `useReduceMotion()`'s answer: `false` is known off; `true` and `undefined` are instant.
  * @returns The props for each part.
@@ -40,6 +50,11 @@ export function motionPropsOf(reduceMotion: boolean | undefined): MotionProps {
         ? {
               sheet: { transition: SPRING },
               overlay: { transition: SPRING, opacity: '1 enter:0 exit:0' },
+              check: { transition: CHECK_SPRING, scale: '1 enter:0.9' },
           }
-        : { sheet: { transitionConfig: INSTANT }, overlay: { transition: SPRING } };
+        : {
+              sheet: { transitionConfig: INSTANT },
+              overlay: { transition: SPRING },
+              check: { transition: CHECK_SPRING },
+          };
 }

@@ -27,7 +27,7 @@ whose shape differs DERIVES it with `Pick`/`Omit`/`Partial`.
 ```
 
 `channelClass` is **derived server-side**, never client-supplied — a client that could declare itself
-`user_supplied_bytes` would forge the `016-FR-028` classification the §512(c) posture rests on.
+`user_supplied_bytes` would forge the `016-FR-028` classification.
 
 ## Response — `GET /captures/{id}`
 

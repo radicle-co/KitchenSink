@@ -38,12 +38,11 @@ function renderRow(row: SourceRowModel, over: Partial<Parameters<typeof RecipeSo
     const handlers = {
         onChange: vi.fn(),
         onRemove: vi.fn(),
-        onFocusHandled: vi.fn(),
         onOpen: vi.fn(),
         onTouched: vi.fn(),
     };
 
-    render(<RecipeSourceField row={row} focusRequested={false} {...handlers} {...over} />);
+    render(<RecipeSourceField row={row} {...handlers} {...over} />);
 
     return handlers;
 }

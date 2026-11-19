@@ -10,6 +10,7 @@
  * (`RecipeIngredientsFields.tsx`), and a checkpoint's answer moves the server facts under both. It fails if a write's
  * answer re-keys the draft's lines.
  */
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { LocaleProvider } from '@commise/i18n/react';
 import { makeQuietFoodClient, dialogTitled, queryDialogTitled } from '@commise/test-utils';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
@@ -132,11 +133,13 @@ function mount(arrival?: EditorArrival, recipe: EditorSeed['recipe'] = STORED, m
             <QueryClientProvider client={queryClient}>
                 <RecipeServiceProvider client={createFakeRecipeServiceClient()}>
                     <FoodServiceProvider client={makeQuietFoodClient()} subject="user_cook">
-                        <Harness
-                            seed={{ recipe, ...(memento === undefined ? {} : { memento }) }}
-                            port={port}
-                            {...(arrival === undefined ? {} : { arrival })}
-                        />
+                        <SnackbarHost>
+                            <Harness
+                                seed={{ recipe, ...(memento === undefined ? {} : { memento }) }}
+                                port={port}
+                                {...(arrival === undefined ? {} : { arrival })}
+                            />
+                        </SnackbarHost>
                     </FoodServiceProvider>
                 </RecipeServiceProvider>
             </QueryClientProvider>

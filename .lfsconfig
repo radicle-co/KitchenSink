@@ -1,0 +1,3 @@
+[lfs]
+	# Canvas images download only on request (ADR-0092): the render check pulls the folders it renders.
+	fetchexclude = docs/design/canvases/*/project/assets/**

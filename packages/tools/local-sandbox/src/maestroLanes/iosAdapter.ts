@@ -17,15 +17,15 @@ import { laneCosts } from '@kitchensink/e2e-plan/laneCosts';
 
 import { IOS_MAX_LANES, laneSimulatorName, tunnelsFromManifest, type IosDevice } from './iosLane.js';
 import type { DeviceAdapter, HostFacts, LaneSpec, RunContext } from './laneTypes.js';
-import type { LocalSettings } from './localSettings.js';
+import type { HostPorts } from './stackFacts.js';
 import { MAC_DIR, MacSession, macPathsOf, remote, type MacShell } from './macSession.js';
 
 /** The I/O the adapter needs: the Mac session's shell. */
 export type IosShell = MacShell;
 
 export interface IosAdapterOptions {
-    /** The local stack's origins, from `localMaestro.sh`'s settings: the host side of each tunnel. */
-    readonly settings: Pick<LocalSettings, 'recipeOrigin' | 'identityOrigin' | 'foodOrigin'>;
+    /** The host port each service publishes, from the running stack: the local side of each tunnel. */
+    readonly hostPorts: HostPorts;
     readonly shell: IosShell;
     readonly env: Readonly<Record<string, string | undefined>>;
     readonly repoRoot: string;
@@ -87,7 +87,7 @@ export class IosAdapter implements DeviceAdapter {
         const manifest = await this.session.ssh(
             remote('cat', `${macPathsOf().iosApp(this.contentKey)}/testApp.manifest`),
         );
-        this.session.openTunnel(tunnelsFromManifest(manifest, this.options.settings));
+        this.session.openTunnel(tunnelsFromManifest(manifest, this.options.hostPorts));
     }
 
     async startDevice(lane: LaneSpec): Promise<void> {

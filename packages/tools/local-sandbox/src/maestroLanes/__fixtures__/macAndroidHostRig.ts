@@ -10,6 +10,9 @@ const MANIFEST = [
     'foodOrigin=http://localhost:3002',
 ].join('\n');
 
+/** The host ports the running stack publishes: three different ports, so a swap of two services shows. */
+export const HOST_PORTS = { recipes: 3110, identity: 3111, food: 3112 };
+
 /** The settings a Mac Android host reads, with values no real AVD or image has, so a number written in the host shows. */
 export const makeSettings = (overrides: Partial<MacAndroidHostOptions['settings']> = {}) => ({
     avd: 'ks_lane_lean',
@@ -25,9 +28,6 @@ export const makeSettings = (overrides: Partial<MacAndroidHostOptions['settings'
     ],
     avdImage: (abi: string) => `image;from;settings;${abi}`,
     macRecipePort: 14000,
-    recipeOrigin: 'http://localhost:3000',
-    identityOrigin: 'http://localhost:3001',
-    foodOrigin: 'http://localhost:3002',
     ...overrides,
 });
 
@@ -105,6 +105,7 @@ export function makeMacAndroidRig(options: { failing?: string } = {}): MacAndroi
         shell,
         env: { LOCAL_MAESTRO_IOS_HOST: 'me@mac', PATH: '/usr/bin' },
         repoRoot: '/repo',
+        hostPorts: HOST_PORTS,
         settings: makeSettings(),
         readFile: (file) => (file.endsWith('testApp.manifest') ? MANIFEST : undefined),
     });

@@ -57,9 +57,9 @@ describe('MacAndroidHost', () => {
         await host.prepare(run, APK_PATH, 'abc123');
         const tunnel = tunnels[0]?.join(' ') ?? '';
 
-        expect(tunnel).toContain('-R 14000:localhost:3000');
-        expect(tunnel).toContain('-R 3001:localhost:3001');
-        expect(tunnel).toContain('-R 3002:localhost:3002');
+        expect(tunnel).toContain('-R 14000:localhost:3110');
+        expect(tunnel).toContain('-R 3001:localhost:3111');
+        expect(tunnel).toContain('-R 3002:localhost:3112');
         expect(tunnel).not.toContain('-R 3000:');
     });
 

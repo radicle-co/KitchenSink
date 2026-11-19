@@ -417,7 +417,7 @@ An import that is not finished stays in To review in My recipes, the one place f
 
 A row in To review in My recipes has one secondary text line, in two states only: `yourImports.publicWriting` ("Writing the public version") for `pending` and `writing`, and `yourImports.publicReady` ("Public version ready to read") for `ready`. It wraps to 2 lines without truncating, and web and mobile are the same.
 
-Attempts count per import item across its jobs, 3 in total, so reopening and starting a new job does not reset them. With 3 used, "For everyone" and "Both" answer `409 attemptsUsed` and the cook sees `failed.titleFinal` and `failed.bodyFinal`, and the private exit (the wording of `review.notNow`) runs the paste's ordinary Save recipe. With no free slot the body is `failed.bodyFinalFull` and the only exit is `review.discard`, which calls the existing import delete, `DELETE /api/v1/import/{importId}`, because no job is live. (Lead default, owner may revise.) An import discarded with Stop or `review.discard` is deleted and not listed.
+Attempts count per import item across its jobs, 3 in total, so reopening and starting a new job does not reset them. With 3 used, "For everyone" and "Both" answer `409 attemptsUsed` and the cook sees `failed.titleFinal` and `failed.bodyFinal`, and the private exit (the wording of `review.notNow`) runs the paste's ordinary Save recipe. With no free slot the body is `failed.bodyFinalFull` and the only exit is `review.discard`, which calls the existing import delete, `DELETE /api/v1/import/{importId}`, because no job is live. (Ruled 2026-11-19: the item holds the count on the import path.) An import discarded with Stop or `review.discard` is deleted and not listed.
 
 ---
 

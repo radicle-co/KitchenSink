@@ -87,7 +87,7 @@ The same read carries the owner-only `publicVersionJob: { jobId, state } | null`
 `POST /api/v1/recipes/{recipeId}/public-version` for the later route (a private copy) with
 `{ shownOffer: { kind: 'choice', credit } }` and no `choice` field. Its job has `private_recipe_id` set and
 no import item (the item pair NULL), builds its facts from the private copy and sets `private_digest`. A paid copy goes through the
-same paid-site rules. Start on the later route cancels the recipe's resting job (`checkRefused` or `failed` below 3 attempts, the latest by `private_recipe_id`) in the same transaction, clearing its text.
+same paid-site rules. Start on the later route returns the recipe's latest job (by `private_recipe_id`, a Both job included) with `202` and checks nothing else when that job is `pending`, `writing` or `ready`, so a second device of the same cook gets the same job (FR-034) and no row is inserted. When that job is resting (`checkRefused` or `failed` below 3 attempts), Start cancels it in the same transaction, clearing its text.
 
 - `202 { jobId, state }`. On the public-only path a second call with the same choice while a live job exists returns the live job. A Both Start saves the item, so a repeat Start on it (either choice) answers `itemSaved`, and the client reaches the live Both job through the recipe's `publicVersionJob`. A call with a changed choice cancels the item's live or resting job in the same transaction and starts a new one.
 - `409 { code: 'itemSaved', recipeId }` on the import path when the item's `saved_at` is set, for either choice. The client opens the recipe (P6). It is checked first of all.

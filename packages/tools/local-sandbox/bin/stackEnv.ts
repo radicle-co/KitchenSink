@@ -1,0 +1,103 @@
+/**
+ * `tsx bin/stackEnv.ts <door>` — print the facts of the running local stack, for the shell door and the lane door.
+ *
+ * stdout holds `KEY=value` lines (the names are fixed in `src/stackEnv.ts`) and stderr holds the `stack:` line. A
+ * refusal is one R9 line on stderr, a non-zero exit and nothing on stdout, so a reader never exports half the ports.
+ *
+ * @sideEffect Runs `docker ps -a` and `docker port`; reads the parse worker's `.env.development`.
+ */
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+import { canonicalPath } from '../src/canonicalPath.js';
+import { stackEnvOutcome, workerEnvFrom } from '../src/stackEnv.js';
+import { dockerReadRefusal, isDockerReadError } from '../src/dockerReadError.js';
+import { CONTAINER_PORT, refusalLine, stackOrRefusal, type Stack } from '../src/stackPorts.js';
+import { dockerContainers, dockerPublishedPort, REPO_ROOT } from './adapters.js';
+
+const door = process.argv[2] ?? 'local:maestro';
+const WORKER_ENV_FILE = path.join(REPO_ROOT, 'packages/services/recipe-workers/.env.development');
+
+const FIX_WORKER_FILE = 'Restore the file from git.';
+
+/**
+ * The port each service listens on inside its container. Every service holds 3000, whatever host port it publishes on
+ * (`3001->3000` for identity), and LocalStack and Postgres hold their own. Docker answers `docker port` with an error
+ * for any other port, so a wrong value here refuses the run: `tests/stackEnv.integration.test.ts` runs it.
+ */
+const CONTAINER_PORTS = {
+    recipes: CONTAINER_PORT,
+    identity: CONTAINER_PORT,
+    food: CONTAINER_PORT,
+    localstack: 4566,
+    postgres: 5432,
+} as const;
+
+/** The host port each service of a running stack publishes. @throws DockerReadError when a read fails. */
+function publishedPorts(stack: Stack): Parameters<typeof stackEnvOutcome>[0]['published'] {
+    return {
+        recipes: dockerPublishedPort(stack.containerName('recipes'), CONTAINER_PORTS.recipes),
+        identity: dockerPublishedPort(stack.containerName('identity'), CONTAINER_PORTS.identity),
+        food: dockerPublishedPort(stack.containerName('food'), CONTAINER_PORTS.food),
+        localstack: dockerPublishedPort(stack.containerName('localstack'), CONTAINER_PORTS.localstack),
+        postgres: dockerPublishedPort(stack.containerName('postgres'), CONTAINER_PORTS.postgres),
+    };
+}
+
+function main(): number {
+    const asked = stackOrRefusal(door, process.env);
+
+    if (!asked.ok) {
+        process.stderr.write(`${asked.line}\n`);
+
+        return 1;
+    }
+
+    const { stack } = asked;
+
+    const worker = workerEnvFrom(readFileSync(WORKER_ENV_FILE, 'utf8'));
+
+    if (!worker.ok) {
+        process.stderr.write(
+            `${refusalLine(door, WORKER_ENV_FILE, `states no ${worker.missing.join(', ')}`, FIX_WORKER_FILE)}\n`,
+        );
+
+        return 1;
+    }
+
+    const containers = dockerContainers();
+    // A stack that is not running has no port to read, and Docker answers `docker port` with an error for it: the
+    // outcome says "run local:up" instead.
+    const present = containers.some((container) => container.project === stack.project);
+    const outcome = stackEnvOutcome({
+        door,
+        stack,
+        checkout: REPO_ROOT,
+        canon: canonicalPath,
+        containers,
+        published: present ? publishedPorts(stack) : {},
+        workerEnv: worker.env,
+    });
+
+    if (!outcome.ok) {
+        process.stderr.write(`${outcome.line}\n`);
+
+        return 1;
+    }
+
+    process.stderr.write(`${outcome.stackLine}\n`);
+    process.stdout.write(`${outcome.lines.join('\n')}\n`);
+
+    return 0;
+}
+
+try {
+    process.exitCode = main();
+} catch (error) {
+    if (!isDockerReadError(error)) {
+        throw error;
+    }
+
+    process.stderr.write(`${dockerReadRefusal(door, error)}\n`);
+    process.exitCode = 1;
+}

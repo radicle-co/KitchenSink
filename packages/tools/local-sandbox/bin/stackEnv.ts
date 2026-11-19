@@ -18,6 +18,8 @@ import { dockerContainers, dockerPublishedPort, REPO_ROOT } from './adapters.js'
 const door = process.argv[2] ?? 'local:maestro';
 const WORKER_ENV_FILE = path.join(REPO_ROOT, 'packages/services/recipe-workers/.env.development');
 
+const FIX_WORKER_FILE = 'Restore the file from git.';
+
 /**
  * The port each service listens on inside its container. Every service holds 3000, whatever host port it publishes on
  * (`3001->3000` for identity), and LocalStack and Postgres hold their own. Docker answers `docker port` with an error
@@ -57,7 +59,7 @@ function main(): number {
 
     if (!worker.ok) {
         process.stderr.write(
-            `${refusalLine(door, WORKER_ENV_FILE, `states no ${worker.missing.join(', ')}`, 'Restore the file from git.')}\n`,
+            `${refusalLine(door, WORKER_ENV_FILE, `states no ${worker.missing.join(', ')}`, FIX_WORKER_FILE)}\n`,
         );
 
         return 1;

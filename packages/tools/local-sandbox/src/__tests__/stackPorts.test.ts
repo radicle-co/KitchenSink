@@ -623,8 +623,9 @@ describe('stackOrRefusal turns every refusal of stackFrom into one R9 line', () 
         expect(stackOrRefusal('maestro:lanes', { LOCAL_SANDBOX_HOST_PORTS: 'recipes=abc' })).toEqual({
             ok: false,
             line:
-                "maestro:lanes refused: LOCAL_SANDBOX_HOST_PORTS=recipes=abc has the entry 'recipes=abc', which is not a " +
-                'unique name=port with a port from 1024 to 65535. Pass entries like recipes=3010, or unset the variable.',
+                "maestro:lanes refused: LOCAL_SANDBOX_HOST_PORTS=recipes=abc has the entry 'recipes=abc', " +
+                'which is not a unique name=port with a port from 1024 to 65535. ' +
+                'Pass entries like recipes=3010, or unset the variable.',
         });
     });
 });

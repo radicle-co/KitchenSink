@@ -20,7 +20,6 @@ import {
 
 /** The names the shell door accepts, and nothing else. A line whose key is not here is refused. */
 export const STACK_ENV_KEYS = [
-    'LOCAL_MAESTRO_POSTGRES_CONTAINER',
     'LOCAL_MAESTRO_RECIPES_CONTAINER',
     'LOCAL_MAESTRO_POSTGRES_PORT',
     'LOCAL_MAESTRO_LOCALSTACK',
@@ -117,7 +116,6 @@ export function stackEnvOutcome(input: StackEnvInput): StackEnvOutcome {
     const { recipes = 0, identity = 0, food = 0, localstack = 0, postgres = 0 } = published;
     const moved = { 4566: localstack, 5432: postgres };
     const pairs: readonly (readonly [(typeof STACK_ENV_KEYS)[number], string])[] = [
-        ['LOCAL_MAESTRO_POSTGRES_CONTAINER', stack.containerName('postgres')],
         ['LOCAL_MAESTRO_RECIPES_CONTAINER', stack.containerName('recipes')],
         ['LOCAL_MAESTRO_POSTGRES_PORT', String(postgres)],
         ['LOCAL_MAESTRO_LOCALSTACK', `http://localhost:${String(localstack)}`],

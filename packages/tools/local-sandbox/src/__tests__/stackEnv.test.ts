@@ -44,7 +44,6 @@ describe("stackEnvOutcome for the default stack: exactly today's values", () => 
     const env = linesOf(outcome);
 
     it('names the project, the containers and the published ports', () => {
-        expect(env['LOCAL_MAESTRO_POSTGRES_CONTAINER']).toBe('local-sandbox-postgres');
         expect(env['LOCAL_MAESTRO_RECIPES_CONTAINER']).toBe('local-sandbox-recipes');
         expect(env['MAESTRO_LOCAL_RECIPE_HOST_PORT']).toBe('3000');
         expect(env['MAESTRO_LOCAL_IDENTITY_HOST_PORT']).toBe('3001');
@@ -83,7 +82,6 @@ describe('stackEnvOutcome for the 3100 stack (AE2, AE10)', () => {
         expect(env['E2E_SEED_FOOD_URL']).toBe('http://localhost:3102');
         expect(env['LOCAL_MAESTRO_LOCALSTACK']).toBe('http://localhost:4666');
         expect(env['LOCAL_MAESTRO_POSTGRES_PORT']).toBe('5532');
-        expect(env['LOCAL_MAESTRO_POSTGRES_CONTAINER']).toBe('local-sandbox-3100-postgres');
     });
 
     it("moves the parse worker's three values with onPublishedPorts", () => {

@@ -391,7 +391,7 @@ export function portConflicts(
     return wanted.filter((service) => taken.has(service.hostPort) && !mine.has(service.hostPort));
 }
 
-/** An entry of `LOCAL_SANDBOX_HOST_PORTS` that is not a unique `name=port`. It names the entry, for the refusal line. */
+/** An entry of `LOCAL_SANDBOX_HOST_PORTS` that is not a unique `name=port`. It names the entry for the refusal. */
 export class HostPortEntryError extends Error {
     /** The offending entry, trimmed. */
     readonly entry: string;
@@ -418,7 +418,7 @@ export const isHostPortEntryError = (value: unknown): value is HostPortEntryErro
  * @param raw - The variable's value.
  * @returns Service name to host port. A null-prototype record, so a service named like an inherited member is not
  *   shadowed by one.
- * @throws {HostPortEntryError} When an entry is not `name=port`, the port is not an unprivileged integer, or a name repeats.
+ * @throws {HostPortEntryError} When an entry is not `name=port`, the port is not unprivileged, or a name repeats.
  */
 export function hostPortOverridesFrom(raw: string | undefined): Readonly<Record<string, number>> {
     const overrides = Object.create(null) as Record<string, number>;

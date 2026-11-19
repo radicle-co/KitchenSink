@@ -137,7 +137,7 @@ export interface Stack {
     readonly hostPortOverrides: Readonly<Record<string, number>>;
     /** The container name of a compose service: `<project>-<service>`. */
     readonly containerName: (service: string) => string;
-    /** The Postgres volume as Docker names it: `<project>_local-sandbox-pgdata`, what Compose creates for this project. */
+    /** The Postgres volume as Docker names it: `<project>_local-sandbox-pgdata`, as Compose creates it. */
     readonly volumeName: () => string;
     /** The local image tag of a repository. A shifted stack has its own tag, so a build never replaces another's. */
     readonly imageTag: (repository: string) => string;

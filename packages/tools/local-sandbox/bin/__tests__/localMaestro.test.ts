@@ -73,7 +73,6 @@ const DEFAULT_STACK_FACTS: Readonly<Record<string, string>> = {
     E2E_SEED_FOOD_URL: 'http://localhost:3002',
     LOCAL_MAESTRO_LOCALSTACK: 'http://localhost:4566',
     LOCAL_MAESTRO_RECIPES_CONTAINER: 'local-sandbox-recipes',
-    LOCAL_MAESTRO_POSTGRES_CONTAINER: 'local-sandbox-postgres',
     LOCAL_MAESTRO_POSTGRES_PORT: '5432',
 };
 
@@ -1125,7 +1124,6 @@ describe('the door falls back to no default stack', () => {
         chmodSync(path.join(sandbox.bin, 'docker'), 0o755);
         const result = run(sandbox, 'local_maestro_recipe_database_url', {
             LOCAL_MAESTRO_RECIPES_CONTAINER: '',
-            LOCAL_MAESTRO_POSTGRES_CONTAINER: '',
         });
 
         expect(result.status).toBe(1);
@@ -1148,7 +1146,6 @@ describe('the door falls back to no default stack', () => {
         chmodSync(path.join(sandbox.bin, 'docker'), 0o755);
         const stated = {
             LOCAL_MAESTRO_RECIPES_CONTAINER: 'local-sandbox-3100-recipes',
-            LOCAL_MAESTRO_POSTGRES_CONTAINER: 'local-sandbox-3100-postgres',
         };
 
         const found = run(sandbox, 'local_maestro_recipe_database_url', {

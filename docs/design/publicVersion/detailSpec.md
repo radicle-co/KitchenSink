@@ -59,6 +59,7 @@ Under the badge row, same type:
 2. `editor.source.authorLabel`, only when the page names an author. Copy as in the paste spec §7.4.
 3. `done.linkPublic` "See the public version", only when this copy has a public version (Both path, or the later route
    once published). It pushes the public version.
+4. The public version's status row (`yourImports.publicWriting`, then `yourImports.publicReady`), in the slot of item 3 before the link exists. One of the three shows at a time. Web: one full-content-width row, glyph `clock` or `globe` then text, as a link-styled button, with a trailing `chevronRight` when ready. Mobile: a full-width tappable row, the whole row the target, at least 48 tall (44 pt on iOS), trailing chevron. Not a banner and not pinned. A change from writing to ready while open is announced once in a polite live region. Owner only. After the job expires the row goes away.
 
 ### 1.3 Longest strings (+35%)
 

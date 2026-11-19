@@ -32,8 +32,12 @@ function workerValue(text: string, key: string): string | undefined {
         .trim();
 }
 
-/** The container port each service listens on inside its container. */
-const CONTAINER_PORTS = { recipes: 3000, identity: 3001, food: 3002, localstack: 4566, postgres: 5432 } as const;
+/**
+ * The port each service listens on inside its container. Every service holds 3000, whatever host port it publishes on
+ * (`3001->3000` for identity), and LocalStack and Postgres hold their own. Docker answers `docker port` with an error
+ * for any other port, so a wrong value here refuses the run: `tests/stackEnv.integration.test.ts` runs it.
+ */
+const CONTAINER_PORTS = { recipes: 3000, identity: 3000, food: 3000, localstack: 4566, postgres: 5432 } as const;
 
 function main(): number {
     let stack;

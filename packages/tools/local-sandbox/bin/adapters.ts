@@ -19,7 +19,8 @@ import { CONSUMER_PLAN_RELATIVE } from '../src/queueConsumers.js';
 import { generateStandInKeys, type StandInKeys } from '../src/remoteSearchStandIn.js';
 import { readSeedBundleModule } from '../src/seedBundleModule.js';
 import { inferSynthEnv } from '../src/synthEnv.js';
-import { composeContainersFrom, DockerReadError, publishedHostPort, type ComposeContainer } from '../src/stackPorts.js';
+import { DockerReadError } from '../src/dockerReadError.js';
+import { composeContainersFrom, publishedHostPort, type ComposeContainer } from '../src/stackPorts.js';
 import type { SynthRequest, SynthResult } from '../src/synthesize.js';
 
 /** Repo root, resolved from this file rather than the caller's cwd. */

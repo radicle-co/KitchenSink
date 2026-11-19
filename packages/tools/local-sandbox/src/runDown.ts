@@ -10,15 +10,8 @@
 import path from 'node:path';
 
 import { isHostLockHeldError, type HostLock } from './maestroLanes/hostLock.js';
-import {
-    isInvalidStackPortError,
-    dockerReadRefusal,
-    isDockerReadError,
-    labelRefusal,
-    refusalLine,
-    stackFrom,
-    type ComposeContainer,
-} from './stackPorts.js';
+import { dockerReadRefusal, isDockerReadError } from './dockerReadError.js';
+import { isInvalidStackPortError, labelRefusal, refusalLine, stackFrom, type ComposeContainer } from './stackPorts.js';
 
 const DOOR = 'local:down';
 

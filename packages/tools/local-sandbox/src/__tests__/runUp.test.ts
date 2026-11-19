@@ -7,7 +7,8 @@ import { describe, expect, it } from 'vitest';
 
 import { HostLockHeldError } from '../maestroLanes/hostLock.js';
 import { runUp, type UpPorts } from '../runUp.js';
-import { DockerReadError, type ComposeContainer } from '../stackPorts.js';
+import { DockerReadError } from '../dockerReadError.js';
+import type { ComposeContainer } from '../stackPorts.js';
 
 const C = '/work/C';
 const A = '/work/A';

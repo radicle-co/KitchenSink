@@ -12,10 +12,9 @@ import path from 'node:path';
 
 import { portConflicts } from './localImages.js';
 import { isHostLockHeldError, type HostLock } from './maestroLanes/hostLock.js';
+import { dockerReadRefusal, isDockerReadError } from './dockerReadError.js';
 import {
     isInvalidStackPortError,
-    dockerReadRefusal,
-    isDockerReadError,
     labelRefusal,
     refusalLine,
     stackFrom,

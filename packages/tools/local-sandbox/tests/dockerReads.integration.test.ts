@@ -16,7 +16,7 @@ import {
     dockerVolumeExists,
     listeningPorts,
 } from '../bin/adapters.js';
-import { isDockerReadError } from '../src/stackPorts.js';
+import { isDockerReadError } from '../src/dockerReadError.js';
 
 let dir = '';
 let savedPath: string | undefined;

@@ -9,13 +9,11 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { DockerReadError, dockerReadRefusal, isDockerReadError } from '../dockerReadError.js';
 import {
     checkoutProject,
     composeContainersFrom,
     isInvalidStackPortError,
-    DockerReadError,
-    dockerReadRefusal,
-    isDockerReadError,
     labelRefusal,
     volumeRefusal,
     publishedHostPort,

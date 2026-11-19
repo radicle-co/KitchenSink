@@ -11,14 +11,8 @@ import path from 'node:path';
 
 import { canonicalPath } from '../src/canonicalPath.js';
 import { stackEnvOutcome, type WorkerEnv } from '../src/stackEnv.js';
-import {
-    dockerReadRefusal,
-    isDockerReadError,
-    isInvalidStackPortError,
-    refusalLine,
-    stackFrom,
-    type Stack,
-} from '../src/stackPorts.js';
+import { dockerReadRefusal, isDockerReadError } from '../src/dockerReadError.js';
+import { isInvalidStackPortError, refusalLine, stackFrom, type Stack } from '../src/stackPorts.js';
 import { dockerContainers, dockerPublishedPort, REPO_ROOT } from './adapters.js';
 
 const door = process.argv[2] ?? 'local:maestro';

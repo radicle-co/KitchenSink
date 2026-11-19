@@ -16,3 +16,14 @@ export function tickKeyOf(seed: number): IngredientTickKey {
 
     return key;
 }
+
+/** Named keys for tests of the kept record, which write ticks by what they are of: butter, salt and so on. */
+export const TICK = {
+    butter: tickKeyOf(1),
+    salt: tickKeyOf(2),
+    oil: tickKeyOf(3),
+    pepper: tickKeyOf(4),
+    memory: tickKeyOf(5),
+    stored: tickKeyOf(6),
+    held: tickKeyOf(7),
+} as const;

@@ -19,7 +19,8 @@
         "maestro:lanes": "tsx bin/maestroLanes.ts",
         "typecheck": "tsc --noEmit",
         "up": "tsx bin/up.ts",
-        "down": "tsx bin/down.ts"
+        "down": "tsx bin/down.ts",
+        "defaultStackOnly": "tsx bin/defaultStackOnly.ts"
     },
     "devDependencies": {
         "@aws-sdk/cloudfront-signer": "^3.1138.0",

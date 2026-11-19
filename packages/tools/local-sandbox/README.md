@@ -8,6 +8,17 @@ Set `LOCAL_SANDBOX_PORT` to the recipe service's host port, for example `LOCAL_S
 Every other port moves by the same amount, and the stack gets its own Docker project, containers, images and data.
 Unset, empty or 3000 gives today's stack with today's names and ports.
 
+With `LOCAL_SANDBOX_PORT=3100`, the ports are: recipes 3100, identity 3101, food 3102, LocalStack 4666 and Postgres 5532.
+The Docker project is `local-sandbox-3100`.
+
+A full run on the second stack uses the same variable on every command:
+
+```
+LOCAL_SANDBOX_PORT=3100 npm run local:up
+LOCAL_SANDBOX_PORT=3100 npm run test:e2e:android
+LOCAL_SANDBOX_PORT=3100 npm run local:down
+```
+
 Every door that talks to the stack reads the same variable: `local:up`, `local:down`, `local:maestro` and the Maestro
 lanes. Set it the same way for each command. A door aimed at a stack that is not running, or that another checkout runs,
 refuses with one line and changes nothing.

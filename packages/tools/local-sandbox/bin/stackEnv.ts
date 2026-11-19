@@ -17,6 +17,7 @@ import {
     isInvalidStackPortError,
     refusalLine,
     stackFrom,
+    type Stack,
 } from '../src/stackPorts.js';
 import { dockerContainers, dockerPublishedPort, REPO_ROOT } from './adapters.js';
 
@@ -38,6 +39,17 @@ function workerValue(text: string, key: string): string | undefined {
  * for any other port, so a wrong value here refuses the run: `tests/stackEnv.integration.test.ts` runs it.
  */
 const CONTAINER_PORTS = { recipes: 3000, identity: 3000, food: 3000, localstack: 4566, postgres: 5432 } as const;
+
+/** The host port each service of a running stack publishes. @throws DockerReadError when a read fails. */
+function publishedPorts(stack: Stack): Parameters<typeof stackEnvOutcome>[0]['published'] {
+    return {
+        recipes: dockerPublishedPort(stack.containerName('recipes'), CONTAINER_PORTS.recipes),
+        identity: dockerPublishedPort(stack.containerName('identity'), CONTAINER_PORTS.identity),
+        food: dockerPublishedPort(stack.containerName('food'), CONTAINER_PORTS.food),
+        localstack: dockerPublishedPort(stack.containerName('localstack'), CONTAINER_PORTS.localstack),
+        postgres: dockerPublishedPort(stack.containerName('postgres'), CONTAINER_PORTS.postgres),
+    };
+}
 
 function main(): number {
     let stack;
@@ -73,20 +85,18 @@ function main(): number {
         return 1;
     }
 
+    const containers = dockerContainers();
     const workerEnv: WorkerEnv = { SQS_ENDPOINT: sqs, RECIPE_PARSE_QUEUE_URL: queue, DATABASE_URL: database };
+    // A stack that is not running has no port to read, and Docker answers `docker port` with an error for it: the outcome
+    // says "run local:up" instead.
+    const present = containers.some((container) => container.project === stack.project);
     const outcome = stackEnvOutcome({
         door,
         stack,
         checkout: REPO_ROOT,
         canon: canonicalPath,
-        containers: dockerContainers(),
-        published: {
-            recipes: dockerPublishedPort(stack.containerName('recipes'), CONTAINER_PORTS.recipes),
-            identity: dockerPublishedPort(stack.containerName('identity'), CONTAINER_PORTS.identity),
-            food: dockerPublishedPort(stack.containerName('food'), CONTAINER_PORTS.food),
-            localstack: dockerPublishedPort(stack.containerName('localstack'), CONTAINER_PORTS.localstack),
-            postgres: dockerPublishedPort(stack.containerName('postgres'), CONTAINER_PORTS.postgres),
-        },
+        containers,
+        published: present ? publishedPorts(stack) : {},
         workerEnv,
     });
 

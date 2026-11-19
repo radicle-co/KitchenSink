@@ -83,6 +83,27 @@ describe('stackEnv.ts against a stub Docker', () => {
         );
     });
 
+    it('a stack that is not running says to run local:up, not that Docker failed', () => {
+        installDocker(`${REPO_ROOT}/.local-sandbox`);
+        const script = [
+            '#!/bin/sh',
+            'case "$1" in',
+            '  ps) ;;',
+            '  port) echo "Error response from daemon: No such container: $2" >&2; exit 1 ;;',
+            'esac',
+            '',
+        ];
+
+        writeFileSync(path.join(dir, 'docker'), script.join('\n'));
+        const result = stackEnv({ LOCAL_SANDBOX_PORT: '3100' });
+
+        expect(result.status).toBe(1);
+        expect(result.stdout).toBe('');
+        expect(result.stderr.trim()).toBe(
+            `maestro:lanes refused: project ${PROJECT} has no containers. Run local:up with the same LOCAL_SANDBOX_PORT first.`,
+        );
+    });
+
     it('a stack whose port read fails prints one refusal line and no KEY=value line', () => {
         installDocker(`${REPO_ROOT}/.local-sandbox`);
         writeFileSync(path.join(dir, 'docker'), "#!/bin/sh\necho 'daemon down' >&2\nexit 1\n");

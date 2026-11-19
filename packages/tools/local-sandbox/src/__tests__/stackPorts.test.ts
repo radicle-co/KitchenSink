@@ -527,3 +527,22 @@ describe('composeContainersFrom reads `docker ps -a` label output', () => {
         expect(composeContainersFrom('local-sandbox\t\n')).toEqual([]);
     });
 });
+
+describe('a malformed LOCAL_SANDBOX_HOST_PORTS is a refusal, not a stack trace', () => {
+    it.each([['recipes=abc'], ['recipes=80'], ['recipes=3010,recipes=3011'], ['nonsense']])('refuses %s', (value) => {
+        let caught: unknown;
+
+        try {
+            stackFrom({ LOCAL_SANDBOX_HOST_PORTS: value });
+        } catch (error) {
+            caught = error;
+        }
+
+        expect(isInvalidStackPortError(caught)).toBe(true);
+        expect(caught).toMatchObject({
+            refused: `LOCAL_SANDBOX_HOST_PORTS=${value}`,
+            why: 'is not a list of unique name=port entries with a port from 1024 to 65535',
+            fix: 'Pass entries like recipes=3010, or unset the variable.',
+        });
+    });
+});

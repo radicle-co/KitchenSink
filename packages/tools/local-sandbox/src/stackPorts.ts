@@ -175,7 +175,19 @@ export function stackFrom(env: Readonly<Record<string, string | undefined>>): St
         throw new InvalidStackPortError(shown, why, FIX);
     }
 
-    const overrides = hostPortOverridesFrom(env['LOCAL_SANDBOX_HOST_PORTS']);
+    const rawOverrides = env['LOCAL_SANDBOX_HOST_PORTS'];
+    let overrides: Readonly<Record<string, number>>;
+
+    try {
+        overrides = hostPortOverridesFrom(rawOverrides);
+    } catch {
+        throw new InvalidStackPortError(
+            `LOCAL_SANDBOX_HOST_PORTS=${rawOverrides ?? ''}`,
+            'is not a list of unique name=port entries with a port from 1024 to 65535',
+            'Pass entries like recipes=3010, or unset the variable.',
+        );
+    }
+
     const project = isDefault ? DEFAULT_PROJECT : `${DEFAULT_PROJECT}-${value}`;
 
     return {

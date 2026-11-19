@@ -104,7 +104,7 @@ describe('runUp refuses before it touches anything', () => {
         expect(calls.some((call) => call === 'materialize' || call.startsWith('record'))).toBe(false);
     });
 
-    it('a mixed project refuses from every checkout and reaches no volume decision, whichever container is first', async () => {
+    it('a mixed project refuses from every checkout, with no volume decision, in either order', async () => {
         for (const containers of [
             [at('local-sandbox', A), at('local-sandbox', C)],
             [at('local-sandbox', C), at('local-sandbox', A)],

@@ -13,8 +13,8 @@ below, in this order of authority: the design spec, then the boards.
 - [Public version on recipe detail](../../docs/design/publicVersion/detailSpec.md): how recipe detail shows a public
   version and an import's private copy: the credit, hidden views, "Share a public version" and "Report a problem".
 
-The "Add a recipe" chooser (paste design spec §3.1, D30) is a speed dial on compact screens and an anchored menu from
-768 up. It lists one row for each import method that has shipped.
+The "Add a recipe" chooser (paste design spec §3.1, D30) is a speed dial on compact screens and an anchored menu on
+medium and expanded ones. It lists one row for each import method that has shipped.
 
 ## Canvases
 

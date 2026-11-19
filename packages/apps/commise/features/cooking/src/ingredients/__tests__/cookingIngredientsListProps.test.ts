@@ -31,4 +31,11 @@ describe('CookingIngredientsListProps', () => {
             Pick<CookingMessages['ingredients'], 'clear'>
         >();
     });
+
+    it('has exactly these five props and a no-argument onClear, so no mode, Done or other prop creeps in', () => {
+        expectTypeOf<keyof CookingIngredientsListProps>().toEqualTypeOf<
+            'view' | 'copy' | 'onToggle' | 'onSetServings' | 'onClear'
+        >();
+        expectTypeOf<Parameters<CookingIngredientsListProps['onClear']>>().toEqualTypeOf<[]>();
+    });
 });

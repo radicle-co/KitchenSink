@@ -71,7 +71,7 @@ writing ──engine ok───────────────────
 writing ──check refused, attempts < 2────▶ pending         (automatic retry)
 writing ──check refused, attempts >= 2───▶ checkRefused    (rests while attempts < 3, terminal at 3)
 writing ──ceiling denial─────────────────▶ budgetSpent     (refund, ack, never redelivered)
-pending|writing ──Stop───────────────────▶ cancelled       (a late result is dropped: writes need state IN pending, writing)
+pending|writing ──Stop (Both path, or no slot)──▶ cancelled       (a late result is dropped: writes need state IN pending, writing; with a slot on the public-only path Stop is keepPrivate)
 pending|writing ──10 min / maxReceive────▶ failed          (rests while attempts < 3, terminal at 3)
 ready ──Publish (server re-checks pass)──▶ published       (same transaction as the recipe insert)
 ready ──Not now / 24 h───────────────────▶ cancelled
@@ -81,8 +81,9 @@ checkRefused ──24 h (attempts < 3)───────▶ cancelled
 failed ──"Try again"────────────────────▶ pending         (attempts < 3)
 failed ──24 h (attempts < 3)─────────────▶ cancelled
 checkRefused|failed ──24 h (attempts = 3)────▶ cancelled        (the job's own text is already cleared)
-checkRefused|failed ──cancel (failed.done, Both path)──▶ cancelled
-pending|writing|ready ──keepPrivate (For everyone path only)──▶ cancelled   (failed, checkRefused and budgetSpent keep their state; published answers 409 notKeepable)
+pending|writing|ready|checkRefused|failed ──cancel (failed.done on the Both path, review.discard and the reused cancel on the public-only path, Stop and Back with no slot)──▶ cancelled
+budgetSpent ──cancel──▶ budgetSpent   (already terminal: only the item draft clears)
+pending|writing|ready ──keepPrivate (For everyone path only, charges the unit)──▶ cancelled   (failed, checkRefused and budgetSpent keep their state; published answers 409 notKeepable)
 ```
 
 Rules:
@@ -90,10 +91,10 @@ Rules:
 - The retry route (`POST /api/v1/public-version-jobs/{jobId}/retry`) makes `ready`, `checkRefused` and `failed` to
   `pending`. It answers `409 attemptsUsed` at 3 attempts. Re-entering `pending` meets the partial
   unique index, and a collision answers `409 publicExists`. A job in `pending`, `writing`, `published`, `cancelled` or
-  `budgetSpent` answers `409 notRetryable`. Attempts carry over a retry, and a retry spends no allowance unit.
+  `budgetSpent`, or whose import item already records a recipe id (keepPrivate ran), answers `409 notRetryable`; that condition holds for every "Try again" edge above. Attempts carry over a retry, and a retry spends no allowance unit.
 - `failed` rests like `checkRefused`: it keeps `facts_snapshot`, `source_steps` and `output` while attempts < 3, can be
   retried or cancelled, expires to `cancelled` after 24 hours, and is final at 3 attempts. The cancel route accepts
-  `checkRefused` and `failed`, and clears the snapshots in the same UPDATE.
+  every state in the transition list above, and clears the snapshots in the same UPDATE.
 - The claim is one conditional UPDATE: state `pending`, or state `writing` with `claimed_at` older than the visibility
   timeout. Only a claim from `pending` adds an attempt. A transport failure is not acked, so the message returns and the
   re-claim `writing` to `writing` spends no attempt and leaves `state_changed_at` alone, so the 10-minute window is not
@@ -103,7 +104,7 @@ Rules:
 - `facts_snapshot`, `source_steps` and `output` are cleared only on entering a terminal state: `published`,
   `cancelled`, `budgetSpent`, `failed` at 3 attempts, or `checkRefused` at 3 attempts. They are kept while "Write it
   again" or "Try again" can still happen. The import item's draft step text follows FR-033: it clears only on Publish, keepPrivate, cancel or the sweep, while the job's text columns clear at a final state.
-- keepPrivate (`POST /api/v1/public-version-jobs/{jobId}/keepPrivate`) applies to the public-only path (`import_item_id` set, `private_recipe_id` NULL). One transaction: the DD33 lock, save the item's draft as a private recipe, record the recipe id on the item, cancel the job (a `failed`, `checkRefused` or `budgetSpent` job keeps its state), and set `source_steps`, `facts_snapshot`, `output` and the draft step text to NULL. It spends no allowance unit (the paste's unit was spent when its extraction succeeded, `004-FR-061`). With no free slot it rolls everything back (`403 PRIVATE_SLOTS_FULL`).
+- keepPrivate (`POST /api/v1/public-version-jobs/{jobId}/keepPrivate`) applies to the public-only path (`import_item_id` set, `private_recipe_id` NULL). One transaction: the DD33 lock, save the item's draft as a private recipe, record the recipe id on the item, cancel the job (a `failed`, `checkRefused` or `budgetSpent` job keeps its state), and set `source_steps`, `facts_snapshot`, `output` and the draft step text to NULL. It charges the paste's one unit in the same transaction, guarded by `recipe_import_items.allowance_spent_at` (the conditional UPDATE and `admit` of FR-016a). A refusal by `admit` rolls everything back (`429 IMPORT_QUOTA_EXCEEDED`), and so does no free slot (`403 PRIVATE_SLOTS_FULL`, nothing charged). The route is checked in this order: an item that already records a recipe id answers `200` with it; a `cancelled` or `published` job answers `409 notKeepable`.
 - Every pair of states that this list does not name is refused.
 
 ## Columns on existing tables
@@ -125,8 +126,12 @@ NOT NULL` if and only if `source_type = 'commise_written'`. Both are `NOT VALID`
   `source_type` in `recipe-core` (`rightsLabelOf`, `licenceOf`). There is no column for either.
 - Import item `choice text NULL CHECK in ('private','public','both')`. Not a new `visibility` value, which
   `importSchemaParity` pins.
-- Allowance: making a public version spends no unit, on the import path or on the later route
-  (`POST /api/v1/recipes/{recipeId}/public-version`). `import_allowance_events` and its channel CHECK are unchanged.
+- Allowance: a paste spends its one unit only at save, in the transaction of whichever save ends it in a recipe (keepPrivate, Publish, the import pipeline's private save, or the Both path's private save in Start), guarded by
+  `recipe_import_items.allowance_spent_at` (FR-016a). Making a public version spends no unit of its own, on the import
+  path or on the later route (`POST /api/v1/recipes/{recipeId}/public-version`). Cancel, expiry and the sweep spend
+  nothing. `import_allowance_events` and its channel CHECK are unchanged.
+- Item channel: `recipe_import_items.channel text NOT NULL DEFAULT 'bulk' CHECK (channel IN ('bulk', 'paste'))`. The paste flow sets `paste` when it creates an item, and every existing and bulk item reads `bulk`. A constant default makes the add cheap and expand-only (ADR-0035).
+- Check relaxed: `recipe_import_items_job_needs_payment` (`parse_job_id IS NULL OR allowance_spent_at IS NOT NULL`, migration 0059) becomes `parse_job_id IS NULL OR allowance_spent_at IS NOT NULL OR channel = 'paste'`. It is relaxed for paste items only, because a paste's extraction no longer pays and its parse job exists before the unit is spent. A bulk item still pays when its lines are sent, so the CHECK keeps holding for it. `NOT VALID` then `VALIDATE` (ADR-0035).
 - Recipe read, owner only: `hasSourceRecord` (boolean, no column). True when a `recipe_source_records` row exists
   whose `evidence_id` equals this recipe's evidence row (several rows: the latest `recorded_at`, which the later route
   uses). Only an import writes a source record. An edit in the editor never does. Omitted for any other viewer.

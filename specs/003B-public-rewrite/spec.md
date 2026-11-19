@@ -40,16 +40,16 @@ ADR-0093 records, and the owed amendments in "Amendments".
 
 ## Dependencies
 
-| Spec or decision                                   | Relationship                                                                                                                               |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 004 import pipeline (`004-FR-047`, `FR-061`)       | **Required.** The choice is a step of the one pipeline. No second save path.                                                               |
-| 027 step-writing engine (`027-FR-035` to `FR-046`) | **Required, not built.** 003B cannot generate anything until the engine's pure core and its Bedrock adapter exist.                         |
-| Source evidence (ADR-0089 §6)                      | **Required, not merged.** ADR-0089 §6 sets the append-only evidence record. Its table is not built yet. 003B extends that record (FR-080). |
-| 020 hold and check (ADR-0074, `020-FR-057`)        | **Required, not built.** Until it ships, every public version reads as held ("Checking"), which is the safe direction.                     |
-| 016 labels and licence (`016-FR-015c`)             | **Required, partly built.** The new label value (FR-061) and the licence value (FR-062) are one-way doors and need an ADR.                 |
-| ADR-0024 / DD21 spend ceiling                      | **Governs.** A new call site, reserve-then-settle, fail closed.                                                                            |
-| ADR-0073 private slots                             | **Governs.** A private copy uses a slot, with or without a public version. A public version uses none.                                     |
-| 010 subscriptions (`010-FR-042a` to `FR-042j`)     | **Required for the Pro panel only.** With 010's switch off, the dead end has no paid-plan content (FR-075).                                |
+| Spec or decision                                   | Relationship                                                                                                                                                        |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 004 import pipeline (`004-FR-047`, `FR-061`)       | **Required.** The choice is a step of the one pipeline. No second save path. FR-016a replaces 004-FR-061's interim unit timing; the 004 text change is owed (T214). |
+| 027 step-writing engine (`027-FR-035` to `FR-046`) | **Required, not built.** 003B cannot generate anything until the engine's pure core and its Bedrock adapter exist.                                                  |
+| Source evidence (ADR-0089 §6)                      | **Required, not merged.** ADR-0089 §6 sets the append-only evidence record. Its table is not built yet. 003B extends that record (FR-080).                          |
+| 020 hold and check (ADR-0074, `020-FR-057`)        | **Required, not built.** Until it ships, every public version reads as held ("Checking"), which is the safe direction.                                              |
+| 016 labels and licence (`016-FR-015c`)             | **Required, partly built.** The new label value (FR-061) and the licence value (FR-062) are one-way doors and need an ADR.                                          |
+| ADR-0024 / DD21 spend ceiling                      | **Governs.** A new call site, reserve-then-settle, fail closed.                                                                                                     |
+| ADR-0073 private slots                             | **Governs.** A private copy uses a slot, with or without a public version. A public version uses none.                                                              |
+| 010 subscriptions (`010-FR-042a` to `FR-042j`)     | **Required for the Pro panel only.** With 010's switch off, the dead end has no paid-plan content (FR-075).                                                         |
 
 ## Terms
 
@@ -327,10 +327,20 @@ later from its own menu. (C-6)
   dialog, publishes nothing, returns focus to Publish and returns the cook to the review screen. The job stays ready until it expires as usual,
   and the cook can still take the normal private exit from review (the path's not-now key (`review.notNow` on the public path, `review.notNowBoth` on the Both path), FR-044). Nothing is saved
   automatically. Spec 016's stronger age assurance replaces this later. (C-17)
-- **FR-016a**: Each recipe this feature saves spends the one shared import allowance (ADR-0072 §8,
-  `004-FR-061`). The Both path spends one import unit, not two: the public version is part of the same import. Making
-  a public version spends no unit, in the same import or on the later "Share a public version"
-  route (C-24). The site-wide AI ceiling still applies (FR-082). A private copy uses a slot, with or without a public version (ADR-0093 §8).
+- **FR-016a**: A paste spends its one import unit only when it ends in a saved recipe: a private copy, a published
+  public version, or both for one unit (ADR-0072 §8). The unit is charged inside the save transaction and is guarded by
+  `recipe_import_items.allowance_spent_at`. After the DD33 lock the save runs
+  `UPDATE recipe_import_items SET allowance_spent_at = now() WHERE id = $item AND allowance_spent_at IS NULL RETURNING id`.
+  When a row comes back, the same transaction calls `ImportAllowanceDal.admit(tx, userId, { ...pasteScope, units: 1 })`.
+  If admit refuses, the transaction rolls back, nothing is saved, and the route answers the allowance refusal
+  (the house `429 IMPORT_QUOTA_EXCEEDED`, with `resetsAt`; UI state `allowanceRefused.line`). `pasteScope` is the scope
+  `ParseJobsService.create` builds today for a paste: the channel `paste`, the caller's plan and the principal kind. When no row comes back, the unit is already
+  spent and nothing is charged. Cancel, expiry and the sweep spend nothing. A replay never charges twice. Every save that ends a paste in a recipe runs this same charge in its own save transaction: keepPrivate, Publish, the
+  "Just for me" and "Save my copy" save of the one import pipeline, and the private save that starts the Both path (inside
+  Start). On the Both path the private save charges and Publish then charges nothing. Making a public version spends no unit of its own, in the
+  same import or on the later "Share a public version" route (C-24). The site-wide AI ceiling still applies (FR-082). A
+  private copy uses a slot, with or without a public version (ADR-0093 §8). This replaces 004-FR-061's interim rule (the
+  unit is spent when extraction succeeds); the 004 text change is owed (T214).
 - **FR-016b**: Identity owns the age claim. `POST /api/v1/me/age-assurance` records one `age_assurances` row (spec 016's
   table, built now) and then sets the `ageFloorMet` claim on the cook's session. The route is idempotent. See
   `contracts/publicVersion.api.md` and `data-model.md` "Identity".
@@ -382,8 +392,8 @@ later from its own menu. (C-6)
   is a resting state while fewer than 3 attempts are used: "Try again" calls the retry route and makes a third
   attempt. After the third attempt a refusal is final. A resting `checkRefused` expires to `cancelled` after 24
   hours. A job that ends `failed` (FR-082) rests the same way: "Try again" while fewer than 3 attempts are used, then
-  `cancelled` after 24 hours, and final at 3 attempts. The "For everyone" path's private exit (`button.private`, or `review.notNow` at 3 attempts) is the keepPrivate route of the contract. On the Both path `failed.done` calls cancel, which is accepted from
-  `checkRefused` and `failed`. Attempts carry over a retry and no allowance unit is spent. At 3 attempts the client
+  `cancelled` after 24 hours, and final at 3 attempts. On the public-only path the private exits (`button.private`, or `review.notNow` at 3 attempts) call the keepPrivate route of the contract, and a discard (`review.discard`) calls cancel. On the Both path `failed.done` calls cancel, which is accepted from
+  `checkRefused`, `failed` and `budgetSpent` (the data-model's transition list). Attempts carry over a retry and no allowance unit is spent. At 3 attempts the client
   hides `wizard.retry` and `flag.rewrite` and shows the Final variants. The failed screen shows `failed.titleFinal` with
   `failed.bodyFinal` and the private exit `review.notNow` on the public path, so the cook's recipe is not lost without
   warning, and `failed.titleFinal` with `failed.bodyFinalBoth` and `failed.done` on the Both path, where the copy is
@@ -443,10 +453,14 @@ later from its own menu. (C-6)
   waits until each flag is resolved by an edit or by "Write it again", which calls the retry route and returns the
   job to `pending` (data-model "State transitions"). (C-9)
 - **FR-043**: The cook can change the title. The title then goes through the title check of FR-050.
-- **FR-044**: A cook with no slot left who reaches the private exit on the "For everyone" path sees the reused `cancel`
-  instead of "Keep it just for me". The private exit is `review.notNow`, `button.private` on the failed and budget
-  screens, and `review.notNow` on the failed and blocked-final screens at 3 attempts. All of them call keepPrivate, which
-  answers `403 PRIVATE_SLOTS_FULL` with no free slot and changes nothing.
+- **FR-044**: On the public-only path the exits that keep the cook's recipe are Stop, "Not now" (`review.notNow`),
+  `button.private` on the failed and budget screens, and the private exits of the failed and blocked-final screens at
+  3 attempts. All of them call keepPrivate, which saves the private copy and charges the unit (FR-016a). With no free
+  slot it answers `403 PRIVATE_SLOTS_FULL` and changes nothing, and the UI then offers the discard (`review.discard`),
+  which calls cancel; the reused `cancel` shows in place of "Keep it just for me" and also calls cancel. Cancel is an
+  explicit discard only: it saves nothing and spends nothing. The 24-hour expiry is a discard. On the Both path the
+  private copy is already saved, and Stop, "Not now" (`review.notNowBoth`) and `failed.done` call cancel. When the
+  allowance refuses the unit at save (FR-016a), the screen shows `allowanceRefused.line` and nothing is saved.
 - **FR-045**: On the Both path the private copy can change between the writing and "Publish". Publish MUST then be
   refused with `409 privateCopyChanged` and "Write it again" (`flag.rewrite`). That retry rebuilds the job's facts
   snapshot and private digest from the changed private copy before the job re-enters `pending`. The wording
@@ -570,13 +584,17 @@ later from its own menu. (C-6)
   claim from `pending` adds an attempt. A job in `pending` or `writing` for more than 10 minutes ends `failed`, which
   rests while fewer than 3 attempts are used (FR-031). (C-25)
 - **FR-083**: Writer calls are bounded by the site-wide spend ceiling (FR-082), one public version per source page
-  (FR-034) and at most 3 attempts per job (C-7). Making a public version spends no import unit (FR-016a). There is no
+  (FR-034) and at most 3 attempts per job (C-7). A paste spends its import unit only at save (FR-016a), never for a writer call. There is no
   separate daily cap (C-15).
 - **FR-084**: A page with a stated AI opt-out signal (`004-FR-063`) MUST NOT be sent to the writer. Only Private is offered,
   with its own line, `privateOnly.line`, which makes no promise of a later public version. (C-16)
-- **FR-085**: "Stop" during writing MUST end the job `cancelled` and return the cook to the choice. A result that
+- **FR-085**: "Stop" during writing MUST end the job `cancelled`. On the Both path it returns the cook to the choice. A result that
   arrives later is dropped. A call already started is still paid from the pool. The cook never pays (FR-081). On the
-  Both path the private copy stays.
+  Both path the private copy stays and Stop calls cancel. On the public-only path, when the cook has a free slot, Stop calls keepPrivate (FR-044), so
+  the pasted recipe is saved as a private copy, the unit is charged and the cook lands on the saved recipe, not on the
+  choice. When the offer is `publicOnly` (no slot left) there is nothing to keep: Stop and Back call cancel, which saves
+  nothing and spends nothing. If keepPrivate answers `403 PRIVATE_SLOTS_FULL` anyway, the writing screen offers
+  `review.discard` and the reused `cancel`.
 
 #### K. Release
 
@@ -618,6 +636,7 @@ owner-approved v3 draft over v2 (staff-ux-engineer). `staff-ux-engineer` SPECIFY
 | Check unavailable (later edit)                                                                       | The editor's ordinary retryable save error, with no new key. The edit stays in the device draft. "Keep it just for me" stays available.                                                                                                                                                                                                                                    |
 | Writer failed                                                                                        | `failed.title`, `failed.body`, `failed.bodyBoth`, `failed.done`, **reuse** `wizard.retry` (hidden at 3 attempts, when `failed.titleFinal`, `failed.bodyFinal` and `review.notNow` show on the public path, and `failed.titleFinal`, `failed.bodyFinalBoth` and `failed.done` on the Both path)                                                                             |
 | Budget spent                                                                                         | `budget.line`, and `failed.done` on the Both path                                                                                                                                                                                                                                                                                                                          |
+| Discard, and allowance refused at save (new)                                                         | `review.discard` (the discard action, public-only path), `allowanceRefused.line` (the state when the allowance refuses the unit at save). Strings are in `research.md` R8                                                                                                                                                                                                  |
 | The offer changed                                                                                    | `offerChanged.line`, then the area re-renders from the new offer with nothing selected                                                                                                                                                                                                                                                                                     |
 | Private only, by reason                                                                              | One line per reason: `privateOnly.paidRecent` (with `{date}`), `privateOnly.noSteps`, `privateOnly.noSource`, `privateOnly.language`, `privateOnly.languageUnsure`, `budget.line`; `privateOnly.line` for `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, and for `paidRecent` with no date. On Free the slot line `private.hint` follows. No "later" promise |
 | Offline                                                                                              | **reuse** `review.offline` (choosing), `writing.offline` (writing)                                                                                                                                                                                                                                                                                                         |
@@ -765,10 +784,11 @@ Still owed:
   on the server, so Publish re-checks one known result. Owner to confirm.
 - **C-23. AI credit wording?** Ruled 2026-11-15: "Steps written by Commise with AI, checked by {cook}." Final
   wording settled 2026-11-17 (research R8).
-- **C-24. Does making a public version cost an allowance unit?** Ruled 2026-11-17: no unit is spent. Making a public
-  version is part of the original import, in the same import and on the later "Share a public version" route. The
-  import's own unit and every existing import limit stay unchanged: the paste's unit was spent when its extraction
-  succeeded (`004-FR-061`, an interim rule awaiting an owner ruling), and keepPrivate charges nothing.
+- **C-24. Does making a public version cost an allowance unit?** Ruled 2026-11-17: no unit of its own. Making a public
+  version is part of the original import, in the same import and on the later "Share a public version" route. A paste
+  spends its one unit only when it ends in a saved recipe, a private copy or a published public version, with one unit
+  when both are saved (FR-016a). Read-then-cancel, abandon, expiry and the sweep spend nothing. keepPrivate and Publish
+  charge inside their save transaction, once per import item.
 - **C-25. How long may a writer job run?** Assumed: 10 minutes in `pending` or `writing`, counted from when it last entered that state, then it ends `failed`. Owner to confirm.
 - **C-26. Key custody for the wording fingerprint?** Assumed: a secret in AWS Secrets Manager under this feature's
   custody, with rotation that keeps old versions readable. A save with an old key version re-checks with that key.

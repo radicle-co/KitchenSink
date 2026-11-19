@@ -91,7 +91,9 @@ same paid-site rules.
 - `409 { code: 'publicExists', recipeId: string | null }`: another version of this source page is already public (FR-034). The key is released by FR-034a.
 - `409 { code: 'offerChanged', offer }`: the offer the server computes now differs from the `shownOffer` the client sent
   (see "The shown offer"). `offer` is the current offer. Client copy: `offerChanged.line`. Publish answers the same way.
-- No allowance unit is spent by Start (C-24), so it never answers `429 importAllowance`.
+- Start spends no unit for the writer job (C-24). On the Both path its first step is the private save, which charges the
+  paste's unit (FR-016a), so Start can answer `429 IMPORT_QUOTA_EXCEEDED` there and then starts no job. On the public-only path
+  Start never answers it.
 
 ## Read the job
 
@@ -106,6 +108,7 @@ The client reads `attempts` to decide which actions to show: at `attempts === 3`
 `POST /api/v1/public-version-jobs/{jobId}/publish` with `{ title, steps: { text }[], shownOffer: ShownOffer }` (the cook's edited version).
 
 - `201 { recipeId }`, or `200 { recipeId }` for a job already published (idempotent on the source page key).
+- The unit charge of FR-016a runs inside the Publish transaction, after the DD33 lock, on the same `allowance_spent_at` guard as keepPrivate. On the public-only path Publish charges the unit. On the Both path the private save already set the guard, so Publish charges nothing, and the later route (no import item) charges nothing. A refusal by `admit` rolls the transaction back and answers `429 IMPORT_QUOTA_EXCEEDED`, and the job stays `ready`. A replay never charges twice.
 - `422 { code: 'flags', flags: { kind: 'step' | 'allergen' | 'factAdded', line?, ingredient? }[] }` from the server fact check.
   `factAdded` carries the added `line`.
 - `422 { code: 'tooSimilar' }` from the wording check.
@@ -138,26 +141,35 @@ fewer than 3 attempts are used. Attempts carry over and no allowance unit is spe
   attempts.
 - `409 { code: 'publicExists', recipeId }` when re-entering `pending` collides with another cook's live job on the page.
 - After `privateCopyChanged` it rebuilds the facts snapshot, the source steps and the private digest from the changed private copy.
-- A job in `pending`, `writing`, `published`, `cancelled` or `budgetSpent` answers `409 { code: 'notRetryable' }`.
+- A job in `pending`, `writing`, `published`, `cancelled` or `budgetSpent`, or whose import item already records a recipe id (keepPrivate ran), answers `409 { code: 'notRetryable' }`.
 
 ## Cancel
 
-`POST /api/v1/public-version-jobs/{jobId}/cancel` → `200 { state: 'cancelled' }`. Idempotent. It is accepted from
-`pending`, `writing`, `ready`, `checkRefused` and `failed` (`failed.done` on the Both path), and it clears
-`facts_snapshot`, `source_steps` and `output` in the same UPDATE, and the item's draft step text in the same transaction
-(FR-033). The "For everyone" path's private exit does not use this route: it uses keepPrivate below.
+`POST /api/v1/public-version-jobs/{jobId}/cancel` → `200 { state }`. Idempotent. The transitions are in the data-model
+"State transitions" list, which is the one statement of them: `pending`, `writing`, `ready`, `checkRefused` and `failed`
+end `cancelled`, and a `budgetSpent` job stays `budgetSpent`, so `state` is the job's state after the call. In the same
+UPDATE it clears `facts_snapshot`, `source_steps` and `output`, and the item's draft step text in the same transaction
+(FR-033). It saves nothing and spends no allowance unit (FR-016a). It is an explicit discard on the public-only path
+(`review.discard`, and the offer after `403 PRIVATE_SLOTS_FULL`), the exit of Stop and Back on the public-only path when
+the offer is `publicOnly` (no slot), and the exit on the Both path (Stop, `review.notNowBoth` and `failed.done`). The
+expiry at 24 hours and the sweep discard the same way. The public-only path's private exits, with a slot, do not use this
+route: they use keepPrivate below.
 
 ## Keep a private copy
 
 `POST /api/v1/public-version-jobs/{jobId}/keepPrivate` → `201 { recipeId }`, and a replay answers `200` with the same
-`recipeId`. It serves `review.notNow`, `button.private` and the private exit of the failed and blocked-final screens on
-the public-only path (the job has an import item and no private copy). Any other job answers `409 { code: 'notKeepable' }`.
+`recipeId`. It serves Stop, `review.notNow`, `button.private` and the private exits of the failed and blocked-final
+screens on the public-only path (the job has an import item and no private copy). Order of checks: first, when the item
+already records a recipe id it answers `200` with that same id, whatever the job's state. Then a job that is `cancelled`
+or `published`, or that is not public-only, answers `409 { code: 'notKeepable' }`.
 
-- One transaction: the DD33 lock, save the item's draft as a private recipe with FR-021's wording, record the recipe id
+- One transaction: the DD33 lock, the unit charge below, save the item's draft as a private recipe with FR-021's wording, record the recipe id
   on the item, cancel the job (a `failed`, `checkRefused` or `budgetSpent` job keeps its state), and set
   `source_steps`, `facts_snapshot`, `output` and the draft step text to NULL.
-- It charges no allowance unit: the paste's unit was spent when its extraction succeeded (`004-FR-061`, an interim rule awaiting an owner ruling).
-- With no free slot it answers `403 { code: 'PRIVATE_SLOTS_FULL', used, limit }` and changes nothing.
+- The unit charge (FR-016a), after the DD33 lock: `UPDATE recipe_import_items SET allowance_spent_at = now() WHERE id = $item AND allowance_spent_at IS NULL RETURNING id`.
+  When a row comes back the transaction calls `ImportAllowanceDal.admit(tx, userId, { ...pasteScope, units: 1 })`. If admit refuses, everything rolls
+  back and the route answers `429 IMPORT_QUOTA_EXCEEDED`. When no row comes back, nothing is charged. A replay never charges twice.
+- With no free slot it answers `403 { code: 'PRIVATE_SLOTS_FULL', used, limit }` and changes nothing, so the unit is not charged either. The client then offers the discard (Cancel).
 - A Publish racing it ends one way: the loser answers its own conflict and writes nothing.
 
 ## Recipe writes

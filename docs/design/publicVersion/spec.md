@@ -116,8 +116,8 @@ P5 Review (paste spec) ── visibility area = offer ──┬─ choice ─ Co
 | P10 Age question | `ConfirmDialog` over P8, centred                               | `ConfirmDialog`, centred and blocking, as on every size                                                                                                    | Dialog, centred                                    |
 | P6 Recipe detail | Exists. Gains the credit, the links and the Checking badge     | Exists                                                                                                                                                     | Exists                                             |
 
-Back from P7 stops the job (as Stop) and returns to P5 with the choice kept. On the For everyone path with no edit, Back from P8
-asks nothing and returns to P5. After an edit it asks with `ConfirmDialog` (reuse the
+Back from P7 acts as Stop: on the Both path it calls cancel and returns to P5 with the choice kept, and on the For everyone path it calls keepPrivate and lands on P6 with the saved private copy (with no slot, `publicOnly`, it calls cancel and returns to P5). On the For everyone path with no edit, Back from P8
+calls no route, asks nothing and returns to P5, and the job rests until Publish, a keep, a discard or the 24-hour expiry (a discard). After an edit it asks with `ConfirmDialog` (reuse the
 editor's discard dialog). On the Both path the private copy is already saved, so leaving P8 keeps it.
 
 ---
@@ -274,19 +274,21 @@ visibility area's render component and the button. The client never computes an 
   sheet the button takes the choice's label (`button.private`, `button.public` or `button.both`) and commits. With
   nothing chosen the sheet's button also reads "Continue" and shows `pickOne` (S2). Closing the sheet (swipe down, the
   scrim, or Back) returns to the review page with nothing saved. iPad keeps the in-page card.
-- **Save my copy.** Saves the private copy as the paste spec's Save does. Success is P6.
+- **Save my copy.** Saves the private copy as the paste spec's Save does, and spends the paste's one unit. If the allowance refuses it, the screen shows `allowanceRefused.line` and nothing is saved. Success is P6.
 - **Write the public version / Save and write.** Starts the job (`POST …/public-version`). Both saves the private copy
-  first. On `409 offerChanged` (body `{ code: 'offerChanged', offer }`) the visibility area re-renders from `offer`, nothing selected, and shows
-  `offerChanged.line`. On `409 publicExists` it re-renders as `publicExists`. Start spends no allowance unit.
-- **Stop.** Cancels the job, returns to P5 with the choice kept. Both: the copy stays.
+  first, which spends the paste's unit; if the allowance refuses it, the screen shows `allowanceRefused.line` and no job starts. On `409 offerChanged` (body `{ code: 'offerChanged', offer }`) the visibility area re-renders from `offer`, nothing selected, and shows
+  `offerChanged.line`. On `409 publicExists` it re-renders as `publicExists`. Start spends no unit for the writer job (C-24).
+- **Stop.** Both: calls cancel, returns to P5 with the choice kept, the copy stays. For everyone: calls keepPrivate (the recipe is saved as a private copy, the unit is spent, and the cook lands on P6). With no slot left (`publicOnly`) Stop calls cancel: nothing is saved and nothing is spent. If keepPrivate answers `403 PRIVATE_SLOTS_FULL`, the writing screen offers `review.discard` and the reused `cancel`.
 - **Show my copy / Hide my copy.** A disclosure. Its state is not kept across visits.
 - **Edit steps.** Turns the steps into fields. The button becomes "Done editing" (reuse the editor's key).
 - **Write it again.** Calls the retry route, which starts a new attempt of the same job (up to 3). Returns to P7.
 - **Publish.** `POST …/publish` with the edited title and steps. A `403 ageConfirmNeeded` answer opens P10 (X7).
   `422 flags` shows the flags group. `422 tooSimilar` shows B8 blocked. `503 checkUnavailable` shows B8 check unavailable, with Publish enabled to try again and the private exit.
   `409 privateCopyChanged` (Both) shows the flags group's rewrite action with `flag.fix` (no new string).
-- **Keep it just for me / `Don't publish` / Cancel import.** For everyone: saves the private copy (a slot) and ends the
-  job. With no slot left the button is `cancel`, and it ends the import with nothing saved. Both: ends the job, the copy stays.
+- **Keep it just for me / `Don't publish` / Cancel import.** For everyone: saves the private copy (a slot) through keepPrivate, ends the
+  job, and spends the paste's one unit. Stop on this path does the same. With no slot left the keepPrivate answer is `403 PRIVATE_SLOTS_FULL`, and the screen offers the discard (`review.discard`) and the reused `cancel`, both of which call cancel and end the import with nothing saved and no unit spent. Both: Stop, `review.notNowBoth` and `failed.done` call cancel, the job ends and the copy stays.
+- **Discard.** `review.discard`, public path only. Calls cancel: nothing is saved and nothing is spent. Always an explicit action, never the label of a private exit. The 24-hour expiry ends the same way.
+- **Allowance refused at save.** When the allowance refuses the unit as any save ends the paste (Save my copy, Save and write, keepPrivate or Publish), nothing is saved, the screen shows `allowanceRefused.line`, and the cook keeps the review as it was and can discard.
 - **Upgrade to Pro.** Opens the payment page (web modal, mobile store sheet). On success the cook returns to P5 with the offer
   re-read, and hears `pro.welcome`. On cancel or failure, back to P9 unchanged.
 - **Not now / Close.** Ends the import, nothing saved, announces `deadEnd.closed`, and returns to My recipes.
@@ -365,22 +367,24 @@ Slot line on Free: `private.hint`. Pro: none.
 | Editing               | The editor's step field, and "Done editing" (reuse)                                                                                                                                                                                                     |
 | Fact flags            | `flag.title` (ICU), `flag.step`, `flag.allergen`, `flag.added` (new, §7.2), `flag.fix`, `flag.rewrite`. Focus to the group's heading. Publish stays enabled                                                                                             |
 | Credit, paid site     | `credit.written`, `review.licence`. No site named or linked                                                                                                                                                                                             |
-| Both path             | `review.notNowBoth` reads `Don’t publish` (003B C-29: one key per string)                                                                                                                                                                               |
-| For everyone, no slot | reuse `importMessages.paste.cancel` instead of "Keep it just for me"                                                                                                                                                                                    |
+| Both path             | `review.notNowBoth` reads `Don’t publish` (003B C-29: one key per string). It calls cancel                                                                                                                                                              |
+| For everyone, discard | `review.discard` (new, §7.2) calls cancel. With a slot, the only action on this path that saves nothing                                                                                                                                                 |
+| For everyone, no slot | on `403 PRIVATE_SLOTS_FULL`: `review.discard`, and the reused `importMessages.paste.cancel` instead of "Keep it just for me". Both call cancel                                                                                                          |
+| Allowance refused     | `allowanceRefused.line` (new, §7.2), after Save my copy, Save and write, keepPrivate or Publish. Nothing is saved                                                                                                                                       |
 
 ### 6.8 Refused, failed and budget (B8)
 
-| State                                      | Copy and keys                                                                     | Actions                                                                                                                                                                                     |
-| ------------------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Wording too close, public path             | `blocked.body`                                                                    | `flag.rewrite`, `review.notNow`                                                                                                                                                             |
-| Wording too close, public path, 3 attempts | `blocked.bodyFinal` (new)                                                         | `review.notNow` only. No `flag.rewrite`                                                                                                                                                     |
-| Wording too close, Both                    | `blocked.bodyBoth`                                                                | `flag.rewrite`, `review.notNowBoth`                                                                                                                                                         |
-| Wording too close, Both, 3 attempts        | `blocked.bodyFinalBoth` (new)                                                     | `review.notNowBoth` only. No `flag.rewrite`                                                                                                                                                 |
-| Check unavailable (Publish)                | `checkUnavailable.body`, `checkUnavailable.bodyBoth` on the Both path (new, §7.2) | Publish (enabled, tries again) and the path's not-now key (`review.notNow` / `review.notNowBoth`)                                                                                           |
-| Failed, For everyone                       | `failed.title`, `failed.body`                                                     | reuse `importMessages.wizard.retry`, `button.private`. No slot: the reused `cancel` (FR-044). At 3 attempts: `failed.titleFinal`, `failed.bodyFinal` and `review.notNow`, no `wizard.retry` |
-| Failed, Both                               | `failed.title`, `failed.bodyBoth`                                                 | reuse `importMessages.wizard.retry`, "Done" (`failed.done`, new). At 3 attempts: `failed.titleFinal`, `failed.bodyFinalBoth` and "Done", no `wizard.retry`                                  |
-| Budget spent during the flow               | `budget.line`                                                                     | `button.private`. Both: "Done" (`failed.done`) No slot: the reused `cancel` (FR-044).                                                                                                       |
-| The offer changed (409)                    | `offerChanged.line` (new, §7.2)                                                   | "Continue"                                                                                                                                                                                  |
+| State                                      | Copy and keys                                                                     | Actions                                                                                                                                                                                                                        |
+| ------------------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Wording too close, public path             | `blocked.body`                                                                    | `flag.rewrite`, `review.notNow`                                                                                                                                                                                                |
+| Wording too close, public path, 3 attempts | `blocked.bodyFinal` (new)                                                         | `review.notNow` only. No `flag.rewrite`                                                                                                                                                                                        |
+| Wording too close, Both                    | `blocked.bodyBoth`                                                                | `flag.rewrite`, `review.notNowBoth`                                                                                                                                                                                            |
+| Wording too close, Both, 3 attempts        | `blocked.bodyFinalBoth` (new)                                                     | `review.notNowBoth` only. No `flag.rewrite`                                                                                                                                                                                    |
+| Check unavailable (Publish)                | `checkUnavailable.body`, `checkUnavailable.bodyBoth` on the Both path (new, §7.2) | Publish (enabled, tries again) and the path's not-now key (`review.notNow` / `review.notNowBoth`)                                                                                                                              |
+| Failed, For everyone                       | `failed.title`, `failed.body`                                                     | reuse `importMessages.wizard.retry`, `button.private` (keepPrivate). No slot: `review.discard` and the reused `cancel` (FR-044). At 3 attempts: `failed.titleFinal`, `failed.bodyFinal` and `review.notNow`, no `wizard.retry` |
+| Failed, Both                               | `failed.title`, `failed.bodyBoth`                                                 | reuse `importMessages.wizard.retry`, "Done" (`failed.done`, new). At 3 attempts: `failed.titleFinal`, `failed.bodyFinalBoth` and "Done", no `wizard.retry`                                                                     |
+| Budget spent during the flow               | `budget.line`                                                                     | `button.private`. Both: "Done" (`failed.done`). No slot: `review.discard` and the reused `cancel` (FR-044).                                                                                                                    |
+| The offer changed (409)                    | `offerChanged.line` (new, §7.2)                                                   | "Continue"                                                                                                                                                                                                                     |
 
 Every one of these is `role="alert"`, and focus moves to the screen's heading or the alert.
 
@@ -408,25 +412,27 @@ exclamation marks, no reason clauses, and none of the banned words (one list, `b
 
 ### 7.2 New strings (not in copy v3 or v2)
 
-| Key                         | Copy                                                                                                                   | Where  |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------ |
-| `button.none`               | "Continue"                                                                                                             | B1, B8 |
-| `creditPreview.label`       | "Your public version will say"                                                                                         | B1     |
-| `publicExists.link`         | "See the public version" (same words as `done.linkPublic`)                                                             | B3     |
-| `review.titleLabel`         | "Recipe name"                                                                                                          | B7     |
-| `review.stepsHeading`       | "Steps"                                                                                                                | B7     |
-| `review.oursHeading`        | "Public version"                                                                                                       | B7     |
-| `review.yourCopyHeading`    | "Your copy"                                                                                                            | B7     |
-| `checkUnavailable.body`     | "We can’t check this version right now. Try again in a moment, or keep it just for you."                               | B8     |
-| `checkUnavailable.bodyBoth` | "We can’t check this version right now. Your copy is saved. Try again in a moment, or share it later from the recipe." | B8     |
-| `flag.added`                | "Your edit adds “{line}”, which isn’t in the recipe you saved. Take it out in Edit steps, or let us write it again."   | B7     |
-| `failed.done`               | "Done"                                                                                                                 | B8     |
-| `blocked.bodyFinal`         | "We can’t publish this version, and we can’t write it again. You can keep it just for you."                            | B8     |
-| `blocked.bodyFinalBoth`     | "We can’t publish this version, and we can’t write it again. Your copy is saved."                                      | B8     |
-| `failed.titleFinal`         | "We couldn’t write the public version"                                                                                 | B8     |
-| `failed.bodyFinal`          | "We can’t try again for this one. You can keep it just for you."                                                       | B8     |
-| `failed.bodyFinalBoth`      | "We can’t try again for this one. Your copy is saved."                                                                 | B8     |
-| `offerChanged.line`         | "Something changed since you chose. Have a look and pick again."                                                       | B1, B8 |
+| Key                         | Copy                                                                                                                   | Where                                                 |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `button.none`               | "Continue"                                                                                                             | B1, B8                                                |
+| `creditPreview.label`       | "Your public version will say"                                                                                         | B1                                                    |
+| `publicExists.link`         | "See the public version" (same words as `done.linkPublic`)                                                             | B3                                                    |
+| `review.titleLabel`         | "Recipe name"                                                                                                          | B7                                                    |
+| `review.stepsHeading`       | "Steps"                                                                                                                | B7                                                    |
+| `review.oursHeading`        | "Public version"                                                                                                       | B7                                                    |
+| `review.yourCopyHeading`    | "Your copy"                                                                                                            | B7                                                    |
+| `checkUnavailable.body`     | "We can’t check this version right now. Try again in a moment, or keep it just for you."                               | B8                                                    |
+| `checkUnavailable.bodyBoth` | "We can’t check this version right now. Your copy is saved. Try again in a moment, or share it later from the recipe." | B8                                                    |
+| `flag.added`                | "Your edit adds “{line}”, which isn’t in the recipe you saved. Take it out in Edit steps, or let us write it again."   | B7                                                    |
+| `failed.done`               | "Done"                                                                                                                 | B8                                                    |
+| `review.discard`            | "Discard this import"                                                                                                  | B7, B8. Placeholder, copy pending designer review     |
+| `allowanceRefused.line`     | "You have used your imports for now. Nothing was saved."                                                               | B1, B7, B8. Placeholder, copy pending designer review |
+| `blocked.bodyFinal`         | "We can’t publish this version, and we can’t write it again. You can keep it just for you."                            | B8                                                    |
+| `blocked.bodyFinalBoth`     | "We can’t publish this version, and we can’t write it again. Your copy is saved."                                      | B8                                                    |
+| `failed.titleFinal`         | "We couldn’t write the public version"                                                                                 | B8                                                    |
+| `failed.bodyFinal`          | "We can’t try again for this one. You can keep it just for you."                                                       | B8                                                    |
+| `failed.bodyFinalBoth`      | "We can’t try again for this one. Your copy is saved."                                                                 | B8                                                    |
+| `offerChanged.line`         | "Something changed since you chose. Have a look and pick again."                                                       | B1, B8                                                |
 
 ### 7.3 Reused keys
 
@@ -557,7 +563,7 @@ None of our own. Pushes, the dialog and the sheet use the platform's transitions
 - **No slot left and a public version possible.** `publicOnly` (B4), never a dead end.
 - **The offer changes between read and press.** `409 offerChanged` (B8).
 - **Another device publishes first.** `409 publicExists`: the area re-renders as `publicExists.published`.
-- **Retry at 3 attempts.** `409 attemptsUsed`: the client refetches the job and re-renders from its state and attempts. The public path's private exit (`review.notNow`, `button.private`) calls the keepPrivate route, and with no free slot shows the reused `cancel`. At 3 attempts the screens hide `wizard.retry` and `flag.rewrite` and show `blocked.bodyFinal` or `blocked.bodyFinalBoth` where blocked, and the failed Final variants where failed: `failed.titleFinal` with `failed.bodyFinal` and `review.notNow` on the public path, `failed.bodyFinalBoth` and `failed.done` on the Both path (B8).
+- **Retry at 3 attempts.** `409 attemptsUsed`: the client refetches the job and re-renders from its state and attempts. The public path's private exit (Stop, `review.notNow`, `button.private`) calls the keepPrivate route, and with no free slot offers `review.discard` and the reused `cancel`, which call cancel. At 3 attempts the screens hide `wizard.retry` and `flag.rewrite` and show `blocked.bodyFinal` or `blocked.bodyFinalBoth` where blocked, and the failed Final variants where failed: `failed.titleFinal` with `failed.bodyFinal` and `review.notNow` on the public path, `failed.bodyFinalBoth` and `failed.done` on the Both path (B8).
 - **The private copy changes during writing (Both).** `409 privateCopyChanged` at Publish: `flag.fix` with "Write it
   again".
 - **Under 16 learned at the age question.** "Not now" publishes nothing. The cook can still keep a private copy from P8

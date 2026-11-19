@@ -55,6 +55,7 @@ import { SEED_VERIFICATION_QUEUE_URL } from '../../support/localHarness.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../support/foodFake.js';
 import { ensureFoodLookup } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates recipes as. */
 const OWNER = '01JQ8N2X4RBV6WK3ZT5Y7A9C0P';
@@ -165,6 +166,7 @@ describe('the verification gate’s producer (U11 integration)', () => {
 
     /** A create body with one food-backed line, optionally transcribed from a source. */
     const createBody = (sourceLine?: string): Record<string, unknown> => ({
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         title: `U11 producer ${Date.now()}-${Math.random()}`,
         description: 'Created by the U11 producer spec.',
         servings: 4,

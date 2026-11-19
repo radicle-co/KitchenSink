@@ -145,4 +145,74 @@ describe('the store notifies only on a change', () => {
 
         expect(listener).toHaveBeenCalledTimes(2);
     });
+
+    it('stays quiet for an action that changes nothing', () => {
+        const { store } = setup();
+        const listener = vi.fn();
+        store.subscribe(listener);
+        store.show({ message: 'A' });
+
+        store.dispatch({ type: 'act', id: -1 });
+        store.dispatch({ type: 'pause', id: -1, now: 0 });
+
+        expect(listener).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('act, pause and resume read the store clock', () => {
+    it('a pause and a resume bank and restart the time by the injected clock, not the wall clock', () => {
+        const { store, clock } = setup();
+        const handle = store.show({ message: 'A' });
+        const id = store.getState().current?.id ?? -1;
+
+        clock.now = 2_000;
+        store.pause(id);
+        clock.now = 50_000;
+        store.resume(id);
+        clock.now = 51_000;
+
+        expect(store.withdraw(handle)).toBe(3_000);
+    });
+
+    it('a withdraw after a pause that landed after the snackbar was due answers zero, never a negative', () => {
+        const { store, clock } = setup();
+        const handle = store.show({ message: 'A' });
+        const id = store.getState().current?.id ?? -1;
+
+        clock.now = 60_000;
+        store.pause(id);
+
+        expect(store.withdraw(handle)).toBe(0);
+    });
+
+    it('act closes the snackbar without committing it, then runs the action', () => {
+        const { store } = setup();
+        const onTimeout = vi.fn();
+        const onAction = vi.fn();
+        store.show({ message: 'A', onTimeout });
+        const id = store.getState().current?.id ?? -1;
+
+        store.act(id, { label: 'Undo', onAction });
+        runSettled(store);
+
+        expect(onAction).toHaveBeenCalledTimes(1);
+        expect(onTimeout).not.toHaveBeenCalled();
+    });
+
+    it('act closes before the action runs, so a snackbar the action shows never commits the old one', () => {
+        const { store } = setup();
+        const onTimeoutA = vi.fn();
+        store.show({ message: 'A', onTimeout: onTimeoutA });
+        const current = store.getState().current;
+
+        if (current === null) {
+            throw new Error('A is not showing');
+        }
+
+        store.act(current.id, { label: 'Undo', onAction: () => store.show({ message: 'B' }) });
+        runSettled(store);
+
+        expect(onTimeoutA).not.toHaveBeenCalled();
+        expect(store.getState().current?.input.message).toBe('B');
+    });
 });

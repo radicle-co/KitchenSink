@@ -35,6 +35,7 @@ import { bearerFor, startFoodFake, type FoodFake } from '../../support/foodFake.
 import { deleteBindingsMatching } from '../../support/bindingCleanup.js';
 import { ensureFoodLookup, insertIngredientLine } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -153,7 +154,11 @@ async function publishCloneAndReadFirstVersionLines(
     const res = await fetch(`${baseUrl}/api/v1/recipes/${clone.id}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json', authorization: bearer },
-        body: JSON.stringify({ expectedVersion: clone.currentVersion, status: 'published' }),
+        body: JSON.stringify({
+            expectedVersion: clone.currentVersion,
+            status: 'published',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        }),
     });
     expect(res.status).toBe(200);
 
@@ -389,6 +394,7 @@ describe('Clone + visibility US2 (integration)', () => {
     it('free-tier CREATE with visibility:private and NO slot left is DENIED (403 PRIVATE_SLOTS_FULL); no row is written', async () => {
         await seedPrivateRows(db, CLONER, 50);
         const createBody = {
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             title: 'Sneaky Private Create',
             servings: 1,
             prepTimeMinutes: 1,

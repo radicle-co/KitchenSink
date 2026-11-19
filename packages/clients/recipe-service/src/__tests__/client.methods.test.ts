@@ -153,6 +153,38 @@ describe('RecipeServiceClient — recipes', () => {
         expect(jsonBody(fetchMock)).toEqual({ visibility: 'public' });
     });
 
+    /**
+     * Rewrites the earlier test that asserted the client ADDED the API writers' confirmation when it made a recipe public.
+     * A wording may be sent only when a screen showed it, so the client passes through what its caller gives and adds none.
+     */
+    it('setRecipeVisibility to public with no extras sends no publicConfirmation and no statement', async () => {
+        const fetchMock = stubFetch(200, makeRecipeDetail({ visibility: 'public' }));
+
+        await makeClient(fetchMock).setRecipeVisibility('rec_1', 'public');
+
+        const body = jsonBody(fetchMock);
+        expect(body).not.toHaveProperty('publicConfirmation');
+        expect(body).not.toHaveProperty('statement');
+    });
+
+    it('setRecipeVisibility sends exactly the extras its caller gives', async () => {
+        const fetchMock = stubFetch(200, makeRecipeDetail({ visibility: 'public' }));
+        const publicConfirmation = { version: 'publicConfirm.v1', locale: 'fr' } as const;
+        const statement = { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'fr' } } as const;
+
+        await makeClient(fetchMock).setRecipeVisibility('rec_1', 'public', { publicConfirmation, statement });
+
+        expect(jsonBody(fetchMock)).toEqual({ visibility: 'public', publicConfirmation, statement });
+    });
+
+    it('setRecipeVisibility sends no publicConfirmation when the recipe goes private', async () => {
+        const fetchMock = stubFetch(200, makeRecipeDetail({ visibility: 'private' }));
+
+        await makeClient(fetchMock).setRecipeVisibility('rec_1', 'private');
+
+        expect(jsonBody(fetchMock)).toEqual({ visibility: 'private' });
+    });
+
     it('getPrivateSlots GETs /api/v1/recipes/private-slots and parses the limited arm (200)', async () => {
         const fetchMock = stubFetch(200, { kind: 'limited', used: 12, limit: 50 });
 

@@ -17,6 +17,7 @@
         "format:check": "prettier --check ."
     },
     "dependencies": {
+        "@commise/features-recipes": "*",
         "@commise/i18n": "*",
         "@commise/ui": "*",
         "@kitchensink/cooking-core": "*",

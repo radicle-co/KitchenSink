@@ -32,6 +32,12 @@ export type GateOutcome =
      * visibility field draws the cook's real count (`RecipeEditorSurface`).
      */
     | { readonly kind: 'slotsFull' }
+    /**
+     * Publish of a recipe that ends public, which the cook has not yet said where it is from (ADR-0095, `askForStatement`).
+     * Nothing was sent. The editor has opened the source-statement sheet (`statementAsk`). It comes AFTER validation and the
+     * open choices and BEFORE the slots question, so the cook answers once, in the order the gates are met.
+     */
+    | { readonly kind: 'statementNeeded' }
     | { readonly kind: 'busy' };
 
 /**

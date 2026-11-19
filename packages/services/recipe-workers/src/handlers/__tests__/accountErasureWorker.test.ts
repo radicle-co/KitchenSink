@@ -369,6 +369,37 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(flip?.params).toEqual([JSON.stringify([DONATE_1]), OWNER, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)]);
     });
 
+    it('⛔ donates an elected recipe ONLY if the evidence rule does not hold it: a source once stated is never made public', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, [DONATE_1]);
+
+        const flip = control.statements().find((s) => /update recipes set visibility/i.test(s.text));
+
+        // The database's own evidence rule (migration 0086), not a copy of it: the same shape as `recipe_holds_private_food`.
+        expect(flip?.text).toMatch(/and not recipe_holds_third_party_source\(id\)/i);
+        // …and it adds no parameter: the election, the owner and the private-only keys are still the whole list.
+        expect(flip?.params).toEqual([JSON.stringify([DONATE_1]), OWNER, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)]);
+    });
+
+    it('⛔ donates an elected recipe ONLY if the cook has no statement owed: a pasted recipe never said to be theirs is not made public', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, [DONATE_1]);
+
+        const flip = control.statements().find((s) => /update recipes set visibility/i.test(s.text));
+
+        // The database's own statement rule (migration 0087), not a copy of it, like the evidence rule beside it.
+        expect(flip?.text).toMatch(/and not recipe_needs_statement\(id\)/i);
+        // …and "from another person" (migration 0087, ADR-0095): a donation would publish a recipe the cook said is not theirs.
+        expect(flip?.text).toMatch(/and not recipe_is_from_person\(id\)/i);
+        expect(flip?.text).toMatch(/and not recipe_holds_third_party_source\(id\)/i);
+        // …and it adds no parameter: the election, the owner and the private-only keys are still the whole list.
+        expect(flip?.params).toEqual([JSON.stringify([DONATE_1]), OWNER, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)]);
+    });
+
     it('computes the removed set on BOTH axes — owner AND NOT (public AND published)', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);
@@ -452,6 +483,28 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         // still pointing at a removed recipe makes the delete throw `recipes_cloned_from_id_fkey`. Detach
         // must run first.
         expect(detachIndex).toBeLessThan(deleteIndex);
+    });
+
+    // 0090: every attestation row of the account is kept, so the account moves to the erasure token BEFORE any recipe is
+    // deleted, for the account's rows as a whole and not only the rows of a recipe that survives.
+    it('moves the account of EVERY attestation row to the erasure token BEFORE the recipe delete, keyed on the account alone', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const statements = control.statements();
+        const swapIndex = statements.findIndex((s) =>
+            /^update recipe_statement_attestations\s+set account_id/i.test(s.text),
+        );
+        const deleteIndex = statements.findIndex((s) => /^delete from recipes where/i.test(s.text));
+
+        expect(swapIndex).toBeGreaterThanOrEqual(0);
+        expect(swapIndex).toBeLessThan(deleteIndex);
+        // Keyed on the account, with no join to a recipe: a removed recipe's rows are moved too.
+        expect(statements[swapIndex]?.text).toMatch(/where account_id = \$\d$/i);
+        expect(statements[swapIndex]?.text).not.toMatch(/\bfrom recipes\b|\bjoin\b|\bin \(select/i);
+        expect(statements[swapIndex]?.params).toEqual([expect.stringMatching(/^erased_[0-9a-f]{32}$/), OWNER]);
     });
 
     it('scopes the clone-detach to the REMOVED set and guards SURVIVORS (id NOT IN removed), not owner_id', async () => {
@@ -1537,6 +1590,21 @@ describe('purgeTestPrincipalRows (ADR-0040 — TOTAL, repeatable purge of a regi
         expect(control.transactionCount()).toBe(1);
         expect(control.statements().length).toBeGreaterThan(8);
         expect(control.txStatements()).toHaveLength(control.statements().length);
+    });
+
+    // 0090: a test principal's statement records are relabelled, never deleted: the trigger refuses every DELETE.
+    it('swaps the account of every statement record to one erased token BEFORE the recipe delete, and never deletes a record', async () => {
+        const control = await purge();
+        const statements = control.statements();
+        const swapIndex = statements.findIndex((s) =>
+            /^update recipe_statement_attestations\s+set account_id/i.test(s.text),
+        );
+
+        expect(swapIndex).toBeGreaterThanOrEqual(0);
+        expect(swapIndex).toBeLessThan(indexOf(control, /^delete from recipes\b/i));
+        expect(statements[swapIndex]?.text).toMatch(/where account_id = \$\d$/i);
+        expect(statements[swapIndex]?.params).toEqual([expect.stringMatching(/^erased_[0-9a-f]{32}$/), OWNER]);
+        expect(statements.some((s) => /delete from recipe_statement_attestations/i.test(s.text))).toBe(false);
     });
 
     it('deletes EVERY recipe the principal owns — no public carve-out, no status axis, no tombstone filter', async () => {

@@ -49,14 +49,14 @@ const BOUNDARY = /^[^a-z]/u;
 /** A word before a span that makes its time a repeat or an amount per event ("every five minutes"). */
 const REPEAT_WORDS: ReadonlySet<string> = new Set(['every', 'once', 'twice']);
 
+/**
+ * The words that start a rate right after a span ("ten minutes per pound", "twenty minutes to the pound"). The time
+ * grows with the food, so it is not the step's wait.
+ */
+export const RATE_PHRASES: readonly (readonly string[])[] = [['per'], ['to', 'the']];
+
 /** The words after a span that make its time a part of the step, not the step's wait. */
-const PART_PHRASES: readonly (readonly string[])[] = [
-    ['before', 'the', 'end'],
-    ['each', 'side'],
-    // A rate per weight ("ten minutes per pound", "twenty minutes to the pound") is not a wait.
-    ['per'],
-    ['to', 'the'],
-];
+const PART_PHRASES: readonly (readonly string[])[] = [['before', 'the', 'end'], ['each', 'side'], ...RATE_PHRASES];
 
 /** Words are lower-case letter runs. Punctuation and digit runs are their own tokens. Anything else is a separator. */
 const TOKEN = /[a-z]+|\d+|[.,;:!?()]/gu;

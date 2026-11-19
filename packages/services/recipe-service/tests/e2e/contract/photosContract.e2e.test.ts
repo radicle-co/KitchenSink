@@ -22,6 +22,7 @@ import { recipePhotoSchema } from '@kitchensink/recipe-core';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates recipes + photos as. */
 const OWNER = '01JPHOTOCONTRACT000000000A';
@@ -47,6 +48,7 @@ describe('photos vertical — client ↔ server contract conformance', () => {
 
         // Seed the parent recipe through the typed client end to end (create now fully conforms — #5 + #8).
         const recipe = await client.createRecipe({
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             title: 'Photo Contract Recipe',
             servings: 2,
             prepTimeMinutes: 5,

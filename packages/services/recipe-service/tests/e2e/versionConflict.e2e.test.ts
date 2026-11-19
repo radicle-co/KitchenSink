@@ -13,6 +13,7 @@ import pg from 'pg';
 
 import { bootRecipeApp, type BootedRecipeApp } from './harness.js';
 import { recipeDb } from '../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -44,6 +45,7 @@ describe('enriched version conflict (e2e, assembled app)', () => {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 title: 'Conflict E2E',
                 servings: 2,
                 prepTimeMinutes: 5,

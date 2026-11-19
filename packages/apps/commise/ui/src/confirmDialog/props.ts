@@ -42,6 +42,11 @@ export interface ConfirmDialogProps {
     readonly title: string;
     /** The dialog's body copy, explaining the consequence of confirming. */
     readonly body: string;
+    /**
+     * A second muted paragraph under the body, already localised, that the dialog is described by too. A caller whose second
+     * sentence is its own piece of copy passes it here rather than joining two localised sentences into one string.
+     */
+    readonly note?: string;
     /** The destructive action ("Delete recipe"). */
     readonly confirm: ConfirmAction;
     /** The safe action ("Keep recipe"); focus opens on it. */

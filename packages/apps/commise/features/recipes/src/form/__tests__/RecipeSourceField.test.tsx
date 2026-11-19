@@ -21,9 +21,9 @@ const URL = 'https://www.allrecipes.com/recipe/1/soup/';
 afterEach(cleanup);
 
 function renderRow(row: SourceRowModel, over: Partial<Parameters<typeof RecipeSourceField>[0]> = {}) {
-    const handlers = { onChange: vi.fn(), onRemove: vi.fn(), onFocusHandled: vi.fn(), onTouched: vi.fn() };
+    const handlers = { onChange: vi.fn(), onRemove: vi.fn(), onTouched: vi.fn() };
 
-    render(<RecipeSourceField row={row} focusRequested={false} {...handlers} {...over} />);
+    render(<RecipeSourceField row={row} {...handlers} {...over} />);
 
     return handlers;
 }
@@ -119,14 +119,7 @@ describe('RecipeSourceField (web)', () => {
 
     it('hidden: nothing at all', () => {
         const { container } = render(
-            <RecipeSourceField
-                row={{ kind: 'hidden' }}
-                focusRequested={false}
-                onTouched={vi.fn()}
-                onChange={vi.fn()}
-                onRemove={vi.fn()}
-                onFocusHandled={vi.fn()}
-            />,
+            <RecipeSourceField row={{ kind: 'hidden' }} onTouched={vi.fn()} onChange={vi.fn()} onRemove={vi.fn()} />,
         );
 
         expect(container.textContent).toBe('');
@@ -148,10 +141,11 @@ describe('RecipeSourceField (web)', () => {
         expect(onTouched).toHaveBeenCalledTimes(1);
     });
 
-    it('a Remove asks the field for focus, and says when it took it', () => {
-        const { onFocusHandled } = renderRow({ kind: 'empty', text: '' }, { focusRequested: true });
+    // REWRITTEN for the designer's approval fixes: this said a Remove asks the field for focus. The row never takes focus on its own
+    // now (the keyboard rose over the held note); the editor moves focus to "Who can see it" (`RecipeEditorSurface.test.tsx`).
+    it('the emptied field takes no focus of its own, so no keyboard is raised by a Remove', () => {
+        renderRow({ kind: 'empty', text: '' });
 
-        expect(document.activeElement).toBe(field());
-        expect(onFocusHandled).toHaveBeenCalledTimes(1);
+        expect(document.activeElement).not.toBe(field());
     });
 });

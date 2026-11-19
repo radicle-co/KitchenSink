@@ -17,6 +17,7 @@ import { recipeDetailSchema, recipeSchema } from '@kitchensink/recipe-core';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates recipes as. */
 const OWNER = '01JRECIPECONTRACT00000000A';
@@ -36,6 +37,7 @@ describe('recipe read shape — client ↔ server contract conformance', () => {
         client = new RecipeServiceClient({ baseUrl: booted.baseUrl });
 
         const recipe = await client.createRecipe({
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             title: 'Recipe Contract Dish',
             servings: 4,
             prepTimeMinutes: 15,

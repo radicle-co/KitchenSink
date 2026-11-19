@@ -23,6 +23,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootRecipeApp, type BootedRecipeApp } from './harness.js';
 import { MAX_NUTRITION_RECIPE_IDS } from '../../src/recipes/recipes.schema.js';
 import { recipeDb } from '../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../src/__fixtures__/index.js';
 
 const OWNER = '01JNUTRITIONBATCHE2EOWNER01';
 
@@ -60,6 +61,7 @@ describe('POST /api/v1/recipes/nutrition-batch (e2e, assembled app)', () => {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
                 title,
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
                 servings: 2,
                 prepTimeMinutes: 5,
                 cookTimeMinutes: 10,

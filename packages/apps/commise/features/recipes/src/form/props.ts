@@ -121,6 +121,16 @@ export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps,
      * so, instead of the book and paid-site reason.
      */
     readonly webSource?: boolean;
+    /** Whether a recorded source holds the recipe out of Public (ADR-0095): Public is refused with the held note. */
+    readonly publicHeld?: boolean;
+    /** The passive line under the Public card, when this screen draws it: what was sent is what was shown. */
+    readonly confirmLine?: string;
+    /**
+     * A counter the host advances when the cook has done something that makes this group the next thing to read: taking a saved
+     * source off, which leaves the held note here. Focus moves to the group (web), or the screen-reader cursor to its first card
+     * (native), only when the counter CHANGES; text focus is never taken, so no keyboard comes up.
+     */
+    readonly focusSignal?: number;
 }
 
 /** One card of the "Who can see it" field. */
@@ -159,6 +169,12 @@ export interface SlotsFullView {
 /** What the "Who can see it" field draws: the visibility it shows as chosen, its two cards, and the full refusal. */
 export interface VisibilityFieldModel {
     readonly shown: RecipeVisibility;
+    /**
+     * The passive line under the Public card (`publicConfirm.v1`), present only when Public is offered AND the screen showed it.
+     * ⛔ The ONE fact that decides whether the wire carries the confirmation: the editor sends the wording exactly when this is
+     * drawn, so what was sent is what was shown.
+     */
+    readonly confirmLine: string | undefined;
     readonly options: readonly [VisibilityOption, VisibilityOption];
     /** Present only when Private is refused for want of a slot, and the recipe is not already private. */
     readonly slotsFull: SlotsFullView | undefined;
@@ -185,16 +201,24 @@ export function visibilityFieldOf(input: {
     readonly refusal: PrivateRefusal | undefined;
     readonly messages: EditorMessages['visibility'];
     /**
-     * Whether the recipe can only be private because it was copied from a web page (ADR-0089), which changes the reason the
-     * Public card gives. Absent is a book or paid-site recipe.
+     * Whether the recipe can only be private because it was copied from a web page (ADR-0089): the Public card then gives the
+     * held-by-source note. Absent is a book or paid-site recipe, which keeps its own reason.
      */
     readonly webSource?: boolean;
+    /**
+     * Whether a recorded source holds the recipe out of Public though the draft states none (`publicHeldOf`, ADR-0095): Public
+     * is refused with the held note, and stays refused after the cook removes a source the server holds.
+     */
+    readonly publicHeld?: boolean;
+    /** The passive line, when this screen shows it: absent where a sheet will ask instead. */
+    readonly confirmLine?: string;
 }): VisibilityFieldModel {
     const { saved, facts, refusal, messages: v } = input;
     const { standing } = facts;
     // ⛔ DERIVED, NOT WRITTEN (ADR-0089): a recipe that may never be public is Private whatever the cook chose, and the
     // draft's own choice is left alone so taking the source off brings it back.
-    const privateOnly = !mayBePublic(facts.rule);
+    const ruleRefuses = !mayBePublic(facts.rule);
+    const privateOnly = ruleRefuses || input.publicHeld === true;
     const draft = privateOnly ? RecipeVisibility.PRIVATE : input.draft;
     const refused = refusedDraftPrivate(refusal, saved, draft);
     const holdsItsSlot = saved === RecipeVisibility.PRIVATE;
@@ -208,17 +232,19 @@ export function visibilityFieldOf(input: {
     const refusedNote = refused === 'slots' ? slotsFullNote : undefined;
 
     return {
+        confirmLine: privateOnly ? undefined : input.confirmLine,
         shown: privateOnly ? RecipeVisibility.PRIVATE : effectiveVisibility(refusal, saved, draft),
         options: [
             {
                 value: RecipeVisibility.PUBLIC,
                 title: v.public,
                 hint: v.publicHint,
-                note: privateOnly
-                    ? input.webSource === true
-                        ? v.publicRefusedWebSource
-                        : v.publicRefused
-                    : (refusedNote ?? costNote),
+                // ONE note for a source the recipe holds, before and after the cook removes it; a book or a paid site keeps its own.
+                note: !privateOnly
+                    ? (refusedNote ?? costNote)
+                    : !ruleRefuses || input.webSource === true
+                      ? v.publicHeldBySource
+                      : v.publicRefused,
                 refused: privateOnly,
             },
             {

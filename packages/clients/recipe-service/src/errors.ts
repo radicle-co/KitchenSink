@@ -25,7 +25,12 @@ import type {
     VersionConflictSide,
 } from '@kitchensink/recipe-core';
 
+import type { INVALID_VISIBILITY_REASONS } from '@kitchensink/schema-recipe';
+
 import type { PullDiff } from './types.js';
+
+/** One reason a `400 INVALID_VISIBILITY` names. */
+export type InvalidVisibilityReason = (typeof INVALID_VISIBILITY_REASONS)[number];
 
 /** Base class for all recipe-service client errors. Carries the originating HTTP status + domain code. */
 export class RecipeServiceClientError extends Error {
@@ -63,6 +68,29 @@ export class BadRequestError extends RecipeServiceClientError {
 /** Type guard for {@link BadRequestError}. */
 export function isBadRequestError(error: unknown): error is BadRequestError {
     return error instanceof BadRequestError;
+}
+
+/**
+ * `400 INVALID_VISIBILITY` (ADR-0095): the write would leave the recipe in a visibility the rules refuse. `reason` is the rule
+ * that refused (a statement is owed, a recorded source holds the recipe out of Public, or a client bug), `undefined` when the
+ * server named none or one this client does not know. A {@link BadRequestError}, so every caller that knows only that class
+ * (the outbox's terminal 400, the retry policy) treats it as before.
+ */
+export class InvalidVisibilityError extends BadRequestError {
+    /** The rule that refused, or `undefined` for a reason this client does not know. */
+    public readonly reason: InvalidVisibilityReason | undefined;
+
+    public constructor(message: string, reason: InvalidVisibilityReason | undefined) {
+        super(message, 'INVALID_VISIBILITY');
+        this.name = 'InvalidVisibilityError';
+        this.reason = reason;
+        Object.setPrototypeOf(this, InvalidVisibilityError.prototype);
+    }
+}
+
+/** Type guard for {@link InvalidVisibilityError}. */
+export function isInvalidVisibilityError(error: unknown): error is InvalidVisibilityError {
+    return error instanceof InvalidVisibilityError;
 }
 
 /**

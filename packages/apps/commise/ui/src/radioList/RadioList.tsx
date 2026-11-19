@@ -15,13 +15,19 @@
  *     the roving focus and the keyboard
  */
 import * as RadioGroup from '@radix-ui/react-radio-group';
-import { useId, type FC } from 'react';
+import { useId } from 'react';
 
 import type { RadioListProps } from './props.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /** The web design-system option list. */
-export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange }) => {
+export function RadioList<Id extends string>({
+    label,
+    options,
+    value,
+    onChange,
+    disabled = false,
+}: RadioListProps<Id>) {
     const baseId = useId();
 
     return (
@@ -30,7 +36,15 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange 
             orientation="vertical"
             // Radix treats `undefined` as UNCONTROLLED and would check a clicked row by itself; '' matches no row.
             value={value ?? ''}
-            onValueChange={onChange}
+            onValueChange={(next) => {
+                // Radix reports a string; the host hears the row's own id.
+                const chosen = options.find((option) => option.id === next);
+
+                if (chosen !== undefined) {
+                    onChange(chosen.id);
+                }
+            }}
+            disabled={disabled}
             className="flex flex-col gap-3"
         >
             {options.map((option, index) => {
@@ -44,7 +58,7 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange 
                         value={option.id}
                         aria-labelledby={labelId}
                         {...(option.hint === undefined ? {} : { 'aria-describedby': hintId })}
-                        className={`flex min-h-12 w-full items-center gap-3 rounded-lg border border-line-divider bg-paper px-4 py-3 text-left ${FOCUS_RING_CLASS.offset}`}
+                        className={`flex min-h-12 w-full items-center gap-3 rounded-lg border border-line-divider bg-paper px-4 py-3 text-left disabled:cursor-not-allowed disabled:opacity-60 ${FOCUS_RING_CLASS.offset}`}
                     >
                         <span
                             aria-hidden="true"
@@ -67,4 +81,4 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange 
             })}
         </RadioGroup.Root>
     );
-};
+}

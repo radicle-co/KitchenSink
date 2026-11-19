@@ -64,6 +64,8 @@ const MASTER_CONSUMERS: readonly string[] = [
     // Recipe's runner suite, and the pool whose database is dropped underneath it — the FORCE drop IS its subject.
     'packages/services/recipe-service/tests/e2e/database/migrationRunner.e2e.test.ts',
     'packages/services/recipe-service/tests/e2e/database/droppableDatabasePool.e2e.test.ts',
+    // Recipe's statement-kind backfill suite: it provisions a scratch database at migration 0085 to apply 0087 over.
+    'packages/services/recipe-service/tests/e2e/database/recipeStatementKindBackfill.e2e.test.ts',
 ];
 
 /**

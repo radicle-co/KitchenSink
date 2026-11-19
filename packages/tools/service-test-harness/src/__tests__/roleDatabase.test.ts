@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { DATABASE_ROLES, MIGRATION_LEDGER_TABLE } from '@kitchensink/db-schema-guard';
 
-import { isNonDisposableDatabaseError, roleDatabase, truncateStatement } from '../roleDatabase.js';
+import { isNonDisposableDatabaseError, roleDatabase, truncateScript, truncateStatement } from '../roleDatabase.js';
 
 const ADMIN = 'postgres://postgres:postgres@localhost:5432/postgres';
 const spec = (database: string) => ({
@@ -115,5 +115,33 @@ describe('truncateStatement', () => {
 
     it('is a no-op statement when there is nothing to empty', () => {
         expect(truncateStatement([MIGRATION_LEDGER_TABLE])).toBeUndefined();
+    });
+});
+
+describe('truncateScript', () => {
+    const GUARD = { table: 'evidence', trigger: 'trg_evidence_no_truncate' };
+
+    it('is the one TRUNCATE alone when no table guards itself against it', () => {
+        expect(truncateScript(['food'], [])).toEqual(['TRUNCATE TABLE "food" RESTART IDENTITY CASCADE']);
+    });
+
+    it('⛔ switches each TRUNCATE guard OFF before the TRUNCATE and back ON after it, in that order', () => {
+        expect(truncateScript(['food', 'evidence'], [GUARD])).toEqual([
+            'ALTER TABLE "evidence" DISABLE TRIGGER "trg_evidence_no_truncate"',
+            'TRUNCATE TABLE "food", "evidence" RESTART IDENTITY CASCADE',
+            'ALTER TABLE "evidence" ENABLE TRIGGER "trg_evidence_no_truncate"',
+        ]);
+    });
+
+    it('quotes the names it is handed', () => {
+        expect(truncateScript(['t'], [{ table: 'we"ird', trigger: 'tr"g' }])).toEqual([
+            'ALTER TABLE "we""ird" DISABLE TRIGGER "tr""g"',
+            'TRUNCATE TABLE "t" RESTART IDENTITY CASCADE',
+            'ALTER TABLE "we""ird" ENABLE TRIGGER "tr""g"',
+        ]);
+    });
+
+    it('is empty when there is nothing to empty, even with guards: nothing is switched off for nothing', () => {
+        expect(truncateScript([MIGRATION_LEDGER_TABLE], [GUARD])).toEqual([]);
     });
 });

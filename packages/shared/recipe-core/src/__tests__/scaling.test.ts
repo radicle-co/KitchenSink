@@ -20,6 +20,7 @@ import {
     clampServings,
     isRecipeScalingError,
     makeRecipeScaling,
+    scaleIngredients,
     scaleQuantity,
     scaleRecipeForServings,
     servingsRange,
@@ -224,6 +225,30 @@ describe('scaleQuantity', () => {
         expect(() => scaleQuantity({ kind: 'exact', value: Number.NaN }, scaling)).toThrow();
         expect(() => scaleQuantity({ kind: 'exact', value: Number.POSITIVE_INFINITY }, scaling)).toThrow();
         expect(() => scaleQuantity({ kind: 'range', low: 2, high: Number.NaN }, scaling)).toThrow();
+    });
+});
+
+describe('scaleIngredients — the one place the ingredient scaling rule lives', () => {
+    // Cooking mode scales its ingredient list with this, the recipe page through scaleRecipeForServings. If a
+    // second copy of the rule crept in, the two surfaces could show different amounts for one recipe.
+    const lines: readonly RecipeIngredientView[] = [
+        { ingredientId: 'ing_1', name: 'Flour', quantity: exact(1), unit: 'cup', isUserEntered: false },
+        { ingredientId: 'ing_2', name: 'Salt', quantity: range(1, 2), unit: 'tsp', isUserEntered: false },
+        { ingredientId: 'ing_3', name: 'Pepper', quantity: ABSENT_QUANTITY, isUserEntered: false },
+    ];
+
+    it.each([1, 2, 100])('equals the recipe page projection at %i servings', (servings) => {
+        const recipe = makeScalable({ servings: 2, ingredients: lines });
+
+        expect(scaleIngredients(lines, makeRecipeScaling(2, servings))).toEqual(
+            scaleRecipeForServings(recipe, servings).ingredients,
+        );
+    });
+
+    it('passes an absent quantity through unchanged', () => {
+        const [, , pepper] = scaleIngredients(lines, makeRecipeScaling(2, 6));
+
+        expect(pepper?.quantity).toEqual(ABSENT_QUANTITY);
     });
 });
 

@@ -30,6 +30,7 @@ import { recipes, recipeSteps } from '../../../src/database/schema/index.js';
 import { startFoodFake, type FoodFake } from '../../support/foodFake.js';
 import { insertIngredientLine } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 const roleDb = recipeDb();
 
@@ -38,6 +39,7 @@ const FIRST_COOK = '01JSLOTSCOOKAAAAAAAAAAAAA1';
 const BYSTANDER = '01JSLOTSBYSTANDERBBBBBBBBB2';
 
 const CREATE_BODY = {
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Slot Subject',
     servings: 1,
     prepTimeMinutes: 1,
@@ -141,7 +143,11 @@ describe('Free-tier private slots (ADR-0073)', () => {
         return fetch(`${baseUrl}/api/v1/recipes/${id}`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ expectedVersion, status: 'published' }),
+            body: JSON.stringify({
+                expectedVersion,
+                status: 'published',
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+            }),
         });
     }
 
@@ -158,7 +164,10 @@ describe('Free-tier private slots (ADR-0073)', () => {
         return fetch(`${baseUrl}/api/v1/recipes/${id}/visibility`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ visibility }),
+            body: JSON.stringify({
+                visibility,
+                ...(visibility === 'public' ? { publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN } : {}),
+            }),
         });
     }
 

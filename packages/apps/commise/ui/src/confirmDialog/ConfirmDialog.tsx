@@ -32,6 +32,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
     open,
     title,
     body,
+    note,
     confirm,
     keep,
     onConfirm,
@@ -55,7 +56,17 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
                     className={`@container/dialog fixed left-1/2 top-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl ${surfaceToneClass('paperOverlay')} p-6 shadow-lg`}
                 >
                     <AlertDialog.Title className="text-section-title text-ink">{title}</AlertDialog.Title>
-                    <AlertDialog.Description className="text-body text-ink-muted">{body}</AlertDialog.Description>
+                    {note === undefined ? (
+                        <AlertDialog.Description className="text-body text-ink-muted">{body}</AlertDialog.Description>
+                    ) : (
+                        // One description element holding both paragraphs, so the dialog is described by the body and the note.
+                        <AlertDialog.Description asChild>
+                            <div className="flex flex-col gap-2 text-body text-ink-muted">
+                                <p>{body}</p>
+                                <p>{note}</p>
+                            </div>
+                        </AlertDialog.Description>
+                    )}
                     {error === undefined || busy ? null : (
                         <p role="alert" className="text-body text-danger-text">
                             {error}

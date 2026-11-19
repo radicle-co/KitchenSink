@@ -10,9 +10,10 @@ import * as cook from '../index.js';
 describe('@commise/features-recipes/cook (native resolution)', () => {
     it('exports exactly the runtime symbols cooking mode uses', () => {
         expect(Object.keys(cook).sort()).toEqual([
+            'CookMarksProvider',
             'IngredientCheckRow',
             'ServingScaleControl',
-            'formatAmount',
+            'allLinesFoodRemoved',
             'useCookMarks',
             'useServingScale',
         ]);

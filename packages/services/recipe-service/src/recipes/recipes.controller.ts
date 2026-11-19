@@ -249,6 +249,9 @@ export class RecipesController {
         @Param('id', ParseUUIDPipe) id: string,
         @Body() body: SetVisibilityDto,
     ): Promise<RecipeResponse> {
-        return this.recipesService.setVisibility(principal, id, body.visibility, caller);
+        return this.recipesService.setVisibility(principal, id, body.visibility, caller, {
+            statement: body.statement,
+            publicConfirmation: body.publicConfirmation,
+        });
     }
 }

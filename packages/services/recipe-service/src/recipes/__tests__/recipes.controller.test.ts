@@ -170,8 +170,31 @@ describe('RecipesController', () => {
             visibility: 'private',
         } as SetVisibilityDto);
 
-        expect(setVisibility).toHaveBeenCalledWith(PRINCIPAL, 'r-1', 'private', CALLER);
+        expect(setVisibility).toHaveBeenCalledWith(PRINCIPAL, 'r-1', 'private', CALLER, {
+            statement: undefined,
+            publicConfirmation: undefined,
+        });
         expect(result).toBe(RESPONSE);
+    });
+
+    // Rewritten for the attestation record: the statement and the confirmation of the SAME request reach the service, so "I wrote
+    // this" and Make public are one write. A controller that dropped either would make them two again.
+    it('setVisibility forwards the statement and the Public confirmation the request carried', async () => {
+        const setVisibility = vi.fn().mockResolvedValue(RESPONSE);
+        const controller = makeController(fakeService({ setVisibility }));
+        const statement = { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } } as const;
+        const publicConfirmation = { version: 'publicConfirm.v1', locale: 'en' } as const;
+
+        await controller.setVisibility(PRINCIPAL, CALLER, 'r-1', {
+            visibility: 'public',
+            statement,
+            publicConfirmation,
+        } as SetVisibilityDto);
+
+        expect(setVisibility).toHaveBeenCalledWith(PRINCIPAL, 'r-1', 'public', CALLER, {
+            statement,
+            publicConfirmation,
+        });
     });
 
     // ── U3: view capture at the DETAIL handler, deliberately not RecipesService.getById ──────────

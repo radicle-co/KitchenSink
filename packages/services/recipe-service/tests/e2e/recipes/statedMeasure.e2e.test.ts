@@ -46,6 +46,7 @@ import pg from 'pg';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates recipes as. */
 const OWNER = '01JU7STATEDM0WNER00000000AA';
@@ -73,6 +74,7 @@ interface StatedRow {
 
 /** A create body carrying one RESTATED line: the row holds cups, the source printed a gill. */
 const createBody = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: `U7 stated measure ${Date.now()}-${Math.random()}`,
     description: 'Created by the U7 stated-measure spec.',
     servings: 4,

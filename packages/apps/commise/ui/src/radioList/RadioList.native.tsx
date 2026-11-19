@@ -11,11 +11,11 @@
  *
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.
  */
-import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
+import { dimmedOpacity } from '../tokens/scale.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import type { RadioListProps } from './props.js';
 import { usePressFill } from '../surfaceTone/usePressFill.native.js';
@@ -24,7 +24,13 @@ import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 const RADIO_SIZE = 18;
 
 /** The native design-system option list. */
-export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange }) => {
+export function RadioList<Id extends string>({
+    label,
+    options,
+    value,
+    onChange,
+    disabled = false,
+}: RadioListProps<Id>) {
     const { colors } = useTheme();
     const wash = usePressFill();
 
@@ -38,6 +44,8 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange 
                         key={option.id}
                         role="radio"
                         aria-checked={checked}
+                        aria-disabled={disabled}
+                        disabled={disabled}
                         accessibilityLabel={option.label}
                         accessibilityHint={option.hint}
                         onPress={() => {
@@ -47,6 +55,8 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange 
                             styles.row,
                             { minHeight: touchFloor(), borderColor: colors.lineDivider, backgroundColor: colors.paper },
                             pressed ? { backgroundColor: wash } : null,
+                            // An unavailable list LOOKS it, at the one dim every unavailable native control takes.
+                            disabled ? { opacity: dimmedOpacity } : null,
                         ]}
                     >
                         <View
@@ -70,7 +80,7 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange 
             })}
         </View>
     );
-};
+}
 
 const styles = StyleSheet.create({
     group: { gap: nativeTokens.spacing[3] },

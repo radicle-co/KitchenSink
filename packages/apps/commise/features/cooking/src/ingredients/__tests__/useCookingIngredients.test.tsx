@@ -56,18 +56,18 @@ function mount(recipeId: string, ingredients: readonly RecipeIngredientView[] = 
                 copy,
                 locale: 'en',
             }),
-            marks: useCookMarks(recipeId),
+            marks: useCookMarks(recipeId, props.ingredients),
             scale: useServingScale(recipeId, servings),
         }),
         { wrapper: Wrapper, initialProps },
     );
 }
 
-const checkedOf = (result: ReturnType<typeof mount>['result']): readonly string[] => {
+const checkedOf = (result: ReturnType<typeof mount>['result']): readonly number[] => {
     const { view } = result.current.cooking;
 
     return view.kind === 'list'
-        ? view.ingredients.map((ingredient) => ingredient.ingredientId).filter((id) => view.checked.has(id))
+        ? view.ingredients.flatMap((_, position) => (view.checked.has(position) ? [position] : []))
         : [];
 };
 
@@ -76,19 +76,19 @@ describe('useCookingIngredients', () => {
         const { result } = mount(nextId());
 
         act(() => {
-            result.current.cooking.toggle('ing_butter');
+            result.current.cooking.toggle(0);
         });
-        expect([...result.current.marks.checkedLines]).toEqual(['ing_butter']);
+        expect([...result.current.marks.checkedLines]).toEqual([0]);
 
         act(() => {
-            result.current.marks.toggleLine('ing_lemon');
+            result.current.marks.toggleLine(1);
         });
-        expect(checkedOf(result)).toEqual(['ing_butter', 'ing_lemon']);
+        expect(checkedOf(result)).toEqual([0, 1]);
 
         act(() => {
-            result.current.cooking.toggle('ing_butter');
+            result.current.cooking.toggle(0);
         });
-        expect([...result.current.marks.checkedLines]).toEqual(['ing_lemon']);
+        expect([...result.current.marks.checkedLines]).toEqual([1]);
     });
 
     it('opens at the servings the page already chose, and the page sees the servings chosen here', () => {
@@ -116,7 +116,7 @@ describe('useCookingIngredients', () => {
 
         act(() => {
             result.current.marks.toggleStep(3);
-            result.current.cooking.toggle('ing_butter');
+            result.current.cooking.toggle(0);
         });
         act(() => {
             result.current.cooking.clearTicks();
@@ -131,20 +131,20 @@ describe('useCookingIngredients', () => {
         let undo: () => void = () => undefined;
 
         act(() => {
-            result.current.cooking.toggle('ing_butter');
-            result.current.cooking.toggle('ing_lemon');
+            result.current.cooking.toggle(0);
+            result.current.cooking.toggle(1);
         });
         act(() => {
             undo = result.current.cooking.clearTicks();
         });
         act(() => {
-            result.current.cooking.toggle('ing_salt');
+            result.current.cooking.toggle(2);
         });
         act(() => {
             undo();
         });
 
-        expect(new Set(checkedOf(result))).toEqual(new Set(['ing_butter', 'ing_lemon', 'ing_salt']));
+        expect(new Set(checkedOf(result))).toEqual(new Set([0, 1, 2]));
     });
 
     it('keeps its lines when the recipe changes underneath it', () => {
@@ -171,7 +171,7 @@ describe('useCookingIngredients', () => {
         rerender({ ingredients: LINES, servings: 8 });
         // A tick recomputes the view, so a hook that read the live base for its default servings would show it now.
         act(() => {
-            result.current.cooking.toggle('ing_butter');
+            result.current.cooking.toggle(0);
         });
         expect(result.current.cooking.view.kind === 'list' ? result.current.cooking.view.servings : undefined).toBe(2);
 
@@ -183,5 +183,38 @@ describe('useCookingIngredients', () => {
 
         expect(view.kind === 'list' ? [view.servings, view.baseServings] : undefined).toEqual([4, 2]);
         expect(view.kind === 'list' ? view.ingredients[0]?.quantity : undefined).toEqual(statedQuantity(2));
+    });
+
+    it('an Undo gives back only the ticked line, never its identical twin (mutant: restoring by id or digest)', () => {
+        const twin = { ...BUTTER };
+        const { result } = mount(nextId(), [BUTTER, twin, SALT]);
+        let undo: () => void = () => undefined;
+
+        act(() => {
+            result.current.cooking.toggle(0);
+        });
+        act(() => {
+            undo = result.current.cooking.clearTicks();
+        });
+        expect(checkedOf(result)).toEqual([]);
+
+        act(() => {
+            undo();
+        });
+
+        expect(checkedOf(result)).toEqual([0]);
+    });
+
+    it('agrees with the page on one line when the page reads fresh lines with one inserted above', () => {
+        const { result, rerender } = mount(nextId());
+
+        act(() => {
+            result.current.cooking.toggle(0);
+        });
+        rerender({ ingredients: [line('ing_new', 'new line'), BUTTER, LEMON, SALT] });
+
+        // The page (fresh lines) sees butter at position 1; cooking mode (its snapshot) still sees it at 0.
+        expect([...result.current.marks.checkedLines]).toEqual([1]);
+        expect(checkedOf(result)).toEqual([0]);
     });
 });

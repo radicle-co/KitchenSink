@@ -120,21 +120,21 @@ describe('cooking mode ingredients against the recipe page', () => {
         const both = renderHook(
             () => ({
                 cooking: useCookingIngredients({ recipe: { id, ingredients: LINES, servings: 2 }, copy, locale: 'en' }),
-                marks: useCookMarks(id),
+                marks: useCookMarks(id, LINES),
             }),
             { wrapper: Wrapper },
         );
 
         render(
             <ul>
-                {LINES.map((ingredient) => (
+                {LINES.map((ingredient, position) => (
                     <IngredientCheckRow
                         key={ingredient.ingredientId}
                         ingredient={ingredient}
                         checked={false}
                         allRemoved={false}
-                        onToggle={(ingredientId) => {
-                            both.result.current.cooking.toggle(ingredientId);
+                        onToggle={() => {
+                            both.result.current.cooking.toggle(position);
                         }}
                     />
                 ))}
@@ -143,7 +143,7 @@ describe('cooking mode ingredients against the recipe page', () => {
         const [firstTick] = screen.getAllByRole('checkbox');
         await user.click(firstTick);
 
-        expect([...both.result.current.marks.checkedLines]).toEqual(['ing_flour']);
+        expect([...both.result.current.marks.checkedLines]).toEqual([0]);
     });
 
     it('clears the ticks, keeps the step, and Undo brings the cleared ticks back', () => {
@@ -151,7 +151,7 @@ describe('cooking mode ingredients against the recipe page', () => {
         const { result } = renderHook(
             () => ({
                 cooking: useCookingIngredients({ recipe: { id, ingredients: LINES, servings: 2 }, copy, locale: 'en' }),
-                marks: useCookMarks(id),
+                marks: useCookMarks(id, LINES),
                 scale: useServingScale(id, 2),
             }),
             { wrapper: Wrapper },
@@ -160,8 +160,8 @@ describe('cooking mode ingredients against the recipe page', () => {
 
         act(() => {
             result.current.marks.toggleStep(3);
-            result.current.cooking.toggle('ing_flour');
-            result.current.cooking.toggle('ing_salt');
+            result.current.cooking.toggle(0);
+            result.current.cooking.toggle(1);
         });
         act(() => {
             undo = result.current.cooking.clearTicks();
@@ -174,7 +174,7 @@ describe('cooking mode ingredients against the recipe page', () => {
             undo();
         });
 
-        expect(new Set(result.current.marks.checkedLines)).toEqual(new Set(['ing_flour', 'ing_salt']));
+        expect(new Set(result.current.marks.checkedLines)).toEqual(new Set([0, 1]));
         expect(result.current.marks.currentStep).toBe(3);
     });
 });

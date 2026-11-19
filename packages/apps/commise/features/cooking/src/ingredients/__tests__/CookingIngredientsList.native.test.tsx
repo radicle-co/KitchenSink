@@ -50,7 +50,7 @@ const Wrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (
 
 /** What a case may change about the list the screen would hand over. */
 interface MountOptions {
-    readonly ticked?: readonly string[];
+    readonly ticked?: readonly number[];
     readonly servings?: number;
     readonly baseServings?: number;
     readonly lines?: readonly RecipeIngredientView[];
@@ -97,7 +97,7 @@ describe('CookingIngredientsList (native)', () => {
     });
 
     it('draws one checkbox per line in the recipe order, with the ticked ones checked', () => {
-        mount({ ticked: ['ing_sugar'] });
+        mount({ ticked: [1] });
 
         const boxes = screen.getAllByRole('checkbox');
 
@@ -109,12 +109,12 @@ describe('CookingIngredientsList (native)', () => {
         expect(boxes.map((box) => box.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false']);
     });
 
-    it('calls onToggle with the ingredient id of the pressed row, and nothing else', async () => {
+    it('calls onToggle with the position of the pressed row, and nothing else', async () => {
         const props = mount();
 
         await user.click(within(screen.getByRole('checkbox', { name: /butter/ })).getByText(/butter/));
 
-        expect(props.onToggle).toHaveBeenCalledExactlyOnceWith('ing_butter');
+        expect(props.onToggle).toHaveBeenCalledExactlyOnceWith(2);
         expect(props.onClear).not.toHaveBeenCalled();
         expect(props.onSetServings).not.toHaveBeenCalled();
     });
@@ -134,7 +134,7 @@ describe('CookingIngredientsList (native)', () => {
         expect(none.onClear).not.toHaveBeenCalled();
         cleanup();
 
-        const some = mount({ ticked: ['ing_flour'] });
+        const some = mount({ ticked: [0] });
 
         await user.click(screen.getByRole('button', { name: copy.ingredients.clear }));
 
@@ -204,5 +204,26 @@ describe('CookingIngredientsList (native)', () => {
         mount();
 
         expect(screen.getAllByRole('heading')).toHaveLength(1);
+    });
+
+    // ADR-0096: a tick belongs to its line, so two lines of one food are two rows with two ticks.
+    it('ticks one of two lines of the same food by position: the press reports it, and only that row is checked', async () => {
+        const twin = { ...BUTTER };
+        const props = mount({ lines: [BUTTER, twin], ticked: [1] });
+
+        expect(screen.getAllByRole('checkbox').map((box) => box.getAttribute('aria-checked'))).toEqual([
+            'false',
+            'true',
+        ]);
+
+        await user.click(screen.getAllByRole('checkbox')[1] as HTMLElement);
+
+        expect(props.onToggle).toHaveBeenCalledExactlyOnceWith(1);
+    });
+
+    it('draws no Clear ticks for a tick on a position no line has, because there is nothing to clear', () => {
+        mount({ ticked: [7] });
+
+        expect(screen.queryByRole('button', { name: copy.ingredients.clear })).toBeNull();
     });
 });

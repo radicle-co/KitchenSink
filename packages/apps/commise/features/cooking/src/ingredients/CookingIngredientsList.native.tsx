@@ -4,7 +4,7 @@
  * `ServingScaleControl`, through `@commise/features-recipes/cook`), so cooking mode groups, names and keys a line, sets
  * an amount and counts servings exactly as the page does, in the page's own words.
  *
- * It holds no state and no frame: the sheet and the column wrap it, and the screen binds `useCookingIngredients`.
+ * It holds no state and no frame. What it is given, and what a caller binds, is in `cookingIngredientsListProps.ts`.
  * Clear ticks is drawn only while a line of the list is ticked (`view.hasTicks`), because with none ticked it has
  * nothing to do.
  *

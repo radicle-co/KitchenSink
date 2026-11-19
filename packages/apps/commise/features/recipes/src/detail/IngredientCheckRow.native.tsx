@@ -64,7 +64,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                 {...(statuses.length > 0
                     ? { accessibilityHint: statuses.map((status) => status.text).join(', ') }
                     : {})}
-                onPress={() => onToggle(ingredient.ingredientId)}
+                onPress={() => onToggle()}
                 // The floor is read at render: 44 pt on iOS, 48 dp on Android (`touchFloor()`, the Button's own source).
                 style={({ pressed }) => [
                     styles.row,

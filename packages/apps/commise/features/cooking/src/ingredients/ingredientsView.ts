@@ -1,6 +1,6 @@
 /**
  * @module ingredientsView — the ingredients list cooking mode draws, as plain data: the lines scaled to the cook's
- * servings in stored order, which ids are ticked, the heading, and the note that the steps still give the recipe's
+ * servings in stored order, which lines are ticked, the heading, and the note that the steps still give the recipe's
  * own amounts. A row's amount is NOT formatted here: the recipe page's own row formats it, so cooking mode and the page
  * cannot show different amounts.
  *
@@ -22,8 +22,8 @@ export interface CookingIngredientsViewInput {
     readonly baseServings: number;
     /** The servings the cook chose. */
     readonly servings: number;
-    /** The ids of the lines ticked, from the cook marks shared with the recipe page. */
-    readonly ticked: ReadonlySet<string>;
+    /** The positions, in `ingredients`, of the lines ticked, from the cook marks shared with the recipe page. */
+    readonly ticked: ReadonlySet<number>;
     /** The copy the list says. */
     readonly copy: Pick<CookingMessages, 'ingredients' | 'step'>;
     /** The locale, for the plural. */
@@ -38,9 +38,9 @@ export type CookingIngredientsView =
           readonly title: string;
           /** The lines scaled to the cook's servings, in the recipe's order, as the page's own runs take them. */
           readonly ingredients: readonly RecipeIngredientView[];
-          /** The ids ticked, as the cook marks hold them. */
-          readonly checked: ReadonlySet<string>;
-          /** Whether any line OF THIS LIST is ticked, so a stale id left in the marks offers no Clear ticks. */
+          /** The positions ticked, as the cook marks hold them. Scaling keeps the order, so a position is a stored line. */
+          readonly checked: ReadonlySet<number>;
+          /** Whether any line OF THIS LIST is ticked, so a stale position left in the marks offers no Clear ticks. */
           readonly hasTicks: boolean;
           /** Every line's food is gone, so the rows say so instead of naming amounts. */
           readonly allRemoved: boolean;
@@ -76,7 +76,7 @@ export function cookingIngredientsView(input: CookingIngredientsViewInput): Cook
         title,
         ingredients: scaled,
         checked: ticked,
-        hasTicks: scaled.some((ingredient) => ticked.has(ingredient.ingredientId)),
+        hasTicks: scaled.some((_, position) => ticked.has(position)),
         allRemoved: allLinesFoodRemoved(ingredients),
         servings,
         baseServings,

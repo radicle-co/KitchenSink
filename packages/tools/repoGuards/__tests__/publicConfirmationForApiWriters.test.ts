@@ -183,6 +183,16 @@ describe('the API writers’ Public confirmation is named only by seeds, tests a
             expect(offendersIn(root)).toEqual([]);
         });
 
+        it.each([
+            ['a renamed import', `import { ${CONSTANT} as CONFIRM } from '@kitchensink/recipe-core';\n`],
+            ['a re-export', `export { ${CONSTANT} } from '@kitchensink/recipe-core';\n`],
+            ['a namespace member', `import * as core from 'x';\nexport const c = core.${CONSTANT};\n`],
+        ])('still reports %s: the name filter never hides what the parser flags', (_name, text) => {
+            const root = scratchRepo({ 'packages/clients/x/src/alias.ts': { text, staged: true } });
+
+            expect(offendersIn(root)).toHaveLength(1);
+        });
+
         it('reads a string spelling in a plain script', () => {
             const root = scratchRepo({
                 'packages/clients/x/src/key.mjs': { text: `export const c = core['${CONSTANT}'];\n`, staged: true },

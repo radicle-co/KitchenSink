@@ -42,7 +42,7 @@ describe('CookingScaleNote (native)', () => {
         expect(screen.queryAllByRole('button')).toHaveLength(0);
     });
 
-    it('is a note, with a hidden alert glyph before a 14/20 sentence, so it does not read as part of the step', () => {
+    it('is a note, with a hidden info glyph before a 14/20 sentence, so it does not read as part of the step', () => {
         render(<CookingScaleNote note={NOTE} openLabel="Open ingredients" onOpen={vi.fn()} />);
 
         const note = screen.getByRole('note');
@@ -51,6 +51,7 @@ describe('CookingScaleNote (native)', () => {
 
         expect(note.contains(sentence)).toBe(true);
         expect(glyph).not.toBeNull();
+        expect(glyph?.getAttribute('data-icon-name')).toBe('info');
         expect(glyph?.closest('[aria-hidden="true"]')).not.toBeNull();
         expect(glyph?.compareDocumentPosition(sentence)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
         expect(getComputedStyle(sentence).fontSize).toBe('14px');

@@ -1,5 +1,5 @@
 /**
- * @module CookingScaleNote — the native scale note under a step: a muted alert glyph and the sentence that says the
+ * @module CookingScaleNote — the native scale note under a step: a muted info glyph and the sentence that says the
  * steps give amounts for another serving count, in the small muted type that marks it as not part of the step. While
  * the screen gives it `onOpen`, one quiet button under it opens the ingredients. It holds no state, and it has no live
  * region because it arrives with the step.

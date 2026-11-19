@@ -87,8 +87,7 @@ describe('cooking mode ingredients against the recipe page', () => {
             result.current.setServings(servings);
         });
 
-        const cookingRows =
-            result.current.view.kind === 'list' ? result.current.view.rows.map((row) => row.ingredient) : [];
+        const cookingRows = result.current.view.kind === 'list' ? result.current.view.ingredients : [];
         const pageRows = scaleRecipeForServings(
             makeRecipeDetail({ servings: 2, ingredients: [...LINES] }),
             servings,
@@ -109,7 +108,7 @@ describe('cooking mode ingredients against the recipe page', () => {
             result.current.setServings(3);
         });
 
-        const rows = result.current.view.kind === 'list' ? result.current.view.rows.map((row) => row.ingredient) : [];
+        const rows = result.current.view.kind === 'list' ? result.current.view.ingredients : [];
 
         expect(namesOfRows(rows)[0]).toBe('1½ cups flour');
     });

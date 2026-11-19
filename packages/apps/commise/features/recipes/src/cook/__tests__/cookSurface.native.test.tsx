@@ -12,6 +12,7 @@ describe('@commise/features-recipes/cook (native resolution)', () => {
         expect(Object.keys(cook).sort()).toEqual([
             'CookMarksProvider',
             'IngredientCheckRow',
+            'IngredientRuns',
             'ServingScaleControl',
             'allLinesFoodRemoved',
             'useCookMarks',
@@ -23,5 +24,11 @@ describe('@commise/features-recipes/cook (native resolution)', () => {
         const native = await import('../../detail/IngredientCheckRow.native.js');
 
         expect(cook.IngredientCheckRow).toBe(native.IngredientCheckRow);
+    });
+
+    it('draws the native grouped runs, not the web ones', async () => {
+        const native = await import('../../detail/IngredientRuns.native.js');
+
+        expect(cook.IngredientRuns).toBe(native.IngredientRuns);
     });
 });

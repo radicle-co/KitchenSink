@@ -20,7 +20,7 @@ export interface CookingIngredientsListProps {
     readonly copy: Pick<CookingMessages['ingredients'], 'clear'>;
     /** Tick or untick one line, by its ingredient id. */
     readonly onToggle: (ingredientId: string) => void;
-    /** Choose the servings. The store keeps the count inside the recipe's supported range. */
+    /** Choose the servings. */
     readonly onSetServings: (servings: number) => void;
     /** Clear every tick. The caller owns the Undo that the command returns, so the list never sees it. */
     readonly onClear: () => void;

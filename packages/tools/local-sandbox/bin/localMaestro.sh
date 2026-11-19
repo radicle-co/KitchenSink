@@ -106,8 +106,8 @@ local_maestro_require_stack_var() {
     done
 }
 
-# The door refuses the variable that this one replaced: it named ONE port of the stack, and a stale copy in a shell would
-# aim a run at a stack other than the one `LOCAL_SANDBOX_PORT` names.
+# The door refuses the variable that this one replaced: it named ONE port of the stack, and a stale copy in a shell
+# would aim a run at a stack other than the one `LOCAL_SANDBOX_PORT` names.
 local_maestro_refuse_old_port_variable() {
     if [ -n "${LOCAL_MAESTRO_RECIPE_HOST_PORT:-}" ]; then
         echo "local:maestro refused: LOCAL_MAESTRO_RECIPE_HOST_PORT=${LOCAL_MAESTRO_RECIPE_HOST_PORT} is gone. Unset it, and run local:up with LOCAL_SANDBOX_HOST_PORTS=recipes=${LOCAL_MAESTRO_RECIPE_HOST_PORT} to move the recipe port." >&2
@@ -117,11 +117,12 @@ local_maestro_refuse_old_port_variable() {
 
 # local_maestro_stack_env <door>
 #
-# The FIRST step of a door, before any seed, reset or pool call: read the running stack's facts from `bin/stackEnv.ts`, which
-# applies the ownership refusals and prints `KEY=value` lines. A line is exported only when its key is on the list below
-# (`STACK_ENV_KEYS` in `src/stackEnv.ts`, which a test holds equal); any other key fails the door. Values are never
-# expanded (no `eval`), and they are not checked by a character class, because a database URL holds `@`. stackEnv's stderr
-# (the `stack:` line, or the one refusal line) passes through as this door's first output.
+# The FIRST step of a door, before any seed, reset or pool call: read the running stack's facts from
+# `bin/stackEnv.ts`, which applies the ownership refusals and prints `KEY=value` lines. A line is exported only when
+# its key is on the list below (`STACK_ENV_KEYS` in `src/stackEnv.ts`, which a test holds equal); any other key fails
+# the door. Values are never expanded (no `eval`), and they are not checked by a character class, because a database
+# URL holds `@`. stackEnv's stderr (the `stack:` line, or the one refusal line) passes through as this door's first
+# output.
 local_maestro_stack_env() {
     local door="${1:-local:maestro}" output line key
     local_maestro_refuse_old_port_variable || return 1
@@ -691,7 +692,8 @@ local_maestro_seed_env() {
     if database_url="$(local_maestro_recipe_database_url)"; then
         export E2E_SEED_RECIPE_DATABASE_URL="$database_url"
     fi
-    # The stack's published ports, exported by `local_maestro_stack_env`. No default: see `local_maestro_require_stack_var`.
+    # The stack's published ports, exported by `local_maestro_stack_env`. No default: see
+    # `local_maestro_require_stack_var`.
     local_maestro_require_stack_var E2E_SEED_RECIPE_URL E2E_SEED_IDENTITY_URL E2E_SEED_FOOD_URL || return 1
     export E2E_SEED_RECIPE_URL E2E_SEED_IDENTITY_URL E2E_SEED_FOOD_URL
     # ⛔ A local run signs in users of its own, never CI's: see `e2e-fixtures`' `PoolNamespace`.

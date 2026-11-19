@@ -41,4 +41,19 @@ describe('CookingScaleNote (native)', () => {
         expect(screen.getByText(NOTE)).toBeTruthy();
         expect(screen.queryAllByRole('button')).toHaveLength(0);
     });
+
+    it('is a note, with a hidden alert glyph before a 14/20 sentence, so it does not read as part of the step', () => {
+        render(<CookingScaleNote note={NOTE} openLabel="Open ingredients" onOpen={vi.fn()} />);
+
+        const note = screen.getByRole('note');
+        const sentence = screen.getByText(NOTE);
+        const glyph = note.querySelector('[data-commise-stub="icon"]');
+
+        expect(note.contains(sentence)).toBe(true);
+        expect(glyph).not.toBeNull();
+        expect(glyph?.closest('[aria-hidden="true"]')).not.toBeNull();
+        expect(glyph?.compareDocumentPosition(sentence)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+        expect(getComputedStyle(sentence).fontSize).toBe('14px');
+        expect(getComputedStyle(sentence).lineHeight).toBe('20px');
+    });
 });

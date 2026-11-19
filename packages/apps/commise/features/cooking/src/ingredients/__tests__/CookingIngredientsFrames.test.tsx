@@ -6,12 +6,12 @@
  */
 import { resolveMessages } from '@commise/i18n';
 import { CookMarksProvider } from '@commise/features-recipes/cook';
-import { ABSENT_QUANTITY, statedQuantity, type RecipeIngredientView } from '@kitchensink/recipe-core';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { FC, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { makeRecipeIngredientView } from '../../__fixtures__/makeRecipeIngredientView.js';
 import { cookingMessages } from '../../messages.js';
 import { CookingIngredientsColumn } from '../CookingIngredientsColumn.js';
 import { CookingIngredientsSheet } from '../CookingIngredientsSheet.js';
@@ -26,21 +26,16 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-const line = (id: string, name: string): RecipeIngredientView => ({
-    ingredientId: id,
-    name,
-    quantity: statedQuantity(1) ?? ABSENT_QUANTITY,
-    unit: 'cup',
-    isUserEntered: false,
-});
-
 const Wrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (
     <CookMarksProvider subject="user_test">{children}</CookMarksProvider>
 );
 
 function viewOf(ticked: readonly string[] = []): CookingIngredientsListView {
     const view = cookingIngredientsView({
-        ingredients: [line('ing_flour', 'flour'), line('ing_sugar', 'sugar')],
+        ingredients: [
+            makeRecipeIngredientView({ ingredientId: 'ing_flour', name: 'flour' }),
+            makeRecipeIngredientView({ ingredientId: 'ing_sugar', name: 'sugar' }),
+        ],
         baseServings: 2,
         servings: 2,
         ticked: new Set(ticked),

@@ -263,6 +263,14 @@ describe('ingredient ticks are content keys (ADR-0096)', () => {
         // The step moved (the rebind did something), and the ingredient ticks did not.
         expect(next.entries['r1']).toMatchObject({ step: { index: 1 }, ticks: [TICK.butter, TICK.salt] });
     });
+
+    it('rebind leaves a page entry and its ticks exactly as they were (mutant: rebind clears page ticks)', () => {
+        const doc = makeDoc({ entries: { r1: makePage({ ticks: [TICK.butter, TICK.salt] }) } });
+        const outcome = run(doc, { type: 'rebind', recipeId: 'r1', stepDigests: ['a', 'c'].map(digestOf) });
+        const after = outcome.kind === 'unchanged' ? doc : applied(outcome);
+
+        expect(after.entries['r1']).toEqual(doc.entries['r1']);
+    });
 });
 
 describe('End then Undo (ADR-0094 section 2)', () => {

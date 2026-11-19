@@ -6,7 +6,8 @@
   [ADR-0058](0058-never-published-drafts-record-no-version.md) (a draft is saved in place, so a version does not name
   a line). Owner rulings P57 and P58, and issue #155.
 - **Drivers:** a cook who ticks one of two identical lines, for example two butter lines, must see only that line
-  ticked. When the servings change, when a line is added above it, or when the page reloads, the tick must stay with its line.
+  ticked. When the servings change, when a line is added above it, or when the page reloads, the tick must stay
+  with its line.
 
 ## Context
 

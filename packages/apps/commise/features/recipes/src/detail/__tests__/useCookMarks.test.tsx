@@ -62,6 +62,19 @@ describe('useCookMarks', () => {
         expect(result.current.hasMarks).toBe(false);
     });
 
+    it('a marked step with no line ticked still has marks, and unmarking clears them (mutant: no step)', () => {
+        const { result } = renderHook(() => useCookMarks('rec_step_only', LINES), {
+            wrapper: wrapperFor(memoryCookMarksBackend(), 'user_1'),
+        });
+
+        act(() => result.current.toggleStep(2));
+        expect(result.current.checkedLines.size).toBe(0);
+        expect(result.current.hasMarks).toBe(true);
+
+        act(() => result.current.toggleStep(2));
+        expect(result.current.hasMarks).toBe(false);
+    });
+
     it('a tick whose line was edited is stale: nothing visible is ticked, so there is nothing to clear', () => {
         const { result, rerender } = renderHook(({ lines }) => useCookMarks('rec_stale', lines), {
             initialProps: { lines: LINES },

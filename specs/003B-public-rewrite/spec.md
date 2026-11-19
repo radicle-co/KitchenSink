@@ -395,7 +395,7 @@ later from its own menu. (C-6)
   `cancelled` after 24 hours, and final at 3 attempts. On the public-only path the private exits (`button.private`, or `review.notNow` at 3 attempts) call the keepPrivate route of the contract, and a discard (`review.discard`) calls cancel. On the Both path `failed.done` calls cancel, which is accepted from
   `checkRefused`, `failed` and `budgetSpent` (the data-model's transition list). Attempts carry over a retry and no allowance unit is spent. Attempts are counted per import item across its jobs, 3 in
   total (C-7), so reopening an import and starting a new job does not reset them: Start on an item whose 3 attempts are
-  used answers `409 attemptsUsed`, and the client shows the failed screen's Final variant. At 3 attempts the client
+  used answers `409 attemptsUsed`, and the client shows the failed screen's Final variant, whose private exit runs the paste's ordinary Save recipe (no live job exists for keepPrivate). At 3 attempts the client
   hides `wizard.retry` and `flag.rewrite` and shows the Final variants. The failed screen shows `failed.titleFinal` with
   `failed.bodyFinal` and the private exit `review.notNow` on the public path, so the cook's recipe is not lost without
   warning, and `failed.titleFinal` with `failed.bodyFinalBoth` and `failed.done` on the Both path, where the copy is
@@ -415,7 +415,7 @@ later from its own menu. (C-6)
   `source_steps`, so a retry sends the writer the same text, and the import item's draft. The job's text
   (`facts_snapshot`, `source_steps` and `output`) MUST be cleared in one UPDATE at every final state and on cancel. The
   item's draft step text MUST clear only on Publish, keepPrivate or cancel. Otherwise it is the cook's unfinished import
-  and is removed by ADR-0072's 30-day purge. The job's text lives at most about 3 days after the cook's last action. Only
+  and is removed by ADR-0072's 30-day purge. The job's text lives about a day after the cook's last action. Only
   the source record of FR-080 stays.
 - **FR-034**: A source page MUST have at most one Commise-written public version at a time (ADR-0093 §2). The page is
   its normalised source address (`sourceLinkKey`, `004`). A retry or a second device of the same cook MUST return the
@@ -456,7 +456,7 @@ later from its own menu. (C-6)
 - **FR-043**: The cook can change the title. The title then goes through the title check of FR-050.
 - **FR-044**: On the public-only path Back leaves the flow and calls no route, as the paste design does (D32 and S39 in
   `docs/design/pasteImport/spec.md`): the import stays in Your imports, nothing is spent, and `importMessages.leave.saved`
-  shows. Back calls neither keepPrivate nor cancel, with or without a free slot. The exits that keep the cook's recipe are
+  shows. Back calls neither keepPrivate nor cancel, with or without a free slot. From the writing screen it leaves the flow, and from the review it returns to the choice page, the job resting in both cases. The exits that keep the cook's recipe are
   "Not now" (`review.notNow`), `button.private` on the failed and budget screens, and the private exits of the failed and
   blocked-final screens at 3 attempts. All of them call keepPrivate, which saves the private copy and charges the unit
   (FR-016a). With no free slot it answers `403 PRIVATE_SLOTS_FULL` and changes nothing, and the UI then offers the discard
@@ -475,8 +475,9 @@ later from its own menu. (C-6)
       starts a new job. "Just for me" uses the paste's ordinary Save recipe, which charges the unit.
     - `published`, or the item records a recipe id: opens that recipe, and the import is no longer listed.
 
-    A swept or expired import is an ordinary unfinished import. It is never labelled "expired", and its item draft is still
-    there (FR-033). An import ended by an explicit discard (cancel) has no draft left and is not listed. A new job counts
+    Checks run in this order: first the recipe id, then a discard (`discarded_at`, data-model), then the latest job's state.
+    "Your imports" is the "To review" list in My recipes (paste design S39). A swept or expired import is an ordinary unfinished import. It is never labelled "expired", and its item draft is still
+    there (FR-033). An import ended by an explicit discard (cancel) has no draft left, records `discarded_at` and is not listed. A new job counts
     the item's attempts, not its own (FR-031).
 
 - **FR-045**: On the Both path the private copy can change between the writing and "Publish". Publish MUST then be

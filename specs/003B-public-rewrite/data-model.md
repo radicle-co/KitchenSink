@@ -57,7 +57,7 @@ Indexes:
 
 Every expiry counts from `state_changed_at`, so a retry starts a fresh window. A job expires lazily, in the data layer, in the same transaction before an insert and again on every read: a job in
 `pending` or `writing` for more than 10 minutes becomes `failed`, and a job in `ready` for more than 24 hours becomes
-`cancelled`, and so is a `checkRefused` or `failed` job after 24 hours, resting (fewer than 3 attempts) or final (3 attempts). A sweep on the band drain's existing 15-minute tick (`bandDrain.ts` in recipe-workers, beside `purgeFinishedImports` and the parse-job sweep) runs the same expiry function the reads use, and clears only the job's own text (`source_steps`, `facts_snapshot`, `output`) as it ends the job. It never touches the import item's draft step text, which stays until Publish, keepPrivate or cancel, or until ADR-0072's 30-day purge removes it (FR-033). It follows ADR-0072's purge rules: its own transaction, `FOR UPDATE SKIP LOCKED`, and it runs even if an earlier sweep failed. Every tick publishes the age of the oldest expired job with `Stage` (ADR-0062), and a behind alarm, `PublicVersionJobSweepBehindAlarm`, is styled like `BulkImportPurgeBehindAlarm`. It adds no Lambda, no schedule rule and no NAT consumer. So a job nobody reads cannot hold its page key or its text: the job's text lives about 3 days after the cook's last action, inside the 30 days of ADR-0072. A swept or expired import stays in Your imports as an ordinary unfinished import (FR-044a).
+`cancelled`, and so is a `checkRefused` or `failed` job after 24 hours, resting (fewer than 3 attempts) or final (3 attempts). A sweep on the band drain's existing 15-minute tick (`bandDrain.ts` in recipe-workers, beside `purgeFinishedImports` and the parse-job sweep) runs the same expiry function the reads use, and clears only the job's own text (`source_steps`, `facts_snapshot`, `output`) as it ends the job. It never touches the import item's draft step text, which stays until Publish, keepPrivate or cancel, or until ADR-0072's 30-day purge removes it (FR-033). It follows ADR-0072's purge rules: its own transaction, `FOR UPDATE SKIP LOCKED`, and it runs even if an earlier sweep failed. Every tick publishes the age of the oldest expired job with `Stage` (ADR-0062), and a behind alarm, `PublicVersionJobSweepBehindAlarm`, is styled like `BulkImportPurgeBehindAlarm`. It adds no Lambda, no schedule rule and no NAT consumer. So a job nobody reads cannot hold its page key or its text: the job's text lives about a day after the cook's last action (FR-033). A swept or expired import stays in Your imports as an ordinary unfinished import (FR-044a).
 
 Finished jobs are deleted 7 days after `finished_at` by the existing retention sweeper. The table is user-keyed: add it
 to `erasureSweepCoverage` and to the test-principal purge.
@@ -124,6 +124,7 @@ NOT NULL` if and only if `source_type = 'commise_written'`. Both are `NOT VALID`
   copy. One-way door, named in the feature ADR, owed (T004).
 - The rights label "Steps written by Commise" (016-FR-015c) and the licence `cc-by-sa-4.0` are derived from
   `source_type` in `recipe-core` (`rightsLabelOf`, `licenceOf`). There is no column for either.
+- Import item `discarded_at timestamptz NULL`: set by the cancel route in the same transaction when the job has an import item and no private copy (an explicit discard on the public-only path), never by the expiry or the sweep. The list of unfinished imports excludes an item with `discarded_at` set, and a recipe id on the item wins over everything (FR-044a). Lead default, the architect to confirm.
 - Import item `public_attempts smallint NOT NULL DEFAULT 0 CHECK (public_attempts BETWEEN 0 AND 3)`: the writer attempts
   made for this item across all of its jobs (C-7). A column and not a sum over the jobs, because finished jobs are deleted
   after 7 days and an item lives up to 30. The claim UPDATE of a job with an item adds one here and to the job in the one
@@ -152,7 +153,7 @@ row is written. Recipe-service holds no age data. `clerk-verify` parses the clai
 
 ## Source evidence retained
 
-ADR-0089 §6's evidence record holds no source steps. This feature keeps source step text only in `public_version_jobs.source_steps`, while the job lives (about 3 days after the cook's last action), so a retry sends the writer the same text. The source record keeps hashes only. Keys are never
+ADR-0089 §6's evidence record holds no source steps. This feature keeps source step text in `public_version_jobs.source_steps`, while the job lives (about a day after the cook's last action), so a retry sends the writer the same text, and in the import item's draft until FR-033 clears it. The source record keeps hashes only. Keys are never
 deleted, so a missing key version is an operator fault. A later save then answers `503 checkUnavailable` and raises an
 alarm, and Publish answers the same `503`, leaving the job `ready` (FR-050a).
 

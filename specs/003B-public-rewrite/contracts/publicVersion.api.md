@@ -88,13 +88,17 @@ viewer, like the other owner-only fields (ADR-0090, #301). It is computed the wa
 same paid-site rules.
 
 - `202 { jobId, state }`. A second call while a live job exists returns the same job.
-- `409 { code: 'attemptsUsed' }` on the import path when the item's `public_attempts` is already 3 (the cook reopened it and chose "For everyone" or "Both" again). It is checked first, before any save, so nothing is saved or charged. The client shows `failed.titleFinal`, `failed.bodyFinal` and `review.notNow`.
+- `409 { code: 'attemptsUsed' }` on the import path when the item's `public_attempts` is already 3 (the cook reopened it and chose "For everyone" or "Both" again). It is checked first, before any save, so nothing is saved or charged. The client shows `failed.titleFinal` and `failed.bodyFinal`, and the private exit (the wording of `review.notNow`) runs the paste's ordinary Save recipe, because there is no live job to call keepPrivate on.
 - `409 { code: 'publicExists', recipeId: string | null }`: another version of this source page is already public (FR-034). The key is released by FR-034a.
 - `409 { code: 'offerChanged', offer }`: the offer the server computes now differs from the `shownOffer` the client sent
   (see "The shown offer"). `offer` is the current offer. Client copy: `offerChanged.line`. Publish answers the same way.
 - Start spends no unit for the writer job (C-24). On the Both path its first step is the private save, which charges the
   paste's unit (FR-016a), so Start can answer `429 IMPORT_QUOTA_EXCEEDED` there and then starts no job. On the public-only path
   Start never answers it.
+
+## Reopen: the import item view
+
+The import item view gains `publicVersionJob: { jobId, state } | null`, the item's latest job by `created_at`, or `null` when it has none (the job rows are deleted 7 days after they finish). The client routes a reopened import with it and with the item's recipe id (FR-044a). It carries no job text.
 
 ## Read the job
 

@@ -39,19 +39,27 @@ afterEach(() => {
     window.sessionStorage.clear();
 });
 
+/** What a rerender may change: the recipe's lines and its authored servings. */
+interface MountProps {
+    readonly ingredients: readonly RecipeIngredientView[];
+    readonly servings?: number;
+}
+
 /** The hook under test beside the two bindings the recipe page reads, for one recipe. */
 function mount(recipeId: string, ingredients: readonly RecipeIngredientView[] = LINES, servings = 2) {
+    const initialProps: MountProps = { ingredients };
+
     return renderHook(
-        (props: { readonly ingredients: readonly RecipeIngredientView[] }) => ({
+        (props: MountProps) => ({
             cooking: useCookingIngredients({
-                recipe: { id: recipeId, ingredients: props.ingredients, servings },
+                recipe: { id: recipeId, ingredients: props.ingredients, servings: props.servings ?? servings },
                 copy,
                 locale: 'en',
             }),
             marks: useCookMarks(recipeId),
             scale: useServingScale(recipeId, servings),
         }),
-        { wrapper: Wrapper, initialProps: { ingredients } },
+        { wrapper: Wrapper, initialProps },
     );
 }
 
@@ -151,5 +159,26 @@ describe('useCookingIngredients', () => {
         });
 
         expect(idsOf()).toEqual(before);
+    });
+
+    it('keeps the servings it opened with as the base when the recipe changes underneath it', () => {
+        const { result, rerender } = mount(nextId());
+
+        // A refetch that reports other authored servings must not rebase the scaling: 4 of a base of 2 stays doubled.
+        rerender({ ingredients: LINES, servings: 8 });
+        // A tick recomputes the view, so a hook that read the live base for its default servings would show it now.
+        act(() => {
+            result.current.cooking.toggle('ing_butter');
+        });
+        expect(result.current.cooking.view.kind === 'list' ? result.current.cooking.view.servings : undefined).toBe(2);
+
+        act(() => {
+            result.current.cooking.setServings(4);
+        });
+
+        const view = result.current.cooking.view;
+
+        expect(view.kind === 'list' ? [view.servings, view.baseServings] : undefined).toEqual([4, 2]);
+        expect(view.kind === 'list' ? view.rows[0]?.ingredient.quantity : undefined).toEqual(statedQuantity(2));
     });
 });

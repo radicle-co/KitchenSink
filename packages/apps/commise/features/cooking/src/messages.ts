@@ -14,6 +14,8 @@ interface CookingTopMessages {
     readonly exitA11y: string;
     /** The place, "Step 2 of 6" (contains `{current}` and `{total}`). Also the step region's name. */
     readonly place: string;
+    /** The control that opens the ingredients list. */
+    readonly ingredients: string;
 }
 
 /** Back and Next step. */
@@ -48,6 +50,26 @@ interface CookingStepMessages {
     readonly announce: string;
     /** The same when every line is ticked and there is no focus line to read (contains `{current}` and `{total}`). */
     readonly announceNoLine: string;
+    /**
+     * Under the step when the cook scales the recipe (contains `{base}` and `{servings}`). Plain text, no link inside.
+     */
+    readonly scaleNote: string;
+    /** The quiet button under the scale note that opens the ingredients list. Its name is this label. */
+    readonly scaleNoteOpen: string;
+}
+
+/** The ingredients list, held in a sheet over the step. */
+interface CookingIngredientsMessages {
+    /** The list's heading: one item, or `{count}` items, for `{servings}` servings. */
+    readonly title: PluralText;
+    /** The sheet's visible close. Its accessible name is {@link CookingIngredientsMessages.close}. */
+    readonly done: string;
+    /** The accessible name of the sheet's close. */
+    readonly close: string;
+    /** Clears every tick on the list. Not drawn while nothing is ticked. */
+    readonly clear: string;
+    /** The snackbar after Clear ticks; Undo restores the ticks. */
+    readonly cleared: string;
 }
 
 /** Next coming: every line of the step is ticked. */
@@ -130,6 +152,7 @@ export interface CookingMessages {
     readonly top: CookingTopMessages;
     readonly nav: CookingNavMessages;
     readonly step: CookingStepMessages;
+    readonly ingredients: CookingIngredientsMessages;
     readonly next: CookingNextMessages;
     readonly done: CookingDoneMessages;
     readonly loading: CookingLoadingMessages;
@@ -145,6 +168,7 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
             exit: 'Exit',
             exitA11y: 'Exit cooking mode',
             place: 'Step\u00a0{current} of {total}',
+            ingredients: 'Ingredients',
         },
         nav: {
             back: 'Back',
@@ -162,6 +186,19 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
             show: 'Show',
             announce: 'Step {current} of {total}. {line}',
             announceNoLine: 'Step {current} of {total}.',
+            scaleNote:
+                'The steps give amounts for {base}. You\u2019re making {servings}, so use the amounts in Ingredients.',
+            scaleNoteOpen: 'Open ingredients',
+        },
+        ingredients: {
+            title: {
+                one: 'Ingredients for {servings} \u00b7 1 item',
+                other: 'Ingredients for {servings} \u00b7 {count} items',
+            },
+            done: 'Done',
+            close: 'Close ingredients',
+            clear: 'Clear ticks',
+            cleared: 'Ticks cleared',
         },
         next: {
             upNext: 'Up next · step\u00a0{n}',

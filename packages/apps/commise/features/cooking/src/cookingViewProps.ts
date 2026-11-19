@@ -4,6 +4,7 @@
  * screen: a render component never formats copy.
  */
 import type { CookLinkInput } from '@kitchensink/cooking-core';
+import type { RecipeIngredientView } from '@kitchensink/recipe-core';
 import type { ReactNode } from 'react';
 
 import type { LoadingPhase } from './loadingPhase.js';
@@ -15,6 +16,10 @@ export interface CookingRecipe {
     readonly title: string;
     readonly status: CookLinkInput['status'];
     readonly steps: UseCookingSessionInput['steps'];
+    /** The recipe's ingredient lines in stored order. Empty, never absent: "no ingredients" is a held fact. */
+    readonly ingredients: readonly RecipeIngredientView[];
+    /** The servings the recipe was authored with, the base of the cook's scaling. */
+    readonly servings: number;
 }
 
 /**

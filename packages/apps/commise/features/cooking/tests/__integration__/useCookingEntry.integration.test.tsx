@@ -2,6 +2,7 @@ import { RecipeStatus } from '@kitchensink/recipe-core';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { makeCookingRecipe } from '../../src/__fixtures__/makeCookingRecipe.js';
 import { useCookingEntry } from '../../src/cookingEntry.js';
 import type { CookingScreenRead } from '../../src/cookingViewProps.js';
 
@@ -19,7 +20,12 @@ const retry = (): void => undefined;
 const recipeRead = (status: RecipeStatus, viewerIsOwner: boolean): CookingScreenRead => ({
     kind: 'ready',
     viewerIsOwner,
-    recipe: { id: 'r1', title: 'Soup', status, steps: [{ stepNumber: 1, instruction: 'Chop the onion' }] },
+    recipe: makeCookingRecipe({
+        id: 'r1',
+        title: 'Soup',
+        status,
+        steps: [{ stepNumber: 1, instruction: 'Chop the onion' }],
+    }),
 });
 
 /** The entry hook over the real cooking-core rules and the real loading clock; only time is faked. */

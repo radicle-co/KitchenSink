@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 30,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 107,
+        "platform-singleton": 106,
         "ref-api": 22,
         "unclassified-layer": 96,
         "undocumented-prop": 232
@@ -5479,16 +5479,6 @@
             "severity": "review",
             "component": "featuresCooking/ingredients/CookingIngredientsColumn",
             "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsColumn.native.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "native"
-            ]
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresCooking/ingredients/CookingIngredientsList",
-            "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsList.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"

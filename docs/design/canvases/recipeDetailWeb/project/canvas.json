@@ -730,6 +730,48 @@
       "w": 390,
       "h": 844,
       "title": "Recipe detail, public version, reader more menu (web, 390)"
+    },
+    "RecipePrivateImportPhotoSavedWeb1280.dc.html": {
+      "x": 0,
+      "y": 32052,
+      "w": 1280,
+      "h": 844,
+      "title": "Recipe detail, private import, photo saved (states 1 and 3) (web, 1280)"
+    },
+    "RecipePrivateImportPhotoLoadingWeb1280.dc.html": {
+      "x": 1360,
+      "y": 32052,
+      "w": 1280,
+      "h": 844,
+      "title": "Recipe detail, private import, photo loading (state 2) (web, 1280)"
+    },
+    "RecipePrivateImportPhotoLinkOnlyWeb1280.dc.html": {
+      "x": 2720,
+      "y": 32052,
+      "w": 1280,
+      "h": 844,
+      "title": "Recipe detail, private import, photo link only (state 4) (web, 1280)"
+    },
+    "RecipePrivateImportPhotoSavedWeb390.dc.html": {
+      "x": 4080,
+      "y": 32052,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, private import, photo saved (states 1 and 3) (web, 390)"
+    },
+    "RecipePrivateImportPhotoLoadingWeb390.dc.html": {
+      "x": 4550,
+      "y": 32052,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, private import, photo loading (state 2) (web, 390)"
+    },
+    "RecipePrivateImportPhotoLinkOnlyWeb390.dc.html": {
+      "x": 5020,
+      "y": 32052,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, private import, photo link only (state 4) (web, 390)"
     }
   },
   "order": [
@@ -835,7 +877,13 @@
     "RecipePublicVersionHiddenReaderWeb390.dc.html",
     "RecipePrivateImportMenuWeb390.dc.html",
     "RecipePrivateImportShareLineWeb390.dc.html",
-    "RecipePublicVersionReaderMenuWeb390.dc.html"
+    "RecipePublicVersionReaderMenuWeb390.dc.html",
+    "RecipePrivateImportPhotoSavedWeb1280.dc.html",
+    "RecipePrivateImportPhotoLoadingWeb1280.dc.html",
+    "RecipePrivateImportPhotoLinkOnlyWeb1280.dc.html",
+    "RecipePrivateImportPhotoSavedWeb390.dc.html",
+    "RecipePrivateImportPhotoLoadingWeb390.dc.html",
+    "RecipePrivateImportPhotoLinkOnlyWeb390.dc.html"
   ],
   "notes": {
     "row0": {

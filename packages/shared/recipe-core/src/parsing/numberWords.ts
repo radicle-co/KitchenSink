@@ -10,14 +10,13 @@
  * ⛔ LIBRARY-FIRST JUSTIFICATION (measured 2026-08-19; re-verified in this workspace on the same date —
  * do not re-litigate, and do not replace this table with a "words to numbers" package):
  *
- * - `parse-ingredient@2.2.0` (MIT, ~1,900 dl/wk) — the choice `specs/004-recipe-importing/research/tech-stack.md`
- *   already records, and it IS used, for unit + description extraction. It cannot read number WORDS:
+ * - `parse-ingredient@2.2.0` (MIT, ~1,900 dl/wk) — the importer's choice, and it IS used for unit + description
+ *   extraction. It cannot read number WORDS:
  *   measured to return `quantity: null` for `"one tablespoon of butter"`, `"two-thirds cup of flour"` and
  *   `"one-half teaspoon salt"` — which is the notation an entire 1900s cookbook is written in.
  * - `fraction.js@5.3.4` (MIT, ~51M dl/wk) — USED for every rational operation by its user, `normalizeQuantity`.
  *   Fraction arithmetic is never done by hand and `2/3` is never allowed to become `0.6666666666666666` internally.
- * - `numerizer@0.0.4` — REJECTED. Last published 2022-06-22 (dormant — the same criterion `tech-stack.md`
- *   used to reject `recipe-ingredient-parser-v2`), and measured to emit the CORRUPTED string
+ * - `numerizer@0.0.4` — REJECTED. Last published 2022-06-22 (dormant), and measured to emit the CORRUPTED string
  *   `"2-<frac>2 pounds of beef"` for `"one and one-half pounds of beef"`.
  * - `words-to-numbers@1.5.1` (~41k dl/wk, maintained) — REJECTED for fractions. Measured to produce
  *   `"1-half"` for `"one-half"` and `"2-thirds"` for `"two-thirds"`: it cannot represent a fraction at all.

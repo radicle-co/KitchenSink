@@ -15,8 +15,8 @@
 import { amountAt } from '@kitchensink/recipe-core/parsing/measure-reader';
 
 import { oneReading, type DurationReading } from './durationReading.js';
-import { readWordDuration } from './durationWords.js';
-import { isValidTimerMs } from './timer.js';
+import { RATE_PHRASES, readWordDuration } from './durationWords.js';
+import { MIN_TIMER_MS, isValidTimerMs } from './timer.js';
 
 const SECONDS_PER_UNIT: Readonly<Record<string, number>> = { h: 3_600, m: 60, s: 1 };
 
@@ -64,6 +64,14 @@ const BARE_MINUTES = String.raw`(?:\s+(?<bare>\d{1,2})(?=\s*(?:$|[.,;:!?)])))`;
  */
 const UNREAD_TIME_AFTER = new RegExp(String.raw`^${JOINER}\d+(?:[.,]\d+)?\s*[ms](?![a-z])`, 'iu');
 const UNREAD_TIME_BEFORE = new RegExp(String.raw`(?<![\d.,])\d+(?:[.,]\d+)?\s*[ms]${JOINER}$`, 'iu');
+
+/**
+ * Any rate word right after the span ("10 minutes per pound", "20 minutes to the pound"): the line reads none. The
+ * rule is on the words, not on what follows them, so "per side", "per batch" and "to the boil" read none on purpose. A
+ * wrong number the cook trusts is worse than no offer. The words are the word reader's, plain lower-case letters.
+ */
+const RATE_ALTERNATION = RATE_PHRASES.map((phrase) => phrase.join(String.raw`\s+`)).join('|');
+const RATE_AFTER = new RegExp(String.raw`^\s*(?:${RATE_ALTERNATION})(?![a-z])`, 'iu');
 
 /** One whole span of time: amounts joined by space, comma or "and", then an optional bare minute part. */
 const SPAN = new RegExp(`${amountSource(false)}(?:${JOINER}${amountSource(false)})*${BARE_MINUTES}?`, 'giu');
@@ -117,7 +125,9 @@ export function readDuration(line: string): DurationReading {
 
     const at = spans[0]?.index ?? 0;
 
-    if (UNREAD_TIME_BEFORE.test(line.slice(0, at)) || UNREAD_TIME_AFTER.test(line.slice(at + span.length))) {
+    const after = line.slice(at + span.length);
+
+    if (UNREAD_TIME_BEFORE.test(line.slice(0, at)) || UNREAD_TIME_AFTER.test(after) || RATE_AFTER.test(after)) {
         return { kind: 'none' };
     }
 
@@ -181,6 +191,68 @@ export interface OfferInput {
  */
 export function offerSecondsOf(input: OfferInput): number | undefined {
     return validSeconds(input.storedSeconds) ?? validSeconds(secondsOfLine(input.line));
+}
+
+/** One wait a step line states. It is a timer the cook can start only when `offers` is set. */
+export interface Wait {
+    readonly seconds: number;
+    /** The high end of a range ("20 to 25 minutes"); `seconds` is its low end. */
+    readonly highSeconds?: number;
+    /** `false` for a time over the longest timer ("marinate 48 hours"): a wait that counts, with no timer. */
+    readonly offers: boolean;
+}
+
+/**
+ * The waits of one step. A stored timer is one wait of that length. Otherwise each line reads through
+ * {@link readDuration}, and `unread` is set when any line holds two or more times.
+ */
+export type StepWaits =
+    | { readonly kind: 'stored'; readonly seconds: number }
+    | { readonly kind: 'lines'; readonly waits: readonly Wait[]; readonly unread: boolean };
+
+/** The input to {@link stepWaitsOf}. */
+export interface StepWaitsInput {
+    /** The step's own stored timer, in seconds. It wins over the text when a timer can have that length. */
+    readonly storedSeconds?: number | undefined;
+    /** The step's lines. */
+    readonly lines: readonly string[];
+}
+
+/** The wait a reading states, or `undefined` when it states none or is under the shortest timer. */
+function waitOf(reading: DurationReading): Wait | undefined {
+    if (reading.kind !== 'one' || reading.seconds * 1_000 < MIN_TIMER_MS) {
+        return undefined;
+    }
+
+    const offers = isValidTimerMs(reading.seconds * 1_000);
+
+    return reading.highSeconds === undefined
+        ? { seconds: reading.seconds, offers }
+        : { seconds: reading.seconds, highSeconds: reading.highSeconds, offers };
+}
+
+/**
+ * The waits of a step, read the way {@link offerSecondsOf} reads them, so the screen and the timer offer never
+ * disagree. Every wait with `offers` set is a timer `offerSecondsOf` gives for that line.
+ *
+ * @param input - The stored timer and the lines.
+ * @returns A stored timer when it is a length a timer can have, else the waits of the lines. A time under
+ *   `MIN_TIMER_MS` is no wait. A line with two times sets `unread`, and a step with `unread` set counts nothing. Pure.
+ */
+export function stepWaitsOf(input: StepWaitsInput): StepWaits {
+    const stored = validSeconds(input.storedSeconds);
+
+    if (stored !== undefined) {
+        return { kind: 'stored', seconds: stored };
+    }
+
+    const readings = input.lines.map(readDuration);
+
+    return {
+        kind: 'lines',
+        waits: readings.flatMap((reading) => waitOf(reading) ?? []),
+        unread: readings.some((reading) => reading.kind === 'many'),
+    };
 }
 
 /** A length split into hours, minutes and seconds. */

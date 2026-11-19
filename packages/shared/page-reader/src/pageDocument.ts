@@ -35,6 +35,8 @@ export interface VisibleBlock {
     readonly element: number;
     /** The nearest `<li>` the block sits in, as its element number (0: none). */
     readonly item: number;
+    /** Whether that `<li>` is an item of an ordered list (`<ol>`), as a method is. */
+    readonly ordered: boolean;
 }
 
 /** Where a block element sits among the others: numbered in document order, so its descendants are a range. */
@@ -189,11 +191,15 @@ const isHiddenElement = (element: DomElement): boolean =>
     (element.name === 'dialog' && !Object.hasOwn(element.attribs, 'open')) ||
     styleHides(element.attribs['style'] ?? '');
 
+/** Whether `element` is a `<details>` that is not open, which shows only its `<summary>`. */
+const isClosedDetails = (element: DomElement): boolean =>
+    element.name === 'details' && !Object.hasOwn(element.attribs, 'open');
+
+const isSummary = (node: DomNode): boolean => isTag(node) && node.name === 'summary';
+
 /** The children a cook sees: of a `<details>` that is not open, only its `<summary>`. */
 const shownChildren = (element: DomElement): readonly DomNode[] =>
-    element.name === 'details' && !Object.hasOwn(element.attribs, 'open')
-        ? element.children.filter((child) => isTag(child) && child.name === 'summary')
-        : element.children;
+    isClosedDetails(element) ? element.children.filter(isSummary) : element.children;
 
 /** The most times {@link plainText} reads a value again to undo an earlier encoding. */
 const MAX_DECODE_PASSES = 2;
@@ -263,6 +269,7 @@ interface Owner {
     readonly isHeading: boolean;
     readonly element: number;
     readonly item: number;
+    readonly ordered: boolean;
 }
 
 /** The end of a block element: its text is flushed, and the element that held it before is the owner again. */
@@ -273,7 +280,24 @@ class BlockEnd {
     ) {}
 }
 
-const LOOSE_TEXT: Owner = { group: 0, isHeading: false, element: 0, item: 0 };
+const LOOSE_TEXT: Owner = { group: 0, isHeading: false, element: 0, item: 0, ordered: false };
+
+/**
+ * The owner of the text inside block element `node`, numbered `element`, in the list numbered `group`. A list item
+ * starts an item, numbered when its list is an `<ol>`.
+ */
+function blockOwner(node: DomElement, previous: Owner, element: number, group: number): Owner {
+    const isItem = node.name === 'li';
+    const inOrderedList = node.parent !== null && 'name' in node.parent && node.parent.name === 'ol';
+
+    return {
+        group,
+        isHeading: HEADING_TAGS.has(node.name),
+        element,
+        item: isItem ? element : previous.item,
+        ordered: isItem ? inOrderedList : previous.ordered,
+    };
+}
 
 /**
  * The text blocks of a list of nodes, in order. One explicit stack, so depth costs memory and never the call stack.
@@ -290,7 +314,7 @@ function blocksOf(
     maxNodes = MAX_WALK_NODES,
 ): VisibleRead & { readonly visited: number } {
     const blocks: VisibleBlock[] = [];
-    const elements: { parent: number; last: number }[] = [{ parent: -1, last: 0 }];
+    const elements: ElementExtent[] = [{ parent: -1, last: 0 }];
     const groups = new Map<unknown, number>();
     let owner = LOOSE_TEXT;
     let current = '';
@@ -305,6 +329,7 @@ function blocksOf(
                 isHeading: owner.isHeading,
                 element: owner.element,
                 item: owner.item,
+                ordered: owner.ordered,
             });
         }
 
@@ -338,7 +363,11 @@ function blocksOf(
 
         if (next instanceof BlockEnd) {
             flush();
-            elements[next.element] = { parent: next.previous.element, last: elements.length - 1 };
+            elements[next.element] = {
+                ...elements[next.element],
+                parent: next.previous.element,
+                last: elements.length - 1,
+            };
             owner = next.previous;
         } else if (isText(next)) {
             addText(next.data);
@@ -350,12 +379,7 @@ function blocksOf(
                 elements.push({ parent: owner.element, last: element });
                 stack.push(new BlockEnd(owner, element));
                 groups.set(next.parent, groups.get(next.parent) ?? groups.size + 1);
-                owner = {
-                    group: groups.get(next.parent) ?? 0,
-                    isHeading: HEADING_TAGS.has(next.name),
-                    element,
-                    item: next.name === 'li' ? element : owner.item,
-                };
+                owner = blockOwner(next, owner, element, groups.get(next.parent) ?? 0);
             }
 
             pushReversed(stack, shownChildren(next));
@@ -514,6 +538,7 @@ export function parsePage(html: string): PageDocument {
         if (isTag(next)) {
             filed(byTagName, next.name, next);
             Object.keys(next.attribs).forEach((name) => filed(byAttribute, name, next));
+
             pushReversed(stack, next.children);
         }
     }

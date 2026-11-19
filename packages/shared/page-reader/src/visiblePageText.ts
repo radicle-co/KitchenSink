@@ -40,15 +40,32 @@ export interface VisibleText {
      *   heading, and no block is read by a run in part. A schema that leaves a line out, or reads only the end of one,
      *   therefore differs.
      * - THE CARD is the smallest block element that holds every block a run was read from. Every list item (`<li>`) inside
-     *   it must be read too, so a whole list the schema leaves out (an ingredient group, a second method) differs. A
-     *   paragraph in the card that no run reads (a note) does not, and nor does a list outside it (the page's menus).
+     *   it must be read too, unless `tolerates` says the item is the card's furniture, so a whole list the schema leaves
+     *   out (an ingredient group, a second method) differs. A paragraph in the card that no run reads (a note) does not,
+     *   and nor does a list outside it (the page's menus).
      *
      * @param lists - The lists of the recipe, each with the tokens of its lines in order. A run with no tokens never matches.
+     * @param tolerates - Whether an unread list item of the card may stay unread. By default none may.
      */
-    shows(lists: readonly ShownList[]): ListLookup;
+    shows(lists: readonly ShownList[], tolerates?: (item: CardItem) => boolean): ListLookup;
 
     /** The token comparisons the lookups have spent so far: the work a test holds bounded in place of a time budget. */
     comparisonsSpent(): number;
+}
+
+/** A list item of the card that no run read, as the card-rule policy sees it. */
+export interface CardItem {
+    /** Its text, with every run of white space one space. */
+    readonly text: string;
+    /** It is an item of an ordered list. */
+    readonly ordered: boolean;
+    /** Where it sits against the blocks the runs read: before the first, after the last, or between. */
+    readonly position: 'before' | 'between' | 'after';
+    /**
+     * Whether its list sits beside a list a run read: the two lists share a parent, or their parents share one (a plugin
+     * wraps each group of a list in its own element). Such a list is a sibling of a recipe list, a group the schema left out.
+     */
+    readonly besideReadList: boolean;
 }
 
 /** One list a page must show. */
@@ -131,6 +148,8 @@ interface Tokenized {
 }
 
 interface BlockSpan {
+    readonly text: string;
+    readonly ordered: boolean;
     readonly first: number;
     readonly last: number;
     readonly group: number;
@@ -166,43 +185,127 @@ function cardOf(elements: readonly ElementExtent[], read: readonly BlockSpan[]):
     return card;
 }
 
+/** How many of `block`'s tokens the runs read. */
+function readsOf(block: BlockSpan, covered: Uint8Array): number {
+    let reads = 0;
+
+    for (let at = block.first; at <= block.last; at += 1) {
+        reads += covered[at] ?? 0;
+    }
+
+    return reads;
+}
+
+/** An element's parent, by number (`-1` past the root). */
+const parentIn = (elements: readonly ElementExtent[], element: number): number =>
+    element > 0 ? (elements[element]?.parent ?? -1) : -1;
+
+/** The parent and the grandparent of a list item's list, by element number. */
+function listParentsOf(elements: readonly ElementExtent[], item: number): readonly [number, number] {
+    const parent = parentIn(elements, parentIn(elements, item));
+
+    return [parent, parentIn(elements, parent)];
+}
+
+/** What the read blocks sit in: the parents and grandparents of their lists, by number. */
+interface ReadAncestry {
+    readonly listParents: ReadonlySet<number>;
+    readonly listGrandparents: ReadonlySet<number>;
+}
+
+/** The {@link ReadAncestry} of the blocks in `read`. */
+function readAncestryOf(elements: readonly ElementExtent[], read: readonly BlockSpan[]): ReadAncestry {
+    const listParents = new Set<number>();
+    const listGrandparents = new Set<number>();
+
+    for (const block of read) {
+        if (block.item > 0) {
+            const [parent, grandparent] = listParentsOf(elements, block.item);
+
+            listParents.add(parent);
+            listGrandparents.add(grandparent);
+        }
+    }
+
+    return { listParents, listGrandparents };
+}
+
+/** The first and the last token the read blocks span. */
+interface ReadSpan {
+    readonly first: number;
+    readonly last: number;
+}
+
+/** Where `block` sits against the read lines. */
+function positionOf(block: BlockSpan, span: ReadSpan): CardItem['position'] {
+    if (block.last < span.first) {
+        return 'before';
+    }
+
+    return block.first > span.last ? 'after' : 'between';
+}
+
+/** The card item an unread list item is, as the card policy sees it. */
+function cardItemOf(
+    block: BlockSpan,
+    elements: readonly ElementExtent[],
+    ancestry: ReadAncestry,
+    span: ReadSpan,
+): CardItem {
+    const [parent, grandparent] = listParentsOf(elements, block.item);
+
+    return {
+        text: block.text,
+        ordered: block.ordered,
+        position: positionOf(block, span),
+        besideReadList:
+            ancestry.listParents.has(parent) || (grandparent > 0 && ancestry.listGrandparents.has(grandparent)),
+    };
+}
+
 /** Whether the blocks that runs were read from leave a line of their list, or a list item of their card, unread. */
-function leavesLinesUnread({ blocks, elements }: Tokenized, covered: Uint8Array): boolean {
+function leavesLinesUnread(
+    { blocks, elements }: Tokenized,
+    covered: Uint8Array,
+    tolerates: (item: CardItem) => boolean,
+): boolean {
     const touched = new Set<number>();
     const read: BlockSpan[] = [];
     const unread: BlockSpan[] = [];
 
     for (const block of blocks) {
-        let reads = 0;
-
-        for (let at = block.first; at <= block.last; at += 1) {
-            reads += covered[at] ?? 0;
-        }
-
-        if (reads > 0) {
-            touched.add(block.group);
-            read.push(block);
-        }
+        const reads = readsOf(block, covered);
 
         if (reads > 0 && reads < block.last - block.first + 1) {
             // Read in part: a line of the page whose other words the schema does not state.
             return true;
         }
 
-        if (reads === 0 && !block.isHeading) {
+        if (reads > 0) {
+            touched.add(block.group);
+            read.push(block);
+        } else if (!block.isHeading) {
             unread.push(block);
         }
     }
 
     const card = cardOf(elements, read);
     const cardLast = elements[card]?.last ?? 0;
+    const ancestry = readAncestryOf(elements, read);
+    const span: ReadSpan = { first: read[0]?.first ?? 0, last: read.at(-1)?.last ?? 0 };
 
     // Loose text (group 0) is not a list: any other block is a line of the list its siblings are. A list item inside the
-    // card (its `<li>` numbered after the card's own, and within its range) is a line of the card.
+    // card (its `<li>` numbered after the card's own, and within its range) is a line of the card, unless the policy
+    // tolerates it.
     return unread.some(
-        (block) => (block.group !== 0 && touched.has(block.group)) || (block.item > card && block.item <= cardLast),
+        (block) =>
+            (block.group !== 0 && touched.has(block.group)) ||
+            (block.item > card && block.item <= cardLast && !tolerates(cardItemOf(block, elements, ancestry, span))),
     );
 }
+
+/** The default card policy: no unread list item of the card may stay unread. */
+const TOLERATES_NONE = (): boolean => false;
 
 /** The first-token index, the block marks and the comparison budget of one page's tokens. */
 function textOfTokens(page: Tokenized): VisibleText {
@@ -271,7 +374,7 @@ function textOfTokens(page: Tokenized): VisibleText {
 
             return start === ABSENT ? 'absent' : 'found';
         },
-        shows: (lists) => {
+        shows: (lists, tolerates = TOLERATES_NONE) => {
             const covered = new Uint8Array(tokens.length);
 
             for (const { runs, wholeBlocks } of lists) {
@@ -293,7 +396,7 @@ function textOfTokens(page: Tokenized): VisibleText {
                 }
             }
 
-            return leavesLinesUnread(page, covered) ? 'differs' : 'matches';
+            return leavesLinesUnread(page, covered, tolerates) ? 'differs' : 'matches';
         },
         comparisonsSpent: () => comparisons,
     };
@@ -335,6 +438,8 @@ function tokenizedBlocks(
 
         if (tokens.length > first) {
             spans.push({
+                text: block.text,
+                ordered: block.ordered,
                 first,
                 last: tokens.length - 1,
                 group: block.group,

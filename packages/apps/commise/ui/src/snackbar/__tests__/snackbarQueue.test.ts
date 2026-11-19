@@ -140,4 +140,16 @@ describe('remainingMsOf and the handle', () => {
         expect(entry === null ? NaN : remainingMsOf(entry, 1000)).toBe(5000);
         expect(paused === null ? NaN : remainingMsOf(paused, 99_000)).toBe(4000);
     });
+
+    it('never reads a negative time for a pause that lands after the snackbar was due', () => {
+        const running = snackbarReducer(INITIAL_SNACKBAR_STATE, {
+            type: 'show',
+            input: { message: 'A' },
+            handle,
+            now: 0,
+        });
+        const paused = snackbarReducer(running, { type: 'pause', id: running.current?.id ?? -1, now: 60_000 }).current;
+
+        expect(paused === null ? NaN : remainingMsOf(paused, 99_000)).toBe(0);
+    });
 });

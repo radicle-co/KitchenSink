@@ -2,7 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
-        <title>Recipe importing, add recipe (mobile, iPad 1194)</title>
+        <title>Recipe importing, add recipe (iPad 1194)</title>
         <script src="./support.js"></script>
         <link rel="stylesheet" href="ds/commise/tokens.css" />
         <link rel="stylesheet" href="ds/commise/redesignNative.css" />
@@ -426,6 +426,28 @@ b, strong { font-weight: 600; }
 .screen .pgPanelDlg .dlg { width: calc(100% - 32px); max-width: 448px; }
 .screen .pgPanelDlg .acts { flex-direction: column; }
 .screen .pgPanelDlg .acts .btn { width: 100%; }
+
+/* Add a recipe (P1), owner ruling 2026-11-17: the FAB opens a speed dial, the inline New recipe button opens an
+   anchored menu. Tokens only. Type 14 and 16 only. Targets at least 44. */
+.cmScrim { position: absolute; inset: 0; z-index: 20; background: var(--scrim); }
+.cmDial { position: absolute; z-index: 21; right: 16px; width: min(312px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 8px; }
+.cmItem { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 16px 10px 10px; border-radius: 18px; background: var(--paper-overlay); box-shadow: var(--shadow-lg); color: var(--ink); text-decoration: none; }
+.cmDisc { flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--surface-muted); display: grid; place-items: center; color: var(--ink); }
+.cmDisc .ic { width: 20px; height: 20px; }
+.cmText { display: flex; flex-direction: column; min-width: 0; }
+.cmTitle { font-size: 16px; line-height: 24px; font-weight: 600; overflow-wrap: anywhere; }
+.cmHint { font-size: 14px; line-height: 20px; color: var(--ink-muted); overflow-wrap: anywhere; }
+.cmFab { position: absolute; z-index: 21; right: 16px; height: 56px; min-width: 56px; border: 0; border-radius: 28px; background: var(--action); color: var(--on-action); display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-shadow: var(--shadow-lg); font-size: 16px; line-height: 24px; font-weight: 600; text-decoration: none; }
+.cmFab.rest { padding: 0 20px 0 16px; z-index: 4; }
+.cmFab .ic { width: 24px; height: 24px; }
+.cmAnchor { position: relative; flex: none; display: inline-flex; }
+.cmTrig.open { background: var(--action-pressed); }
+.cmTrig .chev { width: 16px; height: 16px; margin-right: -4px; transform: rotate(180deg); }
+.cmPop { position: absolute; z-index: 21; top: calc(100% + 8px); right: 0; width: 320px; padding: 8px; border-radius: 12px; background: var(--paper-overlay); box-shadow: var(--shadow-lg), inset 0 0 0 1px var(--line-divider); display: flex; flex-direction: column; gap: 2px; text-align: left; }
+.cmPop .cmItem { background: transparent; box-shadow: none; border-radius: 8px; padding: 8px; }
+.cmPop .cmItem.focus { background: var(--surface-muted); box-shadow: inset 0 0 0 2px var(--focus-ring); }
+.cmPop .cmDisc { background: transparent; width: 24px; height: 24px; align-self: flex-start; margin-top: 2px; }
+.cmNote.cmNote { position: absolute; z-index: 30; left: 16px; right: 16px; padding: 8px 12px; border-radius: 8px; border: 1px dashed var(--line-control); background: var(--paper); font-size: 14px; line-height: 20px; color: var(--ink); }
 </style></helmet><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600&display=swap" rel="stylesheet" /><link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400&display=swap" rel="stylesheet" />
 <div class="nv-device nv-ios nv-viewport" style="width: 1194px; min-height: 834px; height: 834px"><div class="nv-status" aria-hidden="true" style="height: 24px; padding: 0 20px"><span>9:41&nbsp;&nbsp;Sun 25 Oct</span><span class="nv-icons"><svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true"><path d="M8 12 5.6 9.2a3.4 3.4 0 0 1 4.8 0z"/><path d="M2.8 6.6a7.4 7.4 0 0 1 10.4 0l-1.5 1.6a5.3 5.3 0 0 0-7.4 0z"/><path d="M0 3.8a11.4 11.4 0 0 1 16 0l-1.5 1.6a9.3 9.3 0 0 0-13 0z"/></svg><svg width="26" height="12" viewBox="0 0 26 12" aria-hidden="true"><rect x="0.5" y="0.5" width="22" height="11" rx="3" fill="none" stroke="currentColor" opacity="0.5"/><rect x="2" y="2" width="19" height="8" rx="1.8"/><rect x="23.5" y="4" width="1.8" height="4" rx="0.9" opacity="0.5"/></svg></span></div><div class="screen pg" data-screen="tab1194AddRecipe" style="--tap: 44px; width: 1194px; height: 834px; padding: 24px 0px 84px; box-sizing: border-box; box-shadow: none; border-radius: 0">
 <svg aria-hidden="true" height="0" style="position: absolute" width="0">
@@ -588,8 +610,7 @@ b, strong { font-weight: 600; }
 </div>
 <div class="top" style="margin-top: 14px; gap: 32px">
 <span class="inp soft grow" style="max-width: 560px"><svg aria-hidden="true" class="ic"><use href="#search"></use></svg>Search your
-                                recipes</span><a class="btn primary" href="#"><svg aria-hidden="true" class="ic"><use href="#plus"></use></svg>New recipe<svg aria-hidden="true" class="ic sm">
-<use href="#chevD"></use></svg></a>
+                                recipes</span><div class="cmAnchor"><a class="btn primary cmTrig open" href="#" role="button" aria-haspopup="menu" aria-expanded="true" aria-controls="cmMenu"><svg aria-hidden="true" class="ic"><use href="#plus"></use></svg>New recipe<svg aria-hidden="true" class="ic chev"><use href="#chevD"></use></svg></a><div class="cmPop" id="cmMenu" role="menu" aria-label="Add a recipe"><a class="cmItem focus" role="menuitem" href="#" aria-describedby="cmHint0"><span class="cmDisc"><svg class="ic" aria-hidden="true"><use href="#paste"></use></svg></span><span class="cmText"><span class="cmTitle">Paste a recipe</span><span class="cmHint" id="cmHint0">Text, or a whole web page</span></span></a><a class="cmItem" role="menuitem" href="#" aria-describedby="cmHint1"><span class="cmDisc"><svg class="ic" aria-hidden="true"><use href="#pencil"></use></svg></span><span class="cmText"><span class="cmTitle">Write it yourself</span><span class="cmHint" id="cmHint1">Start from an empty recipe</span></span></a></div></div>
 </div>
 <p class="chipLab">Filter</p>
 <div class="hostChips" style="margin-top: 8px">
@@ -674,8 +695,6 @@ b, strong { font-weight: 600; }
 </div>
 </div>
 
-<div class="scrimAll"></div>
-<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="chooserTitle" style="max-width: 448px; border-radius: 24px"><div class="shead"><h2 id="chooserTitle">Add a recipe</h2><button aria-label="Close Add a recipe" class="iconBtn" type="button" style="width:44px;height:44px;margin-right:-8px"><svg aria-hidden="true" class="ic "><use href="#x"></use></svg></button></div><div><a class="mrow" href="#"><svg aria-hidden="true" class="ic "><use href="#paste"></use></svg><div class="grow"><p class="t15 w600">Paste a recipe</p><p class="t13 soft">Text, or a whole web page</p></div><svg aria-hidden="true" class="ic sm"><use href="#chevR"></use></svg></a><a class="mrow" href="#"><svg aria-hidden="true" class="ic "><use href="#pencil"></use></svg><div class="grow"><p class="t15 w600">Write it yourself</p><p class="t13 soft">Start from an empty recipe</p></div><svg aria-hidden="true" class="ic sm"><use href="#chevR"></use></svg></a></div></div>
 </div><nav class="nv-tabbar" style="bottom: 20px" aria-label="Tabs"><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5 12 3.8l8.5 6.7V20a.8.8 0 0 1-.8.8H15v-6h-6v6H4.3a.8.8 0 0 1-.8-.8z"/></svg>Home</a><a class="nv-tab on" href="#" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C10.2 5 7.6 4.5 4 4.6v13.9c3.6-.1 6.2.4 8 1.9 1.8-1.5 4.4-2 8-1.9V4.6c-3.6-.1-6.2.4-8 1.9zM12 6.5v13.9"/></svg>Recipes</a><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m15.2 8.8-1.9 4.5-4.5 1.9 1.9-4.5z"/></svg>Discover</a><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5"/></svg>Meal plan</a><a class="nv-tab" href="#"><span class="avatar xs" aria-hidden="true">ER</span>You</a></nav><div class="nv-inset nv-bottom" style="height: 20px; background: var(--paper-raised)"><span class="nv-indicator"></span></div></div><!--data-you-tab--></x-dc>
         <script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1194, "height": 834}}'>
             class Component extends DCLogic {

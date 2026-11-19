@@ -255,13 +255,6 @@
       "h": 2213,
       "title": "Recipe importing, wizard states (mobile, iPhone 390)"
     },
-    "ImportWizardLeaveIphone390.dc.html": {
-      "x": 7050,
-      "y": 260,
-      "w": 390,
-      "h": 1595,
-      "title": "Recipe importing, wizard leave (mobile, iPhone 390)"
-    },
     "ImportWizardSummaryIphone390.dc.html": {
       "x": 7520,
       "y": 260,
@@ -485,13 +478,6 @@
       "w": 384,
       "h": 2170,
       "title": "Recipe importing, wizard states (mobile, Android 384)"
-    },
-    "ImportWizardLeaveAndroid384.dc.html": {
-      "x": 6960,
-      "y": 4371,
-      "w": 384,
-      "h": 1552,
-      "title": "Recipe importing, wizard leave (mobile, Android 384)"
     },
     "ImportWizardSummaryAndroid384.dc.html": {
       "x": 7424,
@@ -745,13 +731,6 @@
       "h": 1457,
       "title": "Recipe importing, wizard states (mobile, iPad 820)"
     },
-    "ImportWizardLeaveIpad820.dc.html": {
-      "x": 9000,
-      "y": 11470,
-      "w": 820,
-      "h": 1588,
-      "title": "Recipe importing, wizard leave (mobile, iPad 820)"
-    },
     "ImportWizardSummaryIpad820.dc.html": {
       "x": 9900,
       "y": 11470,
@@ -793,6 +772,20 @@
       "w": 820,
       "h": 1265,
       "title": "Recipe importing, library results (mobile, iPad 820)"
+    },
+    "ImportAddRecipeFullSetIphone390.dc.html": {
+      "x": 0,
+      "y": 1184,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, add recipe, full set when spec 004 ships (iPhone 390)"
+    },
+    "ImportAddRecipeBeforeAiIphone390.dc.html": {
+      "x": 0,
+      "y": 2108,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, add recipe, before the spec 004 AI fallback (iPhone 390)"
     },
     "ImportPasteReadRefusedIphone390.dc.html": {
       "x": 0,
@@ -971,7 +964,6 @@
     "ImportModeChoiceIphone390.dc.html",
     "ImportWizardStepIphone390.dc.html",
     "ImportWizardStatesIphone390.dc.html",
-    "ImportWizardLeaveIphone390.dc.html",
     "ImportWizardSummaryIphone390.dc.html",
     "ImportFlaggedLineIphone390.dc.html",
     "ImportStatementsIphone390.dc.html",
@@ -1004,7 +996,6 @@
     "ImportModeChoiceAndroid384.dc.html",
     "ImportWizardStepAndroid384.dc.html",
     "ImportWizardStatesAndroid384.dc.html",
-    "ImportWizardLeaveAndroid384.dc.html",
     "ImportWizardSummaryAndroid384.dc.html",
     "ImportFlaggedLineAndroid384.dc.html",
     "ImportStatementsAndroid384.dc.html",
@@ -1041,13 +1032,14 @@
     "ImportModeChoiceIpad820.dc.html",
     "ImportWizardStepIpad820.dc.html",
     "ImportWizardStatesIpad820.dc.html",
-    "ImportWizardLeaveIpad820.dc.html",
     "ImportWizardSummaryIpad820.dc.html",
     "ImportFlaggedLineIpad820.dc.html",
     "ImportStatementsIpad820.dc.html",
     "ImportLimitReachedIpad820.dc.html",
     "ImportLibraryProgressIpad820.dc.html",
     "ImportLibraryResultsIpad820.dc.html",
+    "ImportAddRecipeFullSetIphone390.dc.html",
+    "ImportAddRecipeBeforeAiIphone390.dc.html",
     "ImportPasteReadRefusedIphone390.dc.html",
     "ImportPasteReadRefusedAndroid384.dc.html",
     "ImportPasteReadRefusedIpad834.dc.html",

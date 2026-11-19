@@ -6,7 +6,12 @@
  */
 import { resolveMessages } from '@commise/i18n';
 import { CookMarksProvider } from '@commise/features-recipes/cook';
-import { ABSENT_QUANTITY, statedQuantity, type RecipeIngredientView } from '@kitchensink/recipe-core';
+import {
+    ABSENT_QUANTITY,
+    FoodResolutionStatus,
+    statedQuantity,
+    type RecipeIngredientView,
+} from '@kitchensink/recipe-core';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { FC, ReactNode } from 'react';
@@ -39,13 +44,19 @@ const Wrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (
     <CookMarksProvider subject="user_test">{children}</CookMarksProvider>
 );
 
+/** What a case may change about the list the screen would hand over. */
+interface MountOptions {
+    readonly ticked?: readonly string[];
+    readonly servings?: number;
+    readonly baseServings?: number;
+    readonly lines?: readonly RecipeIngredientView[];
+}
+
 /** The list view the screen would hand over, from the real view model. */
-function viewOf(
-    options: { readonly ticked?: readonly string[]; readonly servings?: number } = {},
-): CookingIngredientsListView {
+function viewOf(options: MountOptions = {}): CookingIngredientsListView {
     const view = cookingIngredientsView({
-        ingredients: LINES,
-        baseServings: 2,
+        ingredients: options.lines ?? LINES,
+        baseServings: options.baseServings ?? 2,
         servings: options.servings ?? 2,
         ticked: new Set(options.ticked ?? []),
         copy,
@@ -59,7 +70,7 @@ function viewOf(
     return view;
 }
 
-function mount(options: { readonly ticked?: readonly string[]; readonly servings?: number } = {}) {
+function mount(options: MountOptions = {}) {
     const props: CookingIngredientsListProps = {
         view: viewOf(options),
         copy: copy.ingredients,
@@ -124,5 +135,27 @@ describe('CookingIngredientsList (web)', () => {
         await user.click(screen.getByRole('button', { name: copy.ingredients.clear }));
 
         expect(some.onClear).toHaveBeenCalledOnce();
+    });
+
+    it('draws the removed-food badge once, on the one line whose food is gone', () => {
+        mount({ lines: [FLOUR, { ...SUGAR, resolutionStatus: FoodResolutionStatus.FOOD_REMOVED }, BUTTER] });
+
+        expect(screen.getAllByText('Food no longer listed')).toHaveLength(1);
+    });
+
+    it('draws no per-line badge when every line is removed, because the recipe says it once', () => {
+        mount({
+            lines: LINES.map((ingredient) => ({ ...ingredient, resolutionStatus: FoodResolutionStatus.FOOD_REMOVED })),
+        });
+
+        expect(screen.queryByText('Food no longer listed')).toBeNull();
+    });
+
+    it('steps from the recipe own base, so a recipe authored above 100 servings can still go up', async () => {
+        const props = mount({ baseServings: 120, servings: 110 });
+
+        await user.click(screen.getByRole('button', { name: 'More servings' }));
+
+        expect(props.onSetServings).toHaveBeenCalledExactlyOnceWith(111);
     });
 });

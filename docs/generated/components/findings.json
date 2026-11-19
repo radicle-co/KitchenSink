@@ -6,10 +6,10 @@
         "cross-platform-props-diverge": 30,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 104,
+        "platform-singleton": 105,
         "ref-api": 22,
         "unclassified-layer": 96,
-        "undocumented-prop": 233
+        "undocumented-prop": 232
     },
     "findings": [
         {
@@ -5475,13 +5475,13 @@
             ]
         },
         {
-            "rule": "undocumented-prop",
-            "severity": "gap",
+            "rule": "platform-singleton",
+            "severity": "review",
             "component": "featuresCooking/ingredients/CookingIngredientsSheet",
-            "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsSheet.native.tsx",
-            "message": "props carry no JSDoc description",
+            "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsSheet.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
-                "open"
+                "web"
             ]
         },
         {

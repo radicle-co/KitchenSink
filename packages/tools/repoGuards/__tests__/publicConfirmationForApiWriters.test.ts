@@ -18,12 +18,14 @@
  *
  * @pattern Fitness Function over the source of every script, test and app file
  */
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import picomatch from 'picomatch';
 import ts from 'typescript';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { presentFiles, repoRoot, visit } from './serviceSources.js';
 
@@ -64,13 +66,54 @@ function constantUses(source: string, fileName: string): readonly string[] {
     return uses;
 }
 
-/** The files outside the allowed places that spell the constant. */
-const offenders = (): readonly string[] =>
-    presentFiles(['*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.jsx', '*.mjs', '*.cjs'])
+/**
+ * The files outside the allowed places that spell the constant.
+ *
+ * A file is parsed only when its text holds the constant's name, because parsing is nearly all of the cost and a file
+ * without the name has no use to find. The parser still decides what counts as a use, so a comment that names the
+ * constant is read and found clean.
+ *
+ * @param root - The repository to scan; the real tree unless a test supplies a throwaway one.
+ * @returns One line per use, with its file.
+ * @sideEffect Shells out to git and reads the working tree.
+ */
+const offendersIn = (root: string): readonly string[] =>
+    presentFiles(['*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.jsx', '*.mjs', '*.cjs'], root)
         .filter((file) => !ALLOWED(file))
-        .flatMap((file) =>
-            constantUses(readFileSync(path.join(repoRoot, file), 'utf8'), file).map((use) => `${file}: ${use}`),
-        );
+        .flatMap((file) => {
+            const source = readFileSync(path.join(root, file), 'utf8');
+
+            return source.includes(CONSTANT) ? constantUses(source, file).map((use) => `${file}: ${use}`) : [];
+        });
+
+const offenders = (): readonly string[] => offendersIn(repoRoot);
+
+const scratch: string[] = [];
+
+/** A throwaway git repository holding the given files, each staged when its flag is set. */
+function scratchRepo(files: Readonly<Record<string, { readonly text: string; readonly staged: boolean }>>): string {
+    const root = mkdtempSync(path.join(tmpdir(), 'publicConfirmationGuard-'));
+
+    scratch.push(root);
+    execFileSync('git', ['init', '--quiet'], { cwd: root });
+
+    for (const [file, { text, staged }] of Object.entries(files)) {
+        mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+        writeFileSync(path.join(root, file), text);
+
+        if (staged) {
+            execFileSync('git', ['add', '--', file], { cwd: root });
+        }
+    }
+
+    return root;
+}
+
+afterEach(() => {
+    for (const root of scratch.splice(0)) {
+        rmSync(root, { recursive: true, force: true });
+    }
+});
 
 describe('the API writers’ Public confirmation is named only by seeds, tests and load scripts', () => {
     it.each([
@@ -104,6 +147,59 @@ describe('the API writers’ Public confirmation is named only by seeds, tests a
         const defined = 'packages/shared/recipe-core/src/statementWordings.ts';
 
         expect(constantUses(readFileSync(path.join(repoRoot, defined), 'utf8'), defined)).not.toHaveLength(0);
+    });
+
+    describe('scanning a tree', () => {
+        const use = `import { ${CONSTANT} } from '@kitchensink/recipe-core';\n`;
+
+        it('reports a tracked file outside the allowed places that spells the constant', () => {
+            const root = scratchRepo({ 'packages/clients/x/src/client.ts': { text: use, staged: true } });
+
+            expect(offendersIn(root)).toEqual(['packages/clients/x/src/client.ts: line 1']);
+        });
+
+        it('reports a file not yet committed too, so work in progress is guarded', () => {
+            const root = scratchRepo({ 'packages/clients/x/src/new.ts': { text: use, staged: false } });
+
+            expect(offendersIn(root)).toEqual(['packages/clients/x/src/new.ts: line 1']);
+        });
+
+        it('reports nothing for a comment that names the constant, even in a file the name filter reads', () => {
+            const root = scratchRepo({
+                'packages/clients/x/src/doc.ts': { text: `// ${CONSTANT}\nexport const a = 1;\n`, staged: true },
+            });
+
+            expect(offendersIn(root)).toEqual([]);
+        });
+
+        it('reports nothing for an allowed place, a file without the name, or a gitignored file', () => {
+            const root = scratchRepo({
+                'packages/tools/seed/src/seed.ts': { text: use, staged: true },
+                'packages/clients/x/src/plain.ts': { text: 'export const a = 1;\n', staged: true },
+                '.gitignore': { text: 'dist/\n', staged: true },
+                'packages/clients/x/dist/built.js': { text: use, staged: false },
+            });
+
+            expect(offendersIn(root)).toEqual([]);
+        });
+
+        it.each([
+            ['a renamed import', `import { ${CONSTANT} as CONFIRM } from '@kitchensink/recipe-core';\n`],
+            ['a re-export', `export { ${CONSTANT} } from '@kitchensink/recipe-core';\n`],
+            ['a namespace member', `import * as core from 'x';\nexport const c = core.${CONSTANT};\n`],
+        ])('still reports %s: the name filter never hides what the parser flags', (_name, text) => {
+            const root = scratchRepo({ 'packages/clients/x/src/alias.ts': { text, staged: true } });
+
+            expect(offendersIn(root)).toHaveLength(1);
+        });
+
+        it('reads a string spelling in a plain script', () => {
+            const root = scratchRepo({
+                'packages/clients/x/src/key.mjs': { text: `export const c = core['${CONSTANT}'];\n`, staged: true },
+            });
+
+            expect(offendersIn(root)).toEqual(['packages/clients/x/src/key.mjs: line 1']);
+        });
     });
 
     it('is named nowhere else', () => {

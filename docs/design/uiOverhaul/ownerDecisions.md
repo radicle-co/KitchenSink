@@ -26,6 +26,7 @@ folder disagrees, this file wins. The build spec (`buildSpec.md`) follows it.
   Collections tab it reads "New collection". Wide web puts "New recipe" first in the sidebar. With two methods, one
   tap opens the editor, and paste lives in the Ingredients section. After link or photo import ships, the button
   opens a chooser. The chooser leads with one paste box and never shows more than three choices.
+  D30 in `docs/design/pasteImport/spec.md` (owner, 2026-11-17) replaces what the button opens: the chooser's form, its paste-box lead and its three-choice cap. Placement and visibility above still stand.
 - **D5, navigation breakpoint.** The sidebar replaces the tab bar at 840 px and wider.
 - **D6, iPad.** The iPad keeps the bottom tab bar in both orientations (owner directive of 2026-07-18).
 - **D7, web editor draft.** On web, the editor draft (ids and form values only) is kept in `sessionStorage`. It

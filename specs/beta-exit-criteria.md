@@ -27,7 +27,7 @@ All criteria below MUST be satisfied with linkable evidence before the Beta wait
 ### 2.1 Spec & Verification Gates
 
 - [ ] `verify-report.md` shows `0 CRITICAL, 0 WARNING` for all Beta-scope features: `001`, `002`, `003`, `006`, `007`, `008`, `011`.
-- [ ] `004` `spec.md` `SC-002` to `SC-005` are met.
+- [ ] `004` `spec.md`: every device extraction tier that is on passes `SC-002`, each tier's coverage is reported (`SC-003`), and `SC-004` and `SC-005` hold.
 - [ ] `v-model/release-audit-report.md` is unblocked (per [GR-001](./governance-rules.md#gr-001-release-readiness-gate)) for every Beta-scope feature.
 - [ ] All `traceability-matrix.md` rows for Beta-scope features show a mapped Test Case ID and a non-`Untested` executed result.
 - [ ] All cross-cutting governance rules in [`governance-rules.md`](./governance-rules.md) referenced by Beta-scope features are satisfied (notably GR-002 API prefix, GR-005 offline/sync, GR-007 shared types).

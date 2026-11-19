@@ -149,7 +149,7 @@ zero bare `FR-NNN` references remain that fall outside that feature's own define
 
 **Numbering is deliberately NOT 1-based per feature.** This rule requires _locality_ and _qualified
 cross-references_; it does not mandate a starting number. Features carry overlapping ranges by design —
-001 owns FR-001…046, 004 FR-008…028, 005 FR-015…022, 006 FR-022…041, 007 FR-028…033, 008 FR-032…035,
+001 owns FR-001…046, 004 FR-008…068, 005 FR-015…022, 006 FR-022…041, 007 FR-028…033, 008 FR-032…035,
 009 FR-036…039, 010 FR-040…043, while 003, 011, 012, 013, and 014 number from 001. Numeric collision across
 features is therefore expected and accepted (`004` `spec.md` D-017 relies on the mandatory `004-` prefix); the qualifier, not the number, carries the meaning.
 

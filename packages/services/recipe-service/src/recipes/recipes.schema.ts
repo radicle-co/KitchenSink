@@ -271,11 +271,8 @@ export const CURATOR_IMPORT_SCOPE = 'recipes:import:public';
  * service enforces into a state the wire cannot express.
  *
  * ⛔ `imported_physical` and `imported_paid` are DELIBERATELY absent, which NARROWS 004-FR-025 rather than
- * implementing it. Both are private-only classes under C-004, and `evaluateVisibility` admits either to
- * `private` with NO premium check — so admitting them here would hand a free-tier caller exactly the private
- * recipe 004-FR-028 says must be gated on an entitlement, and 004-FR-014a's attestation + citation
- * machinery that is supposed to travel with them does not exist. They join this union when 004 builds that
- * gate, and adding a member is additive.
+ * implementing it. They are not declarable on this route until https://github.com/radicle-co/KitchenSink/issues/374
+ * is settled (004-FR-014a, 004-FR-028). Adding a member is additive.
  *
  * ⛔ It is also NOT on {@link createRecipeRequestBaseSchema}. `updateRecipeRequestSchema` derives from that
  * base through `.omit().partial()`, so a field placed there is inherited by `PATCH /api/v1/recipes/{id}` —

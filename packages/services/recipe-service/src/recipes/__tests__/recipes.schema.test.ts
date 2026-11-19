@@ -681,13 +681,10 @@ describe('createRecipeRequestSchema — the optional `source` declaration', () =
 
     /**
      * `imported_physical` and `imported_paid` are DELIBERATELY not declarable, and their absence is a
-     * narrowing of 004-FR-025 rather than an oversight. Both are private-only classes under C-004, and
-     * `evaluateVisibility` allows either to go private with NO premium check — so admitting them here would
-     * hand a free-tier caller the private recipe 004-FR-028 says must be gated on an entitlement, and
-     * 004-FR-014a's attestation + citation machinery that is supposed to accompany them does not exist yet.
-     * They join the union when 004 builds that gate, not before.
+     * narrowing of 004-FR-025 rather than an oversight. They are not declarable on this route until
+     * https://github.com/radicle-co/KitchenSink/issues/374 is settled (004-FR-014a, 004-FR-028).
      */
-    it.each(['imported_physical', 'imported_paid'])('REFUSES %s — not declarable until 004 builds its gate', (kind) => {
+    it.each(['imported_physical', 'imported_paid'])('REFUSES %s — not a declarable source type', (kind) => {
         expect(createAccepts({ source: { sourceType: kind, sourceAttribution: 'A book' } })).toBe(false);
     });
 

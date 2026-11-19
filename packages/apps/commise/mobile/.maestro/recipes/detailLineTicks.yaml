@@ -1,0 +1,73 @@
+appId: ${APP_ID}
+---
+# An ingredient tick belongs to its recipe LINE (ADR-0096, #155), on a device. The recipe is the signer's
+# `${E2E_RECIPE_TWIN_LINES}` (e2e-seed `reset --mode cooking`): two lines, "1 tbsp Butter" twice, so they share one food
+# and one content digest and differ only by their order.
+#
+#   1. Both lines start unticked.
+#   2. Tapping the FIRST line ticks it, and the second stays unticked. Before ADR-0096 the tick belonged to the food, so
+#      this tap ticked both.
+#   3. Leaving the recipe and opening it again shows the same: one ticked, one unticked.
+#
+# Android reads `checked` from the checkbox node. iOS cannot, so it reads the value phrase `checkbox, checked` /
+# `checkbox, unchecked` (`recipes/detailCooking` says why). The recipe holds no other checkbox, so a phrase that is
+# visible once is the one line.
+- runFlow: ../auth/signin.yaml
+- assertVisible: 'My recipes'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '^${E2E_RECIPE_TWIN_LINES}$'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+- tapOn:
+      text: '^${E2E_RECIPE_TWIN_LINES}$'
+- assertVisible: 'Back to My recipes'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '1 tbsp Butter.*'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+
+# ── 1. BOTH START UNTICKED ──
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: '1 tbsp Butter.*'
+                checked: false
+                index: 1
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'checkbox, unchecked'
+                index: 1
+
+# ── 2. TICK THE FIRST: THE SECOND STAYS UNTICKED ──
+- tapOn:
+      text: '1 tbsp Butter.*'
+      index: 0
+- runFlow: common/assertOneOfTwoTicked.yaml
+
+# ── 3. LEAVE AND REOPEN: THE SAME ──
+- tapOn: 'Back to My recipes'
+- assertVisible: 'My recipes'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '^${E2E_RECIPE_TWIN_LINES}$'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+- tapOn:
+      text: '^${E2E_RECIPE_TWIN_LINES}$'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '1 tbsp Butter.*'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- runFlow: common/assertOneOfTwoTicked.yaml

@@ -53,6 +53,9 @@ not stable across edits. A version does not help either, because a never-publish
   moves lines off a shared unresolved failure onto the bound food with no action from the cook, and that changes
   `ingredientId` (owner ruling, option a).
 - If the server re-keys its lookup rows, every tick drops. This is a known limit of keeping the key off the wire.
+- Two identical lines are told apart only by their order, so two edits move a tick (owner ruling, accepted limits).
+  An edit that makes a line identical to a ticked line above it moves the tick to the edited line. Removing the first
+  of two identical lines moves its tick to the one that remains.
 - Two different lines can collide on the 32-bit digest. The ordinal still keeps their keys apart. The worst case is a
   tick that swaps between them after a reorder. At a few dozen lines, the chance is about 3 in 10 million for each
   recipe.

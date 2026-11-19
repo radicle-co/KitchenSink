@@ -58,7 +58,7 @@ interface CookingStepMessages {
     readonly scaleNoteOpen: string;
 }
 
-/** The ingredients list, held in a sheet over the step. */
+/** The ingredients list, held in a sheet over the step (phones) or a column beside it (tablets and wider). */
 interface CookingIngredientsMessages {
     /** The title the frame draws: one item, or `{count}` items, for `{servings}` servings. */
     readonly title: PluralText;

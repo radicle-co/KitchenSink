@@ -15,6 +15,7 @@ export type CookingIngredientsColumnProps = CookingIngredientsListProps;
 export interface CookingIngredientsSheetProps extends Omit<CookingIngredientsListProps, 'copy'> {
     /** The Clear ticks label, and the accessible name of the sheet's × close. */
     readonly copy: Pick<CookingMessages['ingredients'], 'clear' | 'close'>;
+    /** Whether the sheet is on screen. The screen owns it, and every close route reports through `onClose`. */
     readonly open: boolean;
     /** Every close route calls this: ×, swipe down, the scrim, Escape on web, Back on Android. */
     readonly onClose: () => void;

@@ -158,4 +158,18 @@ describe('CookingIngredientsList (web)', () => {
 
         expect(props.onSetServings).toHaveBeenCalledExactlyOnceWith(111);
     });
+
+    it('draws two lines that share one ingredient id as two checkboxes in order, with no duplicate-key error', () => {
+        const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        mount({ lines: [FLOUR, { ...SUGAR, ingredientId: FLOUR.ingredientId }, BUTTER] });
+
+        expect(screen.getAllByRole('checkbox').map((box) => box.textContent)).toEqual([
+            expect.stringContaining('flour'),
+            expect.stringContaining('sugar'),
+            expect.stringContaining('butter'),
+        ]);
+        expect(error).not.toHaveBeenCalled();
+        error.mockRestore();
+    });
 });

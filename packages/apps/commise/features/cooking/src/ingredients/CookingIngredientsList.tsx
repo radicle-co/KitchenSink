@@ -33,14 +33,15 @@ export const CookingIngredientsList: FC<CookingIngredientsListProps> = ({
             onServingsChange={onSetServings}
         />
         <div>
-            {view.rows.map((row, index) => (
+            {view.rows.map((row, position) => (
                 <IngredientCheckRow
-                    key={row.ingredient.ingredientId}
+                    // The stored position, never `ingredientId`: two lines can share a food (see `IngredientRuns`).
+                    key={position}
                     ingredient={row.ingredient}
                     checked={row.checked}
                     allRemoved={view.allRemoved}
                     onToggle={onToggle}
-                    divided={index > 0}
+                    divided={position > 0}
                 />
             ))}
         </div>

@@ -42,7 +42,7 @@ All criteria below MUST be satisfied with linkable evidence before the Beta wait
 
 - [ ] `verify-report.md` shows `0 CRITICAL, 0 WARNING` for all Beta-scope features: `001`, `002`, `003`, `006`, `007`, `008`, `011`.
 - [ ] `004` `spec.md`: every device extraction tier that is on passes `SC-002`, each tier's coverage is reported (`SC-003`), and `SC-004` and `SC-005` hold, with the server fetch path of `FR-064` and the duplicate lookup of `FR-008` shipped.
-- [ ] The Beta-scope features `001`, `002`, `003`, `004`, `006`, `007`, `008` and `011` meet the [release proof](#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
+- [ ] The Beta-scope features `001`, `002`, `003`, `004`, `006`, `007`, `008` and `011` meet the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - [ ] All cross-cutting governance rules in [`governance-rules.md`](./governance-rules.md) referenced by Beta-scope features are satisfied (notably GR-002 API prefix, GR-005 offline/sync, GR-007 shared types).
 
 ### 2.2 Engineering Readiness
@@ -133,7 +133,7 @@ All criteria below MUST be satisfied with linkable evidence before flipping from
 ### 4.1 Spec & Verification Gates
 
 - [ ] `verify-report.md` shows `0 CRITICAL, 0 WARNING` for all 1.0-scope features added since Beta: `005`, `009`, `010`.
-- [ ] `005`, `009` and `010` meet the [release proof](#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
+- [ ] `005`, `009` and `010` meet the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - [ ] All cross-cutting governance rules referenced by 1.0-scope features are satisfied (notably GR-010 EU AI Act, GR-012 Subscription Gating).
 
 ### 4.2 Beta Exit Criteria Met

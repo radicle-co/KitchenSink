@@ -296,7 +296,7 @@ can always cook from the original steps.
   original wording (a versioned set of keyed hashes of word runs, with words cut by the platform's word segmenter), not
   on the text. Length limits are a ratio of the source's character count. The text is folded first: lower-cased,
   punctuation-stripped, stripped of default-ignorable characters (soft hyphen, zero-width space and similar), and reduced by the UTS #39 skeleton so that look-alike letters compare equal. This feature takes the fingerprint
-  in memory from the saved steps. Spec 003B stores one, because it keeps no source text once its job ends. Both run the one function.
+  in memory from the saved steps. Spec 003B stores one, because its job keeps no source step text once the job ends. Both run the one function.
 - **FR-043**: Flow Steps MUST carry a credit line wherever they are shown:
     - attached, to the owner: "Steps written by Commise from this recipe." (key `recipes.flowSteps.credit.attached`);
     - after a replace on a public recipe the cook wrote: "Steps written by Commise with AI, checked by {cook}."

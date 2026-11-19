@@ -122,7 +122,7 @@ own second pinned prompt behind the same adapter, under its own call site.
 - **Charge.** Operating cost (ADR-0024 §6 item 1). Never a cook's use (010-FR-041d, 005-FR-015a).
 - **Per call.** ADR-0024 §6 estimates a recipe-sized call at about 1,750 tokens in and 900 out: about $0.003 on Nova 2
   Lite. The facts sheet is smaller than a full recipe, so this is an upper estimate. The bake-off measures it.
-- **Per import item.** At most 3 writer attempts, counted across its jobs (one automatic retry, one by hand, C-7): at most about $0.009 for the attempts, and each re-claim adds one more call to it.
+- **Per import item.** At most 3 writer attempts, counted across its jobs (one automatic retry, one by hand, C-7): at most about $0.009 for the attempts, and each re-claim adds one writer call beyond the 3 attempts.
 - **Per cook.** Not bounded by the import allowance (a paste spends its unit only at save, FR-016a). Bounded by one
   public version per source page and 3 attempts per import item. There is no separate cap (owner ruling 2026-11-15), so the
   pool's ceiling is the real bound. There is no per-cook read cap and no new ledger channel (owner ruling 2026-11-19). The AI-use metric of FR-086 (calls and cost per import or job, with `Stage` and the outcome) watches the one known loop, read-then-cancel, which is free and could drain the shared pool. That risk is accepted.

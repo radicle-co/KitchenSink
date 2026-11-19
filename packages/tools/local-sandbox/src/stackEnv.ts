@@ -39,7 +39,7 @@ export const STACK_ENV_KEYS = [
 type Published = Partial<Record<'recipes' | 'identity' | 'food' | 'localstack' | 'postgres', number>>;
 
 /** The parse worker's own `.env.development` values that name a host port. */
-export interface WorkerEnv {
+interface WorkerEnv {
     readonly SQS_ENDPOINT: string;
     readonly RECIPE_PARSE_QUEUE_URL: string;
     readonly DATABASE_URL: string;

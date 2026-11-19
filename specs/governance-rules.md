@@ -753,8 +753,8 @@ _(Superseded in part by Current State (2026-11-15): every facts card statement b
   `004-FR-011` no longer says imports are always public: it classifies by provenance into the four
   `sourceType` values and delegates enforcement to 001's shipped `evaluateVisibility`. `004-FR-013` creates
   physical-copy imports private; `004-FR-014` rejects known paywalled sources before any outbound request;
-  `004-FR-014a` requires attestation plus a source citation for pasted content; `004-FR-028` gates every
-  non-public import channel behind premium. An earlier revision of this sweep flagged the carve-out as
+  `004-FR-014a` requires attestation plus a source citation for pasted content; `004-FR-028` sets the private-slot
+  rule for every non-public import. An earlier revision of this sweep flagged the carve-out as
   missing — it is not.
 
 ---

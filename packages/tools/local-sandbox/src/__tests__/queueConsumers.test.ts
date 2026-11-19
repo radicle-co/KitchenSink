@@ -23,6 +23,8 @@ import {
     consumerEnvironment,
     discoverQueueConsumers,
     LOCAL_QUEUE_CONSUMERS,
+    localstackEndpointOf,
+    s3EndpointOf,
     planQueueConsumers,
     type QueueConsumer,
     type QueueConsumerPlan,
@@ -255,5 +257,19 @@ describe('consumerEnvironment', () => {
         expect(() => consumerEnvironment(runnable(workersTemplate()), { ...context, ssmParameters: {} })).toThrow(
             /RECIPE_DB_NAME/u,
         );
+    });
+});
+
+describe('localstackEndpointOf reads the endpoint from the queue url the plan stored', () => {
+    it('is the origin of the url, so a shifted stack polls its own LocalStack', () => {
+        expect(localstackEndpointOf('http://localhost:4566/000000000000/q')).toBe('http://localhost:4566');
+        expect(localstackEndpointOf('http://localhost:4666/000000000000/q')).toBe('http://localhost:4666');
+    });
+});
+
+describe('s3EndpointOf names the virtual-hosted S3 endpoint on the same LocalStack port', () => {
+    it('uses the port of the stored queue url, not 4566', () => {
+        expect(s3EndpointOf('http://localhost:4666/000000000000/q')).toBe('http://s3.localhost.localstack.cloud:4666');
+        expect(s3EndpointOf('http://localhost:4566/000000000000/q')).toBe('http://s3.localhost.localstack.cloud:4566');
     });
 });

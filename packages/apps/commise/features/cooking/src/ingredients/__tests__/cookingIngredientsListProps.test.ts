@@ -14,7 +14,7 @@ describe('CookingIngredientsListProps', () => {
     it('takes exactly the list variant of the view, so the screen never mounts the list for none', () => {
         expectTypeOf<CookingIngredientsListView>().toEqualTypeOf<Extract<CookingIngredientsView, { kind: 'list' }>>();
         expectTypeOf<CookingIngredientsListProps['view']>().toEqualTypeOf<CookingIngredientsListView>();
-        expectTypeOf<{ kind: 'none' }>().not.toMatchTypeOf<CookingIngredientsListProps['view']>();
+        expectTypeOf<{ kind: 'none' }>().not.toExtend<CookingIngredientsListProps['view']>();
     });
 
     it('takes its three commands from the hook binding unchanged, bar the Undo the list drops', () => {
@@ -23,7 +23,7 @@ describe('CookingIngredientsListProps', () => {
             CookingIngredientsBinding['setServings']
         >();
         // The binding's clearTicks returns its Undo. The list needs only to call it, so a void callback accepts it.
-        expectTypeOf<CookingIngredientsBinding['clearTicks']>().toMatchTypeOf<CookingIngredientsListProps['onClear']>();
+        expectTypeOf<CookingIngredientsBinding['clearTicks']>().toExtend<CookingIngredientsListProps['onClear']>();
     });
 
     it('takes only the Clear ticks label from the copy', () => {

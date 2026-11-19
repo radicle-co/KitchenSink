@@ -32,7 +32,7 @@
 ## Notes
 
 - The spec names house artifacts (027's engine, ADR-0024's pool, the source records) because they are product rules
-  the owner already ruled on. It names the identity table and the gate predicate only where FR-016 rules on them.
+  the owner already ruled on. It names tables and columns only where an owner ruling fixes them (FR-016, FR-016a, FR-044a, FR-086).
 - Each clarification in the spec is ruled where marked, and the rest are assumed defaults for the owner to rule on. None blocks planning.
 - One simple-English lint hit in spec.md is left on purpose. It is a word-group clash between the owner's
   required clarification phrase and the product's term for the content review.

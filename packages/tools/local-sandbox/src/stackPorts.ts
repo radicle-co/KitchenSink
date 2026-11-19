@@ -19,9 +19,6 @@ import { hostPortOverridesFrom, isHostPortEntryError } from './localImages.js';
 /** The environment variable that selects the stack. */
 const PORT_VARIABLE = 'LOCAL_SANDBOX_PORT';
 
-/** The recipe service's default host port: the value of `LOCAL_SANDBOX_PORT` that means "today's stack". */
-const DEFAULT_PORT = 3000;
-
 /** The Docker project of the default stack. A shifted stack is `local-sandbox-<P>`. */
 const DEFAULT_PROJECT = 'local-sandbox';
 
@@ -52,6 +49,9 @@ export function defaultPortOf(service: string): number {
 
     return found[1];
 }
+
+/** The recipe service's default host port: the value of `LOCAL_SANDBOX_PORT` that means "today's stack". */
+const DEFAULT_PORT = defaultPortOf('recipes');
 
 /** The key of the Postgres volume in the Compose file. Compose names the real volume `<project>_<key>`. */
 export const PGDATA_VOLUME_KEY = 'local-sandbox-pgdata';

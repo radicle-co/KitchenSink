@@ -4,14 +4,14 @@
     "packageName": "@commise/features-cooking",
     "layer": "feature",
     "coverage": {
-        "components": 16,
-        "implementations": 30,
-        "props": 115,
-        "documentedComponents": 16,
-        "implementationsWithModuleDoc": 30,
-        "implementationsWithComponentDoc": 30,
-        "documentedProps": 103,
-        "classifiedComponents": 16,
+        "components": 18,
+        "implementations": 32,
+        "props": 120,
+        "documentedComponents": 18,
+        "implementationsWithModuleDoc": 32,
+        "implementationsWithComponentDoc": 32,
+        "documentedProps": 109,
+        "classifiedComponents": 18,
         "componentsWithPatternTag": 8,
         "crossPlatformComponents": 14
     },
@@ -1756,6 +1756,67 @@
             ]
         },
         {
+            "id": "featuresCooking/CookingTwoColumnLayout",
+            "name": "CookingTwoColumnLayout",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingTwoColumnLayout",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingTwoColumnLayout.native.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingTwoColumnLayout — the native two-column layout at L2 and L3: the ingredients column in a 300 wide slot\non the left that scrolls on its own, and the step column in the rest, at most 680 wide and centred in it. The slot is\non the canvas with no divider, and its content is inset 16 on every side inside the scroll, as the house sheet's\nedge is, so the scroll bar stays at the slot edge. It holds no state and reads no band: the screen picks it by\n`layoutBand`.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingTwoColumnLayout — the native two-column layout at L2 and L3: the ingredients column in a 300 wide slot"
+                        }
+                    ],
+                    "description": "The native two-column layout.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The step column: at most `COOKING_COLUMN.maxPx` wide and centred in the space the slot leaves.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingTwoColumnLayoutProps.ts"
+                        },
+                        {
+                            "name": "column",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The ingredients column, drawn in a fixed slot on the left that scrolls on its own.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingTwoColumnLayoutProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresCooking/ingredients/CookingIngredientsColumn",
             "name": "CookingIngredientsColumn",
             "group": "featuresCooking",
@@ -1847,11 +1908,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsColumn.native.tsx",
                     "dir": "packages/apps/commise/features/cooking/src/ingredients",
-                    "moduleDoc": "CookingIngredientsColumn — the cooking ingredients list pinned as a 300 wide column on the left (L2 and L3).\nIt heads the list with the title, which the list does not draw. It has no close and no Done, because it is always\nopen.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingIngredientsColumn — the cooking ingredients list pinned as the column on the left (L2 and L3).\nIt heads the list with the title, which the list does not draw. It has no close and no Done, because it is always\nopen. It sets no width: the two-column layout's slot owns it (`INGREDIENTS_COLUMN`), so the column fills the slot.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "CookingIngredientsColumn — the cooking ingredients list pinned as a 300 wide column on the left (L2 and L3)."
+                            "text": "CookingIngredientsColumn — the cooking ingredients list pinned as the column on the left (L2 and L3)."
                         }
                     ],
                     "description": "The native ingredients column.",
@@ -2157,7 +2218,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "Whether the sheet is on screen. The screen owns it, and every close route reports through `onClose`.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsFrameProps.ts"
                         },
                         {
@@ -2168,6 +2229,76 @@
                             "defaultValue": null,
                             "description": "From `useCookingIngredients().view`, narrowed to the list by the caller.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/ingredients/CookingScaleNote",
+            "name": "CookingScaleNote",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src/ingredients",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingScaleNote",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingScaleNote.native.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src/ingredients",
+                    "moduleDoc": "CookingScaleNote — the native scale note under a step: a muted info glyph and the sentence that says the\nsteps give amounts for another serving count, in the small muted type that marks it as not part of the step. While\nthe screen gives it `onOpen`, one quiet button under it opens the ingredients. It holds no state, and it has no live\nregion because it arrives with the step.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingScaleNote — the native scale note under a step: a muted info glyph and the sentence that says the"
+                        }
+                    ],
+                    "description": "The native scale note.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "note",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The note, already filled with both serving counts (`view.scaleNote`).",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
+                        },
+                        {
+                            "name": "onOpen",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open the ingredients. Absent: the note stands alone, with no button.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
+                        },
+                        {
+                            "name": "openLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The button's visible text and its accessible name (`cooking.step.scaleNoteOpen`).",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
                         }
                     ],
                     "usesRefApi": [],

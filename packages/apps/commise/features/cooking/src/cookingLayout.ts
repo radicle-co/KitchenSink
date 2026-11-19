@@ -7,6 +7,9 @@
 /** The centred column every cooking screen uses at 600 and wider, with its complete web class. */
 export const COOKING_COLUMN = { maxPx: 680, webClassName: 'max-w-[680px]' } as const;
 
+/** The ingredients column at L2 and L3, pinned on the left of the step column, with its complete web class. */
+export const INGREDIENTS_COLUMN = { px: 300, webClassName: 'w-[300px]' } as const;
+
 /** The narrower centred column of the notice screens (load error, no steps, gone), with its complete web class. */
 export const NOTICE_COLUMN = { maxPx: 480, webClassName: 'max-w-[480px]' } as const;
 

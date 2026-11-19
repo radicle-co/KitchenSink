@@ -7,13 +7,13 @@
 import { resolveMessages } from '@commise/i18n';
 import { CookMarksProvider } from '@commise/features-recipes/cook';
 import { render } from '@commise/ui/testing/tamagui';
-import { ABSENT_QUANTITY, statedQuantity, type RecipeIngredientView } from '@kitchensink/recipe-core';
 import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { FC, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { cookingMessages } from '../../messages.js';
+import { makeRecipeIngredientView } from '../../__fixtures__/makeRecipeIngredientView.js';
 import { CookingIngredientsColumn } from '../CookingIngredientsColumn.native.js';
 import { CookingIngredientsSheet } from '../CookingIngredientsSheet.native.js';
 import type { CookingIngredientsListView } from '../cookingIngredientsListProps.js';
@@ -27,21 +27,16 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-const line = (id: string, name: string): RecipeIngredientView => ({
-    ingredientId: id,
-    name,
-    quantity: statedQuantity(1) ?? ABSENT_QUANTITY,
-    unit: 'cup',
-    isUserEntered: false,
-});
-
 const Wrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (
     <CookMarksProvider subject="user_test">{children}</CookMarksProvider>
 );
 
 function viewOf(ticked: readonly number[] = []): CookingIngredientsListView {
     const view = cookingIngredientsView({
-        ingredients: [line('ing_flour', 'flour'), line('ing_sugar', 'sugar')],
+        ingredients: [
+            makeRecipeIngredientView({ ingredientId: 'ing_flour', name: 'flour' }),
+            makeRecipeIngredientView({ ingredientId: 'ing_sugar', name: 'sugar' }),
+        ],
         baseServings: 2,
         servings: 2,
         ticked: new Set(ticked),
@@ -126,6 +121,12 @@ describe('CookingIngredientsColumn (native)', () => {
         expect(screen.getByRole('heading').textContent).toBe(view.title);
         expect(screen.getByRole('heading').getAttribute('aria-level')).toBe('2');
         expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+    });
+
+    it('sets no width of its own, because the layout slot owns the 300', () => {
+        mount();
+
+        expect(getComputedStyle(screen.getByTestId('cooking-ingredients-column')).width).not.toMatch(/px$/u);
     });
 
     it('has no close and no Done, because the column is always open', () => {

@@ -1,6 +1,6 @@
 # Owner feedback register
 
-Owner screen decisions from canvas comments (registry id `homeCombined` in `docs/design/canvases/registry.json`) and design sessions. The owner ruled on 2026-10-23 that every one of them still stands. They bind every design round.
+Owner screen decisions from canvas comments (registry id `homeCombined` in `docs/design/canvases/registry.json`) and design sessions. The owner ruled on 2026-10-23 that every canvas comment ruling still stands; later rows carry their own date. They bind every design round.
 
 Each entry gives the decision, the general rule a designer must take from it, and the user needs behind it (IDs from
 `docs/research/userNeeds/`). A designer who reads the needs well must reach rules like these on their own. The

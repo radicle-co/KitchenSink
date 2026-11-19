@@ -7,7 +7,7 @@
  */
 import { bytesFromFreePercent, parseFreePercent } from '@kitchensink/e2e-plan/hostMemory';
 
-import type { LocalSettings } from './localSettings.js';
+import type { HostPorts } from './stackFacts.js';
 
 /** iOS lanes are capped by the owner's ruling, not by the Mac. */
 export const IOS_MAX_LANES = 5;
@@ -90,15 +90,19 @@ export function parseHostFacts(output: string): MacHostFacts {
     };
 }
 
+/** The service whose host port serves each origin key. */
+const SERVICE_OF: Readonly<Record<(typeof ORIGIN_KEYS)[number], keyof HostPorts>> = {
+    recipeOrigin: 'recipes',
+    identityOrigin: 'identity',
+    foodOrigin: 'food',
+};
+
 /**
  * Reads the origins baked into the app (`testApp.manifest`) and returns the reverse tunnels they need. The Mac side is
- * the port the app was built with; the local side is the host port the local stack states in its settings, so a moved
- * service port reaches the tunnel with no second copy of it here.
+ * the port the app was built with; the local side is the host port the running stack publishes for the same service, so
+ * a second stack reaches the tunnel with no second copy of its ports here.
  */
-export function tunnelsFromManifest(
-    manifest: string,
-    settings: Pick<LocalSettings, (typeof ORIGIN_KEYS)[number]>,
-): readonly Tunnel[] {
+export function tunnelsFromManifest(manifest: string, hostPorts: HostPorts): readonly Tunnel[] {
     const values = new Map<string, string>();
 
     for (const line of manifest.split('\n')) {
@@ -122,13 +126,7 @@ export function tunnelsFromManifest(
             throw new Error(`${key} is ${raw}: a tunnel only serves a localhost origin`);
         }
 
-        const localPort = Number(new URL(settings[key]).port);
-
-        if (!Number.isInteger(localPort) || localPort <= 0) {
-            throw new Error(`the local settings ${key} ${settings[key]} names no host port`);
-        }
-
-        return { origin: key, macPort: Number(url.port), localPort };
+        return { origin: key, macPort: Number(url.port), localPort: hostPorts[SERVICE_OF[key]] };
     });
 }
 

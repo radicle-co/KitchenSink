@@ -192,13 +192,6 @@
       "h": 844,
       "title": "Recipe importing, import failed (mobile, iPhone 390)"
     },
-    "ImportPaidSiteBlockedIphone390.dc.html": {
-      "x": 2350,
-      "y": 260,
-      "w": 390,
-      "h": 844,
-      "title": "Recipe importing, paid site blocked (mobile, iPhone 390)"
-    },
     "ImportBookSavedIphone390.dc.html": {
       "x": 2820,
       "y": 260,
@@ -262,13 +255,6 @@
       "h": 2213,
       "title": "Recipe importing, wizard states (mobile, iPhone 390)"
     },
-    "ImportWizardLeaveIphone390.dc.html": {
-      "x": 7050,
-      "y": 260,
-      "w": 390,
-      "h": 1595,
-      "title": "Recipe importing, wizard leave (mobile, iPhone 390)"
-    },
     "ImportWizardSummaryIphone390.dc.html": {
       "x": 7520,
       "y": 260,
@@ -308,7 +294,7 @@
       "x": 9870,
       "y": 260,
       "w": 390,
-      "h": 1281,
+      "h": 1301,
       "title": "Recipe importing, library results (mobile, iPhone 390)"
     },
     "ImportPasteDuplicateIphone390.dc.html": {
@@ -381,13 +367,6 @@
       "h": 1497,
       "title": "Recipe importing, paste saved (mobile, iPhone 390)"
     },
-    "ImportPasteSlotsFullIphone390.dc.html": {
-      "x": 15040,
-      "y": 260,
-      "w": 390,
-      "h": 1373,
-      "title": "Recipe importing, paste slots full (mobile, iPhone 390)"
-    },
     "ImportPasteTextCardIphone390.dc.html": {
       "x": 15510,
       "y": 260,
@@ -436,13 +415,6 @@
       "w": 384,
       "h": 832,
       "title": "Recipe importing, import failed (mobile, Android 384)"
-    },
-    "ImportPaidSiteBlockedAndroid384.dc.html": {
-      "x": 2320,
-      "y": 4371,
-      "w": 384,
-      "h": 832,
-      "title": "Recipe importing, paid site blocked (mobile, Android 384)"
     },
     "ImportBookSavedAndroid384.dc.html": {
       "x": 2784,
@@ -507,13 +479,6 @@
       "h": 2170,
       "title": "Recipe importing, wizard states (mobile, Android 384)"
     },
-    "ImportWizardLeaveAndroid384.dc.html": {
-      "x": 6960,
-      "y": 4371,
-      "w": 384,
-      "h": 1552,
-      "title": "Recipe importing, wizard leave (mobile, Android 384)"
-    },
     "ImportWizardSummaryAndroid384.dc.html": {
       "x": 7424,
       "y": 4371,
@@ -553,7 +518,7 @@
       "x": 9744,
       "y": 4371,
       "w": 384,
-      "h": 1238,
+      "h": 1258,
       "title": "Recipe importing, library results (mobile, Android 384)"
     },
     "ImportPasteEmptyAndroid384.dc.html": {
@@ -710,13 +675,6 @@
       "h": 1180,
       "title": "Recipe importing, import failed (mobile, iPad 820)"
     },
-    "ImportPaidSiteBlockedIpad820.dc.html": {
-      "x": 900,
-      "y": 11470,
-      "w": 820,
-      "h": 1180,
-      "title": "Recipe importing, paid site blocked (mobile, iPad 820)"
-    },
     "ImportBookSavedIpad820.dc.html": {
       "x": 1800,
       "y": 11470,
@@ -773,13 +731,6 @@
       "h": 1457,
       "title": "Recipe importing, wizard states (mobile, iPad 820)"
     },
-    "ImportWizardLeaveIpad820.dc.html": {
-      "x": 9000,
-      "y": 11470,
-      "w": 820,
-      "h": 1588,
-      "title": "Recipe importing, wizard leave (mobile, iPad 820)"
-    },
     "ImportWizardSummaryIpad820.dc.html": {
       "x": 9900,
       "y": 11470,
@@ -821,6 +772,160 @@
       "w": 820,
       "h": 1265,
       "title": "Recipe importing, library results (mobile, iPad 820)"
+    },
+    "ImportAddRecipeFullSetIphone390.dc.html": {
+      "x": 0,
+      "y": 1184,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, add recipe, full set when spec 004 ships (iPhone 390)"
+    },
+    "ImportAddRecipeBeforeAiIphone390.dc.html": {
+      "x": 0,
+      "y": 2108,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, add recipe, before the spec 004 AI fallback (iPhone 390)"
+    },
+    "ImportPasteReadRefusedIphone390.dc.html": {
+      "x": 0,
+      "y": 55053,
+      "w": 390,
+      "h": 1842,
+      "title": "Recipe importing, paste refused, AI reader (S47 to S49) (mobile, iPhone 390)"
+    },
+    "ImportPasteReadRefusedAndroid384.dc.html": {
+      "x": 470,
+      "y": 55053,
+      "w": 384,
+      "h": 1877,
+      "title": "Recipe importing, paste refused, AI reader (S47 to S49) (mobile, Android 384)"
+    },
+    "ImportPasteReadRefusedIpad834.dc.html": {
+      "x": 934,
+      "y": 55053,
+      "w": 834,
+      "h": 1633,
+      "title": "Recipe importing, paste refused, AI reader (S47 to S49) (mobile, iPad 834)"
+    },
+    "ImportPasteReadRefusedIpad1194.dc.html": {
+      "x": 1848,
+      "y": 55053,
+      "w": 1194,
+      "h": 1633,
+      "title": "Recipe importing, paste refused, AI reader (S47 to S49) (mobile, iPad 1194)"
+    },
+    "ImportPasteDuplicatePublicIphone390.dc.html": {
+      "x": 3122,
+      "y": 55053,
+      "w": 390,
+      "h": 1129,
+      "title": "Recipe importing, paste duplicate, public copy (S50, S51) (mobile, iPhone 390)"
+    },
+    "ImportPasteDuplicatePublicAndroid384.dc.html": {
+      "x": 3592,
+      "y": 55053,
+      "w": 384,
+      "h": 1124,
+      "title": "Recipe importing, paste duplicate, public copy (S50, S51) (mobile, Android 384)"
+    },
+    "ImportPasteDuplicatePublicIpad834.dc.html": {
+      "x": 4056,
+      "y": 55053,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe importing, paste duplicate, public copy (S50, S51) (mobile, iPad 834)"
+    },
+    "ImportPasteDuplicatePublicIpad1194.dc.html": {
+      "x": 4970,
+      "y": 55053,
+      "w": 1194,
+      "h": 940,
+      "title": "Recipe importing, paste duplicate, public copy (S50, S51) (mobile, iPad 1194)"
+    },
+    "ImportLinkPasteInsteadIphone390.dc.html": {
+      "x": 6244,
+      "y": 55053,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe importing, link, paste the page instead (mobile, iPhone 390)"
+    },
+    "ImportLinkPasteInsteadAndroid384.dc.html": {
+      "x": 6714,
+      "y": 55053,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe importing, link, paste the page instead (mobile, Android 384)"
+    },
+    "ImportLinkPasteInsteadIpad834.dc.html": {
+      "x": 7178,
+      "y": 55053,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe importing, link, paste the page instead (mobile, iPad 834)"
+    },
+    "ImportLinkPasteInsteadIpad1194.dc.html": {
+      "x": 8092,
+      "y": 55053,
+      "w": 1194,
+      "h": 834,
+      "title": "Recipe importing, link, paste the page instead (mobile, iPad 1194)"
+    },
+    "ImportLibraryAlreadyInLibraryIphone390.dc.html": {
+      "x": 9366,
+      "y": 55053,
+      "w": 390,
+      "h": 1100,
+      "title": "Recipe importing, library, already in your library (mobile, iPhone 390)"
+    },
+    "ImportLibraryAlreadyInLibraryAndroid384.dc.html": {
+      "x": 9836,
+      "y": 55053,
+      "w": 384,
+      "h": 1095,
+      "title": "Recipe importing, library, already in your library (mobile, Android 384)"
+    },
+    "ImportLibraryAlreadyInLibraryIpad834.dc.html": {
+      "x": 10300,
+      "y": 55053,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe importing, library, already in your library (mobile, iPad 834)"
+    },
+    "ImportLibraryAlreadyInLibraryIpad1194.dc.html": {
+      "x": 11214,
+      "y": 55053,
+      "w": 1194,
+      "h": 1019,
+      "title": "Recipe importing, library, already in your library (mobile, iPad 1194)"
+    },
+    "ImportPasteReviewPhotoIphone390.dc.html": {
+      "x": 12488,
+      "y": 55053,
+      "w": 390,
+      "h": 1287,
+      "title": "Recipe importing, paste review with the source photo (P5, mobile, iPhone 390)"
+    },
+    "ImportPasteReviewPhotoAndroid384.dc.html": {
+      "x": 12958,
+      "y": 55053,
+      "w": 384,
+      "h": 1278,
+      "title": "Recipe importing, paste review with the source photo (P5, mobile, Android 384)"
+    },
+    "ImportPasteReviewPhotoIpad834.dc.html": {
+      "x": 13422,
+      "y": 55053,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe importing, paste review with the source photo (P5, mobile, iPad 834)"
+    },
+    "ImportPasteReviewPhotoIpad1194.dc.html": {
+      "x": 14336,
+      "y": 55053,
+      "w": 1194,
+      "h": 834,
+      "title": "Recipe importing, paste review with the source photo (P5, mobile, iPad 1194)"
     }
   },
   "order": [
@@ -850,7 +955,6 @@
     "ImportReviewDraftIphone390.dc.html",
     "ImportAlreadyImportedIphone390.dc.html",
     "ImportImportFailedIphone390.dc.html",
-    "ImportPaidSiteBlockedIphone390.dc.html",
     "ImportBookSavedIphone390.dc.html",
     "ImportLinkPrivateOnlyIphone390.dc.html",
     "ImportPasteNoAiCheckIphone390.dc.html",
@@ -860,7 +964,6 @@
     "ImportModeChoiceIphone390.dc.html",
     "ImportWizardStepIphone390.dc.html",
     "ImportWizardStatesIphone390.dc.html",
-    "ImportWizardLeaveIphone390.dc.html",
     "ImportWizardSummaryIphone390.dc.html",
     "ImportFlaggedLineIphone390.dc.html",
     "ImportStatementsIphone390.dc.html",
@@ -877,7 +980,6 @@
     "ImportPasteReviewHoldsIphone390.dc.html",
     "ImportPasteReviewIphone390.dc.html",
     "ImportPasteSavedIphone390.dc.html",
-    "ImportPasteSlotsFullIphone390.dc.html",
     "ImportPasteTextCardIphone390.dc.html",
     "ImportPasteWaitingIphone390.dc.html",
     "ImportAddRecipeAndroid384.dc.html",
@@ -885,7 +987,6 @@
     "ImportReviewDraftAndroid384.dc.html",
     "ImportAlreadyImportedAndroid384.dc.html",
     "ImportImportFailedAndroid384.dc.html",
-    "ImportPaidSiteBlockedAndroid384.dc.html",
     "ImportBookSavedAndroid384.dc.html",
     "ImportLinkPrivateOnlyAndroid384.dc.html",
     "ImportPasteNoAiCheckAndroid384.dc.html",
@@ -895,7 +996,6 @@
     "ImportModeChoiceAndroid384.dc.html",
     "ImportWizardStepAndroid384.dc.html",
     "ImportWizardStatesAndroid384.dc.html",
-    "ImportWizardLeaveAndroid384.dc.html",
     "ImportWizardSummaryAndroid384.dc.html",
     "ImportFlaggedLineAndroid384.dc.html",
     "ImportStatementsAndroid384.dc.html",
@@ -924,7 +1024,6 @@
     "ImportPasteReviewHoldsIpad1194.dc.html",
     "ImportPasteReviewIpad1194.dc.html",
     "ImportImportFailedIpad820.dc.html",
-    "ImportPaidSiteBlockedIpad820.dc.html",
     "ImportBookSavedIpad820.dc.html",
     "ImportPasteNoAiCheckIpad820.dc.html",
     "ImportVideoProgressIpad820.dc.html",
@@ -933,13 +1032,34 @@
     "ImportModeChoiceIpad820.dc.html",
     "ImportWizardStepIpad820.dc.html",
     "ImportWizardStatesIpad820.dc.html",
-    "ImportWizardLeaveIpad820.dc.html",
     "ImportWizardSummaryIpad820.dc.html",
     "ImportFlaggedLineIpad820.dc.html",
     "ImportStatementsIpad820.dc.html",
     "ImportLimitReachedIpad820.dc.html",
     "ImportLibraryProgressIpad820.dc.html",
-    "ImportLibraryResultsIpad820.dc.html"
+    "ImportLibraryResultsIpad820.dc.html",
+    "ImportAddRecipeFullSetIphone390.dc.html",
+    "ImportAddRecipeBeforeAiIphone390.dc.html",
+    "ImportPasteReadRefusedIphone390.dc.html",
+    "ImportPasteReadRefusedAndroid384.dc.html",
+    "ImportPasteReadRefusedIpad834.dc.html",
+    "ImportPasteReadRefusedIpad1194.dc.html",
+    "ImportPasteDuplicatePublicIphone390.dc.html",
+    "ImportPasteDuplicatePublicAndroid384.dc.html",
+    "ImportPasteDuplicatePublicIpad834.dc.html",
+    "ImportPasteDuplicatePublicIpad1194.dc.html",
+    "ImportLinkPasteInsteadIphone390.dc.html",
+    "ImportLinkPasteInsteadAndroid384.dc.html",
+    "ImportLinkPasteInsteadIpad834.dc.html",
+    "ImportLinkPasteInsteadIpad1194.dc.html",
+    "ImportLibraryAlreadyInLibraryIphone390.dc.html",
+    "ImportLibraryAlreadyInLibraryAndroid384.dc.html",
+    "ImportLibraryAlreadyInLibraryIpad834.dc.html",
+    "ImportLibraryAlreadyInLibraryIpad1194.dc.html",
+    "ImportPasteReviewPhotoIphone390.dc.html",
+    "ImportPasteReviewPhotoAndroid384.dc.html",
+    "ImportPasteReviewPhotoIpad834.dc.html",
+    "ImportPasteReviewPhotoIpad1194.dc.html"
   ],
   "notes": {
     "rowPublic0": {

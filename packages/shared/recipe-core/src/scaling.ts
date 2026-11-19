@@ -259,6 +259,24 @@ export function scaleQuantity(quantity: IngredientQuantity, scaling: RecipeScali
     return scaling.isScaled ? { kind: 'range', low, high } : quantity;
 }
 
+/**
+ * Re-express ingredient lines for a scaling, quantities only. Pure; the input is never mutated.
+ *
+ * The ONE place the ingredient scaling rule is applied: {@link scaleRecipeForServings} delegates here, and
+ * cooking mode calls it directly, so the recipe page and cooking mode cannot show different amounts.
+ *
+ * @param ingredients - The stored ingredient lines.
+ * @param scaling - The active scaling.
+ * @returns The lines in the same order, each with its scaled quantity and every other field verbatim.
+ * @throws {RecipeScalingError} When a quantity bound is not a finite, positive amount.
+ */
+export function scaleIngredients(
+    ingredients: readonly RecipeIngredientView[],
+    scaling: RecipeScaling,
+): readonly RecipeIngredientView[] {
+    return ingredients.map((line) => ({ ...line, quantity: scaleQuantity(line.quantity, scaling) }));
+}
+
 /** Scale a whole number of minutes, staying whole. Pure. */
 function scaleMinutes(minutes: number, ratio: number): number {
     return Math.round(minutes * ratio);
@@ -283,7 +301,7 @@ export function scaleRecipeForServings(recipe: ScalableRecipe, servings: number)
 
     return {
         scaling,
-        ingredients: recipe.ingredients.map((line) => ({ ...line, quantity: scaleQuantity(line.quantity, scaling) })),
+        ingredients: scaleIngredients(recipe.ingredients, scaling),
         prepTimeMinutes,
         // Deliberately IDENTICAL to the stored value — see this module's header. Do not "finish" this by
         // multiplying it by the ratio.

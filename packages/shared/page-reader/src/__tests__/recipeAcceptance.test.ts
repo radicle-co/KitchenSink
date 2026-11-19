@@ -198,6 +198,47 @@ describe('acceptRecipe: the black-and-white gate, one case per predicate and bot
         });
     });
 
+    // Round 8: a site's schema marks a group heading or a banner as an ingredient ("CRUMBLE", "MARINADE", "SHOP JAMIE'S
+    // SERVEWARE"). A line with no digit whose every cased letter is a capital is that shape, in any cased script.
+    describe('G9: no ingredient line is a heading in capitals', () => {
+        it.each(['CRUMBLE', 'MARINADE', "SHOP JAMIE'S SERVEWARE", 'FÜR DEN TEIG:', 'ΓΙΑ ΤΗ ΣΑΛΤΣΑ'])(
+            'refuses %j',
+            (line) => {
+                expect(acceptRecipe(recipeOf({ ingredientLines: ['1 cup flour', line] }), 'jsonLd')).toEqual({
+                    ok: false,
+                    reason: 'headingInIngredients',
+                });
+            },
+        );
+
+        // Round 9 (code-reviewer MEDIUM 4 on #324): a line in capitals is a heading only when it holds no digit and names
+        // no measure. A heading that ends in a colon is dropped by extraction (R2), before the gate: see
+        // `readPastedContent.test.ts`.
+        // ⚠️ TRADE-OFF, pinned: a one-word ingredient in capitals reads as a heading. With no food lexicon the reader cannot
+        // tell "SALT" from "FROSTING", so the recipe is refused (a false no, which precision first allows).
+        it('refuses a one-word ingredient line in capitals, as it cannot be told from a heading', () => {
+            expect(acceptRecipe(recipeOf({ ingredientLines: ['1 cup flour', 'SALT'] }), 'jsonLd')).toEqual({
+                ok: false,
+                reason: 'headingInIngredients',
+            });
+        });
+
+        it.each([
+            '2 EGGS',
+            'EGGS 2',
+            'PINCH OF SALT',
+            'SALT TO TASTE',
+            '2 cups:',
+            'BBQ sauce',
+            'Salt',
+            'A pinch of salt',
+            '塩 少々',
+            'X',
+        ])('accepts %j', (line) => {
+            expect(acceptRecipe(recipeOf({ ingredientLines: ['1 cup flour', line] }), 'jsonLd')).toEqual({ ok: true });
+        });
+    });
+
     describe('G8: no title, ingredient line or step holds U+FFFD or a C1 control character, or lacks a letter or digit', () => {
         it.each([
             ['the title', { title: 'Pancakes \uFFFD' }],

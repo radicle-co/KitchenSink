@@ -19,6 +19,8 @@ export interface ServiceSpec {
     readonly args: readonly string[];
     /** The queue a consumer drains, which must exist before it starts. */
     readonly queueUrl?: string;
+    /** Variables that win over the run's environment for this service: the parse worker's ports for a second stack. */
+    readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface RunningService {

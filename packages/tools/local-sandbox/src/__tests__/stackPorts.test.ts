@@ -23,7 +23,7 @@ import {
     refusalLine,
     stackFrom,
     stackLine,
-    targetOwner,
+    targetOwners,
     volumeOwnerVerdict,
     type ComposeContainer,
 } from '../stackPorts.js';
@@ -188,12 +188,12 @@ describe('the two ownership predicates read the compose working-dir label', () =
         workingDir: `${dir}/.local-sandbox`,
     });
 
-    it('targetOwner names the checkout that runs the project, and nothing for another project or none', () => {
+    it('targetOwners names the checkouts that run the project, and none for another project or no container', () => {
         const a = checkout('A');
 
-        expect(targetOwner([container('local-sandbox', a)], 'local-sandbox', canon)).toBe(canon(a));
-        expect(targetOwner([container('local-sandbox-3100', a)], 'local-sandbox', canon)).toBeUndefined();
-        expect(targetOwner([], 'local-sandbox', canon)).toBeUndefined();
+        expect(targetOwners([container('local-sandbox', a)], 'local-sandbox', canon)).toEqual([canon(a)]);
+        expect(targetOwners([container('local-sandbox-3100', a)], 'local-sandbox', canon)).toEqual([]);
+        expect(targetOwners([], 'local-sandbox', canon)).toEqual([]);
     });
 
     it('checkoutProject names a project this checkout runs other than the target, and nothing otherwise', () => {
@@ -220,7 +220,7 @@ describe('the two ownership predicates read the compose working-dir label', () =
         const link = path.join(path.dirname(a), 'link');
         symlinkSync(a, link);
 
-        expect(targetOwner([container('local-sandbox', link)], 'local-sandbox', canon)).toBe(canon(a));
+        expect(targetOwners([container('local-sandbox', link)], 'local-sandbox', canon)).toEqual([canon(a)]);
         expect(checkoutProject([container('local-sandbox-3100', link)], a, 'local-sandbox', canon)).toBe(
             'local-sandbox-3100',
         );
@@ -347,6 +347,7 @@ describe('publishedHostPort reads `docker port` output', () => {
 describe('labelRefusal: one R9 line when another checkout, or another project of this one, holds the stack', () => {
     const canon = (value: string): string => value;
     const A = '/work/A';
+    const B = '/work/B';
     const C = '/work/C';
     const at = (project: string, dir: string): ComposeContainer => ({ project, workingDir: `${dir}/.local-sandbox` });
     const base = {
@@ -373,6 +374,28 @@ describe('labelRefusal: one R9 line when another checkout, or another project of
             'local:up refused: project local-sandbox runs from /work/A, not this checkout. ' +
                 'Run local:down there, or pick another LOCAL_SANDBOX_PORT.',
         );
+    });
+
+    it('a project whose containers come from two checkouts refuses from every checkout, in either list order', () => {
+        const line =
+            'local:up refused: project local-sandbox runs from more than one checkout: /work/A, /work/B. ' +
+            'Run `docker compose -p local-sandbox down` by hand once the owners agree.';
+
+        for (const checkout of [A, B, C]) {
+            for (const containers of [
+                [at('local-sandbox', A), at('local-sandbox', B)],
+                [at('local-sandbox', B), at('local-sandbox', A)],
+            ]) {
+                expect(labelRefusal({ ...base, checkout, containers })).toBe(line);
+            }
+        }
+    });
+
+    it('many containers of one checkout are one owner and pass for it', () => {
+        const containers = [at('local-sandbox', C), at('local-sandbox', C), at('local-sandbox', C)];
+
+        expect(labelRefusal({ ...base, containers })).toBeUndefined();
+        expect(labelRefusal({ ...base, checkout: A, containers })).toContain('runs from /work/C, not this checkout');
     });
 
     it('RT2: a stopped container counts, because the caller passes every container (ps -a)', () => {
@@ -448,6 +471,15 @@ describe('volumeRefusal (RT3): the data volume must belong to this checkout', ()
         const refusal = volumeRefusal({ ...base, containers: [at('local-sandbox-3100', C)], record: A });
 
         expect(refusal).toContain('owned by /work/A');
+    });
+
+    it('a mixed project is no volume owner, whichever container is listed first', () => {
+        for (const containers of [
+            [at('local-sandbox', C), at('local-sandbox', A)],
+            [at('local-sandbox', A), at('local-sandbox', C)],
+        ]) {
+            expect(volumeRefusal({ ...base, containers, record: C })).toContain('owned by /work/A, /work/C');
+        }
     });
 
     it('a live label of another checkout beats a record naming this one', () => {

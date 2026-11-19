@@ -104,6 +104,28 @@ describe('runUp refuses before it touches anything', () => {
         expect(calls.some((call) => call === 'materialize' || call.startsWith('record'))).toBe(false);
     });
 
+    it('a mixed project refuses from every checkout and reaches no volume decision, whichever container is first', async () => {
+        for (const containers of [
+            [at('local-sandbox', A), at('local-sandbox', C)],
+            [at('local-sandbox', C), at('local-sandbox', A)],
+        ]) {
+            let volumeReads = 0;
+            const { ports, calls, errors } = harness({
+                containers: () => containers,
+                volumeExists: () => {
+                    volumeReads += 1;
+
+                    return true;
+                },
+            });
+
+            expect(await runUp(ports)).toBe(1);
+            expect(errors[0]).toContain('runs from more than one checkout: /work/A, /work/C');
+            expect(volumeReads).toBe(0);
+            expect(calls.filter((call) => call.startsWith('record') || call === 'materialize')).toEqual([]);
+        }
+    });
+
     it('H2: this checkout runs local-sandbox-3100 and the variable is unset, so it refuses', async () => {
         const { ports, calls, errors } = harness({ containers: () => [at('local-sandbox-3100', C)] });
 

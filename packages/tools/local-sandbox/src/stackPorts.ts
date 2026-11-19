@@ -219,21 +219,25 @@ function checkoutOf(container: ComposeContainer, canon: (value: string) => strin
 }
 
 /**
- * The checkout that runs the target project, if any. The door refuses when it is not this checkout.
+ * Every checkout that runs a container of the target project, sorted and without repeats. The owner is this whole set,
+ * never the first container Docker lists: a project can be mixed (five containers from one checkout and one from
+ * another), and a first-container read would then decide by Docker's list order.
  *
- * @param containers - Every container of the target project, stopped ones included.
+ * @param containers - Every Compose container, stopped ones included.
  * @param project - The target project.
  * @param canon - Resolves a path to its real path (`realpath`), so a symlinked checkout is the same checkout.
- * @returns The checkout, or `undefined` when the project has no container. Pure.
+ * @returns The checkouts, empty when the project has no container. Pure.
  */
-export function targetOwner(
+export function targetOwners(
     containers: readonly ComposeContainer[],
     project: string,
     canon: (value: string) => string,
-): string | undefined {
-    const found = containers.find((container) => container.project === project);
+): readonly string[] {
+    const owners = containers
+        .filter((container) => container.project === project)
+        .map((container) => checkoutOf(container, canon));
 
-    return found === undefined ? undefined : checkoutOf(found, canon);
+    return [...new Set(owners)].sort();
 }
 
 /**
@@ -287,14 +291,14 @@ export function volumeOwnerVerdict(input: VolumeOwnerInput): VolumeOwnerVerdict 
     }
 
     const here = input.canon(input.checkout);
-    const labelled = input.containers[0];
-    const owner = labelled === undefined ? input.record : checkoutOf(labelled, input.canon);
+    const owners = targetOwners(input.containers, input.containers[0]?.project ?? '', input.canon);
+    const named = owners.length === 0 ? (input.record === undefined ? [] : [input.canon(input.record)]) : owners;
 
-    if (owner === undefined) {
+    if (named.length === 0) {
         return { ok: false, owner: undefined };
     }
 
-    return input.canon(owner) === here ? { ok: true } : { ok: false, owner };
+    return named.length === 1 && named[0] === here ? { ok: true } : { ok: false, owner: named.join(', ') };
 }
 
 /**
@@ -341,7 +345,18 @@ export interface LabelRefusalInput {
  */
 export function labelRefusal(input: LabelRefusalInput): string | undefined {
     const { door, project, checkout, containers, canon, fixes } = input;
-    const owner = targetOwner(containers, project, canon);
+    const owners = targetOwners(containers, project, canon);
+
+    if (owners.length > 1) {
+        return refusalLine(
+            door,
+            `project ${project}`,
+            `runs from more than one checkout: ${owners.join(', ')}`,
+            `Run \`docker compose -p ${project} down\` by hand once the owners agree.`,
+        );
+    }
+
+    const [owner] = owners;
 
     if (owner !== undefined && owner !== canon(checkout)) {
         return refusalLine(door, `project ${project}`, `runs from ${owner}, not this checkout`, fixes.foreign);

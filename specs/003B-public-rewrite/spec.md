@@ -425,9 +425,8 @@ later from its own menu. (C-6)
   item's draft MUST clear only through `claimSave`, on Publish or keepPrivate, or go with the import when an explicit
   discard deletes it. Nothing else clears it: the worker never writes it, and the expiry and the sweep never touch it, so after a
   sweep the draft is still there and the item's stage is unchanged. Otherwise it is the cook's unfinished import
-  and is removed by ADR-0072's 30-day purge. The job's text never lives longer than 73 h 15 min: 3 x (20 min + 24 h)
-    - 15 min, which is 3 attempts, each at most 20 minutes of work and 24 hours of rest, and one 15-minute sweep tick. Only
-      the source record of FR-080 stays.
+  and is removed by ADR-0072's 30-day purge. The job's text never lives longer than 73 h 15 min, which is 3 attempts, each at most 20 minutes of work and 24 hours of rest, and one 15-minute sweep tick: 3 x (20 min + 24 h), plus 15 min.
+  Only the source record of FR-080 stays.
 - **FR-034**: A source page MUST have at most one Commise-written public version at a time (ADR-0093 §2). The page is
   its normalised source address (`sourceLinkKey`, `004`). A retry or a second device of the same cook MUST return the
   same version. A later cook who chooses "For everyone" or "Both" while one holds the page is shown it (`publicExists.published`,
@@ -495,7 +494,7 @@ later from its own menu. (C-6)
     has been deleted, so it is not listed. "Your imports" is the "To review" list in My recipes (paste design S39). Each row shows one
     secondary status line, in two states only: `yourImports.publicWriting` ("Writing the public version") for `pending` and `writing`, and `yourImports.publicReady` ("Public version ready to read") for `ready`. The line wraps to 2
     lines without truncating, and web and mobile are the same. A swept or expired import is an ordinary unfinished import. It is never labelled "expired", and its item draft is still
-    there (FR-033). A new job counts the item's attempts, not its own (FR-031).
+    there (FR-033). A new job counts the item's attempts, not its own (FR-031). Start, and the choice page's private Save, cancel the item's live job in the same transaction, and attempts carry over to the new job.
 
 - **FR-045**: On the Both path the private copy can change between the writing and "Publish". Publish MUST then be
   refused with `409 privateCopyChanged` and "Write it again" (`flag.rewrite`). That retry rebuilds the job's facts

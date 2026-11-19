@@ -92,7 +92,7 @@ same paid-site rules.
 - `409 { code: 'publicExists', recipeId: string | null }`: another version of this source page is already public (FR-034). The key is released by FR-034a.
 - `409 { code: 'offerChanged', offer }`: the offer the server computes now differs from the `shownOffer` the client sent
   (see "The shown offer"). `offer` is the current offer. Client copy: `offerChanged.line`. Publish answers the same way.
-- `409 { code: 'itemNotReady' }` when the item is not matched yet or holds no statement, which Start refuses as the item's own save does. It is retryable and nothing is written. The client shows `itemNotReady.line`.
+- Start refuses an item with no statement with the import save's existing needs refusal. `409 itemNotReady` is Publish's and keepPrivate's answer for an item that is not matched yet (below).
 - Start cancels the item's live job in the same transaction (the job it replaces), and attempts carry over to the new job. On the Both path Start skips its private save when the item's `saved_at` is set.
 - Start spends no unit for the writer job (C-24). On the Both path its first step is the private save, which charges the
   paste's unit (FR-016a), so Start can answer `429 IMPORT_QUOTA_EXCEEDED` there and then starts no job. On the public-only path
@@ -181,7 +181,7 @@ An item that is not matched yet answers `409 { code: 'itemNotReady' }`, retryabl
 - One transaction, in the lock order of the data model: the import header, the item (`SELECT ... FOR UPDATE`), the allowance, the DD33 lock, the job. Then the unit charge below, `claimSave` of the item's draft as a private recipe with FR-021's wording (which records the recipe id and `saved_at` on the item and clears the draft), and the job moved to `cancelled` from `pending`, `writing`, `ready`, `checkRefused`, `failed` or `budgetSpent`, with `source_steps`, `facts_snapshot` and `output` set to NULL. A `budgetSpent` job answers `201`, ends `cancelled` and spends one unit.
 - The unit charge (FR-016a): `SELECT ... FOR UPDATE` on the item by `(import_id, ordinal)`. Zero rows throws `ImportItemNotFound`, never "already paid". Then, when `allowance_spent_at IS NULL`, the transaction sets it and calls `ImportAllowanceDal.admit(tx, userId, { ...scopeOf(item.channel), units: 1 })`. If admit refuses, everything rolls
   back and the route answers `429 IMPORT_QUOTA_EXCEEDED`. When `allowance_spent_at` is already set, nothing is charged. A replay never charges twice.
-- With no free slot it answers `403 { code: 'PRIVATE_SLOTS_FULL', used, limit }` and changes nothing, so the unit is not charged either. The client then offers the discard (`review.discard`), and nothing else.
+- With no free slot it answers `403 { code: 'PRIVATE_SLOTS_FULL', used, limit }` and changes nothing, so the unit is not charged either. The client swaps in place to the no-slot set (Publish and `review.discard`, FR-044) and moves focus to the alert.
 - A Publish racing it ends one way: the loser answers its own conflict and writes nothing. The paste routes retry once on `40P01` (a deadlock with the bulk save).
 
 ## Recipe writes

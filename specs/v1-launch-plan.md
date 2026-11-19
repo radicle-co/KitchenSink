@@ -94,12 +94,12 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
     - Burn down `verify-report.md`: 5 critical / 2 warning → 0 / 0.
     - Close 337 untested + 178 missing trace refs.
 - **`003`**: Burn down 1 critical / 2 warning → 0 / 0. Close 131 untested + 107 missing trace refs.
-- **`004`**: Burn down 1 critical / 2 warning → 0 / 0. Close 93 untested + 43 missing trace refs.
+- **`004`**: `spec.md`: every device extraction tier that is on passes `SC-002`, each tier's coverage is reported (`SC-003`), and `SC-004` and `SC-005` hold.
 - V-Model regen + test execution for all three.
 
 **Exit**:
 
-- `001`, `003`, `004` `verify-report.md` all show `0 CRITICAL, 0 WARNING`.
+- `001` and `003` `verify-report.md` show `0 CRITICAL, 0 WARNING`. `004` `spec.md`: every device extraction tier that is on passes `SC-002`, each tier's coverage is reported (`SC-003`), and `SC-004` and `SC-005` hold.
 - All three release-audit reports unblocked.
 - Demonstrable end-to-end against real data: create a recipe, attach an ingredient pulled from USDA, import a recipe from a URL.
 - `shared/recipe-core` type library exists and is consumed by every downstream feature spec that references recipe entities.

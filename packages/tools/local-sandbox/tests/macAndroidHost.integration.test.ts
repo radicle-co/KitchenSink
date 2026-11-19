@@ -26,7 +26,10 @@ describe('MacAndroidHost lane environment and the session', () => {
         expect(env['ANDROID_SERIAL']).toBe('emulator-5556');
         expect(env['MAESTRO_ANDROID_APK']).toBe(APK_PATH);
         expect(env['MAESTRO_SKIP_INSTALL']).toBe('1');
+        // The three host-port variables are the Mac side of each tunnel, each equal to its own tunnel port.
         expect(env['MAESTRO_LOCAL_RECIPE_HOST_PORT']).toBe('14000');
+        expect(env['MAESTRO_LOCAL_IDENTITY_HOST_PORT']).toBe('3001');
+        expect(env['MAESTRO_LOCAL_FOOD_HOST_PORT']).toBe('3002');
         expect(env['KS_MAC_ANDROID_HOME']).toBe('/Users/x/ksAndroid/sdk');
         expect(env['KS_MAC_ANDROID_ENV']).toBe('/Users/x/ksAndroid/env.sh');
         expect(env['PATH']?.startsWith('/s/shims:')).toBe(true);

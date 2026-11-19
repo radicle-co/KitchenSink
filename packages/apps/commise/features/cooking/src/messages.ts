@@ -58,13 +58,11 @@ interface CookingStepMessages {
     readonly scaleNoteOpen: string;
 }
 
-/** The ingredients list, held in a sheet over the step. */
+/** The ingredients list, held in a sheet over the step (phones) or a column beside it (tablets and wider). */
 interface CookingIngredientsMessages {
-    /** The list's heading: one item, or `{count}` items, for `{servings}` servings. */
+    /** The title the frame draws: one item, or `{count}` items, for `{servings}` servings. */
     readonly title: PluralText;
-    /** The sheet's visible close. Its accessible name is {@link CookingIngredientsMessages.close}. */
-    readonly done: string;
-    /** The accessible name of the sheet's close. */
+    /** The accessible name of the sheet's × close. */
     readonly close: string;
     /** Clears every tick on the list. Not drawn while nothing is ticked. */
     readonly clear: string;
@@ -195,7 +193,6 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
                 one: 'Ingredients for {servings} \u00b7 1 item',
                 other: 'Ingredients for {servings} \u00b7 {count} items',
             },
-            done: 'Done',
             close: 'Close ingredients',
             clear: 'Clear ticks',
             cleared: 'Ticks cleared',

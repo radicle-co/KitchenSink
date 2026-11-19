@@ -19,6 +19,8 @@ import { CONSUMER_PLAN_RELATIVE } from '../src/queueConsumers.js';
 import { generateStandInKeys, type StandInKeys } from '../src/remoteSearchStandIn.js';
 import { readSeedBundleModule } from '../src/seedBundleModule.js';
 import { inferSynthEnv } from '../src/synthEnv.js';
+import { DockerReadError } from '../src/dockerReadError.js';
+import { composeContainersFrom, publishedHostPort, type ComposeContainer } from '../src/stackPorts.js';
 import type { SynthRequest, SynthResult } from '../src/synthesize.js';
 
 /** Repo root, resolved from this file rather than the caller's cwd. */
@@ -484,19 +486,25 @@ export interface LocalSeedOutcome {
  * @param bundleDir - The asset root, `<outDir>/asset.<hash>/`.
  * @param module - The module the function's handler names, relative to the bundle.
  * @param database - The database to seed.
+ * @param postgresPort - The host port the stack's Postgres publishes.
  * @returns What the seed did.
  * @throws {Error} for a module that does not export the core, or whatever the seed or its verifier throws; the seed's
  *   transaction is rolled back and nothing is recorded.
  * @sideEffect Imports the bundle; connects to the local database; writes the catalog and the ledger.
  */
-export async function seedLocalCatalog(bundleDir: string, module: string, database: string): Promise<LocalSeedOutcome> {
+export async function seedLocalCatalog(
+    bundleDir: string,
+    module: string,
+    database: string,
+    postgresPort: number,
+): Promise<LocalSeedOutcome> {
     const modulePath = path.join(bundleDir, module);
     const seed = readSeedBundleModule(modulePath, await import(pathToFileURL(modulePath).href));
     const target = {
         bundleDir,
         connection: {
             host: 'localhost',
-            port: LOCAL_DB.hostPort,
+            port: postgresPort,
             user: LOCAL_DB.user,
             password: LOCAL_DB.password,
             database,
@@ -523,15 +531,16 @@ export async function seedLocalCatalog(bundleDir: string, module: string, databa
  * Count the live catalog roots in one local database.
  *
  * @param database - The database.
+ * @param postgresContainer - The stack's Postgres container name.
  * @returns The count, or 0 when the query fails (a missing table reads as an empty catalog).
  * @sideEffect Runs `psql` in the local postgres container.
  */
-export function countLiveFoods(database: string): number {
+export function countLiveFoods(database: string, postgresContainer: string): number {
     const result = spawnSync(
         'docker',
         [
             'exec',
-            'local-sandbox-postgres',
+            postgresContainer,
             'psql',
             '-U',
             LOCAL_DB.user,
@@ -613,4 +622,108 @@ export function prepareRemoteSearchStandIn(
     writeFileSync(path.join(dir, 'publicKey.pem'), keys.publicKeyPem);
 
     return { ok: true, keys };
+}
+
+/**
+ * Runs one read-only host command and returns its stdout. A command that cannot start or exits non-zero is a
+ * {@link DockerReadError}: the answer to a failed read is a refusal, never "nothing is there".
+ *
+ * @param label - The command as the refusal line names it, for example `docker ps -a`.
+ * @param program - The program to run.
+ * @param args - Its arguments.
+ * @returns Its stdout.
+ * @sideEffect Spawns a process.
+ */
+function readHost(label: string, program: string, args: readonly string[]): string {
+    const result = spawnSync(program, [...args], { encoding: 'utf8' });
+
+    if (result.error !== undefined || result.status !== 0) {
+        const said = (result.stderr ?? '').trim();
+
+        throw new DockerReadError(
+            label,
+            said === '' ? (result.error?.message ?? `exit ${String(result.status)}`) : said,
+        );
+    }
+
+    return result.stdout ?? '';
+}
+
+/**
+ * Every Compose container on the host, stopped ones included, with its project and working directory labels.
+ *
+ * @returns The containers.
+ * @throws DockerReadError when Docker does not answer.
+ * @sideEffect Runs `docker ps -a`.
+ */
+export function dockerContainers(): readonly ComposeContainer[] {
+    return composeContainersFrom(
+        readHost('docker ps -a', 'docker', [
+            'ps',
+            '-a',
+            '--format',
+            '{{.Label "com.docker.compose.project"}}\t{{.Label "com.docker.compose.project.working_dir"}}',
+        ]),
+    );
+}
+
+/**
+ * Whether a named volume exists. `docker volume ls` answers an absent volume with success and no line, so an absent
+ * volume and a failed read are different answers.
+ *
+ * @param volume - The volume name.
+ * @returns `true` when it exists.
+ * @throws DockerReadError when Docker does not answer.
+ * @sideEffect Runs `docker volume ls`.
+ */
+export function dockerVolumeExists(volume: string): boolean {
+    const names = readHost('docker volume ls', 'docker', ['volume', 'ls', '-q', '--filter', `name=^${volume}$`]);
+
+    return names.split('\n').some((line) => line.trim() === volume);
+}
+
+/**
+ * The host port a container publishes for one container port.
+ *
+ * @param container - The container name.
+ * @param containerPort - The port inside the container, for example 5432.
+ * @returns The host port, or `undefined` when the container publishes none.
+ * @throws DockerReadError when Docker does not answer, including for a container that does not exist.
+ * @sideEffect Runs `docker port`.
+ */
+export function dockerPublishedPort(container: string, containerPort: number): number | undefined {
+    return publishedHostPort(readHost('docker port', 'docker', ['port', container, String(containerPort)]));
+}
+
+/**
+ * The host ports a Compose project's running containers publish.
+ *
+ * @param project - The Compose project.
+ * @returns One entry per published mapping.
+ * @throws DockerReadError when Docker does not answer.
+ * @sideEffect Runs `docker ps`.
+ */
+export function dockerPublishedBy(project: string): readonly number[] {
+    const ports = readHost('docker ps', 'docker', [
+        'ps',
+        '--filter',
+        `label=com.docker.compose.project=${project}`,
+        '--format',
+        '{{.Ports}}',
+    ]);
+
+    return [...ports.matchAll(/:(\d+)->/gu)].flatMap((match) => (match[1] === undefined ? [] : [Number(match[1])]));
+}
+
+/**
+ * Every host port something listens on.
+ *
+ * @returns The ports.
+ * @throws DockerReadError when `ss` does not answer.
+ * @sideEffect Runs `ss -lnt`.
+ */
+export function listeningPorts(): readonly number[] {
+    return [...readHost('ss -lnt', 'ss', ['-lntH']).matchAll(/:(\d+)\s/gu)].flatMap((match) =>
+        match[1] === undefined ? [] : [Number(match[1])],
+    );
 }

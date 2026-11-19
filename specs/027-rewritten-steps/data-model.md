@@ -54,7 +54,7 @@ pending ──digest changed during call──▶ ready        (version reads st
 ## Use charge
 
 005's ledger (unbuilt) with a unique key on `(source='rewrittenSteps', job_id)`. A hold is written when the job is
-created (under the per-user lock), settled to a charge in the `ready` transaction, and released on any other terminal
+created (under the per-user lock), settled to a charge in the `ready` transaction, and released on any other final
 state (research R8).
 
 ## Write ordering
@@ -70,4 +70,4 @@ deletion.
 
 ## Not stored
 
-The facts sheet, the prompt and the model's raw answer. (Spec 003B differs on purpose: its job keeps a facts snapshot and the source step text (`source_steps`) until a terminal state, because Publish re-checks the first and a retry resends the second. See 003B data-model.) Logs carry outcome and refusal category only (FR-066).
+The facts sheet, the prompt and the model's raw answer. (Spec 003B differs on purpose: its job keeps a facts snapshot and the source step text (`source_steps`) until a final state, because Publish re-checks the first and a retry resends the second. See 003B data-model.) Logs carry outcome and refusal category only (FR-066).

@@ -328,18 +328,25 @@ later from its own menu. (C-6)
   and the cook can still take the normal private exit from review (the path's not-now key (`review.notNow` on the public path, `review.notNowBoth` on the Both path), FR-044). Nothing is saved
   automatically. Spec 016's stronger age assurance replaces this later. (C-17)
 - **FR-016a**: A paste spends its one import unit only when it ends in a saved recipe: a private copy, a published
-  public version, or both for one unit (ADR-0072 §8). The unit is charged inside the save transaction and is guarded by
-  `recipe_import_items.allowance_spent_at`. After the DD33 lock the save runs
-  `UPDATE recipe_import_items SET allowance_spent_at = now() WHERE id = $item AND allowance_spent_at IS NULL RETURNING id`.
-  When a row comes back, the same transaction calls `ImportAllowanceDal.admit(tx, userId, { ...pasteScope, units: 1 })`.
+  public version, or both for one unit (ADR-0072 §8, which becomes bulk-only for the first-send charge, T004). The unit is charged inside the save transaction and is guarded by
+  `recipe_import_items.allowance_spent_at`. The import item has no id of its own: its key is `(import_id, ordinal)`, and
+  the charge targets the item by those two columns. After the locks of the lock order below the save runs
+  `SELECT ... FOR UPDATE` on the item. Zero rows throws `ImportItemNotFound` (never "already paid"). Then, when
+  `allowance_spent_at IS NULL`, it sets `allowance_spent_at = now()` and the same transaction calls
+  `ImportAllowanceDal.admit(tx, userId, { ...scopeOf(item.channel), units: 1 })`.
   If admit refuses, the transaction rolls back, nothing is saved, and the route answers the allowance refusal
-  (the house `429 IMPORT_QUOTA_EXCEEDED`, with `resetsAt`; UI state `allowanceRefused.line`). `pasteScope` is the scope
-  `ParseJobsService.create` builds today for a paste: the channel `paste`, the caller's plan and the principal kind. When no row comes back, the unit is already
-  spent and nothing is charged. Cancel, expiry and the sweep spend nothing. A replay never charges twice. Every save that ends a paste in a recipe runs this same charge in its own save transaction: keepPrivate, Publish, the
+  (the house `429 IMPORT_QUOTA_EXCEEDED`, with `resetsAt`; UI state `allowanceRefused.line`). The scope comes from the
+  item's `channel` (`paste` or `bulk`, data-model), with the caller's plan and the principal kind, and never from a fixed
+  paste scope. When `allowance_spent_at` is already set, the unit is already
+  spent and nothing is charged. Cancel, expiry and the sweep spend nothing. A replay never charges twice. Every save that ends a paste in a recipe runs this same charge in its own save transaction: keepPrivate, Publish on the public-only path, the
   "Just for me" and "Save my copy" save of the one import pipeline, and the private save that starts the Both path (inside
-  Start). On the Both path the private save charges and Publish then charges nothing. Making a public version spends no unit of its own, in the
+  Start). On the Both path the private save charges and Publish then charges nothing. Publish charges only after the
+  server fact check and the wording check have passed, so a `422` or a `503` rolls the transaction back before any charge. Making a public version spends no unit of its own, in the
   same import or on the later "Share a public version" route (C-24). The site-wide AI ceiling still applies (FR-082). A
-  private copy uses a slot, with or without a public version (ADR-0093 §8). This replaces 004-FR-061's interim rule (the
+  private copy uses a slot, with or without a public version (ADR-0093 §8). The lock order of every paste and job
+  transaction is: the import header, the item, the allowance, the DD33 recipe-limit lock, then the job. That keeps
+  ADR-0073's allowance-before-DD33 order and extends import advance's header-before-allowance order. The sweep locks only jobs, with `SKIP LOCKED`. The bulk save locks DD33 and then its header, so a deadlock cycle with a paste transaction is
+  possible: the paste routes retry once on `40P01`, and the bulk save is to lock its header before its recipe write (T314). This replaces 004-FR-061's interim rule (the
   unit is spent when extraction succeeds); the 004 text change is owed (T214).
 - **FR-016b**: Identity owns the age claim. `POST /api/v1/me/age-assurance` records one `age_assurances` row (spec 016's
   table, built now) and then sets the `ageFloorMet` claim on the cook's session. The route is idempotent. See
@@ -412,11 +419,15 @@ later from its own menu. (C-6)
     source's notes, tips or description. (C-8)
 
 - **FR-033**: On the "For everyone" path the pasted step text MUST be kept in two places only: the job's
-  `source_steps`, so a retry sends the writer the same text, and the import item's draft. The job's text
+  `source_steps`, so a retry sends the writer the same text, and the import item's draft, which is
+  `recipe_import_items.payload`. The job's text
   (`facts_snapshot`, `source_steps` and `output`) MUST be cleared in one UPDATE at every final state and on cancel. The
-  item's draft step text MUST clear only on Publish, keepPrivate or cancel. Otherwise it is the cook's unfinished import
-  and is removed by ADR-0072's 30-day purge. The job's text lives about a day after the cook's last action. Only
-  the source record of FR-080 stays.
+  item's draft MUST clear only through `claimSave`, on Publish or keepPrivate, or go with the import when an explicit
+  discard deletes it. Nothing else clears it: the worker never writes it, and the expiry and the sweep never touch it, so after a
+  sweep the draft is still there and the item's stage is unchanged. Otherwise it is the cook's unfinished import
+  and is removed by ADR-0072's 30-day purge. The job's text never lives longer than 73 h 15 min: 3 x (20 min + 24 h)
+    - 15 min, which is 3 attempts, each at most 20 minutes of work and 24 hours of rest, and one 15-minute sweep tick. Only
+      the source record of FR-080 stays.
 - **FR-034**: A source page MUST have at most one Commise-written public version at a time (ADR-0093 §2). The page is
   its normalised source address (`sourceLinkKey`, `004`). A retry or a second device of the same cook MUST return the
   same version. A later cook who chooses "For everyone" or "Both" while one holds the page is shown it (`publicExists.published`,
@@ -460,26 +471,31 @@ later from its own menu. (C-6)
   `importMessages.leave.saved` shows. Back from the review returns to the choice page with no message. The exits that keep the cook's recipe are
   "Not now" (`review.notNow`), `button.private` on the failed and budget screens, and the private exits of the failed and
   blocked-final screens at 3 attempts. All of them call keepPrivate, which saves the private copy and charges the unit
-  (FR-016a). With no free slot it answers `403 PRIVATE_SLOTS_FULL` and changes nothing, and the UI then offers the discard
-  (`review.discard`), which calls cancel; the reused `cancel` shows in place of "Keep it just for me" and also calls
-  cancel. Stop on the public-only path is an explicit discard: it uses the same action and wording as `review.discard`
-  ("Discard this import"), calls cancel and asks no confirmation. Cancel is an explicit discard only: it saves nothing and
+  (FR-016a). The screen offers that exit only when a private slot is free now. With no free slot the screen never offers it and shows the no-slot set instead:
+  Publish (`review.publish`, primary) and `review.discard` ("Discard this import", ghost), with `full.line` and `full.free` as an
+  inline alert above the actions. A failed screen shows `wizard.retry` and `review.discard`, and the budget screen shows `review.discard` only. The
+  `403 PRIVATE_SLOTS_FULL` answer can happen only in a race, when the last slot fills after the screen rendered: the screen then swaps to the
+  no-slot set in place and moves focus to the alert. Stop on the public-only path is an explicit discard: it uses the same action and wording as `review.discard`
+  ("Discard this import"), calls cancel, asks no confirmation, and cancel deletes the import (the contract). Cancel saves nothing and
   spends nothing. On the Both path the private copy is already saved, and Stop, "Not now" (`review.notNowBoth`) and
-  `failed.done` call cancel. When the allowance refuses the unit at save (FR-016a), the screen shows
-  `allowanceRefused.line` and nothing is saved.
-- **FR-044a**: Reopening an import from Your imports MUST route by the state of the import's latest job:
-    - `pending` or `writing`: the waiting screen.
-    - `ready`: the review.
+  `failed.done` call cancel: the job ends and the copy stays. On the later route, where the copy is already a saved recipe, the exits are, for each screen: P7 Stop (`writing.stop`),
+  where Back acts as Stop (cancel); P8 and the blocked screens `review.notNowBoth`; failed and the Final variants `failed.done`. Each calls cancel and returns to the recipe (P6) with focus on the menu button.
+  Their bodies are `blocked.bodyBoth`, `failed.bodyBoth`, `checkUnavailable.bodyBoth` and `writing.bothSaved`. When the allowance refuses the unit at save (FR-016a), the screen shows
+  `allowanceRefused.line` and nothing is saved. After the discard the cook lands on My recipes, which announces `discard.done` ("Import discarded.") as a polite status, on both platforms.
+- **FR-044a**: Reopening an import from Your imports MUST route by the import's saved state and then by the state of its latest job:
+    - `pending` or `writing`: the waiting screen, with the public-only key set (Back leaves again and shows `importMessages.leave.saved` again).
+    - `ready`: the review. The private exit shows only when a private slot is free now, and otherwise the no-slot set of FR-044.
     - `checkRefused` or `failed`: that screen, with the actions its attempts allow (FR-031).
     - `budgetSpent`: the budget screen.
-    - `cancelled` by the 24-hour expiry or the sweep, or no job: the choice again, from a fresh offer. "For everyone"
-      starts a new job. "Just for me" uses the paste's ordinary Save recipe, which charges the unit.
+    - `cancelled` by the 24-hour expiry or the sweep, or no job: the choice again, from a fresh offer, rendered by whatever kind of offer
+      comes back. "For everyone" starts a new job. "Just for me" uses the paste's ordinary Save recipe, which charges the unit.
     - `published`, or the item records a recipe id: opens that recipe, and the import is no longer listed.
 
-    Checks run in this order: first the recipe id, then a discard (`discarded_at`, data-model), then the latest job's state.
-    "Your imports" is the "To review" list in My recipes (paste design S39). A swept or expired import is an ordinary unfinished import. It is never labelled "expired", and its item draft is still
-    there (FR-033). An import ended by an explicit discard (cancel) has no draft left, records `discarded_at` and is not listed. A new job counts
-    the item's attempts, not its own (FR-031).
+    Checks run in this order: first the item's `saved_at`, then the latest job's state. An import that an explicit discard ended
+    has been deleted, so it is not listed. "Your imports" is the "To review" list in My recipes (paste design S39). Each row shows one
+    secondary status line, in two states only: `yourImports.publicWriting` ("Writing the public version") for `pending` and `writing`, and `yourImports.publicReady` ("Public version ready to read") for `ready`. The line wraps to 2
+    lines without truncating, and web and mobile are the same. A swept or expired import is an ordinary unfinished import. It is never labelled "expired", and its item draft is still
+    there (FR-033). A new job counts the item's attempts, not its own (FR-031).
 
 - **FR-045**: On the Both path the private copy can change between the writing and "Publish". Publish MUST then be
   refused with `409 privateCopyChanged` and "Write it again" (`flag.rewrite`). That retry rebuilds the job's facts
@@ -602,7 +618,7 @@ later from its own menu. (C-6)
   (`writing` to `writing`, no attempt spent, `state_changed_at` unchanged, `claimed_at` updated). The claim is one
   conditional UPDATE: state `pending`, or state `writing` with `claimed_at` older than the visibility timeout, and only a
   claim from `pending` adds an attempt. A job in `pending` or `writing` for more than 10 minutes ends `failed`, which
-  rests while fewer than 3 attempts are used (FR-031). (C-25)
+  rests while fewer than 3 attempts are used (FR-031). An expiry of a `pending` job that no worker ever claimed counts as an attempt, so a retry loop with the queue down ends at 3. (C-25)
 - **FR-083**: Writer calls are bounded by the site-wide spend ceiling (FR-082), one public version per source page
   (FR-034) and at most 3 attempts per import item (C-7). A paste spends its import unit only at save (FR-016a), never for a writer call. There is no
   separate daily cap (C-15).
@@ -612,7 +628,12 @@ later from its own menu. (C-6)
   arrives later is dropped. A call already started is still paid from the pool. The cook never pays (FR-081). On the
   Both path the private copy stays and Stop calls cancel. On the public-only path Stop is an explicit discard (FR-044): it
   uses the action and wording of `review.discard`, calls cancel, asks nothing, saves nothing and spends nothing, and the
-  import leaves Your imports. Back there calls no route, and the job carries on (FR-044).
+  import is deleted and leaves Your imports. Back there calls no route, and the job carries on (FR-044). On the later route Stop calls cancel and returns to the recipe (FR-044).
+- **FR-086**: The feature MUST measure its AI use. For every import or job, the writer's calls and their cost are published as a metric that carries
+  `Stage` (ADR-0062, DD29) and the dimension `outcome`, one of `savedPrivate`, `published`, `both` or `notSaved`. It is emitted where the outcome becomes
+  known: the save transaction (keepPrivate, Publish, the Both path's private save in Start), cancel, the expiry and the sweep. There is no per-cook cap on
+  reads and no new ledger channel for the writer (owner ruling 2026-11-19). The accepted risk is read-then-cancel: reading a public version and
+  then cancelling is free, so one cook could drain the shared AI pool. The site-wide ceiling (FR-082) bounds the spend, and this metric is how the loop is watched. (T315, T316)
 
 #### K. Release
 
@@ -631,7 +652,7 @@ later from its own menu. (C-6)
   `choice { credit }`, `privateOnly { reason }` or `publicExists { status }`, never `publicOnly` or `deadEnd`. It is
   rendered as the import choice does (FR-020 to FR-024, FR-034), but the choice is Public only: the copy is already
   saved. Start on the later route sends `{ shownOffer: { kind: 'choice', credit } }` and no `choice` field. The job
-  has `private_recipe_id` set and `import_item_id` NULL, builds its facts snapshot from the private copy, and sets
+  has `private_recipe_id` set and no import item (the item pair NULL), builds its facts snapshot from the private copy, and sets
   `private_digest`. If the offer changes before Start, the `409 offerChanged` of Start covers it (FR-035). See
   `contracts/publicVersion.api.md`.
 
@@ -640,34 +661,34 @@ later from its own menu. (C-6)
 Keys are under `importMessages.choice.*` unless marked **reuse**. Every state exists on web and mobile. Copy is the
 owner-approved v3 draft over v2 (staff-ux-engineer). `staff-ux-engineer` SPECIFY owns layout and final copy.
 
-| State                                                                                                | Keys                                                                                                                                                                                                                                                                                                                                                                       |
-| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Public version already exists                                                                        | `publicExists.published` with `publicExists.link`, `publicExists.writing`, `publicExists.inReview`. A Free cook with no free slot sees the line and the link, with no "Save my copy" and no dead end (C-28)                                                                                                                                                                |
-| Public version hidden                                                                                | Owner: `publicPage.hiddenOwner`. Reader: `publicPage.hiddenReader`                                                                                                                                                                                                                                                                                                         |
-| Choice                                                                                               | `title`, `explain`, `private.label`, `private.hint` (ICU), `private.hintPro`. And `public.label`, `public.hint`, `both.label`, `both.hint` (ICU), `both.hintPro`. And `creditNote`, `creditLink`, `creditPreview.label`, `pickOne`, `button.private`, `button.public`, `button.both`, `button.none`                                                                        |
-| Nothing chosen                                                                                       | `button.none` ("Continue", never disabled): shows `pickOne` and moves focus to the choice group                                                                                                                                                                                                                                                                            |
-| Writing (loading)                                                                                    | `writing.title`, `writing.body`, `writing.bothSaved`, `writing.stop` (Both path; the public-only path shows `review.discard`), `importMessages.leave.saved` (Back on the public-only path), `writing.announce`                                                                                                                                                             |
-| Review                                                                                               | `review.title`, `review.body`, `review.titleLabel`, `review.titleNote`, `review.stepsHeading`, `review.compare`, `review.compareHide`, `review.oursHeading`, `review.yourCopyHeading`, `review.photoNote`, `credit.written`, `credit.basedOn` (free site only), `review.licence`, `review.publish`, `review.edit`, `review.notNow`, `review.notNowBoth` (Both path)        |
-| Flags after an edit                                                                                  | `flag.title` (ICU), `flag.step`, `flag.allergen`, `flag.added`, `flag.fix`, `flag.rewrite`                                                                                                                                                                                                                                                                                 |
-| Wording refused                                                                                      | `blocked.body` (public path) or `blocked.bodyBoth` (Both path), actions `flag.rewrite` ("Write it again"), the path's not-now key. At 3 attempts: `blocked.bodyFinal` (`blocked.bodyFinalBoth` on the Both path) and the not-now key only, with no `flag.rewrite`                                                                                                          |
-| Check unavailable (Publish)                                                                          | `checkUnavailable.body` (`checkUnavailable.bodyBoth` on the Both path), Publish enabled to try again, and the path's not-now key. The job stays ready.                                                                                                                                                                                                                     |
-| Check unavailable (later edit)                                                                       | The editor's ordinary retryable save error, with no new key. The edit stays in the device draft. "Keep it just for me" stays available.                                                                                                                                                                                                                                    |
-| Writer failed                                                                                        | `failed.title`, `failed.body`, `failed.bodyBoth`, `failed.done`, **reuse** `wizard.retry` (hidden at 3 attempts, when `failed.titleFinal`, `failed.bodyFinal` and `review.notNow` show on the public path, and `failed.titleFinal`, `failed.bodyFinalBoth` and `failed.done` on the Both path)                                                                             |
-| Budget spent                                                                                         | `budget.line`, and `failed.done` on the Both path                                                                                                                                                                                                                                                                                                                          |
-| Discard, and allowance refused at save (new)                                                         | `review.discard` (the discard action, public-only path, also the wording of Stop there), `allowanceRefused.line` (the state when the allowance refuses the unit at save). Strings are in `research.md` R8                                                                                                                                                                  |
-| The offer changed                                                                                    | `offerChanged.line`, then the area re-renders from the new offer with nothing selected                                                                                                                                                                                                                                                                                     |
-| Private only, by reason                                                                              | One line per reason: `privateOnly.paidRecent` (with `{date}`), `privateOnly.noSteps`, `privateOnly.noSource`, `privateOnly.language`, `privateOnly.languageUnsure`, `budget.line`; `privateOnly.line` for `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, and for `paidRecent` with no date. On Free the slot line `private.hint` follows. No "later" promise |
-| Offline                                                                                              | **reuse** `review.offline` (choosing), `writing.offline` (writing)                                                                                                                                                                                                                                                                                                         |
-| No slot, public possible                                                                             | `full.line`, `full.free`, `public.hint`, button `button.public`, then the Pro panel without "Not now"                                                                                                                                                                                                                                                                      |
-| Own recipe or open source                                                                            | **reuse** the editor's visibility keys                                                                                                                                                                                                                                                                                                                                     |
-| Dead end                                                                                             | `deadEnd.title`, `deadEnd.body` (one string, with `{limit}`), `deadEnd.free`                                                                                                                                                                                                                                                                                               |
-| Pro panel                                                                                            | `pro.name`, `pro.trialBadge`, `pro.price`, `pro.saving`, `pro.perk.private`, `pro.perk.pantry`, `pro.perk.ai`, `pro.trial`, `pro.renews`, `pro.upgrade`, `pro.compare`, `notNowLabel`, `notNow.note`, `pro.welcome`, `deadEnd.closed`                                                                                                                                      |
-| Dead end, no paid plan                                                                               | `deadEnd.close`, `deadEnd.closeNote`                                                                                                                                                                                                                                                                                                                                       |
-| Success                                                                                              | `done.private`, `done.public`, `done.both`, **reuse** `saved`, `savedPublic`                                                                                                                                                                                                                                                                                               |
-| Links between the two recipes                                                                        | `done.linkPublic`, `done.linkPrivate`                                                                                                                                                                                                                                                                                                                                      |
-| Later route                                                                                          | `later.action` ("Share a public version"), shown by FR-092; the offer decides the next screen. While the offer loads, a spinner replaces the glyph. If the offer fetch fails: `later.failed` with `failed.done`                                                                                                                                                            |
-| Age question (after `403 ageConfirmNeeded` at Publish; a second `403` shows **reuse** `failed.body`) | `ageConfirm.title`, `ageConfirm.body`, `ageConfirm.yes`, `ageConfirm.notNow`, recorded as `ageConfirm.v1`                                                                                                                                                                                                                                                                  |
-| Public page                                                                                          | `credit.written`, `credit.basedOn` (free site), `review.licence`, `publicPage.report`                                                                                                                                                                                                                                                                                      |
+| State                                                                                                | Keys                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public version already exists                                                                        | `publicExists.published` with `publicExists.link`, `publicExists.writing`, `publicExists.inReview`. A Free cook with no free slot sees the line and the link, with no "Save my copy" and no dead end (C-28)                                                                                                                                                                                                     |
+| Public version hidden                                                                                | Owner: `publicPage.hiddenOwner`. Reader: `publicPage.hiddenReader`                                                                                                                                                                                                                                                                                                                                              |
+| Choice                                                                                               | `title`, `explain`, `private.label`, `private.hint` (ICU), `private.hintPro`. And `public.label`, `public.hint`, `both.label`, `both.hint` (ICU), `both.hintPro`. And `creditNote`, `creditLink`, `creditPreview.label`, `pickOne`, `button.private`, `button.public`, `button.both`, `button.none`                                                                                                             |
+| Nothing chosen                                                                                       | `button.none` ("Continue", never disabled): shows `pickOne` and moves focus to the choice group                                                                                                                                                                                                                                                                                                                 |
+| Writing (loading)                                                                                    | `writing.title`, `writing.body` (Both path and the later route), `writing.bodyPublic` (public-only path), `writing.bothSaved`, `writing.stop` (Both path and the later route; the public-only path shows `review.discard`), `importMessages.leave.saved` (Back on the public-only path, also after a reopen), `writing.announce`                                                                                |
+| Review                                                                                               | `review.title`, `review.body`, `review.titleLabel`, `review.titleNote`, `review.stepsHeading`, `review.compare`, `review.compareHide`, `review.oursHeading`, `review.yourCopyHeading`, `review.photoNote`, `credit.written`, `credit.basedOn` (free site only), `review.licence`, `review.publish`, `review.edit`, `review.notNow`, `review.notNowBoth` (Both path)                                             |
+| Flags after an edit                                                                                  | `flag.title` (ICU), `flag.step`, `flag.allergen`, `flag.added`, `flag.fix`, `flag.rewrite`                                                                                                                                                                                                                                                                                                                      |
+| Wording refused                                                                                      | `blocked.body` (public path) or `blocked.bodyBoth` (Both path), actions `flag.rewrite` ("Write it again"), the path's not-now key. At 3 attempts: `blocked.bodyFinal` (`blocked.bodyFinalBoth` on the Both path) and the not-now key only, with no `flag.rewrite`                                                                                                                                               |
+| Check unavailable (Publish)                                                                          | `checkUnavailable.body` (`checkUnavailable.bodyBoth` on the Both path), Publish enabled to try again, and the path's not-now key. The job stays ready.                                                                                                                                                                                                                                                          |
+| Check unavailable (later edit)                                                                       | The editor's ordinary retryable save error, with no new key. The edit stays in the device draft. "Keep it just for me" stays available.                                                                                                                                                                                                                                                                         |
+| Writer failed                                                                                        | `failed.title`, `failed.body`, `failed.bodyBoth`, `failed.done`, **reuse** `wizard.retry` (hidden at 3 attempts, when `failed.titleFinal`, `failed.bodyFinal` and `review.notNow` show on the public path, and `failed.titleFinal`, `failed.bodyFinalBoth` and `failed.done` on the Both path)                                                                                                                  |
+| Budget spent                                                                                         | `budget.line`, and `failed.done` on the Both path                                                                                                                                                                                                                                                                                                                                                               |
+| Discard, and allowance refused at save (new)                                                         | `review.discard` (the discard action, public-only path, also the wording of Stop there), \1, `discard.done` (a polite status on My recipes after a discard, both platforms), `itemNotReady.line` (`409 itemNotReady`: copy pending designer review), `yourImports.publicWriting` and `yourImports.publicReady` (the two secondary status lines of a row in To review, FR-044a). Strings are in `research.md` R8 |
+| The offer changed                                                                                    | `offerChanged.line`, then the area re-renders from the new offer with nothing selected                                                                                                                                                                                                                                                                                                                          |
+| Private only, by reason                                                                              | One line per reason: `privateOnly.paidRecent` (with `{date}`), `privateOnly.noSteps`, `privateOnly.noSource`, `privateOnly.language`, `privateOnly.languageUnsure`, `budget.line`; `privateOnly.line` for `paidSignature`, `publisherOptOut`, `aiOptOut`, `switchOff`, and for `paidRecent` with no date. On Free the slot line `private.hint` follows. No "later" promise                                      |
+| Offline                                                                                              | **reuse** `review.offline` (choosing), `writing.offline` (writing; its "we stopped" is false on the public-only path, where the job carries on, so that path shows `writing.offlinePublic`, a placeholder, copy pending designer review)                                                                                                                                                                        |
+| No slot, public possible                                                                             | `full.line`, `full.free`, `public.hint`, button `button.public`, then the Pro panel without "Not now". After the writing, the review shows the no-slot set of FR-044 (Publish primary, `review.discard` ghost)                                                                                                                                                                                                  |
+| Own recipe or open source                                                                            | **reuse** the editor's visibility keys                                                                                                                                                                                                                                                                                                                                                                          |
+| Dead end                                                                                             | `deadEnd.title`, `deadEnd.body` (one string, with `{limit}`), `deadEnd.free`                                                                                                                                                                                                                                                                                                                                    |
+| Pro panel                                                                                            | `pro.name`, `pro.trialBadge`, `pro.price`, `pro.saving`, `pro.perk.private`, `pro.perk.pantry`, `pro.perk.ai`, `pro.trial`, `pro.renews`, `pro.upgrade`, `pro.compare`, `notNowLabel`, `notNow.note`, `pro.welcome`, `deadEnd.closed`                                                                                                                                                                           |
+| Dead end, no paid plan                                                                               | `deadEnd.close`, `deadEnd.closeNote`                                                                                                                                                                                                                                                                                                                                                                            |
+| Success                                                                                              | `done.private`, `done.public`, `done.both`, **reuse** `saved`, `savedPublic`                                                                                                                                                                                                                                                                                                                                    |
+| Links between the two recipes                                                                        | `done.linkPublic`, `done.linkPrivate`                                                                                                                                                                                                                                                                                                                                                                           |
+| Later route                                                                                          | `later.action` ("Share a public version"), shown by FR-092; the offer decides the next screen. While the offer loads, a spinner replaces the glyph. If the offer fetch fails: `later.failed` with `failed.done`                                                                                                                                                                                                 |
+| Age question (after `403 ageConfirmNeeded` at Publish; a second `403` shows **reuse** `failed.body`) | `ageConfirm.title`, `ageConfirm.body`, `ageConfirm.yes`, `ageConfirm.notNow`, recorded as `ageConfirm.v1`                                                                                                                                                                                                                                                                                                       |
+| Public page                                                                                          | `credit.written`, `credit.basedOn` (free site), `review.licence`, `publicPage.report`                                                                                                                                                                                                                                                                                                                           |
 
 The strings are in `research.md` R8, the single source of the copy. The `budget.allowance` variant of the draft is not used: the writer
 is never charged to a cook's uses (FR-081).
@@ -706,6 +727,8 @@ is never charged to a cook's uses (FR-081).
 - The terms of service text for the credit, the licence and "Not affiliated." is settled before the switch opens. The
   strings can change. The keys stay.
 
+Known, accepted risk: reading a public version and cancelling costs the cook nothing, so one cook could drain the shared AI pool by repeating it. FR-086's metric watches it, and the site-wide ceiling (FR-082) bounds it.
+
 ## Out of Scope
 
 - Consensus recipes built from many sources (later).
@@ -715,6 +738,7 @@ is never charged to a cook's uses (FR-081).
 - Per-publisher or per-site caps (owner ruling 2026-11-15).
 - Special handling for hosts of unauthorised copies (owner ruling 2026-11-15).
 - A cook's own AI uses or own keys for this writer.
+- A per-cook cap on reads of the writer, and a new allowance-ledger channel for it (owner ruling 2026-11-19). FR-086 measures the use instead.
 - Translating the public version.
 - Rewards and sale of a public version (FR-065).
 
@@ -728,7 +752,7 @@ Still open:
 2. **`020-FR-075` to `FR-080`, Q-4**: 003B replaces the per-step suggestion for imports (FR-014), answers Q-4 for the
    public version (label FR-061, credit FR-060, never "Adapted by you"), settles FR-078's spend for this call (FR-081),
    and gives FR-080's "adapted by Commise" its behaviour. Q-6 now has code behind it once 003B ships.
-3. **ADR-0024 §3**: a third ceiling-denial exception (this call site, terminal). Owed.
+3. **ADR-0024 §3**: a third ceiling-denial exception (this call site, final). Owed.
 4. **`016-FR-009`**: "no publication surface for a user under 16". Interim exception (FR-016, C-17): until 016's age
    assurance ships, a cook who confirms "I'm 16 or over" at Publish can publish. It ends when 016's age assurance
    ships and the `under16` offer reason returns. Task T150 removes it.
@@ -736,7 +760,7 @@ Still open:
 ## Amendments
 
 [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)
-carries the amendments to 004, 016, 020, 021 and the paste design spec, except the two named under "Still owed" above (§4 writer input, §5 paid-list signal), which the feature ADR (T004) carries. 003B does not duplicate the rest.
+carries the amendments to 004, 016, 020, 021 and the paste design spec, except the two named under "Still owed" below (§4 writer input, §5 paid-list signal), which the feature ADR (T004) carries. 003B does not duplicate the rest.
 
 Done: `010` US6 scenario 2 and `010-FR-042c` are amended for the dead-end screen only (FR-074, 2026-11-17).
 
@@ -751,6 +775,9 @@ Still owed:
 - ADR-0093 §5 and `016-FR-080` and `004-FR-014` say a domain on the paid list makes a site paid. This feature changes that: a paid-list
   domain alone is not a clear signal (FR-012, FR-012b), so no hold and no private-copy limit apply to it. The feature ADR
   records the amendment, owed (T004).
+- ADR-0072 §2 and §8: the paste-and-link import ADR amends them (T004). In §2's paste bullet, the client's "refuse when unpaid and delete" would
+  refuse every paste, so it becomes a read-only room check at paste start, and the save-time `429` is the refusal. §8's first-send charge becomes bulk-only.
+  ADR-0072 gets an Amended-by line, and the DD32 entry of the deliberate-decisions register is updated in the same task.
 - ADR-0024 §3 (a third no-retry path) and the label, licence, provenance and stored-credit (`recipes.public_credit`)
   one-way doors (FR-060, FR-061, FR-062, data-model), in the feature ADR, owed (T004).
 
@@ -808,7 +835,7 @@ Still owed:
   spends its one unit only when it ends in a saved recipe, a private copy or a published public version, with one unit
   when both are saved (FR-016a). Read-then-cancel, abandon, expiry and the sweep spend nothing. keepPrivate and Publish
   charge inside their save transaction, once per import item.
-- **C-25. How long may a writer job run?** Assumed: 10 minutes in `pending` or `writing`, counted from when it last entered that state, then it ends `failed`. Owner to confirm.
+- **C-25. How long may a writer job run?** Assumed: 10 minutes in `pending` or `writing`, counted from when it last entered that state, then it ends `failed`. A job that no worker ever claimed counts that expiry as an attempt (FR-082). Owner to confirm.
 - **C-26. Key custody for the wording fingerprint?** Assumed: a secret in AWS Secrets Manager under this feature's
   custody, with rotation that keeps old versions readable. A save with an old key version re-checks with that key.
   A key is never deleted, so a missing one is an operator fault: the save answers a retryable `checkUnavailable` and
@@ -825,5 +852,5 @@ Still owed:
 - **C-29. One key, two strings?** Decided: two keys, so each copy cell holds one string. `review.notNow` is "Keep it
   just for me" (public path) and `review.notNowBoth` is "Don’t publish" (Both path). The designer mirrors the split in
   the boards.
-- **C-30. The `public.hint` line "We don’t keep your pasted copy".** Open: it is true only once the import ends, because an
-  unfinished import keeps its draft until ADR-0072's 30-day purge (FR-033). The designer rewords or drops it before T109.
+- **C-30. The `public.hint` line.** Ruled 2026-11-19: it now ends "Once it’s published, we don’t keep your pasted steps.", which is true, because
+  Publish clears the draft and an unfinished import keeps it until ADR-0072's 30-day purge (FR-033). The line shows in the For everyone row on the choice page and in the public-only card. The Both hint is unchanged (research R8).

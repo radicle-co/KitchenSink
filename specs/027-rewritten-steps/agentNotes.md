@@ -11,7 +11,7 @@ Rules that are easy to get wrong. Read before working on this feature.
   recipe as multisets. Durations must survive or Cooking Mode timers break. No LLM judge.
 - **No Anthropic model (owner ruling 2026-11-17), no own keys.** Bedrock non-Anthropic only, under the one verification role, new
   `SPEND_CALL_SITES` member `step-rewrite-cook`. Never a second Bedrock grantee.
-- **Ceiling denial is terminal.** `gatedConverse` redelivers a denial by default. This step must end `budgetSpent`, refund in full, take no use and ack the message.
+- **Ceiling denial is final.** `gatedConverse` redelivers a denial by default. This step must end `budgetSpent`, refund in full, take no use and ack the message.
 - **Cache-aside on the saved-content digest** (steps, ingredient lines, language). Never the device draft (DD26).
   Validity ignores engine version. Single flight is the partial unique index on pending jobs, not a header.
 - **Nothing regenerates without the cook.** A stale version shows as out of date. No background or on-open update.

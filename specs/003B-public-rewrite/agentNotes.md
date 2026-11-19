@@ -25,7 +25,7 @@ Rules that are easy to get wrong. Read before working on this feature.
   in the append-only source record. The source text is never kept for it. The job holds the source step text in `source_steps` only until it ends, so a retry sends the same text (FR-033).
 - **Publish is one transaction**: server fact check, wording check, recipe insert under the unique
   source page key. Monitoring counts public versions per source from the source records. The 020 hold still applies.
-- **Spend is operating cost** under call site `import-public-rewrite`. A ceiling denial is terminal and never
+- **Spend is operating cost** under call site `import-public-rewrite`. A ceiling denial is final and never
   redelivered. The cook's AI uses are never charged.
 - **The dead end opens Pro's checkout** (amends 010-FR-042c for this screen only). Both billing periods stay visible,
   neither chosen. "Not now" is the same size as "Upgrade to Pro".
@@ -35,3 +35,6 @@ Rules that are easy to get wrong. Read before working on this feature.
   not write them again from 003B.
 - **Credits disclose AI**: "Steps written by Commise with AI, checked by {cook}." Free sites add the domain line. Paid
   sites name no domain. Publishing needs age 16 or over.
+- **The item's draft is `recipe_import_items.payload`.** Only `claimSave` (Publish, keepPrivate) clears it. The worker, the expiry and the sweep never touch it. An explicit discard on the public-only path deletes the import (`ImportService.delete`), and there is no discard column. A job's text lives at most 73 h 15 min.
+- **Lock order** for every paste and job transaction: import header, item, allowance, DD33, job. The sweep locks only jobs. The paste routes retry once on `40P01`. The item's key is `(import_id, ordinal)`, and the charge scope comes from `item.channel`.
+- **No per-cook read cap and no new ledger channel for the writer.** FR-086's metric watches the read-then-cancel loop, which is a known, accepted risk.

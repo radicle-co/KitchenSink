@@ -64,7 +64,7 @@ checkWording`. Each stage its own module and subpath export under `recipe-core/s
   No path can pass the address, the statement or the source title.
 - **Adapter on a Template Method**: `createGatedStepWriter(deps, modelId, callSite)` in recipe-workers over
   `gatedConverse`. `gatedConverse` itself is not refactored. Its default "ceiling denial throws and redelivers" is
-  overridden for this step to a terminal `budgetSpent` (010-FR-041d). That override is the contract to test.
+  overridden for this step to a final `budgetSpent` (010-FR-041d). That override is the contract to test.
 - **Outcome union + exhaustive switch = Visitor**: `StepRewriteOutcome = ok | factCheckFailed | tooSimilar |
 budgetSpent | failed`. No visitor machinery.
 - **Strategy at the consumer edge, not in the engine**: 027 composes the engine with call site `step-rewrite-cook`,
@@ -123,7 +123,7 @@ wording limits arrive as the `wording` argument of `rewriteSteps`: `{ source: Fi
    bake-off among non-Anthropic models, default candidate Nova 2 Lite (R4). 5. Digest covers steps, ingredient lines and
    language. Validity ignores engine version (R5). 6. One row per recipe (R6). 7. Eligibility needs `firstPublishedAt`,
    so a replace always records a version (R7). 8. Use charged only on `ready`, keyed on job id, through 005's ledger
-   (R8). 9. Terminal `budgetSpent`, never redelivered (R9). 10. Offline copy rides 019's recipe cache (R10).
+   (R8). 9. Final `budgetSpent`, never redelivered (R9). 10. Offline copy rides 019's recipe cache (R10).
 
 ## Project Structure
 
@@ -177,7 +177,7 @@ packages/apps/commise/features/cooking/                # Original / Flow Steps s
 | Unit (core)                 | Sheet extraction (amounts, temperatures, times, ingredient names); prompt arity and SHA pin; answer parser refusals; fact check both directions with mutants (drop one amount, add one, change a duration, drop an ingredient name, merge/split steps); shingle measure. |
 | Unit (service)              | Eligibility reasons, digest stability (whitespace, order), state union mapping, apply digest/version refusal.                                                                                                                                                            |
 | Integration (mocked)        | Request hit/miss, concurrent request returns one job, use charged once on ready, none on refusal, 404 for others.                                                                                                                                                        |
-| Worker                      | `budgetSpent` terminal and not redelivered; unreadable counter retried; 10-min expiry → failed; recipe deleted mid-job → discarded, no charge.                                                                                                                           |
+| Worker                      | `budgetSpent` final and not redelivered; unreadable counter retried; 10-min expiry → failed; recipe deleted mid-job → discarded, no charge.                                                                                                                              |
 | LOCAL e2e                   | Migration applied; partial unique index rejects a second pending; cascade on recipe delete; erasure.                                                                                                                                                                     |
 | Service e2e (deployed) + k6 | Request/status/apply round trip; k6 on status reads (hit path).                                                                                                                                                                                                          |
 | Component (both)            | Every state in spec FR-061, including `busy`; banned-word guard over `recipes.flowSteps.*`.                                                                                                                                                                              |

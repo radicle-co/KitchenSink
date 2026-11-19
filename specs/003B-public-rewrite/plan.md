@@ -102,14 +102,14 @@ own second pinned prompt behind the same adapter, under its own call site.
   source from the source records.
 - **Guard in the write transaction**: the wording check runs inside the `RecipesService` write for any recipe that is
   a public version. It covers `update` and version restore (ADR-0058), not just one controller.
-- **Adapter on a Template Method**: 027's `createGatedStepWriter` over `gatedConverse`, with the terminal `budgetSpent`
+- **Adapter on a Template Method**: 027's `createGatedStepWriter` over `gatedConverse`, with the final `budgetSpent`
   override 004-FR-059 already uses.
 
 **Preserved (do not refactor away):**
 
 - `evaluateVisibility` and `provenancePolicy`. The classification is an input to them, not a replacement.
 - The ADR-0074 hold. A public version NOT APPROVED becomes private and takes a slot, over the limit where need be (ADR-0073).
-- The ADR-0073 per-user lock and live count.
+- The ADR-0073 per-user lock and live count, and the lock order of every paste and job transaction: the import header, the item, the allowance, the DD33 lock, then the job (FR-016a). The paste routes retry once on `40P01`.
 - `gatedConverse`, unrefactored.
 
 **Intent already satisfied (add nothing):** TanStack mutation as Command. The outcome union as Visitor. The unique
@@ -125,8 +125,8 @@ own second pinned prompt behind the same adapter, under its own call site.
 - **Per import item.** At most 3 writer attempts, counted across its jobs (one automatic retry, one by hand, C-7): at most about $0.009.
 - **Per cook.** Not bounded by the import allowance (a paste spends its unit only at save, FR-016a). Bounded by one
   public version per source page and 3 attempts per import item. There is no separate cap (owner ruling 2026-11-15), so the
-  pool's ceiling is the real bound.
-- **Denial.** Terminal `budgetSpent`, refund in full, ack the message, never redeliver (FR-082). The screen reads the
+  pool's ceiling is the real bound. There is no per-cook read cap and no new ledger channel (owner ruling 2026-11-19). The AI-use metric of FR-086 (calls and cost per import or job, with `Stage` and the outcome) watches the one known loop, read-then-cancel, which is free and could drain the shared pool. That risk is accepted.
+- **Denial.** Final `budgetSpent`, refund in full, ack the message, never redeliver (FR-082). The screen reads the
   counter as a hint only. The reservation is the gate.
 - **ADR-0024 §3** gains a third no-retry path, in the feature ADR. §6's split of operating AI from paid credits is
   still owed before Pro with AI goes on sale, and this call site sits on the operating side.
@@ -184,16 +184,16 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart (imp
 
 ## Testing (tiers owed, test-first)
 
-| Tier                 | What                                                                                                                                                                                                                                                                 |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit (core)          | Fingerprint: same set from same text, format version pinned, keyed hash. Containment vs Jaccard. Mutants: one shingle changed, order changed.                                                                                                                        |
-| Unit (service)       | Classifier: every allowlist case, every unknown open-test input reads third-party, an unread paid, opt-out or signature signal reads `unknown` and offers the choice, CC BY-NC is not open, `.gov` alone is not open. Title builder never returns the source title.  |
-| Integration (mocked) | Choice to job. Double publish returns one recipe. No age claim: the start is not gated, Publish answers `403 ageConfirmNeeded`. Paid hold counted from the first import for an undated page. Wording guard on update and restore. Both digest drift.                 |
-| Worker               | `budgetSpent` terminal and acked. Unreadable counter retried. Late result after `cancelled` dropped. 10-minute expiry. At most 3 calls. Job sweep on the band drain tick (T207).                                                                                     |
-| LOCAL e2e            | Migration applied. CHECK pairs. Unique `source_page_key`. Page key released on delete, rejection and opt-out. Erasure covers the job table and identity's `age_assurances` row. Age route round trip and k6 by hand (P3b). Job sweep against a real database (T208). |
-| Service e2e + k6     | Job and publish round trip on a deployed preview. k6 on job status reads, by hand.                                                                                                                                                                                   |
-| Component (both)     | Every state in the spec table. Banned-word guard over `importMessages.choice.*` and `recipes.flowSteps.*`.                                                                                                                                                           |
-| Playwright / Maestro | US1 Public and Both. US2 Private, and paid held back (paid allowed is enabled once the page evidence carries the paid facts). US3 failure and later route, US4 dead end with switch on and off, US5 blocked save.                                                    |
+| Tier                 | What                                                                                                                                                                                                                                                                                                                         |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit (core)          | Fingerprint: same set from same text, format version pinned, keyed hash. Containment vs Jaccard. Mutants: one shingle changed, order changed.                                                                                                                                                                                |
+| Unit (service)       | Classifier: every allowlist case, every unknown open-test input reads third-party, an unread paid, opt-out or signature signal reads `unknown` and offers the choice, CC BY-NC is not open, `.gov` alone is not open. Title builder never returns the source title.                                                          |
+| Integration (mocked) | Choice to job. Double publish returns one recipe. No age claim: the start is not gated, Publish answers `403 ageConfirmNeeded`. Paid hold counted from the first import for an undated page. Wording guard on update and restore. Both digest drift.                                                                         |
+| Worker               | `budgetSpent` final and acked. Unreadable counter retried. Late result after `cancelled` dropped. 10-minute expiry, which counts an attempt when no worker ever claimed the job. At most 3 calls. Job sweep on the band drain tick (T207).                                                                                   |
+| LOCAL e2e            | Migration applied. CHECK pairs. Unique `source_page_key`. Page key released on delete, rejection and opt-out. Erasure covers the job table and identity's `age_assurances` row. Age route round trip and k6 by hand (P3b). Job sweep against a real database (T208). keepPrivate and Publish against a real database (T317). |
+| Service e2e + k6     | Job and publish round trip on a deployed preview. k6 on job status reads, by hand.                                                                                                                                                                                                                                           |
+| Component (both)     | Every state in the spec table. Banned-word guard over `importMessages.choice.*` and `recipes.flowSteps.*`.                                                                                                                                                                                                                   |
+| Playwright / Maestro | US1 Public and Both. US2 Private, and paid held back (paid allowed is enabled once the page evidence carries the paid facts). US3 failure and later route, US4 dead end with switch on and off, US5 blocked save. Stop to discard, keepPrivate, `allowanceRefused` and the 3-attempt Final variants (T318).                  |
 
 ## Watch list
 

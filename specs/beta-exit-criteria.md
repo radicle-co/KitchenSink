@@ -27,9 +27,8 @@ All criteria below MUST be satisfied with linkable evidence before the Beta wait
 ### 2.1 Spec & Verification Gates
 
 - [ ] `verify-report.md` shows `0 CRITICAL, 0 WARNING` for all Beta-scope features: `001`, `002`, `003`, `006`, `007`, `008`, `011`.
-- [ ] `004` `spec.md`: every device extraction tier that is on passes `SC-002`, each tier's coverage is reported (`SC-003`), and `SC-004` and `SC-005` hold.
-- [ ] `v-model/release-audit-report.md` is unblocked (per [GR-001](./governance-rules.md#gr-001-release-readiness-gate)) for every Beta-scope feature.
-- [ ] All `traceability-matrix.md` rows for Beta-scope features show a mapped Test Case ID and a non-`Untested` executed result.
+- [ ] `004` `spec.md`: every device extraction tier that is on passes `SC-002`, each tier's coverage is reported (`SC-003`), and `SC-004` and `SC-005` hold, with the server fetch path of `FR-064` and the duplicate lookup of `FR-008` shipped.
+- [ ] On the release-candidate commit, every `docs/CODING_STANDARDS.md` §7.1 test tier that the Beta-scope features `001`, `002`, `003`, `004`, `006`, `007`, `008` and `011` require is written and passed on that commit, with its evidence linked: the CI run for unit and integration, a whole-suite e2e run (`FULL_SUITE=1` or the deployed e2e workflow), and the k6 record per service. Each feature has a proof table for that commit, a dated file `docs/reviews/releaseProof<feature number>On<yyyymmdd>.md` (for example `releaseProof004On20261201.md`). Its rows are exactly the feature spec's FR, NFR and SC ids and its acceptance scenarios (as `US<n>.<m>`) at that commit. Each row holds one of: a test path at that commit with the run that passed it, a measurement record with its source and window, or "not shipped" with its gating decision. A blank row fails, and a "not shipped" row fails a gate that needs that capability.
 - [ ] All cross-cutting governance rules in [`governance-rules.md`](./governance-rules.md) referenced by Beta-scope features are satisfied (notably GR-002 API prefix, GR-005 offline/sync, GR-007 shared types).
 
 ### 2.2 Engineering Readiness
@@ -120,7 +119,7 @@ All criteria below MUST be satisfied with linkable evidence before flipping from
 ### 4.1 Spec & Verification Gates
 
 - [ ] `verify-report.md` shows `0 CRITICAL, 0 WARNING` for all 1.0-scope features added since Beta: `005`, `009`, `010`.
-- [ ] `v-model/release-audit-report.md` unblocked for `005`, `009`, `010`.
+- [ ] On the release-candidate commit, every `docs/CODING_STANDARDS.md` §7.1 test tier that `005`, `009` and `010` require is written and passed on that commit, with its evidence linked: the CI run for unit and integration, a whole-suite e2e run (`FULL_SUITE=1` or the deployed e2e workflow), and the k6 record per service. Each feature has a proof table for that commit, a dated file `docs/reviews/releaseProof<feature number>On<yyyymmdd>.md` (for example `releaseProof004On20261201.md`). Its rows are exactly the feature spec's FR, NFR and SC ids and its acceptance scenarios (as `US<n>.<m>`) at that commit. Each row holds one of: a test path at that commit with the run that passed it, a measurement record with its source and window, or "not shipped" with its gating decision. A blank row fails, and a "not shipped" row fails a gate that needs that capability.
 - [ ] All cross-cutting governance rules referenced by 1.0-scope features are satisfied (notably GR-010 EU AI Act, GR-012 Subscription Gating).
 
 ### 4.2 Beta Exit Criteria Met

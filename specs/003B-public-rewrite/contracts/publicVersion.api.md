@@ -193,6 +193,10 @@ screens on the public-only path (the job's `path` is `public`). It never infers 
 
 `POST /api/v1/import/{importId}/items/{ordinal}/discard` → `200 { importId, ordinal }`, for a file (`bulk`) item only (a paste import is discarded with the whole import). One transaction under the import header lock: it cancels the item's job, sets `discarded_at` and moves the cursor like a skip. File items never delete a row (ordinals stay contiguous), so a re-sent chunk meets a locked item and `upsertItems` refuses it. It is idempotent, answers `409 { code: 'itemSaved', recipeId }` for a saved item, and `404` for another cook's import. A discard spends no unit. The other recipes of the batch are untouched.
 
+## Switch a file item to "I wrote this"
+
+The review wizard's per-recipe statement choice and a reopening `upsertItems` that carries it write `statement_kind = 'authored'`, `choice = NULL` and `public_requested_at = NULL` in one UPDATE (the `choice` CHECK refuses an authored item with a choice). In the same transaction, after the items `FOR UPDATE` (header, item, job), they cancel the item's live or resting job, and `promote()` runs after commit when a live job was cancelled. The item's `visibility` is unchanged, and the switch shows no confirm dialog. Switching back to a third-party statement leaves `choice` NULL (data model, "An authored statement write clears the choice").
+
 ## Make the rest public
 
 `POST /api/v1/import/{importId}/rest-public` with `{ items: { ordinal, shownOffer: ShownOffer }[] }` (the ticked rows only). One transaction under the import header lock, with the items `FOR UPDATE` in ordinal order, and no job row is written. An "I wrote this" item (`statement_kind = 'authored'`) gets `visibility = 'public'` (ADR-0072) and keeps `choice` NULL, and the advance saves it as today. Each eligible third-party item gets `choice = 'public'` and `public_requested_at`. Eligible means unsaved, not discarded, no job at all, and an offer of `choice` or `publicOnly`. A row whose current offer differs from the `shownOffer` it sent is not marked: it answers `skipped` with `offerChanged` (checked after `publicExists`, the order of Start). The global promoter then creates the jobs (data model, "Rest-public", which also states when the marker is set and cleared). `200 { items: { ordinal, outcome }[] }` where `outcome` is one of:
@@ -206,7 +210,7 @@ skipped { reason: 'offerChanged', offer: PublicVersionOffer }   // the offer the
 
 A replay marks nothing that already has a job or a marker and never restarts a resting job, and answers for each item from its current state: a marked item with no job answers `requested` (or `waiting` when it is not matched or not paid), and an item with a job answers `skipped` with `alreadyStarted`. The route never answers `429`: a file item is already paid, and Publish's guard charges nothing for it.
 
-The import list entry (`GET /api/v1/import`) gains `publicVersions: { requested, writing, ready, needsYou, notWritten, expiring, published, nextReadyExpiresAt, nextPurgeOn }` from one grouped query whose predicates are the table in the data model's "Rest-public" section, and the import item view gains `readyUntil` (the ISO date a ready draft's job expires, or `null`) and `purgeOn` (the ISO date of the import's 30-day purge, for an unsaved item).
+The import list entry (`GET /api/v1/import`) gains `publicVersions: { requested, writing, ready, needsYou, notWritten, expiring, published, nextReadyExpiresAt, nextPurgeOn }` from one grouped query whose predicates are the table in the data model's "Rest-public" section, and the import item view gains `readyUntil` (the ISO date a ready draft's job expires, or `null`) and `purgeOn` (the ISO date from the import's `recipe_import_purge_at`, for an unsaved item; a date already in the past shows nothing in the row).
 
 ## Recipe writes
 

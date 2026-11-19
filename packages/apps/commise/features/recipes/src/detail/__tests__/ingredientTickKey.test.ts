@@ -88,13 +88,13 @@ describe('tickedPositions', () => {
     it('maps ticked keys to positions, one identical line only', () => {
         const keys = ingredientTickKeys([line(), line(), FLOUR]);
 
-        expect(tickedPositions(keys, new Set([keys[1]!]))).toEqual(new Set([1]));
+        expect(tickedPositions(keys, new Set([keys[1]]))).toEqual(new Set([1]));
     });
 
     it('ignores a key no line has (a stale or newer-version key)', () => {
         const keys = ingredientTickKeys([line()]);
         const [stale] = ingredientTickKeysSchema.parse(['l2:deadbeef#0']);
 
-        expect(tickedPositions(keys, new Set([stale!]))).toEqual(new Set());
+        expect(tickedPositions(keys, new Set([stale]))).toEqual(new Set());
     });
 });

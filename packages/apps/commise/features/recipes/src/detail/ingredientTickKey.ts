@@ -14,7 +14,7 @@
  * @pattern Value Object — the branded {@link IngredientTickKey}, a natural key derived from content
  * @pattern Parser — {@link ingredientTickKeysSchema} is the one parse boundary of every store that holds ticks
  */
-import { ingredientLineDigest } from '@kitchensink/cooking-core';
+import { INGREDIENT_LINE_DIGEST_VERSION, ingredientLineDigest } from '@kitchensink/cooking-core';
 import type { IngredientLineDigestInput } from '@kitchensink/cooking-core';
 import { z } from 'zod';
 
@@ -51,7 +51,7 @@ export function ingredientTickKeys(lines: readonly IngredientLineDigestInput[]):
 
         seen.set(digest, ordinal + 1);
 
-        if (!isIngredientTickKey(key) || !key.startsWith('l1:')) {
+        if (!isIngredientTickKey(key) || !key.startsWith(`l${INGREDIENT_LINE_DIGEST_VERSION}:`)) {
             throw new RangeError(`ingredientTickKeys: built a malformed key ${key}`);
         }
 

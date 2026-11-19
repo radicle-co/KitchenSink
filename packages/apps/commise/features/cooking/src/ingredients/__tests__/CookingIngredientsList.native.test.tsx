@@ -89,11 +89,10 @@ function mount(options: MountOptions = {}) {
 }
 
 describe('CookingIngredientsList (native)', () => {
-    it('says its title, once, as a heading', () => {
-        const props = mount();
+    it('draws no heading of its own, because the frame draws the title', () => {
+        mount();
 
-        expect(screen.getAllByRole('heading')).toHaveLength(1);
-        expect(screen.getByRole('heading').textContent).toBe(props.view.title);
+        expect(screen.queryAllByRole('heading')).toHaveLength(0);
     });
 
     it('draws one checkbox per line in the recipe order, with the ticked ones checked', () => {
@@ -187,12 +186,8 @@ describe('CookingIngredientsList (native)', () => {
             ],
         });
 
-        // The list title is the first heading, and each section label is a heading after it, in order.
-        expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
-            expect.stringContaining('Ingredients for'),
-            'Crust',
-            'Filling',
-        ]);
+        // The list draws no title, so the headings are the section labels, in order.
+        expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual(['Crust', 'Filling']);
         expect(screen.getAllByRole('checkbox').map((box) => box.textContent)).toEqual([
             expect.stringContaining('flour'),
             expect.stringContaining('sugar'),
@@ -203,7 +198,7 @@ describe('CookingIngredientsList (native)', () => {
     it('draws no section label when no line has one', () => {
         mount();
 
-        expect(screen.getAllByRole('heading')).toHaveLength(1);
+        expect(screen.queryAllByRole('heading')).toHaveLength(0);
     });
 
     // ADR-0096: a tick belongs to its line, so two lines of one food are two rows with two ticks.

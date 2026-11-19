@@ -176,15 +176,22 @@ describe('CookingTopBar (native)', () => {
             expect(bar.flexWrap).toBe('wrap');
         });
 
-        it('narrow: Exit, then Ingredients, then the place on its own row', () => {
+        it('narrow: Exit and Ingredients share one wrapping row, and the place is its own row after it', () => {
             render(<CookingTopBar {...withIngredients({ narrow: true })} />);
 
             const exit = screen.getByRole('button', { name: 'Exit cooking mode' });
             const ingredients = screen.getByRole('button', { name: 'Ingredients' });
             const place = screen.getByText('Step 2 of 6');
+            const controls = screen.getByTestId('cooking-top-bar-controls');
+            const controlsStyle = getComputedStyle(controls);
 
+            expect(controls.contains(exit)).toBe(true);
+            expect(controls.contains(ingredients)).toBe(true);
+            expect(controls.contains(place)).toBe(false);
             expect(exit.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-            expect(ingredients.compareDocumentPosition(place) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            expect(controls.compareDocumentPosition(place) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            expect(controlsStyle.flexDirection).toBe('row');
+            expect(controlsStyle.flexWrap).toBe('wrap');
             expect(getComputedStyle(screen.getByTestId('cooking-top-bar')).flexDirection).toBe('column');
         });
     });

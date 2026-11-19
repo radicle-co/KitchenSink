@@ -176,6 +176,23 @@ describe('CookingTopBar (native)', () => {
             expect(bar.flexWrap).toBe('wrap');
         });
 
+        it('wide: the place takes the free space, so Ingredients sits at the end of the bar', () => {
+            render(<CookingTopBar {...withIngredients()} />);
+
+            const place = getComputedStyle(screen.getByText('Step 2 of 6'));
+
+            expect([place.flexGrow, place.flexShrink]).toEqual(['1', '0']);
+        });
+
+        it('narrow: Ingredients sits at the end of the controls row, wrapped or not', () => {
+            render(<CookingTopBar {...withIngredients({ narrow: true })} />);
+
+            const end = screen.getByTestId('cooking-top-bar-ingredients');
+
+            expect(end.contains(screen.getByRole('button', { name: 'Ingredients' }))).toBe(true);
+            expect(getComputedStyle(end).marginLeft).toBe('auto');
+        });
+
         it('narrow: Exit and Ingredients share one wrapping row, and the place is its own row after it', () => {
             render(<CookingTopBar {...withIngredients({ narrow: true })} />);
 

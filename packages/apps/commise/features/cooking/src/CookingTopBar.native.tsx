@@ -5,6 +5,7 @@
  * label whole. Done passes no place, so it shows Exit alone. The bar wraps by whole controls, so no label wraps inside
  * its button or is cut. Wide, the order is Exit, the place, Ingredients. Narrow (under 360), the place takes its own
  * row under Exit and Ingredients, which stay side by side while they fit and wrap whole when they do not.
+ * Ingredients sits at the end of the bar: wide, the place takes the free space; narrow, it has an auto start margin.
  *
  * Props are the shared contract's `CookingTopBarProps` plus native's `narrow`, which the screen reads from the window
  * once, because a leaf never reads the device: web's container query does the same work, so the web leaf has no such
@@ -32,7 +33,11 @@ export type NativeCookingTopBarProps = CookingTopBarProps & {
 export const CookingTopBar: FC<NativeCookingTopBarProps> = ({ exit, place, ingredients, narrow }) => {
     const placeText =
         place === undefined ? null : (
-            <Text typeRole="body" color={place.tone === 'muted' ? '$inkMuted' : '$ink'}>
+            <Text
+                typeRole="body"
+                color={place.tone === 'muted' ? '$inkMuted' : '$ink'}
+                {...(narrow ? {} : { flexGrow: 1, flexShrink: 0, flexBasis: 'auto' })}
+            >
                 {place.text}
             </Text>
         );
@@ -59,9 +64,17 @@ export const CookingTopBar: FC<NativeCookingTopBarProps> = ({ exit, place, ingre
                 paddingHorizontal="$3"
                 paddingVertical="$2"
             >
-                <XStack testID="cooking-top-bar-controls" flexWrap="wrap" alignItems="center" gap="$1">
+                <XStack
+                    testID="cooking-top-bar-controls"
+                    alignSelf="stretch"
+                    flexWrap="wrap"
+                    alignItems="center"
+                    gap="$1"
+                >
                     {exitButton}
-                    {ingredientsButton}
+                    <YStack testID="cooking-top-bar-ingredients" marginLeft="auto">
+                        {ingredientsButton}
+                    </YStack>
                 </XStack>
                 {placeText}
             </YStack>

@@ -1,8 +1,8 @@
 /**
- * Cooking mode's ingredients list on the NATIVE lane (react-native-web over jsdom) against the recipe page's own pieces, with nothing mocked: the real `CookMarksProvider`
- * (marks in memory, the native backend), the real serving scale, recipe-core's scaling and the real `IngredientCheckRow` the page
- * draws. A mock of any of them would hide the drift this tier exists to catch: a row that names an amount differently from
- * the page, or a tick the page never sees.
+ * Cooking mode's ingredients list on the NATIVE lane (react-native-web over jsdom) against the recipe page's own
+ * pieces, with nothing mocked: the real `CookMarksProvider` (marks in memory, the native backend), the real serving
+ * scale, recipe-core's scaling and the real `IngredientCheckRow` the page draws. A mock of any of them would hide the
+ * drift this tier exists to catch: a row that names an amount differently from the page, or a tick the page never sees.
  */
 import { resolveMessages } from '@commise/i18n';
 import { CookMarksProvider, IngredientCheckRow, useCookMarks, useServingScale } from '@commise/features-recipes/cook';

@@ -50,7 +50,9 @@ interface CookingStepMessages {
     readonly announce: string;
     /** The same when every line is ticked and there is no focus line to read (contains `{current}` and `{total}`). */
     readonly announceNoLine: string;
-    /** Under the step when the cook scales the recipe (contains `{base}` and `{servings}`). Plain text, no link inside. */
+    /**
+     * Under the step when the cook scales the recipe (contains `{base}` and `{servings}`). Plain text, no link inside.
+     */
     readonly scaleNote: string;
     /** The quiet button under the scale note that opens the ingredients list. Its name is this label. */
     readonly scaleNoteOpen: string;

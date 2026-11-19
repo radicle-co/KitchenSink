@@ -1,6 +1,6 @@
 /**
- * The ingredients list cooking mode draws: which rows, scaled to the cook's servings, which are ticked, the heading, and
- * the note that says the steps still hold the recipe's own amounts. Every expected string is read from
+ * The ingredients list cooking mode draws: which rows, scaled to the cook's servings, which are ticked, the heading,
+ * and the note that says the steps still hold the recipe's own amounts. Every expected string is read from
  * `cookingMessages.en`, so a reword is one edit to the catalogue and never a hunt through tests.
  */
 import { fillTemplate, pluralOf, resolveMessages } from '@commise/i18n';

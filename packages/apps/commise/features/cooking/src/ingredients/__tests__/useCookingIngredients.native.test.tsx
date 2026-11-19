@@ -1,8 +1,8 @@
 /**
- * The cooking ingredients hook as the NATIVE lane resolves it (react-native-web over jsdom, the memory marks backend), over the REAL cook marks and serving scale the recipe page also reads, so a tick or a
- * servings change made here shows on the page and the reverse. Nothing is mocked: the provider keeps its marks in
- * memory on native, as the app root mounts it. Each case uses its own recipe id, because the serving scale is a module
- * singleton keyed by recipe.
+ * The cooking ingredients hook as the NATIVE lane resolves it (react-native-web over jsdom, the memory marks backend),
+ * over the REAL cook marks and serving scale the recipe page also reads, so a tick or a servings change made here shows
+ * on the page and the reverse. Nothing is mocked: the provider keeps its marks in memory on native, as the app root
+ * mounts it. Each case uses its own recipe id, because the serving scale is a module singleton keyed by recipe.
  */
 import { resolveMessages } from '@commise/i18n';
 import { CookMarksProvider, useCookMarks, useServingScale } from '@commise/features-recipes/cook';

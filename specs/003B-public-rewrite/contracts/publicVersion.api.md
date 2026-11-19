@@ -79,6 +79,8 @@ false })`, `staleTime` 0). If the offer changes after that, the `409 offerChange
 Only an import writes a record, so an editor edit never changes it. It is present for the owner only and omitted for every other
 viewer, like the other owner-only fields (ADR-0090, #301). It is computed the way #301 computes `publicNeedsCheck`.
 
+The same read carries the owner-only `publicVersionJob: { jobId, state } | null`: the latest job (by `created_at`) whose `private_recipe_id` is the recipe, or `null`. P6 uses it to show the `yourImports.publicWriting` or `yourImports.publicReady` line, which opens the writing or review screen (a Both path left while writing, or a later route in progress). After the job's 24-hour expiry it is no longer routed to, and the later route's "Share a public version" stays.
+
 ## Start a public version
 
 `POST /api/v1/import/{importId}/items/{ordinal}/public-version` with `{ choice: 'public' | 'both', shownOffer: ShownOffer }`.
@@ -87,13 +89,16 @@ viewer, like the other owner-only fields (ADR-0090, #301). It is computed the wa
 no import item (the item pair NULL), builds its facts from the private copy and sets `private_digest`. A paid copy goes through the
 same paid-site rules.
 
-- `202 { jobId, state }`. A second call while a live job exists returns the same job.
-- `409 { code: 'attemptsUsed' }` on the import path when the item's `public_attempts` is already 3 (the cook reopened it and chose "For everyone" or "Both" again). It is checked first, before any save, so nothing is saved or charged. The client shows `failed.titleFinal` and `failed.bodyFinal`, and the private exit (the wording of `review.notNow`) runs the paste's ordinary Save recipe, because there is no live job to call keepPrivate on.
+- `202 { jobId, state }`. A second call with the same choice while a live job exists returns the live job. A call with a changed choice cancels the live job in the same transaction and starts a new one.
+- `409 { code: 'itemSaved', recipeId }` on the import path when the item's `saved_at` is set, for either choice. The client opens the recipe (P6). It is checked first of all.
+- `409 { code: 'attemptsUsed' }` on the import path when the item's `public_attempts` is already 3 (the cook reopened it and chose "For everyone" or "Both" again). It is checked second, after `itemSaved` and before any save, so nothing is saved or charged. The client shows `failed.titleFinal` and `failed.bodyFinal`, and the private exit (the wording of `review.notNow`) runs the paste's ordinary Save recipe, because there is no live job to call keepPrivate on.
 - `409 { code: 'publicExists', recipeId: string | null }`: another version of this source page is already public (FR-034). The key is released by FR-034a.
 - `409 { code: 'offerChanged', offer }`: the offer the server computes now differs from the `shownOffer` the client sent
   (see "The shown offer"). `offer` is the current offer. Client copy: `offerChanged.line`. Publish answers the same way.
-- Start refuses an item with no statement with the import save's existing needs refusal. `409 itemNotReady` is Publish's and keepPrivate's answer for an item that is not matched yet (below).
-- Start cancels the item's live job in the same transaction (the job it replaces), and attempts carry over to the new job. On the Both path Start skips its private save when the item's `saved_at` is set.
+- `409 { code: 'itemNotReady' }` on the import path when the item is not matched yet: retryable, nothing written. Publish and keepPrivate answer it too (below).
+- Start refuses an item with no statement with the import save's existing needs refusal.
+- Start checks, in order: `itemSaved`, `attemptsUsed`, `itemNotReady`, the needs refusal, `publicExists`, `offerChanged`.
+- A changed choice cancels the item's live job in the same transaction (the job it replaces), and attempts carry over to the new job, because the item holds the count. Start never skips the Both path's private save for a saved item: it answers `itemSaved` instead.
 - Start spends no unit for the writer job (C-24). On the Both path its first step is the private save, which charges the
   paste's unit (FR-016a), so Start can answer `429 IMPORT_QUOTA_EXCEEDED` there and then starts no job. On the public-only path
   Start never answers it.
@@ -116,7 +121,7 @@ The output is present only in `ready`. It holds no source text, and the job's `s
 
 - `201 { recipeId }`, or `200 { recipeId }` for a job already published (idempotent on the source page key). On the public-only path the same transaction runs `claimSave` with the public recipe's id, under the import header lock, using the `decision_rev` read under that lock: it records the recipe id and `saved_at` on the item and clears the item's draft (`payload`). On the Both path Publish does not write the item.
 - The unit charge of FR-016a runs inside the Publish transaction, after the server fact check and the wording check have passed (so a `422 flags`, a `422 tooSimilar` or a `503 checkUnavailable` rolls back before anything is charged), and after the lock order of the data model, on the same `allowance_spent_at` guard as keepPrivate. On the public-only path Publish charges the unit. On the Both path the private save already set the guard, so Publish charges nothing, and the later route (no import item) charges nothing. A refusal by `admit` rolls the transaction back and answers `429 IMPORT_QUOTA_EXCEEDED`, and the job stays `ready`. A replay never charges twice.
-- `409 { code: 'itemNotReady' }` on the public-only path when the item is not matched yet: retryable, nothing written, nothing charged.
+- `409 { code: 'itemNotReady' }` on the public-only path when the item is not matched yet, checked under the item lock before the recipe insert: retryable, nothing written, nothing charged. An `ImportItemChangedError` from `claimSave` rolls the transaction back and answers the same.
 - `422 { code: 'flags', flags: { kind: 'step' | 'allergen' | 'factAdded', line?, ingredient? }[] }` from the server fact check.
   `factAdded` carries the added `line`.
 - `422 { code: 'tooSimilar' }` from the wording check.
@@ -160,8 +165,7 @@ UPDATE it clears `facts_snapshot`, `source_steps` and `output`. It saves nothing
 It is an explicit discard on the public-only path (`review.discard`, Stop, and the offer after `403 PRIVATE_SLOTS_FULL`): after it ends the
 job it calls `ImportService.delete` in its own transaction, so the import's header goes, its items and lines cascade away
 with the item's draft, and the job's item pair goes to NULL. The import is no longer listed (FR-044a), and a later keepPrivate on the
-job answers `409 notKeepable` and charges nothing. On the Both path the cancel is the exit (Stop,
-`review.notNowBoth` and `failed.done`): the job ends and the private copy stays. Back calls no route (FR-044). The expiry at 24 hours and the sweep end the job the same way
+job answers `409 notKeepable` and charges nothing. Cancel on an already-cancelled public-only job is idempotent: if the item pair is still set it runs `ImportService.delete` again and answers as the first call did, and if the pair is NULL it does nothing and answers `200`. A discard with no job at all (the cook has not started one) uses the existing import delete, `DELETE /api/v1/import/{importId}`. On the Both path, and on any item that is already saved, every exit (Stop, Back from the writing screen, `review.notNowBoth`, `failed.done` and the blocked and final exits) calls cancel and the client goes to the private copy (P6): the job ends and the private copy stays. Nothing returns to the choice page (P5). On the later route cancel stops only the public-version job and never touches the cook's saved private recipe. On the public-only path Back from the review calls no route (FR-044). The expiry at 24 hours and the sweep end the job the same way
 but clear only the job's own text, never the item's draft, and delete nothing (FR-033). The public-only path's private exits do not use this
 route: they use keepPrivate below.
 
@@ -175,8 +179,7 @@ screens on the public-only path (the job has an import item and no private copy)
 2. A `published` job answers `409 { code: 'notKeepable' }`.
 3. An item with `saved_at` set answers `200 { recipeId }` with the item's recipe id, or `409 { code: 'notKeepable' }` when that recipe id is NULL.
 4. A `cancelled` job answers `409 { code: 'notKeepable' }`.
-
-An item that is not matched yet answers `409 { code: 'itemNotReady' }`, retryable, with nothing written.
+5. An item that is not matched yet (`stage` not `matched`, checked under the item lock before the recipe insert) answers `409 { code: 'itemNotReady' }`, retryable, with nothing written and nothing charged. It comes after the `cancelled` check, so a replay still wins. An `ImportItemChangedError` from `claimSave` rolls back and answers the same.
 
 - One transaction, in the lock order of the data model: the import header, the item (`SELECT ... FOR UPDATE`), the allowance, the DD33 lock, the job. Then the unit charge below, `claimSave` of the item's draft as a private recipe with FR-021's wording (which records the recipe id and `saved_at` on the item and clears the draft), and the job moved to `cancelled` from `pending`, `writing`, `ready`, `checkRefused`, `failed` or `budgetSpent`, with `source_steps`, `facts_snapshot` and `output` set to NULL. A `budgetSpent` job answers `201`, ends `cancelled` and spends one unit.
 - The unit charge (FR-016a): `SELECT ... FOR UPDATE` on the item by `(import_id, ordinal)`. Zero rows throws `ImportItemNotFound`, never "already paid". Then, when `allowance_spent_at IS NULL`, the transaction sets it and calls `ImportAllowanceDal.admit(tx, userId, { ...scopeOf(item.channel), units: 1 })`. If admit refuses, everything rolls

@@ -13,8 +13,8 @@ const A =
     '{"ingredientId":"01JINGREDIENT0000000000000A","name":"Butter","quantity":{"kind":"exact","value":2},' +
     '"unit":"tbsp","displayText":"butter","note":"softened","isUserEntered":false}';
 const B =
-    '{"isUserEntered":false,"note":"softened","displayText":"butter","unit":"tbsp","quantity":{"value":2,"kind":"exact"},' +
-    '"ingredientId":"01JINGREDIENT0000000000000A"}';
+    '{"isUserEntered":false,"note":"softened","displayText":"butter","unit":"tbsp",' +
+    '"quantity":{"value":2,"kind":"exact"},"ingredientId":"01JINGREDIENT0000000000000A"}';
 
 describe('ingredientLineDigest over parsed wire lines', () => {
     it('is equal for two key orders, one with the name absent', () => {

@@ -68,7 +68,7 @@ describe('isIngredientTickKey', () => {
 });
 
 describe('ingredientTickKeysSchema', () => {
-    it('drops an old id and keeps every key, a newer version included, in order (F1; mutant: filter to l1 only)', () => {
+    it('drops an old id, keeps every key of any version (F1; mutant: filter to l1 only)', () => {
         const parsed = ingredientTickKeysSchema.parse([
             '01JINGREDIENT0000000000000A',
             'l1:0123abcd#0',

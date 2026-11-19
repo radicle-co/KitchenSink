@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { fnv1a32Hex } from '../fnv1a32.js';
 
 describe('fnv1a32Hex', () => {
-    // Published FNV-1a 32-bit reference vectors (Fowler, Noll, Vo): "" -> 811c9dc5, "a" -> e40c292c, "foobar" -> bf9cf968.
+    // Published FNV-1a 32-bit reference vectors (Fowler, Noll, Vo):
+    // "" -> 811c9dc5, "a" -> e40c292c, "foobar" -> bf9cf968.
     it.each([
         ['', '811c9dc5'],
         ['a', 'e40c292c'],

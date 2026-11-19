@@ -6,18 +6,14 @@
  */
 import { resolveMessages } from '@commise/i18n';
 import { CookMarksProvider } from '@commise/features-recipes/cook';
-import {
-    ABSENT_QUANTITY,
-    FoodResolutionStatus,
-    statedQuantity,
-    type RecipeIngredientView,
-} from '@kitchensink/recipe-core';
+import { FoodResolutionStatus, type RecipeIngredientView } from '@kitchensink/recipe-core';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { FC, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { cookingMessages } from '../../messages.js';
+import { makeRecipeIngredientView } from '../../__fixtures__/makeRecipeIngredientView.js';
 import { CookingIngredientsList } from '../CookingIngredientsList.js';
 import type { CookingIngredientsListProps, CookingIngredientsListView } from '../cookingIngredientsListProps.js';
 import { cookingIngredientsView } from '../ingredientsView.js';
@@ -30,17 +26,9 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-const line = (id: string, name: string): RecipeIngredientView => ({
-    ingredientId: id,
-    name,
-    quantity: statedQuantity(1) ?? ABSENT_QUANTITY,
-    unit: 'cup',
-    isUserEntered: false,
-});
-
-const FLOUR = line('ing_flour', 'flour');
-const SUGAR = line('ing_sugar', 'sugar');
-const BUTTER = line('ing_butter', 'butter');
+const FLOUR = makeRecipeIngredientView({ ingredientId: 'ing_flour', name: 'flour' });
+const SUGAR = makeRecipeIngredientView({ ingredientId: 'ing_sugar', name: 'sugar' });
+const BUTTER = makeRecipeIngredientView({ ingredientId: 'ing_butter', name: 'butter' });
 const LINES = [FLOUR, SUGAR, BUTTER];
 
 const Wrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (

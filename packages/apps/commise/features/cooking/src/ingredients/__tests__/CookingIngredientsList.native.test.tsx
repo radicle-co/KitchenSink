@@ -7,18 +7,14 @@
 import { resolveMessages } from '@commise/i18n';
 import { CookMarksProvider } from '@commise/features-recipes/cook';
 import { render } from '@commise/ui/testing/tamagui';
-import {
-    ABSENT_QUANTITY,
-    FoodResolutionStatus,
-    statedQuantity,
-    type RecipeIngredientView,
-} from '@kitchensink/recipe-core';
+import { FoodResolutionStatus, type RecipeIngredientView } from '@kitchensink/recipe-core';
 import { cleanup, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { FC, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { cookingMessages } from '../../messages.js';
+import { makeRecipeIngredientView } from '../../__fixtures__/makeRecipeIngredientView.js';
 import { CookingIngredientsList } from '../CookingIngredientsList.native.js';
 import type { CookingIngredientsListProps, CookingIngredientsListView } from '../cookingIngredientsListProps.js';
 import { cookingIngredientsView } from '../ingredientsView.js';
@@ -31,17 +27,9 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-const line = (id: string, name: string): RecipeIngredientView => ({
-    ingredientId: id,
-    name,
-    quantity: statedQuantity(1) ?? ABSENT_QUANTITY,
-    unit: 'cup',
-    isUserEntered: false,
-});
-
-const FLOUR = line('ing_flour', 'flour');
-const SUGAR = line('ing_sugar', 'sugar');
-const BUTTER = line('ing_butter', 'butter');
+const FLOUR = makeRecipeIngredientView({ ingredientId: 'ing_flour', name: 'flour' });
+const SUGAR = makeRecipeIngredientView({ ingredientId: 'ing_sugar', name: 'sugar' });
+const BUTTER = makeRecipeIngredientView({ ingredientId: 'ing_butter', name: 'butter' });
 const LINES = [FLOUR, SUGAR, BUTTER];
 
 const Wrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (
@@ -89,11 +77,10 @@ function mount(options: MountOptions = {}) {
 }
 
 describe('CookingIngredientsList (native)', () => {
-    it('says its title, once, as a heading', () => {
-        const props = mount();
+    it('draws no heading of its own, because the frame draws the title', () => {
+        mount();
 
-        expect(screen.getAllByRole('heading')).toHaveLength(1);
-        expect(screen.getByRole('heading').textContent).toBe(props.view.title);
+        expect(screen.queryAllByRole('heading')).toHaveLength(0);
     });
 
     it('draws one checkbox per line in the recipe order, with the ticked ones checked', () => {
@@ -187,12 +174,8 @@ describe('CookingIngredientsList (native)', () => {
             ],
         });
 
-        // The list title is the first heading, and each section label is a heading after it, in order.
-        expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
-            expect.stringContaining('Ingredients for'),
-            'Crust',
-            'Filling',
-        ]);
+        // The list draws no title, so the headings are the section labels, in order.
+        expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual(['Crust', 'Filling']);
         expect(screen.getAllByRole('checkbox').map((box) => box.textContent)).toEqual([
             expect.stringContaining('flour'),
             expect.stringContaining('sugar'),
@@ -203,6 +186,6 @@ describe('CookingIngredientsList (native)', () => {
     it('draws no section label when no line has one', () => {
         mount();
 
-        expect(screen.getAllByRole('heading')).toHaveLength(1);
+        expect(screen.queryAllByRole('heading')).toHaveLength(0);
     });
 });

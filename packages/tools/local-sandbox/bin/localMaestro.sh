@@ -63,17 +63,15 @@ LOCAL_MAESTRO_AVD_CONFIG='hw.lcd.width=720,hw.lcd.height=1600,hw.lcd.density=280
 LOCAL_MAESTRO_CLERK_SECRET_ID='kitchensink/sandbox/identity/keys'
 LOCAL_MAESTRO_METRO_PORT=8081
 # The local sandbox's ports — each service's own `PORT` default (see `localPortFor` in `adapters.ts`).
-# What the DEVICE addresses. The host side may sit on another port when something else holds 3000 (the owner's session UI
-# does): `LOCAL_MAESTRO_RECIPE_HOST_PORT` names it, `local:up` publishes it (`LOCAL_SANDBOX_HOST_PORTS=recipes=<port>`),
-# and `adb reverse` joins the two, so the app is untouched.
+# What the DEVICE addresses. The host side is the port the running stack publishes, which `bin/stackEnv.ts` reads from
+# Docker (`local_maestro_stack_env`): a second stack (`LOCAL_SANDBOX_PORT`) or a moved port (`LOCAL_SANDBOX_HOST_PORTS`)
+# changes the host side only, and `adb reverse` joins the two, so the app is untouched.
 LOCAL_MAESTRO_RECIPE_ORIGIN='http://localhost:3000'
-LOCAL_MAESTRO_RECIPE_HOST_PORT="${LOCAL_MAESTRO_RECIPE_HOST_PORT:-3000}"
 LOCAL_MAESTRO_IDENTITY_ORIGIN='http://localhost:3001'
 LOCAL_MAESTRO_FOOD_ORIGIN='http://localhost:3002'
 # ⛔ The `azp` the seeder's tokens carry must be one the services admit: `localContainerEnv` sets
 # `CLERK_AUTHORIZED_PARTIES` to this origin.
 LOCAL_MAESTRO_WEB_ORIGIN='http://localhost:3000'
-LOCAL_MAESTRO_LOCALSTACK='http://localhost:4566'
 # The Mac port the recipe service is tunnelled to for an Android or iOS lane there: Docker holds the Mac's own 3000, so the app
 # the Mac builds is baked with this one (`buildIosApp.sh`) and the runner's `adb reverse tcp:3000` goes to it.
 LOCAL_MAESTRO_MAC_RECIPE_PORT=13000
@@ -96,6 +94,58 @@ local_maestro_fail() {
     return 1
 }
 
+# A fact the running stack states (`local_maestro_stack_env` exports it). No function here holds a default for one: a
+# default would aim the run at the default stack, which another session may own.
+local_maestro_require_stack_var() {
+    local name
+    for name in "$@"; do
+        if [ -z "${!name:-}" ]; then
+            local_maestro_fail "${name} is not set: the running stack states it, so run local_maestro_stack_env first"
+            return 1
+        fi
+    done
+}
+
+# The door refuses the variable that this one replaced: it named ONE port of the stack, and a stale copy in a shell
+# would aim a run at a stack other than the one `LOCAL_SANDBOX_PORT` names.
+local_maestro_refuse_old_port_variable() {
+    if [ -n "${LOCAL_MAESTRO_RECIPE_HOST_PORT:-}" ]; then
+        echo "local:maestro refused: LOCAL_MAESTRO_RECIPE_HOST_PORT=${LOCAL_MAESTRO_RECIPE_HOST_PORT} is gone. Unset it, and run local:up with LOCAL_SANDBOX_HOST_PORTS=recipes=${LOCAL_MAESTRO_RECIPE_HOST_PORT} to move the recipe port." >&2
+        return 1
+    fi
+}
+
+# local_maestro_stack_env <door>
+#
+# The FIRST step of a door, before any seed, reset or pool call: read the running stack's facts from
+# `bin/stackEnv.ts`, which applies the ownership refusals and prints `KEY=value` lines. A line is exported only when
+# its key is on the list below (`STACK_ENV_KEYS` in `src/stackEnv.ts`, which a test holds equal); any other key fails
+# the door. Values are never expanded (no `eval`), and they are not checked by a character class, because a database
+# URL holds `@`. stackEnv's stderr (the `stack:` line, or the one refusal line) passes through as this door's first
+# output.
+local_maestro_stack_env() {
+    local door="${1:-local:maestro}" output line key
+    local_maestro_refuse_old_port_variable || return 1
+    output="$(npx tsx "${LOCAL_MAESTRO_REPO_ROOT}/packages/tools/local-sandbox/bin/stackEnv.ts" "$door")" || return 1
+    while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        key="${line%%=*}"
+        case "$key" in
+            LOCAL_MAESTRO_RECIPES_CONTAINER | LOCAL_MAESTRO_POSTGRES_PORT | LOCAL_MAESTRO_LOCALSTACK | \
+                MAESTRO_LOCAL_RECIPE_HOST_PORT | \
+                MAESTRO_LOCAL_IDENTITY_HOST_PORT | MAESTRO_LOCAL_FOOD_HOST_PORT | E2E_SEED_RECIPE_URL | \
+                E2E_SEED_IDENTITY_URL | E2E_SEED_FOOD_URL | LOCAL_MAESTRO_WORKER_SQS_ENDPOINT | \
+                LOCAL_MAESTRO_WORKER_RECIPE_PARSE_QUEUE_URL | LOCAL_MAESTRO_WORKER_DATABASE_URL)
+                export "$key=${line#*=}"
+                ;;
+            *)
+                local_maestro_fail "stackEnv printed a key this door does not accept: ${key}"
+                return 1
+                ;;
+        esac
+    done <<<"$output"
+}
+
 # The facts above that `maestroLanes.ts` uses, as KEY=value lines (`localSettings.ts` parses them). This file is their one
 # home: the lane TypeScript reads them here and states none of them.
 local_maestro_settings() {
@@ -110,7 +160,6 @@ local_maestro_settings() {
         LOCAL_MAESTRO_RECIPE_ORIGIN "$LOCAL_MAESTRO_RECIPE_ORIGIN" \
         LOCAL_MAESTRO_IDENTITY_ORIGIN "$LOCAL_MAESTRO_IDENTITY_ORIGIN" \
         LOCAL_MAESTRO_FOOD_ORIGIN "$LOCAL_MAESTRO_FOOD_ORIGIN" \
-        LOCAL_MAESTRO_LOCALSTACK "$LOCAL_MAESTRO_LOCALSTACK" \
         LOCAL_MAESTRO_WORKER_PATTERN "$LOCAL_MAESTRO_WORKER_PATTERN" \
         LOCAL_MAESTRO_CONSUMER_PATTERN "$LOCAL_MAESTRO_CONSUMER_PATTERN"
 }
@@ -233,6 +282,7 @@ local_maestro_load_clerk_keys() {
 # Pin every AWS SDK client and CLI call from here on to LocalStack, with throwaway credentials.
 local_maestro_pin_aws() {
     unset AWS_PROFILE AWS_DEFAULT_PROFILE AWS_SESSION_TOKEN AWS_SECURITY_TOKEN AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE
+    local_maestro_require_stack_var LOCAL_MAESTRO_LOCALSTACK || return 1
     export AWS_ENDPOINT_URL="$LOCAL_MAESTRO_LOCALSTACK"
     export AWS_ACCESS_KEY_ID='test'
     export AWS_SECRET_ACCESS_KEY='test'
@@ -375,7 +425,7 @@ local_maestro_cleanup() {
 
 local_maestro_require_services() {
     local origin down=0
-    for origin in "http://localhost:${LOCAL_MAESTRO_RECIPE_HOST_PORT}" "$LOCAL_MAESTRO_IDENTITY_ORIGIN" "$LOCAL_MAESTRO_FOOD_ORIGIN"; do
+    for origin in "$E2E_SEED_RECIPE_URL" "$E2E_SEED_IDENTITY_URL" "$E2E_SEED_FOOD_URL"; do
         if ! curl -fsS --max-time 5 -o /dev/null "${origin}/health"; then
             local_maestro_fail "${origin}/health does not answer"
             down=1
@@ -397,7 +447,16 @@ local_maestro_start_worker() {
     fi
 
     echo 'local:maestro: starting the parse worker (recipe-workers dev)' >&2
-    local_maestro_spawn "${state}/worker.log" npm run dev --workspace=@kitchensink/recipe-workers
+    # The worker's own `.env.development` names the default stack's ports. The running stack's values, moved by
+    # `stackEnv`, go in its process environment, which wins over `--env-file` under tsx; the file stays the one source
+    # of the names.
+    local_maestro_require_stack_var LOCAL_MAESTRO_WORKER_SQS_ENDPOINT LOCAL_MAESTRO_WORKER_RECIPE_PARSE_QUEUE_URL \
+        LOCAL_MAESTRO_WORKER_DATABASE_URL || return 1
+    local_maestro_spawn "${state}/worker.log" env \
+        "SQS_ENDPOINT=${LOCAL_MAESTRO_WORKER_SQS_ENDPOINT}" \
+        "RECIPE_PARSE_QUEUE_URL=${LOCAL_MAESTRO_WORKER_RECIPE_PARSE_QUEUE_URL}" \
+        "DATABASE_URL=${LOCAL_MAESTRO_WORKER_DATABASE_URL}" \
+        npm run dev --workspace=@kitchensink/recipe-workers
     sleep 8
     if ! kill -0 "$LOCAL_MAESTRO_LAST_PID" 2>/dev/null; then
         tail -20 "${state}/worker.log" >&2
@@ -583,7 +642,8 @@ local_maestro_install_app() {
     }
 
     # The runner's one map, which every lane uses too, plus Metro: only this debug app loads its bundle from Metro.
-    maestro_local_reverse "$LOCAL_MAESTRO_RECIPE_HOST_PORT" "$LOCAL_MAESTRO_METRO_PORT" || return 1
+    maestro_local_reverse "$MAESTRO_LOCAL_RECIPE_HOST_PORT" "$MAESTRO_LOCAL_IDENTITY_HOST_PORT" "$MAESTRO_LOCAL_FOOD_HOST_PORT" \
+        "$LOCAL_MAESTRO_METRO_PORT" || return 1
     # CI's own input settings, from the sourced runner. A copy here once kept an old `0`: on this AVD, which reports a
     # hardware keyboard, that held the soft keyboard down in every local run while CI's was up.
     maestro_android_input_settings
@@ -609,12 +669,12 @@ local_maestro_install_app() {
 # host is not loopback (`requireLocalSeedTarget`), so this builds the address and is not what keeps it local.
 local_maestro_recipe_database_url() {
     local env_lines name user password port value
-    env_lines="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' local-sandbox-recipes 2>/dev/null)" || return 1
+    local_maestro_require_stack_var LOCAL_MAESTRO_RECIPES_CONTAINER LOCAL_MAESTRO_POSTGRES_PORT || return 1
+    env_lines="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$LOCAL_MAESTRO_RECIPES_CONTAINER" 2>/dev/null)" || return 1
     name="$(printf '%s\n' "$env_lines" | sed -n 's/^DB_NAME=//p' | head -n 1)"
     user="$(printf '%s\n' "$env_lines" | sed -n 's/^DB_USERNAME=//p' | head -n 1)"
     password="$(printf '%s\n' "$env_lines" | sed -n 's/^DB_PASSWORD=//p' | head -n 1)"
-    port="$(docker port local-sandbox-postgres 5432/tcp 2>/dev/null | head -n 1)" || return 1
-    port="${port##*:}"
+    port="$LOCAL_MAESTRO_POSTGRES_PORT"
 
     for value in "$name" "$user" "$password" "$port"; do
         case "$value" in
@@ -632,11 +692,12 @@ local_maestro_seed_env() {
     if database_url="$(local_maestro_recipe_database_url)"; then
         export E2E_SEED_RECIPE_DATABASE_URL="$database_url"
     fi
-    export E2E_SEED_RECIPE_URL="http://localhost:${LOCAL_MAESTRO_RECIPE_HOST_PORT}"
+    # The stack's published ports, exported by `local_maestro_stack_env`. No default: see
+    # `local_maestro_require_stack_var`.
+    local_maestro_require_stack_var E2E_SEED_RECIPE_URL E2E_SEED_IDENTITY_URL E2E_SEED_FOOD_URL || return 1
+    export E2E_SEED_RECIPE_URL E2E_SEED_IDENTITY_URL E2E_SEED_FOOD_URL
     # ⛔ A local run signs in users of its own, never CI's: see `e2e-fixtures`' `PoolNamespace`.
     export E2E_POOL_NAMESPACE=local
-    export E2E_SEED_FOOD_URL="$LOCAL_MAESTRO_FOOD_ORIGIN"
-    export E2E_SEED_IDENTITY_URL="$LOCAL_MAESTRO_IDENTITY_ORIGIN"
     export E2E_SEED_WEB_ORIGIN="$LOCAL_MAESTRO_WEB_ORIGIN"
     export E2E_SEED_STATE_DIR="$state"
     export COMMISE_E2E_SHARD=1
@@ -732,6 +793,7 @@ local_maestro_main() {
     esac
 
     cd "$LOCAL_MAESTRO_REPO_ROOT" || return 1
+    local_maestro_stack_env 'local:maestro' || return 1
     local_maestro_toolchain || return 1
 
     local state

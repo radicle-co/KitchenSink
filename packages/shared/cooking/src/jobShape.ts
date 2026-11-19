@@ -2,7 +2,8 @@
  * The shape of the job before step 1: the total, the prep and one row per step or run of steps.
  *
  * DESIGN PATTERN: Specification (`jobShapeOf` decides every wait, the form of the total and the rows from the one
- * reading {@link stepWaitsOf}), and a discriminated union with an exhaustive switch for the rows and the total.
+ * reading {@link stepWaitsOf}), and a discriminated union for the rows and the total. `rowOf` reads the step class with
+ * a switch that returns from every arm, so a new class fails to compile there. The total is built by plain branches.
  */
 import { stepWaitsOf, type StepWaitsInput, type Wait } from './duration.js';
 
@@ -80,34 +81,31 @@ interface ClassedStep {
     readonly cls: StepClass;
 }
 
-const rowsOf = (classed: readonly ClassedStep[]): readonly JobRow[] => {
-    const rows: JobRow[] = [];
-
-    for (const { stepNumber, cls } of classed) {
-        switch (cls.kind) {
-            case 'wait':
-                rows.push({ kind: 'wait', stepNumber, waits: cls.waits });
-                break;
-            case 'readStep':
-                rows.push({ kind: 'readStep', stepNumber });
-                break;
-
-            case 'untimed': {
-                const last = rows.at(-1);
-
-                if (last?.kind === 'untimed') {
-                    rows[rows.length - 1] = { kind: 'untimed', fromStep: last.fromStep, toStep: stepNumber };
-                } else {
-                    rows.push({ kind: 'untimed', fromStep: stepNumber, toStep: stepNumber });
-                }
-
-                break;
-            }
-        }
+/** One step as its own row. A switch with a return in every arm, so a new step class fails to compile. */
+const rowOf = ({ stepNumber, cls }: ClassedStep): JobRow => {
+    switch (cls.kind) {
+        case 'wait':
+            return { kind: 'wait', stepNumber, waits: cls.waits };
+        case 'readStep':
+            return { kind: 'readStep', stepNumber };
+        case 'untimed':
+            return { kind: 'untimed', fromStep: stepNumber, toStep: stepNumber };
     }
-
-    return rows;
 };
+
+/** Run consecutive untimed rows together: the run starts at the first and ends at the last. */
+const groupUntimed = (rows: readonly JobRow[]): readonly JobRow[] =>
+    rows.reduce<JobRow[]>((grouped, row) => {
+        const last = grouped.at(-1);
+
+        if (row.kind === 'untimed' && last?.kind === 'untimed') {
+            grouped[grouped.length - 1] = { kind: 'untimed', fromStep: last.fromStep, toStep: row.toStep };
+        } else {
+            grouped.push(row);
+        }
+
+        return grouped;
+    }, []);
 
 /**
  * The shape of the job: what the cook sees before step 1.
@@ -115,14 +113,14 @@ const rowsOf = (classed: readonly ClassedStep[]): readonly JobRow[] => {
  * @param input - The prep time and the steps.
  * @returns The prep, the total and the rows. The total is the prep plus the low end of every counted wait, rounded up
  *   to 5 minutes, and it never reads the recipe's own total-time field. A step with a time the reader cannot read
- *   counts nothing, and a time over 24 hours is a wait that counts and offers no timer. Pure.
+ *   counts nothing, and a time over `MAX_TIMER_MS` is a wait that counts and offers no timer. Pure.
  */
 export function jobShapeOf(input: JobShapeInput): JobShape {
     const classed = input.steps.map((step) => ({ stepNumber: step.stepNumber, cls: classOf(step) }));
     const classes = classed.map(({ cls }) => cls);
     const prepSeconds = prepSecondsOf(input.prepTimeMinutes);
     const counted = classes.flatMap((cls) => (cls.kind === 'wait' ? cls.waits : []));
-    const rows = rowsOf(classed);
+    const rows = groupUntimed(classed.map(rowOf));
 
     if (prepSeconds === undefined) {
         return { prepSeconds, total: counted.length > 0 ? { kind: 'noPrep' } : { kind: 'noTimes' }, rows };

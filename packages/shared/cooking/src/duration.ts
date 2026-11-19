@@ -70,10 +70,8 @@ const UNREAD_TIME_BEFORE = new RegExp(String.raw`(?<![\d.,])\d+(?:[.,]\d+)?\s*[m
  * rule is on the words, not on what follows them, so "per side", "per batch" and "to the boil" read none on purpose. A
  * wrong number the cook trusts is worse than no offer. The words are the word reader's, plain lower-case letters.
  */
-const RATE_AFTER = new RegExp(
-    String.raw`^\s*(?:${RATE_PHRASES.map((phrase) => phrase.join(String.raw`\s+`)).join('|')})(?![a-z])`,
-    'iu',
-);
+const RATE_ALTERNATION = RATE_PHRASES.map((phrase) => phrase.join(String.raw`\s+`)).join('|');
+const RATE_AFTER = new RegExp(String.raw`^\s*(?:${RATE_ALTERNATION})(?![a-z])`, 'iu');
 
 /** One whole span of time: amounts joined by space, comma or "and", then an optional bare minute part. */
 const SPAN = new RegExp(`${amountSource(false)}(?:${JOINER}${amountSource(false)})*${BARE_MINUTES}?`, 'giu');
@@ -238,8 +236,8 @@ function waitOf(reading: DurationReading): Wait | undefined {
  * disagree. Every wait with `offers` set is a timer `offerSecondsOf` gives for that line.
  *
  * @param input - The stored timer and the lines.
- * @returns A stored timer when it is a length a timer can have, else the waits of the lines. A time under 5 seconds is
- *   no wait. A line with two times sets `unread`, and a step with `unread` set counts nothing. Pure.
+ * @returns A stored timer when it is a length a timer can have, else the waits of the lines. A time under
+ *   `MIN_TIMER_MS` is no wait. A line with two times sets `unread`, and a step with `unread` set counts nothing. Pure.
  */
 export function stepWaitsOf(input: StepWaitsInput): StepWaits {
     const stored = validSeconds(input.storedSeconds);

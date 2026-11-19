@@ -91,7 +91,7 @@ describe('repo canvases', () => {
                             .map((img) => img.src),
                     );
 
-                    // Soft, so one load problem never hides the size checks of the same board.
+                    // Soft, so one failed check never hides the other checks of the same board.
                     expect.soft(problems).toEqual([]);
                     expect.soft(brokenImages, 'images that did not load').toEqual([]);
                     expect.soft(measured.theme).toBe(theme);

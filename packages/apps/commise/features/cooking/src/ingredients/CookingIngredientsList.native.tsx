@@ -1,8 +1,8 @@
 /**
  * @module CookingIngredientsList — the cooking ingredients list on native: the title, the servings stepper, one row per
  * line and Clear ticks. Every piece is the recipe page's own (`IngredientCheckRow`, `ServingScaleControl`, through
- * `@commise/features-recipes/cook`), so cooking mode names a line, sets an amount and counts servings exactly as the page
- * does, in the page's own words.
+ * `@commise/features-recipes/cook`), so cooking mode names a line, sets an amount and counts servings exactly as the
+ * page does, in the page's own words.
  *
  * It holds no state and no frame: the sheet and the column wrap it, and the screen binds `useCookingIngredients`.
  * Clear ticks is drawn only while a line is ticked, because with none ticked it has nothing to do.

@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { DockerReadError, dockerReadRefusal, isDockerReadError } from '../dockerReadError.js';
 import {
     checkoutProject,
+    defaultPortOf,
     composeContainersFrom,
     isInvalidStackPortError,
     labelRefusal,
@@ -19,6 +20,7 @@ import {
     publishedHostPort,
     onPublishedPorts,
     refusalLine,
+    stackOrRefusal,
     stackFrom,
     stackLine,
     targetOwners,
@@ -68,8 +70,26 @@ describe('a shifted stack (AE2)', () => {
         expect(stack.hostPort('postgres', 5432)).toBe(5532);
     });
 
+    it('answers every default port from one table, and refuses a service it does not know', () => {
+        expect(['recipes', 'identity', 'food', 'localstack', 'postgres'].map(defaultPortOf)).toEqual([
+            3000, 3001, 3002, 4566, 5432,
+        ]);
+        expect(() => defaultPortOf('newservice')).toThrow(RangeError);
+    });
+
+    it('takes the default of a known service from the table when the caller passes none', () => {
+        expect(stack.hostPort('identity')).toBe(3101);
+        expect(stackFrom({}).hostPort('postgres')).toBe(5432);
+        expect(stackFrom({ LOCAL_SANDBOX_HOST_PORTS: 'food=3010' }).hostPort('food')).toBe(3010);
+    });
+
     it('moves a service that is not one of the five by the same offset, from its own default', () => {
         expect(stack.hostPort('newservice', 3005)).toBe(3105);
+    });
+
+    it('names the Postgres volume the way Compose does: the project, an underscore and the volume key', () => {
+        expect(stackFrom({}).volumeName()).toBe('local-sandbox_local-sandbox-pgdata');
+        expect(stack.volumeName()).toBe('local-sandbox-3100_local-sandbox-pgdata');
     });
 
     it('names the project, the containers and the image tag after the value', () => {
@@ -237,6 +257,7 @@ describe('volumeOwnerVerdict (RT3)', () => {
     it('passes when the project has no volume', () => {
         expect(
             volumeOwnerVerdict({
+                project: 'local-sandbox',
                 volumeExists: false,
                 record: undefined,
                 containers: [],
@@ -250,7 +271,14 @@ describe('volumeOwnerVerdict (RT3)', () => {
 
     it('refuses when the record names another checkout, and names it', () => {
         expect(
-            volumeOwnerVerdict({ volumeExists: true, record: other, containers: [], checkout: here, canon: identity }),
+            volumeOwnerVerdict({
+                project: 'local-sandbox',
+                volumeExists: true,
+                record: other,
+                containers: [],
+                checkout: here,
+                canon: identity,
+            }),
         ).toEqual({
             ok: false,
             owner: other,
@@ -260,6 +288,7 @@ describe('volumeOwnerVerdict (RT3)', () => {
     it('refuses when there is no record and no container, with no owner to name', () => {
         expect(
             volumeOwnerVerdict({
+                project: 'local-sandbox',
                 volumeExists: true,
                 record: undefined,
                 containers: [],
@@ -274,7 +303,14 @@ describe('volumeOwnerVerdict (RT3)', () => {
 
     it('passes when the record names this checkout', () => {
         expect(
-            volumeOwnerVerdict({ volumeExists: true, record: here, containers: [], checkout: here, canon: identity }),
+            volumeOwnerVerdict({
+                project: 'local-sandbox',
+                volumeExists: true,
+                record: here,
+                containers: [],
+                checkout: here,
+                canon: identity,
+            }),
         ).toEqual({
             ok: true,
         });
@@ -283,6 +319,7 @@ describe('volumeOwnerVerdict (RT3)', () => {
     it('passes on a live label for this checkout, even when the record names another checkout', () => {
         expect(
             volumeOwnerVerdict({
+                project: 'local-sandbox',
                 volumeExists: true,
                 record: other,
                 containers: [label(here)],
@@ -292,9 +329,25 @@ describe('volumeOwnerVerdict (RT3)', () => {
         ).toEqual({ ok: true });
     });
 
+    it('reads the owners of the TARGET project, whatever project the first container belongs to', () => {
+        const sibling: ComposeContainer = { project: 'local-sandbox-3100', workingDir: `${other}/.local-sandbox` };
+
+        expect(
+            volumeOwnerVerdict({
+                project: 'local-sandbox',
+                volumeExists: true,
+                record: undefined,
+                containers: [sibling, label(here)],
+                checkout: here,
+                canon: identity,
+            }),
+        ).toEqual({ ok: true });
+    });
+
     it('refuses on a live label for another checkout, even when the record names this checkout', () => {
         expect(
             volumeOwnerVerdict({
+                project: 'local-sandbox',
                 volumeExists: true,
                 record: here,
                 containers: [label(other)],
@@ -527,7 +580,12 @@ describe('composeContainersFrom reads `docker ps -a` label output', () => {
 });
 
 describe('a malformed LOCAL_SANDBOX_HOST_PORTS is a refusal, not a stack trace', () => {
-    it.each([['recipes=abc'], ['recipes=80'], ['recipes=3010,recipes=3011'], ['nonsense']])('refuses %s', (value) => {
+    it.each([
+        ['recipes=abc', 'recipes=abc'],
+        ['recipes=80', 'recipes=80'],
+        ['recipes=3010,recipes=3011', 'recipes=3011'],
+        ['nonsense', 'nonsense'],
+    ])('refuses %s and names the entry %s', (value, entry) => {
         let caught: unknown;
 
         try {
@@ -539,8 +597,34 @@ describe('a malformed LOCAL_SANDBOX_HOST_PORTS is a refusal, not a stack trace',
         expect(isInvalidStackPortError(caught)).toBe(true);
         expect(caught).toMatchObject({
             refused: `LOCAL_SANDBOX_HOST_PORTS=${value}`,
-            why: 'is not a list of unique name=port entries with a port from 1024 to 65535',
+            why: `has the entry '${entry}', which is not a unique name=port with a port from 1024 to 65535`,
             fix: 'Pass entries like recipes=3010, or unset the variable.',
+        });
+    });
+});
+
+describe('stackOrRefusal turns every refusal of stackFrom into one R9 line', () => {
+    it('gives the stack when the environment is fine, with its overrides', () => {
+        const outcome = stackOrRefusal('local:up', {
+            LOCAL_SANDBOX_PORT: '3100',
+            LOCAL_SANDBOX_HOST_PORTS: 'food=3010',
+        });
+
+        expect(outcome.ok).toBe(true);
+        expect(outcome.ok && outcome.stack.project).toBe('local-sandbox-3100');
+        expect(outcome.ok && outcome.stack.hostPortOverrides).toEqual({ food: 3010 });
+    });
+
+    it('gives the line, with the door first, for a bad port and for a bad entry', () => {
+        expect(stackOrRefusal('local:down', { LOCAL_SANDBOX_PORT: '80' })).toEqual({
+            ok: false,
+            line: refusalOf('80').replace('local:up', 'local:down'),
+        });
+        expect(stackOrRefusal('maestro:lanes', { LOCAL_SANDBOX_HOST_PORTS: 'recipes=abc' })).toEqual({
+            ok: false,
+            line:
+                "maestro:lanes refused: LOCAL_SANDBOX_HOST_PORTS=recipes=abc has the entry 'recipes=abc', which is not a " +
+                'unique name=port with a port from 1024 to 65535. Pass entries like recipes=3010, or unset the variable.',
         });
     });
 });

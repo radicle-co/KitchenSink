@@ -11,7 +11,7 @@ import path from 'node:path';
 
 import { isHostLockHeldError, type HostLock } from './maestroLanes/hostLock.js';
 import { dockerReadRefusal, isDockerReadError } from './dockerReadError.js';
-import { isInvalidStackPortError, labelRefusal, refusalLine, stackFrom, type ComposeContainer } from './stackPorts.js';
+import { labelRefusal, refusalLine, stackOrRefusal, type ComposeContainer } from './stackPorts.js';
 
 const DOOR = 'local:down';
 
@@ -44,19 +44,15 @@ export interface DownPorts {
  * @sideEffect Takes and releases the project lock, and stops the project's containers.
  */
 export function runDown(ports: DownPorts): number {
-    let project: string;
+    const asked = stackOrRefusal(DOOR, ports.env);
 
-    try {
-        ({ project } = stackFrom(ports.env));
-    } catch (error) {
-        if (isInvalidStackPortError(error)) {
-            ports.err(refusalLine(DOOR, error.refused, error.why, error.fix));
+    if (!asked.ok) {
+        ports.err(asked.line);
 
-            return 1;
-        }
-
-        throw error;
+        return 1;
     }
+
+    const { project } = asked.stack;
 
     let lock: HostLock;
 

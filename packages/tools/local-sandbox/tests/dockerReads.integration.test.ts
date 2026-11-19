@@ -17,6 +17,7 @@ import {
     listeningPorts,
 } from '../bin/adapters.js';
 import { isDockerReadError } from '../src/dockerReadError.js';
+import { stackFrom } from '../src/stackPorts.js';
 
 let dir = '';
 let savedPath: string | undefined;
@@ -106,6 +107,9 @@ describe('a successful read is parsed', () => {
         stub('docker', 'local-sandbox_local-sandbox-pgdata\n', 0);
 
         expect(dockerVolumeExists('local-sandbox_local-sandbox-pgdata')).toBe(true);
+        expect(dockerVolumeExists(stackFrom({}).volumeName())).toBe(true);
+        // A shifted stack asks for its OWN volume, which the default stack's listing does not hold.
+        expect(dockerVolumeExists(stackFrom({ LOCAL_SANDBOX_PORT: '3100' }).volumeName())).toBe(false);
     });
 
     it('asks docker port for the container port and returns the host port', () => {

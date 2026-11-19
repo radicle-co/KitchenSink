@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { acceptedStackEnvLine, stackEnvOutcome, STACK_ENV_KEYS } from '../stackEnv.js';
+import { stackEnvOutcome, STACK_ENV_KEYS, workerEnvFrom } from '../stackEnv.js';
 import { stackFrom, type ComposeContainer } from '../stackPorts.js';
 
 const C = '/work/C';
@@ -44,7 +44,6 @@ describe("stackEnvOutcome for the default stack: exactly today's values", () => 
     const env = linesOf(outcome);
 
     it('names the project, the containers and the published ports', () => {
-        expect(env['LOCAL_SANDBOX_PROJECT']).toBe('local-sandbox');
         expect(env['LOCAL_MAESTRO_POSTGRES_CONTAINER']).toBe('local-sandbox-postgres');
         expect(env['LOCAL_MAESTRO_RECIPES_CONTAINER']).toBe('local-sandbox-recipes');
         expect(env['MAESTRO_LOCAL_RECIPE_HOST_PORT']).toBe('3000');
@@ -158,17 +157,33 @@ describe('stackEnvOutcome refuses with one line and no KEY=value', () => {
     });
 });
 
-describe("acceptedStackEnvLine is the shell's allow-list in code form", () => {
-    it('accepts a known key and keeps an @ and = in the value', () => {
-        expect(acceptedStackEnvLine('LOCAL_MAESTRO_WORKER_DATABASE_URL=postgres://u:p@h:1/d?x=y')).toEqual([
-            'LOCAL_MAESTRO_WORKER_DATABASE_URL',
-            'postgres://u:p@h:1/d?x=y',
-        ]);
+describe('workerEnvFrom', () => {
+    it('reads the three values the way the worker does, with Node env-file rules (quotes, comments, spacing)', () => {
+        const text = [
+            '# a comment SQS_ENDPOINT=nowhere',
+            'SQS_ENDPOINT=http://localhost:4566',
+            'RECIPE_PARSE_QUEUE_URL = "http://localhost:4566/000000000000/queue" # trailing comment',
+            "DATABASE_URL='postgres://postgres:postgres@localhost:5432/db'",
+        ].join('\n');
+
+        expect(workerEnvFrom(text)).toEqual({
+            ok: true,
+            env: {
+                SQS_ENDPOINT: 'http://localhost:4566',
+                RECIPE_PARSE_QUEUE_URL: 'http://localhost:4566/000000000000/queue',
+                DATABASE_URL: 'postgres://postgres:postgres@localhost:5432/db',
+            },
+        });
     });
 
-    it('refuses an unknown key, a line with no =, and a key with a lowercase letter', () => {
-        expect(acceptedStackEnvLine('PATH=/evil')).toBeUndefined();
-        expect(acceptedStackEnvLine('LOCAL_SANDBOX_PROJECT')).toBeUndefined();
-        expect(acceptedStackEnvLine('local_sandbox_project=x')).toBeUndefined();
+    it('names every key the file does not state', () => {
+        expect(workerEnvFrom('SQS_ENDPOINT=http://localhost:4566\n')).toEqual({
+            ok: false,
+            missing: ['RECIPE_PARSE_QUEUE_URL', 'DATABASE_URL'],
+        });
+    });
+
+    it('does not take a commented-out key as stated', () => {
+        expect(workerEnvFrom('# DATABASE_URL=x\n')).toMatchObject({ ok: false });
     });
 });

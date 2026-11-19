@@ -74,6 +74,7 @@ const DEFAULT_STACK_FACTS: Readonly<Record<string, string>> = {
     LOCAL_MAESTRO_LOCALSTACK: 'http://localhost:4566',
     LOCAL_MAESTRO_RECIPES_CONTAINER: 'local-sandbox-recipes',
     LOCAL_MAESTRO_POSTGRES_CONTAINER: 'local-sandbox-postgres',
+    LOCAL_MAESTRO_POSTGRES_PORT: '5432',
 };
 
 function run(sandbox: Sandbox, body: string, env: Readonly<Record<string, string>> = {}) {
@@ -1022,7 +1023,7 @@ describe('the recipe database the needsReview seed writes', () => {
     const RECIPE_ENV =
         'DB_NAME=kitchensink_recipes_local\nDB_USERNAME=postgres\nDB_PASSWORD=postgres\nNODE_ENV=development\n';
 
-    function withDocker(sandbox: Sandbox, recipeEnv: string, publishedPort: string): void {
+    function withDocker(sandbox: Sandbox, recipeEnv: string): void {
         writeFileSync(
             path.join(sandbox.bin, 'docker'),
             [
@@ -1030,7 +1031,6 @@ describe('the recipe database the needsReview seed writes', () => {
                 `echo "docker $*" >> "${sandbox.calls}"`,
                 'case "$*" in',
                 `    *"inspect"*"local-sandbox-recipes"*) printf '%s' '${recipeEnv}' ;;`,
-                `    *"port local-sandbox-postgres 5432/tcp"*) printf '%s\\n' '${publishedPort}' ;;`,
                 '    *) exit 1 ;;',
                 'esac',
                 '',
@@ -1039,17 +1039,19 @@ describe('the recipe database the needsReview seed writes', () => {
         chmodSync(path.join(sandbox.bin, 'docker'), 0o755);
     }
 
-    const echoUrl = (sandbox: Sandbox): string =>
-        run(sandbox, `local_maestro_seed_env '${sandbox.state}'; echo "[\${E2E_SEED_RECIPE_DATABASE_URL-unset}]"`)
+    const echoUrl = (sandbox: Sandbox, env: Readonly<Record<string, string>> = {}): string =>
+        run(sandbox, `local_maestro_seed_env '${sandbox.state}'; echo "[\${E2E_SEED_RECIPE_DATABASE_URL-unset}]"`, env)
             .stdout.trim()
             .split('\n')
             .at(-1) ?? '';
 
     it('is the running stack’s own database, on loopback, with the published port', () => {
         const sandbox = makeSandbox();
-        withDocker(sandbox, RECIPE_ENV, '0.0.0.0:5433');
+        withDocker(sandbox, RECIPE_ENV);
 
-        expect(echoUrl(sandbox)).toBe('[postgres://postgres:postgres@127.0.0.1:5433/kitchensink_recipes_local]');
+        expect(echoUrl(sandbox, { LOCAL_MAESTRO_POSTGRES_PORT: '5433' })).toBe(
+            '[postgres://postgres:postgres@127.0.0.1:5433/kitchensink_recipes_local]',
+        );
     });
 
     it('⛔ is left UNSET, never guessed, when the stack is not running — the seed then refuses by name', () => {
@@ -1062,7 +1064,7 @@ describe('the recipe database the needsReview seed writes', () => {
 
     it('⛔ is left unset for a password a URL would have to escape, rather than building a URL that means something else', () => {
         const sandbox = makeSandbox();
-        withDocker(sandbox, 'DB_NAME=r\nDB_USERNAME=u\nDB_PASSWORD=p@ss/word\n', '0.0.0.0:5432');
+        withDocker(sandbox, 'DB_NAME=r\nDB_USERNAME=u\nDB_PASSWORD=p@ss/word\n');
 
         expect(echoUrl(sandbox)).toBe('[unset]');
     });
@@ -1129,6 +1131,42 @@ describe('the door falls back to no default stack', () => {
         expect(result.status).toBe(1);
         expect(result.stderr).toContain('local:maestro: LOCAL_MAESTRO_RECIPES_CONTAINER is not set');
         expect(readFileSync(sandbox.calls, 'utf8')).not.toContain('docker');
+    });
+
+    it('the recipe database address uses the Postgres port the stack stated, and asks Docker for no port', () => {
+        const sandbox = makeSandbox();
+        writeFileSync(
+            path.join(sandbox.bin, 'docker'),
+            [
+                '#!/usr/bin/env bash',
+                `echo "docker $*" >> "${sandbox.calls}"`,
+                'if [ "$1" = port ]; then exit 1; fi',
+                'printf "DB_NAME=recipes\\nDB_USERNAME=u\\nDB_PASSWORD=p\\n"',
+                '',
+            ].join('\n'),
+        );
+        chmodSync(path.join(sandbox.bin, 'docker'), 0o755);
+        const stated = {
+            LOCAL_MAESTRO_RECIPES_CONTAINER: 'local-sandbox-3100-recipes',
+            LOCAL_MAESTRO_POSTGRES_CONTAINER: 'local-sandbox-3100-postgres',
+        };
+
+        const found = run(sandbox, 'local_maestro_recipe_database_url', {
+            ...stated,
+            LOCAL_MAESTRO_POSTGRES_PORT: '5532',
+        });
+
+        expect(found.status).toBe(0);
+        expect(found.stdout.trim()).toBe('postgres://u:p@127.0.0.1:5532/recipes');
+        expect(readFileSync(sandbox.calls, 'utf8')).not.toContain('docker port');
+
+        const refused = run(sandbox, 'local_maestro_recipe_database_url', {
+            ...stated,
+            LOCAL_MAESTRO_POSTGRES_PORT: '',
+        });
+
+        expect(refused.status).toBe(1);
+        expect(refused.stderr).toContain('local:maestro: LOCAL_MAESTRO_POSTGRES_PORT is not set');
     });
 
     it('the parse worker is not started on the default stack when the stack states no overrides', () => {

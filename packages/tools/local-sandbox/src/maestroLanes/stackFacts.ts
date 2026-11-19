@@ -2,6 +2,7 @@
  * The facts a lane reads from the running stack's environment, which `bin/stackEnv.ts` printed and `localMaestro.sh`
  * exported. Pure: a missing fact is an error that names it, and nothing here states a default port.
  */
+import { z } from 'zod';
 
 /** The host port each service publishes. */
 export interface HostPorts {
@@ -10,11 +11,14 @@ export interface HostPorts {
     readonly food: number;
 }
 
-const PORT_VARIABLES = [
-    ['recipes', 'MAESTRO_LOCAL_RECIPE_HOST_PORT'],
-    ['identity', 'MAESTRO_LOCAL_IDENTITY_HOST_PORT'],
-    ['food', 'MAESTRO_LOCAL_FOOD_HOST_PORT'],
-] as const;
+/** The runner variable that carries each service's published host port. The one place the names are written. */
+export const HOST_PORT_VARIABLES: Readonly<Record<keyof HostPorts, string>> = {
+    recipes: 'MAESTRO_LOCAL_RECIPE_HOST_PORT',
+    identity: 'MAESTRO_LOCAL_IDENTITY_HOST_PORT',
+    food: 'MAESTRO_LOCAL_FOOD_HOST_PORT',
+};
+
+const portSchema = z.string().regex(/^\d+$/u).transform(Number).pipe(z.number().int().min(1).max(65_535));
 
 /**
  * The three published host ports.
@@ -24,25 +28,24 @@ const PORT_VARIABLES = [
  * @throws {Error} Naming the service whose port is missing or is not a port.
  */
 export function hostPortsFromEnv(env: Readonly<Record<string, string | undefined>>): HostPorts {
-    const read = (service: (typeof PORT_VARIABLES)[number][0], variable: string): number => {
+    const read = (service: keyof HostPorts): number => {
+        const variable = HOST_PORT_VARIABLES[service];
         const raw = env[variable];
 
         if (raw === undefined || raw === '') {
             throw new Error(`the stack publishes no ${service} port (${variable} is not set)`);
         }
 
-        const port = Number(raw);
+        const port = portSchema.safeParse(raw);
 
-        if (!/^\d+$/u.test(raw) || port < 1 || port > 65_535) {
+        if (!port.success) {
             throw new Error(`the ${service} port ${JSON.stringify(raw)} (${variable}) is not a port`);
         }
 
-        return port;
+        return port.data;
     };
 
-    const [recipes, identity, food] = PORT_VARIABLES.map(([service, variable]) => read(service, variable));
-
-    return { recipes: recipes ?? 0, identity: identity ?? 0, food: food ?? 0 };
+    return { recipes: read('recipes'), identity: read('identity'), food: read('food') };
 }
 
 const WORKER_VARIABLES = [

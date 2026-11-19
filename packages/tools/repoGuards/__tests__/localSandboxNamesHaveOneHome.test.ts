@@ -20,8 +20,8 @@ import { isTestFile, presentFiles, repoRoot, visit } from './serviceSources.js';
 
 const PACKAGE = 'packages/tools/local-sandbox';
 const HOME = `${PACKAGE}/src/stackPorts.ts`;
-/** A container or project name, or a local image tag. `pgdata` and a temp-folder prefix are fine. */
-const NAME = /local-sandbox-(?:postgres|recipes|identity|food|localstack|\d)|local-sandbox\/[\w.-]+:local/u;
+/** A container, project or volume name, or a local image tag. A temp-folder prefix is fine. */
+const NAME = /local-sandbox-(?:postgres|recipes|identity|food|localstack|pgdata|\d)|local-sandbox\/[\w.-]+:local/u;
 /** A template that ends where a service name is about to go: `local-sandbox-${service}`. */
 const BEING_BUILT = /local-sandbox-$/u;
 
@@ -47,14 +47,29 @@ function namesIn(contents: string): readonly string[] {
     return found;
 }
 
+/** The names a shell script spells, on lines that are not comments. A template being built counts too. */
+function shellNamesIn(contents: string): readonly string[] {
+    return contents
+        .split('\n')
+        .filter((line) => !line.trimStart().startsWith('#'))
+        .filter((line) => NAME.test(line) || /local-sandbox-\$/u.test(line));
+}
+
 describe('the names of a local stack are built in stackPorts.ts and nowhere else', () => {
-    const files = presentFiles([`${PACKAGE}/src`, `${PACKAGE}/bin`]).filter(
-        (file) => file.endsWith('.ts') && !isTestFile(file) && file !== HOME,
+    const sources = presentFiles([`${PACKAGE}/src`, `${PACKAGE}/bin`]).filter(
+        (file) => !isTestFile(file) && file !== HOME,
     );
+    const files = sources.filter((file) => file.endsWith('.ts'));
+    const scripts = sources.filter((file) => file.endsWith('.sh'));
 
     it('finds the files it is meant to read, so an empty list cannot pass', () => {
         expect(files).toContain(`${PACKAGE}/bin/up.ts`);
         expect(files).toContain(`${PACKAGE}/src/composePlan.ts`);
+        expect(scripts).toContain(`${PACKAGE}/bin/localMaestro.sh`);
+    });
+
+    it.each(scripts)('%s spells no container, image or volume name of its own', (file) => {
+        expect(shellNamesIn(readFileSync(join(repoRoot, file), 'utf8'))).toEqual([]);
     });
 
     it.each(files)('%s spells no container or image name of its own', (file) => {
@@ -69,8 +84,14 @@ describe('the names of a local stack are built in stackPorts.ts and nowhere else
         ]);
     });
 
-    it('passes the volume name, a comment and an ordinary string', () => {
-        expect(namesIn("const v = 'local-sandbox-pgdata';")).toEqual([]);
+    it('catches the volume name, in code and in a shell script, and passes a shell comment', () => {
+        expect(namesIn("const v = 'local-sandbox-pgdata';")).toEqual(['local-sandbox-pgdata']);
+        expect(shellNamesIn('docker volume rm local-sandbox_local-sandbox-pgdata\n')).toHaveLength(1);
+        expect(shellNamesIn('docker exec local-sandbox-postgres psql\n')).toHaveLength(1);
+        expect(shellNamesIn('# the container local-sandbox-postgres\necho hi\n')).toEqual([]);
+    });
+
+    it('passes a comment and an ordinary string', () => {
         expect(namesIn('// the container local-sandbox-postgres\nconst a = 1;')).toEqual([]);
         expect(namesIn("const s = 'sandbox';")).toEqual([]);
         expect(namesIn("mkdtempSync(path.join(tmpdir(), 'local-sandbox-'))")).toEqual([]);

@@ -14,7 +14,7 @@
  */
 import path from 'node:path';
 
-import { hostPortOverridesFrom } from './localImages.js';
+import { hostPortOverridesFrom, isHostPortEntryError } from './localImages.js';
 
 /** The environment variable that selects the stack. */
 const PORT_VARIABLE = 'LOCAL_SANDBOX_PORT';
@@ -33,6 +33,31 @@ export const DEFAULT_PORTS: readonly (readonly [string, number])[] = [
     ['localstack', 4566],
     ['postgres', 5432],
 ];
+
+/**
+ * The default host port of a compose service: the one place the number is written. `bin/up.ts`, `composePlan.ts` and
+ * the `stack:` line all read it here, and `tests/defaultPorts.integration.test.ts` pins it to the services' own
+ * `PORT` defaults.
+ *
+ * @param service - A compose service name from {@link DEFAULT_PORTS}.
+ * @returns Its default host port. Pure.
+ * @throws {RangeError} For a service the table does not name: a caller that needs one passes its own default.
+ */
+export function defaultPortOf(service: string): number {
+    const found = DEFAULT_PORTS.find(([name]) => name === service);
+
+    if (found === undefined) {
+        throw new RangeError(`defaultPortOf: no default host port is recorded for the service ${service}`);
+    }
+
+    return found[1];
+}
+
+/** The key of the Postgres volume in the Compose file. Compose names the real volume `<project>_<key>`. */
+export const PGDATA_VOLUME_KEY = 'local-sandbox-pgdata';
+
+/** Every service listens on this port INSIDE its container, whatever host port it publishes on. */
+export const CONTAINER_PORT = 3000;
 
 /** Ports a shifted stack must not land on, with who uses each. Metro, adb and the Android emulator range. */
 const RESERVED_RANGES: readonly { readonly from: number; readonly to: number; readonly user: string }[] = [
@@ -108,15 +133,24 @@ export interface Stack {
     readonly isDefault: boolean;
     /** The Docker Compose project. */
     readonly project: string;
+    /** The `LOCAL_SANDBOX_HOST_PORTS` entries, by service: a null-prototype record, empty when none are set. */
+    readonly hostPortOverrides: Readonly<Record<string, number>>;
     /** The container name of a compose service: `<project>-<service>`. */
     readonly containerName: (service: string) => string;
+    /** The Postgres volume as Docker names it: `<project>_local-sandbox-pgdata`, what Compose creates for this project. */
+    readonly volumeName: () => string;
     /** The local image tag of a repository. A shifted stack has its own tag, so a build never replaces another's. */
     readonly imageTag: (repository: string) => string;
     /**
      * The host port a service publishes on. An entry of `LOCAL_SANDBOX_HOST_PORTS` beats the shift, and the shift
      * beats the default.
      */
-    readonly hostPort: (service: string, defaultPort: number) => number;
+    readonly hostPort: (service: string, defaultPort?: number) => number;
+}
+
+/** The Postgres volume Compose creates for a project. The one place the `<project>_<key>` rule is written. Pure. */
+function volumeNameOf(project: string): string {
+    return `${project}_${PGDATA_VOLUME_KEY}`;
 }
 
 /** The clash text for one moved port, or `undefined` when it is fine. */
@@ -180,10 +214,14 @@ export function stackFrom(env: Readonly<Record<string, string | undefined>>): St
 
     try {
         overrides = hostPortOverridesFrom(rawOverrides);
-    } catch {
+    } catch (error) {
+        if (!isHostPortEntryError(error)) {
+            throw error;
+        }
+
         throw new InvalidStackPortError(
             `LOCAL_SANDBOX_HOST_PORTS=${rawOverrides ?? ''}`,
-            'is not a list of unique name=port entries with a port from 1024 to 65535',
+            `has the entry '${error.entry}', which is not a unique name=port with a port from 1024 to 65535`,
             'Pass entries like recipes=3010, or unset the variable.',
         );
     }
@@ -195,10 +233,36 @@ export function stackFrom(env: Readonly<Record<string, string | undefined>>): St
         offset,
         isDefault,
         project,
+        hostPortOverrides: overrides,
         containerName: (service) => `${project}-${service}`,
+        volumeName: () => volumeNameOf(project),
         imageTag: (repository) => `local-sandbox/${repository}:${isDefault ? 'local' : `local-${value}`}`,
-        hostPort: (service, defaultPort) => overrides[service] ?? defaultPort + offset,
+        hostPort: (service, defaultPort = defaultPortOf(service)) => overrides[service] ?? defaultPort + offset,
     };
+}
+
+/** What {@link stackOrRefusal} gives: the stack, or the one R9 line the door prints. */
+export type StackOrRefusal =
+    { readonly ok: true; readonly stack: Stack } | { readonly ok: false; readonly line: string };
+
+/**
+ * {@link stackFrom} for a door: a refusal of the environment is the door's own R9 line, never a stack trace. Every
+ * door (`local:up`, `local:down`, the stack door, the dev doors) asks this, so the line is built once. Pure.
+ *
+ * @param door - The door that refuses, for example `local:up`.
+ * @param env - The process environment.
+ * @returns The stack, or the line.
+ */
+export function stackOrRefusal(door: string, env: Readonly<Record<string, string | undefined>>): StackOrRefusal {
+    try {
+        return { ok: true, stack: stackFrom(env) };
+    } catch (error) {
+        if (isInvalidStackPortError(error)) {
+            return { ok: false, line: refusalLine(door, error.refused, error.why, error.fix) };
+        }
+
+        throw error;
+    }
 }
 
 /**
@@ -275,6 +339,8 @@ export function checkoutProject(
 
 /** What {@link volumeOwnerVerdict} reads. */
 export interface VolumeOwnerInput {
+    /** The target project: whose containers count as owners. */
+    readonly project: string;
     /** Whether the project's Postgres volume exists. */
     readonly volumeExists: boolean;
     /** The checkout the owner record names, if the record exists. */
@@ -303,7 +369,7 @@ export function volumeOwnerVerdict(input: VolumeOwnerInput): VolumeOwnerVerdict 
     }
 
     const here = input.canon(input.checkout);
-    const owners = targetOwners(input.containers, input.containers[0]?.project ?? '', input.canon);
+    const owners = targetOwners(input.containers, input.project, input.canon);
     const named = owners.length === 0 ? (input.record === undefined ? [] : [input.canon(input.record)]) : owners;
 
     if (named.length === 0) {
@@ -416,6 +482,7 @@ export interface VolumeRefusalInput {
  */
 export function volumeRefusal(input: VolumeRefusalInput): string | undefined {
     const verdict = volumeOwnerVerdict({
+        project: input.project,
         volumeExists: input.volumeExists,
         record: input.record,
         containers: input.containers.filter((container) => container.project === input.project),
@@ -427,7 +494,7 @@ export function volumeRefusal(input: VolumeRefusalInput): string | undefined {
         return undefined;
     }
 
-    const volume = `${input.project}_local-sandbox-pgdata`;
+    const volume = volumeNameOf(input.project);
 
     return verdict.owner === undefined
         ? refusalLine(

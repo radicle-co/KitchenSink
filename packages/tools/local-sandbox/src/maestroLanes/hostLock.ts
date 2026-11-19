@@ -85,7 +85,9 @@ const readHolder = (file: string): Holder | undefined => {
           };
 };
 
-const isCode = (error: unknown, code: string): boolean => (error as NodeJS.ErrnoException | undefined)?.code === code;
+/** Whether an error carries this `errno` code (`ENOENT`, `EEXIST`). Pure. */
+export const isCode = (error: unknown, code: string): boolean =>
+    (error as NodeJS.ErrnoException | undefined)?.code === code;
 
 /**
  * Take the host lock, or throw.

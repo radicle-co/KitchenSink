@@ -45,7 +45,7 @@ import { LOCAL_DB, planCompose } from '../src/composePlan.js';
 import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/hostLock.js';
 import { runUp, type UpPorts } from '../src/runUp.js';
 import { canonicalPath } from '../src/canonicalPath.js';
-import { stackLine, type Stack } from '../src/stackPorts.js';
+import { CONTAINER_PORT, stackLine, type Stack } from '../src/stackPorts.js';
 import {
     discoverDatabases,
     discoverMigrations,
@@ -56,12 +56,7 @@ import {
     resolveSsmParameters,
     sharedLiteralEnv,
 } from '../src/runPlan.js';
-import {
-    discoverImageBuilds,
-    hostPortOverridesFrom,
-    identityStatedEnv,
-    localContainerEnv,
-} from '../src/localImages.js';
+import { discoverImageBuilds, identityStatedEnv, localContainerEnv } from '../src/localImages.js';
 import { secretRefsOf, ssmRefsOf } from '../src/secretRefs.js';
 import { MIGRATION_TABLE, pendingMigrations } from '../src/pendingMigrations.js';
 import { composeYaml } from '../src/composeYaml.js';
@@ -134,9 +129,9 @@ async function discover(localStack: Stack): Promise<Discovered | undefined> {
         `${stackLine(
             localStack.project,
             {
-                recipes: localStack.hostPort('recipes', 3000),
-                identity: localStack.hostPort('identity', 3001),
-                food: localStack.hostPort('food', 3002),
+                recipes: localStack.hostPort('recipes'),
+                identity: localStack.hostPort('identity'),
+                food: localStack.hostPort('food'),
             },
             REPO_ROOT,
         )}\n`,
@@ -269,9 +264,8 @@ async function discover(localStack: Stack): Promise<Discovered | undefined> {
             }),
         ).values(),
     ];
-    // A host port something else holds can be moved (`LOCAL_SANDBOX_HOST_PORTS=recipes=3010`); see
-    // `hostPortOverridesFrom`.
-    const hostPortOverrides = hostPortOverridesFrom(process.env['LOCAL_SANDBOX_HOST_PORTS']);
+    // A host port something else holds can be moved (`LOCAL_SANDBOX_HOST_PORTS=recipes=3010`); the Stack parsed it.
+    const hostPortOverrides = localStack.hostPortOverrides;
     const knownServices = new Set(uniqueBuilds.map((build) => build.repository.replace(/^kitchensink-/u, '')));
     const unknownOverrides = Object.keys(hostPortOverrides).filter((name) => !knownServices.has(name));
 
@@ -309,7 +303,7 @@ function wantedPorts(
             name,
             hostPort: localStack.hostPort(
                 name,
-                localPortFor(build.dockerfile.replace(/\/Dockerfile$/u, '')) ?? build.containerPort ?? 3000,
+                localPortFor(build.dockerfile.replace(/\/Dockerfile$/u, '')) ?? build.containerPort ?? CONTAINER_PORT,
             ),
         };
     });
@@ -317,10 +311,10 @@ function wantedPorts(
     return [
         ...services,
         ...(found.requirements.localstackServices.length > 0
-            ? [{ name: 'localstack', hostPort: localStack.hostPort('localstack', 4566) }]
+            ? [{ name: 'localstack', hostPort: localStack.hostPort('localstack') }]
             : []),
         ...(found.requirements.containers.some((image) => image.startsWith('postgres:'))
-            ? [{ name: 'postgres', hostPort: localStack.hostPort('postgres', 5432) }]
+            ? [{ name: 'postgres', hostPort: localStack.hostPort('postgres') }]
             : []),
     ];
 }
@@ -344,7 +338,7 @@ async function materialize(localStack: Stack, found: Discovered): Promise<void> 
         tasksByStack,
         uniqueBuilds,
     } = found;
-    const localstackHost = `http://localhost:${String(localStack.hostPort('localstack', 4566))}`;
+    const localstackHost = `http://localhost:${String(localStack.hostPort('localstack'))}`;
 
     // ⛔ THE DECLARED AWS RESOURCES, AND THE NAMES THE CONTAINERS EXPECT THEM UNDER. LocalStack was being
     // started and never populated: every declared bucket, queue, table and topic was absent, so services ran
@@ -495,7 +489,7 @@ async function materialize(localStack: Stack, found: Discovered): Promise<void> 
         if (defaultPort !== undefined) {
             siblings[name] = {
                 hostPort: localStack.hostPort(name, defaultPort),
-                containerPort: build.containerPort ?? 3000,
+                containerPort: build.containerPort ?? CONTAINER_PORT,
             };
         }
     }
@@ -512,7 +506,7 @@ async function materialize(localStack: Stack, found: Discovered): Promise<void> 
         const name = build.repository.replace(/^kitchensink-/u, '');
         const hostPort = localStack.hostPort(
             name,
-            localPortFor(build.dockerfile.replace(/\/Dockerfile$/u, '')) ?? build.containerPort ?? 3000,
+            localPortFor(build.dockerfile.replace(/\/Dockerfile$/u, '')) ?? build.containerPort ?? CONTAINER_PORT,
         );
         // The stack's own database — the same resolution the migrations use.
         const stackEntry = stacks.find((entry) => entry.stack.startsWith(build.stack));
@@ -543,7 +537,7 @@ async function materialize(localStack: Stack, found: Discovered): Promise<void> 
             name,
             image: build.localImage,
             hostPort,
-            containerPort: build.containerPort ?? 3000,
+            containerPort: build.containerPort ?? CONTAINER_PORT,
             // ⚠️ Handed to `localContainerEnv` rather than spread around it, because the precedence is not a
             // simple "one side wins": local infrastructure must beat a resolved value (`DB_PASSWORD` names
             // the deployed RDS credential, and the local database is the postgres container), while a
@@ -551,7 +545,7 @@ async function materialize(localStack: Stack, found: Discovered): Promise<void> 
             // place, with the rest of the env rules.
             environment: localContainerEnv(envKeys, {
                 database: stackDbs[0] ?? 'postgres',
-                port: build.containerPort ?? 3000,
+                port: build.containerPort ?? CONTAINER_PORT,
                 siblings,
                 // Only food searches and picks remote hits; every other container keeps the group absent.
                 ...(name === 'food' ? { stated: foodStated } : {}),
@@ -692,7 +686,7 @@ async function materialize(localStack: Stack, found: Discovered): Promise<void> 
                     inventedValues: new Set(Object.values(synthEnvFor(entry.app))),
                     database: {
                         host: 'localhost',
-                        port: localStack.hostPort('postgres', 5432),
+                        port: localStack.hostPort('postgres'),
                         user: LOCAL_DB.user,
                         password: LOCAL_DB.password,
                     },
@@ -1020,7 +1014,7 @@ async function materialize(localStack: Stack, found: Discovered): Promise<void> 
                     path.join(outDir, `asset.${seed.assetHash}`),
                     seed.module,
                     database,
-                    localStack.hostPort('postgres', 5432),
+                    localStack.hostPort('postgres'),
                 );
 
                 process.stdout.write(
@@ -1119,7 +1113,7 @@ function realPorts(): UpPorts {
         canon: canonicalPath,
         stateDir,
         containers: dockerContainers,
-        volumeExists: (project) => dockerVolumeExists(`${project}_local-sandbox-pgdata`),
+        volumeExists: dockerVolumeExists,
         listening: listeningPorts,
         publishedBy: dockerPublishedBy,
         readRecord: (file) => (existsSync(file) ? readFileSync(file, 'utf8').trim() : undefined),

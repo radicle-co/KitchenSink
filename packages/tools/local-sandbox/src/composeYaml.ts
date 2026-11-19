@@ -1,6 +1,6 @@
 import { composeValue } from './composeValue.js';
 import type { ComposePlan } from './composePlan.js';
-import type { Stack } from './stackPorts.js';
+import { PGDATA_VOLUME_KEY, type Stack } from './stackPorts.js';
 
 /**
  * Serialise the plan as compose YAML. Hand-rolled because the shape is small, fixed and fully ours.
@@ -62,7 +62,7 @@ export function composeYaml(plan: ComposePlan, localStack: Stack): string {
         }
     }
 
-    lines.push('', 'volumes:', '    local-sandbox-pgdata:', '');
+    lines.push('', 'volumes:', `    ${PGDATA_VOLUME_KEY}:`, '');
 
     return lines.join('\n');
 }

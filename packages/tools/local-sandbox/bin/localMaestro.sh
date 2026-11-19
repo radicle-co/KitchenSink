@@ -130,8 +130,8 @@ local_maestro_stack_env() {
         [ -n "$line" ] || continue
         key="${line%%=*}"
         case "$key" in
-            LOCAL_SANDBOX_PROJECT | LOCAL_MAESTRO_POSTGRES_CONTAINER | LOCAL_MAESTRO_RECIPES_CONTAINER | \
-                LOCAL_MAESTRO_POSTGRES_PORT | LOCAL_MAESTRO_LOCALSTACK | MAESTRO_LOCAL_RECIPE_HOST_PORT | \
+            LOCAL_MAESTRO_POSTGRES_CONTAINER | LOCAL_MAESTRO_RECIPES_CONTAINER | LOCAL_MAESTRO_POSTGRES_PORT | \
+                LOCAL_MAESTRO_LOCALSTACK | MAESTRO_LOCAL_RECIPE_HOST_PORT | \
                 MAESTRO_LOCAL_IDENTITY_HOST_PORT | MAESTRO_LOCAL_FOOD_HOST_PORT | E2E_SEED_RECIPE_URL | \
                 E2E_SEED_IDENTITY_URL | E2E_SEED_FOOD_URL | LOCAL_MAESTRO_WORKER_SQS_ENDPOINT | \
                 LOCAL_MAESTRO_WORKER_RECIPE_PARSE_QUEUE_URL | LOCAL_MAESTRO_WORKER_DATABASE_URL)
@@ -668,13 +668,12 @@ local_maestro_install_app() {
 # host is not loopback (`requireLocalSeedTarget`), so this builds the address and is not what keeps it local.
 local_maestro_recipe_database_url() {
     local env_lines name user password port value
-    local_maestro_require_stack_var LOCAL_MAESTRO_RECIPES_CONTAINER LOCAL_MAESTRO_POSTGRES_CONTAINER || return 1
+    local_maestro_require_stack_var LOCAL_MAESTRO_RECIPES_CONTAINER LOCAL_MAESTRO_POSTGRES_PORT || return 1
     env_lines="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$LOCAL_MAESTRO_RECIPES_CONTAINER" 2>/dev/null)" || return 1
     name="$(printf '%s\n' "$env_lines" | sed -n 's/^DB_NAME=//p' | head -n 1)"
     user="$(printf '%s\n' "$env_lines" | sed -n 's/^DB_USERNAME=//p' | head -n 1)"
     password="$(printf '%s\n' "$env_lines" | sed -n 's/^DB_PASSWORD=//p' | head -n 1)"
-    port="$(docker port "$LOCAL_MAESTRO_POSTGRES_CONTAINER" 5432/tcp 2>/dev/null | head -n 1)" || return 1
-    port="${port##*:}"
+    port="$LOCAL_MAESTRO_POSTGRES_PORT"
 
     for value in "$name" "$user" "$password" "$port"; do
         case "$value" in

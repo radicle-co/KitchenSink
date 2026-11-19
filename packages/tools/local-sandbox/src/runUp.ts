@@ -14,10 +14,9 @@ import { portConflicts } from './localImages.js';
 import { isHostLockHeldError, type HostLock } from './maestroLanes/hostLock.js';
 import { dockerReadRefusal, isDockerReadError } from './dockerReadError.js';
 import {
-    isInvalidStackPortError,
     labelRefusal,
     refusalLine,
-    stackFrom,
+    stackOrRefusal,
     type ComposeContainer,
     type Stack,
     volumeRefusal,
@@ -37,7 +36,7 @@ export interface UpPorts {
     /** Every Compose container on the host, stopped ones included (`docker ps -a`). Throws on a failed read. */
     readonly containers: () => readonly ComposeContainer[];
     /** Whether the project's Postgres volume exists. Read only. */
-    readonly volumeExists: (project: string) => boolean;
+    readonly volumeExists: (volume: string) => boolean;
     /** Every host port something listens on. Read only. */
     readonly listening: () => readonly number[];
     /** The host ports the project's own running containers publish. Read only. */
@@ -68,19 +67,15 @@ export interface UpPorts {
  * @sideEffect Takes and releases the project lock, writes the owner record, and runs the stages.
  */
 export async function runUp(ports: UpPorts): Promise<number> {
-    let stack: Stack;
+    const asked = stackOrRefusal(DOOR, ports.env);
 
-    try {
-        stack = stackFrom(ports.env);
-    } catch (error) {
-        if (isInvalidStackPortError(error)) {
-            ports.err(refusalLine(DOOR, error.refused, error.why, error.fix));
+    if (!asked.ok) {
+        ports.err(asked.line);
 
-            return 1;
-        }
-
-        throw error;
+        return 1;
     }
+
+    const { stack } = asked;
 
     let lock: HostLock;
 
@@ -124,7 +119,7 @@ export async function runUp(ports: UpPorts): Promise<number> {
                 project: stack.project,
                 checkout: ports.checkout,
                 containers,
-                volumeExists: ports.volumeExists(stack.project),
+                volumeExists: ports.volumeExists(stack.volumeName()),
                 record: ports.readRecord(recordFile),
                 recordFile,
                 canon: ports.canon,

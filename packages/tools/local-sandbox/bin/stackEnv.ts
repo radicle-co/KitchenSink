@@ -10,29 +10,26 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { canonicalPath } from '../src/canonicalPath.js';
-import { stackEnvOutcome, type WorkerEnv } from '../src/stackEnv.js';
+import { stackEnvOutcome, workerEnvFrom } from '../src/stackEnv.js';
 import { dockerReadRefusal, isDockerReadError } from '../src/dockerReadError.js';
-import { isInvalidStackPortError, refusalLine, stackFrom, type Stack } from '../src/stackPorts.js';
+import { CONTAINER_PORT, refusalLine, stackOrRefusal, type Stack } from '../src/stackPorts.js';
 import { dockerContainers, dockerPublishedPort, REPO_ROOT } from './adapters.js';
 
 const door = process.argv[2] ?? 'local:maestro';
 const WORKER_ENV_FILE = path.join(REPO_ROOT, 'packages/services/recipe-workers/.env.development');
-
-/** One value of the worker's own env file, which is the one source of its names. `undefined` when it states none. */
-function workerValue(text: string, key: string): string | undefined {
-    return text
-        .split('\n')
-        .find((candidate) => candidate.startsWith(`${key}=`))
-        ?.slice(key.length + 1)
-        .trim();
-}
 
 /**
  * The port each service listens on inside its container. Every service holds 3000, whatever host port it publishes on
  * (`3001->3000` for identity), and LocalStack and Postgres hold their own. Docker answers `docker port` with an error
  * for any other port, so a wrong value here refuses the run: `tests/stackEnv.integration.test.ts` runs it.
  */
-const CONTAINER_PORTS = { recipes: 3000, identity: 3000, food: 3000, localstack: 4566, postgres: 5432 } as const;
+const CONTAINER_PORTS = {
+    recipes: CONTAINER_PORT,
+    identity: CONTAINER_PORT,
+    food: CONTAINER_PORT,
+    localstack: 4566,
+    postgres: 5432,
+} as const;
 
 /** The host port each service of a running stack publishes. @throws DockerReadError when a read fails. */
 function publishedPorts(stack: Stack): Parameters<typeof stackEnvOutcome>[0]['published'] {
@@ -46,41 +43,27 @@ function publishedPorts(stack: Stack): Parameters<typeof stackEnvOutcome>[0]['pu
 }
 
 function main(): number {
-    let stack;
+    const asked = stackOrRefusal(door, process.env);
 
-    try {
-        stack = stackFrom(process.env);
-    } catch (error) {
-        if (isInvalidStackPortError(error)) {
-            process.stderr.write(`${refusalLine(door, error.refused, error.why, error.fix)}\n`);
+    if (!asked.ok) {
+        process.stderr.write(`${asked.line}\n`);
 
-            return 1;
-        }
-
-        throw error;
+        return 1;
     }
 
-    const workerText = readFileSync(WORKER_ENV_FILE, 'utf8');
-    const sqs = workerValue(workerText, 'SQS_ENDPOINT');
-    const queue = workerValue(workerText, 'RECIPE_PARSE_QUEUE_URL');
-    const database = workerValue(workerText, 'DATABASE_URL');
+    const { stack } = asked;
 
-    if (sqs === undefined || queue === undefined || database === undefined) {
-        const missing = [
-            ['SQS_ENDPOINT', sqs],
-            ['RECIPE_PARSE_QUEUE_URL', queue],
-            ['DATABASE_URL', database],
-        ].flatMap(([key, value]) => (value === undefined ? [key] : []));
+    const worker = workerEnvFrom(readFileSync(WORKER_ENV_FILE, 'utf8'));
 
+    if (!worker.ok) {
         process.stderr.write(
-            `${refusalLine(door, WORKER_ENV_FILE, `states no ${missing.join(', ')}`, 'Restore the file from git.')}\n`,
+            `${refusalLine(door, WORKER_ENV_FILE, `states no ${worker.missing.join(', ')}`, 'Restore the file from git.')}\n`,
         );
 
         return 1;
     }
 
     const containers = dockerContainers();
-    const workerEnv: WorkerEnv = { SQS_ENDPOINT: sqs, RECIPE_PARSE_QUEUE_URL: queue, DATABASE_URL: database };
     // A stack that is not running has no port to read, and Docker answers `docker port` with an error for it: the
     // outcome says "run local:up" instead.
     const present = containers.some((container) => container.project === stack.project);
@@ -91,7 +74,7 @@ function main(): number {
         canon: canonicalPath,
         containers,
         published: present ? publishedPorts(stack) : {},
-        workerEnv,
+        workerEnv: worker.env,
     });
 
     if (!outcome.ok) {

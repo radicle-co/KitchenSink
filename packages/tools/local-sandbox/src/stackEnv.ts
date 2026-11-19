@@ -7,6 +7,8 @@
  *
  * @pattern Adapter (pure half): `bin/stackEnv.ts` reads Docker and prints these lines; this module decides them.
  */
+import { parseEnv } from 'node:util';
+
 import {
     onPublishedPorts,
     labelRefusal,
@@ -18,7 +20,6 @@ import {
 
 /** The names the shell door accepts, and nothing else. A line whose key is not here is refused. */
 export const STACK_ENV_KEYS = [
-    'LOCAL_SANDBOX_PROJECT',
     'LOCAL_MAESTRO_POSTGRES_CONTAINER',
     'LOCAL_MAESTRO_RECIPES_CONTAINER',
     'LOCAL_MAESTRO_POSTGRES_PORT',
@@ -116,7 +117,6 @@ export function stackEnvOutcome(input: StackEnvInput): StackEnvOutcome {
     const { recipes = 0, identity = 0, food = 0, localstack = 0, postgres = 0 } = published;
     const moved = { 4566: localstack, 5432: postgres };
     const pairs: readonly (readonly [(typeof STACK_ENV_KEYS)[number], string])[] = [
-        ['LOCAL_SANDBOX_PROJECT', stack.project],
         ['LOCAL_MAESTRO_POSTGRES_CONTAINER', stack.containerName('postgres')],
         ['LOCAL_MAESTRO_RECIPES_CONTAINER', stack.containerName('recipes')],
         ['LOCAL_MAESTRO_POSTGRES_PORT', String(postgres)],
@@ -142,16 +142,30 @@ export function stackEnvOutcome(input: StackEnvInput): StackEnvOutcome {
     };
 }
 
-/**
- * Read one line the way the shell does: the key must be one of {@link STACK_ENV_KEYS}, and the value is everything
- * after the first `=`. Values are not checked by a character class, because a database URL holds `@`.
- *
- * @param line - One line of `stackEnv` output.
- * @returns The key and the value, or `undefined` for a line the shell refuses. Pure.
- */
-export function acceptedStackEnvLine(line: string): readonly [string, string] | undefined {
-    const at = line.indexOf('=');
-    const key = at === -1 ? '' : line.slice(0, at);
+/** What {@link workerEnvFrom} read: the three values, or the names the file does not state. */
+export type WorkerEnvRead =
+    { readonly ok: true; readonly env: WorkerEnv } | { readonly ok: false; readonly missing: readonly string[] };
 
-    return (STACK_ENV_KEYS as readonly string[]).includes(key) ? [key, line.slice(at + 1)] : undefined;
+/**
+ * Read the parse worker's `.env.development` the way the worker does: Node's own env-file rules (`util.parseEnv`), so
+ * a quoted value, a trailing comment or a spaced `=` is read the same on both sides. Pure.
+ *
+ * @param text - The file's text.
+ * @returns The three values, or every name the file does not state.
+ */
+export function workerEnvFrom(text: string): WorkerEnvRead {
+    const { SQS_ENDPOINT, RECIPE_PARSE_QUEUE_URL, DATABASE_URL } = parseEnv(text);
+
+    if (SQS_ENDPOINT !== undefined && RECIPE_PARSE_QUEUE_URL !== undefined && DATABASE_URL !== undefined) {
+        return { ok: true, env: { SQS_ENDPOINT, RECIPE_PARSE_QUEUE_URL, DATABASE_URL } };
+    }
+
+    const stated: readonly (readonly [string, string | undefined])[] = [
+        ['SQS_ENDPOINT', SQS_ENDPOINT],
+        ['RECIPE_PARSE_QUEUE_URL', RECIPE_PARSE_QUEUE_URL],
+        ['DATABASE_URL', DATABASE_URL],
+    ];
+    const missing = stated.flatMap(([key, value]) => (value === undefined ? [key] : []));
+
+    return { ok: false, missing };
 }

@@ -391,6 +391,23 @@ export function portConflicts(
     return wanted.filter((service) => taken.has(service.hostPort) && !mine.has(service.hostPort));
 }
 
+/** An entry of `LOCAL_SANDBOX_HOST_PORTS` that is not a unique `name=port`. It names the entry, for the refusal line. */
+export class HostPortEntryError extends Error {
+    /** The offending entry, trimmed. */
+    readonly entry: string;
+
+    public constructor(entry: string) {
+        super(`LOCAL_SANDBOX_HOST_PORTS: '${entry}' is not a unique name=port with a port from 1024 to 65535`);
+        this.name = 'HostPortEntryError';
+        this.entry = entry;
+        Object.setPrototypeOf(this, HostPortEntryError.prototype);
+    }
+}
+
+/** Whether a value is a {@link HostPortEntryError}. */
+export const isHostPortEntryError = (value: unknown): value is HostPortEntryError =>
+    value instanceof HostPortEntryError;
+
 /**
  * Host ports to publish a service on instead of its own default, from `LOCAL_SANDBOX_HOST_PORTS`
  * (`recipes=3010,food=3012`; names are compose service names).
@@ -401,7 +418,7 @@ export function portConflicts(
  * @param raw - The variable's value.
  * @returns Service name to host port. A null-prototype record, so a service named like an inherited member is not
  *   shadowed by one.
- * @throws When an entry is not `name=port`, the port is not an unprivileged integer, or a name repeats.
+ * @throws {HostPortEntryError} When an entry is not `name=port`, the port is not an unprivileged integer, or a name repeats.
  */
 export function hostPortOverridesFrom(raw: string | undefined): Readonly<Record<string, number>> {
     const overrides = Object.create(null) as Record<string, number>;
@@ -415,9 +432,7 @@ export function hostPortOverridesFrom(raw: string | undefined): Readonly<Record<
         const port = match === null ? Number.NaN : Number(match[2]);
 
         if (match === null || !Number.isInteger(port) || port < 1024 || port > 65_535 || match[1]! in overrides) {
-            throw new Error(
-                `LOCAL_SANDBOX_HOST_PORTS: '${entry.trim()}' is not a unique name=port with a port from 1024 to 65535`,
-            );
+            throw new HostPortEntryError(entry.trim());
         }
 
         overrides[match[1]!] = port;

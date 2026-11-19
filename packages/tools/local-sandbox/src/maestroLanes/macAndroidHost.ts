@@ -15,16 +15,16 @@ import { consolePort } from './androidSerials.js';
 import { tunnelsFromManifest, type Tunnel } from './iosLane.js';
 import type { LaneSpec, RunContext } from './laneTypes.js';
 import type { LocalSettings } from './localSettings.js';
-import type { HostPorts } from './stackFacts.js';
+import { HOST_PORT_VARIABLES, type HostPorts } from './stackFacts.js';
 import { MacSession, macPathsOf, remote, type MacShell } from './macSession.js';
 
 const HEX = /^[0-9a-f]+$/u;
 
 /** The runner variable that names the Mac side of each tunnel. */
 const HOST_PORT_VARIABLE: Readonly<Record<Tunnel['origin'], string>> = {
-    recipeOrigin: 'MAESTRO_LOCAL_RECIPE_HOST_PORT',
-    identityOrigin: 'MAESTRO_LOCAL_IDENTITY_HOST_PORT',
-    foodOrigin: 'MAESTRO_LOCAL_FOOD_HOST_PORT',
+    recipeOrigin: HOST_PORT_VARIABLES.recipes,
+    identityOrigin: HOST_PORT_VARIABLES.identity,
+    foodOrigin: HOST_PORT_VARIABLES.food,
 };
 
 export interface MacAndroidHostOptions {

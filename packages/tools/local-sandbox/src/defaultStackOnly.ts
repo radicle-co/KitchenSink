@@ -4,7 +4,7 @@
  * Their host dev servers read each service's `.env.development`, which names the default stack's ports. Started against
  * another stack they would write into that session's data, so these two doors take only the default stack.
  */
-import { DEFAULT_PORTS, isInvalidStackPortError, refusalLine, stackFrom, type Stack } from './stackPorts.js';
+import { DEFAULT_PORTS, refusalLine, stackOrRefusal, type Stack } from './stackPorts.js';
 
 /** The variable and value that move the stack, as the refusal names them. */
 function movedBy(env: Readonly<Record<string, string | undefined>>, stack: Stack): string {
@@ -26,19 +26,15 @@ export function defaultStackOnlyRefusal(
     door: string,
     env: Readonly<Record<string, string | undefined>>,
 ): string | undefined {
-    let stack: Stack;
+    const asked = stackOrRefusal(door, env);
 
-    try {
-        stack = stackFrom(env);
-    } catch (error) {
-        if (isInvalidStackPortError(error)) {
-            return refusalLine(door, error.refused, error.why, error.fix);
-        }
-
-        throw error;
+    if (!asked.ok) {
+        return asked.line;
     }
 
-    if (stack.isDefault && DEFAULT_PORTS.every(([service, port]) => stack.hostPort(service, port) === port)) {
+    const { stack } = asked;
+
+    if (stack.isDefault && DEFAULT_PORTS.every(([service, port]) => stack.hostPort(service) === port)) {
         return undefined;
     }
 

@@ -143,6 +143,22 @@ describe('runUp refuses before it touches anything', () => {
         expect(calls.some((call) => call.startsWith('discover') || call === 'materialize')).toBe(false);
     });
 
+    it("reads the volume by the name Compose gives it (the Stack's volumeName), not by the project", async () => {
+        const asked: string[] = [];
+        const { ports } = harness({
+            env: { LOCAL_SANDBOX_PORT: '3100' },
+            volumeExists: (volume) => {
+                asked.push(volume);
+
+                return false;
+            },
+        });
+
+        await runUp(ports);
+
+        expect(asked).toEqual(['local-sandbox-3100_local-sandbox-pgdata']);
+    });
+
     it('C3: a busy port refuses before the record is written and before the builds and writes', async () => {
         const { ports, calls, errors } = harness({ listening: () => [3000] });
 

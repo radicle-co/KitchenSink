@@ -9,14 +9,13 @@
  * The synthesised CDK says the answer is ten services. Nobody was going to keep that current by hand, which
  * is precisely why it had not been.
  */
+import { PGDATA_VOLUME_KEY, type Stack } from './stackPorts.js';
 
 /** What `summarizeRequirements` produced, narrowed to what a compose plan reads. */
 export interface ComposeInput {
     readonly localstackServices: readonly string[];
     readonly containers: readonly string[];
 }
-
-import type { Stack } from './stackPorts.js';
 
 /** One of OUR services, ready to run from a locally-built image. */
 export interface ServiceContainer {
@@ -61,7 +60,7 @@ export interface ComposeOptions {
 }
 
 /** A Compose `healthcheck`, every key the generated file writes. */
-export interface Healthcheck {
+interface Healthcheck {
     readonly test: readonly string[];
     readonly interval: string;
     readonly timeout: string;
@@ -116,7 +115,7 @@ export function planCompose(requirements: ComposeInput, options: ComposeOptions)
     if (requirements.localstackServices.length > 0) {
         services['localstack'] = {
             image: LOCALSTACK_IMAGE,
-            ports: [`${String(options.stack.hostPort('localstack', 4566))}:4566`],
+            ports: [`${String(options.stack.hostPort('localstack'))}:4566`],
             environment: {
                 // Sorted, so a reordered inventory is not a diff.
                 SERVICES: [...requirements.localstackServices].sort().join(','),
@@ -140,7 +139,7 @@ export function planCompose(requirements: ComposeInput, options: ComposeOptions)
     if (postgresImage !== undefined) {
         services['postgres'] = {
             image: postgresImage,
-            ports: [`${String(options.stack.hostPort('postgres', 5432))}:5432`],
+            ports: [`${String(options.stack.hostPort('postgres'))}:5432`],
             environment: {
                 POSTGRES_USER: LOCAL_DB.user,
                 POSTGRES_PASSWORD: LOCAL_DB.password,
@@ -156,7 +155,7 @@ export function planCompose(requirements: ComposeInput, options: ComposeOptions)
             // to `/var/lib/postgresql/18/docker` and declares its VOLUME at the parent; on the old path the
             // named volume holds nothing while the real cluster lands in an anonymous one, and local data is
             // silently discarded on every recreate. The same note is on the file this replaces.
-            volumes: ['local-sandbox-pgdata:/var/lib/postgresql'],
+            volumes: [`${PGDATA_VOLUME_KEY}:/var/lib/postgresql`],
         };
     }
 

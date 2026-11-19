@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { COOKING_COLUMN, NARROW_ROW, NOTICE_COLUMN, PREVIEW_IN_BODY, SHORT_SCREEN } from '../cookingLayout.js';
+import {
+    COOKING_COLUMN,
+    INGREDIENTS_COLUMN,
+    NARROW_ROW,
+    NOTICE_COLUMN,
+    PREVIEW_IN_BODY,
+    SHORT_SCREEN,
+} from '../cookingLayout.js';
 
 /**
  * Tailwind builds only class text it can find in a scanned file, so each width is written once WITH its complete class
@@ -12,6 +19,12 @@ describe('the cooking surface widths', () => {
         expect(NOTICE_COLUMN).toEqual({ maxPx: 480, webClassName: 'max-w-[480px]' });
         expect(COOKING_COLUMN.webClassName).toContain(String(COOKING_COLUMN.maxPx));
         expect(NOTICE_COLUMN.webClassName).toContain(String(NOTICE_COLUMN.maxPx));
+    });
+
+    it('writes the ingredients column at 300, its class holding the number, narrower than the step column', () => {
+        expect(INGREDIENTS_COLUMN).toEqual({ px: 300, webClassName: 'w-[300px]' });
+        expect(INGREDIENTS_COLUMN.webClassName).toContain(String(INGREDIENTS_COLUMN.px));
+        expect(INGREDIENTS_COLUMN.px).toBeLessThan(COOKING_COLUMN.maxPx);
     });
 
     it('writes the narrow row under 360 px for native and 22.5 rem for web, the same width at 100% text', () => {

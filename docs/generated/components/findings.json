@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 30,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 105,
+        "platform-singleton": 106,
         "ref-api": 22,
         "unclassified-layer": 96,
         "undocumented-prop": 231
@@ -5472,6 +5472,16 @@
             "evidence": [
                 "web: exit place",
                 "native: exit narrow place"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingTwoColumnLayout",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingTwoColumnLayout.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
             ]
         },
         {

@@ -91,14 +91,17 @@ describe('repo canvases', () => {
                             .map((img) => img.src),
                     );
 
-                    expect(problems).toEqual([]);
-                    expect(brokenImages, 'images that did not load').toEqual([]);
-                    expect(measured.theme).toBe(theme);
-                    expect(measured.contentWidth, 'content overflows the board sideways').toBeLessThanOrEqual(w);
-                    expect(
-                        measured.contentHeight,
-                        `content is taller than the ${String(h)}px canvas.json places it at`,
-                    ).toBeLessThanOrEqual(h);
+                    // Soft, so one load problem never hides the size checks of the same board.
+                    expect.soft(problems).toEqual([]);
+                    expect.soft(brokenImages, 'images that did not load').toEqual([]);
+                    expect.soft(measured.theme).toBe(theme);
+                    expect.soft(measured.contentWidth, 'content overflows the board sideways').toBeLessThanOrEqual(w);
+                    expect
+                        .soft(
+                            measured.contentHeight,
+                            `content is taller than the ${String(h)}px canvas.json places it at`,
+                        )
+                        .toBeLessThanOrEqual(h);
                 } finally {
                     await page.context().close();
                 }

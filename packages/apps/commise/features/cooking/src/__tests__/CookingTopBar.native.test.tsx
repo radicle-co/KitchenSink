@@ -115,4 +115,77 @@ describe('CookingTopBar (native)', () => {
         expect(getComputedStyle(screen.getByTestId('cooking-top-bar')).flexDirection).toBe('column');
         expect(exit.compareDocumentPosition(place) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
+
+    describe('the Ingredients button', () => {
+        const withIngredients = (overrides: Partial<NativeCookingTopBarProps> = {}) =>
+            barProps({ ingredients: { label: 'Ingredients', onPress: vi.fn() }, ...overrides });
+
+        it('is a second button named by its visible label, with the list-checks glyph, never an icon alone', () => {
+            render(<CookingTopBar {...withIngredients()} />);
+
+            const button = screen.getByRole('button', { name: 'Ingredients' });
+
+            expect(screen.getAllByRole('button')).toHaveLength(2);
+            expect(button.textContent).toContain('Ingredients');
+            expect(button.querySelector('[data-commise-stub="icon"]')?.getAttribute('data-icon-name')).toBe(
+                'list-checks',
+            );
+        });
+
+        it('calls its own press, and not Exit, when it is pressed', async () => {
+            const props = withIngredients();
+            render(<CookingTopBar {...props} />);
+
+            await user.click(screen.getByRole('button', { name: 'Ingredients' }));
+
+            expect(props.ingredients?.onPress).toHaveBeenCalledTimes(1);
+            expect(props.exit.onPress).not.toHaveBeenCalled();
+        });
+
+        it('draws no Ingredients button while the screen gives none (L2, L3, or no ingredients)', () => {
+            render(<CookingTopBar {...barProps()} />);
+
+            expect(screen.queryByRole('button', { name: 'Ingredients' })).toBeNull();
+        });
+
+        it('is the medium button, 44 tall on iOS and 48 on Android', () => {
+            for (const [os, height] of [
+                ['ios', 44],
+                ['android', 48],
+            ] as const) {
+                withPlatformOs(os, () => {
+                    render(<CookingTopBar {...withIngredients()} />);
+
+                    expect(tallestMinHeight(screen.getByRole('button', { name: 'Ingredients' }))).toBe(height);
+                    cleanup();
+                });
+            }
+        });
+
+        it('wide: Exit, then the place, then Ingredients, on a row that wraps by whole controls', () => {
+            render(<CookingTopBar {...withIngredients()} />);
+
+            const exit = screen.getByRole('button', { name: 'Exit cooking mode' });
+            const place = screen.getByText('Step 2 of 6');
+            const ingredients = screen.getByRole('button', { name: 'Ingredients' });
+            const bar = getComputedStyle(screen.getByTestId('cooking-top-bar'));
+
+            expect(exit.compareDocumentPosition(place) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            expect(place.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            expect(bar.flexDirection).toBe('row');
+            expect(bar.flexWrap).toBe('wrap');
+        });
+
+        it('narrow: Exit, then Ingredients, then the place on its own row', () => {
+            render(<CookingTopBar {...withIngredients({ narrow: true })} />);
+
+            const exit = screen.getByRole('button', { name: 'Exit cooking mode' });
+            const ingredients = screen.getByRole('button', { name: 'Ingredients' });
+            const place = screen.getByText('Step 2 of 6');
+
+            expect(exit.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            expect(ingredients.compareDocumentPosition(place) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            expect(getComputedStyle(screen.getByTestId('cooking-top-bar')).flexDirection).toBe('column');
+        });
+    });
 });

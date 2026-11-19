@@ -191,7 +191,7 @@ screens on the public-only path (the job's `path` is `public`). It never infers 
 
 ## Discard one file item
 
-`POST /api/v1/import/{importId}/items/{ordinal}/discard` → `200 { importId, ordinal }`, for a file (`bulk`) item only (a paste import is discarded with the whole import). One transaction under the import header lock: it cancels the item's job, sets `discarded_at` and moves the cursor like a skip. File items never delete a row (ordinals stay contiguous), so a re-sent chunk meets a locked item and `upsertItems` refuses it. It clears the item's `public_requested_at` marker. It is idempotent, answers `409 { code: 'itemSaved', recipeId }` for a saved item, and `404` for another cook's import. A discard spends no unit. The other recipes of the batch are untouched.
+`POST /api/v1/import/{importId}/items/{ordinal}/discard` → `200 { importId, ordinal }`, for a file (`bulk`) item only (a paste import is discarded with the whole import). One transaction under the import header lock: it cancels the item's job, sets `discarded_at` and moves the cursor like a skip. File items never delete a row (ordinals stay contiguous), so a re-sent chunk meets a locked item and `upsertItems` refuses it. It is idempotent, answers `409 { code: 'itemSaved', recipeId }` for a saved item, and `404` for another cook's import. A discard spends no unit. The other recipes of the batch are untouched.
 
 ## Make the rest public
 
@@ -199,7 +199,7 @@ screens on the public-only path (the job's `path` is `public`). It never infers 
 
 ```text
 requested
-waiting                                  // not matched or not paid yet; the marker is kept
+waiting                                  // not matched or not paid yet
 skipped { reason: 'publicExists' | 'budget' | 'attemptsUsed' | 'alreadyStarted' | 'saved' | 'discarded' }
 skipped { reason: 'offerChanged', offer: PublicVersionOffer }   // the offer the server computes now
 ```

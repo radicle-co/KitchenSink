@@ -55,6 +55,13 @@ appId: ${APP_ID}
 - runFlow: common/assertOneOfTwoTicked.yaml
 
 # ── 3. LEAVE AND REOPEN: THE SAME ──
+# The page is scrolled to the lines, so the Back disc is off the top.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Back to My recipes'
+          DIRECTION: UP
+          TIMEOUT: 20000
 - tapOn: 'Back to My recipes'
 - assertVisible: 'My recipes'
 - runFlow:

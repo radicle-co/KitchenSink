@@ -4,14 +4,14 @@
     "packageName": "@commise/features-cooking",
     "layer": "feature",
     "coverage": {
-        "components": 17,
-        "implementations": 30,
-        "props": 112,
-        "documentedComponents": 17,
-        "implementationsWithModuleDoc": 30,
-        "implementationsWithComponentDoc": 30,
-        "documentedProps": 101,
-        "classifiedComponents": 17,
+        "components": 18,
+        "implementations": 31,
+        "props": 115,
+        "documentedComponents": 18,
+        "implementationsWithModuleDoc": 31,
+        "implementationsWithComponentDoc": 31,
+        "documentedProps": 104,
+        "classifiedComponents": 18,
         "componentsWithPatternTag": 8,
         "crossPlatformComponents": 13
     },
@@ -2158,6 +2158,76 @@
                             "defaultValue": null,
                             "description": "From `useCookingIngredients().view`, narrowed to the list by the caller.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/ingredients/CookingScaleNote",
+            "name": "CookingScaleNote",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src/ingredients",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingScaleNote",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingScaleNote.native.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src/ingredients",
+                    "moduleDoc": "CookingScaleNote — the native scale note under a step: a muted info glyph and the sentence that says the\nsteps give amounts for another serving count, in the small muted type that marks it as not part of the step. While\nthe screen gives it `onOpen`, one quiet button under it opens the ingredients. It holds no state, and it has no live\nregion because it arrives with the step.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingScaleNote — the native scale note under a step: a muted info glyph and the sentence that says the"
+                        }
+                    ],
+                    "description": "The native scale note.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "note",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The note, already filled with both serving counts (`view.scaleNote`).",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
+                        },
+                        {
+                            "name": "onOpen",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open the ingredients. Absent: the note stands alone, with no button.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
+                        },
+                        {
+                            "name": "openLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The button's visible text and its accessible name (`cooking.step.scaleNoteOpen`).",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
                         }
                     ],
                     "usesRefApi": [],

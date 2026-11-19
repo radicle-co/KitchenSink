@@ -159,4 +159,21 @@ describe('CookingIngredientsList (native)', () => {
 
         expect(props.onSetServings).toHaveBeenCalledExactlyOnceWith(111);
     });
+
+    it('draws two lines that share an ingredient id as two rows in order, with no duplicate-key warning', () => {
+        const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        mount({ lines: [{ ...FLOUR, name: 'plain flour' }, { ...FLOUR, name: 'bread flour' }, BUTTER] });
+
+        const boxes = screen.getAllByRole('checkbox');
+
+        expect(boxes.map((box) => box.textContent)).toEqual([
+            expect.stringContaining('plain flour'),
+            expect.stringContaining('bread flour'),
+            expect.stringContaining('butter'),
+        ]);
+        expect(error.mock.calls.some((call) => /same key/.test(String(call[0])))).toBe(false);
+
+        error.mockRestore();
+    });
 });

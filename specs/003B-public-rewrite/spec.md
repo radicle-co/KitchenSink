@@ -422,7 +422,7 @@ later from its own menu. (C-6)
   `source_steps`, so a retry sends the writer the same text, and the import item's draft, which is
   `recipe_import_items.payload`. The job's text
   (`facts_snapshot`, `source_steps` and `output`) MUST be cleared in one UPDATE at every final state and on cancel. The
-  item's draft MUST clear only through `claimSave` (Publish and keepPrivate, or the paste's ordinary Save after a reopen), or go with the import when an explicit
+  item's draft MUST clear only through `claimSave` (every save that ends the paste in a recipe, FR-016a), or go with the import when an explicit
   discard deletes it. Nothing else clears it: the worker never writes it, and the expiry and the sweep never touch it, so after a
   sweep the draft is still there and the item's stage is unchanged. Otherwise it is the cook's unfinished import
   and is removed by ADR-0072's 30-day purge. The job's text MUST be cleared at most 73 h 15 min after Start while the sweep runs, which is 3 attempts, each at most 20 minutes of work and 24 hours of rest, and one 15-minute sweep tick: 3 x (20 min + 24 h), plus 15 min. A sweep that runs late fires `PublicVersionJobSweepBehindAlarm`.

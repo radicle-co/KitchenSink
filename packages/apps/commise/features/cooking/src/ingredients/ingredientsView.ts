@@ -1,6 +1,6 @@
 /**
- * @module ingredientsView — the ingredients list cooking mode draws, as plain data: the rows scaled to the cook's
- * servings in stored order, which of them are ticked, the heading, and the note that the steps still give the recipe's
+ * @module ingredientsView — the ingredients list cooking mode draws, as plain data: the lines scaled to the cook's
+ * servings in stored order, which ids are ticked, the heading, and the note that the steps still give the recipe's
  * own amounts. A row's amount is NOT formatted here: the recipe page's own row formats it, so cooking mode and the page
  * cannot show different amounts.
  *
@@ -30,19 +30,18 @@ export interface CookingIngredientsViewInput {
     readonly locale: string;
 }
 
-/** One row of the list: the scaled line and whether the cook has ticked it. */
-interface CookingIngredientRow {
-    readonly ingredient: RecipeIngredientView;
-    readonly checked: boolean;
-}
-
 /** The list, or the fact that the recipe has none. */
 export type CookingIngredientsView =
     | { readonly kind: 'none' }
     | {
           readonly kind: 'list';
           readonly title: string;
-          readonly rows: readonly CookingIngredientRow[];
+          /** The lines scaled to the cook's servings, in the recipe's order, as the page's own runs take them. */
+          readonly ingredients: readonly RecipeIngredientView[];
+          /** The ids ticked, as the cook marks hold them. */
+          readonly checked: ReadonlySet<string>;
+          /** Whether any line OF THIS LIST is ticked, so a stale id left in the marks offers no Clear ticks. */
+          readonly hasTicks: boolean;
           /** Every line's food is gone, so the rows say so instead of naming amounts. */
           readonly allRemoved: boolean;
           readonly servings: number;
@@ -66,6 +65,7 @@ export function cookingIngredientsView(input: CookingIngredientsViewInput): Cook
     }
 
     const scaling = makeRecipeScaling(baseServings, servings);
+    const scaled = scaleIngredients(ingredients, scaling);
     const title = fillTemplate(pluralOf(copy.ingredients.title, ingredients.length, locale), {
         servings: String(servings),
         count: String(ingredients.length),
@@ -74,10 +74,9 @@ export function cookingIngredientsView(input: CookingIngredientsViewInput): Cook
     return {
         kind: 'list',
         title,
-        rows: scaleIngredients(ingredients, scaling).map((ingredient) => ({
-            ingredient,
-            checked: ticked.has(ingredient.ingredientId),
-        })),
+        ingredients: scaled,
+        checked: ticked,
+        hasTicks: scaled.some((ingredient) => ticked.has(ingredient.ingredientId)),
         allRemoved: allLinesFoodRemoved(ingredients),
         servings,
         baseServings,

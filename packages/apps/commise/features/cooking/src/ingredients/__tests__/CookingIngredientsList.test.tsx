@@ -25,7 +25,10 @@ import { cookingIngredientsView } from '../ingredientsView.js';
 const user = userEvent.setup({ delay: null });
 const copy = resolveMessages(cookingMessages, 'en');
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+});
 
 const line = (id: string, name: string): RecipeIngredientView => ({
     ingredientId: id,
@@ -159,17 +162,52 @@ describe('CookingIngredientsList (web)', () => {
         expect(props.onSetServings).toHaveBeenCalledExactlyOnceWith(111);
     });
 
-    it('draws two lines that share one ingredient id as two checkboxes in order, with no duplicate-key error', () => {
+    it('draws two lines that share an ingredient id as two rows in order, with no duplicate-key warning', () => {
         const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-        mount({ lines: [FLOUR, { ...SUGAR, ingredientId: FLOUR.ingredientId }, BUTTER] });
+        mount({ lines: [{ ...FLOUR, name: 'plain flour' }, { ...FLOUR, name: 'bread flour' }, BUTTER] });
 
+        const boxes = screen.getAllByRole('checkbox');
+
+        expect(boxes.map((box) => box.textContent)).toEqual([
+            expect.stringContaining('plain flour'),
+            expect.stringContaining('bread flour'),
+            expect.stringContaining('butter'),
+        ]);
+        expect(error.mock.calls.some((call) => /same key/.test(String(call[0])))).toBe(false);
+    });
+
+    it('draws each section label once, above its own lines, in order', () => {
+        mount({
+            lines: [
+                { ...FLOUR, groupLabel: 'Crust' },
+                { ...SUGAR, groupLabel: 'Crust' },
+                { ...BUTTER, groupLabel: 'Filling' },
+            ],
+        });
+
+        // The list title is the first heading, and each section label is a heading after it, in order.
+        expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
+            expect.stringContaining('Ingredients for'),
+            'Crust',
+            'Filling',
+        ]);
         expect(screen.getAllByRole('checkbox').map((box) => box.textContent)).toEqual([
             expect.stringContaining('flour'),
             expect.stringContaining('sugar'),
             expect.stringContaining('butter'),
         ]);
-        expect(error).not.toHaveBeenCalled();
-        error.mockRestore();
+    });
+
+    it('draws no section label when no line has one', () => {
+        mount();
+
+        expect(screen.getAllByRole('heading')).toHaveLength(1);
+    });
+
+    it('draws no Clear ticks for a tick on an id no line has, because there is nothing to clear', () => {
+        mount({ ticked: ['ing_gone'] });
+
+        expect(screen.queryByRole('button', { name: copy.ingredients.clear })).toBeNull();
     });
 });

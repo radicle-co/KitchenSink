@@ -81,7 +81,7 @@ viewer, like the other owner-only fields (ADR-0090, #301). It is computed the wa
 
 ## Start a public version
 
-`POST /api/v1/import/{importId}/items/{itemId}/public-version` with `{ choice: 'public' | 'both', shownOffer: ShownOffer }`.
+`POST /api/v1/import/{importId}/items/{ordinal}/public-version` with `{ choice: 'public' | 'both', shownOffer: ShownOffer }`.
 `POST /api/v1/recipes/{recipeId}/public-version` for the later route (a private copy) with
 `{ shownOffer: { kind: 'choice', credit } }` and no `choice` field. Its job has `private_recipe_id` set and
 no import item (the item pair NULL), builds its facts from the private copy and sets `private_digest`. A paid copy goes through the

@@ -387,7 +387,7 @@ Slot line on Free: `private.hint`. Pro: none.
 
 Every one of these is `role="alert"`, and focus moves to the screen's heading or the alert.
 
-On the public-only path every private exit in this table (`review.notNow`, `button.private`) shows only when a private slot is free now. Without one, the screen shows `review.discard` in its place, as the no-slot set of §6.7 does. The screen never offers an exit that the server would answer with `403 PRIVATE_SLOTS_FULL`, and a `403` from a race swaps the screen to that set in place.
+On the public-only path every private exit in this table (`review.notNow`, `button.private`) shows only when a private slot is free now. Without one, the screen shows `review.discard` in its place, as the no-slot set of §6.7 does. The screen never offers an exit that the server would answer with `403 PRIVATE_SLOTS_FULL`, and a `403` from a race swaps the screen to that set in place. With no free slot the `full.line` and `full.free` alert shows above the actions, as in §6.7. Open item for the designer: the bodies of these screens that offer a private save (`blocked.body`, `blocked.bodyFinal`, `failed.body`, `failed.bodyFinal`, `checkUnavailable.body`, `budget.line`) need a no-slot variant, copy pending designer review.
 
 ### 6.9 Success (B9)
 

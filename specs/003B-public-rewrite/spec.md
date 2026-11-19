@@ -137,7 +137,7 @@ The cook can still keep the recipe and make a public version later.
 4. **Given** a saved private copy whose public version did not get written, **When** the cook picks "Share a public
    version" from the recipe's menu (shown to the owner of a private recipe with a source record, FR-092), **Then** the
    offer is read from the server and the review flow of User Story 1 runs from the saved copy.
-5. **Given** the cook goes offline while the writer runs, **Then** `writing.offline` shows with "Try again".
+5. **Given** the cook goes offline while the writer runs, **Then** on the Both path and the later route `writing.offline` shows with "Try again", and on the public-only path `writing.offlinePublic` shows (a placeholder, copy pending designer review) and the job carries on.
 
 ### User Story 4 - No private spots left and no public version possible (Priority: P2)
 

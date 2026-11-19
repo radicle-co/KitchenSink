@@ -38,6 +38,8 @@ describe('CookingTwoColumnLayout (native)', () => {
         expect(slot.contains(screen.getByText('Ingredients here'))).toBe(true);
         expect(slot.contains(screen.getByText('Step here'))).toBe(false);
         expect(getComputedStyle(slot).width).toBe('300px');
+        expect(getComputedStyle(screen.getByTestId('cooking-ingredients-scroll')).overflowY).toBe('auto');
+        expect(getComputedStyle(screen.getByTestId('cooking-columns')).flexDirection).toBe('row');
         expect(screen.getByTestId('cooking-ingredients-scroll').contains(screen.getByText('Ingredients here'))).toBe(
             true,
         );
@@ -50,21 +52,22 @@ describe('CookingTwoColumnLayout (native)', () => {
 
         expect(step.contains(screen.getByText('Step here'))).toBe(true);
         expect(getComputedStyle(step).maxWidth).toBe('680px');
+        expect(getComputedStyle(screen.getByTestId('cooking-step-area')).alignItems).toBe('center');
     });
 
     it('insets the column content 16 on every side, inside the scroll, on the canvas', () => {
         layout();
 
         const slot = screen.getByTestId('cooking-ingredients-slot');
-        const inset = screen.getByText('Ingredients here').closest('[data-testid="cooking-ingredients-inset"]');
+        const inset = screen.getByTestId('cooking-ingredients-inset');
 
-        expect(inset).not.toBeNull();
+        expect(inset.contains(screen.getByText('Ingredients here'))).toBe(true);
         expect(screen.getByTestId('cooking-ingredients-scroll').contains(inset)).toBe(true);
 
         const edge = `${String(nativeTokens.spacing[4])}px`;
 
         for (const side of ['paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight'] as const) {
-            expect(resolvedStyle(inset as Element, side)).toBe(edge);
+            expect(resolvedStyle(inset, side)).toBe(edge);
         }
 
         expect(resolvedColour(slot, 'backgroundColor')).toBe(rgb(rolesFor('light').canvas));

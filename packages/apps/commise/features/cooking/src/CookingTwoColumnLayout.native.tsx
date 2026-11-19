@@ -15,7 +15,7 @@ import type { CookingTwoColumnLayoutProps } from './cookingTwoColumnLayoutProps.
 
 /** The native two-column layout. */
 export const CookingTwoColumnLayout: FC<CookingTwoColumnLayoutProps> = ({ column, children }) => (
-    <XStack flex={1}>
+    <XStack testID="cooking-columns" flex={1}>
         <YStack testID="cooking-ingredients-slot" width={INGREDIENTS_COLUMN.px} backgroundColor="$canvas">
             <ScrollView testID="cooking-ingredients-scroll" flex={1}>
                 <YStack testID="cooking-ingredients-inset" paddingVertical="$4" paddingHorizontal="$4">
@@ -23,7 +23,7 @@ export const CookingTwoColumnLayout: FC<CookingTwoColumnLayoutProps> = ({ column
                 </YStack>
             </ScrollView>
         </YStack>
-        <YStack flex={1} alignItems="center">
+        <YStack testID="cooking-step-area" flex={1} alignItems="center">
             <YStack testID="cooking-step-slot" flex={1} width="100%" maxWidth={COOKING_COLUMN.maxPx}>
                 {children}
             </YStack>

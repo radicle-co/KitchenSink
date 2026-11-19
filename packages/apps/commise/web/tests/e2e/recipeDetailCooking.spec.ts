@@ -174,13 +174,18 @@ for (const [scheme, colors] of THEMES) {
 
             // The tick follows its line when the servings change, because the key comes from the unscaled line.
             await page.getByRole('button', { name: 'More servings' }).first().click();
-            await expect(page.getByRole('checkbox', { checked: true })).toHaveCount(1);
-            await expect(page.getByRole('checkbox', { checked: false })).toHaveCount(1);
+            const scaled = page.getByRole('checkbox', { name: /lamb shoulder/u });
+
+            await expect(scaled).toHaveCount(2);
+            await expect(scaled.first()).toHaveAttribute('aria-checked', 'true');
+            await expect(scaled.last()).toHaveAttribute('aria-checked', 'false');
 
             await page.reload();
+            const reloaded = page.getByRole('checkbox', { name: /lamb shoulder/u });
 
-            await expect(page.getByRole('checkbox', { checked: true })).toHaveCount(1);
-            await expect(page.getByRole('checkbox', { checked: false })).toHaveCount(1);
+            await expect(reloaded).toHaveCount(2);
+            await expect(reloaded.first()).toHaveAttribute('aria-checked', 'true');
+            await expect(reloaded.last()).toHaveAttribute('aria-checked', 'false');
         });
 
         test('keeps one current step: another step moves the marker, a second press clears it', async ({ page }) => {
@@ -222,6 +227,8 @@ for (const [scheme, colors] of THEMES) {
                 Reflect.deleteProperty(Navigator.prototype, 'wakeLock');
             });
             await openRecipe(page);
+
+            await expect(page.getByRole('switch', { name: 'Screen on' })).toHaveCount(0);
         });
     });
 }
@@ -256,6 +263,7 @@ test.describe('the recipe page’s layout', () => {
                 .getByRole('region', { name: 'Ingredients' })
                 .evaluate((section) => getComputedStyle(section).maxHeight),
         ).toBe('804px');
+        await expect(page.getByRole('navigation', { name: 'Recipe sections' })).toHaveCount(0);
         await expect(page.getByRole('switch', { name: 'Screen on' })).toHaveText('Screen on');
     });
 
@@ -264,6 +272,7 @@ test.describe('the recipe page’s layout', () => {
         await page.setViewportSize({ width: 390, height: 844 });
         await openRecipe(page);
 
+        await expect(page.getByRole('navigation', { name: 'Recipe sections' })).toHaveCount(0);
         const toggle = page.getByRole('switch', { name: 'Screen on' });
         await expect(toggle).toHaveCount(1);
         await expect(toggle).toHaveText('Screen on');
@@ -279,6 +288,7 @@ test.describe('the recipe page’s layout', () => {
 
         const terms = page.getByRole('term').filter({ hasText: /^(Total|Prep|Cook|Difficulty)$/u });
 
+        await expect(terms.filter({ hasText: 'Cook' })).toHaveCount(0);
         expect(await terms.allTextContents()).toEqual(expect.arrayContaining(['Total']));
     });
 });
@@ -299,5 +309,6 @@ test.describe('the Screen on action', () => {
         // The same row (their vertical spans overlap) and after Edit.
         expect((toggleBox?.y ?? 0) < (editBox?.y ?? 0) + (editBox?.height ?? 0)).toBe(true);
         expect((toggleBox?.x ?? 0) >= (editBox?.x ?? 0) + (editBox?.width ?? 0) - 1).toBe(true);
+        await expect(page.getByText('Keeps the screen awake while you cook.')).toHaveCount(0);
     });
 });

@@ -8,6 +8,7 @@ appId: ${APP_ID}
 #   2. Tapping the FIRST line ticks it, and the second stays unticked. Before ADR-0096 the tick belonged to the food, so
 #      this tap ticked both.
 #   3. Leaving the recipe and opening it again shows the same: one ticked, one unticked.
+#   4. Unticking the first line leaves both unticked, so a rerun starts clean.
 #
 # Android reads `checked` from the checkbox node. iOS cannot, so it reads the value phrase `checkbox, checked` /
 # `checkbox, unchecked` (`recipes/detailCooking` says why). The recipe holds no other checkbox, so a phrase that is
@@ -71,3 +72,21 @@ appId: ${APP_ID}
           DIRECTION: DOWN
           TIMEOUT: 20000
 - runFlow: common/assertOneOfTwoTicked.yaml
+
+# ── 4. END CLEAN ── untick the first line, so a rerun or a retry starts from two unticked lines. The app state is not
+# cleared between flows, and the reset keeps this recipe.
+- tapOn:
+      text: '1 tbsp Butter.*'
+      index: 0
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertNotVisible:
+                text: '1 tbsp Butter.*'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertNotVisible: 'checkbox, checked'

@@ -12,12 +12,18 @@ appId: ${APP_ID}
           - assertVisible:
                 text: '1 tbsp Butter.*'
                 checked: true
+          # The ticked line is the FIRST: the unticked one is below it.
           - assertVisible:
                 text: '1 tbsp Butter.*'
                 checked: false
+                below:
+                    text: '1 tbsp Butter.*'
+                    checked: true
 - runFlow:
       when:
           platform: iOS
       commands:
           - assertVisible: 'checkbox, checked'
-          - assertVisible: 'checkbox, unchecked'
+          - assertVisible:
+                text: 'checkbox, unchecked'
+                below: 'checkbox, checked'

@@ -63,10 +63,13 @@ function mount(recipeId: string, ingredients: readonly RecipeIngredientView[] = 
     );
 }
 
-const checkedOf = (result: ReturnType<typeof mount>['result']): readonly string[] =>
-    result.current.cooking.view.kind === 'list'
-        ? result.current.cooking.view.rows.filter((row) => row.checked).map((row) => row.ingredient.ingredientId)
+const checkedOf = (result: ReturnType<typeof mount>['result']): readonly string[] => {
+    const { view } = result.current.cooking;
+
+    return view.kind === 'list'
+        ? view.ingredients.map((ingredient) => ingredient.ingredientId).filter((id) => view.checked.has(id))
         : [];
+};
 
 describe('useCookingIngredients', () => {
     it('shares its ticks with the recipe page in both directions', () => {
@@ -144,11 +147,11 @@ describe('useCookingIngredients', () => {
         expect(new Set(checkedOf(result))).toEqual(new Set(['ing_butter', 'ing_lemon', 'ing_salt']));
     });
 
-    it('keeps its rows when the recipe changes underneath it', () => {
+    it('keeps its lines when the recipe changes underneath it', () => {
         const { result, rerender } = mount(nextId());
         const idsOf = (): readonly string[] =>
             result.current.cooking.view.kind === 'list'
-                ? result.current.cooking.view.rows.map((row) => row.ingredient.ingredientId)
+                ? result.current.cooking.view.ingredients.map((ingredient) => ingredient.ingredientId)
                 : [];
         const before = idsOf();
 
@@ -179,6 +182,6 @@ describe('useCookingIngredients', () => {
         const view = result.current.cooking.view;
 
         expect(view.kind === 'list' ? [view.servings, view.baseServings] : undefined).toEqual([4, 2]);
-        expect(view.kind === 'list' ? view.rows[0]?.ingredient.quantity : undefined).toEqual(statedQuantity(2));
+        expect(view.kind === 'list' ? view.ingredients[0]?.quantity : undefined).toEqual(statedQuantity(2));
     });
 });

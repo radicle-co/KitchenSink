@@ -26,7 +26,10 @@ import { cookingIngredientsView } from '../ingredientsView.js';
 const user = userEvent.setup({ delay: null });
 const copy = resolveMessages(cookingMessages, 'en');
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+});
 
 const line = (id: string, name: string): RecipeIngredientView => ({
     ingredientId: id,
@@ -173,7 +176,33 @@ describe('CookingIngredientsList (native)', () => {
             expect.stringContaining('butter'),
         ]);
         expect(error.mock.calls.some((call) => /same key/.test(String(call[0])))).toBe(false);
+    });
 
-        error.mockRestore();
+    it('draws each section label once, above its own lines, in order', () => {
+        mount({
+            lines: [
+                { ...FLOUR, groupLabel: 'Crust' },
+                { ...SUGAR, groupLabel: 'Crust' },
+                { ...BUTTER, groupLabel: 'Filling' },
+            ],
+        });
+
+        // The list title is the first heading, and each section label is a heading after it, in order.
+        expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([
+            expect.stringContaining('Ingredients for'),
+            'Crust',
+            'Filling',
+        ]);
+        expect(screen.getAllByRole('checkbox').map((box) => box.textContent)).toEqual([
+            expect.stringContaining('flour'),
+            expect.stringContaining('sugar'),
+            expect.stringContaining('butter'),
+        ]);
+    });
+
+    it('draws no section label when no line has one', () => {
+        mount();
+
+        expect(screen.getAllByRole('heading')).toHaveLength(1);
     });
 });

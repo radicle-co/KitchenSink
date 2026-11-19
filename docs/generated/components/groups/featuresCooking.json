@@ -1776,11 +1776,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsList.native.tsx",
                     "dir": "packages/apps/commise/features/cooking/src/ingredients",
-                    "moduleDoc": "CookingIngredientsList — the cooking ingredients list on native: the title, the servings stepper, one row per\nline and Clear ticks. Every piece is the recipe page's own (`IngredientCheckRow`, `ServingScaleControl`, through\n`@commise/features-recipes/cook`), so cooking mode names a line, sets an amount and counts servings exactly as the\npage does, in the page's own words.\n\nIt holds no state and no frame: the sheet and the column wrap it, and the screen binds `useCookingIngredients`.\nClear ticks is drawn only while a line is ticked, because with none ticked it has nothing to do.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingIngredientsList — the cooking ingredients list on native: the title, the servings stepper, the lines\nunder their section labels and Clear ticks. Every piece is the recipe page's own (`IngredientRuns`,\n`ServingScaleControl`, through `@commise/features-recipes/cook`), so cooking mode groups, names and keys a line, sets\nan amount and counts servings exactly as the page does, in the page's own words.\n\nIt holds no state and no frame: the sheet and the column wrap it, and the screen binds `useCookingIngredients`.\nClear ticks is drawn only while a line of the list is ticked (`view.hasTicks`), because with none ticked it has\nnothing to do.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "CookingIngredientsList — the cooking ingredients list on native: the title, the servings stepper, one row per"
+                            "text": "CookingIngredientsList — the cooking ingredients list on native: the title, the servings stepper, the lines"
                         }
                     ],
                     "description": "The native cooking ingredients list.",
@@ -1826,7 +1826,7 @@
                         },
                         {
                             "name": "view",
-                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly rows: readonly CookingIngredientRow[]; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<string>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,

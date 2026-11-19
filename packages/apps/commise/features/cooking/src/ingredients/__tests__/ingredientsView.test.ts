@@ -1,7 +1,8 @@
 /**
- * The ingredients list cooking mode draws: which rows, scaled to the cook's servings, which are ticked, the heading,
- * and the note that says the steps still hold the recipe's own amounts. Every expected string is read from
- * `cookingMessages.en`, so a reword is one edit to the catalogue and never a hunt through tests.
+ * The ingredients list cooking mode draws: the lines scaled to the cook's servings, which ids are ticked, whether any
+ * line of the list is ticked, the heading, and the note that says the steps still hold the recipe's own amounts. Every
+ * expected string is read from `cookingMessages.en`, so a reword is one edit to the catalogue and never a hunt through
+ * tests. These cases prove the list view's shape: `ingredients` in recipe order, `checked` and `hasTicks`.
  */
 import { fillTemplate, pluralOf, resolveMessages } from '@commise/i18n';
 import { allLinesFoodRemoved } from '@commise/features-recipes/cook';
@@ -81,14 +82,14 @@ describe('cookingIngredientsView', () => {
         ).ingredients;
 
         expect(view.kind).toBe('list');
-        expect(view.kind === 'list' ? view.rows.map((row) => row.ingredient) : []).toEqual(page);
+        expect(view.kind === 'list' ? view.ingredients : []).toEqual(page);
     });
 
     it('scales one and a half cups of flour at three servings from a base of two', () => {
         const view = viewOf({ servings: 3 });
 
-        expect(view.kind === 'list' ? view.rows[0]?.ingredient.quantity : undefined).toEqual(stated(1.5));
-        expect(view.kind === 'list' ? view.rows[0]?.ingredient.unit : undefined).toBe('cup');
+        expect(view.kind === 'list' ? view.ingredients[0]?.quantity : undefined).toEqual(stated(1.5));
+        expect(view.kind === 'list' ? view.ingredients[0]?.unit : undefined).toBe('cup');
     });
 
     it.each([1, 2, 100])('is none for a recipe with no ingredients, at %i servings', (servings) => {
@@ -118,17 +119,39 @@ describe('cookingIngredientsView', () => {
         );
     });
 
-    it('marks a row ticked by its ingredient id, so reordering the lines keeps the tick', () => {
+    it('holds the ticked ids as given, whatever the order of the lines', () => {
         const ticked = new Set(['ing_salt']);
         const forward = viewOf({ ticked });
         const reversed = viewOf({ ticked, ingredients: [...LINES].reverse() });
-        const checkedIds = (view: ReturnType<typeof viewOf>) =>
-            view.kind === 'list'
-                ? view.rows.filter((row) => row.checked).map((row) => row.ingredient.ingredientId)
-                : [];
+        const idsOf = (view: ReturnType<typeof viewOf>): readonly string[] =>
+            view.kind === 'list' ? view.ingredients.map((ingredient) => ingredient.ingredientId) : [];
+        const tickedOf = (view: ReturnType<typeof viewOf>): readonly string[] =>
+            view.kind === 'list' ? [...view.checked] : [];
 
-        expect(checkedIds(forward)).toEqual(['ing_salt']);
-        expect(checkedIds(reversed)).toEqual(['ing_salt']);
+        expect(idsOf(forward)).toEqual(LINES.map((line) => line.ingredientId));
+        expect(idsOf(reversed)).toEqual([...LINES].reverse().map((line) => line.ingredientId));
+        expect(tickedOf(forward)).toEqual(['ing_salt']);
+        expect(tickedOf(reversed)).toEqual(['ing_salt']);
+    });
+
+    describe('hasTicks', () => {
+        const hasTicksOf = (ticked: readonly string[]): boolean | undefined => {
+            const view = viewOf({ ticked: new Set(ticked) });
+
+            return view.kind === 'list' ? view.hasTicks : undefined;
+        };
+
+        it('is false when nothing is ticked', () => {
+            expect(hasTicksOf([])).toBe(false);
+        });
+
+        it('is true when a line of the list is ticked', () => {
+            expect(hasTicksOf(['ing_salt'])).toBe(true);
+        });
+
+        it('is false when the only ticked id is one that no line has, so a stale tick offers no Clear ticks', () => {
+            expect(hasTicksOf(['ing_not_in_this_recipe'])).toBe(false);
+        });
     });
 
     it('says every line is removed exactly when the recipe page says so', () => {

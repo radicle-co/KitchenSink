@@ -203,7 +203,7 @@ waiting                                  // not matched or not paid yet; the mar
 skipped { reason: 'publicExists' | 'budget' | 'attemptsUsed' | 'alreadyStarted' | 'saved' | 'discarded' }
 ```
 
-A replay marks nothing that already has a job or a marker and never restarts a resting job. The route never answers `429`: a file item is already paid, and Publish's guard charges nothing for it.
+A replay marks nothing that already has a job or a marker and never restarts a resting job, and answers for each item from its current state: a marked item with no job answers `requested` (or `waiting` when it is not matched or not paid), and an item with a job answers `skipped` with `alreadyStarted`. The route never answers `429`: a file item is already paid, and Publish's guard charges nothing for it.
 
 The import list entry (`GET /api/v1/import`) gains `publicVersions: { requested, writing, ready, needsYou, notWritten, published, nextReadyExpiresAt }` from one grouped query whose predicates are the table in the data model's "Rest-public" section, and the import item view gains `readyUntil` (the ISO date a ready draft's job expires, or `null`).
 

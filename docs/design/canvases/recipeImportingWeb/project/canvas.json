@@ -45,13 +45,6 @@
       "h": 800,
       "title": "Recipe importing, import failed (web, 1280)"
     },
-    "ImportPaidSiteBlockedWeb1280.dc.html": {
-      "x": 6800,
-      "y": 260,
-      "w": 1280,
-      "h": 800,
-      "title": "Recipe importing, paid site blocked (web, 1280)"
-    },
     "ImportBookSavedWeb1280.dc.html": {
       "x": 8160,
       "y": 260,
@@ -226,13 +219,6 @@
       "w": 1280,
       "h": 742,
       "title": "Recipe importing, paste saved (web, 1280)"
-    },
-    "ImportPasteSlotsFullWeb1280.dc.html": {
-      "x": 43520,
-      "y": 260,
-      "w": 1280,
-      "h": 1903,
-      "title": "Recipe importing, paste slots full (web, 1280)"
     },
     "ImportPasteTextCardWeb1280.dc.html": {
       "x": 44880,
@@ -514,13 +500,6 @@
       "h": 844,
       "title": "Recipe importing, import failed (web, 390)"
     },
-    "ImportPaidSiteBlockedWeb390.dc.html": {
-      "x": 2350,
-      "y": 10977,
-      "w": 390,
-      "h": 844,
-      "title": "Recipe importing, paid site blocked (web, 390)"
-    },
     "ImportBookSavedWeb390.dc.html": {
       "x": 2820,
       "y": 10977,
@@ -709,6 +688,111 @@
       "w": 390,
       "h": 844,
       "title": "Recipe importing, add recipe, full set when spec 004 ships (web, 390)"
+    },
+    "ImportPasteReadRefusedWeb1280.dc.html": {
+      "x": 0,
+      "y": 30554,
+      "w": 1280,
+      "h": 1510,
+      "title": "Recipe importing, paste refused, AI reader (S47 to S49) (web, 1280)"
+    },
+    "ImportPasteReadRefusedWeb768.dc.html": {
+      "x": 1360,
+      "y": 30554,
+      "w": 768,
+      "h": 1552,
+      "title": "Recipe importing, paste refused, AI reader (S47 to S49) (web, 768)"
+    },
+    "ImportPasteReadRefusedWeb390.dc.html": {
+      "x": 2208,
+      "y": 30554,
+      "w": 390,
+      "h": 1936,
+      "title": "Recipe importing, paste refused, AI reader (S47 to S49) (web, 390)"
+    },
+    "ImportPasteDuplicatePublicWeb1280.dc.html": {
+      "x": 2678,
+      "y": 30554,
+      "w": 1280,
+      "h": 771,
+      "title": "Recipe importing, paste duplicate, public copy (S50, S51) (web, 1280)"
+    },
+    "ImportPasteDuplicatePublicWeb768.dc.html": {
+      "x": 4038,
+      "y": 30554,
+      "w": 768,
+      "h": 813,
+      "title": "Recipe importing, paste duplicate, public copy (S50, S51) (web, 768)"
+    },
+    "ImportPasteDuplicatePublicWeb390.dc.html": {
+      "x": 4886,
+      "y": 30554,
+      "w": 390,
+      "h": 1017,
+      "title": "Recipe importing, paste duplicate, public copy (S50, S51) (web, 390)"
+    },
+    "ImportLinkPasteInsteadWeb1280.dc.html": {
+      "x": 5356,
+      "y": 30554,
+      "w": 1280,
+      "h": 368,
+      "title": "Recipe importing, link, paste the page instead (web, 1280)"
+    },
+    "ImportLinkPasteInsteadWeb768.dc.html": {
+      "x": 6716,
+      "y": 30554,
+      "w": 768,
+      "h": 410,
+      "title": "Recipe importing, link, paste the page instead (web, 768)"
+    },
+    "ImportLinkPasteInsteadWeb390.dc.html": {
+      "x": 7564,
+      "y": 30554,
+      "w": 390,
+      "h": 614,
+      "title": "Recipe importing, link, paste the page instead (web, 390)"
+    },
+    "ImportLibraryAlreadyInLibraryWeb1280.dc.html": {
+      "x": 8034,
+      "y": 30554,
+      "w": 1280,
+      "h": 665,
+      "title": "Recipe importing, library, already in your library (web, 1280)"
+    },
+    "ImportLibraryAlreadyInLibraryWeb768.dc.html": {
+      "x": 9394,
+      "y": 30554,
+      "w": 768,
+      "h": 707,
+      "title": "Recipe importing, library, already in your library (web, 768)"
+    },
+    "ImportLibraryAlreadyInLibraryWeb390.dc.html": {
+      "x": 10242,
+      "y": 30554,
+      "w": 390,
+      "h": 1083,
+      "title": "Recipe importing, library, already in your library (web, 390)"
+    },
+    "ImportPasteReviewPhotoWeb1280.dc.html": {
+      "x": 10712,
+      "y": 30554,
+      "w": 1280,
+      "h": 851,
+      "title": "Recipe importing, paste review with the source photo (P5, web, 1280)"
+    },
+    "ImportPasteReviewPhotoWeb768.dc.html": {
+      "x": 12072,
+      "y": 30554,
+      "w": 768,
+      "h": 1406,
+      "title": "Recipe importing, paste review with the source photo (P5, web, 768)"
+    },
+    "ImportPasteReviewPhotoWeb390.dc.html": {
+      "x": 12920,
+      "y": 30554,
+      "w": 390,
+      "h": 1800,
+      "title": "Recipe importing, paste review with the source photo (P5, web, 390)"
     }
   },
   "order": [
@@ -717,7 +801,6 @@
     "ImportReviewDraftWeb1280.dc.html",
     "ImportAlreadyImportedWeb1280.dc.html",
     "ImportImportFailedWeb1280.dc.html",
-    "ImportPaidSiteBlockedWeb1280.dc.html",
     "ImportBookSavedWeb1280.dc.html",
     "ImportLinkPrivateOnlyWeb1280.dc.html",
     "ImportPasteNoAiCheckWeb1280.dc.html",
@@ -743,7 +826,6 @@
     "ImportPasteReviewHoldsWeb1280.dc.html",
     "ImportPasteReviewWeb1280.dc.html",
     "ImportPasteSavedWeb1280.dc.html",
-    "ImportPasteSlotsFullWeb1280.dc.html",
     "ImportPasteTextCardWeb1280.dc.html",
     "ImportPasteWaitingWeb1280.dc.html",
     "ImportPublicChoiceWeb1280.dc.html",
@@ -784,7 +866,6 @@
     "ImportReviewDraftWeb390.dc.html",
     "ImportAlreadyImportedWeb390.dc.html",
     "ImportImportFailedWeb390.dc.html",
-    "ImportPaidSiteBlockedWeb390.dc.html",
     "ImportBookSavedWeb390.dc.html",
     "ImportLinkPrivateOnlyWeb390.dc.html",
     "ImportPasteNoAiCheckWeb390.dc.html",
@@ -811,7 +892,22 @@
     "ImportPasteReplaceConflictWeb390.dc.html",
     "ImportPasteReviewHoldsWeb390.dc.html",
     "ImportAddRecipeFullSetWeb1280.dc.html",
-    "ImportAddRecipeFullSetWeb390.dc.html"
+    "ImportAddRecipeFullSetWeb390.dc.html",
+    "ImportPasteReadRefusedWeb1280.dc.html",
+    "ImportPasteReadRefusedWeb768.dc.html",
+    "ImportPasteReadRefusedWeb390.dc.html",
+    "ImportPasteDuplicatePublicWeb1280.dc.html",
+    "ImportPasteDuplicatePublicWeb768.dc.html",
+    "ImportPasteDuplicatePublicWeb390.dc.html",
+    "ImportLinkPasteInsteadWeb1280.dc.html",
+    "ImportLinkPasteInsteadWeb768.dc.html",
+    "ImportLinkPasteInsteadWeb390.dc.html",
+    "ImportLibraryAlreadyInLibraryWeb1280.dc.html",
+    "ImportLibraryAlreadyInLibraryWeb768.dc.html",
+    "ImportLibraryAlreadyInLibraryWeb390.dc.html",
+    "ImportPasteReviewPhotoWeb1280.dc.html",
+    "ImportPasteReviewPhotoWeb768.dc.html",
+    "ImportPasteReviewPhotoWeb390.dc.html"
   ],
   "notes": {
     "row0": {

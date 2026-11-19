@@ -1010,6 +1010,69 @@
       "w": 820,
       "h": 1795,
       "title": "Recipe detail, private import, share-a-public-version answers (mobile, iPad 820)"
+    },
+    "RecipePrivateImportPhotoSavedIphone390.dc.html": {
+      "x": 0,
+      "y": 35189,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe detail, private import, photo saved (states 1 and 3) (mobile, iPhone 390)"
+    },
+    "RecipePrivateImportPhotoLoadingIphone390.dc.html": {
+      "x": 470,
+      "y": 35189,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe detail, private import, photo loading (state 2) (mobile, iPhone 390)"
+    },
+    "RecipePrivateImportPhotoLinkOnlyIphone390.dc.html": {
+      "x": 940,
+      "y": 35189,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe detail, private import, photo link only (state 4) (mobile, iPhone 390)"
+    },
+    "RecipePrivateImportPhotoSavedAndroid384.dc.html": {
+      "x": 1410,
+      "y": 35189,
+      "w": 384,
+      "h": 957,
+      "title": "Recipe detail, private import, photo saved (states 1 and 3) (mobile, Android 384)"
+    },
+    "RecipePrivateImportPhotoLoadingAndroid384.dc.html": {
+      "x": 1874,
+      "y": 35189,
+      "w": 384,
+      "h": 957,
+      "title": "Recipe detail, private import, photo loading (state 2) (mobile, Android 384)"
+    },
+    "RecipePrivateImportPhotoLinkOnlyAndroid384.dc.html": {
+      "x": 2338,
+      "y": 35189,
+      "w": 384,
+      "h": 957,
+      "title": "Recipe detail, private import, photo link only (state 4) (mobile, Android 384)"
+    },
+    "RecipePrivateImportPhotoSavedIpad820.dc.html": {
+      "x": 2802,
+      "y": 35189,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, private import, photo saved (states 1 and 3) (mobile, iPad 820)"
+    },
+    "RecipePrivateImportPhotoLoadingIpad820.dc.html": {
+      "x": 3702,
+      "y": 35189,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, private import, photo loading (state 2) (mobile, iPad 820)"
+    },
+    "RecipePrivateImportPhotoLinkOnlyIpad820.dc.html": {
+      "x": 4602,
+      "y": 35189,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, private import, photo link only (state 4) (mobile, iPad 820)"
     }
   },
   "order": [
@@ -1155,7 +1218,16 @@
     "RecipePublicVersionOwnerIpad820.dc.html",
     "RecipePublicVersionHiddenIpad820.dc.html",
     "RecipePrivateImportMenuIpad820.dc.html",
-    "RecipePrivateImportShareLineIpad820.dc.html"
+    "RecipePrivateImportShareLineIpad820.dc.html",
+    "RecipePrivateImportPhotoSavedIphone390.dc.html",
+    "RecipePrivateImportPhotoLoadingIphone390.dc.html",
+    "RecipePrivateImportPhotoLinkOnlyIphone390.dc.html",
+    "RecipePrivateImportPhotoSavedAndroid384.dc.html",
+    "RecipePrivateImportPhotoLoadingAndroid384.dc.html",
+    "RecipePrivateImportPhotoLinkOnlyAndroid384.dc.html",
+    "RecipePrivateImportPhotoSavedIpad820.dc.html",
+    "RecipePrivateImportPhotoLoadingIpad820.dc.html",
+    "RecipePrivateImportPhotoLinkOnlyIpad820.dc.html"
   ],
   "notes": {
     "row0": {

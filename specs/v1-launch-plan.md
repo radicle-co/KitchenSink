@@ -71,7 +71,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 **Exit**:
 
 - `002/verify-report.md` shows `0 CRITICAL, 0 WARNING`.
-- On the release-candidate commit, every `docs/CODING_STANDARDS.md` §7.1 test tier that `002` requires is written and passed on that commit, with its evidence linked: the CI run for unit and integration, a whole-suite e2e run (`FULL_SUITE=1` or the deployed e2e workflow), and the k6 record per service. Each feature has a proof table for that commit, a dated file `docs/reviews/releaseProof<feature number>On<yyyymmdd>.md` (for example `releaseProof004On20261201.md`). Its rows are exactly the feature spec's FR, NFR and SC ids and its acceptance scenarios (as `US<n>.<m>`) at that commit. Each row holds one of: a test path at that commit with the run that passed it, a measurement record with its source and window, or "not shipped" with its gating decision. A blank row fails, and a "not shipped" row fails a gate that needs that capability.
+- `002` meets the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - Clerk hosted sign-in/sign-up flow demonstrably works on web and mobile in `dev` and `staging`.
 
 ---
@@ -91,12 +91,12 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
     - Resolve the two architectural blockers called out in `specs/001-commise-recipe-app/review.md`: API URL prefix collision (see [GR-002](./governance-rules.md#gr-002-api-url-prefix-standard)) and missing `shared/recipe-core` type library (see [GR-007](./governance-rules.md#gr-007-shared-type-library-ownership)).
     - Burn down `verify-report.md`: 5 critical / 2 warning → 0 / 0.
 - **`003`**: Burn down 1 critical / 2 warning → 0 / 0.
-- **`004`**: `spec.md`: every device extraction tier that is on passes `SC-002`, each tier's coverage is reported (`SC-003`), and `SC-004` and `SC-005` hold, with the server fetch path of `FR-064` and the duplicate lookup of `FR-008` shipped.
+- **`004`**: meets the exit line in [Beta section 2.1](./beta-exit-criteria.md#21-spec--verification-gates).
 
 **Exit**:
 
-- `001` and `003` `verify-report.md` show `0 CRITICAL, 0 WARNING`. `004` `spec.md`: every device extraction tier that is on passes `SC-002`, each tier's coverage is reported (`SC-003`), and `SC-004` and `SC-005` hold, with the server fetch path of `FR-064` and the duplicate lookup of `FR-008` shipped.
-- On the release-candidate commit, every `docs/CODING_STANDARDS.md` §7.1 test tier that `001`, `003` and `004` require is written and passed on that commit, with its evidence linked: the CI run for unit and integration, a whole-suite e2e run (`FULL_SUITE=1` or the deployed e2e workflow), and the k6 record per service. Each feature has a proof table for that commit, a dated file `docs/reviews/releaseProof<feature number>On<yyyymmdd>.md` (for example `releaseProof004On20261201.md`). Its rows are exactly the feature spec's FR, NFR and SC ids and its acceptance scenarios (as `US<n>.<m>`) at that commit. Each row holds one of: a test path at that commit with the run that passed it, a measurement record with its source and window, or "not shipped" with its gating decision. A blank row fails, and a "not shipped" row fails a gate that needs that capability.
+- `001` and `003` `verify-report.md` show `0 CRITICAL, 0 WARNING`. `004` meets the exit line in [Beta section 2.1](./beta-exit-criteria.md#21-spec--verification-gates).
+- `001`, `003` and `004` meet the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - Demonstrable end-to-end against real data: create a recipe, attach an ingredient pulled from USDA, import a recipe from a URL.
 - `shared/recipe-core` type library exists and is consumed by every downstream feature spec that references recipe entities.
 
@@ -121,7 +121,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 **Exit**:
 
 - `011/verify-report.md` shows `0 CRITICAL, 0 WARNING`.
-- On the release-candidate commit, every `docs/CODING_STANDARDS.md` §7.1 test tier that `011` requires is written and passed on that commit, with its evidence linked: the CI run for unit and integration, a whole-suite e2e run (`FULL_SUITE=1` or the deployed e2e workflow), and the k6 record per service. Each feature has a proof table for that commit, a dated file `docs/reviews/releaseProof<feature number>On<yyyymmdd>.md` (for example `releaseProof004On20261201.md`). Its rows are exactly the feature spec's FR, NFR and SC ids and its acceptance scenarios (as `US<n>.<m>`) at that commit. Each row holds one of: a test path at that commit with the run that passed it, a measurement record with its source and window, or "not shipped" with its gating decision. A blank row fails, and a "not shipped" row fails a gate that needs that capability.
+- `011` meets the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - Photo-to-recipe demonstrably works on web and mobile against the labeled corpus at the documented accuracy floor.
 
 ---
@@ -144,7 +144,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 **Exit**:
 
 - Both `verify-report.md` files show `0 CRITICAL, 0 WARNING`.
-- On the release-candidate commit, every `docs/CODING_STANDARDS.md` §7.1 test tier that `007` and `008` require is written and passed on that commit, with its evidence linked: the CI run for unit and integration, a whole-suite e2e run (`FULL_SUITE=1` or the deployed e2e workflow), and the k6 record per service. Each feature has a proof table for that commit, a dated file `docs/reviews/releaseProof<feature number>On<yyyymmdd>.md` (for example `releaseProof004On20261201.md`). Its rows are exactly the feature spec's FR, NFR and SC ids and its acceptance scenarios (as `US<n>.<m>`) at that commit. Each row holds one of: a test path at that commit with the run that passed it, a measurement record with its source and window, or "not shipped" with its gating decision. A blank row fails, and a "not shipped" row fails a gate that needs that capability.
+- `007` and `008` meet the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - Real user can step through Cooking Mode for a recipe and generate a grocery list from a recipe or selection.
 
 ---
@@ -166,7 +166,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 **Exit (per-feature)**:
 
 - `006/verify-report.md` shows `0 CRITICAL, 0 WARNING`.
-- On the release-candidate commit, every `docs/CODING_STANDARDS.md` §7.1 test tier that `006` requires is written and passed on that commit, with its evidence linked: the CI run for unit and integration, a whole-suite e2e run (`FULL_SUITE=1` or the deployed e2e workflow), and the k6 record per service. Each feature has a proof table for that commit, a dated file `docs/reviews/releaseProof<feature number>On<yyyymmdd>.md` (for example `releaseProof004On20261201.md`). Its rows are exactly the feature spec's FR, NFR and SC ids and its acceptance scenarios (as `US<n>.<m>`) at that commit. Each row holds one of: a test path at that commit with the run that passed it, a measurement record with its source and window, or "not shipped" with its gating decision. A blank row fails, and a "not shipped" row fails a gate that needs that capability.
+- `006` meets the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 
 **Exit (milestone — Beta gate)**:
 
@@ -195,7 +195,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 **Exit**:
 
 - Both `verify-report.md` files show `0 CRITICAL, 0 WARNING`.
-- On the release-candidate commit, every `docs/CODING_STANDARDS.md` §7.1 test tier that `005` and `009` require is written and passed on that commit, with its evidence linked: the CI run for unit and integration, a whole-suite e2e run (`FULL_SUITE=1` or the deployed e2e workflow), and the k6 record per service. Each feature has a proof table for that commit, a dated file `docs/reviews/releaseProof<feature number>On<yyyymmdd>.md` (for example `releaseProof004On20261201.md`). Its rows are exactly the feature spec's FR, NFR and SC ids and its acceptance scenarios (as `US<n>.<m>`) at that commit. Each row holds one of: a test path at that commit with the run that passed it, a measurement record with its source and window, or "not shipped" with its gating decision. A blank row fails, and a "not shipped" row fails a gate that needs that capability.
+- `005` and `009` meet the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - AI features stable in Beta cohort with cost-per-active-user inside the projected band.
 - Nutrition tracking demonstrably accurate against a USDA-backed reference set.
 
@@ -222,7 +222,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 **Exit (per-feature)**:
 
 - `010/verify-report.md` shows `0 CRITICAL, 0 WARNING`.
-- On the release-candidate commit, every `docs/CODING_STANDARDS.md` §7.1 test tier that `010` requires is written and passed on that commit, with its evidence linked: the CI run for unit and integration, a whole-suite e2e run (`FULL_SUITE=1` or the deployed e2e workflow), and the k6 record per service. Each feature has a proof table for that commit, a dated file `docs/reviews/releaseProof<feature number>On<yyyymmdd>.md` (for example `releaseProof004On20261201.md`). Its rows are exactly the feature spec's FR, NFR and SC ids and its acceptance scenarios (as `US<n>.<m>`) at that commit. Each row holds one of: a test path at that commit with the run that passed it, a measurement record with its source and window, or "not shipped" with its gating decision. A blank row fails, and a "not shipped" row fails a gate that needs that capability.
+- `010` meets the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 
 **Exit (milestone — 1.0 gate)**:
 
@@ -256,7 +256,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 **Exit**:
 
 - Both `verify-report.md` files show `0 CRITICAL, 0 WARNING`.
-- On the release-candidate commit, every `docs/CODING_STANDARDS.md` §7.1 test tier that `012` and `013` require is written and passed on that commit, with its evidence linked: the CI run for unit and integration, a whole-suite e2e run (`FULL_SUITE=1` or the deployed e2e workflow), and the k6 record per service. Each feature has a proof table for that commit, a dated file `docs/reviews/releaseProof<feature number>On<yyyymmdd>.md` (for example `releaseProof004On20261201.md`). Its rows are exactly the feature spec's FR, NFR and SC ids and its acceptance scenarios (as `US<n>.<m>`) at that commit. Each row holds one of: a test path at that commit with the run that passed it, a measurement record with its source and window, or "not shipped" with its gating decision. A blank row fails, and a "not shipped" row fails a gate that needs that capability.
+- `012` and `013` meet the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - Creators can publish; school courses can be enrolled in; both gated behind appropriate subscription tiers.
 
 ---
@@ -281,7 +281,7 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 **Exit**:
 
 - `014/verify-report.md` shows `0 CRITICAL, 0 WARNING`.
-- On the release-candidate commit, every `docs/CODING_STANDARDS.md` §7.1 test tier that `014` requires is written and passed on that commit, with its evidence linked: the CI run for unit and integration, a whole-suite e2e run (`FULL_SUITE=1` or the deployed e2e workflow), and the k6 record per service. Each feature has a proof table for that commit, a dated file `docs/reviews/releaseProof<feature number>On<yyyymmdd>.md` (for example `releaseProof004On20261201.md`). Its rows are exactly the feature spec's FR, NFR and SC ids and its acceptance scenarios (as `US<n>.<m>`) at that commit. Each row holds one of: a test path at that commit with the run that passed it, a measurement record with its source and window, or "not shipped" with its gating decision. A blank row fails, and a "not shipped" row fails a gate that needs that capability.
+- `014` meets the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - Push, email, and in-app notifications demonstrably live across all integrated surfaces.
 - **v1 COMPLETE**.
 

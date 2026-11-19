@@ -37,19 +37,19 @@ unreadable paid, opt-out or signature signal is `unknown` and takes the rewrite 
 
 ## Constitution Check
 
-| Principle                  | Status | Note                                                                                               |
-| -------------------------- | ------ | -------------------------------------------------------------------------------------------------- |
-| I Correctness / types      | PASS   | Classification and job state are discriminated unions. Wire types in-service zod (DD15).           |
-| II JSDoc                   | PASS   | `@pattern` on the Specification, the Command, the statechart module and the adapter.               |
-| III Imports / organisation | PASS   | No barrels. Subpath exports for the engine modules, as `parsing/parse-prompt` already does.        |
-| IV Testing pyramid         | PASS   | Tier matrix below. The fact check, the fingerprint and the classifier each get a mutation suite.   |
-| V Monorepo                 | PASS   | No new package. recipe-workers already depends on recipe-core.                                     |
-| VII Accessibility / UX     | PASS   | Every state keyed (spec table). `staff-ux-engineer` SPECIFY owed. One radio group, never disabled. |
-| VIII Cross-platform        | PASS   | Web and mobile in one release (FR-091).                                                            |
-| IX Patterns / seams        | PASS   | Register below.                                                                                    |
-| ADR-0024 layer 4b          | PASS   | Runs under the one verification role. New `SPEND_CALL_SITES` member `import-public-rewrite`.       |
-| ADR-0004 NAT list          | AMEND  | The new VPC Lambda adds a `nat-consumers` row (`natEgressConsumers.test.ts`).                      |
-| ADR-0093                   | PASS   | Amended ADR-0082 §5 and §6 already. This feature builds what it rules.                             |
+| Principle                  | Status | Note                                                                                                                     |
+| -------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| I Correctness / types      | PASS   | Classification and job state are discriminated unions. Wire types in-service zod (DD15).                                 |
+| II JSDoc                   | PASS   | `@pattern` on the Specification, the Command, the statechart module and the adapter.                                     |
+| III Imports / organisation | PASS   | No barrels. Subpath exports for the engine modules, as `parsing/parse-prompt` already does.                              |
+| IV Testing pyramid         | PASS   | Tier matrix below. The fact check, the fingerprint and the classifier each get a mutation suite.                         |
+| V Monorepo                 | PASS   | No new package. recipe-workers already depends on recipe-core.                                                           |
+| VII Accessibility / UX     | PASS   | Every state keyed (spec table). `staff-ux-engineer` SPECIFY done, EVALUATE owed (T117). One radio group, never disabled. |
+| VIII Cross-platform        | PASS   | Web and mobile in one release (FR-091).                                                                                  |
+| IX Patterns / seams        | PASS   | Register below.                                                                                                          |
+| ADR-0024 layer 4b          | PASS   | Runs under the one verification role. New `SPEND_CALL_SITES` member `import-public-rewrite`.                             |
+| ADR-0004 NAT list          | AMEND  | The new VPC Lambda adds a `nat-consumers` row (`natEgressConsumers.test.ts`).                                            |
+| ADR-0093                   | PASS   | Amended ADR-0082 §5 and §6 already. This feature builds what it rules.                                                   |
 
 ## Engine ownership (decision)
 

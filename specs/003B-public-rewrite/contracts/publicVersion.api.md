@@ -100,7 +100,7 @@ same paid-site rules.
 
 ## Reopen: the import item view
 
-The import item view gains `publicVersionJob: { jobId, state } | null`, the item's latest job by `created_at`, or `null` when it has none (the job rows are deleted 7 days after they finish). The client routes a reopened import with it and with the item's recipe id (FR-044a). It carries no job text.
+The import item view gains `publicVersionJob: { jobId, state } | null`, the item's latest job by `created_at`, or `null` when it has none (the job rows are deleted 7 days after they finish). The client routes a reopened import with it and with the item's `saved_at` (FR-044a). The recipe id is only the target to open once `saved_at` is set. It carries no job text.
 
 ## Read the job
 

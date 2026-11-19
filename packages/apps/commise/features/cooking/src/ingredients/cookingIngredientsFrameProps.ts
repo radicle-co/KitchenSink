@@ -1,8 +1,8 @@
 /**
- * @module cookingIngredientsFrameProps — the props of the two frames around the one cooking ingredients list, on web and
- * native. The screen picks the sheet at L1 and L1w and the column at L2 and L3 by `layoutBand`, so there is no mode
- * prop. Each frame draws the title once (the list draws none) and neither draws a Done: the sheet's × is the one close
- * (designer's D73).
+ * @module cookingIngredientsFrameProps — the props of the two frames around the one cooking ingredients list, on web
+ * and native. The screen picks the sheet at L1 and L1w and the column at L2 and L3 by `layoutBand`, so there is no
+ * mode prop. Each frame draws the title once (the list draws none) and neither draws a Done: the sheet's × is the one
+ * close (designer's D73).
  */
 import type { CookingMessages } from '../messages.js';
 

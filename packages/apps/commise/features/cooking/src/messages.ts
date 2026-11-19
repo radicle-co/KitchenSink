@@ -60,7 +60,7 @@ interface CookingStepMessages {
 
 /** The ingredients list, held in a sheet over the step. */
 interface CookingIngredientsMessages {
-    /** The list's heading: one item, or `{count}` items, for `{servings}` servings. */
+    /** The title the frame draws: one item, or `{count}` items, for `{servings}` servings. */
     readonly title: PluralText;
     /** The accessible name of the sheet's × close. */
     readonly close: string;

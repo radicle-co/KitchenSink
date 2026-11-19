@@ -1,8 +1,8 @@
 /**
- * The two native frames around the one cooking ingredients list: the sheet (L1, L1w) and the column (L2, L3). Nothing is
- * mocked: the view is the real `cookingIngredientsView`, the copy the real catalogue, the list and the house `Sheet` the
- * real leaves. Per designer's D73 the list draws no heading, so each frame draws the title once, and neither frame draws
- * a Done: the sheet's X, named `close`, is the one visible close.
+ * The two native frames around the one cooking ingredients list: the sheet (L1, L1w) and the column (L2, L3). Nothing
+ * is mocked: the view is the real `cookingIngredientsView`, the copy the real catalogue, the list and the house
+ * `Sheet` the real leaves. Per designer's D73 the list draws no heading, so each frame draws the title once, and
+ * neither frame draws a Done: the sheet's X, named `close`, is the one visible close.
  */
 import { resolveMessages } from '@commise/i18n';
 import { CookMarksProvider } from '@commise/features-recipes/cook';

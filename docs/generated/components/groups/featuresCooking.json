@@ -1776,7 +1776,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsColumn.native.tsx",
                     "dir": "packages/apps/commise/features/cooking/src/ingredients",
-                    "moduleDoc": "CookingIngredientsColumn — the cooking ingredients list pinned as a 300 wide column on the left (L2 and L3).\nIt heads the list with the title, which the list does not draw, and has no close and no Done because it is always open.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingIngredientsColumn — the cooking ingredients list pinned as a 300 wide column on the left (L2 and L3).\nIt heads the list with the title, which the list does not draw. It has no close and no Done, because it is always\nopen.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1864,11 +1864,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsList.native.tsx",
                     "dir": "packages/apps/commise/features/cooking/src/ingredients",
-                    "moduleDoc": "CookingIngredientsList — the cooking ingredients list on native: the servings stepper, the lines under their section labels and Clear ticks. Every piece is the recipe page's own (`IngredientRuns`,\n`ServingScaleControl`, through `@commise/features-recipes/cook`), so cooking mode groups, names and keys a line, sets\nan amount and counts servings exactly as the page does, in the page's own words.\n\nIt holds no state, no frame and no heading: the sheet and the column wrap it and draw the title, and the screen binds `useCookingIngredients`.\nClear ticks is drawn only while a line of the list is ticked (`view.hasTicks`), because with none ticked it has\nnothing to do.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingIngredientsList — the cooking ingredients list on native: the servings stepper, the lines under their\nsection labels and Clear ticks. Every piece is the recipe page's own (`IngredientRuns`, `ServingScaleControl`,\nthrough `@commise/features-recipes/cook`), so cooking mode groups, names and keys a line, sets an amount and counts\nservings exactly as the page does, in the page's own words.\n\nIt holds no state, no frame and no heading: the sheet and the column wrap it and draw the title, and the screen binds\n`useCookingIngredients`. Clear ticks is drawn only while a line of the list is ticked (`view.hasTicks`), because with\nnone ticked it has nothing to do.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "CookingIngredientsList — the cooking ingredients list on native: the servings stepper, the lines under their section labels and Clear ticks. Every piece is the recipe page's own (`IngredientRuns`,"
+                            "text": "CookingIngredientsList — the cooking ingredients list on native: the servings stepper, the lines under their"
                         }
                     ],
                     "description": "The native cooking ingredients list.",

@@ -205,7 +205,7 @@ skipped { reason: 'publicExists' | 'budget' | 'attemptsUsed' | 'alreadyStarted' 
 
 A replay marks nothing that already has a job or a marker and never restarts a resting job. The route never answers `429`: a file item is already paid, and Publish's guard charges nothing for it.
 
-The import list entry (`GET /api/v1/import`) gains `publicVersions: { requested, writing, ready, needsYou, notWritten, published, nextReadyExpiresAt }` from one grouped query, and the import item view gains `readyUntil` (the ISO date a ready draft's job expires, or `null`).
+The import list entry (`GET /api/v1/import`) gains `publicVersions: { requested, writing, ready, needsYou, notWritten, published, nextReadyExpiresAt }` from one grouped query whose predicates are the table in the data model's "Rest-public" section, and the import item view gains `readyUntil` (the ISO date a ready draft's job expires, or `null`).
 
 ## Recipe writes
 

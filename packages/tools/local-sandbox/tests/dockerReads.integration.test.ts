@@ -25,10 +25,15 @@ let savedPath: string | undefined;
 function stub(name: string, stdout: string, status: number, stderr = ''): void {
     const file = path.join(dir, name);
 
-    writeFileSync(
-        file,
-        `#!/bin/sh\necho "$@" >> "${dir}/${name}.args"\nprintf '%s' '${stdout}'\nprintf '%s' '${stderr}' >&2\nexit ${String(status)}\n`,
-    );
+    const lines = [
+        '#!/bin/sh',
+        `echo "$@" >> "${dir}/${name}.args"`,
+        `printf '%s' '${stdout}'`,
+        `printf '%s' '${stderr}' >&2`,
+        `exit ${String(status)}`,
+    ];
+
+    writeFileSync(file, `${lines.join('\n')}\n`);
     chmodSync(file, 0o755);
 }
 

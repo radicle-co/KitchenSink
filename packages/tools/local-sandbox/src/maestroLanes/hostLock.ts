@@ -22,9 +22,9 @@ export class HostLockHeldError extends Error {
 
     /** @param holderDoor - The door the HOLDER took the lock for, or `undefined` for a lock file that does not say. */
     constructor(file: string, holderPid: number, holderDoor: string | undefined) {
-        super(
-            `another ${holderDoor === undefined ? '' : `${holderDoor} `}run (pid ${holderPid}) holds ${file} - wait for it, or stop it`,
-        );
+        const who = holderDoor === undefined ? '' : `${holderDoor} `;
+
+        super(`another ${who}run (pid ${holderPid}) holds ${file} - wait for it, or stop it`);
         this.name = 'HostLockHeldError';
         this.holderPid = holderPid;
         Object.setPrototypeOf(this, HostLockHeldError.prototype);

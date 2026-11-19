@@ -6,7 +6,7 @@
  * | --------------------------------- | ------------------------------------------------------------------------------ |
  * | `ANDROID_SERIAL`                  | `adb` reads it natively; `maestro` is handed `--device <serial>` before `test` |
  * | `MAESTRO_LOCAL=1`                 | drop the sandbox-only flows BEFORE packing, name them, reverse 3000-3002       |
- * | `MAESTRO_LOCAL_{RECIPE,IDENTITY,FOOD}_HOST_PORT` | the host side of the device's :3000, :3001 and :3002 (the stack's own ports) |
+ * | `MAESTRO_LOCAL_{RECIPE,IDENTITY,FOOD}_HOST_PORT` | the host side of the device's :3000, :3001 and :3002 |
  * | `MAESTRO_LOCK_DIR`                | run every role flow under `flock <dir>/roles.lock`                              |
  * | `MAESTRO_SKIP_INSTALL=1`          | do not install the app; the device adapter already did                         |
  *
@@ -164,9 +164,9 @@ describe('run mode under a local lane', () => {
      * so it also carries the debug app's identity alias (:4000 onto :3001). The release test app never addresses :4000;
      * the alias is there because one map serves both apps.
      *
-     * REWRITTEN again 2026-11-19 (LS-PORT, TEST-CHANGE decisions/0044): all three services reverse onto the host port the
-     * stack publishes (`MAESTRO_LOCAL_{RECIPE,IDENTITY,FOOD}_HOST_PORT`), so a second stack is reached. Three different
-     * ports, so a swap of identity and food fails; the identity alias :4000 follows identity.
+     * REWRITTEN again 2026-11-19 (LS-PORT, TEST-CHANGE decisions/0044): all three services reverse onto the host port
+     * the stack publishes (`MAESTRO_LOCAL_{RECIPE,IDENTITY,FOOD}_HOST_PORT`), so a second stack is reached. Three
+     * different ports, so a swap of identity and food fails; the identity alias :4000 follows identity.
      */
     it('reverses each service port onto its own host port through the one shared map', () => {
         const reverses = lane.calls

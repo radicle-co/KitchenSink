@@ -71,3 +71,20 @@ export function parseWorkerEnvFrom(env: Readonly<Record<string, string | undefin
         }),
     );
 }
+
+/**
+ * The host LocalStack address of the running stack.
+ *
+ * @param env - The lane's base environment.
+ * @returns The address.
+ * @throws {Error} Naming the variable when it is missing, because a client with no endpoint talks to real AWS.
+ */
+export function localstackFromEnv(env: Readonly<Record<string, string | undefined>>): string {
+    const value = env['LOCAL_MAESTRO_LOCALSTACK'];
+
+    if (value === undefined || value === '') {
+        throw new Error('the stack publishes no LocalStack (LOCAL_MAESTRO_LOCALSTACK is not set)');
+    }
+
+    return value;
+}

@@ -444,6 +444,12 @@ describe('volumeRefusal (RT3): the data volume must belong to this checkout', ()
         expect(volumeRefusal({ ...base, containers: [at('local-sandbox', C)], record: A })).toBeUndefined();
     });
 
+    it("another project's container at this checkout does not stand in for this project's volume", () => {
+        const refusal = volumeRefusal({ ...base, containers: [at('local-sandbox-3100', C)], record: A });
+
+        expect(refusal).toContain('owned by /work/A');
+    });
+
     it('a live label of another checkout beats a record naming this one', () => {
         expect(volumeRefusal({ ...base, containers: [at('local-sandbox', A)], record: C })).toContain(
             'owned by /work/A',

@@ -43,7 +43,7 @@ import type { CommandPort, DeviceAdapter, LanePlatform, LaneSpec } from '../src/
 import { CONSUMER_PLAN_RELATIVE, readConsumerPlan } from '../src/queueConsumers.js';
 import { parseLocalSettings, type LocalSettings } from '../src/maestroLanes/localSettings.js';
 import { BASE_ENVIRONMENT_SCRIPT } from '../src/maestroLanes/baseEnvironmentScript.js';
-import { hostPortsFromEnv, parseWorkerEnvFrom } from '../src/maestroLanes/stackFacts.js';
+import { hostPortsFromEnv, localstackFromEnv, parseWorkerEnvFrom } from '../src/maestroLanes/stackFacts.js';
 import { startSharedServices, type RunningService, type ServiceSpec } from '../src/maestroLanes/sharedServices.js';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -361,7 +361,7 @@ async function startServices(base: Env, settings: LocalSettings) {
     // The stack is this checkout's: `local_maestro_stack_env` refused the run otherwise.
     const root = REPO_ROOT;
     const sqs = new SQSClient({
-        endpoint: base['LOCAL_MAESTRO_LOCALSTACK'],
+        endpoint: localstackFromEnv(base),
         region: 'us-east-1',
         credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
     });

@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { hostPortsFromEnv, parseWorkerEnvFrom } from '../stackFacts.js';
+import { hostPortsFromEnv, localstackFromEnv, parseWorkerEnvFrom } from '../stackFacts.js';
 
 const ports = {
     MAESTRO_LOCAL_RECIPE_HOST_PORT: '3110',
@@ -33,6 +33,11 @@ describe('hostPortsFromEnv', () => {
         expect(() => hostPortsFromEnv({ ...ports, MAESTRO_LOCAL_FOOD_HOST_PORT: 'abc' })).toThrow(/food port/u);
         expect(() => hostPortsFromEnv({ ...ports, MAESTRO_LOCAL_FOOD_HOST_PORT: '0' })).toThrow(/food port/u);
     });
+
+    it('reads the top of the range and refuses one above it', () => {
+        expect(hostPortsFromEnv({ ...ports, MAESTRO_LOCAL_FOOD_HOST_PORT: '65535' }).food).toBe(65_535);
+        expect(() => hostPortsFromEnv({ ...ports, MAESTRO_LOCAL_FOOD_HOST_PORT: '65536' })).toThrow(/food port/u);
+    });
 });
 
 describe('parseWorkerEnvFrom', () => {
@@ -53,6 +58,18 @@ describe('parseWorkerEnvFrom', () => {
     it('refuses when one is missing, and names it', () => {
         expect(() => parseWorkerEnvFrom({ ...worker, LOCAL_MAESTRO_WORKER_DATABASE_URL: undefined })).toThrow(
             /LOCAL_MAESTRO_WORKER_DATABASE_URL/u,
+        );
+    });
+});
+
+describe('localstackFromEnv', () => {
+    it('reads the LocalStack address the running stack published', () => {
+        expect(localstackFromEnv({ LOCAL_MAESTRO_LOCALSTACK: 'http://localhost:4666' })).toBe('http://localhost:4666');
+    });
+
+    it.each([[{}], [{ LOCAL_MAESTRO_LOCALSTACK: '' }]])('refuses %j, and names the variable', (env) => {
+        expect(() => localstackFromEnv(env)).toThrow(
+            'the stack publishes no LocalStack (LOCAL_MAESTRO_LOCALSTACK is not set)',
         );
     });
 });

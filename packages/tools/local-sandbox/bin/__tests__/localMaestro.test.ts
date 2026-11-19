@@ -67,6 +67,15 @@ function makeSandbox(): Sandbox {
  *
  * @sideEffect Spawns `bash`.
  */
+const DEFAULT_STACK_FACTS: Readonly<Record<string, string>> = {
+    E2E_SEED_RECIPE_URL: 'http://localhost:3000',
+    E2E_SEED_IDENTITY_URL: 'http://localhost:3001',
+    E2E_SEED_FOOD_URL: 'http://localhost:3002',
+    LOCAL_MAESTRO_LOCALSTACK: 'http://localhost:4566',
+    LOCAL_MAESTRO_RECIPES_CONTAINER: 'local-sandbox-recipes',
+    LOCAL_MAESTRO_POSTGRES_CONTAINER: 'local-sandbox-postgres',
+};
+
 function run(sandbox: Sandbox, body: string, env: Readonly<Record<string, string>> = {}) {
     const result = spawnSync('bash', ['-c', `source "${SCRIPT}"\n${body}`], {
         cwd: REPO_ROOT,
@@ -75,6 +84,9 @@ function run(sandbox: Sandbox, body: string, env: Readonly<Record<string, string
             PATH: `${sandbox.bin}:${process.env['PATH'] ?? ''}`,
             HOME: process.env['HOME'] ?? '',
             LOCAL_MAESTRO_STATE_DIR: sandbox.state,
+            // The facts `local_maestro_stack_env` exports for the default stack. No function states a default, so a
+            // case that does not start from the running stack's own values is given the default stack's here.
+            ...DEFAULT_STACK_FACTS,
             ...env,
         },
     });
@@ -491,10 +503,11 @@ describe('the local run uses its own pool users', () => {
 });
 
 /**
- * REWRITTEN 2026-11-19 (LS-PORT, TEST-CHANGE decisions/0044): the variable `LOCAL_MAESTRO_RECIPE_HOST_PORT` is gone. The
- * recipe host port comes from the stack's published ports, which `LOCAL_SANDBOX_HOST_PORTS=recipes=<port>` moves; the door
- * refuses the old variable by name. Old case to new case: "seeds against the moved host port, device keeps :3000" is the
- * first case below with the new source; "defaults to the service's own port" is unchanged; the refusal is new.
+ * REWRITTEN 2026-11-19 (LS-PORT, TEST-CHANGE decisions/0044): the variable `LOCAL_MAESTRO_RECIPE_HOST_PORT` is gone.
+ * The recipe host port comes from the stack's published ports, which `LOCAL_SANDBOX_HOST_PORTS=recipes=<port>` moves;
+ * the door refuses the old variable by name. Old case to new case: "seeds against the moved host port, device keeps
+ * :3000" is the first case below with the new source; "defaults to the service's own port" is unchanged; the refusal is
+ * new.
  */
 describe('a recipe host port something else holds', () => {
     it('seeds against the moved host port, while the device keeps addressing :3000', () => {
@@ -549,7 +562,8 @@ describe("local_maestro_stack_env — the door's first step", () => {
     }
 
     const LINES =
-        'MAESTRO_LOCAL_RECIPE_HOST_PORT=3110\nMAESTRO_LOCAL_IDENTITY_HOST_PORT=3111\nMAESTRO_LOCAL_FOOD_HOST_PORT=3112\n' +
+        'MAESTRO_LOCAL_RECIPE_HOST_PORT=3110\nMAESTRO_LOCAL_IDENTITY_HOST_PORT=3111\n' +
+        'MAESTRO_LOCAL_FOOD_HOST_PORT=3112\n' +
         'E2E_SEED_RECIPE_URL=http://localhost:3110\nLOCAL_MAESTRO_LOCALSTACK=http://localhost:4666\n' +
         'LOCAL_MAESTRO_WORKER_DATABASE_URL=postgres://u:p@localhost:5532/d?x=y\n';
 
@@ -558,7 +572,9 @@ describe("local_maestro_stack_env — the door's first step", () => {
         withStackEnv(sandbox, LINES);
         const result = run(
             sandbox,
-            'local_maestro_stack_env local:maestro; echo "$MAESTRO_LOCAL_RECIPE_HOST_PORT $MAESTRO_LOCAL_IDENTITY_HOST_PORT $MAESTRO_LOCAL_FOOD_HOST_PORT $LOCAL_MAESTRO_LOCALSTACK $LOCAL_MAESTRO_WORKER_DATABASE_URL"',
+            'local_maestro_stack_env local:maestro; echo "$MAESTRO_LOCAL_RECIPE_HOST_PORT ' +
+                '$MAESTRO_LOCAL_IDENTITY_HOST_PORT $MAESTRO_LOCAL_FOOD_HOST_PORT $LOCAL_MAESTRO_LOCALSTACK ' +
+                '$LOCAL_MAESTRO_WORKER_DATABASE_URL"',
         );
 
         expect(result.stdout.trim()).toBe('3110 3111 3112 http://localhost:4666 postgres://u:p@localhost:5532/d?x=y');
@@ -566,12 +582,13 @@ describe("local_maestro_stack_env — the door's first step", () => {
         expect(readFileSync(sandbox.calls, 'utf8')).toContain('stackEnv.ts local:maestro');
     });
 
-    it('seeds against the moved stack: LOCAL_SANDBOX_HOST_PORTS=recipes=3050 reaches the seed URL, the device keeps :3000', () => {
+    it('seeds against the moved stack: a recipes=3050 override reaches the seed URL, the device keeps :3000', () => {
         const sandbox = makeSandbox();
         withStackEnv(sandbox, 'E2E_SEED_RECIPE_URL=http://localhost:3050\n');
         const result = run(
             sandbox,
-            `local_maestro_stack_env local:maestro 2>/dev/null; local_maestro_seed_env '${sandbox.state}'; echo "$E2E_SEED_RECIPE_URL $LOCAL_MAESTRO_RECIPE_ORIGIN"`,
+            `local_maestro_stack_env local:maestro 2>/dev/null; local_maestro_seed_env '${sandbox.state}'; ` +
+                'echo "$E2E_SEED_RECIPE_URL $LOCAL_MAESTRO_RECIPE_ORIGIN"',
         );
 
         expect(result.stdout.trim().split('\n').at(-1)).toBe('http://localhost:3050 http://localhost:3000');
@@ -582,7 +599,8 @@ describe("local_maestro_stack_env — the door's first step", () => {
         withStackEnv(sandbox, 'MAESTRO_LOCAL_RECIPE_HOST_PORT=3110\nPATH=/evil\nMAESTRO_LOCAL_FOOD_HOST_PORT=3112\n');
         const result = run(
             sandbox,
-            'local_maestro_stack_env local:maestro; echo "[$PATH]" | grep -c evil; echo "${MAESTRO_LOCAL_FOOD_HOST_PORT-unset}"',
+            'local_maestro_stack_env local:maestro; echo "[$PATH]" | grep -c evil; ' +
+                'echo "${MAESTRO_LOCAL_FOOD_HOST_PORT-unset}"',
         );
 
         expect(result.stderr).toContain('stackEnv printed a key this door does not accept: PATH');
@@ -1058,5 +1076,71 @@ describe('the recipe database the needsReview seed writes', () => {
 
         expect(result.status).toBe(0);
         expect(result.stdout.trim().split('\n').at(-1)).toBe('http://localhost:3002');
+    });
+});
+
+/**
+ * ADDED 2026-11-19 (LS-PORT, staff review): no function of the door states a default stack. A fact that
+ * `local_maestro_stack_env` should have exported is a refusal that names the variable, never the default stack's value,
+ * because a silent default aims a run at another session's stack.
+ */
+describe('the door falls back to no default stack', () => {
+    const SEED_URLS = ['E2E_SEED_RECIPE_URL', 'E2E_SEED_IDENTITY_URL', 'E2E_SEED_FOOD_URL'] as const;
+    const stackUrls: Record<string, string> = {
+        E2E_SEED_RECIPE_URL: 'http://localhost:3110',
+        E2E_SEED_IDENTITY_URL: 'http://localhost:3111',
+        E2E_SEED_FOOD_URL: 'http://localhost:3112',
+    };
+
+    it('pins AWS to the stack LocalStack only when the stack states it', () => {
+        const refused = run(makeSandbox(), 'local_maestro_pin_aws', { LOCAL_MAESTRO_LOCALSTACK: '' });
+
+        expect(refused.status).toBe(1);
+        expect(refused.stderr).toContain('local:maestro: LOCAL_MAESTRO_LOCALSTACK is not set');
+
+        const pinned = run(makeSandbox(), 'local_maestro_pin_aws; echo "$AWS_ENDPOINT_URL"', {
+            LOCAL_MAESTRO_LOCALSTACK: 'http://localhost:4666',
+        });
+
+        expect(pinned.stdout.trim()).toBe('http://localhost:4666');
+    });
+
+    it.each(SEED_URLS)('the seed refuses when %s is not set, and names it', (missing) => {
+        const env = { ...stackUrls, [missing]: '' };
+        const sandbox = makeSandbox();
+        const result = run(sandbox, `local_maestro_seed_env '${sandbox.state}'`, env);
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain(`local:maestro: ${missing} is not set`);
+    });
+
+    it('the recipe database address is not read from the default stack when the container names are unset', () => {
+        const sandbox = makeSandbox();
+        writeFileSync(
+            path.join(sandbox.bin, 'docker'),
+            `#!/usr/bin/env bash\necho "docker $*" >> "${sandbox.calls}"\n`,
+        );
+        chmodSync(path.join(sandbox.bin, 'docker'), 0o755);
+        const result = run(sandbox, 'local_maestro_recipe_database_url', {
+            LOCAL_MAESTRO_RECIPES_CONTAINER: '',
+            LOCAL_MAESTRO_POSTGRES_CONTAINER: '',
+        });
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('local:maestro: LOCAL_MAESTRO_RECIPES_CONTAINER is not set');
+        expect(readFileSync(sandbox.calls, 'utf8')).not.toContain('docker');
+    });
+
+    it('the parse worker is not started on the default stack when the stack states no overrides', () => {
+        const sandbox = makeSandbox();
+        writeFileSync(path.join(sandbox.bin, 'npm'), `#!/usr/bin/env bash\necho "npm $*" >> "${sandbox.calls}"\n`);
+        chmodSync(path.join(sandbox.bin, 'npm'), 0o755);
+        const result = run(sandbox, `local_maestro_start_worker '${sandbox.state}'`, {
+            LOCAL_MAESTRO_WORKER_PATTERN: 'no-such-worker-command-line',
+        });
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('local:maestro: LOCAL_MAESTRO_WORKER_SQS_ENDPOINT is not set');
+        expect(readFileSync(sandbox.calls, 'utf8')).not.toContain('npm');
     });
 });

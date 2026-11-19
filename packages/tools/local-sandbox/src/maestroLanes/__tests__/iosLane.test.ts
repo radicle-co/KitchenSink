@@ -93,11 +93,12 @@ describe('macHostFromEnv', () => {
 });
 
 /**
- * REWRITTEN 2026-11-19 (LS-PORT, TEST-CHANGE decisions/0044): the local side of each tunnel is the host port the running
- * stack publishes (`hostPortsFromEnv`), not an origin in `LocalSettings`. Three different ports, so a swap of two
- * services fails. Old case to new case: "tunnels each baked origin port back" and "tunnels to the host port the stack really
- * uses" are the first two cases below; "refuses a settings origin with no port" moved to `stackFacts.test.ts` ("a missing
- * published port refuses and names the service"); the localhost and missing-origin refusals are unchanged.
+ * REWRITTEN 2026-11-19 (LS-PORT, TEST-CHANGE decisions/0044): the local side of each tunnel is the host port the
+ * running stack publishes (`hostPortsFromEnv`), not an origin in `LocalSettings`. Three different ports, so a swap of
+ * two services fails. Old case to new case: "tunnels each baked origin port back" and "tunnels to the host port the
+ * stack really uses" are the first two cases below; "refuses a settings origin with no port" moved to
+ * `stackFacts.test.ts` ("a missing published port refuses and names the service"); the localhost and missing-origin
+ * refusals are unchanged.
  */
 const PORTS = { recipes: 3110, identity: 3111, food: 3112 };
 

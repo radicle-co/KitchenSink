@@ -22,5 +22,7 @@ there wins over the shift from `LOCAL_SANDBOX_PORT`.
 - The Mac lanes keep their fixed Mac ports, so they serve one stack at a time.
 - `local:dev` and `dev:local` refuse a stack that is not the default, because the host dev servers read each
   service's `.env.development`, which names the default ports.
+- A checkout on the older code reads the new three-part lock file as a lock with no holder, so it refuses. It fails
+  closed. Once every checkout has this change, the limit is gone.
 - The services' LOCAL e2e suites use the default stack's ports from any checkout, with the variable set or not. A session
   on another stack that runs them writes test data into the default stack.

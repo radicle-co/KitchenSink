@@ -72,8 +72,6 @@ LOCAL_MAESTRO_FOOD_ORIGIN='http://localhost:3002'
 # ⛔ The `azp` the seeder's tokens carry must be one the services admit: `localContainerEnv` sets
 # `CLERK_AUTHORIZED_PARTIES` to this origin.
 LOCAL_MAESTRO_WEB_ORIGIN='http://localhost:3000'
-# The host LocalStack address: the default stack's, unless `local_maestro_stack_env` exports the running stack's.
-LOCAL_MAESTRO_LOCALSTACK="${LOCAL_MAESTRO_LOCALSTACK:-http://localhost:4566}"
 # The Mac port the recipe service is tunnelled to for an Android or iOS lane there: Docker holds the Mac's own 3000, so the app
 # the Mac builds is baked with this one (`buildIosApp.sh`) and the runner's `adb reverse tcp:3000` goes to it.
 LOCAL_MAESTRO_MAC_RECIPE_PORT=13000
@@ -94,6 +92,18 @@ export ANDROID_SERIAL="$LOCAL_MAESTRO_SERIAL"
 local_maestro_fail() {
     echo "local:maestro: $*" >&2
     return 1
+}
+
+# A fact the running stack states (`local_maestro_stack_env` exports it). No function here holds a default for one: a
+# default would aim the run at the default stack, which another session may own.
+local_maestro_require_stack_var() {
+    local name
+    for name in "$@"; do
+        if [ -z "${!name:-}" ]; then
+            local_maestro_fail "${name} is not set: the running stack states it, so run local_maestro_stack_env first"
+            return 1
+        fi
+    done
 }
 
 # The door refuses the variable that this one replaced: it named ONE port of the stack, and a stale copy in a shell would
@@ -149,7 +159,6 @@ local_maestro_settings() {
         LOCAL_MAESTRO_RECIPE_ORIGIN "$LOCAL_MAESTRO_RECIPE_ORIGIN" \
         LOCAL_MAESTRO_IDENTITY_ORIGIN "$LOCAL_MAESTRO_IDENTITY_ORIGIN" \
         LOCAL_MAESTRO_FOOD_ORIGIN "$LOCAL_MAESTRO_FOOD_ORIGIN" \
-        LOCAL_MAESTRO_LOCALSTACK "$LOCAL_MAESTRO_LOCALSTACK" \
         LOCAL_MAESTRO_WORKER_PATTERN "$LOCAL_MAESTRO_WORKER_PATTERN" \
         LOCAL_MAESTRO_CONSUMER_PATTERN "$LOCAL_MAESTRO_CONSUMER_PATTERN"
 }
@@ -272,6 +281,7 @@ local_maestro_load_clerk_keys() {
 # Pin every AWS SDK client and CLI call from here on to LocalStack, with throwaway credentials.
 local_maestro_pin_aws() {
     unset AWS_PROFILE AWS_DEFAULT_PROFILE AWS_SESSION_TOKEN AWS_SECURITY_TOKEN AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE
+    local_maestro_require_stack_var LOCAL_MAESTRO_LOCALSTACK || return 1
     export AWS_ENDPOINT_URL="$LOCAL_MAESTRO_LOCALSTACK"
     export AWS_ACCESS_KEY_ID='test'
     export AWS_SECRET_ACCESS_KEY='test'
@@ -439,11 +449,13 @@ local_maestro_start_worker() {
     # The worker's own `.env.development` names the default stack's ports. The running stack's values, moved by
     # `stackEnv`, go in its process environment, which wins over `--env-file` under tsx; the file stays the one source
     # of the names.
-    local overrides=()
-    if [ -n "${LOCAL_MAESTRO_WORKER_SQS_ENDPOINT:-}" ]; then
-        overrides=("SQS_ENDPOINT=${LOCAL_MAESTRO_WORKER_SQS_ENDPOINT}" "RECIPE_PARSE_QUEUE_URL=${LOCAL_MAESTRO_WORKER_RECIPE_PARSE_QUEUE_URL}" "DATABASE_URL=${LOCAL_MAESTRO_WORKER_DATABASE_URL}")
-    fi
-    local_maestro_spawn "${state}/worker.log" env ${overrides[@]+"${overrides[@]}"} npm run dev --workspace=@kitchensink/recipe-workers
+    local_maestro_require_stack_var LOCAL_MAESTRO_WORKER_SQS_ENDPOINT LOCAL_MAESTRO_WORKER_RECIPE_PARSE_QUEUE_URL \
+        LOCAL_MAESTRO_WORKER_DATABASE_URL || return 1
+    local_maestro_spawn "${state}/worker.log" env \
+        "SQS_ENDPOINT=${LOCAL_MAESTRO_WORKER_SQS_ENDPOINT}" \
+        "RECIPE_PARSE_QUEUE_URL=${LOCAL_MAESTRO_WORKER_RECIPE_PARSE_QUEUE_URL}" \
+        "DATABASE_URL=${LOCAL_MAESTRO_WORKER_DATABASE_URL}" \
+        npm run dev --workspace=@kitchensink/recipe-workers
     sleep 8
     if ! kill -0 "$LOCAL_MAESTRO_LAST_PID" 2>/dev/null; then
         tail -20 "${state}/worker.log" >&2
@@ -656,11 +668,12 @@ local_maestro_install_app() {
 # host is not loopback (`requireLocalSeedTarget`), so this builds the address and is not what keeps it local.
 local_maestro_recipe_database_url() {
     local env_lines name user password port value
-    env_lines="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${LOCAL_MAESTRO_RECIPES_CONTAINER:-local-sandbox-recipes}" 2>/dev/null)" || return 1
+    local_maestro_require_stack_var LOCAL_MAESTRO_RECIPES_CONTAINER LOCAL_MAESTRO_POSTGRES_CONTAINER || return 1
+    env_lines="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$LOCAL_MAESTRO_RECIPES_CONTAINER" 2>/dev/null)" || return 1
     name="$(printf '%s\n' "$env_lines" | sed -n 's/^DB_NAME=//p' | head -n 1)"
     user="$(printf '%s\n' "$env_lines" | sed -n 's/^DB_USERNAME=//p' | head -n 1)"
     password="$(printf '%s\n' "$env_lines" | sed -n 's/^DB_PASSWORD=//p' | head -n 1)"
-    port="$(docker port "${LOCAL_MAESTRO_POSTGRES_CONTAINER:-local-sandbox-postgres}" 5432/tcp 2>/dev/null | head -n 1)" || return 1
+    port="$(docker port "$LOCAL_MAESTRO_POSTGRES_CONTAINER" 5432/tcp 2>/dev/null | head -n 1)" || return 1
     port="${port##*:}"
 
     for value in "$name" "$user" "$password" "$port"; do
@@ -679,12 +692,11 @@ local_maestro_seed_env() {
     if database_url="$(local_maestro_recipe_database_url)"; then
         export E2E_SEED_RECIPE_DATABASE_URL="$database_url"
     fi
-    # The stack's published ports, exported by `local_maestro_stack_env` (the default stack's when a caller has not run it).
-    export E2E_SEED_RECIPE_URL="${E2E_SEED_RECIPE_URL:-http://localhost:3000}"
+    # The stack's published ports, exported by `local_maestro_stack_env`. No default: see `local_maestro_require_stack_var`.
+    local_maestro_require_stack_var E2E_SEED_RECIPE_URL E2E_SEED_IDENTITY_URL E2E_SEED_FOOD_URL || return 1
+    export E2E_SEED_RECIPE_URL E2E_SEED_IDENTITY_URL E2E_SEED_FOOD_URL
     # ⛔ A local run signs in users of its own, never CI's: see `e2e-fixtures`' `PoolNamespace`.
     export E2E_POOL_NAMESPACE=local
-    export E2E_SEED_FOOD_URL="${E2E_SEED_FOOD_URL:-$LOCAL_MAESTRO_FOOD_ORIGIN}"
-    export E2E_SEED_IDENTITY_URL="${E2E_SEED_IDENTITY_URL:-$LOCAL_MAESTRO_IDENTITY_ORIGIN}"
     export E2E_SEED_WEB_ORIGIN="$LOCAL_MAESTRO_WEB_ORIGIN"
     export E2E_SEED_STATE_DIR="$state"
     export COMMISE_E2E_SHARD=1

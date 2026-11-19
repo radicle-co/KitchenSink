@@ -99,7 +99,6 @@ describe('local_maestro_settings — the facts the lanes read', () => {
             recipeOrigin: 'http://localhost:3000',
             identityOrigin: 'http://localhost:3001',
             foodOrigin: 'http://localhost:3002',
-            localstack: 'http://localhost:4566',
         });
     });
 
@@ -209,8 +208,9 @@ describe('the state folder — bash and stateRoot name the same place', () => {
 
 describe('maestro_local_reverse — the one adb reverse map', () => {
     /**
-     * REWRITTEN 2026-11-19 (LS-PORT, TEST-CHANGE decisions/0044): the function takes all three host ports, because a second
-     * stack moves every one of them. Three different ports, so a swap of two services fails; the old case moved recipe only.
+     * REWRITTEN 2026-11-19 (LS-PORT, TEST-CHANGE decisions/0044): the function takes all three host ports, because a
+     * second stack moves every one of them. Three different ports, so a swap of two services fails; the old case moved
+     * recipe only.
      */
     it('reverses each device port onto its own service host port, then each extra port onto itself', () => {
         const sandbox = makeSandbox();
@@ -231,8 +231,9 @@ describe('maestro_local_reverse — the one adb reverse map', () => {
     });
 
     /**
-     * REWRITTEN 2026-11-19 (LS-PORT): the host ports come from the stack's published ports (`MAESTRO_LOCAL_*_HOST_PORT`, which
-     * `stackEnv` prints), not from `LOCAL_MAESTRO_RECIPE_HOST_PORT`. The exact list is the same shape, with three ports.
+     * REWRITTEN 2026-11-19 (LS-PORT): the host ports come from the stack's published ports
+     * (`MAESTRO_LOCAL_*_HOST_PORT`, which `stackEnv` prints), not from `LOCAL_MAESTRO_RECIPE_HOST_PORT`. The exact list
+     * is the same shape, with three ports.
      */
     it('is the map the one-emulator install uses, plus Metro, with the stack’s three host ports', () => {
         const sandbox = makeSandbox();
@@ -261,7 +262,6 @@ describe('parseLocalSettings — the boundary', () => {
         'LOCAL_MAESTRO_RECIPE_ORIGIN=http://localhost:3000',
         'LOCAL_MAESTRO_IDENTITY_ORIGIN=http://localhost:3001',
         'LOCAL_MAESTRO_FOOD_ORIGIN=http://localhost:3002',
-        'LOCAL_MAESTRO_LOCALSTACK=http://localhost:4566',
         'LOCAL_MAESTRO_WORKER_PATTERN=src/local/main\\.ts',
         'LOCAL_MAESTRO_CONSUMER_PATTERN=bin/queueConsumer\\.ts {name}( |$)',
     ];

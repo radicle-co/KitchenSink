@@ -3,8 +3,9 @@
  * Repo-wide guard: `local:dev` and `dev:local` run the default-stack check BEFORE anything that starts or uses a stack.
  *
  * Their host dev servers read each service's `.env.development`, which names the default stack's ports. Started against
- * a stack that `LOCAL_SANDBOX_PORT` moved, they would write into another session's data. The check refuses that, but only
- * if it runs first: after `local:up` the second stack is already up, and after `turbo run dev` the servers already run.
+ * a stack that `LOCAL_SANDBOX_PORT` moved, they would write into another session's data. The check refuses that, but
+ * only if it runs first: after `local:up` the second stack is already up, and after `turbo run dev` the servers already
+ * run.
  *
  * The rule is a pure analyzer over a script string, run over the real `package.json` and over fixtures that break it.
  */

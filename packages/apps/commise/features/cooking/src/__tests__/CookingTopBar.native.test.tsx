@@ -6,7 +6,8 @@
  */
 import { nativeTokens } from '@commise/ui/native';
 import { withPlatformOs } from '@commise/ui/testing/platform-os';
-import { render } from '@commise/ui/testing/tamagui';
+import { pillOf } from '@commise/ui/testing/button-pill';
+import { render, resolvedColour } from '@commise/ui/testing/tamagui';
 import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -162,6 +163,29 @@ describe('CookingTopBar (native)', () => {
             }
         });
 
+        it('is the quiet medium button: a pill 44 tall on iOS, 48 on Android, with no fill', () => {
+            for (const [os, height] of [
+                ['ios', '44px'],
+                ['android', '48px'],
+            ] as const) {
+                withPlatformOs(os, () => {
+                    render(<CookingTopBar {...withIngredients()} />);
+
+                    const pill = pillOf(screen.getByRole('button', { name: 'Ingredients' }));
+
+                    expect(getComputedStyle(pill).minHeight).toBe(height);
+                    expect(resolvedColour(pill, 'backgroundColor')).toBe('rgba(0, 0, 0, 0)');
+                    cleanup();
+                });
+            }
+        });
+
+        it('narrow: draws no end wrapper while there is no Ingredients button', () => {
+            render(<CookingTopBar {...barProps({ narrow: true })} />);
+
+            expect(screen.queryByTestId('cooking-top-bar-ingredients')).toBeNull();
+        });
+
         it('wide: Exit, then the place, then Ingredients, on a row that wraps by whole controls', () => {
             render(<CookingTopBar {...withIngredients()} />);
 
@@ -209,6 +233,7 @@ describe('CookingTopBar (native)', () => {
             expect(controls.compareDocumentPosition(place) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
             expect(controlsStyle.flexDirection).toBe('row');
             expect(controlsStyle.flexWrap).toBe('wrap');
+            expect(controlsStyle.alignSelf).toBe('stretch');
             expect(getComputedStyle(screen.getByTestId('cooking-top-bar')).flexDirection).toBe('column');
         });
     });

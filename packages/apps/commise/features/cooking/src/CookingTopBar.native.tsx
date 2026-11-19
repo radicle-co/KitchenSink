@@ -72,9 +72,11 @@ export const CookingTopBar: FC<NativeCookingTopBarProps> = ({ exit, place, ingre
                     gap="$1"
                 >
                     {exitButton}
-                    <YStack testID="cooking-top-bar-ingredients" marginLeft="auto">
-                        {ingredientsButton}
-                    </YStack>
+                    {ingredientsButton === null ? null : (
+                        <YStack testID="cooking-top-bar-ingredients" marginLeft="auto">
+                            {ingredientsButton}
+                        </YStack>
+                    )}
                 </XStack>
                 {placeText}
             </YStack>

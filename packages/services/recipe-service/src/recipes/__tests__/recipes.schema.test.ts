@@ -680,11 +680,10 @@ describe('createRecipeRequestSchema — the optional `source` declaration', () =
     });
 
     /**
-     * `imported_physical` and `imported_paid` are DELIBERATELY not declarable, and their absence is a
-     * narrowing of 004-FR-025 rather than an oversight. They are not declarable on this route until
-     * https://github.com/radicle-co/KitchenSink/issues/374 is settled (004-FR-014a, 004-FR-028).
+     * `imported_physical` and `imported_paid` are not declarable through `source`, the curator's field. A cook gives a
+     * recipe either label through the recipe's own `statement` (`004-FR-014a`, #374), so this refusal stays.
      */
-    it.each(['imported_physical', 'imported_paid'])('REFUSES %s — not a declarable source type', (kind) => {
+    it.each(['imported_physical', 'imported_paid'])('REFUSES %s through source (#374)', (kind) => {
         expect(createAccepts({ source: { sourceType: kind, sourceAttribution: 'A book' } })).toBe(false);
     });
 

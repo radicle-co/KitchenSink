@@ -270,9 +270,9 @@ export const CURATOR_IMPORT_SCOPE = 'recipes:import:public';
  * `user_created`, where they would mean nothing — turns "an import must be attributed" from a rule the
  * service enforces into a state the wire cannot express.
  *
- * ⛔ `imported_physical` and `imported_paid` are DELIBERATELY absent, which NARROWS 004-FR-025 rather than
- * implementing it. They are not declarable on this route until https://github.com/radicle-co/KitchenSink/issues/374
- * is settled (004-FR-014a, 004-FR-028). Adding a member is additive.
+ * ⛔ `imported_physical` and `imported_paid` are not declarable through `source`, which is the curator's field. A cook
+ * gives a recipe either label through the recipe's own `statement` (`004-FR-014a`, `004-FR-025`, #374): `book` today,
+ * and `paid_site` when #374's build lands. A private recipe uses a private slot whatever its label (`004-FR-028`).
  *
  * ⛔ It is also NOT on {@link createRecipeRequestBaseSchema}. `updateRecipeRequestSchema` derives from that
  * base through `.omit().partial()`, so a field placed there is inherited by `PATCH /api/v1/recipes/{id}` —

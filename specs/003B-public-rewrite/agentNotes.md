@@ -3,7 +3,7 @@
 Rules that are easy to get wrong. Read before working on this feature.
 
 - **Planned, not built. Clarifications are ruled where marked, the rest assumed** (see the spec Clarifications). It sits behind one per-market
-  switch, on in every market at launch (FR-090, ADR-0093 §6a). No test door.
+  switch, on in every market at launch (FR-090, ADR-0093 §6a). No test door. The reader's market rule is C-31, built in T383.
 - **The engine is 027's.** Facts sheet, writer, fact check and shingle measure live in `recipe-core/src/stepWriting/`
   and are designed in spec 027. Build them once, to 027's design. No mode flag in the engine. The title is built by
   003B code, not by the engine.

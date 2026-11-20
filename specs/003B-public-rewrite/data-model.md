@@ -167,7 +167,9 @@ NOT NULL` if and only if `source_type = 'commise_written'`. Both are `NOT VALID`
   display reads this column: `free` shows `credit.basedOn` with the site read through `source_record_id` to the
   record's `source_key`, and `paid` reads no site (FR-060, FR-018). One-way door, named in the feature ADR, owed (T004).
 - `recipes.source_record_id uuid NULL` and `recipes.source_page_key text NULL`: mark a public version. FK
-  `recipe_source_records`, no cascade. A partial `UNIQUE (source_page_key) WHERE source_page_key IS NOT NULL` gives one
+  `recipe_source_records`, no cascade. CHECK `(source_record_id IS NOT NULL) = (source_type = 'commise_written')`
+  (`source_type` is `NOT NULL`, so the comparison is never unknown), `NOT VALID` then `VALIDATE`. The reader-market term
+  keys on `source_record_id` (C-31, T383), so the pair must hold. A partial `UNIQUE (source_page_key) WHERE source_page_key IS NOT NULL` gives one
   public version per source page (FR-034) and is Publish's idempotency key. The key is released (set to NULL) in the same
   transaction as its cause: delete (the row goes), a 020 rejection, or a publisher opt-out
   (FR-034a).

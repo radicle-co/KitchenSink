@@ -989,6 +989,20 @@
       "w": 390,
       "h": 3671,
       "title": "Recipe editor, where it’s from: a paid website (web, 390)"
+    },
+    "RecipeEditorRefusalNoticeWeb1280.dc.html": {
+      "x": 0,
+      "y": 24508,
+      "w": 1280,
+      "h": 972,
+      "title": "Recipe editor, why Public is refused (web, 1280)"
+    },
+    "RecipeEditorRefusalNoticeWeb390.dc.html": {
+      "x": 1360,
+      "y": 24508,
+      "w": 390,
+      "h": 1672,
+      "title": "Recipe editor, why Public is refused (web, 390)"
     }
   },
   "order": [
@@ -1131,7 +1145,9 @@
     "RecipeEditorPasteStalledWeb390.dc.html",
     "RecipeEditorPasteOfflineWeb390.dc.html",
     "RecipeEditorStatementPaidSiteWeb1280.dc.html",
-    "RecipeEditorStatementPaidSiteWeb390.dc.html"
+    "RecipeEditorStatementPaidSiteWeb390.dc.html",
+    "RecipeEditorRefusalNoticeWeb1280.dc.html",
+    "RecipeEditorRefusalNoticeWeb390.dc.html"
   ],
   "notes": {
     "row0": {

@@ -70,8 +70,7 @@ The owner's rulings set what happens next:
 ### What the check does
 
 - **"Publicly visible" covers the open web** _(confirmed 2026-11-03, owner ruling, ADR-0082)_. A recipe open to the web
-  (`021-FR-002`) is publicly visible, so every full recipe that goes there passes this check. That includes a family
-  recipe and an Adapted recipe headed public. A public-domain text (`016-FR-015k`) skips the web search (FR-012d).
+  (`021-FR-002`) is publicly visible, so every full recipe that goes there passes this check. That includes an Adapted recipe headed public. A public-domain text (`016-FR-015k`) skips the web search (FR-012d).
 - It runs on every recipe that is about to become publicly visible: a new recipe published as public, a private recipe
   made public, a public recipe whose text, photos or source statement changed, every bulk-imported recipe,
   public or private, and every private recipe a cook elects to donate when they erase their account.
@@ -86,7 +85,7 @@ The owner's rulings set what happens next:
   own and never clears one.
 - After the cook publishes, the recipe shows "Checking" for a short time, visible only to them. If every part is
   green it becomes public. Otherwise it shows "In review" until a person decides. A recipe the rules block, or one a
-  person does not approve, is "Not approved": it becomes the cook's private recipe, and the cook gets a statement of
+  person does not approve, is "Not approved to be public": it becomes the cook's private recipe, and the cook gets a statement of
   reasons that says an automated check was used.
 
 ### What the check does NOT do
@@ -161,8 +160,7 @@ notice. It is saved, never visible to a signed-out viewer, shows the evidence to
 3. **Given** the same recipe and a free cook with no private slot free, **When** it is saved, **Then** the save is
    refused, as ADR-0073 refuses a book recipe with no slot, and the cook is shown the evidence and how to free a slot
    (FR-018). They can still save it as a draft, which uses no slot.
-4. **Given** a `detected` recipe, **When** the cook changes their statement to "From a source" with a book citation,
-   **Then** the label becomes `imported_physical` and the recipe stays private (FR-015a).
+4. **Given** a `detected` recipe that is a confirmed "I wrote this", **When** the cook changes their statement to "From a source" with a book citation, **Then** the label becomes `imported_physical` and the recipe stays private (FR-015a). **Given** any other confirmed answer, **Then** the cook cannot change it.
 5. **Given** a recipe whose content holds no evidence at all, **When** the check finishes, **Then** the outcome is
    `clear` and the recipe becomes publicly visible with no further step.
 6. **Given** a `detected` outcome, **When** it is shown to the cook, **Then** it comes with a statement of reasons
@@ -614,7 +612,7 @@ The owner ruled the same day. The rulings are quoted as the coordinator relayed 
 
 - **A person's rejection tells the cook why.** It overrides "one generic message for every cause" for the rejection
   only. "In review" and "Checking" stay generic. The reviewer picks one reason from a fixed list and may add a note.
-  The other recipe is never named or linked. The label stays "Not approved", and the appeal is unchanged. The list is
+  The other recipe is never named or linked. The state stays "Not approved to be public", and the appeal is unchanged. The list is
   in FR-027. The coordinator added one constraint to keep the private-recipe ruling: `notYours` may be chosen only
   when the matched recipe is public, and the reviewer screen does not offer it for a match against another cook's
   private recipe. The note is shown to the cook word for word, with a staff guideline never to identify another cook
@@ -674,7 +672,7 @@ of about $555 a month, and the half-time reviewer is hired when a volume trigger
 Owner rulings, 2026-11-03 (ADR-0082).
 
 - **"Publicly visible" covers the open web.** A full recipe open to the web (`021-FR-002`) is publicly visible, so it
-  passes this check. That includes a family recipe and an Adapted recipe headed public. A public-domain text skips the
+  passes this check. That includes an Adapted recipe headed public. A public-domain text skips the
   web search.
 - **The check makes a recipe eligible for CC BY** (`FR-056`). Only a "Written by you" recipe with a `clear` outcome can
   carry the cook's opt-in CC BY 4.0 licence.
@@ -915,9 +913,7 @@ username. No need to call out family recipes."
   and search each as an exact phrase across the wider internet, not only the source the cook named. _(amended 2026-11-03, owner ruling, ADR-0082)_ It skips stock phrases such as "Preheat the oven to
   350". A hit on a page the recipe was not imported from is evidence for a person. The check uses AI as well as the search.
     - **How the internet search works is OPEN (owner ruling 2026-11-03): decided when feature 020 starts.** That covers the provider, the method and the terms of use. No provider is chosen here.
-    - _(Confirmed 2026-11-03, ADR-0082.)_ It runs on a family recipe and an Adapted recipe headed public, because either
-      can be a copied page. It runs only where other cooks will read the method: a recipe whose label (`016-FR-015c`) is written, adapted, or
-      from a family member or friend, or a clone of one of those, headed public. It does not run for public domain text.
+    - _(Confirmed 2026-11-03, ADR-0082.)_ It runs on an Adapted recipe headed public, because it can be a copied page. It runs only where other cooks will read the method: a recipe whose label ([the model](../../docs/architecture/recipeStateModel.md#5-labels)) is written or adapted, or a clone of one of those, headed public. It does not run for public domain text.
     - It MUST send the chosen method sentences and nothing else. It MUST NOT send the title, a name, an account id, a
       photo or anything else about the cook. The privacy notice says so (`016-FR-039a`).
     - Whether `FR-033`'s region rule governs the search depends on the method chosen. It is OPEN (owner ruling 2026-11-03): decided when feature 020 starts. Until then this FR governs what is sent.
@@ -1101,8 +1097,7 @@ username. No need to call out family recipes."
 
 - **FR-015a**: Changing the statement after a save MUST be a one-way **downgrade** only: from a confirmed "I wrote this"
   (`user_created`, statement `authored`) to `imported_physical` or `imported_paid`, with a citation (the cook's one
-  change to a confirmed answer, owner 2026-11-19, "Yes, keep it (Rec.)"; [the model's origin transitions](../../docs/architecture/recipeStateModel.md#32-origin-with-evidence-and-the-rewritten-fact)). A web copy and a "From another person" recipe have no cook downgrade, and the recipe becomes private in the
-  same act. There is no edge back to "I wrote this". It needs a private slot under ADR-0073, unless the recipe is already private (a not-approved recipe). No route can change a label upward or to `imported_public`. Today
+  change to a confirmed answer, owner 2026-11-19, "Yes, keep it (Rec.)"; [the model's origin transitions](../../docs/architecture/recipeStateModel.md#32-origin-with-evidence-and-the-rewritten-fact)). A web copy and a "From another person" recipe have no cook downgrade. The recipe becomes private in the same act as the downgrade. There is no edge back to "I wrote this". It needs a private slot under ADR-0073, unless the recipe is already private (a not-approved recipe). No route can change a label upward or to `imported_public`. Today
   provenance cannot change after a save at all (ADR-0023 keeps `source` on create only), so this route MUST be recorded
   as an amendment to ADR-0023. The new label is private-only, so no outcome is needed for it, and any open referral
   closes as withdrawn.
@@ -1703,7 +1698,7 @@ rule, written once, not a check per door. The door-by-door analysis that found t
       same parts is reused (FR-005). The outside-copy check runs again.
     - A person's earlier clearance of that digest is shown to the reviewer (FR-049). It does not allow publication by
       itself.
-    - If the restored digest had a "Not approved" decision, a change to public is refused with
+    - If the restored digest had a "Not approved to be public" decision, a change to public is refused with
       `403 SOURCE_CHECK_NOT_APPROVED` (FR-018). The refusal is keyed on the digest, not on the version number.
 - **FR-066**: **A takedown is a person's decision on that content.** An actioned 016 notice (`016-FR-017`) MUST be read
   by section J as a person's block on the removed content's digest and match fingerprint.
@@ -1844,8 +1839,7 @@ The check uses AI, and it searches the wider internet as well as the source the 
       to the source.
     - A family recipe needs no special label.
     - _(Amended, Owner ruling, 2026-11-15.)_ The import never rewords a cook's private copy: it keeps the source's
-      wording (`016-FR-077`). Commise writes steps only for a public version, and that version says so plainly, for
-      example "Steps written by Commise with AI, checked by {cook}" (wording to be confirmed). The second bullet above
+      wording (`016-FR-077`). Commise writes steps only for a public version, and that version says so plainly, for example the AI credit line (words in the copy plan). The second bullet above
       applies only to that public version.
 
 **Founder questions (Q-1 and Q-3 settled 2026-11-03, owner rulings, ADR-0082 §9).**

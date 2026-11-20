@@ -112,8 +112,7 @@ the page's wording and shows the source author's name. Then clone it and verify 
    Replace or Cancel. **Given** the cook's copy is public, **Then** the choices are "Import as a new copy" and Cancel
    (`FR-008`).
 9. **Given** a cook pastes recipe content and attests it came from a cookbook or a paid site, **When** the recipe is
-   saved, **Then** it is `imported_physical` or `imported_paid`, its verbatim copy is never public, and its public forms are the
-   cook's own Adapted version after our check, or a Commise-written version (`FR-065`).
+   saved, **Then** it is `imported_physical` or `imported_paid`, its verbatim copy is never public, and its public forms are the cook's own Adapted version (after our check for a book; once our review finds the edits sufficient for a paid website), or a Commise-written version (`FR-065`).
 10. **Given** a pasted page that every device tier answers "no" for, **When** the import runs, **Then** it goes to the
     server AI fallback (`FR-056`) or the cook is told the page cannot be read. The cook is never asked to review the
     extraction (`FR-064`). The ingredient food-match review still runs (ADR-0071).
@@ -431,11 +430,7 @@ them. So the import never invents a value:
       the curator's public-domain record (`016-FR-015k`). An imported recipe's text opens to the web as it is only when its
       source is on `FR-065`'s copy-outright allowlist. Otherwise its only public form is a Commise-written version.
       `imported_physical` and `imported_paid` keep the cook's verbatim copy private.
-    - **Statement kinds.** The stored statement kind has five values: `authored` (I wrote this), `adapted` (my own words,
-      with a credit), `source` (a copy from a web page, book, magazine or paid site, with its citation and source kind),
-      `family` (from a family member or friend, with permission to share on Commise and the web, giver credit optional)
-      and `publicDomain` (curator grant only, with the record in `016-FR-015k`). The shipped schema holds `authored` and
-      `source`. The other three are build items (plan.md).
+    - **Statement kinds.** The stored statement kind holds `authored` (I wrote this), `source` (a copy from a web page, book, magazine or paid site, with its citation and source kind) and `fromPerson` (From another person). `publicDomain` is the curator grant only, with the record in `016-FR-015k`. `adapted` is not stored: "Adapted by you" is derived. Each maps to an origin in [the model](../../docs/architecture/recipeStateModel.md#14-origin-axis-origin-where-the-words-came-from).
 - **FR-013**: System MUST create recipes imported from physical copies as private, with no public source attribution.
   "Private" covers the verbatim copy. The cook can publish an Adapted version after our check, and the other public form of the
   source is a Commise-written version (`FR-065`). Structured-file imports follow the ordinary `user_created` visibility
@@ -454,21 +449,21 @@ them. So the import never invents a value:
 - **FR-014a**: System MUST require, for any pasted or typed recipe the cook attests came from an external source, both an
   explicit source attestation and a source citation: a URL where one exists, otherwise a free-text citation (book title,
   author, page). Where the cited source is not a publicly reachable web page, the recipe is classified `imported_paid` or
-  `imported_physical`, and its verbatim copy stays private. The states, labels and transitions of a recipe are defined once, in [the recipe state model](../../docs/architecture/recipeStateModel.md). A book recipe and a paid-website recipe can each go public as the cook's own "Adapted by you" version, once our review finds the cook's edits sufficient ([the model, public by state](../../docs/architecture/recipeStateModel.md#4-public-by-state)), or as a Commise-written version (`FR-065`). "Adapted by you" is derived from the origin and the rewritten fact. It is never a statement the cook chooses, and the recipe stays the same recipe. Automated detection heuristics run as a secondary signal that
+  `imported_physical`, and its verbatim copy stays private. The states, labels and transitions of a recipe are defined once, in [the recipe state model](../../docs/architecture/recipeStateModel.md). A book recipe and a paid-website recipe can each go public as the cook's own "Adapted by you" version after our check (the difference check re-run on the published text, then 020's check), and for a paid website only once our review finds the cook's edits sufficient ([the model, public by state](../../docs/architecture/recipeStateModel.md#4-public-by-state)). The other public form is a Commise-written version (`FR-065`). "Adapted by you" is derived from the origin and the rewritten fact. It is never a statement the cook chooses, and the recipe stays the same recipe. Automated detection heuristics run as a secondary signal that
   flags a recipe for review. A heuristic never reclassifies a recipe or blocks a save.
     - **One statement, one label, on every channel.** The cook chooses one statement for each recipe. The table is the
       only place the mapping is stated, and it does not vary by channel. A channel offers the statements its own rules
       allow.
 
-        | Statement                                                                   | Stored as                       | Label (`sourceType`)                          | Visibility                                                                              |
-        | --------------------------------------------------------------------------- | ------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------- |
-        | 1. "I wrote this"                                                           | `authored`                      | `user_created`                                | Private or public                                                                       |
-        | 1a. "This is my recipe, from my site or account"                            | `authored`, with the own origin | `user_created`                                | Private or public                                                                       |
-        | 2. "Adapted by you" (derived, never chosen)                                 | none                            | the origin's own label, plus "Adapted by you" | Public after our check, as the cook's own version                                       |
-        | 3. "From a web page", with its link                                         | `source`, `public_web`          | `imported_public`                             | Private only until the cook's own version is earned                                     |
-        | 4. "From a cookbook or magazine", with a citation                           | `source`, `book`                | `imported_physical`                           | Verbatim private; public as the cook's own Adapted version or a Commise-written version |
-        | 5. "From a paid website", with a citation                                   | `source`, `paid_site`           | `imported_paid`                               | Verbatim private; public as the cook's own Adapted version or a Commise-written version |
-        | 6. "From another person" (a family member or friend, with their permission) | `fromPerson`                    | `user_created`, never "Written by you"        | Private only for now                                                                    |
+        | Statement                                                                   | Stored as                       | Label (`sourceType`)                            | Visibility                                                                              |
+        | --------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------- |
+        | 1. "I wrote this"                                                           | `authored`                      | `user_created`                                  | Private or public                                                                       |
+        | 1a. "This is my recipe, from my site or account"                            | `authored`, with the own origin | `user_created`                                  | Private or public                                                                       |
+        | 2. "Adapted by you" (derived, never chosen)                                 | none                            | "Adapted by you" in place of the origin's label | Public after our check, as the cook's own version                                       |
+        | 3. "From a web page", with its link                                         | `source`, `public_web`          | `imported_public`                               | Private only until the cook's own version is earned                                     |
+        | 4. "From a cookbook or magazine", with a citation                           | `source`, `book`                | `imported_physical`                             | Verbatim private; public as the cook's own Adapted version or a Commise-written version |
+        | 5. "From a paid website", with a citation                                   | `source`, `paid_site`           | `imported_paid`                                 | Verbatim private; public as the cook's own Adapted version or a Commise-written version |
+        | 6. "From another person" (a family member or friend, with their permission) | `fromPerson`                    | `user_created`, never "Written by you"          | Private only for now                                                                    |
 
     - Each statement maps to one origin in [the model](../../docs/architecture/recipeStateModel.md#14-origin-axis-origin-where-the-words-came-from). The labels are in [the model's label table](../../docs/architecture/recipeStateModel.md#5-labels).
     - An "Adapted" method is rewritten, not trimmed (`016-FR-015b`). An AI rewrite is not the cook's own words
@@ -478,7 +473,7 @@ them. So the import never invents a value:
     - **Detected source changed to "I wrote this".** A cook who changes a detected third-party source to "I wrote this"
       saves normally. The recipe cannot go public until a person clears it, and no cook control clears the hold.
     - **Statement 1a.** It is statement 1 plus the address of the page or account the cook says is theirs (the own origin).
-      Paste (`FR-052`), link import (`FR-008`) and social import (`FR-009`) offer it. It adds no seventh statement.
+      Paste (`FR-052`), link import (`FR-008`) and social import (`FR-009`) offer it. It adds no sixth statement.
         1. A bare statement sets `user_created` and "Written by you" (`016-FR-015c`, "Written by you"). It is the cook's attestation
            (`016-FR-014`), made per recipe. It never clears a copy flag, because anyone can claim. With no live claim, a
            hit on the own origin goes to a person with the statement shown (`020-FR-012g`, ADR-0078 §2).
@@ -993,7 +988,7 @@ official-API path is hidden by its capability flag and its tests run against the
   `D-019`). It keeps 016's rules, 017's user-directed posture and 020's check, and it adds no new label and no new
   pipeline.
 - **C-009 (Recipe rights)**: A web import is private in full (`FR-008`, `FR-066`), public as a Commise-written version
-  (`FR-065`), or as the cook's own Adapted version after our check. There are six statements (`FR-014a`). A recipe from another person is private for now (`FR-028`, [the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)). A fingerprint is kept at capture for the source check (`020-FR-012b`).
+  (`FR-065`), or as the cook's own Adapted version after our check. There are five statements, and statement 1a is a variant of the first (`FR-014a`). A recipe from another person is private for now (`FR-028`, [the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)). A fingerprint is kept at capture for the source check (`020-FR-012b`).
 
 ---
 

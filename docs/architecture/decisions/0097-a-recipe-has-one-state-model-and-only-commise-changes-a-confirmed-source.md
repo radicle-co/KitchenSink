@@ -9,9 +9,7 @@
   only: the statement "stays editable, also after the first publish".
 - **Supersedes:** [ADR-0095](0095-a-recorded-source-is-kept-and-a-recipe-is-public-only-with-a-statement.md) §3, that
   sentence only: the cook can "state, change or clear" the statement also after the first publish. Also §4, the
-  sentences that let the cook correct a book source or replace "From another person". Where an ADR for the
-  "From another person" lock is already on the base, it supersedes that sentence, and this ADR supersedes only the book
-  sentence.
+  sentences that let the cook correct a book source or replace "From another person".
 - **Supersedes:** [ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md) §5, for the cook's own
   rewrite only: a paid-site recipe goes public only as a Commise-written page. A cook's own rewrite that passes the
   check can also go public as "Adapted by you" (Decision 2).
@@ -42,7 +40,7 @@
 Recipe labels grew one feature at a time. The specs and ADRs now state the same facts in different words. Some
 names mean two things. Some rules contradict each other. The code stores one fact in three columns. The owner asked for
 every label to be inventoried, for the duplicates to go, and for the labels to come from one transition graph with every
-state and every valid transition written down. Seven rulings of 2026-11-19 also reverse text in the ADRs above. The
+state and every valid transition written down. The owner's rulings of 2026-11-19 also reverse text in the ADRs above. The
 reversed text cannot be edited in place, because an accepted ADR is not edited.
 
 ## Decision
@@ -73,13 +71,13 @@ reversed text cannot be edited in place, because an accepted ADR is not edited.
    a rule (the rewritten fact), or staff. A staff change is recorded with who, when, the old and new origin and the
    reason. It never deletes an evidence row and never opens Public by itself. The cook's "clear" is withdrawn.
     - **The one exception** is the cook's one-way downgrade (owner, "Yes, keep it (Rec.)"). A confirmed "I wrote this"
-      can still be changed by the cook to a book or a paid website, with a citation, private only, and there is no edge
+      can still be changed by the cook to a book or a paid website, with a citation, private only, and a free private slot unless the recipe is already private (ADR-0073). There is no edge
       back. ADR-0023 §1b narrows to that. The model's origin table has the row.
 4. **The paid-site lock.** A paid-website recipe stays `paidSite` when the rewritten fact is earned. "Adapted by you" is
    derived. The one origin it moves to is `book`. The event is the cook asking, with evidence. The actor is Commise:
    staff, or the system for a paid site that Commise knows hosts a cookbook. The guard is that the fact is earned, and
    that either the site hosts a cookbook or the evidence shows the recipe is from one (owner, 2026-11-19, on the paid-site
-   lock; and ruling 3).
+   lock; and Decision 3).
 5. **Origin is a logical value set** (`own`, `webPage`, `book`, `paidSite`, `person`, `publicDomain`, `commiseWritten`,
    `unstated`) until its own ADR replaces the three columns with one field.
 
@@ -103,6 +101,6 @@ reversed text cannot be edited in place, because an accepted ADR is not edited.
 - **Two ADRs, one for the locks and one for the labels.** Rejected: the locks are transitions of the one graph, and two
   ADRs give two places to read it.
 - **The model in the ADR body.** Rejected: an accepted ADR is not edited, and the model will change.
-- **Lock only the paid site.** Rejected by ruling 3: every confirmed answer is locked.
+- **Lock only the paid site.** Rejected by Decision 3: every confirmed answer is locked.
 - **Lock at every saved write.** Rejected: a pasted link would lock about ten seconds after typing stops, with no act by
   the cook. Evidence rows already hold Public, so an earlier lock gains no safety.

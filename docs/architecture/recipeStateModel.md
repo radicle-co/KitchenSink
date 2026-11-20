@@ -13,9 +13,11 @@ Rules for reading it:
   two axes. No fact is stored twice.
 - A derived fact (a lock, "open to the web", a refusal, "Adapted by you") is computed from the axes. It is never stored.
 - Tokens in the first column of each value table are the model's names. They are not column values.
-- The column "Enforced on main" says whether the code does this today: `yes`, `pending: P7`, `pending: P8` or
-  `pending: P4`. P7 is the `fromPerson` lock. P8 is the every-answer lock together with the staff correction route.
-  P4 is the difference check and the paid-site unlock.
+- The column "Enforced on main" says whether the code does this today. `yes` means it does. A `pending` token names
+  the work that makes it true: `pending: P4` (the difference check, the rewritten fact and the paid-site unlock),
+  `pending: P7` (the lock on "From another person"), `pending: P8` (the lock on every confirmed answer, together with
+  the staff correction route), `pending: spec 016` (staff removal of a public recipe) and `pending: spec 020` (the
+  public check). `pending: spec 003B` and `pending: spec 027` name the planned public version and AI steps.
 
 ## 1. Axes and values
 
@@ -78,8 +80,7 @@ independent values. One field is a later change with its own ADR.
 | `origin.commiseWritten` | the Commise-written public version of a recipe                                              | Written by Commise          | Public through the check.                                                         |
 | `origin.unstated`       | `user_created`, no statement                                                                |                             | No label. The cook is asked where it is from before it goes public.               |
 
-There is no `clone` origin and no `adapted` origin. A clone has the origin and evidence of its source recipe plus the
-relation in section 1.8. "Adapted by you" is a derivation (section 2).
+There is no `clone` origin and no `adapted` origin. A clone follows the one rule in section 1.8. "Adapted by you" is a derivation (section 2).
 
 The client also reads a newer server's unknown kind as `unrecognised`. That is a view value, not an origin: it fails
 closed to private and locks the source (section 4).
@@ -119,8 +120,11 @@ accepting one suggestion, sets `stepsCredit.ai` only and earns nothing more.
 
 ### 1.8 Clone relation
 
-`cloned_from_id`. A clone starts private, with the origin and evidence of its source. A copied "From another person"
-answer keeps the clone private. The derived line is "Cloned from {cook}".
+`cloned_from_id`. One rule: a clone is made of a recipe the cloner can read, so only a public recipe is cloned by
+another cook. It starts private and keeps the source's origin and evidence, except that `origin.own` becomes
+`origin.unstated`, because the cloner did not write it. `origin.person` is never public, so another cook never clones
+it. A cook's copy of their own "From another person" recipe keeps that answer and stays private. The derived line is
+"Cloned from {cook}".
 
 ## 2. Derived facts
 
@@ -175,24 +179,24 @@ Enforced on main: `yes` for every edge except removal by staff (`pending`: spec 
 publish included), or a Save of a published recipe. A background checkpoint never confirms. So a never-published
 draft's Source row stays the cook's to change.
 
-| From                                                 | Event                                                               | Actor                                                                    | To                                                                     | Guard                                                                                                                                                | Enforced on main                |
-| ---------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `origin.unstated`                                    | "I wrote this"                                                      | cook                                                                     | `origin.own`                                                           | first answer                                                                                                                                         | yes                             |
-| `origin.unstated`                                    | "From a web page" with a link                                       | cook                                                                     | `origin.webPage`                                                       | evidence row; forces private                                                                                                                         | yes                             |
-| `origin.unstated`                                    | "From a cookbook or magazine" with a citation                       | cook                                                                     | `origin.book`                                                          | evidence row; forces private                                                                                                                         | yes                             |
-| `origin.unstated`                                    | "From a paid website" with a citation                               | cook                                                                     | `origin.paidSite`                                                      | evidence row; forces private                                                                                                                         | pending: P3                     |
-| `origin.unstated`                                    | "From another person"                                               | cook                                                                     | `origin.person`                                                        | forces private                                                                                                                                       | yes                             |
-| `origin.unstated`                                    | paste or detection                                                  | system                                                                   | `origin.unstated`                                                      | writes evidence and the paste fact only; Public waits for the cook's answer                                                                          | yes                             |
-| `origin.unstated`                                    | curator declare                                                     | curator                                                                  | `origin.publicDomain`                                                  | scope `recipes:import:public`                                                                                                                        | yes                             |
-| `origin.own`                                         | the cook states a book or a paid website                            | cook                                                                     | `origin.book` or `origin.paidSite`                                     | a citation; a free private slot unless already private; result private only; the one cook change to a confirmed answer; no edge back to `origin.own` | yes (paid website: pending: P3) |
-| `origin.webPage`, `origin.book`, `origin.paidSite`   | the cook's edit passes the difference check                         | system                                                                   | origin unchanged; `rewrittenFact.earnedByCook`; shows "Adapted by you" | the check                                                                                                                                            | pending: P4                     |
-| `origin.webPage`, `origin.book`, `origin.paidSite`   | the cook keeps an AI rewrite that passes the check on the kept text | system                                                                   | origin unchanged; `stepsCredit.ai`; `rewrittenFact.earnedByAi`         | the check                                                                                                                                            | pending: P4                     |
-| `origin.own`, `origin.person`, `origin.publicDomain` | the cook keeps an AI rewrite                                        | cook                                                                     | origin unchanged; `stepsCredit.ai`                                     | none                                                                                                                                                 | pending: spec 027               |
-| `origin.paidSite`                                    | the cook asks to move to a cookbook, with evidence                  | Commise (staff, or the system for a site Commise knows hosts a cookbook) | `origin.book`                                                          | the fact is earned, and the site hosts a cookbook or the evidence shows the recipe is from one. `book` is the only origin a paid website moves to    | pending: P4                     |
-| any confirmed origin                                 | staff change                                                        | staff                                                                    | the origin staff set                                                   | recorded: who, when, old and new origin, reason. Never deletes an evidence row. Never opens Public by itself                                         | pending: P8                     |
-| a public recipe                                      | clone                                                               | another cook                                                             | a new recipe with the same origin and evidence                         | the source is public; `origin.own` becomes `origin.unstated`; the "From another person" attestation is copied                                        | yes                             |
-| any                                                  | erasure donate                                                      | system                                                                   | the same recipe, as published                                          | the cook elected it; skipped when a statement is owed or the recipe is from another person                                                           | yes                             |
-| a third-party origin                                 | publish a public version                                            | cook                                                                     | a new linked recipe, `origin.commiseWritten`                           | spec 003B                                                                                                                                            | pending: spec 003B              |
+| From                                                 | Event                                                               | Actor                                                                    | To                                                                     | Guard                                                                                                                                                | Enforced on main                        |
+| ---------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `origin.unstated`                                    | "I wrote this"                                                      | cook                                                                     | `origin.own`                                                           | first answer                                                                                                                                         | yes                                     |
+| `origin.unstated`                                    | "From a web page" with a link                                       | cook                                                                     | `origin.webPage`                                                       | evidence row; forces private                                                                                                                         | yes                                     |
+| `origin.unstated`                                    | "From a cookbook or magazine" with a citation                       | cook                                                                     | `origin.book`                                                          | evidence row; forces private                                                                                                                         | yes                                     |
+| `origin.unstated`                                    | "From a paid website" with a citation                               | cook                                                                     | `origin.paidSite`                                                      | evidence row; forces private                                                                                                                         | yes                                     |
+| `origin.unstated`                                    | "From another person"                                               | cook                                                                     | `origin.person`                                                        | forces private                                                                                                                                       | yes                                     |
+| `origin.unstated`                                    | paste or detection                                                  | system                                                                   | `origin.unstated`                                                      | writes evidence and the paste fact only; Public waits for the cook's answer                                                                          | yes                                     |
+| `origin.unstated`                                    | curator declare                                                     | curator                                                                  | `origin.publicDomain`                                                  | scope `recipes:import:public`                                                                                                                        | yes                                     |
+| `origin.own`                                         | the cook states a book or a paid website                            | cook                                                                     | `origin.book` or `origin.paidSite`                                     | a citation; a free private slot unless already private; result private only; the one cook change to a confirmed answer; no edge back to `origin.own` | yes; the missing edge back: pending: P8 |
+| `origin.webPage`, `origin.book`, `origin.paidSite`   | the cook's edit passes the difference check                         | system                                                                   | origin unchanged; `rewrittenFact.earnedByCook`; shows "Adapted by you" | the check                                                                                                                                            | pending: P4                             |
+| `origin.webPage`, `origin.book`, `origin.paidSite`   | the cook keeps an AI rewrite that passes the check on the kept text | system                                                                   | origin unchanged; `stepsCredit.ai`; `rewrittenFact.earnedByAi`         | the check                                                                                                                                            | pending: P4                             |
+| `origin.own`, `origin.person`, `origin.publicDomain` | the cook keeps an AI rewrite                                        | cook                                                                     | origin unchanged; `stepsCredit.ai`                                     | none                                                                                                                                                 | pending: spec 027                       |
+| `origin.paidSite`                                    | the cook asks to move to a cookbook, with evidence                  | Commise (staff, or the system for a site Commise knows hosts a cookbook) | `origin.book`                                                          | the fact is earned, and the site hosts a cookbook or the evidence shows the recipe is from one. `book` is the only origin a paid website moves to    | pending: P4                             |
+| any confirmed origin                                 | staff change                                                        | staff                                                                    | the origin staff set                                                   | recorded: who, when, old and new origin, reason. Never deletes an evidence row. Never opens Public by itself                                         | pending: P8                             |
+| a public recipe                                      | clone                                                               | another cook                                                             | a new recipe with the same origin and evidence                         | the clone rule in section 1.8                                                                                                                        | yes                                     |
+| any                                                  | erasure donate                                                      | system                                                                   | the same recipe, as published                                          | the cook elected it; skipped when a statement is owed or the recipe is from another person                                                           | yes                                     |
+| a third-party origin                                 | publish a public version                                            | cook                                                                     | a new linked recipe, `origin.commiseWritten`                           | spec 003B                                                                                                                                            | pending: spec 003B                      |
 
 Only Commise changes a confirmed source answer. The one exception is the cook's one-way downgrade in the row for
 `origin.own`. The cook's own "another statement" and "clear" are gone.
@@ -275,8 +279,9 @@ tables above and in the JSON. Label keys in the JSON are placeholders for the co
 
 ## 6. Refusal reasons
 
-A refusal stops a write. It is not a state and never enters the public check. Eight come from the visibility decision
-of the recipe service. The ninth is read only by clients.
+A refusal stops a write. It is not a state and never enters the public check. The recipe service's
+visibility decision gives the first eight, and `policy` is split three ways by origin. The ninth is read only by
+clients.
 
 | Reason              | Label key                               | Meaning                                                                                                              |
 | ------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
@@ -329,15 +334,8 @@ legacy event. `publicConfirm` is an event, not a value.
 The import item (`received`, `parsing`, `matched`, `saved`, with a held reason) is a separate machine. ADR-0072 is its
 authority, and its values are not in the JSON.
 
-## 10. Product rules from the owner (2026-11-19)
+## 10. Product rules from the owner
 
-- A paid-site recipe can go public as the cook's own "Adapted by you" version when our review finds the edits
-  sufficient ("Both"). An AI rewrite of it is the Commise-written page.
-- An Adapted web page or book recipe goes public in its own words after the check ("Yes, after the check").
-- A recipe from another person stays private for now ("Private for now").
-- After a kept AI rewrite the recipe keeps its source label and shows the AI line ("Source + AI line (Rec.)").
-- Only Commise changes a confirmed source answer ("Only we can change a label - not a user").
-- A private recipe is not checked ("No review if private (Rec.)").
-- An Adapted import stays the same recipe ("Same recipe (Rec.)").
-- A confirmed "I wrote this" can still be changed by the cook to a book or paid website ("Yes, keep it (Rec.)").
-- An accepted rewording suggestion follows the same AI rule ("Yes, same rule (Rec.)").
+The owner's 2026-11-19 rulings are written once, as product behaviour, in
+[ADR-0097](decisions/0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md), Decision 2 and
+Decision 3.

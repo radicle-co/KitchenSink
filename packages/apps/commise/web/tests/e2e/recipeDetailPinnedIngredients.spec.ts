@@ -412,6 +412,13 @@ test.describe('recipe page at 390 x 640 with 200% text', () => {
         await expect(frame.getByRole('checkbox').first()).toBeVisible();
         const opened = await settledPanelBox(frame);
 
+        // Only the dialog's own bar copy shows: the trigger beneath it (first in the page, hidden from the tree by Radix)
+        // is transparent, so none of it peeks out below the copy.
+        await expect(page.getByRole('button', { name: /Hide list\.$/u, includeHidden: true }).first()).toHaveCSS(
+            'opacity',
+            '0',
+        );
+
         expect(opened.y + opened.height, 'the bar and panel end at half the window').toBeLessThanOrEqual(320);
 
         // The last row is under the cap until the panel scrolls: scrolling it in moves neither the panel nor the bar.

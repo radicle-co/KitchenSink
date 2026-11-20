@@ -290,6 +290,28 @@ describe('the pinned ingredients bar (web)', () => {
             expect(screen.getByRole('button', { name: barName('Hide') }).className.split(' ')).toContain('shrink-0');
         });
 
+        // CL-380 designer finding: at large text the trigger beneath the open bar copy can be taller, and its lower
+        // lines peeked out between the copy and the panel. While the list is open only the copy shows.
+        it('draws the trigger transparent while the list is open, and opaque again when it closes', () => {
+            const frame = open();
+
+            const trigger = (): HTMLElement => {
+                const found = document.querySelector<HTMLElement>('button[aria-haspopup="dialog"]');
+
+                if (found === null) {
+                    throw new Error('The page drew no pinned bar trigger.');
+                }
+
+                return found;
+            };
+
+            expect(trigger().className.split(' ')).toContain('opacity-0');
+
+            fireEvent.click(within(frame).getByRole('button', { name: barName('Hide') }));
+
+            expect(trigger().className.split(' ')).not.toContain('opacity-0');
+        });
+
         it('opens as a dialog named for the servings, the bar now reading Hide', () => {
             open();
 

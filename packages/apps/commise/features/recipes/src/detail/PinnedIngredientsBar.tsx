@@ -81,7 +81,12 @@ export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({ facts, ope
     <div className="@min-[45rem]/detail:hidden">
         <Dialog.Root open={open} onOpenChange={onOpenChange}>
             <Dialog.Trigger asChild>
-                <button type="button" aria-label={facts.name} className={`${BAR_PLACE} z-40 ${BAR_FACE}`}>
+                {/* Open: the dialog draws its own copy; this one stays (Radix returns focus to it) but transparent. */}
+                <button
+                    type="button"
+                    aria-label={facts.name}
+                    className={`${BAR_PLACE} z-40 ${BAR_FACE}${open ? ' opacity-0' : ''}`}
+                >
                     <BarContent facts={facts} open={open} />
                 </button>
             </Dialog.Trigger>

@@ -11,7 +11,7 @@
         "documentedProps": 3168,
         "classifiedComponents": 381,
         "componentsWithPatternTag": 267,
-        "crossPlatformComponents": 225
+        "crossPlatformComponents": 226
     },
     "groups": [
         {
@@ -87,7 +87,7 @@
                 "documentedProps": 114,
                 "classifiedComponents": 18,
                 "componentsWithPatternTag": 8,
-                "crossPlatformComponents": 15
+                "crossPlatformComponents": 16
             }
         },
         {

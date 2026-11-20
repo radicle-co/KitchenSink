@@ -7,6 +7,7 @@
 - **Amends:** [ADR-0023](0023-curator-declared-provenance.md). A body with no statement no longer means "the cook wrote
   this". Spec 004 `004-FR-024` says "existing behaviour is unchanged". That is no longer true for publishing. The spec
   text is amended separately.
+- **Amended by:** [ADR-0097](0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md): §2 (evidence holds Public until the rewritten fact is earned), §3 and §4 (the cook no longer changes, clears or corrects a confirmed answer).
 - **Relates to:**
     - [ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md): a copied recipe stays private
       until its Commise-written version ships, and source evidence is locked and append-only (§8). The evidence here is

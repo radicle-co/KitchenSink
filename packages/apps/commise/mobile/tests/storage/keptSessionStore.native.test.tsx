@@ -4,6 +4,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
+import { ingredientTickKeysSchema } from '@commise/features-recipes/session';
+
 const { asyncStorage } = vi.hoisted(() => ({ asyncStorage: { store: new Map<string, string>(), failSets: false } }));
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
@@ -50,18 +52,21 @@ describe('nativeKeptPort', () => {
     });
 });
 
+// Content keys (ADR-0096), through the parse boundary the store's own reads use.
+const [BUTTER, SALT] = ingredientTickKeysSchema.parse(['l1:00000001#0', 'l1:00000002#0']);
+
 describe('nativeKeptSessionStore', () => {
     it('⛔ two dispatches in the same tick on the real native runner both survive (mutant: no queue)', async () => {
         asyncStorage.store.clear();
         await nativeKeptSessionStore.scope('user_a');
 
         await Promise.all([
-            nativeKeptSessionStore.dispatch({ type: 'tickPage', recipeId: 'r1', ingredientId: 'butter', ticked: true }),
-            nativeKeptSessionStore.dispatch({ type: 'tickPage', recipeId: 'r1', ingredientId: 'salt', ticked: true }),
+            nativeKeptSessionStore.dispatch({ type: 'tickPage', recipeId: 'r1', line: BUTTER, ticked: true }),
+            nativeKeptSessionStore.dispatch({ type: 'tickPage', recipeId: 'r1', line: SALT, ticked: true }),
         ]);
 
         const stored: unknown = JSON.parse(asyncStorage.store.get('cook.v2.user_a') ?? '{}');
 
-        expect(stored).toMatchObject({ entries: { r1: { ticks: ['butter', 'salt'] } } });
+        expect(stored).toMatchObject({ entries: { r1: { ticks: [BUTTER, SALT] } } });
     });
 });

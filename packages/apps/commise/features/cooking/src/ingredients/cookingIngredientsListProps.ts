@@ -22,6 +22,9 @@ export interface CookingIngredientsListProps {
     readonly onToggle: (position: number) => void;
     /** Choose the servings. */
     readonly onSetServings: (servings: number) => void;
-    /** Clear every tick. The caller owns the Undo that the command returns, so the list never sees it. */
-    readonly onClear: () => void;
+    /**
+     * Clear every tick. The caller owns the Undo that the command returns, so the list never sees it. Absent: no Clear
+     * ticks button is drawn, because Clear ticks never ships without its Undo path (owner-facing rule P60).
+     */
+    readonly onClear?: () => void;
 }

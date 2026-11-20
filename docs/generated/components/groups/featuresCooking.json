@@ -1941,11 +1941,11 @@
                         },
                         {
                             "name": "onClear",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it. Absent: no Clear\nticks button is drawn, because Clear ticks never ships without its Undo path (owner-facing rule P60).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
@@ -2011,11 +2011,11 @@
                         },
                         {
                             "name": "onClear",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it. Absent: no Clear\nticks button is drawn, because Clear ticks never ships without its Undo path (owner-facing rule P60).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
@@ -2100,11 +2100,11 @@
                         },
                         {
                             "name": "onClear",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it. Absent: no Clear\nticks button is drawn, because Clear ticks never ships without its Undo path (owner-facing rule P60).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
@@ -2170,11 +2170,11 @@
                         },
                         {
                             "name": "onClear",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it. Absent: no Clear\nticks button is drawn, because Clear ticks never ships without its Undo path (owner-facing rule P60).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
@@ -2263,11 +2263,11 @@
                         },
                         {
                             "name": "onClear",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it. Absent: no Clear\nticks button is drawn, because Clear ticks never ships without its Undo path (owner-facing rule P60).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {

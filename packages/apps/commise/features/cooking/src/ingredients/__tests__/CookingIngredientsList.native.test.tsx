@@ -128,6 +128,20 @@ describe('CookingIngredientsList (native)', () => {
         expect(some.onClear).toHaveBeenCalledOnce();
     });
 
+    // P60: Clear ticks never ships without its Undo, so a host that has no Undo path gives no onClear and no button is drawn.
+    it('draws no Clear ticks when the host gives no onClear, even with a ticked line', () => {
+        const props: CookingIngredientsListProps = {
+            view: viewOf({ ticked: [0] }),
+            copy: copy.ingredients,
+            onToggle: vi.fn(),
+            onSetServings: vi.fn(),
+        };
+
+        render(<CookingIngredientsList {...props} />, { wrapper: Wrapper });
+
+        expect(screen.queryByRole('button', { name: copy.ingredients.clear })).toBeNull();
+    });
+
     it('draws the removed-food badge once, on the one line whose food is gone', () => {
         mount({ lines: [FLOUR, { ...SUGAR, resolutionStatus: FoodResolutionStatus.FOOD_REMOVED }, BUTTER] });
 

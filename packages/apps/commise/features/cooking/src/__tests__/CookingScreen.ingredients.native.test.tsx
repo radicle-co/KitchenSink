@@ -134,6 +134,18 @@ describe('CookingScreen (native) ingredients: two columns', () => {
         expect(within(screen.getByTestId('cooking-step-slot')).getByText('Step 1 of 2')).toBeTruthy();
     });
 
+    // P60: no Clear ticks without its Undo, and the Undo's outlet is not on main yet.
+    it('draws no Clear ticks after a line is ticked', () => {
+        open({ width: 900 });
+
+        const slot = screen.getByTestId('cooking-ingredients-slot');
+
+        fireEvent.click(within(slot).getByRole('checkbox', { name: /flour/u }));
+
+        expect(within(slot).getByRole('checkbox', { name: /flour/u }).getAttribute('aria-checked')).toBe('true');
+        expect(screen.queryByRole('button', { name: 'Clear ticks' })).toBeNull();
+    });
+
     it('is one column at 799', () => {
         open({ width: 799 });
 

@@ -8,7 +8,8 @@
  *
  * Narrow, the sheet is the only way to the list, so the top bar action and the note's open button exist. Wide, the column
  * is already in view, so neither exists and the note stands alone. The sheet closes whenever the band changes, so a
- * window that goes wide and back never reopens it. A recipe with no ingredient lines offers nothing to open.
+ * window that goes wide and back never reopens it. It gives the list no `onClear`: Clear ticks ships only with its
+ * Undo on the cooking snackbar, which is not on main yet (P60). A recipe with no ingredient lines offers nothing to open.
  *
  * @pattern Presentation Model: the screens' ingredient display state derived once, so a screen only draws it.
  * @pattern State: the sheet is open or closed, and a change of band closes it.
@@ -76,10 +77,6 @@ export function useCookingIngredientsPanel(input: UseCookingIngredientsPanelInpu
         view,
         onToggle: binding.toggle,
         onSetServings: binding.setServings,
-        // The Undo the command returns is dropped: cooking mode has no surface for it yet.
-        onClear: () => {
-            binding.clearTicks();
-        },
     };
     const scaleNote =
         view.scaleNote === undefined

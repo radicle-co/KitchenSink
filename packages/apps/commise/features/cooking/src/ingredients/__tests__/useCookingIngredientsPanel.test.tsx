@@ -156,6 +156,16 @@ describe('useCookingIngredientsPanel', () => {
         expect(frame?.onClear).toBeUndefined();
     });
 
+    // Each frame hands the list its own onSetServings, so both are exercised, not only the store the test reads.
+    it.each(['sheet', 'column'] as const)('sets the servings through the %s the panel hands out', (frame) => {
+        const { result } = mount();
+
+        act(() => result.current.panel[frame]?.onSetServings(4));
+
+        expect(result.current.scale.servings).toBe(4);
+        expect(result.current.panel.scaleNote?.note).toContain('You’re making 4');
+    });
+
     it('ticks a line through the panel, and the column reads it back', () => {
         const { result } = mount({ wide: true });
 

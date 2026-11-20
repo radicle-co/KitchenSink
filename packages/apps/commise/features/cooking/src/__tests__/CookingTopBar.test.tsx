@@ -1,3 +1,4 @@
+import { buttonSurfaceClass } from '@commise/ui/button';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -55,5 +56,50 @@ describe('CookingTopBar', () => {
 
         expect(screen.getByRole('button', { name: 'Exit cooking mode' })).toBeTruthy();
         expect(container.querySelector('p')).toBeNull();
+    });
+    describe('the Ingredients button', () => {
+        const ingredients = { label: 'Ingredients', onPress: vi.fn() };
+
+        it('draws no Ingredients button while the screen gives none (L2, L3, or no ingredients)', () => {
+            render(<CookingTopBar exit={exit} place={step2} />);
+
+            expect(screen.queryByRole('button', { name: 'Ingredients' })).toBeNull();
+            expect(screen.getAllByRole('button')).toHaveLength(1);
+        });
+
+        it('draws one quiet md button named by its label, with the listChecks glyph, and calls it once', () => {
+            const onPress = vi.fn();
+
+            render(<CookingTopBar exit={exit} place={step2} ingredients={{ ...ingredients, onPress }} />);
+
+            const button = screen.getByRole('button', { name: 'Ingredients' });
+
+            expect(screen.getAllByRole('button')).toHaveLength(2);
+            expect(button.className).toContain(buttonSurfaceClass('quiet'));
+            expect(button.querySelector('svg')?.getAttribute('class')).toContain('list-checks');
+
+            fireEvent.click(button);
+
+            expect(onPress).toHaveBeenCalledTimes(1);
+        });
+
+        it('keeps one tree: Exit, Ingredients, then the place, with the wide order and the end alignment on a wrapper', () => {
+            render(<CookingTopBar exit={exit} place={step2} ingredients={ingredients} />);
+
+            const exitButton = screen.getByRole('button', { name: 'Exit cooking mode' });
+            const button = screen.getByRole('button', { name: 'Ingredients' });
+            const place = screen.getByText('Step 2 of 6');
+
+            expect(exitButton.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            expect(button.compareDocumentPosition(place) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            // The house Button takes no class, so a wrapper carries the order and the alignment.
+            expect(button.closest('div')?.className).toBe(NARROW_ROW.ingredientsWebClassName);
+        });
+
+        it('draws Exit and Ingredients where there is no place (Done)', () => {
+            render(<CookingTopBar exit={exit} ingredients={ingredients} />);
+
+            expect(screen.getAllByRole('button')).toHaveLength(2);
+        });
     });
 });

@@ -10,6 +10,7 @@
   recipe no longer needs Pro and a substantive edit to go private. Any cook can keep one private, using a slot. So
   §1's last-but-one rule, the `imported_public` row of §6, and §10's badge rule no longer apply, and the PRO badge
   marks nothing. Every other part stands.
+- **Amended by:** [ADR-0097](0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md): a private bulk import is usable at once and only going public waits for review ([ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md) §9), so §2, §3, §8 and §11 (second bullet) no longer hold a private import in review. §11 otherwise stands: a recipe that is not approved becomes private and uses a slot.
 - **Relates to:** [ADR-0072](0072-bulk-recipe-import.md) §9: the per-recipe statement and the label it sets. This ADR
   adds the out-of-slots pause to that flow. [ADR-0023](0023-curator-declared-provenance.md): which labels a caller
   can declare on `POST /api/v1/recipes`. [ADR-0040](0040-test-principals-containment-and-purge.md): containment runs

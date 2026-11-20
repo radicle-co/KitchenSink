@@ -119,21 +119,21 @@ The owner's rulings set what happens next:
 
 ### Words used in this spec
 
-| Word                 | Meaning                                                                                                                                                                                                                                                                                                                                                   |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Source check**     | The automated check this feature adds. We never call it a "review". The review gate (ADR-0071) and the review wizard (ADR-0072) use that word                                                                                                                                                                                                             |
-| **Checked content**  | What the check reads: title, description, tags, ingredient lines as written, steps, text taken from a photo by OCR, and the photos the cook uploaded. _(Amended 2026-11-03, ADR-0082.)_ It is a closed list defined by one rule: every field a cook contributed that any public projection renders (`021-FR-102`, FR-058)                                 |
-| **Evidence**         | One thing the check found: its kind, where it is in the recipe, and whether code proved it                                                                                                                                                                                                                                                                |
-| **Outcome**          | The result for one recipe and one version of its checked content: `clear`, `possible`, `detected` or `unchecked`. It depends on the evidence and on the recipe's label and citation                                                                                                                                                                       |
-| **Publication hold** | The fact that a recipe cannot be publicly visible now, because of its outcome. It is separate from the label, and a person can lift it. The cook sees it as "Checking" or "In review"                                                                                                                                                                     |
-| **Checking**         | The short state after a publish, before the outcome is revealed. Visible only to the cook                                                                                                                                                                                                                                                                 |
-| **In review**        | A recipe that waits for a person: one the cook wants public, or any bulk import. Owner-only and neither public nor private. A public one uses no slot. A private one holds its slot until a person checks it (FR-014a). _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ A private bulk import no longer waits in review. It is usable at once (FR-003b) |
-| **Not approved**     | A recipe the rules blocked, or that a person did not approve. It becomes the cook's private recipe and is never published with that content (FR-014a)                                                                                                                                                                                                     |
-| **Referral**         | A recipe sent to a person to decide: automatically for `possible` and `unchecked`, or by the cook's appeal                                                                                                                                                                                                                                                |
-| **Appeal**           | The cook asking a person to decide on a hold                                                                                                                                                                                                                                                                                                              |
-| **Match**            | A recipe or a source in our own database that the lookup found for this recipe, with what a person decided about it (section J)                                                                                                                                                                                                                           |
-| **Enforcement mode** | `shadow`, `blocking` or `paused`. It is stamped on each outcome when the recipe is first headed for public view with that content (FR-019)                                                                                                                                                                                                                |
-| **Donation**         | At account erasure, a cook may elect recipes to leave behind as public. A donated recipe passes the same check (FR-018a)                                                                                                                                                                                                                                  |
+| Word                 | Meaning                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Source check**     | The automated check this feature adds. We never call it a "review". The review gate (ADR-0071) and the review wizard (ADR-0072) use that word                                                                                                                                                                                                                                                             |
+| **Checked content**  | What the check reads: title, description, tags, ingredient lines as written, steps, text taken from a photo by OCR, and the photos the cook uploaded. _(Amended 2026-11-03, ADR-0082.)_ It is a closed list defined by one rule: every field a cook contributed that any public projection renders (`021-FR-102`, FR-058)                                                                                 |
+| **Evidence**         | One thing the check found: its kind, where it is in the recipe, and whether code proved it                                                                                                                                                                                                                                                                                                                |
+| **Outcome**          | The result for one recipe and one version of its checked content: `clear`, `possible`, `detected` or `unchecked`. It depends on the evidence and on the recipe's label and citation                                                                                                                                                                                                                       |
+| **Publication hold** | The fact that a recipe cannot be publicly visible now, because of its outcome. It is separate from the label, and a person can lift it. The cook sees it as "Checking" or "In review"                                                                                                                                                                                                                     |
+| **Checking**         | The short state after a publish, before the outcome is revealed. Visible only to the cook                                                                                                                                                                                                                                                                                                                 |
+| **In review**        | A recipe that waits for a person: one the cook wants public. Owner-only and neither public nor private, and it uses no slot. The check runs only on a recipe going public, so a private recipe is never in review and is usable at once (ADR-0082 §9, FR-003b). A state of [the recipe state model](../../docs/architecture/recipeStateModel.md#13-public-check-axis-publiccheck-spec-020)                |
+| **Not approved**     | A recipe the rules blocked, or that a person did not approve. It becomes the cook's private recipe and is never published with that content (FR-014a). It uses a slot, over the limit if need be (ADR-0073 §11). The cook sees the state "Not approved to be public", a state and not a source label ([the model](../../docs/architecture/recipeStateModel.md#13-public-check-axis-publiccheck-spec-020)) |
+| **Referral**         | A recipe sent to a person to decide: automatically for `possible` and `unchecked`, or by the cook's appeal                                                                                                                                                                                                                                                                                                |
+| **Appeal**           | The cook asking a person to decide on a hold                                                                                                                                                                                                                                                                                                                                                              |
+| **Match**            | A recipe or a source in our own database that the lookup found for this recipe, with what a person decided about it (section J)                                                                                                                                                                                                                                                                           |
+| **Enforcement mode** | `shadow`, `blocking` or `paused`. It is stamped on each outcome when the recipe is first headed for public view with that content (FR-019)                                                                                                                                                                                                                                                                |
+| **Donation**         | At account erasure, a cook may elect recipes to leave behind as public. A donated recipe passes the same check (FR-018a)                                                                                                                                                                                                                                                                                  |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -177,8 +177,8 @@ matches and give its statement. Then each recipe is saved published, with the vi
 rule-based detectors find four that are from a book: those are not saved, and each can be kept private (it is then
 "not approved"), skipped, or the import stopped. Most of the rest are all green and go straight to public or private.
 Eleven are not, and sit "In review" for a person. Until a recipe is approved it is visible only to the cook and cannot
-be added to a collection, a meal plan or a shopping list. A public one in review uses no slot. A private one holds its
-slot until a person checks it, and the screen says so. Their private slots run short part-way through, so the import
+be added to a collection, a meal plan or a shopping list. A public one in review uses no slot. A private one is never
+in review: it is usable at once and uses its slot (FR-003b, ADR-0082 §9). Their private slots run short part-way through, so the import
 pauses. They choose to make the rest public: one list of the remaining recipes with their sources, two unticked, and
 one confirmation that records a statement for each.
 
@@ -692,8 +692,9 @@ records the decision.
   FR-012 now lets the check compare a recipe headed public with its own import page, for free, and search the web for
   its method sentences (FR-012a to FR-012h). The cost is OPEN (owner ruling 2026-11-03): decided when feature 020 starts. A recipe that stays private is never compared
   with anything outside our database. What either finds goes to a person.
-- **Two new statements.** "Adapted in my own words, from [credited source]" and "From a family member or friend, with
-  their permission (optional credit)" (`004-FR-014a`). A family or friend recipe was labelled like a paid source and
+- **Two new statements.** An adapted statement, with a credited source, and "From a family member or friend, with
+  their permission (optional credit)" (`004-FR-014a`). _(Changed 2026-11-19, ADR-0097: "Adapted by you" is derived and is
+  no longer a statement, and a recipe from another person is private for now. See [the recipe state model](../../docs/architecture/recipeStateModel.md#14-origin-axis-origin-where-the-words-came-from).)_ A family or friend recipe was labelled like a paid source and
   could never be public. It can now go public under this same check (FR-013a). _(Amended 2026-11-03, owner ruling,
   ADR-0082: it is also open to the web and indexable, like any recipe the cook wrote (`021-FR-002`), because the
   cook's statement must cover sharing "publicly, on Commise and on the web". This check still runs on it, since a
@@ -710,7 +711,7 @@ are kept as the record and read with these changes.
 - **A private bulk-imported recipe is usable at once.** Only going public or on sale waits for review (FR-003b). This
   replaces the private half of the seventh and eighth rounds above. A private bulk import holds its slot like any
   private recipe, with no draft restrictions. It settles Q-3.
-- **A step from an accepted rewording makes the recipe "Adapted by you"** (FR-077). It settles Q-1.
+- **A step from an accepted rewording keeps the recipe's origin label and adds the AI line** (FR-077, changed 2026-11-19). It settles Q-1.
 - **Rewording a flagged recipe before any takedown is not a strike.** An upheld takedown is (FR-075, `016-FR-062`).
 - **Social ownership proof is a linked account, through the platform's own sign-in (OAuth)**, never a code in a bio
   (FR-012g, `026-FR-061`).
@@ -905,7 +906,7 @@ username. No need to call out family recipes."
   resemblance, because a page holds the recipe plus ads, comments and a story. A score over the threshold is evidence
   for a person. Whether a stored fingerprint may be kept is confirmed before launch (`016-FR-050`).
 - **FR-012c**: Where the comparison runs on FR-012b's fingerprint:
-    - "Adapted in my own words" (`004-FR-014a`): the method should be rewritten, so a high score is evidence for a
+    - A recipe the cook adapts ("Adapted by you", derived; `004-FR-014a`): the method should be rewritten, so a high score is evidence for a
       person.
     - "I wrote this" or a family or friend recipe that came in from a page: a high score is evidence for a person.
     - A recipe with no import page, such as one typed in the editor, has no fingerprint. This part is then green, and
@@ -1043,7 +1044,7 @@ username. No need to call out family recipes."
     our own database (FR-047).
 
     _(Added 2026-10-29, owner ruling, ADR-0077.)_ Two new statements (`004-FR-014a`) read like "I wrote this" for the
-    source reference part. "Adapted in my own words, from [credited source]" names a credit, not a source of copied
+    source reference part. An adapted statement with a credited source names a credit, not a source of copied
     words, so the credit is shown and is not tested as a citation. "From a family member or friend, with their
     permission" has an optional credit and no link. Both are green for the source reference when the rules find nothing
     in the credit. Their text and photos are checked like any recipe, and the web search runs on them (FR-012d).
@@ -1075,10 +1076,10 @@ username. No need to call out family recipes."
     - **Checking**: the short time after a publish before the outcome is revealed (FR-051's floor). Only the cook sees
       the recipe.
     - **Public**: the outcome allows it (all green, or a person approved it).
-    - **In review**: the cook wants it public, or it is a bulk-imported recipe of either visibility (FR-003b), and a
+    - **In review**: the cook wants it public (FR-003b), and a
       person has not decided yet. It is neither public nor private. Only the cook sees it, labelled "In review", and it
-      has the same restrictions as a draft (`001-FR-003b`). A public one uses **no** slot. A private bulk-import one
-      **holds its slot until a person checks it**, and the screens say so (ADR-0073 §11). A recipe
+      has the same restrictions as a draft (`001-FR-003b`). A public one uses **no** slot. A private recipe is
+      never in review (ADR-0082 §9, FR-003b). A recipe
       already in a collection or meal plan that goes into review after an edit keeps those places, and is shown there
       as "In review" and cannot be used until approved. Nothing the cook made is removed by a review.
     - **Not approved**: the rules blocked it (`detected`), or a person did not approve it, or a person upheld a hold on
@@ -1095,12 +1096,13 @@ username. No need to call out family recipes."
       refused without one; set it back to Draft; edit it, which starts a new check and replaces the referral (the
       editor warns first); or delete it. Switching to Private or Draft withdraws the referral. For a bulk-imported
       recipe, switching visibility keeps it in review, and Draft only pauses it (FR-003b).
-    - **When not approved**: keep it as their private recipe; change their statement to "From a source" with a book or
-      paid-site citation (FR-015a); appeal (FR-026); edit it, which makes new content and a new check; or delete it.
+    - **When not approved**: keep it as their private recipe; if the recipe is a confirmed "I wrote this", change their statement to "From a source" with a book or
+      paid-site citation (FR-015a, [the model](../../docs/architecture/recipeStateModel.md#32-origin-with-evidence-and-the-rewritten-fact)); appeal (FR-026); edit it, which makes new content and a new check; or delete it.
 
-- **FR-015a**: Changing the statement after a save MUST be a one-way **downgrade** only: from `user_created` or
-  `imported_public` to `imported_physical` or `imported_paid`, with a citation, and the recipe becomes private in the
-  same act. It needs a private slot under ADR-0073, unless the recipe is already private (a not-approved recipe). No route can change a label upward or to `imported_public`. Today
+- **FR-015a**: Changing the statement after a save MUST be a one-way **downgrade** only: from a confirmed "I wrote this"
+  (`user_created`, statement `authored`) to `imported_physical` or `imported_paid`, with a citation (the cook's one
+  change to a confirmed answer, owner 2026-11-19, "Yes, keep it (Rec.)"; [the model's origin transitions](../../docs/architecture/recipeStateModel.md#32-origin-with-evidence-and-the-rewritten-fact)). A web copy and a "From another person" recipe have no cook downgrade, and the recipe becomes private in the
+  same act. There is no edge back to "I wrote this". It needs a private slot under ADR-0073, unless the recipe is already private (a not-approved recipe). No route can change a label upward or to `imported_public`. Today
   provenance cannot change after a save at all (ADR-0023 keeps `source` on create only), so this route MUST be recorded
   as an amendment to ADR-0023. The new label is private-only, so no outcome is needed for it, and any open referral
   closes as withdrawn.
@@ -1287,7 +1289,7 @@ username. No need to call out family recipes."
         | `printedPage`                  | A photo shows a page from a book or magazine. |
         | `other`                        | Its source does not allow sharing.            |
 
-    - The label the cook sees stays "Not approved". The appeal is unchanged (FR-026, FR-026a).
+    - The cook sees the state "Not approved to be public", which is a state word and not a label ([the model](../../docs/architecture/recipeStateModel.md#13-public-check-axis-publiccheck-spec-020)). The appeal is unchanged (FR-026, FR-026a).
     - **The other recipe is never named or linked**, in the reason, the note or anywhere the cook sees.
     - **`notYours` only for a public match.** The reviewer screen offers `notYours` only when the referral has a recipe
       match whose matched recipe is **public now**: another cook's, re-read at the moment the screen loads and again at
@@ -1315,7 +1317,7 @@ username. No need to call out family recipes."
     - the facts: for `detected`, the kinds of evidence the rules found in the cook's own text, and where they are; for a
       person's decision, the reviewer's note, word for word, when there is one. It never names or links another recipe
     - that automated means were used, and, for a person's decision, that a person decided
-    - the redress: keep it private, change the statement (FR-015a), appeal, edit it, or delete it.
+    - the redress: keep it private, change a confirmed "I wrote this" to a book or paid-site statement (FR-015a), appeal, edit it, or delete it.
 - **FR-029**: The statement MUST be built from a fixed template filled, for `detected`, with the rule evidence kinds and
   locations, and, for a person's decision, with the chosen reason's localised text and the reviewer's note. It MUST NOT
   be prose written by the model, and it MUST NOT carry the staff note.
@@ -1433,8 +1435,8 @@ username. No need to call out family recipes."
   `lambda:SourceFunctionArn` (FR-023b). Layer 4b's single grantee does not change.
 - **FR-043**: ADR-0072's readiness rule (§7) MUST gain FR-024: an item headed public is not ready to save until the
   rule-based detectors have run on it. It never waits for the lookup or the model.
-- **FR-044**: ADR-0023 MUST be amended for FR-015a: a one-way downgrade of provenance after a save, to a private-only
-  label with a citation, and nothing else.
+- **FR-044**: ADR-0023 MUST be amended for FR-015a: a one-way downgrade of provenance after a save, from a confirmed "I wrote this" to a private-only
+  label with a citation, and nothing else ([the model](../../docs/architecture/recipeStateModel.md#32-origin-with-evidence-and-the-rewritten-fact)).
 - **FR-044a**: The account closure plan's erasure election (U3b, R4) MUST be amended for FR-018a. The election screen
   MUST, before the cook confirms:
     - check each recipe the cook elects to donate, and show which ones are ready to donate now, and which need a
@@ -1819,14 +1821,14 @@ The check uses AI, and it searches the wider internet as well as the source the 
 - **FR-077** _(FINAL, owner ruling 2026-11-03)_: **Whose words an accepted suggestion is.**
   `016-FR-015i` already says a method rewritten by an AI feature is not the cook's own
   words and MUST NOT make a recipe "Written by you".
-    - _(amended 2026-11-03, owner ruling, ADR-0082 §9. Was: a holding rule until the founder ruled on Q-1, with an
-      open test for an edit that is "more than trivial".)_ A recipe that holds any step from an accepted suggestion is
-      labelled "Adapted by you". The label is the recipe's one derived label (`016-FR-015c`, `016-FR-015d`). No step
-      carries a label of its own. AI text is never the cook's own words, so the recipe can never be "Written by you"
-      while it holds that step (`016-FR-015i`). The cook's acceptance of a fresh restatement of their own method makes
-      it "Adapted by you", which stays eligible to be public and to be sold (`018-FR-026`). It is not eligible for CC BY
-      4.0, which needs "Written by you" (`021-FR-040a`). An edit by the cook does not restore "Written by you". Where
-      the method came from a named source, the adapted credit still applies. This settles Q-1.
+    - _(amended 2026-11-19, owner ruling, "Yes, same rule (Rec.)", ADR-0097. Was: an accepted suggestion makes the recipe
+      "Adapted by you".)_ A recipe that holds any step from an accepted suggestion keeps its origin label and shows the
+      line saying AI wrote those steps ([the model](../../docs/architecture/recipeStateModel.md#2-derived-facts)). It never shows "Adapted by you" or the
+      ownership line for those steps (`016-FR-015i`). Accepting one suggestion sets the steps credit to AI and earns
+      nothing more. A third-party recipe whose AI steps earn the rewritten fact goes public only as the Commise-written
+      page. An `own` recipe stays "Written by you" and shows the AI line. The ownership line and a CC BY grant
+      (`021-FR-040a`) never cover AI-written steps, and the recipe is not eligible for CC BY until the cook rewrites them
+      and the check passes against the AI text. This settles Q-1.
 - **FR-078** _(FINAL, owner ruling 2026-11-03)_: **The suggestion call, its cost and its budget.** _(amended 2026-11-03, owner ruling, ADR-0082)_
   The suggestion call MUST have an explicit `maxTokens` and a hard input cap. Its cost, its budget, whether it
   shares ADR-0024's pool, and its spend mechanism are OPEN (owner ruling 2026-11-03): decided when feature 020 starts. If the call cannot run, no
@@ -1851,7 +1853,7 @@ The check uses AI, and it searches the wider internet as well as the source the 
 - **Q-1 (D-c).** Does an accepted suggestion keep the recipe out of "Written by you" for that step (FR-077)? Options:
   (a) yes, "Adapted by you" for any step with an accepted suggestion. (b) yes, but an edit past a set size restores
   "Written by you". (c) no, the cook's act of accepting makes it theirs. Option (c) conflicts with `016-FR-015i`.
-  SETTLED 2026-11-03, owner ruling: option (a). The recipe is labelled "Adapted by you" (FR-077).
+  SETTLED 2026-11-03, owner ruling: option (a). Replaced 2026-11-19 (owner, "Yes, same rule (Rec.)"): the recipe keeps its origin label and shows the AI line (FR-077).
 - **Q-2 (D-f).** Now part of the OPEN cost and budget item (owner ruling 2026-11-03): the monthly amount for AI and
   search, and whether it shares the $100 pool (ADR-0024) or has its own ceiling, are decided when feature 020 starts.
 - **Q-3.** Does "private is never blocked" mean private bulk-import recipes skip review (FR-003b)? SETTLED
@@ -2004,10 +2006,10 @@ The check uses AI, and it searches the wider internet as well as the source the 
 
 - **ADR-0073 owns the slot rule.** Free cooks hold up to 50 private recipes. A slot is a private, undeleted recipe,
   counted live. 020 does not own it and only reads it.
-- **A public recipe in review uses no slot; a private one holds its slot; a not-approved one is private** (owner
-  rulings, 2026-10-26). ADR-0073 counts private, published, undeleted recipes. A public recipe in review keeps its
-  stored `public` visibility and is hidden by the read rule, so it uses no slot. A private bulk-import recipe in review
-  is private and published, so it holds its slot. A decision that does not approve a public recipe moves it to
+- **A public recipe in review uses no slot; a private one is never in review; a not-approved one is private** (owner
+  rulings, 2026-10-26, and ADR-0082 §9 for the private import). ADR-0073 counts private, published, undeleted recipes. A public recipe in review keeps its
+  stored `public` visibility and is hidden by the read rule, so it uses no slot. A private bulk-import recipe is usable at once and
+  uses its slot like any private recipe. A decision that does not approve a public recipe moves it to
   `private`, so it counts.
 - **The Draft path is closed** (owner ruling, 2026-10-26, `001-FR-003b`). A cook can move a recipe from In review
   back to Draft, and a draft uses no slot. But a draft cannot be used in meal planning, collections, the planned AI

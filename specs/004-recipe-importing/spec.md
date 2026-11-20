@@ -88,8 +88,8 @@ the page's wording and shows the source author's name. Then clone it and verify 
 **Acceptance Scenarios**:
 
 1. **Given** a cook pastes a recipe page, **When** the cook finishes the choices and saves, **Then** the recipe is saved
-   once, at the visibility the cook chose, and shows "Checking" or "In review" until it passes the content check
-   (ADR-0072 §3, ADR-0074 §3a). **Given** the recipe is private and in review, **Then** it holds its private slot.
+   once, at the visibility the cook chose, and shows "Checking" or "In review" only when it is going public, until it passes the content check
+   (ADR-0082 §9). **Given** the recipe is private, **Then** it is checked by nothing, is usable at once, and uses its private slot.
 2. **Given** a recipe from a web page with every required field present, **When** the cook saves it as Private, **Then**
    the recipe has `sourceType = imported_public`, `visibility = private`, the page's wording and the source author's
    name (`FR-066`). **Given** the cook chose Public or Both and the rewrite can run, **Then** the public recipe is the
@@ -106,13 +106,14 @@ the page's wording and shows the source author's name. Then clone it and verify 
 6. **Given** a recipe imported from Instagram, **When** it is displayed, **Then** the original creator's handle and the
    post link are visible as attribution.
 7. **Given** a page from a paid site (`FR-014`), **When** the cook imports it, **Then** it is kept privately, and Public
-   is offered only as a page Commise writes in full that names no site (`FR-065`).
+   is offered as the cook's own Adapted version once our review finds the edits sufficient, or as a page Commise writes in
+   full that names no site (`FR-065`, [the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)).
 8. **Given** a cook imports a page they already hold, **When** the import runs, **Then** the cook chooses Duplicate,
    Replace or Cancel. **Given** the cook's copy is public, **Then** the choices are "Import as a new copy" and Cancel
    (`FR-008`).
 9. **Given** a cook pastes recipe content and attests it came from a cookbook or a paid site, **When** the recipe is
-   saved, **Then** it is `imported_physical` or `imported_paid`, its verbatim copy is never public, and its only public
-   form is a Commise-written version (`FR-065`).
+   saved, **Then** it is `imported_physical` or `imported_paid`, its verbatim copy is never public, and its public forms are the
+   cook's own Adapted version after our check, or a Commise-written version (`FR-065`).
 10. **Given** a pasted page that every device tier answers "no" for, **When** the import runs, **Then** it goes to the
     server AI fallback (`FR-056`) or the cook is told the page cannot be read. The cook is never asked to review the
     extraction (`FR-064`). The ingredient food-match review still runs (ADR-0071).
@@ -233,13 +234,13 @@ them. So the import never invents a value:
       ingredient food-match review (ADR-0071) stays.
     - When part of a recipe was pasted and the cook gave no statement, the import asks where the recipe is from. The
       question, its choices and its record are spec 016's.
-- **FR-065**: **At import the cook chooses Private, Public or Both.** Private keeps the cook's own copy (`FR-066`). Public
+- **FR-065**: **At import the cook chooses Private, Public or Both** (the labels are [the model's](../../docs/architecture/recipeStateModel.md#5-labels)). Private keeps the cook's own copy (`FR-066`). Public
   publishes a version Commise writes. Both does the two. If the rewrite cannot run for a recipe, only Private is offered.
     - The import rewrites the instructions of every public-facing recipe whose source is not on the copy-outright
       allowlist, and of every recipe that 020's reviewer check flags. The allowlist is: the cook's own verified site
       (`026-FR-001`), an open licence stated in the page's structured data, public-domain works (`016-FR-015k`) and US
       government works.
-    - A paid-site recipe goes public only as a page Commise writes in full that names no site (ADR-0093).
+    - A paid-site recipe goes public as the cook's own Adapted version after our check, or as a page Commise writes in full that names no site (ADR-0097, [the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)).
     - The rewrite, its checks and the cook's confirmation before it publishes are spec 003B. Until it ships, the rewrite
       cannot run, so an import is Private only.
     - Every state of the choice is designed in
@@ -436,7 +437,7 @@ them. So the import never invents a value:
       and `publicDomain` (curator grant only, with the record in `016-FR-015k`). The shipped schema holds `authored` and
       `source`. The other three are build items (plan.md).
 - **FR-013**: System MUST create recipes imported from physical copies as private, with no public source attribution.
-  "Private" covers the verbatim copy. The cook can publish an Adapted version with credit, and the public form of the
+  "Private" covers the verbatim copy. The cook can publish an Adapted version after our check, and the other public form of the
   source is a Commise-written version (`FR-065`). Structured-file imports follow the ordinary `user_created` visibility
   rules (`FR-011`).
 
@@ -445,30 +446,31 @@ them. So the import never invents a value:
 - **FR-014**: System MUST classify a source as a **paid site** when the page's structured data says
   `isAccessibleForFree=false`, when its domain is on the paid list, or when the site has a metered payment gate. The paid
   list is stored as data with an admin-managed lifecycle (D-004), not as a code constant, and it starts with a seeded
-  list. A paid-site recipe is kept privately (`FR-066`) and goes public only as a page Commise writes in full that names no
-  site (`FR-065`). The classification never refuses an import and never blocks anything except the server fetch: the
+  list. A paid-site recipe is kept privately (`FR-066`) and goes public as the cook's own Adapted version after our check, or as a page Commise writes in full that names no
+  site (`FR-065`, ADR-0097). The classification never refuses an import and never blocks anything except the server fetch: the
   server never fetches a known paid site, and the cook is asked to paste the page instead (`FR-064`). The import never
   passes a payment gate or a login, and never uses a cook's password or cookies. There is no list of hosts of
   unauthorised copies and no special handling for them.
 - **FR-014a**: System MUST require, for any pasted or typed recipe the cook attests came from an external source, both an
   explicit source attestation and a source citation: a URL where one exists, otherwise a free-text citation (book title,
   author, page). Where the cited source is not a publicly reachable web page, the recipe is classified `imported_paid` or
-  `imported_physical`, and its verbatim copy stays private. For an `imported_physical` recipe, the cook can publish their own Adapted version, in their own words with credit, and it is judged by the Adapted rule. An `imported_paid` recipe's only public form is the Commise-written version (`FR-065`, `003B-FR-015`). Automated detection heuristics run as a secondary signal that
+  `imported_physical`, and its verbatim copy stays private. The states, labels and transitions of a recipe are defined once, in [the recipe state model](../../docs/architecture/recipeStateModel.md). A book recipe and a paid-website recipe can each go public as the cook's own "Adapted by you" version, once our review finds the cook's edits sufficient ([the model, public by state](../../docs/architecture/recipeStateModel.md#4-public-by-state)), or as a Commise-written version (`FR-065`). "Adapted by you" is derived from the origin and the rewritten fact. It is never a statement the cook chooses, and the recipe stays the same recipe. Automated detection heuristics run as a secondary signal that
   flags a recipe for review. A heuristic never reclassifies a recipe or blocks a save.
     - **One statement, one label, on every channel.** The cook chooses one statement for each recipe. The table is the
       only place the mapping is stated, and it does not vary by channel. A channel offers the statements its own rules
       allow.
 
-        | Statement                                                  | Stored as                       | Label (`sourceType`)                                  | Visibility                                                                               |
-        | ---------------------------------------------------------- | ------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-        | 1. "I wrote this"                                          | `authored`                      | `user_created`                                        | Private or public                                                                        |
-        | 1a. "This is my recipe, from my site or account"           | `authored`, with the own origin | `user_created`                                        | Private or public                                                                        |
-        | 2. "Adapted in my own words, from [credited source]"       | `adapted`                       | `user_created`, credit shown                          | Private or public. Private only when the credited source is a paid site (`003B-FR-015`). |
-        | 3. "From a public web page", with its link                 | `source`, `public_web`          | `imported_public`                                     | Private only                                                                             |
-        | 4. "From a cookbook or magazine", with a citation          | `source`, `book`                | `imported_physical`                                   | Verbatim private; public as a Commise version                                            |
-        | 5. "From a paid site", with a citation                     | `source`, `paid_site`           | `imported_paid`                                       | Verbatim private; public as a Commise version                                            |
-        | 6. "From a family member or friend, with their permission" | `family`                        | `user_created`, kind `family`, never "Written by you" | Private only, until 016's family source type ships                                       |
+        | Statement                                                                   | Stored as                       | Label (`sourceType`)                          | Visibility                                                                              |
+        | --------------------------------------------------------------------------- | ------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------- |
+        | 1. "I wrote this"                                                           | `authored`                      | `user_created`                                | Private or public                                                                       |
+        | 1a. "This is my recipe, from my site or account"                            | `authored`, with the own origin | `user_created`                                | Private or public                                                                       |
+        | 2. "Adapted by you" (derived, never chosen)                                 | none                            | the origin's own label, plus "Adapted by you" | Public after our check, as the cook's own version                                       |
+        | 3. "From a web page", with its link                                         | `source`, `public_web`          | `imported_public`                             | Private only until the cook's own version is earned                                     |
+        | 4. "From a cookbook or magazine", with a citation                           | `source`, `book`                | `imported_physical`                           | Verbatim private; public as the cook's own Adapted version or a Commise-written version |
+        | 5. "From a paid website", with a citation                                   | `source`, `paid_site`           | `imported_paid`                               | Verbatim private; public as the cook's own Adapted version or a Commise-written version |
+        | 6. "From another person" (a family member or friend, with their permission) | `fromPerson`                    | `user_created`, never "Written by you"        | Private only for now                                                                    |
 
+    - Each statement maps to one origin in [the model](../../docs/architecture/recipeStateModel.md#14-origin-axis-origin-where-the-words-came-from). The labels are in [the model's label table](../../docs/architecture/recipeStateModel.md#5-labels).
     - An "Adapted" method is rewritten, not trimmed (`016-FR-015b`). An AI rewrite is not the cook's own words
       (`016-FR-015i`). Statement 6 must say the giver agreed to sharing "publicly, on Commise and on the web". Naming the
       giver is optional and needs the giver's permission. Its credit and rights label never read "Written by you". The
@@ -514,8 +516,8 @@ them. So the import never invents a value:
 - **FR-015**: System MUST save every import as items through the item model above. An item with no steps or no ingredient
   lines is refused at import with its reason, and nothing is saved. An item missing a cuisine, servings or a time is held
   under `needsCuisine`, `needsServings` or `needsTimes` until the cook enters it, and no value is invented. A saved item
-  shows "Checking" or "In review" until it passes the content check, and a private item in review holds its slot
-  (ADR-0072 §3, ADR-0074 §3a). Saving validates against the shipped create contract and never produces a recipe that
+  going public shows "Checking" or "In review" until it passes the content check. A private item is saved
+  private and usable at once, and shows neither (ADR-0082 §9, `020-FR-003b`). Saving validates against the shipped create contract and never produces a recipe that
   contract rejects.
 - **FR-016**: System MUST inform the cook when a source is unreachable, blocked or contains no recognisable recipe, using
   distinct machine-readable error codes for each case, and MUST NOT create a recipe.
@@ -532,11 +534,11 @@ them. So the import never invents a value:
       pauses (ADR-0072 §9).
     - With no free slot, the cook is offered Public where the rewrite can run, and otherwise the dead end with its
       "Upgrade to Pro" action (`003B-FR-073`).
-    - A family or friend recipe is private only until 016's family source type ships (`FR-014a`), so this requirement's
+    - A recipe from another person is private only for now ([the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)), so this requirement's
       refusals apply to it. Its private copy uses a slot like any private recipe.
-    - A book or paid-site recipe can go public only as a Commise-written version (`FR-065`). The cook's private copy uses
+    - A book or paid-site recipe can go public as the cook's own Adapted version after our check, or as a Commise-written version (`FR-065`). The cook's private copy uses
       a private slot even when the recipe also has a public version.
-- **FR-014b**: Withdrawn. A book or paid-site recipe's public form is a Commise-written version
+- **FR-014b**: Withdrawn. A book or paid-site recipe's public forms are the cook's own Adapted version after our check, or a Commise-written version
   (`FR-065`).
 - **FR-024** _(partly shipped, [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md))_: Recipe
   creation MUST accept an explicit provenance (`sourceType` plus an optional source URL and attribution) and evaluate the
@@ -555,9 +557,12 @@ them. So the import never invents a value:
     - A cook's own `statement` on `POST /api/v1/recipes`, a pasted public web link, is a second way to set
       `imported_public` and needs no grant ([ADR-0089](../../docs/architecture/decisions/0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md)).
       The server derives the label, the address and the site from the link and stores the source kind `public_web`. A
-      recipe with that kind is private only. The statement stays editable before and after the first publish. It is locked only when the stored source is not
-      one the cook states by link (the curator's text, a book or a paid-site recipe) or when a clone inherited the source
-      (ADR-0089 §6). It never travels with the curator's `source`.
+      recipe with that kind is private only. The statement is the cook's first answer. Once the cook confirms it (the source
+      sheet's confirm, the first publish, or a Save of a published recipe), only Commise changes it, as the model sets out
+      in [its origin transitions](../../docs/architecture/recipeStateModel.md#32-origin-with-evidence-and-the-rewritten-fact). A background checkpoint never
+      confirms. The one change the cook keeps is a confirmed "I wrote this" moving to a book or a paid website, private
+      only. The code does not enforce this yet (the model's [edges main still allows](../../docs/architecture/recipeStateModel.md#edges-main-still-allows):
+      P7, then P8). It never travels with the curator's `source`.
     - On the link and social routes the server sets the label from the channel it observed, except with statement 1a.
       With it the label is `user_created`, accepted only with its own origin, and the own origin MUST be the page or
       account the server fetched or read. A request that pairs `user_created` with any other own origin is refused.
@@ -606,8 +611,9 @@ them. So the import never invents a value:
       ingredient matches, and finished matches do not clear a step flag.
     - A flag holds public and sale only. A private import is never blocked by it. A private bulk-imported recipe is usable
       at once, and only going public or on sale waits for review (`020-FR-003b`).
-    - A suggestion is never a cook's own words (`020-FR-077`, `016-FR-015i`). An accepted suggestion makes the recipe
-      "Adapted by you", and the screen says so before the cook accepts.
+    - A suggestion is never a cook's own words (`020-FR-077`, `016-FR-015i`). An accepted suggestion keeps the recipe's
+      origin label and adds the line saying AI wrote the steps ([the model](../../docs/architecture/recipeStateModel.md#2-derived-facts)). It never makes the recipe "Adapted by you", and the
+      screen says so before the cook accepts.
     - Rewording a flagged step before any takedown is not a strike (`016-FR-062`). The screen MUST NOT warn the cook that
       accepting or disputing a suggestion counts against them.
 - **FR-055**: **A cook can claim ownership later, on a recipe already saved.** A recipe the cook saved from a page, a post
@@ -986,9 +992,8 @@ official-API path is hidden by its capability flag and its tests run against the
 - **C-008 (Save to Commise)**: The button is read as one more link import channel, gated on the plugin team (`FR-053`,
   `D-019`). It keeps 016's rules, 017's user-directed posture and 020's check, and it adds no new label and no new
   pipeline.
-- **C-009 (Recipe rights)**: A web import is private in full (`FR-008`, `FR-066`), public only as a Commise-written version
-  (`FR-065`). There are six statements (`FR-014a`). A family or friend recipe can be public once 016's family source type
-  ships (`FR-028`). A fingerprint is kept at capture for the source check (`020-FR-012b`).
+- **C-009 (Recipe rights)**: A web import is private in full (`FR-008`, `FR-066`), public as a Commise-written version
+  (`FR-065`), or as the cook's own Adapted version after our check. There are six statements (`FR-014a`). A recipe from another person is private for now (`FR-028`, [the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)). A fingerprint is kept at capture for the source check (`020-FR-012b`).
 
 ---
 
@@ -997,7 +1002,7 @@ official-API path is hidden by its capability flag and its tests run against the
 - **A link is fetched on the cook's device first and by the server if that fails** (`FR-064`, `FR-008`). `FR-053`,
   `FR-053a`, the shared links of `FR-009`, `FR-023` and SC-004 apply.
 - **The cook's private copy uses a private slot even when a public version exists** (`FR-028`, `FR-066`).
-- **The cook's statement stays editable, and detected source evidence stays locked** (spec 016, ADR-0089 §6).
+- **Only Commise changes a confirmed statement, and detected source evidence stays locked** ([the model](../../docs/architecture/recipeStateModel.md#32-origin-with-evidence-and-the-rewritten-fact), ADR-0097).
 - **A second import of the same page is matched by its normalised source address** (C-001, SC-005).
 - **The account data export includes the private copy's wording, paid sites included.** "No export" means no share or
   export feature beyond the account data export (`FR-066`).

@@ -581,7 +581,7 @@ fixed regardless of the answer**:
   contemporaneous, specific, citation-bearing form. A blanket terms-level representation MUST NOT substitute
   for it (`016-FR-014`). Imported, digitised, paid-source and cloned content MUST NOT be sellable under any
   circumstances.
-  _(Amended 2026-11-03, owner ruling O14d, ADR-0082.)_ A chef can sell only content they own. That is "Written by you", "Adapted by you" in their own words, and a family recipe whose
+  _(Amended 2026-11-03, owner ruling O14d, ADR-0082.)_ A chef can sell only content they own. That is "Written by you", "Adapted by you" in their own words, and a family recipe ("From another person" in [the recipe state model](../../docs/architecture/recipeStateModel.md#14-origin-axis-origin-where-the-words-came-from), private for now, so not for sale until 016's family type ships) whose
   giver's permission covers selling. It is never an `imported_public`, `imported_physical` or `imported_paid` copy, a Commise-written version of an import (2026-11-15),
   public-domain curator text, or anything holding another person's text (`016-FR-029a`). A sellable
   collection holds only sellable recipes. Commise-written versions and other people's recipes can sit only in a FREE

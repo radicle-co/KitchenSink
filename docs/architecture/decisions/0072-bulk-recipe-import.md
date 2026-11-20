@@ -18,6 +18,7 @@
   statement is the same member a recipe's own `statement` uses, and a recipe from a public web page is private only. The
   exception to ADR-0023 is no longer this route alone: a cook's pasted link sets the same label on
   `POST /api/v1/recipes`.
+- **Amended by:** [ADR-0097](0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md): §9, the Label column of the statement and label table. A private bulk import is usable at once, and only going public waits for review ([ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md) §9), so §3 and §9 no longer hold a private import in review.
 - **Relates to:** [ADR-0071](0071-paste-matches-are-proposals.md): matching runs as the cook, and a paste match is a
   proposal. [ADR-0070](0070-catalog-ranking-head-noun-and-defaults.md): defaults serve imports and are never selected
   for the cook. [ADR-0024](0024-llm-spend-ceiling-reserve-then-settle.md): the one spend pool, and the exception this

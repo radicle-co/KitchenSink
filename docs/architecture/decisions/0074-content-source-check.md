@@ -8,6 +8,7 @@
   this ADR stands. [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md): for a recipe headed
   public, the check can compare it with its own import page and search the web for its method sentences. What those
   find goes to a person and never blocks. Staff review is a rights check only. Every other decision here stands.
+- **Amended by:** [ADR-0097](0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md): §3a: a private bulk import is usable at once, and the public check runs only on a recipe going public ([ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md) §9).
 - **Relates to:** spec [020](../../../specs/020-content-source-check/spec.md) and its
   [plan](../../../specs/020-content-source-check/plan.md), which carry the full requirements.
   [ADR-0024](0024-llm-spend-ceiling-reserve-then-settle.md): the one spend pool, its single grantee, and the paths

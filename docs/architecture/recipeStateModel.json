@@ -1,0 +1,276 @@
+{
+    "note": "Same values as docs/architecture/recipeStateModel.md, which is the source. labelKey names are placeholders for the copy plan.",
+    "axes": [
+        {
+            "name": "lifecycle",
+            "values": ["draft", "published", "deleted"]
+        },
+        {
+            "name": "audience",
+            "values": ["private", "public"]
+        },
+        {
+            "name": "importChoice",
+            "values": ["both"]
+        },
+        {
+            "name": "publicCheck",
+            "values": ["clear", "possible", "detected", "unchecked"]
+        },
+        {
+            "name": "publicCheckView",
+            "values": ["checking", "inReview", "notApproved"]
+        },
+        {
+            "name": "origin",
+            "values": ["own", "webPage", "book", "paidSite", "person", "publicDomain", "commiseWritten", "unstated"]
+        },
+        {
+            "name": "stepsCredit",
+            "values": ["cook", "ai", "commise"]
+        },
+        {
+            "name": "evidence",
+            "values": ["pastedPage", "editorLink", "editorCitation", "importFile"]
+        },
+        {
+            "name": "rewrittenFact",
+            "values": ["absent", "earnedByCook", "earnedByAi"]
+        },
+        {
+            "name": "derived",
+            "values": [
+                "adaptedByYou",
+                "clonedFrom",
+                "unsavedChanges",
+                "sourceLock",
+                "writeRefusal",
+                "slotUse",
+                "openToWeb"
+            ]
+        }
+    ],
+    "labels": [
+        {
+            "value": "lifecycle.draft",
+            "label": "Draft",
+            "labelKey": "recipeState.lifecycle.draft"
+        },
+        {
+            "value": "audience.private",
+            "label": "Private",
+            "labelKey": "recipeState.audience.private"
+        },
+        {
+            "value": "audience.public",
+            "label": "Public",
+            "labelKey": "recipeState.audience.public"
+        },
+        {
+            "value": "importChoice.both",
+            "label": "Both",
+            "labelKey": "recipeState.importChoice.both"
+        },
+        {
+            "value": "publicCheckView.checking",
+            "label": "Checking",
+            "labelKey": "recipeState.publicCheck.checking"
+        },
+        {
+            "value": "publicCheckView.inReview",
+            "label": "In review",
+            "labelKey": "recipeState.publicCheck.inReview"
+        },
+        {
+            "value": "publicCheckView.notApproved",
+            "label": "Not approved to be public",
+            "labelKey": "recipeState.publicCheck.notApproved"
+        },
+        {
+            "value": "origin.own",
+            "label": "Written by you",
+            "labelKey": "recipeState.origin.own"
+        },
+        {
+            "value": "origin.webPage",
+            "label": "From a web page",
+            "labelKey": "recipeState.origin.webPage"
+        },
+        {
+            "value": "origin.book",
+            "label": "From a cookbook or magazine",
+            "labelKey": "recipeState.origin.book"
+        },
+        {
+            "value": "origin.paidSite",
+            "label": "From a paid website",
+            "labelKey": "recipeState.origin.paidSite"
+        },
+        {
+            "value": "origin.person",
+            "label": "From another person",
+            "labelKey": "recipeState.origin.person"
+        },
+        {
+            "value": "origin.publicDomain",
+            "label": "Public domain",
+            "labelKey": "recipeState.origin.publicDomain"
+        },
+        {
+            "value": "origin.commiseWritten",
+            "label": "Written by Commise",
+            "labelKey": "recipeState.origin.commiseWritten"
+        },
+        {
+            "value": "stepsCredit.ai",
+            "label": "AI line",
+            "labelKey": "recipeState.stepsCredit.ai"
+        },
+        {
+            "value": "derived.adaptedByYou",
+            "label": "Adapted by you",
+            "labelKey": "recipeState.derived.adaptedByYou"
+        },
+        {
+            "value": "derived.clonedFrom",
+            "label": "Cloned from {cook}",
+            "labelKey": "recipeState.derived.clonedFrom"
+        },
+        {
+            "value": "derived.unsavedChanges",
+            "label": "Unsaved changes",
+            "labelKey": "recipeState.derived.unsavedChanges"
+        }
+    ],
+    "refusals": [
+        {
+            "reason": "policy.webPage",
+            "labelKey": "recipeState.refusal.policyWebPage"
+        },
+        {
+            "reason": "policy.book",
+            "labelKey": "recipeState.refusal.policyBook"
+        },
+        {
+            "reason": "policy.paidSite",
+            "labelKey": "recipeState.refusal.policyPaidSite"
+        },
+        {
+            "reason": "fromPerson",
+            "labelKey": "recipeState.refusal.fromPerson"
+        },
+        {
+            "reason": "statementRequired",
+            "labelKey": "recipeState.refusal.statementRequired"
+        },
+        {
+            "reason": "sourceConflict",
+            "labelKey": "recipeState.refusal.sourceConflict"
+        },
+        {
+            "reason": "privateSlots",
+            "labelKey": "recipeState.refusal.privateSlots"
+        },
+        {
+            "reason": "contained",
+            "labelKey": null
+        },
+        {
+            "reason": "unrecognised",
+            "labelKey": "recipeState.refusal.unrecognised"
+        }
+    ],
+    "retired": [
+        {
+            "name": "Just for me",
+            "replacedBy": "Private",
+            "labelOnly": false
+        },
+        {
+            "name": "Keep it just for me",
+            "replacedBy": "Private",
+            "labelOnly": false
+        },
+        {
+            "name": "Publish privately",
+            "replacedBy": "Private",
+            "labelOnly": false
+        },
+        {
+            "name": "For everyone",
+            "replacedBy": "Public",
+            "labelOnly": false
+        },
+        {
+            "name": "private draft",
+            "replacedBy": "Draft",
+            "labelOnly": true
+        },
+        {
+            "name": "Not approved",
+            "replacedBy": "Not approved to be public",
+            "labelOnly": true
+        },
+        {
+            "name": "Copied from a public web page",
+            "replacedBy": "From a web page",
+            "labelOnly": false
+        },
+        {
+            "name": "From a public web page",
+            "replacedBy": "From a web page",
+            "labelOnly": false
+        },
+        {
+            "name": "Saved from",
+            "replacedBy": "From a web page",
+            "labelOnly": true
+        },
+        {
+            "name": "From a paid site",
+            "replacedBy": "From a paid website",
+            "labelOnly": false
+        },
+        {
+            "name": "From a cookbook, magazine or paid site",
+            "replacedBy": "From a cookbook or magazine; From a paid website",
+            "labelOnly": false
+        },
+        {
+            "name": "Adapted in my own words",
+            "replacedBy": "Adapted by you",
+            "labelOnly": false
+        },
+        {
+            "name": "Commise version",
+            "replacedBy": "Written by Commise",
+            "labelOnly": true
+        },
+        {
+            "name": "public version",
+            "replacedBy": "Written by Commise",
+            "labelOnly": true
+        },
+        {
+            "name": "Steps written by Commise",
+            "replacedBy": "Written by Commise",
+            "labelOnly": true
+        },
+        {
+            "name": "held",
+            "replacedBy": "Waiting for you (import item only)",
+            "labelOnly": true
+        },
+        {
+            "name": "withdrawn",
+            "replacedBy": "one meaning per machine",
+            "labelOnly": true
+        },
+        {
+            "name": "cleared",
+            "replacedBy": "one meaning per machine",
+            "labelOnly": true
+        }
+    ],
+    "allowedHits": []
+}

@@ -12,6 +12,7 @@
   (2026-11-16): §6. The statement stays editable after the first publish, and a cook can now state a book too. Every
   stated web, book or paid-site source is also kept as evidence that no route changes or clears. While evidence
   exists, the recipe cannot be made public. Removing the statement still leaves visibility alone.
+- **Amended by:** [ADR-0097](0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md): §6, the statement stays editable and its lock list. Only Commise changes a confirmed answer.
 - **Relates to:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md) §3:
   public versions have no caps, and aggregator sites follow the normal rules. [ADR-0058](0058-never-published-drafts-record-no-version.md): the
   first-publish fact. [ADR-0073](0073-free-tier-private-slots.md): a web copy uses a

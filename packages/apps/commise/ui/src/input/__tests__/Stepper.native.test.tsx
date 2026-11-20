@@ -57,13 +57,14 @@ describe('Stepper (native)', () => {
         expect(fontVariantClass(count)).toBe(fontVariantClass(screen.getByText('ref')));
     });
 
-    // The face IS the weight on native, so the count's semibold is its `figureInline` font family. If the count fell back to the body face, this fails.
+    // The face IS the weight on native, so the count's semibold is its `figureInline` font family.
+    // `resolvedStyle` returns the bare family, so `toBe` holds; a count that fell back to the body face fails it.
     it('draws the count in the semibold figure face', () => {
         render(<Servings />);
 
         const count = within(screen.getByRole('group', { name: 'Servings' })).getByText('2');
 
-        expect(resolvedStyle(count, 'fontFamily')).toContain(nativeTokens.type.figureInline.fontFamily);
+        expect(resolvedStyle(count, 'fontFamily')).toBe(nativeTokens.type.figureInline.fontFamily);
     });
 
     it('steps the value up and down', () => {

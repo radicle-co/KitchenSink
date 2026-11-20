@@ -26,7 +26,7 @@ Rules for reading it:
 | Value                 | Stored form                                         | Label | Rule                                                                                                         |
 | --------------------- | --------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------ |
 | `lifecycle.draft`     | `status = draft`                                    | Draft | A recipe the cook has not published, or has unpublished. Versions continue after a first publish (ADR-0058). |
-| `lifecycle.published` | `status = published`, `first_published_at` set once |       | Needs ingredients, steps and a cuisine.                                                                      |
+| `lifecycle.published` | `status = published`, `first_published_at` set once |       | Needs ingredients and steps, and a cuisine (a public-domain import needs none).                              |
 | `lifecycle.deleted`   | `deleted_at` set (soft)                             |       | Every read skips it. Erasure removes it.                                                                     |
 
 "Draft" means only this axis. The unsaved copy on a device is "Unsaved changes" (derivation `derived.unsavedChanges`).
@@ -69,16 +69,16 @@ Also stored per spec 020: the referral, the clearance and the enforcement mode. 
 Origin is a logical value set. Today it is stored in three columns, which the CHECKs pair so that they never hold
 independent values. One field is a later change with its own ADR.
 
-| Value                   | Stored form today                                                                           | Label                       | Rule                                                                              |
-| ----------------------- | ------------------------------------------------------------------------------------------- | --------------------------- | --------------------------------------------------------------------------------- |
-| `origin.own`            | `source_type = user_created`, `source_kind` null, `statement_kind = authored`               | Written by you              | The cook's "I wrote this".                                                        |
-| `origin.webPage`        | `imported_public`, `source_kind = public_web`, `statement_kind = source`, `source_url`      | From a web page             | Private only until the rewritten fact is earned.                                  |
-| `origin.book`           | `imported_physical`, `source_kind = book`, `statement_kind = source`, `source_attribution`  | From a cookbook or magazine | Private only until the rewritten fact is earned.                                  |
-| `origin.paidSite`       | `imported_paid`, `source_kind = paid_site`, `statement_kind = source`, `source_attribution` | From a paid website         | Private only until the rewritten fact is earned. Locked until then (section 3.2). |
-| `origin.person`         | `user_created`, `source_kind` null, `statement_kind = fromPerson`                           | From another person         | A family member or friend. Private only for now.                                  |
-| `origin.publicDomain`   | `imported_public`, `source_kind` null (curator declared, `recipes:import:public`)           | Public domain               | Public through the check. Never a web copy.                                       |
-| `origin.commiseWritten` | the Commise-written public version of a recipe                                              | Written by Commise          | Public through the check.                                                         |
-| `origin.unstated`       | `user_created`, no statement                                                                |                             | No label. The cook is asked where it is from before it goes public.               |
+| Value                   | Stored form today                                                                           | Label                       | Rule                                                                                                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `origin.own`            | `source_type = user_created`, `source_kind` null, `statement_kind = authored`               | Written by you              | The cook's "I wrote this".                                                                                                                                           |
+| `origin.webPage`        | `imported_public`, `source_kind = public_web`, `statement_kind = source`, `source_url`      | From a web page             | Private only until the rewritten fact is earned.                                                                                                                     |
+| `origin.book`           | `imported_physical`, `source_kind = book`, `statement_kind = source`, `source_attribution`  | From a cookbook or magazine | Private only until the rewritten fact is earned.                                                                                                                     |
+| `origin.paidSite`       | `imported_paid`, `source_kind = paid_site`, `statement_kind = source`, `source_attribution` | From a paid website         | Private only until the rewritten fact is earned. Locked until then (section 3.2).                                                                                    |
+| `origin.person`         | `user_created`, `source_kind` null, `statement_kind = fromPerson`                           | From another person         | A family member or friend. Private only for now.                                                                                                                     |
+| `origin.publicDomain`   | `imported_public`, `source_kind` null (curator declared, `recipes:import:public`)           | Public domain               | Public through the check. Never a web copy.                                                                                                                          |
+| `origin.commiseWritten` | the Commise-written public version of a recipe                                              | Written by Commise          | Public through the check.                                                                                                                                            |
+| `origin.unstated`       | `user_created`, no statement                                                                |                             | No label. When a paste or evidence exists, the cook is asked where it is from before it goes public. A recipe typed by hand with neither publishes with no question. |
 
 There is no `clone` origin and no `adapted` origin. A clone follows the one rule in section 1.8. "Adapted by you" is a derivation (section 2).
 
@@ -245,6 +245,7 @@ of statement never opens a public form.
 | `origin.paidSite`, `rewrittenFact.earnedByCook`               | Yes, after our review finds the cook's edits sufficient, then the public check                                                      | itself, or the Commise-written version |
 | a third-party origin, `rewrittenFact.earnedByAi`              | No                                                                                                                                  | the Commise-written version            |
 | `origin.unstated` with a paste or evidence                    | No, until the cook gives an answer                                                                                                  | none                                   |
+| `origin.unstated`, no paste or evidence                       | Yes, through the check                                                                                                              | itself                                 |
 | a clone                                                       | as its inherited origin and evidence                                                                                                | as its origin                          |
 | unrecognised kind                                             | No                                                                                                                                  | none                                   |
 
@@ -253,35 +254,34 @@ Enforced on main: the "No" rows are `yes`. The rows that need the rewritten fact
 ## 5. Labels
 
 One label per value. The rights label a reader sees is the origin label, or "Adapted by you" when derived. Book and
-paid website have one label each. The clone line replaces the old shared rights label for clones. Labels are in the
-tables above and in the JSON. Label keys in the JSON are placeholders for the copy plan.
+paid website have one label each. The clone line replaces the old shared rights label for clones. The label text of each value is in the tables of sections 1 and 2. This table adds the key for each. Label keys are placeholders for the copy plan.
 
-| Value                         | Label                                    | Label key                             |
-| ----------------------------- | ---------------------------------------- | ------------------------------------- |
-| `lifecycle.draft`             | Draft                                    | `recipeState.lifecycle.draft`         |
-| `audience.private`            | Private                                  | `recipeState.audience.private`        |
-| `audience.public`             | Public                                   | `recipeState.audience.public`         |
-| `importChoice.both`           | Both                                     | `recipeState.importChoice.both`       |
-| `publicCheckView.checking`    | Checking                                 | `recipeState.publicCheck.checking`    |
-| `publicCheckView.inReview`    | In review                                | `recipeState.publicCheck.inReview`    |
-| `publicCheckView.notApproved` | Not approved to be public                | `recipeState.publicCheck.notApproved` |
-| `origin.own`                  | Written by you                           | `recipeState.origin.own`              |
-| `origin.webPage`              | From a web page                          | `recipeState.origin.webPage`          |
-| `origin.book`                 | From a cookbook or magazine              | `recipeState.origin.book`             |
-| `origin.paidSite`             | From a paid website                      | `recipeState.origin.paidSite`         |
-| `origin.person`               | From another person                      | `recipeState.origin.person`           |
-| `origin.publicDomain`         | Public domain                            | `recipeState.origin.publicDomain`     |
-| `origin.commiseWritten`       | Written by Commise                       | `recipeState.origin.commiseWritten`   |
-| `stepsCredit.ai`              | (AI credit line; words in the copy plan) | `recipeState.stepsCredit.ai`          |
-| `derived.adaptedByYou`        | Adapted by you                           | `recipeState.derived.adaptedByYou`    |
-| `derived.clonedFrom`          | Cloned from {cook}                       | `recipeState.derived.clonedFrom`      |
-| `derived.unsavedChanges`      | Unsaved changes                          | `recipeState.derived.unsavedChanges`  |
+| Value                         | Label key                             |
+| ----------------------------- | ------------------------------------- |
+| `lifecycle.draft`             | `recipeState.lifecycle.draft`         |
+| `audience.private`            | `recipeState.audience.private`        |
+| `audience.public`             | `recipeState.audience.public`         |
+| `importChoice.both`           | `recipeState.importChoice.both`       |
+| `publicCheckView.checking`    | `recipeState.publicCheck.checking`    |
+| `publicCheckView.inReview`    | `recipeState.publicCheck.inReview`    |
+| `publicCheckView.notApproved` | `recipeState.publicCheck.notApproved` |
+| `origin.own`                  | `recipeState.origin.own`              |
+| `origin.webPage`              | `recipeState.origin.webPage`          |
+| `origin.book`                 | `recipeState.origin.book`             |
+| `origin.paidSite`             | `recipeState.origin.paidSite`         |
+| `origin.person`               | `recipeState.origin.person`           |
+| `origin.publicDomain`         | `recipeState.origin.publicDomain`     |
+| `origin.commiseWritten`       | `recipeState.origin.commiseWritten`   |
+| `stepsCredit.ai`              | `recipeState.stepsCredit.ai`          |
+| `derived.adaptedByYou`        | `recipeState.derived.adaptedByYou`    |
+| `derived.clonedFrom`          | `recipeState.derived.clonedFrom`      |
+| `derived.unsavedChanges`      | `recipeState.derived.unsavedChanges`  |
 
 ## 6. Refusal reasons
 
 A refusal stops a write. It is not a state and never enters the public check. The recipe service's
-visibility decision gives the first eight, and `policy` is split three ways by origin. The ninth is read only by
-clients.
+visibility decision gives every reason except `unrecognised`, and `policy` is split three ways by origin.
+`unrecognised` is read only by clients.
 
 | Reason              | Label key                               | Meaning                                                                                                              |
 | ------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |

@@ -77,8 +77,7 @@ reversed text cannot be edited in place, because an accepted ADR is not edited.
    staff, or the system for a paid site that Commise knows hosts a cookbook. The guard is that the fact is earned, and
    that either the site hosts a cookbook or the evidence shows the recipe is from one (owner, 2026-11-19, on the paid-site
    lock; and Decision 3).
-5. **Origin is a logical value set** (`own`, `webPage`, `book`, `paidSite`, `person`, `publicDomain`, `commiseWritten`,
-   `unstated`) until its own ADR replaces the three columns with one field.
+5. **Origin is a logical value set**, the values in the model's section 1.4, until its own ADR replaces the three columns with one field.
 
 ## Consequences
 

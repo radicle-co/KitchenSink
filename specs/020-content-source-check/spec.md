@@ -1817,13 +1817,9 @@ The check uses AI, and it searches the wider internet as well as the source the 
   `016-FR-015i` already says a method rewritten by an AI feature is not the cook's own
   words and MUST NOT make a recipe "Written by you".
     - _(amended 2026-11-19, owner ruling, "Yes, same rule (Rec.)", ADR-0097. Was: an accepted suggestion makes the recipe
-      "Adapted by you".)_ A recipe that holds any step from an accepted suggestion keeps its origin label and shows the
-      line saying AI wrote those steps ([the model](../../docs/architecture/recipeStateModel.md#2-derived-facts)). It never shows "Adapted by you" or the
-      ownership line for those steps (`016-FR-015i`). Accepting one suggestion sets the steps credit to AI and earns
-      nothing more. A third-party recipe whose AI steps earn the rewritten fact goes public only as the Commise-written
-      page. An `own` recipe stays "Written by you" and shows the AI line. The ownership line and a CC BY grant
-      (`021-FR-040a`) never cover AI-written steps, and the recipe is not eligible for CC BY until the cook rewrites them
-      and the check passes against the AI text. This settles Q-1.
+      "Adapted by you".)_ A step from an accepted suggestion follows the model's rule for AI-written steps ([the model](../../docs/architecture/recipeStateModel.md#2-derived-facts)):
+      the recipe keeps its origin label, shows the AI line, and never shows "Adapted by you" or the ownership line for
+      those steps (`016-FR-015i`, `021-FR-040a`). This settles Q-1.
 - **FR-078** _(FINAL, owner ruling 2026-11-03)_: **The suggestion call, its cost and its budget.** _(amended 2026-11-03, owner ruling, ADR-0082)_
   The suggestion call MUST have an explicit `maxTokens` and a hard input cap. Its cost, its budget, whether it
   shares ADR-0024's pool, and its spend mechanism are OPEN (owner ruling 2026-11-03): decided when feature 020 starts. If the call cannot run, no

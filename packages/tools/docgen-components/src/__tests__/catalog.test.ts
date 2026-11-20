@@ -181,7 +181,8 @@ describe('buildEntries', () => {
             },
         );
 
-        // The result must not depend on file order: a typo on a later leaf is refused even when a shared leaf comes first.
+        // The result must not depend on file order: a typo on a later leaf is refused even when a shared leaf
+        // comes first.
         it.each([
             ['first', true],
             ['second', false],

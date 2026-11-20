@@ -17,7 +17,7 @@ import {
     type CookMarks,
 } from '../cookMarks.js';
 import { tickKeyOf } from '../__fixtures__/tickKeys.js';
-import type { IngredientTickKey } from '../ingredientTickKey.js';
+import type { IngredientTickKey } from '../../common/ingredientTickKey.js';
 
 const [ING_A, ING_B, ING_SALT, ING_BUTTER, ING_LEMON] = [1, 2, 3, 4, 5].map(tickKeyOf);
 

@@ -14,7 +14,7 @@
  */
 import { z } from 'zod';
 
-import { ingredientTickKeysSchema, type IngredientTickKey } from './ingredientTickKey.js';
+import { ingredientTickKeysSchema, type IngredientTickKey } from '../common/ingredientTickKey.js';
 
 /** One recipe's marks. */
 export interface CookMarks {

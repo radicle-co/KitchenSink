@@ -11,7 +11,7 @@
 import { isValidTimerMs, type StepRef } from '@kitchensink/cooking-core';
 import { z } from 'zod';
 
-import { ingredientTickKeysSchema } from '../../detail/ingredientTickKey.js';
+import { ingredientTickKeysSchema } from '../../common/ingredientTickKey.js';
 
 export const KEPT_RECORD_VERSION = 1;
 export const KEPT_KEY_PREFIX = 'cook.v2.';

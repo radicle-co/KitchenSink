@@ -46,7 +46,7 @@ const BAR_FACE = `flex min-h-16 items-center gap-2.5 rounded-lg ${surfaceToneCla
 /** Where the bar sits: pinned under the top chrome. */
 const BAR_PLACE = 'fixed inset-x-3 top-[calc(env(safe-area-inset-top,0px)+0.5rem)]';
 
-/** The open list's panel: a flex child of the capped frame, scrolling inside itself, with no cap or offset of its own. */
+/** The open list's panel: a flex child of the capped frame, scrolling inside itself, with no cap or offset. */
 const PANEL_CLASS_NAME = [
     'min-h-0 overflow-y-auto overscroll-contain rounded-lg',
     surfaceToneClass('paper'),

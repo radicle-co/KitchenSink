@@ -1897,16 +1897,16 @@
                         },
                         {
                             "name": "onToggle",
-                            "type": "(ingredientId: string) => void",
+                            "type": "(position: number) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Tick or untick one line, by its ingredient id.",
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
                             "name": "view",
-                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<string>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -1967,16 +1967,16 @@
                         },
                         {
                             "name": "onToggle",
-                            "type": "(ingredientId: string) => void",
+                            "type": "(position: number) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Tick or untick one line, by its ingredient id.",
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
                             "name": "view",
-                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<string>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2056,16 +2056,16 @@
                         },
                         {
                             "name": "onToggle",
-                            "type": "(ingredientId: string) => void",
+                            "type": "(position: number) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Tick or untick one line, by its ingredient id.",
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
                             "name": "view",
-                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<string>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2126,16 +2126,16 @@
                         },
                         {
                             "name": "onToggle",
-                            "type": "(ingredientId: string) => void",
+                            "type": "(position: number) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Tick or untick one line, by its ingredient id.",
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
                             "name": "view",
-                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<string>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2223,11 +2223,11 @@
                         },
                         {
                             "name": "onToggle",
-                            "type": "(ingredientId: string) => void",
+                            "type": "(position: number) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Tick or untick one line, by its ingredient id.",
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
@@ -2241,7 +2241,7 @@
                         },
                         {
                             "name": "view",
-                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<string>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,

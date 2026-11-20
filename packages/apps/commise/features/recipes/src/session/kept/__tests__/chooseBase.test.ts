@@ -10,15 +10,17 @@ import { EMPTY_KEPT_DOCUMENT } from '../keptRecord.js';
 import type { ParsedKept } from '../keptRecord.js';
 
 import { iso, makeDoc, makePage, T0 } from '../__fixtures__/keptFixtures.js';
+import { TICK } from '../../../detail/__fixtures__/tickKeys.js';
+import type { IngredientTickKey } from '../../../detail/ingredientTickKey.js';
 
-const ok = (rev: number, ticks: readonly string[] = []): ParsedKept => ({
+const ok = (rev: number, ticks: readonly IngredientTickKey[] = []): ParsedKept => ({
     kind: 'ok',
     doc: makeDoc({ rev, entries: { r1: makePage({ ticks: [...ticks] }) } }),
     droppedTimerIds: [],
 });
-const memory = makeDoc({ rev: 9, entries: { r1: makePage({ ticks: ['memory'] }) } });
+const memory = makeDoc({ rev: 9, entries: { r1: makePage({ ticks: [TICK.memory] }) } });
 const tick = {
-    command: { type: 'tickPage', recipeId: 'r1', ingredientId: 'salt', ticked: true } as const,
+    command: { type: 'tickPage', recipeId: 'r1', line: TICK.salt, ticked: true } as const,
     at: iso(T0),
 };
 
@@ -31,14 +33,14 @@ describe('chooseBase', () => {
 
     it('uses what storage holds, never memory, when storage was read', () => {
         const chosen = chooseBase({
-            stored: ok(3, ['stored']),
+            stored: ok(3, [TICK.stored]),
             pending: undefined,
             memory,
             unsaved: [],
             writable: true,
         });
 
-        expect(chosen.base.entries['r1']).toMatchObject({ ticks: ['stored'] });
+        expect(chosen.base.entries['r1']).toMatchObject({ ticks: [TICK.stored] });
         expect(chosen.storedRev).toBe(3);
         expect(chosen.clearPending).toBe(true);
     });
@@ -56,9 +58,9 @@ describe('chooseBase', () => {
     });
 
     it('uses the document held after a failed write while storage still holds the rev it held then', () => {
-        const held = makeDoc({ rev: 4, entries: { r1: makePage({ ticks: ['held'] }) } });
+        const held = makeDoc({ rev: 4, entries: { r1: makePage({ ticks: [TICK.held] }) } });
         const chosen = chooseBase({
-            stored: ok(3, ['stored']),
+            stored: ok(3, [TICK.stored]),
             pending: { fromRev: 3, doc: held },
             memory,
             unsaved: [],
@@ -71,19 +73,19 @@ describe('chooseBase', () => {
 
     it('drops the held document and uses storage once another writer moved the rev', () => {
         const chosen = chooseBase({
-            stored: ok(5, ['stored']),
+            stored: ok(5, [TICK.stored]),
             pending: { fromRev: 3, doc: memory },
             memory,
             unsaved: [],
             writable: true,
         });
 
-        expect(chosen.base.entries['r1']).toMatchObject({ ticks: ['stored'] });
+        expect(chosen.base.entries['r1']).toMatchObject({ ticks: [TICK.stored] });
         expect(chosen.clearPending).toBe(true);
     });
 
     it('treats an unreadable record as rev 0, so a held document from rev 0 still applies', () => {
-        const held = makeDoc({ rev: 1, entries: { r1: makePage({ ticks: ['held'] }) } });
+        const held = makeDoc({ rev: 1, entries: { r1: makePage({ ticks: [TICK.held] }) } });
         const chosen = chooseBase({
             stored: { kind: 'invalid' },
             pending: { fromRev: 0, doc: held },
@@ -100,15 +102,15 @@ describe('chooseBase', () => {
         const base = chooseBase({ stored: ok(3), pending: undefined, memory, unsaved: [tick], writable: true }).base;
         const notWritable = chooseBase({ stored: ok(3), pending: undefined, memory, unsaved: [tick], writable: false });
 
-        expect(base.entries['r1']).toMatchObject({ ticks: ['salt'] });
+        expect(base.entries['r1']).toMatchObject({ ticks: [TICK.salt] });
         expect(notWritable.base.entries['r1']).toMatchObject({ ticks: [] });
     });
 });
 
 describe('replay', () => {
     it('applies each command in the order it was made', () => {
-        const replayed = replay(makeDoc(), [tick, { ...tick, command: { ...tick.command, ingredientId: 'oil' } }]);
+        const replayed = replay(makeDoc(), [tick, { ...tick, command: { ...tick.command, line: TICK.oil } }]);
 
-        expect(replayed.entries['r1']).toMatchObject({ ticks: ['salt', 'oil'] });
+        expect(replayed.entries['r1']).toMatchObject({ ticks: [TICK.salt, TICK.oil] });
     });
 });

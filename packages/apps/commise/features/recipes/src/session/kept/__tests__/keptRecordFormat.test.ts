@@ -17,13 +17,14 @@ import type {
 
 import { keptTimerSchema, parseKeptDocument, serializeKeptDocument, type KeptDocument } from '../keptRecord.js';
 
+import { tickKeyOf } from '../../../detail/__fixtures__/tickKeys.js';
 import { makeEnded, makePaused, makeTimer, timerId } from '../__fixtures__/keptFixtures.js';
 
 const GOLDEN_V1 =
     '{"v":1,"rev":7,"entries":{"r1":{"kind":"cooking","step":{"index":2,"digest":"s1:0000000c"},' +
     '"marks":[{"index":0,"digest":"s1:0000000a"}],"lineTicks":[{"stepIndex":1,"stepDigest":"s1:0000000b","lineIndex":3}],' +
-    '"ticks":["salt"],"servings":4,"lastTouch":"2026-06-01T12:00:00.123Z"},' +
-    '"r2":{"kind":"page","ticks":["oil"],"lastTouch":"2026-06-01T12:00:00.000Z"}},' +
+    '"ticks":["l1:00000002#0"],"servings":4,"lastTouch":"2026-06-01T12:00:00.123Z"},' +
+    '"r2":{"kind":"page","ticks":["l1:00000003#0"],"lastTouch":"2026-06-01T12:00:00.000Z"}},' +
     '"timers":[' +
     '{"id":"01890a5d-ac96-774b-8cb9-b22e1d4a0001","recipeId":"r1","stepIndex":2,"stepDigest":"s1:0000000c",' +
     '"ordinal":1,"run":1,"durationMs":5400000,"state":"running","endsAt":"2026-06-01T13:30:00.250Z"},' +
@@ -45,11 +46,11 @@ const EXPECTED_V1: KeptDocument = {
             step: { index: 2, digest: 's1:0000000c' },
             marks: [{ index: 0, digest: 's1:0000000a' }],
             lineTicks: [{ stepIndex: 1, stepDigest: 's1:0000000b', lineIndex: 3 }],
-            ticks: ['salt'],
+            ticks: [tickKeyOf(2)],
             servings: 4,
             lastTouch: '2026-06-01T12:00:00.123Z',
         },
-        r2: { kind: 'page', ticks: ['oil'], lastTouch: '2026-06-01T12:00:00.000Z' },
+        r2: { kind: 'page', ticks: [tickKeyOf(3)], lastTouch: '2026-06-01T12:00:00.000Z' },
     },
     timers: [
         {

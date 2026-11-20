@@ -242,6 +242,7 @@ recipes:recipes/servingScale
 recipes:recipes/detailCooking
 cooking:cooking/cookingModeFlow
 cooking:cooking/cookingSystemBack
+recipes:recipes/detailLineTicks
 recipes:recipes/detailBack
 recipes:recipes/deferredCalories
 recipes:recipes/emptyLibrary
@@ -611,8 +612,9 @@ NEEDS_REVIEW_FLOWS=" recipes/needsReviewJump "
 # Recipes list longer than a screen, and the flow that needs a recipe page longer than a screen. Only these hold them, so every other flow's `^4 recipes$` count stays true.
 LONG_LIBRARY_FLOWS=" recipes/headerScrollsAway recipes/pinnedIngredients "
 # The flows whose reset adds the signer's multi-sentence cooking recipe (`reset.ts --mode cooking`, plan 0002 S1,
-# decisions/0019). Only these hold it, so every other flow's `^4 recipes$` count stays true.
-COOKING_FLOWS=" cooking/cookingModeFlow cooking/cookingSystemBack "
+# decisions/0019), and the recipe with two identical lines that `recipes/detailLineTicks` ticks (ADR-0096). Only
+# these hold them, so every other flow's `^4 recipes$` count stays true.
+COOKING_FLOWS=" cooking/cookingModeFlow cooking/cookingSystemBack recipes/detailLineTicks "
 
 # Where `e2e-seed provision` writes this run's fixture MANIFEST, and how it reaches the flows.
 #

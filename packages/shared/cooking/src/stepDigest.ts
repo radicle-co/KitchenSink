@@ -8,12 +8,10 @@
  * runtime dependency of this shared library for a five-line published algorithm.
  */
 
+import { fnv1a32Hex } from './fnv1a32.js';
+
 /** The digest format version, the `s1` prefix of every digest. */
 export const STEP_DIGEST_VERSION = 1;
-
-const FNV_OFFSET = 0x811c9dc5;
-const FNV_PRIME = 0x01000193;
-const encoder = new TextEncoder();
 
 /** A saved position: the step's index and the digest of its text when it was saved. */
 export interface StepRef {
@@ -39,13 +37,7 @@ export function normalizeStepText(text: string): string {
  * @returns `s1:` and 8 lowercase hex chars of FNV-1a 32 over the UTF-8 bytes of the normalized text.
  */
 export function stepDigest(text: string): string {
-    let hash = FNV_OFFSET;
-
-    for (const byte of encoder.encode(normalizeStepText(text))) {
-        hash = Math.imul(hash ^ byte, FNV_PRIME) >>> 0;
-    }
-
-    return `s${STEP_DIGEST_VERSION}:${hash.toString(16).padStart(8, '0')}`;
+    return `s${STEP_DIGEST_VERSION}:${fnv1a32Hex(normalizeStepText(text))}`;
 }
 
 function matchesOf(saved: StepRef, stepDigests: readonly string[]): number[] {

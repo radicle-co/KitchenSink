@@ -9,7 +9,7 @@
         "platform-singleton": 106,
         "ref-api": 22,
         "unclassified-layer": 96,
-        "undocumented-prop": 231
+        "undocumented-prop": 229
     },
     "findings": [
         {
@@ -2397,28 +2397,6 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
-            ]
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresRecipes/detail/IngredientRuns",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.native.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "checked",
-                "onToggle"
-            ]
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresRecipes/detail/IngredientRuns",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "checked",
-                "onToggle"
             ]
         },
         {

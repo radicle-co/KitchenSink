@@ -52,7 +52,7 @@ done without them.
 - A locale-less `/recipe/{id}/{slug}` redirects to the locale `Accept-Language` negotiates. A browser that matches no
   shipped locale (for example `fr-FR`, or `en-GB` while only `en-US` ships) goes to `en-US`, the default route locale. A bare
   `/en/recipe/...` has its locale replaced by the negotiated one and is never mapped straight to a market.
-- The page is a server render with no ISR. It sends `s-maxage` with no `Vary`, so the CDN keys on the path, and each
+- The page is a server render with no ISR. It sends `s-maxage` with no `Vary: Accept-Language`, so the CDN keys on the path, and each
   recipe has at most one cache entry per shipped locale.
 
 ## Middleware

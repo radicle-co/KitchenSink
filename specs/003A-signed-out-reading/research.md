@@ -45,7 +45,7 @@ These facts drive the decisions. Each was read in the code, not assumed.
 
 **Decision**: a public, read-only endpoint in recipe-service, `GET /api/v1/public/{locale}/recipes/{id}`, always answered
 `no-store`. The web server renders the page from it on each request, with no ISR (owner 2026-11-20: a CDN caches pages),
-and the page sends `Cache-Control: s-maxage=60, stale-while-revalidate=240` with no `Vary`, so the oldest copy anyone
+and the page sends `Cache-Control: s-maxage=60, stale-while-revalidate=240` with no `Vary: Accept-Language`, so the oldest copy anyone
 can be served is 300 seconds old, with no purge. The native app calls the endpoint directly. This is 021 FR-106 Option A with one cache layer
 (the architect's "A-prime").
 
@@ -212,7 +212,7 @@ locale). A wrong or missing slug redirects with `308` only when the recipe is op
 middleware. `/{locale}/recipe/*` is handled by the middleware before Clerk and never reaches `clerkMiddleware`. A
 locale-less address redirects to the locale `Accept-Language` negotiates, and a browser that matches no shipped locale
 goes to `en-US` (the default route locale, ADR-0082). A bare `en` is redirected to the negotiated locale, never mapped
-to a market. The page's own words follow the locale in the address, and the page sends `s-maxage` with no `Vary`. One
+to a market. The page's own words follow the locale in the address, and the page sends `s-maxage` with no `Vary: Accept-Language`. One
 pure parser, `parsePublicRecipePath`, serves the web route, the middleware exclusion, the native
 gate, the native link config and the association files. The in-app address `/{locale}/recipes/{id}` and this public
 address stay two addresses (owner 2026-11-20).

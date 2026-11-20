@@ -364,7 +364,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
 - **Q3. The address carries the locale (owner 2026-11-20, reverses the 2026-11-09 answer).** "Every page should have
   locale in it." The public address is `/{locale}/recipe/{id}/{slug}`, and the page's own words follow that locale. The
   page is not cached by the web app (no ISR): the CDN caches it by path, and the path holds the locale, so the cache key
-  needs no `Accept-Language` and no `Vary` (FR-015, FR-015a). The signed-out reader's market is the region of that
+  needs no `Accept-Language` and no `Vary: Accept-Language` (FR-015, FR-015a). The signed-out reader's market is the region of that
   locale (003B C-31).
 - **Q4. A rate-limit exemption from the web server to the API → allowed.** A secret header from the web server, rotated,
   lifts only the API's per-address limit for page renders. It grants no read (FR-016).
@@ -457,9 +457,11 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   locales. A locale-less address MUST redirect to the locale the browser's `Accept-Language` negotiates, and a browser
   that matches no shipped locale MUST go to the default route locale, `en-US` (ADR-0082: the library is open, and a
   browser language is not a market, `025-FR-001`). A bare `en` MUST redirect to the negotiated locale, never straight to
-  a market. The page MUST send `s-maxage` with no `Vary` header and use no incremental static regeneration. The cache
-  key MUST be the path, which holds the locale, and nothing else: never a query string, a cookie, the `Authorization`
-  header or the `Accept-Language` header (owner 2026-11-20, Q3, amending `021-FR-062`). The public address and the
+  a market. The page MUST send `s-maxage` with no `Vary: Accept-Language` header and use no incremental static regeneration. The cache
+  key MUST be the path, which holds the locale, and never a cookie, the `Authorization` header or the
+  `Accept-Language` header (owner 2026-11-20, Q3, amending `021-FR-062`). The CDN key is the URL path plus only Next's
+  own RSC variant (`_rsc` and its request headers). Any other query parameter, the share mark included, is neither read
+  by the render nor a cache entry of its own. The public address and the
   in-app address `/{locale}/recipes/{id}` stay two addresses (owner 2026-11-20); merging them is out of scope.
 - **FR-015a**: The page's own words MUST be in the locale in the address, with English as the fallback when a catalog
   has no copy. The recipe's own text is never translated. Because the locale is in the path, the number of cache

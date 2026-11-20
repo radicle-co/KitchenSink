@@ -110,16 +110,18 @@ jobs:
                       echo "ready=false" >>"$GITHUB_OUTPUT"
                       exit 0
                   fi
+                  # grep exits 1 on no match, which is not an error here; exit 2 (a real error) still fails the step.
+                  pick() { grep "$@" || [ "$?" -eq 1 ]; }
                   pattern='(^|/)(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md|\.mcp\.json)$|(^|/)\.claude/'
-                  git ls-files -z | { grep -zE "$pattern" || true; } | xargs -0 -r git rm -q -f --
+                  git ls-files -z | pick -zE "$pattern" | xargs -0 -r git rm -q -f --
                   rm -rf .claude
-                  git ls-tree -r -z --name-only "$BASE_SHA" | { grep -zE "$pattern" || true; } |
+                  git ls-tree -r -z --name-only "$BASE_SHA" | pick -zE "$pattern" |
                       xargs -0 -r git checkout "$BASE_SHA" --
                   # Fail closed if the instruction files in the tree are not exactly the base's.
-                  base_list="$(git ls-tree -r --name-only "$BASE_SHA" | { grep -E "$pattern" || true; } | sort)"
-                  tree_list="$(git ls-files | { grep -E "$pattern" || true; } | sort)"
+                  base_list="$(git ls-tree -r --name-only "$BASE_SHA" | pick -E "$pattern" | sort)"
+                  tree_list="$(git ls-files | pick -E "$pattern" | sort)"
                   if [ "$base_list" != "$tree_list" ] ||
-                      ! git ls-files -z | { grep -zE "$pattern" || true; } | xargs -0 -r git diff --quiet "$BASE_SHA" --; then
+                      ! git ls-files -z | pick -zE "$pattern" | xargs -0 -r git diff --quiet "$BASE_SHA" --; then
                       post failure "GATE failed closed: the judge's instruction files do not match the base branch"
                       echo "ready=false" >>"$GITHUB_OUTPUT"
                       exit 0

@@ -25,7 +25,7 @@ export function perFileVerdicts({ judged, verdict, findings }) {
     const blockAll =
         blocking.some((f) => f.file === undefined || !judged.has(f.file)) ||
         (verdict === 'BLOCK' && blocking.length === 0);
-    const result = {};
+    const result = Object.create(null);
     for (const [path, hash] of judged) {
         const mine = findings.filter((f) => f.file === path || (f.file === undefined && f.severity === 'blocking'));
         const blocked = blockAll || blocking.some((f) => f.file === path);
@@ -58,7 +58,7 @@ export function foldLedger(records) {
  * @param {{changed: Map<string, string>, ledger: Map<string, any>, rejudgeBlocked?: boolean}} input
  */
 export function planRun({ changed, ledger, rejudgeBlocked = false }) {
-    const carried = {};
+    const carried = Object.create(null);
     const toJudge = [];
     let newest;
     for (const [path, hash] of changed) {
@@ -84,7 +84,7 @@ export function mergeVerdicts(files) {
 /** The record one run stores: the carried files and the newly judged ones, under the head sha. Pure. */
 export function buildRecord({ sha, carried, judged }) {
     const strip = ({ hash, verdict, findings }) => ({ hash, verdict, findings });
-    const files = {};
+    const files = Object.create(null);
     for (const [path, entry] of Object.entries({ ...carried, ...judged })) {
         files[path] = strip(entry);
     }

@@ -739,6 +739,10 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     'continue-on-error _mobileAppBuild.yml::plan::Re-upload the reused Android test app into this run ×1',
     'continue-on-error _mobileAppBuild.yml::plan::Fetch the earlier iOS test app ×1',
     'continue-on-error _mobileAppBuild.yml::plan::Re-upload the reused iOS test app into this run ×1',
+    // GATE reuse of an earlier run's per-file verdicts (`gate-<sha>` artifacts) is an optimisation: a download that fails
+    // (an expired or missing artifact) leaves that run's files with no stored verdict, so they are JUDGED AGAIN. The
+    // tolerated failure costs a model call, never a pass (ADR-0098).
+    'suppressed-exit gate.yml::gate::Fetch the earlier verdicts ×1',
     // (The five other `Load … Clerk secrets` entries — k6, the web build, both Playwright tiers and the linkage suite —
     // were REMOVED with ADR-0063: `awsAuth` now tells a fork or Dependabot run, which reports `authenticated=false` and
     // skips the load through its `if:`, from a run that forgot `id-token: write`, which is red. A tolerated load

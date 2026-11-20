@@ -870,7 +870,7 @@ describe('runLaneRun — a lost tunnel', () => {
     describe('a loss while the lanes are starting or stopping', () => {
         const LOSS = new Error('the tunnel ssh exited with code 255 during the run');
 
-        it('acts on a loss during the stagger wait: no later lane starts, and the lane that did is stopped', async () => {
+        it('acts on a loss during the stagger wait: starts no later lane and stops the one that did', async () => {
             const { events, deps } = harness({ staggerMs: 3_000 });
             const lost = new Promise<Error>((resolve) => {
                 setTimeout(() => {

@@ -5,11 +5,17 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { spawnRunner } from '../laneProcess.js';
+import { spawnRunner, type LaneChild } from '../laneProcess.js';
 
 const dirs: string[] = [];
+const children: LaneChild[] = [];
 
 afterEach(() => {
+    // A failed assertion must not leave a `sleep 30` behind.
+    for (const child of children.splice(0)) {
+        child.stop('SIGKILL');
+    }
+
     for (const dir of dirs.splice(0)) {
         rmSync(dir, { recursive: true, force: true });
     }
@@ -33,6 +39,7 @@ describe('spawnRunner', () => {
             env: { PATH: process.env['PATH'] ?? '' },
             log: path.join(dir, 'log'),
         });
+        children.push(child);
 
         await expect(child.exit).resolves.toBe(0);
         expect(child.running()).toBe(true);
@@ -55,6 +62,7 @@ describe('spawnRunner', () => {
             env: {},
             log: path.join(dir, 'log'),
         });
+        children.push(child);
 
         await expect(child.exit).resolves.toBe(1);
         expect(child.running()).toBe(false);

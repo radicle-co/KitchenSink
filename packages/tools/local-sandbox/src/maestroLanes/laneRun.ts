@@ -115,7 +115,7 @@ export interface LaneRunDeps {
 /** The exit code of a run the operator stopped. */
 const ABORTED = 130;
 
-/** How long a lane's group has to be gone after SIGTERM before SIGKILL. A runner stuck in a child process ignores the first. */
+/** How long a lane's group has to be gone after SIGTERM before SIGKILL: a stuck child ignores the first. */
 const STOP_GRACE_MS = 10_000;
 
 /** How often the run asks whether a stopped lane's group is gone. */
@@ -348,7 +348,18 @@ async function runPlanned(
                 }
 
                 if (exits.length > 0) {
-                    await unlessLost(sleep(deps.staggerMs));
+                    let staggerOver: NodeJS.Timeout | undefined;
+
+                    try {
+                        await unlessLost(
+                            new Promise<void>((resolve) => {
+                                staggerOver = setTimeout(resolve, deps.staggerMs);
+                            }),
+                        );
+                    } finally {
+                        // A loss ends the wait early: the timer must not hold the process for the rest of it.
+                        clearTimeout(staggerOver);
+                    }
                 }
 
                 const startedAt = Date.now();
@@ -360,7 +371,8 @@ async function runPlanned(
                 exits.push(
                     child.exit.then((code) => {
                         deps.log(
-                            `lane ${laneName(lane)} exited ${code} after ${Math.round((Date.now() - startedAt) / 1000)} s`,
+                            `lane ${laneName(lane)} exited ${code} after ` +
+                                `${Math.round((Date.now() - startedAt) / 1000)} s`,
                         );
 
                         return code;

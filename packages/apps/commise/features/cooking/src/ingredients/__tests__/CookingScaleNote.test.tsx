@@ -56,10 +56,14 @@ describe('CookingScaleNote (web)', () => {
         const glyph = note.querySelector('svg');
 
         expect(note.contains(sentence)).toBe(true);
-        expect(glyph).not.toBeNull();
-        expect(glyph?.getAttribute('aria-hidden')).toBe('true');
-        expect(glyph?.compareDocumentPosition(sentence)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-        expect((glyph as SVGElement).style.color).toBe('var(--color-ink-muted)');
+
+        if (glyph === null) {
+            throw new Error('the note draws no glyph');
+        }
+
+        expect(glyph.getAttribute('aria-hidden')).toBe('true');
+        expect(glyph.compareDocumentPosition(sentence)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+        expect(glyph.style.color).toBe('var(--color-ink-muted)');
         expect(note.className.split(' ')).toContain('items-start');
         expect(sentence.className).toContain('text-meta');
         expect(sentence.className).toContain('text-ink-muted');

@@ -53,3 +53,19 @@ export const PREVIEW_IN_BODY = {
     footWebClassName: '[@container(height<40rem)]:hidden',
     bodyWebClassName: 'hidden [@container(height<40rem)]:flex',
 } as const;
+
+/**
+ * From 800 the ingredients sit in a column beside the step (L2 and L3); under it they open in a sheet (L1 and L1w). The
+ * band decides which controls exist, so a script reads it, never CSS alone. Web asks the browser in em, so a cook with a
+ * larger default text size gets the one column sooner, like the rem rules above. Native reads `minPx` against its window
+ * width.
+ */
+export const TWO_COLUMN = { minPx: 800, minEm: 50, webQuery: '(min-width: 50em)' } as const;
+
+/**
+ * @param widthPx - The window width in px.
+ * @returns Whether the ingredients are a column beside the step. Pure.
+ */
+export function isTwoColumn(widthPx: number): boolean {
+    return widthPx >= TWO_COLUMN.minPx;
+}

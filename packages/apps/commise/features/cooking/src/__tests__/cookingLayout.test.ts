@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
     COOKING_COLUMN,
     INGREDIENTS_COLUMN,
+    isTwoColumn,
     NARROW_ROW,
     NOTICE_COLUMN,
     PREVIEW_IN_BODY,
     SHORT_SCREEN,
+    TWO_COLUMN,
 } from '../cookingLayout.js';
 
 /**
@@ -59,6 +61,19 @@ describe('the cooking surface widths', () => {
         expect(PREVIEW_IN_BODY.bodyWebClassName).toBe('hidden [@container(height<40rem)]:flex');
         expect(PREVIEW_IN_BODY.footWebClassName).toContain(`<${String(PREVIEW_IN_BODY.maxHeightRem)}rem`);
         expect(PREVIEW_IN_BODY.bodyWebClassName).toContain(`<${String(PREVIEW_IN_BODY.maxHeightRem)}rem`);
+    });
+
+    it('shows the two columns from 800 px for native and 50 em for web, the same width at 100% text', () => {
+        expect(TWO_COLUMN).toEqual({ minPx: 800, minEm: 50, webQuery: '(min-width: 50em)' });
+        // An em is 16 px at 100% text, so the two numbers are one width; at 200% text the web rule fires at 1,600 px.
+        expect(TWO_COLUMN.minEm * 16).toBe(TWO_COLUMN.minPx);
+        expect(TWO_COLUMN.webQuery).toContain(`${String(TWO_COLUMN.minEm)}em`);
+    });
+
+    it('is two columns at 800 and wider, and one column at 799', () => {
+        expect(isTwoColumn(799)).toBe(false);
+        expect(isTwoColumn(800)).toBe(true);
+        expect(isTwoColumn(1280)).toBe(true);
     });
 
     it('keeps the centred column wider than the notice column', () => {

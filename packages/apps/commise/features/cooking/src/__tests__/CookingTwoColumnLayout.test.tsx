@@ -57,6 +57,7 @@ describe('CookingTwoColumnLayout (web)', () => {
         expect(slot.className.split(' ')).toContain('shrink-0');
         expect(row?.className.split(' ')).toContain('flex');
         expect(row?.className.split(' ')).toContain('min-h-0');
+        expect(row?.className.split(' ')).toContain('flex-1');
         // A row, not a stack: flex-col would draw the ingredients over the step.
         expect(row?.className.split(' ')).not.toContain('flex-col');
     });
@@ -77,6 +78,15 @@ describe('CookingTwoColumnLayout (web)', () => {
 
         expect(step.contains(screen.getByText('Ingredients here'))).toBe(false);
         expect(step.className.split(' ')).toContain('w-full');
+
+        // The step slot is a flex column that may shrink, as on native, so a step body fills the height and keeps its
+        // footer pinned inside it.
+        for (const token of ['flex', 'min-h-0', 'flex-col']) {
+            expect(step.className.split(' ')).toContain(token);
+        }
+
+        // `justify-center` centres only inside a flex container.
+        expect(step.parentElement?.className.split(' ')).toContain('flex');
         expect(step.parentElement?.className.split(' ')).toContain('justify-center');
         expect(step.parentElement?.className.split(' ')).toContain('flex-1');
         // Without min-w-0 a long word in the step would widen the area and push the page sideways.

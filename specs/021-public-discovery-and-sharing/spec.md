@@ -10,7 +10,7 @@ the owner's ruling on [026](../026-chef-spaces/spec.md) Q2. Amended 2026-11-03 f
 ADR-0082). Facts cards open signed out (FR-003, FR-004, FR-014 to FR-014h). Family and gated public domain text open
 to the web (FR-002, FR-006). Cooks get a CC BY choice (FR-040a, FR-040b). The pre-launch confirmations grow (FR-095). See
 Session 2026-11-03. Amended 2026-11-09 for the owner's answers to feature 003A's questions: recipes left public at
-erasure (FR-002 rule 7), the page language and the cache key (FR-062), comments (FR-070), and the `noindex` 003A ships
+erasure (FR-002 rule 7), the locale in the address and the cache key (FR-062), comments (FR-070), and the `noindex` 003A ships
 with (FR-020a). See Session 2026-11-09. Amended 2026-11-15 for the public versions of imported recipes (owner ruling,
 2026-11-15, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)). Facts cards, linked cards, book cards and source cards are withdrawn. An imported
 recipe goes public only as a Commise-written version (FR-003, FR-014). See Session 2026-11-15
@@ -649,7 +649,8 @@ Four of the answers change this spec:
 - **Recipes left public at erasure stay open** (003A Q8). They are shown with no author name. FR-002 rule 7 is amended
   for that case only.
 - **The page's own words follow the browser language** (003A Q3), with English as the fallback. FR-062's cache key
-  becomes the path plus that language.
+  becomes the path plus that language. Superseded on 2026-11-20 by the owner's ruling that every page carries its
+  locale in the URL (FR-062).
 - **Comments show on public pages** (003A Q6). The owner ruled that a commenter's name and words are public, and that
   the terms say so. FR-070 is amended, the Out of Scope line is changed, and `016-FR-012c` puts it in the terms.
 - **003A ships `noindex`, and this feature removes it** (003A Q7). FR-020a and task P003A-01.
@@ -1232,11 +1233,10 @@ Session 2026-11-15.)_
   exit event, every one MUST answer not available, or
   show the new content. It MUST do so within 5 minutes for 95% of events, and within 15 minutes for all. An event that the purge cannot confirm MUST raise an alarm.
 - **FR-062**: Public pages MUST be served from a CDN. The cache key MUST be the path alone. It MUST ignore query
-  parameters (the share mark included), cookies and the `Authorization` header. _(Amended 2026-11-09, owner ruling on
-  003A Q3.)_ The page's own words follow the reader's browser language, so the key is the path plus the page language,
-  chosen from the closed set of supported locales, and never the raw `Accept-Language` header (`003A-FR-015`,
-  `003A-FR-015a`). The address carries no locale. This is safe only because the response
-  does not depend on who asked (FR-012, FR-101).
+  parameters (the share mark included), cookies and the `Authorization` header. _(Amended 2026-11-20, owner ruling:
+  every page carries its locale in the URL.)_ The locale is part of the path (`/{locale}/recipe/{id}/{slug}`), so the
+  path alone is the key, and the page's own words follow that locale (`003A-FR-015`, `003A-FR-015a`). This is safe only
+  because the response does not depend on who asked (FR-012, FR-101).
 - **FR-063**: Each client address MUST be rate-limited at the edge, where the real address is visible, never from a
   header a client can set. A person reading and sharing MUST never reach the limit. A client past it gets `429` with
   `Retry-After`. The per-user throttler cannot do this, because a signed-out caller has no user.

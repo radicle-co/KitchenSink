@@ -7,8 +7,10 @@
  *
  * @pattern Mediator — the session model, the swipe rule and the render components meet here, so no render component knows another
  */
+import { useLocale, useMessages } from '@commise/i18n/react';
 import { LiveRegion } from '@commise/ui/live-region';
 import type { FC } from 'react';
+import { YStack } from 'tamagui';
 
 import { CookingDone } from './CookingDone.native.js';
 import { CookingDoneActions } from './CookingDoneActions.native.js';
@@ -17,7 +19,13 @@ import { CookingNav } from './CookingNav.native.js';
 import { CookingNextPreview } from './CookingNextPreview.native.js';
 import { CookingStep } from './CookingStep.native.js';
 import { CookingTopBar } from './CookingTopBar.native.js';
+import { isTwoColumn } from './cookingLayout.js';
 import type { CookingRecipe } from './cookingViewProps.js';
+import { CookingIngredientsColumn } from './ingredients/CookingIngredientsColumn.native.js';
+import { CookingIngredientsSheet } from './ingredients/CookingIngredientsSheet.js';
+import { CookingScaleNote } from './ingredients/CookingScaleNote.native.js';
+import { useCookingIngredientsPanel } from './ingredients/useCookingIngredientsPanel.js';
+import { cookingMessages } from './messages.js';
 import { stepSwipeResponderOf } from './stepSwipeResponder.native.js';
 import { useCookingFocusRecovery } from './useCookingFocusRecovery.native.js';
 import { useCookingSessionScreen } from './useCookingSessionScreen.js';
@@ -48,6 +56,12 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
     width,
 }) => {
     const model = useCookingSessionScreen({ recipe, onLeave });
+    const panel = useCookingIngredientsPanel({
+        recipe,
+        copy: useMessages(cookingMessages),
+        locale: useLocale(),
+        wide: isTwoColumn(width),
+    });
     const { done, hasPrevious, hasNext, goForward, goBack } = model;
     const focus = useCookingFocusRecovery({
         moves: model.moves,
@@ -74,41 +88,57 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
         preview === undefined ? null : <CookingNextPreview preview={preview} short={short && !previewInBody} />;
 
     return (
-        <CookingFrame
-            busy={false}
-            topBar={<CookingTopBar exit={model.exit} place={{ text: model.place, tone: 'ink' }} narrow={narrow} />}
-            bodySwipe={stepSwipeResponderOf({ width, hasPrevious, hasNext, onNext: goForward, onBack: goBack })}
-            body={
-                <>
-                    <CookingStep
-                        {...model.step}
-                        focusRequested={focus.target === 'focusLine'}
-                        onFocusHandled={focus.handled}
-                    />
-                    <LiveRegion politeness="polite" visuallyHidden announceOnMount occurrence={model.moves}>
-                        {model.announcement}
-                    </LiveRegion>
-                    {previewInBody ? previewNode : null}
-                </>
-            }
-            foot={{
-                ...(previewInBody || previewNode === null ? {} : { preview: previewNode }),
-                actions: (
-                    <CookingNav
-                        disabled={false}
+        <>
+            <CookingFrame
+                busy={false}
+                {...(panel.column === undefined ? {} : { column: <CookingIngredientsColumn {...panel.column} /> })}
+                topBar={
+                    <CookingTopBar
+                        exit={model.exit}
+                        place={{ text: model.place, tone: 'ink' }}
                         narrow={narrow}
-                        forwardFocusRequested={focus.target === 'forward'}
-                        onFocusHandled={focus.handled}
-                        back={{ label: nav.back.label, accessibilityLabel: nav.back.a11yName, onPress: goBack }}
-                        forward={{
-                            label: nav.forward.label,
-                            accessibilityLabel: nav.forward.a11yName,
-                            onPress: goForward,
-                            tone: nav.forward.filled ? 'filled' : 'quiet',
-                        }}
+                        {...(panel.topAction === undefined ? {} : { ingredients: panel.topAction })}
                     />
-                ),
-            }}
-        />
+                }
+                bodySwipe={stepSwipeResponderOf({ width, hasPrevious, hasNext, onNext: goForward, onBack: goBack })}
+                body={
+                    <>
+                        <CookingStep
+                            {...model.step}
+                            focusRequested={focus.target === 'focusLine'}
+                            onFocusHandled={focus.handled}
+                        />
+                        {panel.scaleNote === undefined ? null : (
+                            <YStack paddingHorizontal="$4" paddingBottom="$4">
+                                <CookingScaleNote {...panel.scaleNote} />
+                            </YStack>
+                        )}
+                        <LiveRegion politeness="polite" visuallyHidden announceOnMount occurrence={model.moves}>
+                            {model.announcement}
+                        </LiveRegion>
+                        {previewInBody ? previewNode : null}
+                    </>
+                }
+                foot={{
+                    ...(previewInBody || previewNode === null ? {} : { preview: previewNode }),
+                    actions: (
+                        <CookingNav
+                            disabled={false}
+                            narrow={narrow}
+                            forwardFocusRequested={focus.target === 'forward'}
+                            onFocusHandled={focus.handled}
+                            back={{ label: nav.back.label, accessibilityLabel: nav.back.a11yName, onPress: goBack }}
+                            forward={{
+                                label: nav.forward.label,
+                                accessibilityLabel: nav.forward.a11yName,
+                                onPress: goForward,
+                                tone: nav.forward.filled ? 'filled' : 'quiet',
+                            }}
+                        />
+                    ),
+                }}
+            />
+            {panel.sheet === undefined ? null : <CookingIngredientsSheet {...panel.sheet} />}
+        </>
     );
 };

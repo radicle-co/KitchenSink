@@ -1196,6 +1196,9 @@ describe('the door falls back to no default stack', () => {
                 spawnSync('sleep', ['0.1']);
             }
 
+            // Not seen after the wait: the test cannot prove anything, so it must not pass by looking at nothing.
+            expect(spawnSync('pgrep', ['-f', `setTimeout.*${decoyTag}`]).status).toBe(0);
+
             const sandbox = makeSandbox();
             const result = run(sandbox, `local_maestro_start_worker '${sandbox.state}'`, {
                 LOCAL_MAESTRO_WORKER_PATTERN: 'no-such-worker-command-line',

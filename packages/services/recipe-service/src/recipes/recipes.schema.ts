@@ -271,8 +271,8 @@ export const CURATOR_IMPORT_SCOPE = 'recipes:import:public';
  * service enforces into a state the wire cannot express.
  *
  * ⛔ `imported_physical` and `imported_paid` are not declarable through `source`, which is the curator's field. A cook
- * gives a recipe `imported_physical` through the recipe's own `book` statement (`004-FR-014a`). `paid_site` is not a
- * member of that statement (#374). A private recipe uses a private slot whatever its label (`004-FR-028`).
+ * gives a recipe `imported_physical` through the recipe's own `book` statement and `imported_paid` through its
+ * `paid_site` statement (`004-FR-014a`, #374). A private recipe uses a private slot whatever its label (`004-FR-028`).
  *
  * ⛔ It is also NOT on {@link createRecipeRequestBaseSchema}. `updateRecipeRequestSchema` derives from that
  * base through `.omit().partial()`, so a field placed there is inherited by `PATCH /api/v1/recipes/{id}` —
@@ -327,6 +327,12 @@ export const citationTextSchema = z
  * It lives here, next to the other members, because a recipe's own `statement` composes it too.
  */
 export const bookStatementSchema = z.object({ kind: z.literal('book'), citation: citationTextSchema });
+
+/**
+ * "From a paid website", with its citation: the same shape as {@link bookStatementSchema}, and loose for the same reason.
+ * A citation is attribution text, not an address (`004-FR-014a` statement 5), so it fills no source address or site.
+ */
+export const paidSiteStatementSchema = z.object({ kind: z.literal('paid_site'), citation: citationTextSchema });
 
 /** "Copied from a public web page", with its address. Loose, so a response read tolerates a newer server's field. */
 export const publicWebStatementSchema = z.object({ kind: z.literal('public_web'), citation: citationUrlSchema });
@@ -396,12 +402,13 @@ const ownWebStatementSchema = publicWebStatementSchema
  * states no wording yet (it is the paste team's), so its wire is unchanged.
  *
  * `fromPerson` ("another person's recipe") has no source kind and no label today: it records the cook's word and keeps the
- * recipe private. A cookbook (`book`) is `imported_physical`, which is private only.
+ * recipe private. A cookbook (`book`) is `imported_physical` and a paid website (`paid_site`) is `imported_paid`: both are private only.
  */
 export const recipeOwnStatementSchema = z.discriminatedUnion('kind', [
     authoredStatementSchema.extend({ wording: wordingOf(STATEMENT_WORDINGS_BY_CHOICE.authored) }).strict(),
     ownWebStatementSchema,
     bookStatementSchema.extend({ wording: wordingOf(STATEMENT_WORDINGS_BY_CHOICE.book) }).strict(),
+    paidSiteStatementSchema.extend({ wording: wordingOf(STATEMENT_WORDINGS_BY_CHOICE.paidSite) }).strict(),
     z.strictObject({
         kind: z.literal('fromPerson'),
         wording: wordingOf(STATEMENT_WORDINGS_BY_CHOICE.fromPerson),

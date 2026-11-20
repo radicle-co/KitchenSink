@@ -41,7 +41,7 @@ export function sourceIsCorrectable(recipe: CorrectableSourceFacts): boolean {
         return false;
     }
 
-    // A book is the cook's statement too, whether stated in the editor or saved by an import. A paid site stays unstatable here.
+    // A book is the cook's statement too, whether stated in the editor or saved by an import. A paid-site source is locked whoever stated it.
     const statedInTheEditorOrNone =
         recipe.sourceType === RecipeSourceType.USER_CREATED ||
         recipe.sourceKind === 'public_web' ||

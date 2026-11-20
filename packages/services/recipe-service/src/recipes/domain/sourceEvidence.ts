@@ -60,7 +60,7 @@ export type EvidenceCapturePath = 'editor' | 'importFile';
  *
  * @param provenance - What the write persists as the recipe's source.
  * @param path - How the statement reached the service. An `editor` statement is captured as `editorLink` (a web address) or
- *   `editorCitation` (a book), so the capture always matches the kind the database CHECK pairs it with.
+ *   `editorCitation` (a book or a paid site), so the capture always matches the kind the database CHECK pairs it with.
  * @returns The row to append, or `undefined` for a recipe with no stated kind (the cook's own, or the curator's text).
  * @throws {Error} A web provenance with no address: the caller built it wrong, and no row would record the source.
  */
@@ -86,12 +86,8 @@ function evidenceRowOf(provenance: ResolvedProvenance, path: EvidenceCapturePath
 
         case 'book':
         case 'paid_site':
-            // The editor states a book by citation. A paid site is only ever stated by an import, so an editor capture for one is
-            // a defect in the caller and no capture would satisfy the database CHECK.
-            if (path === 'editor' && provenance.sourceKind === 'paid_site') {
-                throw new Error('A paid site cannot be stated in the editor, so no editor capture records it.');
-            }
-
+            // The editor states a book or a paid site by citation, the kinds `EDITOR_CITATION_SOURCE_KINDS` lists and the
+            // database CHECK pairs with `editorCitation`.
             return {
                 capture: path === 'editor' ? 'editorCitation' : 'importFile',
                 sourceKind: provenance.sourceKind,

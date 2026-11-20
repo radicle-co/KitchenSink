@@ -297,26 +297,26 @@ No reason mentions rewriting until P4 ships.
 Use the replacement. A name marked label-only is retired only as a label and stays an ordinary phrase; the copy plan
 handles it as a word collision.
 
-| Retired                                  | Use instead                                      | Label only |
-| ---------------------------------------- | ------------------------------------------------ | ---------- |
-| `Just for me`                            | Private                                          | no         |
-| `Keep it just for me`                    | Private                                          | no         |
-| `Publish privately`                      | Private                                          | no         |
-| `For everyone`                           | Public                                           | no         |
-| `private draft`                          | Draft                                            | yes        |
-| `Not approved`                           | Not approved to be public                        | yes        |
-| `Copied from a public web page`          | From a web page                                  | no         |
-| `From a public web page`                 | From a web page                                  | no         |
-| `Saved from`                             | From a web page                                  | yes        |
-| `From a paid site`                       | From a paid website                              | no         |
-| `From a cookbook, magazine or paid site` | From a cookbook or magazine; From a paid website | no         |
-| `Adapted in my own words`                | Adapted by you                                   | no         |
-| `Commise version`                        | Written by Commise                               | yes        |
-| `public version`                         | Written by Commise                               | yes        |
-| `Steps written by Commise`               | Written by Commise                               | yes        |
-| `held`                                   | Waiting for you (import item only)               | yes        |
-| `withdrawn`                              | one meaning per machine                          | yes        |
-| `cleared`                                | one meaning per machine                          | yes        |
+| Retired                                  | Use instead                                                                             | Label only |
+| ---------------------------------------- | --------------------------------------------------------------------------------------- | ---------- |
+| `Just for me`                            | Private                                                                                 | no         |
+| `Keep it just for me`                    | Private                                                                                 | no         |
+| `Publish privately`                      | Private                                                                                 | no         |
+| `For everyone`                           | Public                                                                                  | no         |
+| `private draft`                          | Draft                                                                                   | yes        |
+| `Not approved`                           | Not approved to be public                                                               | yes        |
+| `Copied from a public web page`          | From a web page                                                                         | no         |
+| `From a public web page`                 | From a web page                                                                         | no         |
+| `Saved from`                             | From a web page                                                                         | yes        |
+| `From a paid site`                       | From a paid website                                                                     | no         |
+| `From a cookbook, magazine or paid site` | From a cookbook or magazine; From a paid website                                        | no         |
+| `Adapted in my own words`                | Adapted by you                                                                          | no         |
+| `Commise version`                        | Written by Commise                                                                      | yes        |
+| `public version`                         | Written by Commise                                                                      | yes        |
+| `Steps written by Commise`               | Written by Commise (a page label); the AI credit line (a credit under AI-written steps) | yes        |
+| `held`                                   | Waiting for you (import item only)                                                      | yes        |
+| `withdrawn`                              | one meaning per machine                                                                 | yes        |
+| `cleared`                                | one meaning per machine                                                                 | yes        |
 
 ## 8. Statement choices
 

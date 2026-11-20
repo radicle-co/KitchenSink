@@ -479,7 +479,7 @@ them. So the import never invents a value:
       saves normally. The recipe cannot go public until a person clears it, and no cook control clears the hold.
     - **Statement 1a.** It is statement 1 plus the address of the page or account the cook says is theirs (the own origin).
       Paste (`FR-052`), link import (`FR-008`) and social import (`FR-009`) offer it. It adds no seventh statement.
-        1. A bare statement sets `user_created` and "Written by you" (`016-FR-015c` label 1). It is the cook's attestation
+        1. A bare statement sets `user_created` and "Written by you" (`016-FR-015c`, "Written by you"). It is the cook's attestation
            (`016-FR-014`), made per recipe. It never clears a copy flag, because anyone can claim. With no live claim, a
            hit on the own origin goes to a person with the statement shown (`020-FR-012g`, ADR-0078 §2).
         2. A live site claim (`026-FR-001`: a DNS TXT record, a meta tag in the home page, or a recipe plugin token)

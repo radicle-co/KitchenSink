@@ -1249,7 +1249,7 @@ username. No need to call out family recipes."
   import's working data, and purged 30 days after the import's last `advance` (owner ruling, 2026-10-26, ADR-0072 §9).
 - **FR-025**: In a bulk import, a `detected` item MUST NOT be saved as public. The cook MUST be able to keep it private
   (it is then "not approved", and it needs a free slot), skip it, or stop the import. This follows the owner's ruling:
-  a recipe known to be from a book or paid site can only be kept private, skipped or stopped, never made public.
+  a recipe known to be from a book or paid site can, at import, only be kept private, skipped or stopped, never made public.
 - **FR-025a**: **The import's slot pause** (owner rulings, 2026-10-26, ADR-0073 §8). A private import takes its slot
   at the save and holds it while in review, so the ordinary slot count already includes the cook's private recipes in
   review. When the private items left exceed the free slots, the import pauses. The cook can stop there, or make the

@@ -60,7 +60,7 @@ reversed text cannot be edited in place, because an accepted ADR is not edited.
     - After a kept AI rewrite, the recipe keeps its source label and shows a line under the steps saying so. It never
       shows "Adapted by you" or the ownership line for those steps (owner, "Source + AI line (Rec.)"). The same holds for
       an accepted rewording suggestion (owner, "Yes, same rule (Rec.)"). A third-party recipe with AI steps goes public
-      only as the Commise-written page, and a CC BY grant never covers AI-written steps.
+      only as the Commise-written page, and a CC BY grant never covers AI-written steps. A recipe with kept AI steps is not eligible for CC BY until the cook rewrites them and the check passes against the AI text.
     - The public check runs only on a recipe going public (owner, "No review if private (Rec.)").
     - An Adapted import stays the same recipe (owner, "Same recipe (Rec.)").
     - There is one label per meaning. Book and paid website have one label each. The clone line replaces the old shared

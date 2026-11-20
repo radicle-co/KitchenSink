@@ -2,10 +2,10 @@
 
 /**
  * @module useIsTwoColumn — whether the web window is wide enough for the ingredients column beside the step (L2 and
- * L3).
- * The browser answers `TWO_COLUMN.webQuery`, in em, and the hook follows it live. The server render and the hydration
- * pass read narrow, so the session screen must never render during hydration, or a wide screen paints narrow first.
- * It has the shape of the web app's `useColorScheme`. A shared media query hook waits for a third caller.
+ * L3). The browser answers `TWO_COLUMN.webQuery`, in em, and the hook follows it live. It does not choose the layout:
+ * CSS does, so the first paint is right even when the screen arrives in the server HTML. The screen uses it only to
+ * close an open sheet when the band changes. The server render and the hydration pass read narrow. It has the shape of
+ * the web app's `useColorScheme`. A shared media query hook waits for a third caller.
  *
  * @pattern Observer, through `useSyncExternalStore` subscribed to the browser's media query list
  */

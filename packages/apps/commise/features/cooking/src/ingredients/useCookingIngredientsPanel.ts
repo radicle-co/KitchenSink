@@ -2,12 +2,10 @@
 
 /**
  * @module useCookingIngredientsPanel — what a cooking screen draws for the ingredients: the top bar's Ingredients
- * action,
- * the scale note, the sheet and the column. It binds `useCookingIngredients` once, so the control, the note and the
- * list
- * read one list. It derives every part for either band. Web draws them all and CSS picks by band (`TWO_COLUMN`),
- * because
- * the screen can arrive in the server HTML. Native has no server render, so it picks with `panelForBand`.
+ * action, the scale note, the sheet and the column. It binds `useCookingIngredients` once, so the control, the note
+ * and the list read one list. It derives every part for either band. Web draws them all and CSS picks by band
+ * (`TWO_COLUMN`), because the screen can arrive in the server HTML. Native has no server render, so it picks with
+ * `panelForBand`.
  *
  * Narrow, the sheet is the only way to the list, so the action and the note's open button exist. Wide, the column is in
  * view, so neither does and the note stands alone. The sheet closes whenever `wide` changes, so a window that goes wide
@@ -52,7 +50,7 @@ export interface CookingIngredientsPanel {
  *
  * @param input - The recipe, the copy, the locale and the band.
  * @returns The parts to draw.
- * @sideEffect Subscribes to the cook marks and the serving scale; Clear ticks writes the cook's marks.
+ * @sideEffect Subscribes to the cook marks and the serving scale; a tick writes the cook's marks.
  */
 export function useCookingIngredientsPanel(input: UseCookingIngredientsPanelInput): CookingIngredientsPanel {
     const { recipe, copy, locale, wide } = input;

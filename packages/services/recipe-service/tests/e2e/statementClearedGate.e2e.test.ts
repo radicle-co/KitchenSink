@@ -162,6 +162,34 @@ describe('"from another person" is locked for the cook (e2e)', () => {
         expect(rows[0]?.held).toBe(true);
     });
 
+    it('refuses Public on a CLONE of a recipe cleared before the lock, and the clone stays locked on its own id', async () => {
+        const created = await fromPersonRecipe('cloned cleared pesto');
+
+        await clearStatementAsOwner(created.id);
+
+        const clone = await json<RecipeBody>('POST', `/api/v1/recipes/${created.id}/clone`, 201, {});
+
+        expect(clone.visibility).toBe('private');
+
+        const refused = await call('PATCH', `/api/v1/recipes/${clone.id}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
+
+        expect(refused.status).toBe(400);
+        expect(await refused.json()).toMatchObject({
+            code: 'INVALID_VISIBILITY',
+            details: { reason: 'FROM_PERSON_PRIVATE_ONLY' },
+        });
+
+        const { rows } = await pool.query<{ held: boolean }>('SELECT recipe_is_from_person($1) AS held', [clone.id]);
+
+        expect(rows[0]?.held).toBe(true);
+
+        // The attestation is read for the clone's OWN id: both writes are refused and nothing is written.
+        await expectLockedWrites(clone.id, clone.currentVersion);
+    });
+
     it('lets the R2 recipe state "from another person" again (a first statement), and an unstated recipe state either answer', async () => {
         const created = await fromPersonRecipe('restated pesto');
 

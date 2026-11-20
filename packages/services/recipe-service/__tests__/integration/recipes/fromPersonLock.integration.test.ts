@@ -393,6 +393,10 @@ describe('a clone: the cook’s own clone of a "From another person" recipe hold
         const cloned = await call('POST', `/api/v1/recipes/${RECIPE_ID}/clone`, {});
 
         expect(cloned.status).toBe(201);
+        expect(create).toHaveBeenCalledWith(
+            expect.objectContaining({ clonedFromId: RECIPE_ID, statementKind: 'fromPerson' }),
+            expect.anything(),
+        );
         expect(stored).toMatchObject({ visibility: 'private', statementKind: 'fromPerson' });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {

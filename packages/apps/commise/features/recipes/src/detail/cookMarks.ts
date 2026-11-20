@@ -87,8 +87,8 @@ export function applyCookMark(state: CookMarks, command: CookMarkCommand): CookM
 
 /**
  * Whether the marks hold anything the store must keep: a stored line key or a current step. It decides whether the
- * record is kept or removed, and it counts a stale key (one no line matches). Whether to offer "Clear checks" is
- * `useCookMarks`'s `hasMarks`, which counts visible ticks only. Pure.
+ * record is kept or removed, and it counts a stale key (one no line matches). It does not decide whether to offer
+ * "Clear checks". Pure.
  *
  * @param state - The marks.
  * @returns `true` when a line key is held or a step is current.

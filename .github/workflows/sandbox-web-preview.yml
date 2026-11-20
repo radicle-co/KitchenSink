@@ -52,7 +52,7 @@ jobs:
         steps:
             - name: Deactivate path-routed preview deployment on close
               if: github.event.action == 'closed'
-              uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+              uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
               with:
                   script: |
                       const pr = context.payload.pull_request.number;
@@ -103,7 +103,7 @@ jobs:
             # secrets, so it can deploy no preview, and this link would point at a page that never exists.
             - name: Publish sandbox preview deployment
               if: github.event.action != 'closed' && steps.aws.outputs.authenticated == 'true'
-              uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+              uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
               env:
                   PREVIEW_MODE: ${{ vars.SANDBOX_PREVIEW_MODE }}
               with:

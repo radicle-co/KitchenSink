@@ -107,11 +107,16 @@ export interface LaneRunDeps {
     /** True once the operator asked the run to stop. */
     aborted(): boolean;
     readonly staggerMs: number;
+    /** How long a stopped lane has to exit before it is killed. Defaults to {@link STOP_GRACE_MS}. */
+    readonly stopGraceMs?: number;
     log(line: string): void;
 }
 
 /** The exit code of a run the operator stopped. */
 const ABORTED = 130;
+
+/** How long a lane has to exit after SIGTERM before SIGKILL. A runner stuck in a child process ignores the first. */
+const STOP_GRACE_MS = 10_000;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -321,49 +326,71 @@ async function runPlanned(
 
         const exits: Promise<number>[] = [];
         const children: LaneChild[] = [];
-
-        for (const lane of lanes) {
-            if (deps.aborted()) {
-                break;
-            }
-
-            if (exits.length > 0) {
-                await sleep(deps.staggerMs);
-            }
-
-            const startedAt = Date.now();
-            const child = deps.spawnLane(lane, envOf(lane));
-            children.push(child);
-            deps.log(`lane ${laneName(lane)}/${lane.count}: ${lane.device} started, log ${lane.stateDir}/runner.log`);
-            exits.push(
-                child.exit.then((code) => {
-                    deps.log(
-                        `lane ${laneName(lane)} exited ${code} after ${Math.round((Date.now() - startedAt) / 1000)} s`,
-                    );
-
-                    return code;
-                }),
-            );
-        }
-
-        let codes: number[];
-
-        try {
-            codes = await Promise.race([
-                Promise.all(exits),
+        // Work that must end as soon as a tunnel is lost: the stagger wait and the lanes themselves.
+        const unlessLost = <T>(work: Promise<T>): Promise<T> =>
+            Promise.race([
+                work,
                 ...losses.map((loss) =>
                     loss.then((error) => {
                         throw error;
                     }),
                 ),
             ]);
+        let codes: number[];
+
+        try {
+            for (const lane of lanes) {
+                if (deps.aborted()) {
+                    break;
+                }
+
+                if (exits.length > 0) {
+                    await unlessLost(sleep(deps.staggerMs));
+                }
+
+                const startedAt = Date.now();
+                const child = deps.spawnLane(lane, envOf(lane));
+                children.push(child);
+                deps.log(
+                    `lane ${laneName(lane)}/${lane.count}: ${lane.device} started, log ${lane.stateDir}/runner.log`,
+                );
+                exits.push(
+                    child.exit.then((code) => {
+                        deps.log(
+                            `lane ${laneName(lane)} exited ${code} after ${Math.round((Date.now() - startedAt) / 1000)} s`,
+                        );
+
+                        return code;
+                    }),
+                );
+            }
+
+            codes = await unlessLost(Promise.all(exits));
         } catch (error) {
-            // The lanes would run against a dead forward. Stop them and let them exit before the devices go.
+            // The lanes would run against a dead forward. Stop them, kill any that ignore it, and let them exit before
+            // the devices go.
             for (const child of children) {
                 child.stop();
             }
 
-            await Promise.allSettled(exits);
+            const exited = Promise.allSettled(exits);
+
+            let graceOver: NodeJS.Timeout | undefined;
+            const grace = new Promise<boolean>((resolve) => {
+                graceOver = setTimeout(() => {
+                    resolve(false);
+                }, deps.stopGraceMs ?? STOP_GRACE_MS);
+            });
+            const exitedInTime = await Promise.race([exited.then(() => true), grace]);
+            clearTimeout(graceOver);
+
+            if (!exitedInTime) {
+                for (const child of children) {
+                    child.stop('SIGKILL');
+                }
+            }
+
+            await exited;
 
             throw error;
         }

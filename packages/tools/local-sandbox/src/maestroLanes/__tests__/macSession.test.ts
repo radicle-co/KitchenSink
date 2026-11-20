@@ -258,7 +258,7 @@ describe('MacSession', () => {
 
                 await expect(session.openTunnel(FORWARDS)).rejects.toThrow(/not an HTTP code/u);
                 await expect(session.openTunnel(FORWARDS)).rejects.toThrow(
-                    reply === '' ? /answered ""/u : /answered "bash: curl: command not found"/u,
+                    new RegExp(`answered ${JSON.stringify(reply)}`, 'u'),
                 );
                 expect(rec.calls.filter((c) => c.args.join(' ').includes('127.0.0.1:3000/health'))).toHaveLength(2);
             }
@@ -310,6 +310,21 @@ describe('MacSession', () => {
             rec.exitTunnel(255);
             await Promise.resolve();
             await Promise.resolve();
+
+            await expect(session.lost()).resolves.toEqual(
+                new Error('the tunnel ssh exited with code 255 during the run'),
+            );
+        });
+
+        it('keeps a loss that happened before close(): lost() asked after close() still resolves with it', async () => {
+            const rec = recorder();
+            const session = make(rec.shell);
+            await session.open(run);
+            await session.openTunnel(FORWARDS);
+            rec.exitTunnel(255);
+            await Promise.resolve();
+            await Promise.resolve();
+            await session.close();
 
             await expect(session.lost()).resolves.toEqual(
                 new Error('the tunnel ssh exited with code 255 during the run'),

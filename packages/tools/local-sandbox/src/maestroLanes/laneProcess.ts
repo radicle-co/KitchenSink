@@ -35,8 +35,8 @@ export interface LaneChild {
     readonly pid: number;
     /** The runner's exit code; a signal is `128 + n`, as a shell reports it. */
     readonly exit: Promise<number>;
-    /** SIGTERM to the lane's whole process group. */
-    stop(): void;
+    /** A signal to the lane's whole process group: SIGTERM unless told otherwise. */
+    stop(signal?: 'SIGTERM' | 'SIGKILL'): void;
 }
 
 /**
@@ -62,10 +62,10 @@ export function spawnRunner(input: {
     return {
         pid: child.pid ?? -1,
         exit: exitOf(child),
-        stop: () => {
+        stop: (signal = 'SIGTERM') => {
             if (child.pid !== undefined) {
                 try {
-                    process.kill(-child.pid, 'SIGTERM');
+                    process.kill(-child.pid, signal);
                 } catch {
                     // Already gone.
                 }

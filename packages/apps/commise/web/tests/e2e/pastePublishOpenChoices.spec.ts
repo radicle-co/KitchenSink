@@ -148,7 +148,7 @@ for (const colorScheme of SCHEMES) {
             await chooseCuisine(page);
             await addStep(page, 'Soak the bread.');
             const ingredients = await pasteList(page, '3 bread');
-            await expect(paragraphWith(ingredients, 'Choose the bread you use')).toBeVisible({
+            await expect(paragraphWith(ingredients, 'More than one food fits')).toBeVisible({
                 timeout: POLL_SETTLE_TIMEOUT_MS,
             });
             await page.getByRole('button', { name: 'Publish', exact: true }).click();

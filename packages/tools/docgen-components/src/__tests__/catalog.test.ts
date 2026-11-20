@@ -181,6 +181,23 @@ describe('buildEntries', () => {
             },
         );
 
+        // The result must not depend on file order: a typo on a later leaf is refused even when a shared leaf comes first.
+        it.each([
+            ['first', true],
+            ['second', false],
+        ])('refuses a typo on a leaf listed %s, wherever the shared leaf sits', (_position, typoFirst) => {
+            const typo = makeImplementation({
+                platform: 'native',
+                sourcePath: 'packages/apps/commise/ui/src/button/Button.native.tsx',
+                moduleTags: [{ name: 'platform', text: 'sharde' }],
+            });
+            const claimsShared = makeImplementation({ moduleTags: [{ name: 'platform', text: 'shared' }] });
+            const leaves = typoFirst ? [typo, claimsShared] : [claimsShared, typo];
+
+            expect(() => buildEntries(GROUP, leaves)).toThrow('"sharde"');
+            expect(() => buildEntries(GROUP, leaves)).toThrow(typo.sourcePath);
+        });
+
         // The claim is one the generator can disprove: a native twin beside it means the file is not shared.
         it('refuses a shared leaf that has a .native twin in its own entry', () => {
             const twin = makeImplementation({

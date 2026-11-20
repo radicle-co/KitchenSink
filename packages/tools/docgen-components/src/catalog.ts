@@ -63,7 +63,8 @@ function isSharedLeaf(leaf: ComponentImplementation): boolean {
 
         if (value !== SHARED_PLATFORM) {
             throw new DocgenError(
-                `${leaf.sourcePath}: unknown @platform value ${JSON.stringify(value)}; the only value is "${SHARED_PLATFORM}"`,
+                `${leaf.sourcePath}: unknown @platform value ${JSON.stringify(value)}; ` +
+                    `the only value is "${SHARED_PLATFORM}"`,
             );
         }
     }
@@ -72,13 +73,18 @@ function isSharedLeaf(leaf: ComponentImplementation): boolean {
 }
 
 /**
- * Refuse a `@platform shared` claim that the entry's own leaves disprove.
+ * Read every leaf's `@platform` tag, then refuse a `shared` claim that the entry's own leaves disprove.
+ *
+ * Every leaf is validated before the entry is classified, so a bad value throws wherever its leaf sits and the result
+ * never depends on file order.
  *
  * @param leaves - Every leaf of one component.
- * @throws {DocgenError} When a shared leaf sits beside a `.native` leaf of the same component.
+ * @returns Whether the component's one file serves both platforms.
+ * @throws {DocgenError} For an unknown `@platform` value, or a shared leaf beside a `.native` leaf.
  */
-function assertSharedClaimHolds(leaves: readonly ComponentImplementation[]): void {
-    const shared = leaves.find(isSharedLeaf);
+function sharedClaimOf(leaves: readonly ComponentImplementation[]): boolean {
+    const declaresShared = leaves.map(isSharedLeaf);
+    const shared = leaves.find((_leaf, index) => declaresShared[index]);
     const twin = leaves.find((leaf) => leaf.platform === 'native');
 
     if (shared !== undefined && twin !== undefined) {
@@ -86,6 +92,8 @@ function assertSharedClaimHolds(leaves: readonly ComponentImplementation[]): voi
             `${shared.sourcePath}: declares @platform ${SHARED_PLATFORM} but has the native twin ${twin.sourcePath}`,
         );
     }
+
+    return shared !== undefined;
 }
 
 /**
@@ -153,10 +161,10 @@ export function buildEntries(
             (left, right) => PLATFORM_ORDER.indexOf(left.platform) - PLATFORM_ORDER.indexOf(right.platform),
         );
         const first = leaves[0] as ComponentImplementation;
-        assertSharedClaimHolds(leaves);
+        const shared = sharedClaimOf(leaves);
 
         const platforms = PLATFORM_ORDER.filter(
-            (platform) => leaves.some(isSharedLeaf) || leaves.some((leaf) => leaf.platform === platform),
+            (platform) => shared || leaves.some((leaf) => leaf.platform === platform),
         );
         const path = idPath(first.dir, group.packageDir);
         const signals = combinedSignals(leaves);

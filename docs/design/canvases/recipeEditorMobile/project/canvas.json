@@ -1479,6 +1479,27 @@
       "w": 820,
       "h": 1180,
       "title": "Recipe editor, paste a list: offline (mobile, iPad 820)"
+    },
+    "RecipeEditorStatementPaidSiteIphone390.dc.html": {
+      "x": 0,
+      "y": 16441,
+      "w": 390,
+      "h": 3752,
+      "title": "Recipe editor, where it’s from: a paid website (mobile, iPhone 390)"
+    },
+    "RecipeEditorStatementPaidSiteAndroid384.dc.html": {
+      "x": 470,
+      "y": 16441,
+      "w": 384,
+      "h": 3739,
+      "title": "Recipe editor, where it’s from: a paid website (mobile, Android 384)"
+    },
+    "RecipeEditorStatementPaidSiteIpad820.dc.html": {
+      "x": 934,
+      "y": 16441,
+      "w": 820,
+      "h": 3564,
+      "title": "Recipe editor, where it’s from: a paid website (mobile, iPad 820)"
     }
   },
   "order": [
@@ -1691,7 +1712,10 @@
     "RecipeEditorPasteChooseIpad820.dc.html",
     "RecipeEditorPasteChooseStatesIpad820.dc.html",
     "RecipeEditorPasteStalledIpad820.dc.html",
-    "RecipeEditorPasteOfflineIpad820.dc.html"
+    "RecipeEditorPasteOfflineIpad820.dc.html",
+    "RecipeEditorStatementPaidSiteIphone390.dc.html",
+    "RecipeEditorStatementPaidSiteAndroid384.dc.html",
+    "RecipeEditorStatementPaidSiteIpad820.dc.html"
   ],
   "notes": {
     "row0": {

@@ -2,7 +2,7 @@
 // gateLedger.test.mjs; this proves the adapter wires them to git and the artifact layout the workflow uses.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -209,5 +209,29 @@ describe('gateRun: deletions and gate-rerun', () => {
         assert.equal(rerun.mode, 'judge');
         assert.deepEqual(readPlan(rerunOut).toJudge, ['src/a.ts']);
         assert.equal(head, git('rev-parse', 'HEAD~1'));
+    });
+});
+
+describe('gateRun: a type change', () => {
+    before(() => {
+        root = mkdtempSync(join(tmpdir(), 'gateRun3-'));
+        repo = join(root, 'repo');
+        mkdirSync(repo);
+        git('init', '-q', '-b', 'main');
+        commitFile('src/noop.ts', 'export {};\n');
+        base = commitFile('src/guard.ts', 'export const guard = () => { throw new Error("no"); };\n');
+    });
+    after(() => rmSync(root, { recursive: true, force: true }));
+
+    it('judges a file that a PR turns into a symlink, instead of passing with no judge', () => {
+        rmSync(join(repo, 'src/guard.ts'));
+        symlinkSync('noop.ts', join(repo, 'src/guard.ts'));
+        git('add', 'src/guard.ts');
+        git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'guard becomes a symlink');
+        const head = git('rev-parse', 'HEAD');
+        const out = fresh('outT');
+        const result = plan(head, fresh('ledgerT'), out);
+        assert.equal(result.mode, 'judge');
+        assert.deepEqual(readPlan(out).toJudge, ['src/guard.ts']);
     });
 });

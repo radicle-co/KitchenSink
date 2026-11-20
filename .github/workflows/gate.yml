@@ -271,7 +271,7 @@ jobs:
                       --max-turns 60
                       --agent staff-code-quality
                       --allowedTools "Read,Glob,Grep"
-                      --disallowedTools "Bash,Edit,MultiEdit,Write,NotebookEdit,Task,WebFetch,WebSearch,Read(//proc/**),Read(//sys/**),Read(//etc/**),Read(//root/**),Read(//run/**),Read(//var/**),Read(~/.*/**),Read(/${{ runner.temp }}/_runner_file_commands/**),Read(/${{ runner.temp }}/_github_workflow/**),Read(/${{ runner.temp }}/_github_home/**),Read(/${{ runner.temp }}/gateSeal/**)"
+                      --disallowedTools "Bash,Edit,MultiEdit,Write,NotebookEdit,Task,Agent,WebFetch,WebSearch,Read(./.git/**),Read(//proc/**),Read(//sys/**),Read(//etc/**),Read(//root/**),Read(//run/**),Read(//var/**),Read(~/.*/**),Read(/${{ runner.temp }}/_runner_file_commands/**),Read(/${{ runner.temp }}/_github_workflow/**),Read(/${{ runner.temp }}/_github_home/**),Read(/${{ runner.temp }}/gateSeal/**)"
                       --json-schema '{"type":"object","additionalProperties":false,"required":["verdict","findings"],"properties":{"verdict":{"enum":["PASS","BLOCK"]},"findings":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["severity","title","detail"],"properties":{"severity":{"enum":["blocking","advisory"]},"file":{"type":"string"},"line":{"type":"integer"},"title":{"type":"string"},"detail":{"type":"string"}}}}}}'
 
             # Runs whether or not the judge step succeeded, and turns anything but a clean, well-formed result into

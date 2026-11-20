@@ -84,7 +84,8 @@ function plan() {
     const out = need('--out');
     const mergeBase = git(repo, ['merge-base', base, head]).trim();
     // --no-renames: a rename is a deletion of the old path plus an addition of the new one, so neither goes unjudged.
-    const names = git(repo, ['diff', '--name-only', '--no-renames', '--diff-filter=ACMR', '-z', mergeBase, head])
+    // `d` keeps every change but a deletion, so a type change (a file turned into a symlink) is judged too.
+    const names = git(repo, ['diff', '--name-only', '--no-renames', '--diff-filter=d', '-z', mergeBase, head])
         .split('\0')
         .filter(Boolean);
     const ids = blobIds(repo, head, names);

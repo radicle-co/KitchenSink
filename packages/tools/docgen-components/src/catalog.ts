@@ -20,7 +20,11 @@
  */
 import { kindFromSignals, patternsFrom } from './classify.js';
 import type { ComponentGroup, Platform } from './config.js';
+import { DocgenError } from './errors.js';
 import type { ComponentEntry, ComponentImplementation, LayerSignals } from './model.js';
+
+/** The one `@platform` value: a bare file whose imports resolve per platform. */
+const SHARED_PLATFORM = 'shared';
 
 /** Platform order used everywhere, so two entries never disagree about which leaf comes first. */
 const PLATFORM_ORDER: readonly Platform[] = ['web', 'native'];
@@ -44,14 +48,44 @@ function idPath(dir: string, packageDir: string): string {
  *
  * A suffix-less file whose imports resolve per platform (the house `Sheet`, say) has no `.native.tsx` twin to pair
  * with. The docblock declares it with `@platform shared`; the generator reads that and never infers it from imports.
+ * The value set is closed: the tag's first word must be `shared`, and anything else (`web`, a typo) is refused rather
+ * than read as no tag.
  *
  * @param leaf - One leaf.
  * @returns Whether it declares itself shared.
+ * @throws {DocgenError} When the leaf carries an `@platform` tag whose value is not `shared`.
  */
 function isSharedLeaf(leaf: ComponentImplementation): boolean {
-    return [...leaf.moduleTags, ...leaf.tags].some(
-        (tag) => tag.name === 'platform' && tag.text.trim().split(/\s/)[0] === 'shared',
-    );
+    const tags = [...leaf.moduleTags, ...leaf.tags].filter((tag) => tag.name === 'platform');
+
+    for (const tag of tags) {
+        const value = tag.text.trim().split(/\s/)[0] ?? '';
+
+        if (value !== SHARED_PLATFORM) {
+            throw new DocgenError(
+                `${leaf.sourcePath}: unknown @platform value ${JSON.stringify(value)}; the only value is "${SHARED_PLATFORM}"`,
+            );
+        }
+    }
+
+    return tags.length > 0;
+}
+
+/**
+ * Refuse a `@platform shared` claim that the entry's own leaves disprove.
+ *
+ * @param leaves - Every leaf of one component.
+ * @throws {DocgenError} When a shared leaf sits beside a `.native` leaf of the same component.
+ */
+function assertSharedClaimHolds(leaves: readonly ComponentImplementation[]): void {
+    const shared = leaves.find(isSharedLeaf);
+    const twin = leaves.find((leaf) => leaf.platform === 'native');
+
+    if (shared !== undefined && twin !== undefined) {
+        throw new DocgenError(
+            `${shared.sourcePath}: declares @platform ${SHARED_PLATFORM} but has the native twin ${twin.sourcePath}`,
+        );
+    }
 }
 
 /**
@@ -119,6 +153,8 @@ export function buildEntries(
             (left, right) => PLATFORM_ORDER.indexOf(left.platform) - PLATFORM_ORDER.indexOf(right.platform),
         );
         const first = leaves[0] as ComponentImplementation;
+        assertSharedClaimHolds(leaves);
+
         const platforms = PLATFORM_ORDER.filter(
             (platform) => leaves.some(isSharedLeaf) || leaves.some((leaf) => leaf.platform === platform),
         );

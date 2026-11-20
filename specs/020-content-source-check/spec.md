@@ -1839,7 +1839,7 @@ The check uses AI, and it searches the wider internet as well as the source the 
       to the source.
     - A family recipe needs no special label.
     - _(Amended, Owner ruling, 2026-11-15.)_ The import never rewords a cook's private copy: it keeps the source's
-      wording (`016-FR-077`). Commise writes steps only for a public version, and that version says so plainly, for example the AI credit line (words in the copy plan). The second bullet above
+      wording (`016-FR-077`). Commise writes steps only for a public version, and that version says so plainly, for example its "Written by Commise" label (words in the copy plan). The second bullet above
       applies only to that public version.
 
 **Founder questions (Q-1 and Q-3 settled 2026-11-03, owner rulings, ADR-0082 §9).**

@@ -436,7 +436,7 @@ The review wizard's per-recipe statement choice writes `statement_kind = 'author
 
 - **Pending, not committed.** Picking "I wrote this" does not commit. The choice shows as pending until the cook answers.
 - **No or Escape.** Restores the site choice and returns focus to the control. On mobile, Escape is the hardware keyboard key.
-- **Yes.** Commits the switch, discards or cancels the draft, and shows no further message.
+- **Yes.** Commits the switch, discards or cancels the draft, returns focus to the statement control, and shows no further message.
 - **Focus and announcement.** When the confirm opens, focus moves to the confirm line, which sits in a polite live region.
 - **Layout.** Web: the two buttons side by side, Yes first. Mobile: two buttons stacked full width in the row, No first.
 - **The confirm is UX only.** The server stays safe if the job's state changes between the tap and Yes, because the authored write cancels whatever job is there under the lock.

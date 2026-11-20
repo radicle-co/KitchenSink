@@ -765,6 +765,46 @@ describe('runLaneRun — a lost tunnel', () => {
         expect(events).toContain('teardownHost android');
         expect(events).toContain('unlock');
     });
+    it('waits for the stopped lanes to exit before it stops the device', async () => {
+        let loseTunnel: (error: Error) => void = () => undefined;
+        const lost = new Promise<Error>((resolve) => {
+            loseTunnel = resolve;
+        });
+        const { events, deps } = harness();
+        const run = runLaneRun(
+            {
+                ...deps,
+                adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                spawnLane: () => {
+                    let finish: (code: number) => void = () => undefined;
+                    const exit = new Promise<number>((resolve) => {
+                        finish = resolve;
+                    });
+                    setTimeout(() => {
+                        loseTunnel(new Error('the tunnel ssh exited with code 255 during the run'));
+                    }, 20);
+
+                    return {
+                        pid: 0,
+                        exit,
+                        // A real runner takes time to die: it exits after the stop, not with it.
+                        stop: () => {
+                            setTimeout(() => {
+                                events.push('laneExited');
+                                finish(143);
+                            }, 30);
+                        },
+                    };
+                },
+            },
+            { platforms: ['android'], requested: 1, selection: 'all' },
+        );
+
+        await expect(run).rejects.toThrow('the tunnel ssh exited with code 255 during the run');
+        expect(events).toContain('laneExited');
+        expect(events.indexOf('laneExited')).toBeLessThan(events.indexOf('stopDevice android-1'));
+    });
+
     it('still stops the run when the tunnel was lost before the lanes began, and starts no lane', async () => {
         const { events, deps } = harness();
         const lost = Promise.resolve(new Error('the tunnel ssh exited with code 255 during the run'));

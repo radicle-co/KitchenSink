@@ -257,7 +257,9 @@ describe('MacSession', () => {
                 await session.open(run);
 
                 await expect(session.openTunnel(FORWARDS)).rejects.toThrow(/not an HTTP code/u);
-                await expect(session.openTunnel(FORWARDS)).rejects.toThrow(new RegExp(reply.slice(0, 8), 'u'));
+                await expect(session.openTunnel(FORWARDS)).rejects.toThrow(
+                    reply === '' ? /answered ""/u : /answered "bash: curl: command not found"/u,
+                );
                 expect(rec.calls.filter((c) => c.args.join(' ').includes('127.0.0.1:3000/health'))).toHaveLength(2);
             }
         });

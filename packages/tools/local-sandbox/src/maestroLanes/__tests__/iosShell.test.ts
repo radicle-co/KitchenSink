@@ -55,4 +55,11 @@ describe('createIosShell', () => {
 
         await expect(task.stop()).resolves.toBeUndefined();
     });
+
+    it('reports exit code 1 for a background command that cannot start, and stops it without hanging', async () => {
+        const task = createIosShell().background('/no/such/command', []);
+
+        await expect(task.exited).resolves.toBe(1);
+        await expect(task.stop()).resolves.toBeUndefined();
+    });
 });

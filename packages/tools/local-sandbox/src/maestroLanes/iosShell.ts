@@ -9,7 +9,7 @@ import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { IosShell } from './iosAdapter.js';
-import { exitCodeOf } from './laneProcess.js';
+import { exitOf } from './laneProcess.js';
 
 export function createIosShell(): IosShell {
     return {
@@ -30,12 +30,7 @@ export function createIosShell(): IosShell {
             }),
         background: (command, args) => {
             const child = spawn(command, [...args], { stdio: 'ignore', detached: true });
-            // A signal is `128 + n`, as a shell reports it.
-            const exited = new Promise<number>((resolve) => {
-                child.once('exit', (code, signal) => {
-                    resolve(exitCodeOf(code, signal));
-                });
-            });
+            const exited = exitOf(child);
 
             return {
                 stop: async () => {

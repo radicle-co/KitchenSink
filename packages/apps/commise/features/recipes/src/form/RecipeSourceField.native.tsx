@@ -29,6 +29,7 @@ import { editorMessages } from '../editor/messages.js';
 import { openExternalUrl } from '../detail/openExternalUrl.native.js';
 import { sourceErrorId, sourceNoteId } from './fieldErrorIds.js';
 import { sourceFieldId } from './fieldIds.js';
+import type { LockedAnswer } from './sourceLink.js';
 import type { RecipeSourceFieldNativeProps } from './sourceFieldProps.js';
 
 const Column = styled(YStack, { name: 'SourceField', gap: '$1' });
@@ -54,6 +55,10 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
 }) => {
     const { source: m } = useMessages(editorMessages);
     const { sourceStatement: answers } = useMessages(recipeActionMessages);
+    const lockedAnswerText: Record<LockedAnswer, string> = {
+        paidSite: answers.answerPaidSite,
+        fromPerson: answers.answerPerson,
+    };
 
     if (row.kind === 'hidden') {
         return null;
@@ -84,18 +89,22 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
         );
     }
 
-    if (row.kind === 'lockedCitation') {
+    if (row.kind === 'lockedAnswer') {
         return (
             <Column>
                 <Text typeRole="label" color="$inkMuted">
                     {m.label}
                 </Text>
-                <Text typeRole="body" color="$ink">
-                    {answers.answerPaidSite}
-                </Text>
-                <Text typeRole="meta" color="$inkMuted" flexShrink={1}>
-                    {row.citation}
-                </Text>
+                {row.answer === undefined ? null : (
+                    <Text typeRole="body" color="$ink">
+                        {lockedAnswerText[row.answer]}
+                    </Text>
+                )}
+                {row.citation === undefined ? null : (
+                    <Text typeRole="meta" color="$inkMuted" flexShrink={1}>
+                        {row.citation}
+                    </Text>
+                )}
                 <Text typeRole="meta" color="$inkMuted">
                     {m.locked}
                 </Text>

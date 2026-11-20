@@ -2,7 +2,13 @@
  * `sourceLink.ts`: the editor's one reading of the Source field (ADR-0089). Written FROM the blueprint's state table, so
  * each case names the behaviour the cook sees, not the function that makes it.
  */
-import { extractSourceLink, RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
+import {
+    extractSourceLink,
+    RecipeSourceType,
+    RecipeStatus,
+    RecipeVisibility,
+    UNRECOGNISED_STATEMENT_KIND,
+} from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
 
 import { makeRecipeDetail, makeRecipeFormValues } from '../../__fixtures__/index.js';
@@ -137,9 +143,23 @@ describe('draftPrivateRule: the rule follows the DRAFT’s source', () => {
         expect(draftPrivateRule(makeRecipeFormValues(), book)).toBe('privateOnly');
         expect(draftPrivateRule(makeRecipeFormValues(), curator)).toBe('slots');
     });
+
+    it('judges a "from another person" recipe by its stored facts, whatever the field holds: a typed link does not make it private only', () => {
+        const person = neverPublished({ statementKind: 'fromPerson' });
+
+        expect(draftPrivateRule(withLink(ALLRECIPES), person)).toBe('slots');
+        expect(draftPrivateRule(makeRecipeFormValues(), person)).toBe('slots');
+    });
 });
 
 describe('sourceStatementOf: what the wire carries', () => {
+    it('sends no statement for a "from another person" recipe, so a checkpoint never meets the lock', () => {
+        const person = neverPublished({ statementKind: 'fromPerson' });
+
+        expect(sourceStatementOf(makeRecipeFormValues(), person)).toBeUndefined();
+        expect(sourceStatementOf(withLink(ALLRECIPES), person)).toBeUndefined();
+    });
+
     it('create: a link that parses is sent as the citation, re-serialised', () => {
         expect(sourceStatementOf(withLink(`  ${ALLRECIPES}.`), undefined)).toEqual({
             kind: 'public_web',
@@ -254,6 +274,12 @@ describe('pastedSourcePlanOf: a link line in pasted text', () => {
                 recipe: webCopy({ status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST, clonedFromId: CLONE_OF }),
             }),
         ).toEqual({ note: { kind: 'locked' } });
+    });
+
+    it('leaves a pasted link out of a "from another person" recipe and says it can’t change (AE2)', () => {
+        expect(plan(`2 eggs\n${ALLRECIPES}`, { recipe: neverPublished({ statementKind: 'fromPerson' }) })).toEqual({
+            note: { kind: 'locked' },
+        });
     });
 
     // Rewritten by the 2026-11-15 owner ruling: a published recipe used to answer `locked` here.
@@ -385,7 +411,7 @@ describe('sourceRowOf: a paid website is locked, with no link', () => {
     it('a saved paid-site recipe shows its citation, not the hidden row', () => {
         expect(
             sourceRowOf({ values: makeRecipeFormValues(), recipe: paid, fromPaste: false, showError: true }),
-        ).toEqual({ kind: 'lockedCitation', citation: 'Sam’s Subscription Kitchen' });
+        ).toEqual({ kind: 'lockedAnswer', answer: 'paidSite', citation: 'Sam’s Subscription Kitchen' });
     });
 
     it('a citation the cook has just confirmed locks the row before any write', () => {
@@ -397,7 +423,42 @@ describe('sourceRowOf: a paid website is locked, with no link', () => {
                 showError: false,
                 paidSiteStated: 'Sam’s Subscription Kitchen',
             }),
-        ).toEqual({ kind: 'lockedCitation', citation: 'Sam’s Subscription Kitchen' });
+        ).toEqual({ kind: 'lockedAnswer', answer: 'paidSite', citation: 'Sam’s Subscription Kitchen' });
+    });
+
+    it('a recipe stored as "from another person" shows that answer, locked, with no citation', () => {
+        for (const over of [
+            { status: RecipeStatus.DRAFT },
+            { status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST },
+        ]) {
+            expect(
+                sourceRowOf({
+                    values: makeRecipeFormValues(),
+                    recipe: makeRecipeDetail({ ...over, statementKind: 'fromPerson' }),
+                    fromPaste: false,
+                    showError: true,
+                }),
+            ).toEqual({ kind: 'lockedAnswer', answer: 'fromPerson' });
+        }
+    });
+
+    it('a pasted link cannot move a "from another person" recipe: the row stays locked and the paste is left out', () => {
+        const person = makeRecipeDetail({ statementKind: 'fromPerson' });
+
+        expect(sourceRowOf({ values: withLink(ALLRECIPES), recipe: person, fromPaste: true, showError: true })).toEqual(
+            { kind: 'lockedAnswer', answer: 'fromPerson' },
+        );
+    });
+
+    it('an unrecognised statement kind is locked and the row names no answer (po P-1)', () => {
+        expect(
+            sourceRowOf({
+                values: makeRecipeFormValues(),
+                recipe: makeRecipeDetail({ statementKind: UNRECOGNISED_STATEMENT_KIND }),
+                fromPaste: false,
+                showError: true,
+            }),
+        ).toEqual({ kind: 'lockedAnswer' });
     });
 
     it('a locked web copy with an address keeps its linked row, and the curator’s text stays hidden', () => {

@@ -10,12 +10,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SOURCE_LINK_INPUT_MAX_LENGTH, SOURCE_LINK_MAX_LENGTH } from '@kitchensink/recipe-core';
 
+import { recipeActionMessages } from '../../actions/messages.js';
 import { editorMessages } from '../../editor/messages.js';
 import type { SourceRowModel } from '../sourceLink.js';
 import { RecipeSourceField } from '../RecipeSourceField.js';
 import { sourceErrorId } from '../fieldErrorIds.js';
 
 const m = editorMessages.en.source;
+const a = recipeActionMessages.en.sourceStatement;
 const URL = 'https://www.allrecipes.com/recipe/1/soup/';
 
 afterEach(cleanup);
@@ -117,14 +119,37 @@ describe('RecipeSourceField (web)', () => {
         expect(screen.queryByRole('button', { name: m.remove })).toBeNull();
     });
 
-    it('lockedCitation: the label, "From a paid website", the citation as plain text, the reason, and no link, field or Remove', () => {
-        renderRow({ kind: 'lockedCitation', citation: 'https://paid.example/recipe' });
+    it('lockedAnswer, paid site: the label, "From a paid website", the citation as plain text, the reason, and no link, field or Remove', () => {
+        renderRow({ kind: 'lockedAnswer', answer: 'paidSite', citation: 'https://paid.example/recipe' });
 
         expect(screen.getByText(m.label)).toBeTruthy();
         expect(screen.getByText('From a paid website')).toBeTruthy();
         expect(screen.getByText('https://paid.example/recipe')).toBeTruthy();
         expect(screen.getByText(m.locked)).toBeTruthy();
         expect(screen.queryByRole('link')).toBeNull();
+        expect(screen.queryByRole('textbox')).toBeNull();
+        expect(screen.queryByRole('button', { name: m.remove })).toBeNull();
+    });
+
+    it('lockedAnswer, from another person: the label, the answer, the reason, and no citation, link, field or Remove', () => {
+        renderRow({ kind: 'lockedAnswer', answer: 'fromPerson' });
+
+        expect(screen.getByText(m.label)).toBeTruthy();
+        expect(screen.getByText(a.answerPerson)).toBeTruthy();
+        expect(screen.getByText(m.locked)).toBeTruthy();
+        expect(screen.queryByText(a.answerPaidSite)).toBeNull();
+        expect(screen.queryByRole('link')).toBeNull();
+        expect(screen.queryByRole('textbox')).toBeNull();
+        expect(screen.queryByRole('button', { name: m.remove })).toBeNull();
+    });
+
+    it('lockedAnswer, unrecognised statement kind: the label and the reason, and no answer line', () => {
+        renderRow({ kind: 'lockedAnswer' });
+
+        expect(screen.getByText(m.label)).toBeTruthy();
+        expect(screen.getByText(m.locked)).toBeTruthy();
+        expect(screen.queryByText(a.answerPerson)).toBeNull();
+        expect(screen.queryByText(a.answerPaidSite)).toBeNull();
         expect(screen.queryByRole('textbox')).toBeNull();
         expect(screen.queryByRole('button', { name: m.remove })).toBeNull();
     });

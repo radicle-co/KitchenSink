@@ -424,6 +424,26 @@ describe('recipeSender — a delete that meets a 404', () => {
         expect(await send(record('delete', { id: 'r1' }))).toStrictEqual({ outcome: 'failed', status: 404 });
     });
 
+    /**
+     * P7 (fromPersonLock, po P-2): a queued update that meets `403 SOURCE_LOCKED` (a stale device sent a statement the
+     * recipe's lock now refuses) is a plain terminal 403. It is NOT dropped, so the record stays parked with the cook's other
+     * edits (title, steps, ingredients) for the cook to see, and the drain never re-sends it by itself.
+     */
+    it('⛔ an update refused as SOURCE_LOCKED is a terminal 403 that is parked with its edits, never dropped or re-sent', async () => {
+        const updateRecipe = vi.fn().mockRejectedValue(new ForbiddenError('SOURCE_LOCKED'));
+        const send = recipeSender(() => ({ updateRecipe }) as never);
+
+        const result = await send(record('update', { id: 'r1', input: { title: 'Soup' } }));
+
+        expect(result).toStrictEqual({ outcome: 'failed', status: 403 });
+        expect(result).not.toHaveProperty('drop');
+
+        const failure = { entity: 'recipe', intentKind: 'update', localId: 'r1', status: 403 } as const;
+
+        expect(classifyFailure(failure)).toBe('terminal');
+        expect(resendsWhenParked(failure)).toBe(false);
+    });
+
     it('⛔ does not turn other refusals of a delete into success', async () => {
         const deleteRecipe = vi.fn().mockRejectedValue(new ForbiddenError('no'));
         const send = recipeSender(() => ({ deleteRecipe }) as never);

@@ -1505,21 +1505,21 @@
       "x": 0,
       "y": 20593,
       "w": 390,
-      "h": 1753,
+      "h": 2505,
       "title": "Recipe editor, why Public is refused (mobile, iPhone 390)"
     },
     "RecipeEditorRefusalNoticeAndroid384.dc.html": {
       "x": 470,
       "y": 20593,
       "w": 384,
-      "h": 1780,
+      "h": 2512,
       "title": "Recipe editor, why Public is refused (mobile, Android 384)"
     },
     "RecipeEditorRefusalNoticeIpad820.dc.html": {
       "x": 934,
       "y": 20593,
       "w": 820,
-      "h": 1596,
+      "h": 2208,
       "title": "Recipe editor, why Public is refused (mobile, iPad 820)"
     }
   },

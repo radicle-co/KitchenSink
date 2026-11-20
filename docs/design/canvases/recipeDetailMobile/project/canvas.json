@@ -1099,21 +1099,21 @@
       "x": 0,
       "y": 40480,
       "w": 390,
-      "h": 3369,
+      "h": 3795,
       "title": "Recipe detail, why it stays private (mobile, iPhone 390)"
     },
     "RecipeRefusalNoticeAndroid384.dc.html": {
       "x": 470,
       "y": 40480,
       "w": 384,
-      "h": 3336,
+      "h": 3762,
       "title": "Recipe detail, why it stays private (mobile, Android 384)"
     },
     "RecipeRefusalNoticeIpad820.dc.html": {
       "x": 934,
       "y": 40480,
       "w": 820,
-      "h": 3012,
+      "h": 3338,
       "title": "Recipe detail, why it stays private (mobile, iPad 820)"
     }
   },

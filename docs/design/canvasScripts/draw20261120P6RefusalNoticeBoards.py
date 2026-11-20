@@ -4,9 +4,13 @@
 Two board families, each at web 1280 and 390, iPhone 390, Android 384 and iPad 820:
 - RecipeRefusalNotice on recipeDetailWeb and recipeDetailMobile: the recipe page's header card with the standing reason
   line for each of the six reasons, the cases with no line (I wrote this, a public recipe, a reader), a failed write in
-  the slot's place, and the page after the cook's answer with the ⋯ menu that no longer offers Make public.
+  the slot's place, the page after the cook's answer with the ⋯ menu that no longer offers Make public, and notes for
+  loading, offline and a reason that changes while the page is open.
 - RecipeEditorRefusalNotice on recipeEditorWeb and recipeEditorMobile: the editor's "Who can see it" field with the
-  Public card refused and the same line as its description, for each reason, and Public offered for I wrote this.
+  Public card refused and the same line as its description, for each reason, Public offered for I wrote this, and
+  both cards refused (no private slot left) with the ways forward taken from RecipeEditorVisibility's slots figure.
+
+Captions are builder notes in a dashed box (`.p6-note`), so none can pass for the standing line.
 
 It also redraws the one line of superseded copy left on the canvases: the P3 boards RecipeEditorStatementPaidSite drew
 the Public card's note as the old `publicRefused` text, which P6 deletes. They now show the paid-website line.
@@ -77,7 +81,11 @@ P6_CSS = """
 .p6-menu { margin: 0; padding: 8px 0; list-style: none; width: 100%; max-width: 320px; align-self: flex-end; background: var(--paper-overlay); border-radius: var(--radius-lg); box-shadow: var(--shadow-xl); }
 .p6-menu li { display: flex; align-items: center; min-height: 48px; padding: 0 16px; }
 .p6-menu li.p6-del { color: var(--danger-text); border-top: 1px solid var(--line-divider); }
+.p6-note { margin: 0 0 8px; padding: 6px 10px; border: 1px dashed var(--line-control); border-radius: 8px; font: 500 14px/20px var(--font-body); color: var(--ink-muted); }
 """
+
+# Captions are notes for the builder, never UI copy: a dashed box no UI uses, so they cannot pass for the standing line.
+NOTE = "p6-note"
 
 DETAIL_FIGURES = [
     (
@@ -175,14 +183,14 @@ def failed() -> str:
 
 def detail_figure(caption: str, body: str) -> str:
     """One captioned state on the recipe page board."""
-    return f'<div role="group" aria-label="{caption}"><p class="cap">{caption}</p>{body}</div>'
+    return f'<div role="group" aria-label="{caption}"><p class="{NOTE}">{caption}</p>{body}</div>'
 
 
 def after_answer(card_tag: str) -> str:
     """The page after the cook answers From a web page: line, focused ⋯ button and the menu without Make public."""
     return (
         header_card(card_tag, False, SOURCES["webPage"], standing("webPage"))
-        + '<div class="p6-tail"><p class="cap">Focus is on the ⋯ button in the page header. Opened again, its menu:</p>'
+        + f'<div class="p6-tail"><p class="{NOTE}">Focus is on the ⋯ button in the page header. Opened again, its menu:</p>'
         '<span class="p6-more" role="button" aria-label="More actions">'
         '<svg aria-hidden="true"><use href="#dots" /></svg></span>'
         '<ul class="p6-menu" role="menu" aria-label="Recipe actions"><li role="menuitem">Version history</li>'
@@ -216,8 +224,20 @@ def detail_content(card_tag: str) -> str:
             header_card(card_tag, True, "", ""),
         ),
         detail_figure(
-            "Another cook reading it: no line. Only the owner is told why",
+            "Another cook reading a public recipe: no line. Only the owner can open a private recipe, so no one else "
+            "ever meets a reason line",
             header_card(card_tag, True, "", ""),
+        ),
+        detail_figure("Loading: no line until the recipe has loaded, so a line never flashes on a public recipe", ""),
+        detail_figure(
+            "Offline: Make public stays in the menu and says “You’re offline. Try again when you’re back online.” "
+            "No answer is sent, and the line does not change",
+            "",
+        ),
+        detail_figure(
+            "The reason changes from one to another while the page is open (an edit on another device): the new line "
+            "shows and is not spoken. Only a change from no reason to a reason is said",
+            "",
         ),
     ]
     return "".join(figures)
@@ -260,14 +280,26 @@ def editor_card(styles: dict[str, str], label: str, kind: str, notes: list[str],
     )
 
 
-def editor_figure(caption: str, cards: str) -> str:
-    """One captioned state on the editor board."""
+def editor_figure(caption: str, cards: str, after: str = "") -> str:
+    """One captioned state on the editor board; `after` follows the radio group (the ways forward)."""
     return (
-        f'<section class="fig" aria-label="{caption}"><p class="cap">{caption}</p>'
+        f'<section class="fig" aria-label="{caption}"><p class="{NOTE}">{caption}</p>'
         '<div style="display: flex; flex-direction: column; gap: 8px"><span class="vl">Who can see it</span>'
         f'<div role="radiogroup" aria-label="Who can see it" style="display: flex; flex-direction: column; gap: 8px">{cards}</div>'
-        "</div></section>"
+        f"{after}</div></section>"
     )
+
+
+SLOTS_FULL_FIGURE = "Free plan, no slots left: Private is refused, with the ways forward"
+SLOTS_FULL_NOTE = "Not available. All 50 of your private slots are in use."
+
+
+def ways_forward(host: str) -> str:
+    """The host's "To keep this recipe private" block, taken whole from its no-slots figure."""
+    section = _search(rf'<section\b[^>]*aria-label="{SLOTS_FULL_FIGURE}"', host).start()
+    title = _search(r'<span class="vl">To keep this recipe private</span\s*>', host[section:]).start() + section
+    start = host.rindex("<div", section, title)
+    return host[start : element_end(host, start, "div")]
 
 
 EDITOR_FIGURES = [
@@ -297,6 +329,17 @@ def editor_content(host: str) -> str:
             "I wrote this: Public is offered, with no line",
             editor_card(styles, "Public", "chosen", ["Anyone can find it in Discover"])
             + editor_card(styles, "Private", "open", ["Only you can see it"]),
+        )
+    )
+    figures.append(
+        editor_figure(
+            "Free plan with no private slots left, on a draft from a web page (or From another person): Public is "
+            "refused by the source and Private by the slots. Each card keeps its own line. Private stays chosen, "
+            "because it is the only answer the recipe can have, with the ways forward from the slots boards. Publish "
+            "is refused as it is today, and Keep as draft still works (a draft uses no slot)",
+            editor_card(styles, "Public", "refused", [LINES["webPage"]], "why-noSlots")
+            + editor_card(styles, "Private", "chosen", ["Only you can see it", SLOTS_FULL_NOTE]),
+            ways_forward(host),
         )
     )
     return "".join(figures)

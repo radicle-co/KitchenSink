@@ -179,16 +179,17 @@ describe('buildEntries', () => {
         });
 
         // Parse, do not validate: the value set is closed, so a typo is a failure and never a silently ignored tag.
-        it.each(['web', 'sharde', ''])(
-            'refuses the unknown @platform value %j, naming the file and the value',
-            (text) => {
-                const bad = makeImplementation({ moduleTags: [{ name: 'platform', text }] });
+        it.each([
+            ['web', '"web"'],
+            ['sharde', '"sharde"'],
+            ['', '""'],
+        ])('refuses the unknown @platform value %j, naming the file and the value', (text, quoted) => {
+            const bad = makeImplementation({ moduleTags: [{ name: 'platform', text }] });
 
-                expect(() => buildEntries(GROUP, [bad])).toThrow(DocgenError);
-                expect(() => buildEntries(GROUP, [bad])).toThrow(bad.sourcePath);
-                expect(() => buildEntries(GROUP, [bad])).toThrow(JSON.stringify(text.trim().split(/\s/)[0]));
-            },
-        );
+            expect(() => buildEntries(GROUP, [bad])).toThrow(DocgenError);
+            expect(() => buildEntries(GROUP, [bad])).toThrow(bad.sourcePath);
+            expect(() => buildEntries(GROUP, [bad])).toThrow(quoted);
+        });
 
         // The result must not depend on file order: the shared leaf sits first and the typo after it, which a
         // first-match shortcut would never read.
@@ -210,7 +211,8 @@ describe('buildEntries', () => {
             const webOnly: ComponentGroup = { ...GROUP, platforms: ['web'] };
 
             expect(() => buildEntries(webOnly, [shared])).toThrow(
-                'packages/apps/commise/ui/src/button/Sheet.tsx: declares @platform shared but its group ships to web only',
+                'packages/apps/commise/ui/src/button/Sheet.tsx: declares @platform shared ' +
+                    'but its group ships to web only',
             );
         });
 

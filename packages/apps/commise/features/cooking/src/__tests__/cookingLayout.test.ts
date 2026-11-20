@@ -37,7 +37,7 @@ describe('the cooking surface widths', () => {
         expect(NARROW_ROW.placeWebClassName).toContain(`${String(NARROW_ROW.maxRem)}rem`);
         expect(NARROW_ROW.navWebClassName).toContain(`${String(NARROW_ROW.maxRem)}rem`);
         // Ingredients: wide, after the place (the order class); narrow, at the end of its row (the auto start margin).
-        expect(NARROW_ROW.ingredientsWebClassName).toBe('@min-[22.5rem]:order-1 @max-[22.5rem]:ml-auto');
+        expect(NARROW_ROW.ingredientsWebClassName).toBe('@min-[22.5rem]:order-1 @max-[22.5rem]:ms-auto');
         expect(NARROW_ROW.ingredientsWebClassName).toContain(`${String(NARROW_ROW.maxRem)}rem`);
     });
 

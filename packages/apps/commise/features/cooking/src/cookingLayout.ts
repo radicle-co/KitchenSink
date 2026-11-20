@@ -17,7 +17,7 @@ export const NOTICE_COLUMN = { maxPx: 480, webClassName: 'max-w-[480px]' } as co
  * Under 360 the place drops to its own full-width row and the Back and Next chevrons hide, so the labels keep their
  * width. Web writes the width in rem, 22.5 at 16 px a rem, so the rule also fires when the cook enlarges the text.
  * Native reads `maxPx`. The container-query classes are written whole, each holding its number. The top bar's
- * Ingredients button sits after the place when wide (`order-1`) and at the end of its row when narrow (`ml-auto`), in
+ * Ingredients button sits after the place when wide (`order-1`) and at the end of its row when narrow (`ms-auto`), in
  * one tree.
  */
 export const NARROW_ROW = {
@@ -25,7 +25,7 @@ export const NARROW_ROW = {
     maxRem: 22.5,
     placeWebClassName: '@max-[22.5rem]:basis-full',
     navWebClassName: '@max-[22.5rem]:[&_svg]:hidden',
-    ingredientsWebClassName: '@min-[22.5rem]:order-1 @max-[22.5rem]:ml-auto',
+    ingredientsWebClassName: '@min-[22.5rem]:order-1 @max-[22.5rem]:ms-auto',
 } as const;
 
 /**

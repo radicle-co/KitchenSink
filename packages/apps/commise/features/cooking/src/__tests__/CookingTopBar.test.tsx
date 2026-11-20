@@ -83,7 +83,7 @@ describe('CookingTopBar', () => {
             expect(onPress).toHaveBeenCalledTimes(1);
         });
 
-        it('keeps one tree: Exit, Ingredients, then the place, with the wide order and the end alignment on a wrapper', () => {
+        it('keeps one tree: Exit, Ingredients, place, with the order and end alignment on a wrapper', () => {
             render(<CookingTopBar exit={exit} place={step2} ingredients={ingredients} />);
 
             const exitButton = screen.getByRole('button', { name: 'Exit cooking mode' });

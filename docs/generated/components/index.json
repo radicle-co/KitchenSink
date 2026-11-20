@@ -3,15 +3,15 @@
     "generatedBy": "@kitchensink/docgen-components",
     "totals": {
         "components": 477,
-        "implementations": 701,
-        "props": 3916,
+        "implementations": 702,
+        "props": 3919,
         "documentedComponents": 473,
-        "implementationsWithModuleDoc": 677,
-        "implementationsWithComponentDoc": 534,
-        "documentedProps": 3161,
+        "implementationsWithModuleDoc": 678,
+        "implementationsWithComponentDoc": 535,
+        "documentedProps": 3164,
         "classifiedComponents": 381,
         "componentsWithPatternTag": 267,
-        "crossPlatformComponents": 224
+        "crossPlatformComponents": 225
     },
     "groups": [
         {
@@ -79,15 +79,15 @@
             "catalogue": "docs/generated/components/groups/featuresCooking.json",
             "coverage": {
                 "components": 18,
-                "implementations": 32,
-                "props": 122,
+                "implementations": 33,
+                "props": 125,
                 "documentedComponents": 18,
-                "implementationsWithModuleDoc": 32,
-                "implementationsWithComponentDoc": 32,
-                "documentedProps": 111,
+                "implementationsWithModuleDoc": 33,
+                "implementationsWithComponentDoc": 33,
+                "documentedProps": 114,
                 "classifiedComponents": 18,
                 "componentsWithPatternTag": 8,
-                "crossPlatformComponents": 14
+                "crossPlatformComponents": 15
             }
         },
         {

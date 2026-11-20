@@ -11,5 +11,7 @@ export { RecipeServicesTree } from './RecipeServicesTree.js';
 export type { RecipeServicesTreeProps } from './RecipeServicesTree.js';
 export { createKeptSessionStore } from './kept/keptSessionStore.js';
 export type { KeptSessionStore, KeptSessionStoreDeps, KeptSnapshot } from './kept/keptSessionStore.js';
+export { ingredientTickKeysSchema } from '../detail/ingredientTickKey.js';
+export type { IngredientTickKey } from '../detail/ingredientTickKey.js';
 export { KEPT_KEY_PREFIX } from './kept/keptRecord.js';
 export type { ExclusiveRunner, KeptPort, WriteOutcome } from './kept/keptPort.js';

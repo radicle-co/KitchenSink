@@ -119,24 +119,24 @@ describe('cookingIngredientsView', () => {
         );
     });
 
-    it('holds the ticked ids as given, whatever the order of the lines', () => {
-        const ticked = new Set(['ing_salt']);
+    it('holds the ticked positions as given: the view reads positions, whatever the lines are', () => {
+        const ticked = new Set([1]);
         const forward = viewOf({ ticked });
         const reversed = viewOf({ ticked, ingredients: [...LINES].reverse() });
         const idsOf = (view: ReturnType<typeof viewOf>): readonly string[] =>
             view.kind === 'list' ? view.ingredients.map((ingredient) => ingredient.ingredientId) : [];
-        const tickedOf = (view: ReturnType<typeof viewOf>): readonly string[] =>
+        const tickedOf = (view: ReturnType<typeof viewOf>): readonly number[] =>
             view.kind === 'list' ? [...view.checked] : [];
 
         expect(idsOf(forward)).toEqual(LINES.map((line) => line.ingredientId));
         expect(idsOf(reversed)).toEqual([...LINES].reverse().map((line) => line.ingredientId));
-        expect(tickedOf(forward)).toEqual(['ing_salt']);
-        expect(tickedOf(reversed)).toEqual(['ing_salt']);
+        expect(tickedOf(forward)).toEqual([1]);
+        expect(tickedOf(reversed)).toEqual([1]);
     });
 
     describe('hasTicks', () => {
-        const hasTicksOf = (ticked: readonly string[]): boolean | undefined => {
-            const view = viewOf({ ticked: new Set(ticked) });
+        const hasTicksOf = (ticked: readonly number[], ingredients = LINES): boolean | undefined => {
+            const view = viewOf({ ticked: new Set(ticked), ingredients });
 
             return view.kind === 'list' ? view.hasTicks : undefined;
         };
@@ -146,11 +146,19 @@ describe('cookingIngredientsView', () => {
         });
 
         it('is true when a line of the list is ticked', () => {
-            expect(hasTicksOf(['ing_salt'])).toBe(true);
+            expect(hasTicksOf([1])).toBe(true);
         });
 
-        it('is false when the only ticked id is one that no line has, so a stale tick offers no Clear ticks', () => {
-            expect(hasTicksOf(['ing_not_in_this_recipe'])).toBe(false);
+        it('is false when the only ticked position is one no line has, so a stale tick offers no Clear ticks', () => {
+            expect(hasTicksOf([7])).toBe(false);
+        });
+
+        it('is true for a tick on one of two lines of one food, by position (mutant: ticked.size, or by id)', () => {
+            const twin: RecipeIngredientView = { ...SALT, displayText: 'salt for the dough' };
+
+            expect(hasTicksOf([0], [SALT, twin])).toBe(true);
+            expect(hasTicksOf([1], [SALT, twin])).toBe(true);
+            expect(hasTicksOf([2], [SALT, twin])).toBe(false);
         });
     });
 

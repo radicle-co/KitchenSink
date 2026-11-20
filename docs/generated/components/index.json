@@ -8,7 +8,7 @@
         "documentedComponents": 474,
         "implementationsWithModuleDoc": 678,
         "implementationsWithComponentDoc": 535,
-        "documentedProps": 3164,
+        "documentedProps": 3168,
         "classifiedComponents": 382,
         "componentsWithPatternTag": 268,
         "crossPlatformComponents": 224
@@ -46,7 +46,7 @@
                 "documentedComponents": 210,
                 "implementationsWithModuleDoc": 355,
                 "implementationsWithComponentDoc": 244,
-                "documentedProps": 1883,
+                "documentedProps": 1887,
                 "classifiedComponents": 188,
                 "componentsWithPatternTag": 100,
                 "crossPlatformComponents": 145

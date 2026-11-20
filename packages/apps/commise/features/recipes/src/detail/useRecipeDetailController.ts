@@ -184,7 +184,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
     const setRating = useSetRecipeRating();
     const deleteRating = useDeleteRecipeRating();
     // The view binds the cook's marks itself; the ⋯ menu reads the same marks to offer Clear checks.
-    const marks = useCookMarks(id);
+    const marks = useCookMarks(id, recipe.ingredients);
     const [deleteOpen, setDeleteOpen] = useState(false);
     // The delete's success closes the dialog; the screen is left only once that close has committed.
     useLeaveWhenClosed(deleteRecipe.isSuccess, deleteOpen, nav.onDeleted);

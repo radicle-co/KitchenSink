@@ -79,7 +79,7 @@ describe('CookingTwoColumnLayout (web)', () => {
         expect(step.contains(screen.getByText('Ingredients here'))).toBe(false);
         expect(step.className.split(' ')).toContain('w-full');
 
-        // The step slot is a flex column that may shrink, as on native, so a step body fills the height and keeps its
+        // The step slot is a flex column that may shrink, so a step body fills the height and keeps its
         // footer pinned inside it.
         for (const token of ['flex', 'min-h-0', 'flex-col']) {
             expect(step.className.split(' ')).toContain(token);

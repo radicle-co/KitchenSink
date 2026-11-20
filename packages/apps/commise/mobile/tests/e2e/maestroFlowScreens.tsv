@@ -33,6 +33,7 @@
 auth/loginFlow	CompleteSignUpScreen, HomeScreen, RecipeListScreen, login, signup
 cooking/cookingModeFlow	CookingModeScreen, HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 cooking/cookingSystemBack	CookingModeScreen, HomeScreen, RecipeDetailScreen, RecipeListScreen
+cooking/cookingIngredients	CookingModeScreen, HomeScreen, RecipeDetailScreen, RecipeListScreen
 home	HomeScreen, RecipeListScreen
 recipes/rating	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/listDetail	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen

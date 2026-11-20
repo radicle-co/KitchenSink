@@ -6,6 +6,9 @@
  * actions lives here, once. The body swipe's responder wraps the whole scrolling area, not the body's content, so the
  * empty space below a short step takes a swipe too, while the top bar and the foot stay outside it.
  *
+ * Given a `column`, the frame sets it beside the whole stack in `CookingTwoColumnLayout`, and the stack keeps its own
+ * 680 cap there.
+ *
  * Presentational: props → JSX.
  */
 import type { FC } from 'react';

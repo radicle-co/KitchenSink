@@ -475,3 +475,50 @@ test.describe('cooking mode at 390 with 200% text (plans 0002 and 0003a)', () =>
         await expectNoSidewaysScroll(page);
     });
 });
+
+/**
+ * The ingredients in cooking mode (T-015a): at one column the top bar's Ingredients button opens a sheet over the step and
+ * closing it leaves the cook on the same step; from 800 wide the ingredients are a column beside the step with no button.
+ * The roast carries one ingredient line ("Salt"), the mocked recipe's default.
+ */
+test.describe('the ingredients in cooking mode', () => {
+    test.describe('at 390', () => {
+        test.use({ viewport: { width: 390, height: 844 } });
+
+        test('opens the sheet from the top bar and closes it on the same step', async ({ page }) => {
+            await seed(page);
+            const errors = watchErrors(page);
+
+            await openCooking(page);
+            await checkbox(page, FIRST_LINE).click();
+            await page.getByRole('button', { name: 'Ingredients' }).click();
+            await expect(page.getByRole('dialog')).toBeVisible();
+            await expect(page.getByRole('dialog').getByRole('checkbox', { name: /Salt/u })).toBeVisible();
+
+            await page.getByRole('button', { name: 'Close ingredients' }).click();
+
+            await expect(page.getByRole('dialog')).toHaveCount(0);
+            await expect(stepRegion(page, 1, 6)).toContainText('You ticked 1 line');
+            await expectNoSidewaysScroll(page);
+            expect(errors, 'console errors or hydration warnings').toEqual([]);
+        });
+    });
+
+    test.describe('at 1280', () => {
+        test.use({ viewport: { width: 1280, height: 800 } });
+
+        test('draws the column beside the step, with no Ingredients button', async ({ page }) => {
+            await seed(page);
+            const errors = watchErrors(page);
+
+            await openCooking(page);
+
+            await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('Ingredients');
+            await expect(page.getByRole('checkbox', { name: /Salt/u })).toBeVisible();
+            await expect(page.getByRole('button', { name: 'Ingredients' })).toHaveCount(0);
+            await expect(stepRegion(page, 1, 6)).toBeVisible();
+            await expectNoSidewaysScroll(page);
+            expect(errors, 'console errors or hydration warnings').toEqual([]);
+        });
+    });
+});

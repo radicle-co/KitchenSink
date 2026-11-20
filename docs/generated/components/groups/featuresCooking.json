@@ -6,11 +6,11 @@
     "coverage": {
         "components": 18,
         "implementations": 34,
-        "props": 127,
+        "props": 129,
         "documentedComponents": 18,
         "implementationsWithModuleDoc": 34,
         "implementationsWithComponentDoc": 34,
-        "documentedProps": 116,
+        "documentedProps": 118,
         "classifiedComponents": 18,
         "componentsWithPatternTag": 8,
         "crossPlatformComponents": 17
@@ -272,7 +272,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingFrame — the web cooking surface: full screen, outside AppShell, because cooking is a\nfocused task.\n\nOne centred column at every band: the top bar pinned at the top, the foot pinned at the bottom (the\nNext preview above the actions), and only the body between them scrolls, so a focus line taller than the screen at\nthe largest text never pushes the place or Back / Next away. The foot keeps a gap above it, so a line cut off at the\nbottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the\nshort-screen height rule, and is busy while the recipe loads.\n\nThe route's offline notice (`CookingNoticeSlot`) is the first thing in the centred column, above the top bar and\nstarting where it starts.\n\nPresentational: props → JSX, plus the notice slot it reads from context.",
+                    "moduleDoc": "CookingFrame — the web cooking surface: full screen, outside AppShell, because cooking is a\nfocused task.\n\nOne centred column at every band: the top bar pinned at the top, the foot pinned at the bottom (the\nNext preview above the actions), and only the body between them scrolls, so a focus line taller than the screen at\nthe largest text never pushes the place or Back / Next away. The foot keeps a gap above it, so a line cut off at the\nbottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the\nshort-screen height rule, and is busy while the recipe loads.\n\nGiven a `column`, the frame sets it beside the whole stack (notice, top bar, body and foot) in `CookingTwoColumnLayout`,\nand the stack keeps its own 680 cap there. Without one it is the one centred column above.\n\nThe route's offline notice (`CookingNoticeSlot`) is the first thing in the centred column, above the top bar and\nstarting where it starts.\n\nPresentational: props → JSX, plus the notice slot it reads from context.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -300,6 +300,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "`aria-busy` on the surface while the recipe loads.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "column",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The ingredients column, present only at L2 and L3. The frame then sets it beside the whole step stack (the notice,\ntop bar, body and foot), which keeps its own width cap. Absent: one centred column.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -333,7 +342,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.native.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingFrame — the native cooking surface: the screen's main landmark, busy while the recipe loads.\nOne centred column at most 680 wide holds the top bar pinned at the top, the foot pinned at the bottom (the Next preview\nabove the actions), and only the body between them scrolling, so a focus line taller than the screen at the largest text\nnever pushes the place, Back or Next away. The frame owns the foot's layout, so the spacing between the preview and the\nactions lives here, once. The body swipe's responder wraps the whole scrolling area, not the body's content, so the\nempty space below a short step takes a swipe too, while the top bar and the foot stay outside it.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingFrame — the native cooking surface: the screen's main landmark, busy while the recipe loads.\nOne centred column at most 680 wide holds the top bar pinned at the top, the foot pinned at the bottom (the Next preview\nabove the actions), and only the body between them scrolling, so a focus line taller than the screen at the largest text\nnever pushes the place, Back or Next away. The frame owns the foot's layout, so the spacing between the preview and the\nactions lives here, once. The body swipe's responder wraps the whole scrolling area, not the body's content, so the\nempty space below a short step takes a swipe too, while the top bar and the foot stay outside it.\n\nGiven a `column`, the frame sets it beside the whole stack in `CookingTwoColumnLayout`, and the stack keeps its own\n680 cap there.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -370,6 +379,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "`aria-busy` on the surface while the recipe loads.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "column",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The ingredients column, present only at L2 and L3. The frame then sets it beside the whole step stack (the notice,\ntop bar, body and foot), which keeps its own width cap. Absent: one centred column.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {

@@ -5279,8 +5279,8 @@
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: body busy foot topBar",
-                "native: body bodySwipe busy foot topBar"
+                "web: body busy column foot topBar",
+                "native: body bodySwipe busy column foot topBar"
             ]
         },
         {

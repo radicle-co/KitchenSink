@@ -10,6 +10,9 @@
  * bottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the
  * short-screen height rule, and is busy while the recipe loads.
  *
+ * Given a `column`, the frame sets it beside the whole stack (notice, top bar, body and foot) in `CookingTwoColumnLayout`,
+ * and the stack keeps its own 680 cap there. Without one it is the one centred column above.
+ *
  * The route's offline notice (`CookingNoticeSlot`) is the first thing in the centred column, above the top bar and
  * starting where it starts.
  *

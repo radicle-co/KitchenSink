@@ -22,7 +22,12 @@ import type { FoodLookupArm } from '../../database/schema/foodLookupArm.js';
 import type { FoodLookupsDal } from '../../ingredients/dal/foodLookups.dal.js';
 import type { FoodRefsGateway } from '../../ingredients/foodRefs.gateway.js';
 import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
-import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
+import {
+    makeIngredientLineRow,
+    makeRecipeRow,
+    makeRecipeStepRow,
+    PUBLIC_CONFIRMATION_AS_SHOWN,
+} from '../../__fixtures__/index.js';
 import type { RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
@@ -105,6 +110,7 @@ function refsDouble(says: Partial<Record<string, FoodSays>> = {}): FoodRefsGatew
 }
 
 const CREATE: CreateRecipeDto = {
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Soup',
     cuisine: 'Thai',
     servings: 2,
@@ -253,6 +259,11 @@ describe('RecipesService.create - public recipes hold no private food', () => {
 
 describe('RecipesService.update - public recipes hold no private food (rebind and restore go through it)', () => {
     const patch = (overrides: Partial<UpdateRecipeDto> = {}): UpdateRecipeDto => ({ expectedVersion: 1, ...overrides });
+    const WEB_STATEMENT = {
+        kind: 'public_web',
+        citation: 'https://example.com/soup',
+        wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+    } as const;
 
     it('refuses replacement lines that bind a private food on a published public recipe', async () => {
         const update = vi.fn();
@@ -298,12 +309,7 @@ describe('RecipesService.update - public recipes hold no private food (rebind an
             [PRIVATE_FOOD]: 'public',
         });
 
-        await service.update(
-            principal,
-            'r-1',
-            patch({ status: 'published', statement: { kind: 'public_web', citation: 'https://example.com/soup' } }),
-            undefined,
-        );
+        await service.update(principal, 'r-1', patch({ status: 'published', statement: WEB_STATEMENT }), undefined);
 
         expect(update).toHaveBeenCalledTimes(1);
         // A private recipe is not bound by the rule, so no recapture runs and the captured owner stays.
@@ -317,12 +323,7 @@ describe('RecipesService.update - public recipes hold no private food (rebind an
             .mockResolvedValue(aggregate({ status: 'draft', visibility: 'public' }, [PRIVATE_LOOKUP]));
         const { service } = serviceOver(fakeRecipesDal({ findById, update }));
 
-        await service.update(
-            principal,
-            'r-1',
-            patch({ status: 'published', statement: { kind: 'public_web', citation: 'https://example.com/soup' } }),
-            undefined,
-        );
+        await service.update(principal, 'r-1', patch({ status: 'published', statement: WEB_STATEMENT }), undefined);
 
         expect(update).toHaveBeenCalledTimes(1);
     });

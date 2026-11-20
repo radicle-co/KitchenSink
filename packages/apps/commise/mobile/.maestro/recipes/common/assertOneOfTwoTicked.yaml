@@ -1,0 +1,29 @@
+appId: ${APP_ID}
+---
+# Sub-flow: on the twin-lines recipe (`${E2E_RECIPE_TWIN_LINES}`), exactly one of its two identical "1 tbsp Butter"
+# lines is ticked and the other is not (ADR-0096, #155). Each state is asserted once, and the recipe holds only these
+# two checkboxes, so one ticked plus one unticked means a tap did not tick both.
+#
+# Android reads `checked` from the node. iOS cannot (`recipes/detailCooking` says why), so it reads the value phrase.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: '1 tbsp Butter.*'
+                checked: true
+          # The ticked line is the FIRST: the unticked one is below it.
+          - assertVisible:
+                text: '1 tbsp Butter.*'
+                checked: false
+                below:
+                    text: '1 tbsp Butter.*'
+                    checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible: 'checkbox, checked'
+          - assertVisible:
+                text: 'checkbox, unchecked'
+                below: 'checkbox, checked'

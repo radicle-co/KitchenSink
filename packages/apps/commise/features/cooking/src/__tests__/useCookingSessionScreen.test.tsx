@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RecipeStatus } from '@kitchensink/recipe-core';
 
+import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
 import type { CookingRecipe } from '../cookingViewProps.js';
 import { DONE_SETTLE_MS } from '../doneSettle.js';
 import { useCookingSessionScreen } from '../useCookingSessionScreen.js';
@@ -27,12 +28,13 @@ vi.mock('@commise/ui/keep-awake', async (importOriginal) => {
     };
 });
 
-const recipeOf = (instructions: readonly string[]): CookingRecipe => ({
-    id: 'r1',
-    title: 'Weeknight roast',
-    status: RecipeStatus.PUBLISHED,
-    steps: instructions.map((instruction, index) => ({ stepNumber: index + 1, instruction })),
-});
+const recipeOf = (instructions: readonly string[]): CookingRecipe =>
+    makeCookingRecipe({
+        id: 'r1',
+        title: 'Weeknight roast',
+        status: RecipeStatus.PUBLISHED,
+        steps: instructions.map((instruction, index) => ({ stepNumber: index + 1, instruction })),
+    });
 
 const SIX = recipeOf(['Heat the oil. Add the onion.', 'Add the butter.', 'Roast.', 'Rest.', 'Carve.', 'Serve.']);
 

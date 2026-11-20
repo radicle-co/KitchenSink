@@ -59,15 +59,18 @@ import {
     INT4_CEILING,
     MAX_PARSE_JOB_LINES,
     PARSE_JOB_LINE_MAX_CHARS,
-    SOURCE_LINK_MAX_LENGTH,
 } from '@kitchensink/recipe-core';
 
 import { parseProposalMatchSchema } from './parseJobs.schema.js';
 import {
+    authoredStatementSchema,
+    bookStatementSchema,
+    citationTextSchema,
     createRecipeRequestSchema,
     publicWebStatementSchema,
     recipeStatementSchema,
     recipeStepInputSchema,
+    STATEMENT_CITATION_MAX_LENGTH,
 } from './recipes.schema.js';
 
 // ── Bounds ───────────────────────────────────────────────────────────────────────────────────────
@@ -101,7 +104,7 @@ export const MAX_IMPORT_STEPS = 200;
 export const MAX_IMPORT_STEP_CHARS = 5_000;
 
 /** The longest citation, in characters. Mirrors the `recipe_import_items` CHECK, and is the longest source link too. */
-export const IMPORT_MAX_CITATION_LENGTH = SOURCE_LINK_MAX_LENGTH;
+export const IMPORT_MAX_CITATION_LENGTH = STATEMENT_CITATION_MAX_LENGTH;
 
 /** The most item rows one `GET` returns. */
 export const MAX_IMPORT_PAGE_SIZE = 500;
@@ -138,16 +141,9 @@ const jsonBytes = (value: unknown): number => new TextEncoder().encode(JSON.stri
 
 // ── The per-recipe statement (ADR-0072 §9) ───────────────────────────────────────────────────────
 
-const citationTextSchema = z
-    .string()
-    .min(1)
-    .max(IMPORT_MAX_CITATION_LENGTH)
-    .refine(hasText, { message: 'citation is blank' });
-
-const authoredStatement = z.object({ kind: z.literal('authored') });
 // The public-web member is `recipes.schema.ts`'s, the one a recipe's own `statement` uses (ADR-0089): one spelling of it.
 const publicWebStatement = publicWebStatementSchema;
-const bookStatement = z.object({ kind: z.literal('book'), citation: citationTextSchema });
+const bookStatement = bookStatementSchema;
 const paidSiteStatement = z.object({ kind: z.literal('paid_site'), citation: citationTextSchema });
 
 /**
@@ -163,7 +159,7 @@ const paidSiteStatement = z.object({ kind: z.literal('paid_site'), citation: cit
  * ⛔ Counsel confirms the wording the cook sees before launch (016 FR-050). The WIRE shape does not depend on it.
  */
 export const importStatementSchema = z.discriminatedUnion('kind', [
-    authoredStatement.strict(),
+    authoredStatementSchema.strict(),
     // The REFINED member: the import refuses our own domain, localhost and an IP exactly as a recipe's own statement does.
     recipeStatementSchema,
     bookStatement.strict(),
@@ -209,7 +205,7 @@ const hasUnknownKind = (value: unknown): boolean =>
 export const importStatementViewSchema = z.preprocess(
     (value) => (hasUnknownKind(value) ? { kind: 'unrecognised' } : value),
     z.discriminatedUnion('kind', [
-        authoredStatement,
+        authoredStatementSchema,
         publicWebStatement,
         bookStatement,
         paidSiteStatement,
@@ -624,7 +620,7 @@ export const importViewSchema = z.object({
     /** How many recipes the whole file holds. `counts.total` is how many have ARRIVED. */
     expectedTotal: z.number().int().positive(),
     /**
-     * The caller's bulk allowance now: what it is, how much of it the last day spent, and when the next unit frees (an ISO
+     * The caller's ONE import allowance now (every user-facing import counts against it, bulk and paste alike): what it is, how much of it the last day spent, and when the next unit frees (an ISO
      * instant), or `null` when nothing is spent. A paused import explains itself from this.
      *
      * ⛔ AN `advance` THAT REACHES THE ALLOWANCE ANSWERS `200`, NOT `429` (ADR-0072 §8 as amended). It does the work it can

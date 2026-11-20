@@ -17,6 +17,7 @@ import type {
     RecipeDetailNutrition,
     RecipePhoto,
     RecipeSourceKind,
+    RecipeStatementKind,
     RecipeSourceType,
     RecipeStatus,
     RecipeVisibility,
@@ -109,6 +110,15 @@ export interface RecipeResponse {
      * the cloner. The one-time banner's number; absent on every other read, and on a clone with none.
      */
     clonePrivateFoodLineCount?: number;
+    /**
+     * What the cook stated (`authored`, `source`); ABSENT when nothing was. ⛔ OWNER-ONLY, DETAIL only: absent for every other
+     * viewer and on every list item. Never `content_pasted_at`: that fact is an input to the rule and is not on any response.
+     */
+    statementKind?: RecipeStatementKind;
+    /** Whether Public is refused by the evidence rule (`sourceConflictOf`). ⛔ OWNER-ONLY, DETAIL only: it would reveal that a source was once stated. */
+    publicNeedsCheck?: boolean;
+    /** Whether the cook must still say "I wrote this" (`statementRequiredOf`). ⛔ OWNER-ONLY, DETAIL only. */
+    publicNeedsStatement?: boolean;
     steps: RecipeStepResponse[];
     servings: number;
     prepTimeMinutes: number;
@@ -172,7 +182,15 @@ export interface RecipeResponse {
  * A LIST item (`recipeSchema` in the contract): the detail response without its lines, steps and clone banner,
  * which the published list item does not carry.
  */
-export type RecipeSummaryResponse = Omit<RecipeResponse, 'ingredients' | 'steps' | 'clonePrivateFoodLineCount'>;
+export type RecipeSummaryResponse = Omit<
+    RecipeResponse,
+    | 'ingredients'
+    | 'steps'
+    | 'clonePrivateFoodLineCount'
+    | 'statementKind'
+    | 'publicNeedsCheck'
+    | 'publicNeedsStatement'
+>;
 
 /** A paginated list of recipes (`PaginatedResponse<Recipe>` in the contract). */
 export interface PaginatedRecipesResponse {

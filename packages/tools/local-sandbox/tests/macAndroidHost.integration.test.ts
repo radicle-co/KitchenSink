@@ -3,6 +3,8 @@
  * here, because it is a contract between the host and the session: `laneEnv` must be safe to ask before `prepare` has
  * opened the session, and must give its full answer after.
  */
+import { setImmediate } from 'node:timers/promises';
+
 import { describe, expect, it } from 'vitest';
 
 import { APK_PATH, makeLane, makeMacAndroidRig, makeRun } from '../src/maestroLanes/__fixtures__/macAndroidHostRig.js';
@@ -26,10 +28,24 @@ describe('MacAndroidHost lane environment and the session', () => {
         expect(env['ANDROID_SERIAL']).toBe('emulator-5556');
         expect(env['MAESTRO_ANDROID_APK']).toBe(APK_PATH);
         expect(env['MAESTRO_SKIP_INSTALL']).toBe('1');
+        // The three host-port variables are the Mac side of each tunnel, each equal to its own tunnel port.
         expect(env['MAESTRO_LOCAL_RECIPE_HOST_PORT']).toBe('14000');
+        expect(env['MAESTRO_LOCAL_IDENTITY_HOST_PORT']).toBe('3001');
+        expect(env['MAESTRO_LOCAL_FOOD_HOST_PORT']).toBe('3002');
         expect(env['KS_MAC_ANDROID_HOME']).toBe('/Users/x/ksAndroid/sdk');
         expect(env['KS_MAC_ANDROID_ENV']).toBe('/Users/x/ksAndroid/env.sh');
         expect(env['PATH']?.startsWith('/s/shims:')).toBe(true);
         expect(env['KS_MAC_LANE_HOME']).toBe('/Users/x/ksIos/lanes/lane1');
+    });
+
+    it('has the loss ready once the tunnel exits, before the run first looks', async () => {
+        // A loss that already happened must be readable when the run first looks, or lanes start on a dead tunnel.
+        const { host, exitTunnel } = makeMacAndroidRig();
+        await host.prepare(run, APK_PATH, 'abc123');
+        exitTunnel(255);
+
+        await expect(Promise.race([host.lost(), setImmediate()])).resolves.toEqual(
+            new Error('the tunnel ssh exited with code 255 during the run'),
+        );
     });
 });

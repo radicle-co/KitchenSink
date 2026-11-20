@@ -148,7 +148,7 @@ describe('Stepper (web)', () => {
 
             expect(button.className.split(/\s+/u)).toEqual(
                 expect.arrayContaining([
-                    'size-11',
+                    'size-[44px]',
                     'rounded-full',
                     'border-line-control',
                     'focus-visible:ring-focus-ring',
@@ -156,6 +156,27 @@ describe('Stepper (web)', () => {
             );
             expect(button.querySelector(`svg.${glyph}`)).not.toBeNull();
         }
+    });
+
+    // The row must fit 320 px at 200% text: the gap is 2, the count's MINIMUM width is 1.5rem (a minimum, so a
+    // three-digit count still widens it), and the buttons are a fixed 44 px for the touch target. jsdom lays nothing out,
+    // so this pins the values only.
+    it('keeps its row narrow enough for 320 px at 200% text: gap-2, a min-w-6 count, and 44 px buttons', () => {
+        render(<Servings />);
+
+        const group = screen.getByRole('group', { name: 'Servings' });
+        const count = within(group).getByText('2');
+
+        expect(group.className.split(/\s+/u)).toContain('gap-2');
+        expect(group.className.split(/\s+/u)).not.toContain('gap-3');
+        expect(count.className.split(/\s+/u)).toContain('min-w-6');
+        expect(count.className.split(/\s+/u)).not.toContain('min-w-8');
+        expect(count.className.split(/\s+/u).some((token) => /^(w|max-w)-/u.test(token))).toBe(false);
+        // A fixed 44 CSS px circle, not rem: at 200% text the rem `size-11` grew to 88 px.
+        const moreClasses = screen.getByRole('button', { name: 'More servings' }).className.split(/\s+/u);
+
+        expect(moreClasses).toContain('size-[44px]');
+        expect(moreClasses).not.toContain('size-11');
     });
 
     // The recipe page puts the Stepper in the Ingredients heading row beside "for {n}" (`buildSpec.md` §6.1), where a

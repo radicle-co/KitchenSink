@@ -73,8 +73,10 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
             value={{
                 show: (input) => {
                     setBottom(readInsets().bottom + SNACKBAR_GAP);
-                    queue.show(input);
+
+                    return queue.show(input);
                 },
+                withdraw: queue.withdraw,
             }}
         >
             {/* The measured height, or 0 when nothing shows, so the floating create button can rise above the bar. */}

@@ -242,6 +242,7 @@ recipes:recipes/servingScale
 recipes:recipes/detailCooking
 cooking:cooking/cookingModeFlow
 cooking:cooking/cookingSystemBack
+recipes:recipes/detailLineTicks
 recipes:recipes/detailBack
 recipes:recipes/deferredCalories
 recipes:recipes/emptyLibrary
@@ -281,6 +282,7 @@ recipes:recipes/pasteListSettle
 recipes:recipes/pasteMatchChoose
 recipes:recipes/pastePublishOpenChoices
 recipes:recipes/sourceFromPaste
+recipes:recipes/sourceStatement
 recipes:recipes/quantityRange
 recipes:recipes/preparationGroups
 recipes:recipes/ingredientGroups
@@ -610,8 +612,9 @@ NEEDS_REVIEW_FLOWS=" recipes/needsReviewJump "
 # Recipes list longer than a screen, and the flow that needs a recipe page longer than a screen. Only these hold them, so every other flow's `^4 recipes$` count stays true.
 LONG_LIBRARY_FLOWS=" recipes/headerScrollsAway recipes/pinnedIngredients "
 # The flows whose reset adds the signer's multi-sentence cooking recipe (`reset.ts --mode cooking`, plan 0002 S1,
-# decisions/0019). Only these hold it, so every other flow's `^4 recipes$` count stays true.
-COOKING_FLOWS=" cooking/cookingModeFlow cooking/cookingSystemBack "
+# decisions/0019), and the recipe with two identical lines that `recipes/detailLineTicks` ticks (ADR-0096). Only
+# these hold them, so every other flow's `^4 recipes$` count stays true.
+COOKING_FLOWS=" cooking/cookingModeFlow cooking/cookingSystemBack recipes/detailLineTicks "
 
 # Where `e2e-seed provision` writes this run's fixture MANIFEST, and how it reaches the flows.
 #
@@ -1451,21 +1454,22 @@ maestro_disable_apple_intelligence_banner_ios() {
     fi
 }
 
-# maestro_local_reverse <recipe-host-port> [<port>...]
+# maestro_local_reverse <recipe-host-port> <identity-host-port> <food-host-port> [<port>...]
 #
 # The local app's ports, reversed onto this host: the ONE map that a lane and `localMaestro.sh`'s one-emulator path both
 # use. The device addresses recipe at :3000, identity at :3001 and food at :3002 (the services' own `PORT` defaults), and
-# the debug app's committed `.env.development` names identity at :4000. Recipe's host side may be another port when
-# something else holds the host's 3000. Each extra port is reversed onto itself (`localMaestro.sh` passes Metro's).
+# the debug app's committed `.env.development` names identity at :4000. Each service's host side is the port its stack
+# publishes, which is another port for a second stack (`LOCAL_SANDBOX_PORT`). Each extra port is reversed onto itself
+# (`localMaestro.sh` passes Metro's).
 #
 # @sideEffect Runs `adb reverse` on the device ANDROID_SERIAL names.
 maestro_local_reverse() {
-    local recipe_host_port="$1" port
-    shift
+    local recipe_host_port="$1" identity_host_port="$2" food_host_port="$3" port
+    shift 3
     adb reverse tcp:3000 "tcp:${recipe_host_port}" >/dev/null || return 1
-    adb reverse tcp:3001 tcp:3001 >/dev/null || return 1
-    adb reverse tcp:3002 tcp:3002 >/dev/null || return 1
-    adb reverse tcp:4000 tcp:3001 >/dev/null || return 1
+    adb reverse tcp:3001 "tcp:${identity_host_port}" >/dev/null || return 1
+    adb reverse tcp:3002 "tcp:${food_host_port}" >/dev/null || return 1
+    adb reverse tcp:4000 "tcp:${identity_host_port}" >/dev/null || return 1
     for port in "$@"; do
         adb reverse "tcp:${port}" "tcp:${port}" >/dev/null || return 1
     done
@@ -1485,8 +1489,16 @@ maestro_prepare_device() {
             if [ "${MAESTRO_LOCAL:-}" = '1' ]; then
                 # A local lane's app names the three local services on loopback (`buildTestApp.sh`'s local origins), and
                 # each must reach this host: a missing reverse is a red here, not thirty flows failing to load.
-                # `MAESTRO_LOCAL_RECIPE_HOST_PORT` is the host side of :3000 when something else holds the host's 3000.
-                maestro_local_reverse "${MAESTRO_LOCAL_RECIPE_HOST_PORT:-3000}" || return 1
+                # The host side of each is the stack's published port (`MAESTRO_LOCAL_{RECIPE,IDENTITY,FOOD}_HOST_PORT`).
+                # None has a default here: a copy of 3000 would send a second stack's app to the first stack.
+                local host_port_variable
+                for host_port_variable in MAESTRO_LOCAL_RECIPE_HOST_PORT MAESTRO_LOCAL_IDENTITY_HOST_PORT MAESTRO_LOCAL_FOOD_HOST_PORT; do
+                    if [ -z "${!host_port_variable:-}" ]; then
+                        echo "maestro: ${host_port_variable} is not set, so the app's services have no host port to reach" >&2
+                        return 1
+                    fi
+                done
+                maestro_local_reverse "$MAESTRO_LOCAL_RECIPE_HOST_PORT" "$MAESTRO_LOCAL_IDENTITY_HOST_PORT" "$MAESTRO_LOCAL_FOOD_HOST_PORT" || return 1
             else
                 adb reverse tcp:3000 tcp:3000 || true
             fi

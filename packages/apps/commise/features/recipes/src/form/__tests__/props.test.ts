@@ -1362,6 +1362,55 @@ describe('visibilityFieldOf', () => {
     const privateCard = (model: ReturnType<typeof visibilityFieldOf>) => model.options[1];
     const publicCard = (model: ReturnType<typeof visibilityFieldOf>) => model.options[0];
 
+    describe('a recorded source holds Public out (ADR-0095)', () => {
+        it('refuses Public with the held note, shows Private, and says the note only in this case', () => {
+            const model = visibilityFieldOf({ ...base, facts: slots(OPEN), publicHeld: true });
+
+            expect(publicCard(model)).toMatchObject({ refused: true, note: v.publicHeldBySource });
+            expect(model.shown).toBe(RecipeVisibility.PRIVATE);
+        });
+
+        it('says the one source note for a draft that still holds a link, and the plain note for a book or a paid site', () => {
+            const privateOnly: RecipePrivateFacts = {
+                rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC, 'public_web'),
+                standing: OPEN,
+                state: 'upsell',
+            };
+
+            expect(
+                publicCard(visibilityFieldOf({ ...base, facts: privateOnly, webSource: true, publicHeld: true })).note,
+            ).toBe(v.publicHeldBySource);
+            expect(publicCard(visibilityFieldOf({ ...base, facts: privateOnly, publicHeld: true })).note).toBe(
+                v.publicRefused,
+            );
+        });
+
+        it('does not refuse Public for a recipe that is not held', () => {
+            expect(publicCard(visibilityFieldOf({ ...base, facts: slots(OPEN), publicHeld: false })).refused).toBe(
+                false,
+            );
+        });
+    });
+
+    describe('the passive line beside Public', () => {
+        const LINE =
+            'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.';
+
+        it('is under the Public card when it is offered and the line was given', () => {
+            expect(visibilityFieldOf({ ...base, facts: slots(OPEN), confirmLine: LINE }).confirmLine).toBe(LINE);
+        });
+
+        it('is absent when none was given (a sheet will open instead)', () => {
+            expect(visibilityFieldOf({ ...base, facts: slots(OPEN) }).confirmLine).toBeUndefined();
+        });
+
+        it('is absent when Public is refused: nothing is confirmed there', () => {
+            expect(
+                visibilityFieldOf({ ...base, facts: slots(OPEN), publicHeld: true, confirmLine: LINE }).confirmLine,
+            ).toBeUndefined();
+        });
+    });
+
     it('says how many slots are left, from the server numbers, where Private is chosen from', () => {
         const model = visibilityFieldOf({ ...base, facts: slots(OPEN) });
 

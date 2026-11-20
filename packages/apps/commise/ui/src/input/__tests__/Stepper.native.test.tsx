@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { useState } from 'react';
+import { useState, type ReactElement } from 'react';
 
+import { Text } from '../../text/Text.native.js';
 import { withPlatformOs } from '../../testing/platformOs.native.js';
+import { renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { nativeTokens } from '../../tokens/native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Stepper } from '../Stepper.native.js';
 import type { StepperProps } from '../props.js';
@@ -14,6 +17,9 @@ import type { StepperProps } from '../props.js';
  */
 
 afterEach(cleanup);
+
+// The count and the label are the house `Text`, which needs the design system's provider.
+const render = (ui: ReactElement) => renderWithTamagui(ui, 'light');
 
 function Servings(props: Partial<StepperProps> & { readonly initial?: number }) {
     const [value, setValue] = useState(props.initial ?? 2);
@@ -33,12 +39,32 @@ function Servings(props: Partial<StepperProps> & { readonly initial?: number }) 
 }
 
 describe('Stepper (native)', () => {
+    // The count is the house `figureInline` text (body face, semibold, with figures) inside a body line. jsdom drops the `font-variant` rule but
+    // keeps the atomic `_fv-` class Tamagui writes for it, so the class is the evidence the count asked for them.
     it('is a group named by its label, with the value in tabular digits', () => {
         render(<Servings />);
 
         const group = screen.getByRole('group', { name: 'Servings' });
 
-        expect(getComputedStyle(within(group).getByText('2')).fontVariant).toContain('tabular-nums');
+        const fontVariantClass = (element: HTMLElement): string | undefined =>
+            element.className.split(' ').find((name) => name.startsWith('_fv-'));
+        const count = within(group).getByText('2');
+
+        // The class is hashed per value, so equality with a house `figureInline` text (pinned in Text.native.test.tsx) proves the count's digits, not just that it set some font variant.
+        renderWithTamagui(<Text typeRole="figureInline">ref</Text>, 'light');
+
+        expect(fontVariantClass(count)).toBeDefined();
+        expect(fontVariantClass(count)).toBe(fontVariantClass(screen.getByText('ref')));
+    });
+
+    // The face IS the weight on native, so the count's semibold is its `figureInline` font family.
+    // `resolvedStyle` returns the bare family, so `toBe` holds; a count that fell back to the body face fails it.
+    it('draws the count in the semibold figure face', () => {
+        render(<Servings />);
+
+        const count = within(screen.getByRole('group', { name: 'Servings' })).getByText('2');
+
+        expect(resolvedStyle(count, 'fontFamily')).toBe(nativeTokens.type.figureInline.fontFamily);
     });
 
     it('steps the value up and down', () => {
@@ -125,6 +151,25 @@ describe('Stepper (native)', () => {
                 unmount();
             });
         }
+    });
+
+    // Pins the row's 8 gap and the count's 24 minimum width, as inline styles that jsdom reads. It does not check the
+    // three-digit widening.
+    it('keeps its row narrow enough for 320 at the largest text: an 8 gap and a 24 minimum count width', () => {
+        render(<Servings />);
+
+        const group = screen.getByRole('group', { name: 'Servings' });
+        // The digit is an inline `figureInline` run inside the sized `body` Text, and only that outer box takes a width.
+        const count = within(group).getByText('2').parentElement;
+
+        if (count === null) {
+            throw new Error('The count has no outer box');
+        }
+
+        expect(getComputedStyle(group).gap).toBe('8px');
+        expect(getComputedStyle(count).minWidth).toBe('24px');
+        expect(getComputedStyle(count).width).toBe('auto');
+        expect(getComputedStyle(count).maxWidth).toBe('none');
     });
 
     // The recipe page puts the Stepper in the Ingredients heading row beside "for {n}" (`buildSpec.md` §6.1), where a

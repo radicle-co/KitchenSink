@@ -37,4 +37,29 @@ describe('createIosShell', () => {
         const task = createIosShell().background('sleep', ['30']);
         await expect(task.stop()).resolves.toBeUndefined();
     });
+
+    it('reports the exit code of a background command that ends on its own', async () => {
+        await expect(createIosShell().background('sh', ['-c', 'exit 7']).exited).resolves.toBe(7);
+    });
+
+    it('reports 128 plus the signal number for a background command that is stopped', async () => {
+        const task = createIosShell().background('sleep', ['30']);
+        await task.stop();
+
+        await expect(task.exited).resolves.toBe(128 + 15);
+    });
+
+    it('stops a background command that already died of a signal, without throwing', async () => {
+        const task = createIosShell().background('sh', ['-c', 'kill -9 $$']);
+        await task.exited;
+
+        await expect(task.stop()).resolves.toBeUndefined();
+    });
+
+    it('reports exit code 1 for a background command that cannot start, and stops it without hanging', async () => {
+        const task = createIosShell().background('/no/such/command', []);
+
+        await expect(task.exited).resolves.toBe(1);
+        await expect(task.stop()).resolves.toBeUndefined();
+    });
 });

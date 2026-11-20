@@ -967,6 +967,38 @@ describe('RecipeDetailView (web) — tap-to-check and the current step', () => {
         expect(flour.getAttribute('aria-checked')).toBe('false');
     });
 
+    // #155 and ADR-0096: a tick belongs to its LINE. Two lines of one food (identical text) are told apart by order,
+    // and the tick follows the line when the servings change, because the key comes from the stored, unscaled line.
+    it('ticks ONE of two identical butter lines, and keeps that tick when the servings change', async () => {
+        const user = userEvent.setup();
+        const butter = () =>
+            makeIngredientView({
+                ingredientId: 'ing_butter',
+                name: 'Butter',
+                quantity: { kind: 'exact', value: 2 },
+                unit: 'tbsp',
+            });
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ id: 'rec_butter_twins', servings: 4, ingredients: [butter(), butter()] })}
+            />,
+        );
+
+        const [first, second] = screen.getAllByRole('checkbox');
+        await user.click(first as HTMLElement);
+
+        expect(first?.getAttribute('aria-checked')).toBe('true');
+        expect(second?.getAttribute('aria-checked')).toBe('false');
+
+        await user.click(screen.getByRole('button', { name: 'More servings' }));
+
+        const [scaledFirst, scaledSecond] = screen.getAllByRole('checkbox');
+        expect(scaledFirst?.getAttribute('aria-checked')).toBe('true');
+        expect(scaledSecond?.getAttribute('aria-checked')).toBe('false');
+    });
+
     it('a checked row dims and is never struck through', async () => {
         const user = userEvent.setup();
         render(
@@ -1361,6 +1393,8 @@ describe('RecipeDetailView (web) — hero cover (mockup screenRecipeDetail)', ()
 });
 
 describe('RecipeDetailView (web) — touch targets (44px floor)', () => {
+    // REWRITTEN for designer D64/D65 (issue #287): the step toggle holds a number, so it is a circle with a 44 px
+    // minimum in px that grows with its text, not the rem `size-11` square it was.
     it('gives the step toggle a 44px target and every ingredient row 44px (REWRITTEN for owner C5 + T1: it was 48)', () => {
         render(
             <RecipeDetailView
@@ -1371,7 +1405,9 @@ describe('RecipeDetailView (web) — touch targets (44px floor)', () => {
         );
 
         for (const toggle of screen.getAllByRole('button', { name: /^Mark step \d+ as current$/u })) {
-            expect(toggle.className).toContain('size-11');
+            expect(toggle.className).toContain('min-h-[44px]');
+            expect(toggle.className).toContain('min-w-[44px]');
+            expect(toggle.className).toContain('aspect-square');
         }
 
         for (const row of screen.getAllByRole('checkbox')) {

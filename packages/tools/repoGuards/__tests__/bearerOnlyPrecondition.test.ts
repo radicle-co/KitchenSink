@@ -800,6 +800,20 @@ describe('enablesCors — every way to turn CORS on', () => {
         ["Nest's enableCors", 'app.enableCors(options);'],
         ["NestFactory's cors option", 'const app = await NestFactory.create(AppModule, { cors: true });'],
         ['the cors middleware', "import cors from 'cors';"],
+        // `jsonBodyHttpSetup` calls `enableCors` itself, in `@kitchensink/nest-http-setup`, so a service that uses it has
+        // no `.enableCors(` of its own and is still browser-facing. The call is followed through the import binding.
+        [
+            'the shared JSON-body setup, named import',
+            "import { jsonBodyHttpSetup } from '@kitchensink/nest-http-setup';\nexport const S = jsonBodyHttpSetup(() => p());",
+        ],
+        [
+            'the shared JSON-body setup, renamed import',
+            "import { jsonBodyHttpSetup as setUp } from '@kitchensink/nest-http-setup';\nexport const S = setUp(() => p());",
+        ],
+        [
+            'the shared JSON-body setup, namespace import',
+            "import * as http from '@kitchensink/nest-http-setup';\nexport const S = http.jsonBodyHttpSetup(() => p());",
+        ],
     ])('finds %s', (_label, contents) => {
         expect(enablesCors(source(contents))).toBe(true);
     });
@@ -808,6 +822,26 @@ describe('enablesCors — every way to turn CORS on', () => {
         ['a comment', '// app.enableCors() is not called here\nexport const a = 1;'],
         ['a cors key on an unrelated object', 'const o = { cors: true };'],
         ['a module whose name contains the word', "import x from 'cors-anywhere-docs';"],
+        [
+            'a comment naming the shared setup',
+            '// jsonBodyHttpSetup(() => policy) is not called here\nexport const a = 1;',
+        ],
+        [
+            'a reference that is not a call',
+            "import { jsonBodyHttpSetup } from '@kitchensink/nest-http-setup';\nexport const a = jsonBodyHttpSetup;",
+        ],
+        [
+            'a local function that shares the name',
+            'function jsonBodyHttpSetup() {}\nexport const a = jsonBodyHttpSetup();',
+        ],
+        [
+            'a method of another module that shares the name',
+            "import * as helpers from './helpers.js';\nexport const a = helpers.jsonBodyHttpSetup(() => p());",
+        ],
+        [
+            'a type-only import of the setup',
+            "import type { jsonBodyHttpSetup } from '@kitchensink/nest-http-setup';\nexport type A = typeof jsonBodyHttpSetup;",
+        ],
     ])('does not mistake %s for enabling CORS', (_label, contents) => {
         expect(enablesCors(source(contents))).toBe(false);
     });
@@ -914,11 +948,18 @@ describe('the real tree — discovery', () => {
         }
     });
 
+    // The ONE file that calls `enableCors` without deciding a policy: `jsonBodyHttpSetup` installs whatever policy its
+    // caller builds. Its callers are the packages this guard must see, and `enablesCors` flags every one of them through
+    // the `jsonBodyHttpSetup(` call, so exempting this file hides no service. A second `enableCors` in the same package
+    // is NOT exempt.
+    const POLICY_CARRIER_FILE = 'packages/shared/nest-http-setup/src/jsonBodyHttpSetup.ts';
+
     it('every package that turns CORS on adopts the shared policy, so none escapes this guard', () => {
         const enabling = [
             ...new Set(
                 treeSources
                     .filter((candidate) => enablesCors(candidate))
+                    .filter((candidate) => candidate.file !== POLICY_CARRIER_FILE)
                     .flatMap((candidate) => packageOf(candidate.file, manifestDirectories) ?? []),
             ),
         ].sort();

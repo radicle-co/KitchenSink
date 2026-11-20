@@ -25,7 +25,6 @@ export interface LocalSettings {
     readonly recipeOrigin: string;
     readonly identityOrigin: string;
     readonly foodOrigin: string;
-    readonly localstack: string;
     /** The parse worker's command line, as `pgrep -f` matches it. */
     readonly workerPattern: RegExp;
     /** A queue consumer's command line, as `pgrep -f` matches it. */
@@ -70,7 +69,6 @@ const schema = z
         LOCAL_MAESTRO_RECIPE_ORIGIN: origin,
         LOCAL_MAESTRO_IDENTITY_ORIGIN: origin,
         LOCAL_MAESTRO_FOOD_ORIGIN: origin,
-        LOCAL_MAESTRO_LOCALSTACK: origin,
         LOCAL_MAESTRO_WORKER_PATTERN: pattern,
         LOCAL_MAESTRO_CONSUMER_PATTERN: consumerPattern,
     })
@@ -119,7 +117,6 @@ export function parseLocalSettings(text: string): LocalSettings {
         recipeOrigin: facts.LOCAL_MAESTRO_RECIPE_ORIGIN,
         identityOrigin: facts.LOCAL_MAESTRO_IDENTITY_ORIGIN,
         foodOrigin: facts.LOCAL_MAESTRO_FOOD_ORIGIN,
-        localstack: facts.LOCAL_MAESTRO_LOCALSTACK,
         workerPattern: new RegExp(facts.LOCAL_MAESTRO_WORKER_PATTERN, 'u'),
         // A consumer name comes from the stack's plan; anything but a word character or a hyphen is dropped so the name
         // cannot change the pattern around it.

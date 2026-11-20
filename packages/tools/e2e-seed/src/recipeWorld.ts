@@ -19,6 +19,7 @@ import {
     type CreateAuthoredFoodResult,
     type FoodServiceClient,
 } from '@kitchensink/food-service-client';
+import { PUBLIC_CONFIRMATION_FOR_API_WRITERS } from '@kitchensink/recipe-core';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import pRetry from 'p-retry';
 
@@ -385,6 +386,7 @@ export function toCreateRequest(
         title: recipe.title,
         description: recipe.description,
         visibility: recipe.visibility,
+        ...(recipe.visibility === 'public' ? { publicConfirmation: PUBLIC_CONFIRMATION_FOR_API_WRITERS } : {}),
         ...(recipe.status === undefined ? {} : { status: recipe.status }),
         servings: recipe.servings,
         prepTimeMinutes: recipe.prepTimeMinutes,

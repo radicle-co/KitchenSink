@@ -42,6 +42,7 @@ shell/tabBar	CompleteSignUpScreen, HomeScreen, RecipeDetailScreen, RecipeDiscove
 recipes/landscape	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/servingScale	HomeScreen, RecipeDetailScreen, RecipeListScreen
 recipes/detailCooking	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/detailLineTicks	HomeScreen, RecipeDetailScreen, RecipeListScreen
 recipes/pinnedIngredients	HomeScreen, RecipeDetailScreen, RecipeListScreen
 recipes/detailBack	HomeScreen, RecipeDetailScreen, RecipeListScreen
 recipes/deferredCalories	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeListScreen
@@ -82,6 +83,7 @@ recipes/pasteListSettle	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, Reci
 recipes/pasteMatchChoose	HomeScreen, RecipeEditorScreen, RecipeListScreen
 recipes/pastePublishOpenChoices	HomeScreen, RecipeEditorScreen, RecipeListScreen
 recipes/sourceFromPaste	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
+recipes/sourceStatement	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/quantityRange	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/preparationGroups	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/ingredientGroups	HomeScreen, RecipeEditorScreen, RecipeListScreen

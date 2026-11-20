@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates and mutates recipes as. */
 const OWNER = '01JCONFLICT0OWNER0000000BB';
@@ -25,6 +26,7 @@ interface ErrorBody {
 }
 
 const CREATE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Conflict Recipe',
     servings: 1,
     prepTimeMinutes: 1,

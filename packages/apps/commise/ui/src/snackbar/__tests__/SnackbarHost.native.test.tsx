@@ -2,13 +2,13 @@ import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { render } from '../../testing/tamaguiTesting.native.js';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { JSX } from 'react';
+import { useState, type JSX } from 'react';
 import { Pressable, Text } from 'react-native';
 
 import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
 import { role } from '../../tokens/colors.js';
 import { SnackbarHost } from '../SnackbarHost.native.js';
-import type { SnackbarInput } from '../props.js';
+import type { SnackbarHandle, SnackbarInput } from '../props.js';
 import { useSnackbar } from '../useSnackbar.js';
 
 /**
@@ -184,5 +184,48 @@ describe('UndoSnackbar (native)', () => {
             `rgb(${[1, 3, 5].map((at) => parseInt(role.ink.slice(at, at + 2), 16)).join(', ')})`,
         );
         expect(getComputedStyle(undo).minHeight).toBe('44px');
+    });
+});
+
+describe('SnackbarHost (native): withdraw', () => {
+    it('takes the snackbar away without committing it, and answers the time it had left', () => {
+        const onTimeout = vi.fn();
+        const answers: (number | undefined)[] = [];
+
+        function Withdrawing(): JSX.Element {
+            const { show, withdraw } = useSnackbar();
+            const [handle, setHandle] = useState<SnackbarHandle | undefined>(undefined);
+
+            return (
+                <>
+                    <Pressable
+                        accessibilityRole="button"
+                        onPress={() => setHandle(show({ message: 'Removed', onTimeout }))}
+                    >
+                        <Text>open</Text>
+                    </Pressable>
+                    <Pressable
+                        accessibilityRole="button"
+                        onPress={() => answers.push(handle === undefined ? undefined : withdraw(handle))}
+                    >
+                        <Text>take</Text>
+                    </Pressable>
+                </>
+            );
+        }
+
+        render(
+            <SnackbarHost>
+                <Withdrawing />
+            </SnackbarHost>,
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'open' }));
+        advance(1000);
+        fireEvent.click(screen.getByRole('button', { name: 'take' }));
+        advance(10_000);
+
+        expect(answers).toEqual([5000]);
+        expect(screen.getByRole('status').textContent).toBe('');
+        expect(onTimeout).not.toHaveBeenCalled();
     });
 });

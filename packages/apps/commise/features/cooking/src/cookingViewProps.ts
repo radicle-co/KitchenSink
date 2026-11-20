@@ -1,9 +1,11 @@
 /**
  * @module cookingViewProps — the props of cooking mode: the screen's props (what the route adapter hands
- * `CookingScreen`), the step body's props and each leaf's props. Every string here is already localised and filled by the
- * screen: a render component never formats copy.
+ * `CookingScreen`), the step body's props and the props of the step leaves. The ingredients list's props live in
+ * `ingredients/cookingIngredientsListProps.ts`. Every string here is already localised and filled by the screen: a
+ * render component never formats copy.
  */
 import type { CookLinkInput } from '@kitchensink/cooking-core';
+import type { RecipeIngredientView } from '@kitchensink/recipe-core';
 import type { ReactNode } from 'react';
 
 import type { LoadingPhase } from './loadingPhase.js';
@@ -15,6 +17,10 @@ export interface CookingRecipe {
     readonly title: string;
     readonly status: CookLinkInput['status'];
     readonly steps: UseCookingSessionInput['steps'];
+    /** The recipe's ingredient lines in stored order. Empty, never absent: "no ingredients" is a held fact. */
+    readonly ingredients: readonly RecipeIngredientView[];
+    /** The servings the recipe was authored with, the base of the cook's scaling. */
+    readonly servings: number;
 }
 
 /**
@@ -70,6 +76,11 @@ export interface CookingTopBarProps {
     readonly exit: CookingAction;
     /** The place, plain text ("Step 2 of 6"), `muted` while the recipe loads ("Step –"). Absent on Done. */
     readonly place?: { readonly text: string; readonly tone: 'ink' | 'muted' };
+    /**
+     * Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where
+     * there is nothing to open: at L2 and L3, where the column is in view, and on a recipe with no ingredients.
+     */
+    readonly ingredients?: CookingAction;
 }
 
 /** Props for the step track: one segment per step. */

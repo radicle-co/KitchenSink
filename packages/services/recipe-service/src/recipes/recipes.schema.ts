@@ -68,8 +68,12 @@ import {
     MAX_RECIPE_INGREDIENTS,
     MAX_RECIPE_LIST_PAGE_SIZE,
     MAX_RECIPE_TAGS,
+    PUBLIC_CONFIRM_WORDINGS,
     RecipeSourceType,
     SOURCE_LINK_MAX_LENGTH,
+    STATEMENT_WORDINGS_BY_CHOICE,
+    WORDING_LOCALE_MAX_LENGTH,
+    WORDING_LOCALE_MIN_LENGTH,
     parseSourceLink,
 } from '@kitchensink/recipe-core';
 
@@ -266,12 +270,9 @@ export const CURATOR_IMPORT_SCOPE = 'recipes:import:public';
  * `user_created`, where they would mean nothing — turns "an import must be attributed" from a rule the
  * service enforces into a state the wire cannot express.
  *
- * ⛔ `imported_physical` and `imported_paid` are DELIBERATELY absent, which NARROWS 004-FR-025 rather than
- * implementing it. Both are private-only classes under C-004, and `evaluateVisibility` admits either to
- * `private` with NO premium check — so admitting them here would hand a free-tier caller exactly the private
- * recipe 004-FR-028 says must be gated on an entitlement, and 004-FR-014a's attestation + citation
- * machinery that is supposed to travel with them does not exist. They join this union when 004 builds that
- * gate, and adding a member is additive.
+ * ⛔ `imported_physical` and `imported_paid` are not declarable through `source`, which is the curator's field. A cook
+ * gives a recipe `imported_physical` through the recipe's own `book` statement (`004-FR-014a`). `paid_site` is not a
+ * member of that statement (#374). A private recipe uses a private slot whatever its label (`004-FR-028`).
  *
  * ⛔ It is also NOT on {@link createRecipeRequestBaseSchema}. `updateRecipeRequestSchema` derives from that
  * base through `.omit().partial()`, so a field placed there is inherited by `PATCH /api/v1/recipes/{id}` —
@@ -303,32 +304,140 @@ export type RecipeSourceInput = z.infer<typeof recipeSourceInputSchema>;
  */
 const citationUrlSchema = z.url({ protocol: /^https?$/ }).max(SOURCE_LINK_MAX_LENGTH);
 
+/**
+ * "I wrote this" (ADR-0072 section 9): the cook's attestation that the recipe is their own words. It carries no citation, so
+ * the wire cannot say "my own" and name a source at once. Loose, like {@link publicWebStatementSchema}: each place that
+ * accepts it applies `.strict()` to its own union, and the bulk import composes this same member into its statement union.
+ */
+export const authoredStatementSchema = z.object({ kind: z.literal('authored') });
+
+/** The longest citation a statement carries: a book's or a paid site's, the same bound as a web address. */
+export const STATEMENT_CITATION_MAX_LENGTH = SOURCE_LINK_MAX_LENGTH;
+
+/** A citation: a non-blank text of bounded length. A blank citation is a second spelling of "none". */
+export const citationTextSchema = z
+    .string()
+    .min(1)
+    .max(STATEMENT_CITATION_MAX_LENGTH)
+    .refine((value) => value.trim() !== '', { message: 'citation is blank' });
+
+/**
+ * "From a cookbook or magazine": a book, with its citation. Loose, like {@link publicWebStatementSchema}: each place that
+ * accepts it applies `.strict()` to its own union, and the bulk import composes this same member into its statement union.
+ * It lives here, next to the other members, because a recipe's own `statement` composes it too.
+ */
+export const bookStatementSchema = z.object({ kind: z.literal('book'), citation: citationTextSchema });
+
 /** "Copied from a public web page", with its address. Loose, so a response read tolerates a newer server's field. */
 export const publicWebStatementSchema = z.object({ kind: z.literal('public_web'), citation: citationUrlSchema });
 
 /**
- * What a cook says about where THIS recipe came from, on a create or an update (ADR-0089): the address they pasted.
+ * The one refinement that makes a copied web address a usable source (`parseSourceLink`), as the `refine` arguments both web
+ * statements spread, so the bulk import's statement and a recipe's own statement cannot read "usable" differently.
+ */
+const USABLE_SOURCE_LINK: [
+    check: (statement: { readonly citation: string }) => boolean,
+    params: { message: string; path: string[] },
+] = [
+    (statement) => parseSourceLink(statement.citation).ok,
+    { message: 'citation is not a public web page address', path: ['citation'] },
+];
+
+/**
+ * The refined "copied from a public web page" member: the address must be a usable source, not just an address.
+ *
+ * ⛔ Our own site, `localhost` and a bare IP are refused here, by the same reading (`parseSourceLink`) the editor uses, so the
+ * client's "that is not a source" and the server's `400` are one rule. The refinement sits on this member, which the bulk
+ * import composes into its own statement union (`import.schema.ts`) and a recipe's own `statement` composes into its union below.
+ */
+export const recipeStatementSchema = publicWebStatementSchema.strict().refine(...USABLE_SOURCE_LINK);
+
+/**
+ * Which wording of the copy a cook was shown, and in which language: a KEY into one of recipe-core's closed lists, never the
+ * text (the attestation record, migration 0088). The version is a closed enum per place it is used, so a wording that does
+ * not belong to the choice is a `400` and cannot be recorded against it. The locale is only bounded: the set of languages the
+ * apps ship is theirs to grow.
+ *
+ * @param versions - The wording keys this place accepts.
+ * @returns A strict `{ version, locale }` object.
+ */
+const wordingOf = <const Versions extends readonly [string, ...string[]]>(versions: Versions) =>
+    z.strictObject({
+        version: z.enum(versions),
+        locale: z.string().min(WORDING_LOCALE_MIN_LENGTH).max(WORDING_LOCALE_MAX_LENGTH),
+    });
+
+/**
+ * "Copied from a public web page" as a recipe's OWN statement carries it: the web member, an OPTIONAL wording, and the same
+ * refinement as {@link recipeStatementSchema} (the one reading of "a usable source"). Extended BEFORE the refinement, because
+ * a refined schema cannot be extended.
+ *
+ * The wording is optional because the editor's Source row states this member without asking the cook anything: it shows no
+ * wording, so it sends none and no attestation is recorded (the source and its evidence still are). The sheet's "From a web
+ * page" answer shows its words and sends the wording, which is recorded.
+ */
+const ownWebStatementSchema = publicWebStatementSchema
+    .extend({ wording: wordingOf(STATEMENT_WORDINGS_BY_CHOICE.publicWeb).optional() })
+    .strict()
+    .refine(...USABLE_SOURCE_LINK);
+
+/**
+ * What a cook says about where THIS recipe came from, on a create, an update or a set-visibility (ADR-0089): "I wrote this", the
+ * address they pasted, a cookbook, or "from another person".
  *
  * ⚠️ NOT the curator's `source` ({@link recipeSourceInputSchema}). That one is grant-gated and carries its own attribution;
  * this one is open to any cook and the server derives the label, the address and the site from it (`evaluateProvenance`).
  * The two never travel together: a body carrying both is a `400` (the service answers it, because a refinement on the
  * create body would stop `importRecipeSchema` picking from it).
  *
- * One member today. A book or a paid site joins as another member of the same statement vocabulary when it has a surface.
+ * ⚠️ A DISCRIMINATED UNION of strict members, so "I wrote this" with a citation is a state the wire cannot say. Every member
+ * carries the `wording` the cook was shown (the attestation record), except that the web member may omit it: the editor's
+ * Source row shows no wording. They are this union's own members, NOT the shared ones the bulk import composes: the import
+ * states no wording yet (it is the paste team's), so its wire is unchanged.
  *
- * ⛔ The citation must be a usable source, not just an address: our own site, `localhost` and a bare IP are refused here,
- * by the same reading (`parseSourceLink`) the editor uses, so the client's "that is not a source" and the server's `400`
- * are one rule. The refinement sits on this member, which nothing picks from.
+ * `fromPerson` ("another person's recipe") has no source kind and no label today: it records the cook's word and keeps the
+ * recipe private. A cookbook (`book`) is `imported_physical`, which is private only.
  */
-export const recipeStatementSchema = publicWebStatementSchema
-    .strict()
-    .refine((statement) => parseSourceLink(statement.citation).ok, {
-        message: 'citation is not a public web page address',
-        path: ['citation'],
-    });
+export const recipeOwnStatementSchema = z.discriminatedUnion('kind', [
+    authoredStatementSchema.extend({ wording: wordingOf(STATEMENT_WORDINGS_BY_CHOICE.authored) }).strict(),
+    ownWebStatementSchema,
+    bookStatementSchema.extend({ wording: wordingOf(STATEMENT_WORDINGS_BY_CHOICE.book) }).strict(),
+    z.strictObject({
+        kind: z.literal('fromPerson'),
+        wording: wordingOf(STATEMENT_WORDINGS_BY_CHOICE.fromPerson),
+    }),
+]);
 
 /** A recipe's statement, as a create or an update request carries it. */
-export type RecipeStatementInput = z.infer<typeof recipeStatementSchema>;
+export type RecipeStatementInput = z.infer<typeof recipeOwnStatementSchema>;
+
+/**
+ * The passive line the cook saw beside the Public choice (the attestation record): "this is your recipe to publish". It is
+ * REQUIRED on any request whose result BECOMES published and public, and is recorded, once, as an implicit attestation. A
+ * request that needs it and has none is `400 INVALID_VISIBILITY` with `details.reason: 'PUBLIC_CONFIRMATION_REQUIRED'`.
+ *
+ * Either the wording a screen showed (recorded), or the API-writer MARKER `{ apiWriter: true }` (satisfies the duty, records
+ * nothing). The wire accepts both; the SERVICE accepts the marker only from a test principal, because a row that says "the
+ * cook saw this line" must never be written for a line no one saw (`400 INVALID_VISIBILITY`, reason
+ * `API_WRITER_CONFIRMATION_FORBIDDEN`, for anyone else).
+ */
+export const publicConfirmationSchema = z.union([
+    wordingOf(PUBLIC_CONFIRM_WORDINGS),
+    z.strictObject({ apiWriter: z.literal(true) }),
+]);
+
+/** The confirmation a request carries. */
+export type PublicConfirmationInput = z.infer<typeof publicConfirmationSchema>;
+
+/**
+ * The client's word that content was PASTED into the recipe (the statement rule). Only ever `true`: a body cannot say "it was
+ * not pasted", because the server keeps the fact once set (`content_pasted_at` is written with `COALESCE`, never cleared), so
+ * the flag can only make the rule stricter. ABSENT means no claim, and a recipe with no claim reads as typed.
+ *
+ * ⚠️ Not on any response: the fact is an input to the rule (`statementRequiredOf`), and the owner reads its result
+ * (`publicNeedsStatement`), never the fact.
+ */
+const contentPastedSchema = z.literal(true).optional();
 
 /**
  * Body of `POST /api/v1/recipes`.
@@ -398,7 +507,9 @@ export const createRecipeRequestSchema = createRecipeRequestBaseSchema
     .extend({
         source: recipeSourceInputSchema.optional(),
         // The cook's pasted web link (ADR-0089). Never together with `source`: the service answers that `400`.
-        statement: recipeStatementSchema.optional(),
+        statement: recipeOwnStatementSchema.optional(),
+        contentPasted: contentPastedSchema,
+        publicConfirmation: publicConfirmationSchema.optional(),
         // ⚠️ OVERRIDES the base's `ingredients` key with the widened element — see
         // `createRecipeIngredientInputSchema`. The cardinality bound is restated because `.extend()` replaces
         // the whole field; `ingredientArrayCap.test.ts`-style identity is preserved by composing the SAME
@@ -433,11 +544,13 @@ export const updateRecipeRequestSchema = createRecipeRequestBaseSchema.omit({ vi
     // Three-state again (owner rulings 2026-10-13): a cook who empties the Cuisine field must be able to clear it.
     // Clearing the cuisine of a PUBLISHED recipe that needs one is refused by the publish policy, not here.
     cuisine: recipeCuisineSchema.nullable().optional(),
-    // Three-state, and ONLY until the first publish (ADR-0089, ADR-0058's fact): ABSENT leaves the source alone, a statement
+    // Three-state (ADR-0089, ADR-0093 section 8): ABSENT leaves the source alone, a statement
     // sets it, and an explicit `null` removes it. The editor's draft checkpoints may create the row before the cook pastes
-    // the link, so the link has to be settable on a draft; after the first publish the source is frozen and the service
-    // answers `403 FORBIDDEN` (`details.reason: 'SOURCE_LOCKED'`). `source` is still never accepted here.
-    statement: recipeStatementSchema.nullable().optional(),
+    // the link, so the link has to be settable on a draft. The first publish does not lock it. A source the cook did not state, or a clone
+    // inherited, is locked, and the service answers `403 FORBIDDEN` (`details.reason: 'SOURCE_LOCKED'`). `source` is still never accepted here.
+    statement: recipeOwnStatementSchema.nullable().optional(),
+    contentPasted: contentPastedSchema,
+    publicConfirmation: publicConfirmationSchema.optional(),
 });
 
 /** Request body for updating a recipe. */
@@ -452,6 +565,10 @@ export type UpdateRecipeRequest = z.infer<typeof updateRecipeRequestSchema>;
  */
 export const setRecipeVisibilityRequestSchema = z.strictObject({
     visibility: recipeVisibilitySchema,
+    // What the cook says in the SAME write as Make public, so "I wrote this" and Public are one request, not two. Not nullable:
+    // clearing a statement is a PATCH's, and clearing it while making a recipe public says nothing.
+    statement: recipeOwnStatementSchema.optional(),
+    publicConfirmation: publicConfirmationSchema.optional(),
 });
 
 /** Request body for setting a recipe's visibility. */

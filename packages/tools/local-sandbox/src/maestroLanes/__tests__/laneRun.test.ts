@@ -6,10 +6,11 @@
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { setImmediate } from 'node:timers/promises';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { DeviceAdapter, LanePlatform, LaneSpec } from '../laneTypes.js';
+import { NEVER_LOST, type DeviceAdapter, type LanePlatform, type LaneSpec } from '../laneTypes.js';
 import { runLaneRun, type LaneRunDeps } from '../laneRun.js';
 import { spawnRunner } from '../laneProcess.js';
 import type { SharedServices } from '../sharedServices.js';
@@ -40,9 +41,14 @@ function stubRunner(dir: string): string {
     return file;
 }
 
-function fakeAdapter(events: string[], platform: LanePlatform = 'android'): DeviceAdapter {
+function fakeAdapter(
+    events: string[],
+    platform: LanePlatform = 'android',
+    lost: Promise<Error> = NEVER_LOST,
+): DeviceAdapter {
     return {
         platform,
+        lost: () => lost,
         laneCost: { cpus: 1, memBytes: 1 },
         maxLanes: 8,
         hostFacts: () => Promise.resolve({ cpus: 64, load1: 0, memAvailable: 1024 }),
@@ -274,6 +280,8 @@ describe('runLaneRun — a lane run over fakes', () => {
         try {
             const run = runLaneRun(deps, { platforms: ['android'], requested: 3, selection: 'all' });
 
+            // The run looks for a loss on the next macrotask, which the fake clock does not drive.
+            await setImmediate();
             await vi.advanceTimersByTimeAsync(0);
             expect(spawnedAt, 'the first lane starts at once').toHaveLength(1);
 
@@ -380,6 +388,7 @@ describe('runLaneRun — a lane run over fakes', () => {
             laneEnv = () => ({});
             stopDevice = () => Promise.resolve();
             teardownHost = () => Promise.resolve();
+            lost = () => NEVER_LOST;
         }
 
         await runLaneRun(
@@ -716,5 +725,143 @@ describe('runLaneRun — the green stamp settles after the check', () => {
         await runLaneRun(deps, { platforms: ['android'], selection: 'all' });
 
         expect(calls).toBe(0);
+    });
+});
+
+describe('runLaneRun — a lost tunnel', () => {
+    it('stops the lanes, still tears the host down, and fails with the loss when a tunnel is lost', async () => {
+        let loseTunnel: (error: Error) => void = () => undefined;
+        const lost = new Promise<Error>((resolve) => {
+            loseTunnel = resolve;
+        });
+        const { events, deps } = harness();
+        const run = runLaneRun(
+            {
+                ...deps,
+                adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                // A lane that runs until it is stopped, as a real flow run does.
+                spawnLane: (lane) => {
+                    let finish: (code: number) => void = () => undefined;
+                    const exit = new Promise<number>((resolve) => {
+                        finish = resolve;
+                    });
+                    setTimeout(() => {
+                        loseTunnel(new Error('the tunnel ssh exited with code 255 during the run'));
+                    }, 20);
+
+                    return {
+                        pid: 0,
+                        exit,
+                        stop: () => {
+                            events.push(`stopLane ${lane.platform}-${lane.index}`);
+                            finish(143);
+                        },
+                    };
+                },
+            },
+            { platforms: ['android'], requested: 1, selection: 'all' },
+        );
+
+        await expect(run).rejects.toThrow('the tunnel ssh exited with code 255 during the run');
+        expect(events).toContain('stopLane android-1');
+        expect(events).toContain('stopDevice android-1');
+        expect(events).toContain('teardownHost android');
+        expect(events).toContain('unlock');
+    });
+    it('waits for the stopped lanes to exit before it stops the device', async () => {
+        let loseTunnel: (error: Error) => void = () => undefined;
+        const lost = new Promise<Error>((resolve) => {
+            loseTunnel = resolve;
+        });
+        const { events, deps } = harness();
+        const run = runLaneRun(
+            {
+                ...deps,
+                adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                spawnLane: () => {
+                    let finish: (code: number) => void = () => undefined;
+                    const exit = new Promise<number>((resolve) => {
+                        finish = resolve;
+                    });
+                    setTimeout(() => {
+                        loseTunnel(new Error('the tunnel ssh exited with code 255 during the run'));
+                    }, 20);
+
+                    return {
+                        pid: 0,
+                        exit,
+                        // A real runner takes time to die: it exits after the stop, not with it.
+                        stop: () => {
+                            setTimeout(() => {
+                                events.push('laneExited');
+                                finish(143);
+                            }, 30);
+                        },
+                    };
+                },
+            },
+            { platforms: ['android'], requested: 1, selection: 'all' },
+        );
+
+        await expect(run).rejects.toThrow('the tunnel ssh exited with code 255 during the run');
+        expect(events).toContain('laneExited');
+        expect(events.indexOf('laneExited')).toBeLessThan(events.indexOf('stopDevice android-1'));
+    });
+
+    it('still stops the run when the tunnel was lost before the lanes began, and starts no lane', async () => {
+        const { events, deps } = harness();
+        const lost = Promise.resolve(new Error('the tunnel ssh exited with code 255 during the run'));
+        const run = runLaneRun(
+            {
+                ...deps,
+                adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                spawnLane: (lane) => {
+                    events.push(`spawnLane ${lane.platform}-${lane.index}`);
+
+                    return { pid: 0, exit: Promise.resolve(0), stop: () => undefined };
+                },
+            },
+            { platforms: ['android'], requested: 1, selection: 'all' },
+        );
+
+        await expect(run).rejects.toThrow('during the run');
+        expect(events).not.toContain('spawnLane android-1');
+        expect(events).toContain('teardownHost android');
+    });
+
+    describe('a loss that already happened, however the adapter hands it on', () => {
+        const LOSS = new Error('the tunnel ssh exited with code 255 during the run');
+        const settled = Promise.resolve(LOSS);
+        const handOns: readonly [string, () => Promise<Error>][] = [
+            [
+                'three `.then` wrappers',
+                () =>
+                    settled
+                        .then((e) => e)
+                        .then((e) => e)
+                        .then((e) => e),
+            ],
+            ['an `async` function', async () => settled],
+        ];
+
+        it.each(handOns)('is read through %s: the run fails with it and starts no lane', async (_name, lost) => {
+            const { events, deps } = harness();
+            const run = runLaneRun(
+                {
+                    ...deps,
+                    adapterFor: (platform) => ({ ...fakeAdapter(events, platform), lost }),
+                    spawnLane: (lane) => {
+                        events.push(`spawnLane ${lane.platform}-${lane.index}`);
+
+                        return { pid: 0, exit: Promise.resolve(0), stop: () => undefined };
+                    },
+                },
+                { platforms: ['android'], requested: 1, selection: 'all' },
+            );
+
+            await expect(run).rejects.toThrow('during the run');
+            expect(events).not.toContain('spawnLane android-1');
+            expect(events).toContain('teardownHost android');
+        });
     });
 });

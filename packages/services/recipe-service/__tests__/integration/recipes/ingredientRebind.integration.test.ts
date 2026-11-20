@@ -24,6 +24,7 @@ import {
     makeVersionRow,
 } from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
+import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import type { BoundArm } from '../../../src/database/schema/foodLookupArm.js';
 import type { IngredientRow } from '../../../src/database/schema/index.js';
 import { makeRootArm } from '../../../src/ingredients/__fixtures__/foodLookups.fixture.js';
@@ -154,6 +155,13 @@ beforeAll(async () => {
                 },
             },
             { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
+            {
+                provide: RecipeSourceEvidenceDal,
+                useValue: {
+                    insert: async () => undefined,
+                    list: async () => [],
+                },
+            },
         ],
     });
 });

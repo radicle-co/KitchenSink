@@ -54,9 +54,9 @@ function recordingShell(answers: { ensure?: string; contentKey?: string } = {}):
                 return Promise.resolve(`${answers.ensure ?? 'UDID-1'}\n`);
             }
 
-            return Promise.resolve('');
+            return Promise.resolve(line.includes('/health') ? '200' : '');
         },
-        background: () => ({ stop: () => Promise.resolve() }),
+        background: () => ({ stop: () => Promise.resolve(), exited: new Promise<number>(() => undefined) }),
         writeFile: () => Promise.resolve(),
         linkFile: () => Promise.resolve(),
     };
@@ -80,11 +80,7 @@ const adapter = (shell: IosShell): IosAdapter =>
         shell,
         env: { LOCAL_MAESTRO_IOS_HOST: 'me@mac' },
         repoRoot: '/repo',
-        settings: {
-            recipeOrigin: 'http://localhost:3000',
-            identityOrigin: 'http://localhost:3001',
-            foodOrigin: 'http://localhost:3002',
-        },
+        hostPorts: { recipes: 3110, identity: 3111, food: 3112 },
     });
 
 /** The command string the adapter gave `ssh`: the last argument of every ssh call. */

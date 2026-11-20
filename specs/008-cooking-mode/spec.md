@@ -40,6 +40,8 @@ A user selects a recipe and enters "Cooking Mode," which presents a step-by-step
 
 - What happens during Cooking Mode if the device loses internet connectivity?
 
+    Once the recipe has loaded, nothing in Cooking Mode needs the network: steps, ticks, servings and timers keep working. The app shows only the "You're offline" title above the cooking top bar, with no count and no message when the connection returns. Leaving Cooking Mode is never blocked while offline (owner ruling, 2026-11-15); on web, until offline mode (feature 019) ships, leaving offline may show the browser's own offline page, and the cooking session stays on the device.
+
 ## Requirements _(mandatory)_
 
 ### Functional Requirements

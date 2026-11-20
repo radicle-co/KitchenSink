@@ -4,16 +4,16 @@
     "packageName": "@commise/features-cooking",
     "layer": "feature",
     "coverage": {
-        "components": 12,
-        "implementations": 24,
-        "props": 87,
-        "documentedComponents": 12,
-        "implementationsWithModuleDoc": 24,
-        "implementationsWithComponentDoc": 24,
-        "documentedProps": 76,
-        "classifiedComponents": 12,
-        "componentsWithPatternTag": 7,
-        "crossPlatformComponents": 12
+        "components": 18,
+        "implementations": 33,
+        "props": 125,
+        "documentedComponents": 18,
+        "implementationsWithModuleDoc": 33,
+        "implementationsWithComponentDoc": 33,
+        "documentedProps": 114,
+        "classifiedComponents": 18,
+        "componentsWithPatternTag": 8,
+        "crossPlatformComponents": 15
     },
     "components": [
         {
@@ -272,7 +272,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingFrame — the web cooking surface: full screen, outside AppShell, because cooking is a\nfocused task.\n\nOne centred column at every band: the top bar pinned at the top, the foot pinned at the bottom (the\nNext preview above the actions), and only the body between them scrolls, so a focus line taller than the screen at\nthe largest text never pushes the place or Back / Next away. The foot keeps a gap above it, so a line cut off at the\nbottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the\nshort-screen height rule, and is busy while the recipe loads.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingFrame — the web cooking surface: full screen, outside AppShell, because cooking is a\nfocused task.\n\nOne centred column at every band: the top bar pinned at the top, the foot pinned at the bottom (the\nNext preview above the actions), and only the body between them scrolls, so a focus line taller than the screen at\nthe largest text never pushes the place or Back / Next away. The foot keeps a gap above it, so a line cut off at the\nbottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the\nshort-screen height rule, and is busy while the recipe loads.\n\nThe route's offline notice (`CookingNoticeSlot`) is the first thing in the centred column, above the top bar and\nstarting where it starts.\n\nPresentational: props → JSX, plus the notice slot it reads from context.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -916,6 +916,64 @@
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingNoticeSlot",
+            "name": "CookingNoticeSlot",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "orchestration",
+            "patterns": [
+                "Dependency Injection — the route supplies the notice; the frame only reads it"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingNoticeSlot",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingNoticeSlot.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingNoticeSlot — the one place on the web cooking surface where the route's offline notice is drawn.\n\nCooking mode's package does not import `@commise/query`, so it cannot mount the notice itself. The route (which does)\nhands the notice in through this slot, and `CookingFrame`, the one frame every cooking screen draws, puts it first in\nthe surface, above the top bar, with no prop threaded through the screens. Without a provider the slot is empty.\n\nOrchestration: it supplies a value to its subtree and draws no markup of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingNoticeSlot — the one place on the web cooking surface where the route's offline notice is drawn."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Dependency Injection — the route supplies the notice; the frame only reads it"
+                        }
+                    ],
+                    "description": "Supplies the notice to every `CookingFrame` below.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "notice",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The notice the frame draws above its top bar.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingNoticeSlot.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]
@@ -1586,7 +1644,7 @@
             "dir": "packages/apps/commise/features/cooking/src",
             "kind": "presentational",
             "patterns": [
-                "Variant — `narrow` selects the under-360 layout (the place on its own row under Exit); display only, no behaviour"
+                "Variant — `narrow` selects the under-360 layout (the place on its own row); display only, no behaviour"
             ],
             "platforms": [
                 "web",
@@ -1623,6 +1681,15 @@
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
+                            "name": "ingredients",
+                            "type": "CookingAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: at L2 and L3, where the column is in view, and on a recipe with no ingredients.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
                             "name": "place",
                             "type": "{ readonly text: string; readonly tone: \"ink\" | \"muted\"; }",
                             "typeDetail": null,
@@ -1644,15 +1711,15 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingTopBar.native.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingTopBar — the native top bar: Exit as ONE control, the × and its visible label together with\none accessible name, on the quiet `md` house Button (44, lifted to the platform touch floor), then the place as plain text. Done passes\nno place, so it shows Exit alone. The place keeps the position and type of a later All steps button. No Ingredients pill\nyet, not even a disabled one.\n\nProps are the shared contract's `CookingTopBarProps` plus native's `narrow`, which the screen reads from the window once,\nbecause a leaf never reads the device: web's container query does the same work, so the web leaf has no such prop.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingTopBar — the native top bar: Exit as ONE control, the × and its visible label together with one\naccessible name, on the quiet `md` house Button (44, lifted to the platform touch floor), then the place as plain\ntext, then, while the screen gives `ingredients`, the quiet Ingredients button with its `listChecks` glyph and its\nlabel whole. Done passes no place, so it shows Exit alone. The bar wraps by whole controls, so no label wraps inside\nits button or is cut. Wide, the order is Exit, the place, Ingredients. Narrow (under 360), the place takes its own\nrow under Exit and Ingredients, which stay side by side while they fit and wrap whole when they do not.\nIngredients sits at the end of the bar: wide, the place takes the free space; narrow, it has an auto start margin.\n\nProps are the shared contract's `CookingTopBarProps` plus native's `narrow`, which the screen reads from the window\nonce, because a leaf never reads the device: web's container query does the same work, so the web leaf has no such\nprop.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "CookingTopBar — the native top bar: Exit as ONE control, the × and its visible label together with"
+                            "text": "CookingTopBar — the native top bar: Exit as ONE control, the × and its visible label together with one"
                         },
                         {
                             "name": "pattern",
-                            "text": "Variant — `narrow` selects the under-360 layout (the place on its own row under Exit); display only, no behaviour"
+                            "text": "Variant — `narrow` selects the under-360 layout (the place on its own row); display only, no behaviour"
                         }
                     ],
                     "description": "The native cooking top bar.",
@@ -1667,6 +1734,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Exit: one control, the × and its label, with one accessible name.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "ingredients",
+                            "type": "CookingAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: at L2 and L3, where the column is in view, and on a recipe with no ingredients.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -1686,6 +1762,614 @@
                             "defaultValue": null,
                             "description": "The place, plain text (\"Step 2 of 6\"), `muted` while the recipe loads (\"Step –\"). Absent on Done.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingTwoColumnLayout",
+            "name": "CookingTwoColumnLayout",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingTwoColumnLayout",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingTwoColumnLayout.native.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingTwoColumnLayout — the native two-column layout at L2 and L3: the ingredients column in a 300 wide slot\non the left that scrolls on its own, and the step column in the rest, at most 680 wide and centred in it. The slot is\non the canvas with no divider, and its content is inset 16 on every side inside the scroll, as the house sheet's\nedge is, so the scroll bar stays at the slot edge. It holds no state and reads no band: the screen picks it by\n`layoutBand`.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingTwoColumnLayout — the native two-column layout at L2 and L3: the ingredients column in a 300 wide slot"
+                        }
+                    ],
+                    "description": "The native two-column layout.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The step column: at most `COOKING_COLUMN.maxPx` wide and centred in the space the slot leaves.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingTwoColumnLayoutProps.ts"
+                        },
+                        {
+                            "name": "column",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The ingredients column, drawn in a fixed slot on the left that scrolls on its own.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingTwoColumnLayoutProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/ingredients/CookingIngredientsColumn",
+            "name": "CookingIngredientsColumn",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src/ingredients",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingIngredientsColumn",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsColumn.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src/ingredients",
+                    "moduleDoc": "CookingIngredientsColumn — the cooking ingredients list pinned as a column on the left (L2 and L3). It heads\nthe list with the title, which the list does not draw. It has no close and no Done, because it is always open. It\nfills the slot the two-column layout gives it, so the one width lives in the layout.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingIngredientsColumn — the cooking ingredients list pinned as a column on the left (L2 and L3). It heads"
+                        }
+                    ],
+                    "description": "The web ingredients column.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "copy",
+                            "type": "Pick<CookingIngredientsMessages, \"clear\">",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The Clear ticks label. The title arrives ready-made in `view.title`.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "onClear",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "onSetServings",
+                            "type": "(servings: number) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Choose the servings.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "onToggle",
+                            "type": "(position: number) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "From `useCookingIngredients().view`, narrowed to the list by the caller.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "CookingIngredientsColumn",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsColumn.native.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src/ingredients",
+                    "moduleDoc": "CookingIngredientsColumn — the cooking ingredients list pinned as the column on the left (L2 and L3).\nIt heads the list with the title, which the list does not draw. It has no close and no Done, because it is always\nopen. It sets no width: the two-column layout's slot owns it (`INGREDIENTS_COLUMN`), so the column fills the slot.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingIngredientsColumn — the cooking ingredients list pinned as the column on the left (L2 and L3)."
+                        }
+                    ],
+                    "description": "The native ingredients column.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "copy",
+                            "type": "Pick<CookingIngredientsMessages, \"clear\">",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The Clear ticks label. The title arrives ready-made in `view.title`.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "onClear",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "onSetServings",
+                            "type": "(servings: number) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Choose the servings.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "onToggle",
+                            "type": "(position: number) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "From `useCookingIngredients().view`, narrowed to the list by the caller.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/ingredients/CookingIngredientsList",
+            "name": "CookingIngredientsList",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src/ingredients",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingIngredientsList",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsList.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src/ingredients",
+                    "moduleDoc": "CookingIngredientsList — the cooking ingredients list on web: the servings stepper, the lines under their\nsection labels and Clear ticks. Every piece is the recipe page's own (`IngredientRuns`, `ServingScaleControl`,\nthrough `@commise/features-recipes/cook`), so cooking mode groups, names and keys a line, sets an amount and counts\nservings exactly as the page does, in the page's own words.\n\nIt holds no state, no frame and no heading: the sheet and the column wrap it and draw the title, and the screen binds\n`useCookingIngredients`. Clear ticks is drawn only while a line of the list is ticked (`view.hasTicks`), because with\nnone ticked it has nothing to do.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingIngredientsList — the cooking ingredients list on web: the servings stepper, the lines under their"
+                        }
+                    ],
+                    "description": "The web cooking ingredients list.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "copy",
+                            "type": "Pick<CookingIngredientsMessages, \"clear\">",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The Clear ticks label. The title arrives ready-made in `view.title`.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "onClear",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "onSetServings",
+                            "type": "(servings: number) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Choose the servings.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "onToggle",
+                            "type": "(position: number) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "From `useCookingIngredients().view`, narrowed to the list by the caller.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "CookingIngredientsList",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsList.native.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src/ingredients",
+                    "moduleDoc": "CookingIngredientsList — the cooking ingredients list on native: the servings stepper, the lines under their\nsection labels and Clear ticks. Every piece is the recipe page's own (`IngredientRuns`, `ServingScaleControl`,\nthrough `@commise/features-recipes/cook`), so cooking mode groups, names and keys a line, sets an amount and counts\nservings exactly as the page does, in the page's own words.\n\nIt holds no state, no frame and no heading: the sheet and the column wrap it and draw the title, and the screen binds\n`useCookingIngredients`. Clear ticks is drawn only while a line of the list is ticked (`view.hasTicks`), because with\nnone ticked it has nothing to do.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingIngredientsList — the cooking ingredients list on native: the servings stepper, the lines under their"
+                        }
+                    ],
+                    "description": "The native cooking ingredients list.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "copy",
+                            "type": "Pick<CookingIngredientsMessages, \"clear\">",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The Clear ticks label. The title arrives ready-made in `view.title`.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "onClear",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "onSetServings",
+                            "type": "(servings: number) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Choose the servings.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "onToggle",
+                            "type": "(position: number) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "From `useCookingIngredients().view`, narrowed to the list by the caller.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/ingredients/CookingIngredientsSheet",
+            "name": "CookingIngredientsSheet",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src/ingredients",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingIngredientsSheet",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsSheet.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src/ingredients",
+                    "moduleDoc": "CookingIngredientsSheet — the cooking ingredients list in the house bottom `Sheet` (L1 and L1w), for web and\nnative alike: the house `Sheet` and the list each resolve to their own platform leaf, so this one file serves both.\nThe sheet's title row draws the title and the × close, named `copy.close`; there is no Done (designer's D73). Every\nclose route reaches `onClose`, because the host answers by changing `open`.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingIngredientsSheet — the cooking ingredients list in the house bottom `Sheet` (L1 and L1w), for web and"
+                        }
+                    ],
+                    "description": "The ingredients sheet, on web and native.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "copy",
+                            "type": "Pick<CookingIngredientsMessages, \"clear\" | \"close\">",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The Clear ticks label, and the accessible name of the sheet's × close.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsFrameProps.ts"
+                        },
+                        {
+                            "name": "onClear",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "onClose",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Every close route calls this: ×, swipe down, the scrim, Escape on web, Back on Android.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsFrameProps.ts"
+                        },
+                        {
+                            "name": "onSetServings",
+                            "type": "(servings: number) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Choose the servings.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "onToggle",
+                            "type": "(position: number) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the sheet is on screen. The screen owns it, and every close route reports through `onClose`.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsFrameProps.ts"
+                        },
+                        {
+                            "name": "view",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "From `useCookingIngredients().view`, narrowed to the list by the caller.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/ingredients/CookingScaleNote",
+            "name": "CookingScaleNote",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src/ingredients",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingScaleNote",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingScaleNote.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src/ingredients",
+                    "moduleDoc": "CookingScaleNote — the web scale note under a step: a muted info glyph and the sentence that says the steps\ngive amounts for another serving count, in the small muted type that marks it as not part of the step. While the\nscreen gives it `onOpen`, one quiet button under it opens the ingredients. It holds no state, and it has no live\nregion because it arrives with the step.\n\nPresentational: props → JSX. The native twin is `CookingScaleNote.native.tsx`, on the same props.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingScaleNote — the web scale note under a step: a muted info glyph and the sentence that says the steps"
+                        }
+                    ],
+                    "description": "The web scale note.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "note",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The note, already filled with both serving counts (`view.scaleNote`).",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
+                        },
+                        {
+                            "name": "onOpen",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open the ingredients. Absent: the note stands alone, with no button.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
+                        },
+                        {
+                            "name": "openLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The button's visible text and its accessible name (`cooking.step.scaleNoteOpen`).",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "CookingScaleNote",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingScaleNote.native.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src/ingredients",
+                    "moduleDoc": "CookingScaleNote — the native scale note under a step: a muted info glyph and the sentence that says the\nsteps give amounts for another serving count, in the small muted type that marks it as not part of the step. While\nthe screen gives it `onOpen`, one quiet button under it opens the ingredients. It holds no state, and it has no live\nregion because it arrives with the step.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingScaleNote — the native scale note under a step: a muted info glyph and the sentence that says the"
+                        }
+                    ],
+                    "description": "The native scale note.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "note",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The note, already filled with both serving counts (`view.scaleNote`).",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
+                        },
+                        {
+                            "name": "onOpen",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open the ingredients. Absent: the note stands alone, with no button.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
+                        },
+                        {
+                            "name": "openLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The button's visible text and its accessible name (`cooking.step.scaleNoteOpen`).",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
                         }
                     ],
                     "usesRefApi": [],

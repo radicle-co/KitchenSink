@@ -15,16 +15,18 @@ export {
     InvalidStepIndexError,
     InvalidTimerDurationError,
     InvalidTotalStepsError,
-    TimerAlreadyActiveError,
     isInvalidLineIndexError,
     isInvalidStepIndexError,
     isInvalidTimerDurationError,
     isInvalidTotalStepsError,
-    isTimerAlreadyActiveError,
 } from './errors.js';
 
 // ── Steps as the cook walks them: lines and place (FR-032, FR-033, FR-033a) ──
 export { STEP_LINE_ABBREVIATIONS, splitStepLines } from './stepLines.js';
+export { INGREDIENT_LINE_DIGEST_VERSION, ingredientLineDigest } from './ingredientLineDigest.js';
+export type { IngredientLineDigestInput } from './ingredientLineDigest.js';
+export { STEP_DIGEST_VERSION, matchStep, matchStepStrict, normalizeStepText, stepDigest } from './stepDigest.js';
+export type { StepRef } from './stepDigest.js';
 export { cookingStepsOf } from './cookingSteps.js';
 export type { CookingStep } from './cookingSteps.js';
 export { linePlace, stepPlace } from './place.js';
@@ -40,17 +42,30 @@ export {
     allLinesTicked,
     createLineTicks,
     focusLineIndex,
+    focusLineOf,
     isLineTicked,
     tickedLineCount,
     tickLine,
     untickLine,
 } from './lineTicks.js';
-export type { LineKey, LineTicks } from './lineTicks.js';
+export type { FocusLineInput, LineKey, LineTicks, TappedLine } from './lineTicks.js';
 
-// ── The timer: one reducer over commands, and the reader of a step's duration ──
-export { MAX_TIMER_MS, MIN_TIMER_MS, NO_TIMER, isValidTimerMs, reduceTimer, timeLeftMs } from './timer.js';
+// ── The timer: one reducer over a list, and the reader of a step's duration ──
+export {
+    MAX_TIMER_MS,
+    MIN_TIMER_MS,
+    NO_TIMER,
+    TIMER_LIMIT,
+    alarmQueue,
+    isValidTimerMs,
+    isWaitingForCook,
+    reduceTimer,
+    timeLeftMs,
+    timerOrder,
+} from './timer.js';
 export type {
     ActiveTimer,
+    EndedAwayTimer,
     HeldTimer,
     PausedTimer,
     RingingTimer,
@@ -58,8 +73,14 @@ export type {
     TimerBase,
     TimerCommand,
     TimerEvent,
+    TimerMove,
+    TimerOrderEntry,
+    TimerRefusal,
     TimerResult,
     TimerState,
 } from './timer.js';
-export { durationParts, elapsedParts, offerSecondsOf, readDuration } from './duration.js';
-export type { DurationParts, DurationReading, ElapsedParts, OfferInput } from './duration.js';
+export { durationParts, elapsedParts, offerSecondsOf, readDuration, stepWaitsOf } from './duration.js';
+export type { DurationParts, ElapsedParts, OfferInput, StepWaits, StepWaitsInput, Wait } from './duration.js';
+export { jobShapeOf } from './jobShape.js';
+export type { JobRow, JobShape, JobShapeInput, JobStepInput, JobTotal } from './jobShape.js';
+export type { DurationReading } from './durationReading.js';

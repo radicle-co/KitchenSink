@@ -83,22 +83,3 @@ export class InvalidTimerDurationError extends Error {
 export function isInvalidTimerDurationError(error: unknown): error is InvalidTimerDurationError {
     return error instanceof InvalidTimerDurationError;
 }
-
-/** Raised when a timer is started while another one exists: the app holds one timer at a time. */
-export class TimerAlreadyActiveError extends Error {
-    public constructor(public readonly activeId: string) {
-        super(`A timer is already active: ${activeId}`);
-        this.name = 'TimerAlreadyActiveError';
-        Object.setPrototypeOf(this, TimerAlreadyActiveError.prototype);
-    }
-}
-
-/**
- * Type guard for {@link TimerAlreadyActiveError}.
- *
- * @param error - The thrown value.
- * @returns `true` when `error` is a {@link TimerAlreadyActiveError}.
- */
-export function isTimerAlreadyActiveError(error: unknown): error is TimerAlreadyActiveError {
-    return error instanceof TimerAlreadyActiveError;
-}

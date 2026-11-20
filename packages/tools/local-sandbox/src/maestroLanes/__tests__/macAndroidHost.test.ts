@@ -57,9 +57,9 @@ describe('MacAndroidHost', () => {
         await host.prepare(run, APK_PATH, 'abc123');
         const tunnel = tunnels[0]?.join(' ') ?? '';
 
-        expect(tunnel).toContain('-R 14000:localhost:3000');
-        expect(tunnel).toContain('-R 3001:localhost:3001');
-        expect(tunnel).toContain('-R 3002:localhost:3002');
+        expect(tunnel).toContain('-R 14000:localhost:3110');
+        expect(tunnel).toContain('-R 3001:localhost:3111');
+        expect(tunnel).toContain('-R 3002:localhost:3112');
         expect(tunnel).not.toContain('-R 3000:');
     });
 
@@ -128,5 +128,13 @@ describe('MacAndroidHost', () => {
         await host.teardown();
 
         expect(stopped()).toBe(1);
+    });
+
+    it('answers the loss of its tunnel from the session, so the run learns of it', async () => {
+        const { host, exitTunnel } = makeMacAndroidRig();
+        await host.prepare(run, APK_PATH, 'abc123');
+        exitTunnel(255);
+
+        await expect(host.lost()).resolves.toEqual(new Error('the tunnel ssh exited with code 255 during the run'));
     });
 });

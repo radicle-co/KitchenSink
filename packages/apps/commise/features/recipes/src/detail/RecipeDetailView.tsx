@@ -27,7 +27,7 @@ import type { RecipeDetailViewProps } from './model.js';
 /** The web orchestration shell of the recipe page. */
 export const RecipeDetailView: FC<RecipeDetailViewProps> = (props) => {
     const scale = useServingScale(props.recipe.id, props.recipe.servings);
-    const marks = useCookMarks(props.recipe.id);
+    const marks = useCookMarks(props.recipe.id, props.recipe.ingredients);
     const [screenOn, setScreenOn] = useState(false);
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);
     const [nutritionExpanded, setNutritionExpanded] = useState(false);

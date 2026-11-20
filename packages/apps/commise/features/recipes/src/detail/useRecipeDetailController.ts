@@ -18,11 +18,12 @@
  *     profile read, the session claims and a navigation port (`RecipeDetailNav`) instead of this module importing a router.
  */
 import { knownPaidFeaturesOf, paidFeatureStateOf, type ProfileQueryState } from '@commise/features-account';
+import type { ErrorReporter } from '@commise/features-core';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { ActionMenuItem, ActionMenuProps } from '@commise/ui/action-menu';
 import { countCookableSteps, isCookable } from '@kitchensink/cooking-core';
 import { RecipeVisibility, canClone, isOwner, makeViewer, type RecipeDetail } from '@kitchensink/recipe-core';
-import { isPrivateFoodsOnPublicRecipeError } from '@kitchensink/recipe-service-client';
+import { isPrivateFoodsOnPublicRecipeError, recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
     useDeleteRecipe,
@@ -30,14 +31,19 @@ import {
     useSetRecipeRating,
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
+import { editorMessages } from '../editor/messages.js';
 import { recipeActionMessages } from '../actions/messages.js';
+import { invalidVisibilityReasonOf } from '../actions/privateGate.js';
 import { mayBePublic, recipeMakePublicConsequence } from '../actions/recipePrivateGate.js';
 import { useGatedPrivate } from '../actions/useGatedPrivate.js';
 import { useMakePublicConfirm } from '../actions/useMakePublicConfirm.js';
 import { useRecipePrivate } from '../actions/useRecipePrivate.js';
+import { publicWordingOf, type StatementSheetState } from '../actions/sourceStatement.js';
 import { useServerRefusedPrivate } from '../actions/useServerRefusedPrivate.js';
+import { useStatementSheet } from '../actions/useStatementSheet.js';
 import { visibilityNoticeOf } from '../actions/visibilityNotice.js';
 import { refusedLinesOf } from '../editor/refusedLinesOf.js';
 import { useLeaveWhenClosed } from '../hooks/useLeaveWhenClosed.js';
@@ -95,6 +101,16 @@ export interface RecipeDetailControllerInput {
      * The host reads it; this package does not depend on `@commise/query`.
      */
     readonly saving: boolean;
+    /**
+     * Whether the device is offline (`@commise/query`'s `useIsOffline`, which this package may not import). Make public needs
+     * the server, so it is unavailable, with its reason, while this is `true`. REQUIRED, so a host cannot forget it.
+     */
+    readonly offline: boolean;
+    /**
+     * Where a failure that is the client's own bug goes: a Public confirmation the server says it never got, or a
+     * "from another person" write sent as Public. The cook sees the generic failure; the bug is reported.
+     */
+    readonly reportError: ErrorReporter;
 }
 
 /** What the controller hands the shells. */
@@ -122,6 +138,21 @@ export interface RecipeDetailController {
 }
 
 /**
+ * The recipe-page sheet's write status: busy while the write is in flight, failed after a generic failure. Pure.
+ *
+ * @param pending - Whether the visibility write is in flight.
+ * @param failed - Whether the last write failed for a reason the sheet shows as a generic error.
+ * @returns The sheet's status.
+ */
+function sheetStatusOf(pending: boolean, failed: boolean): StatementSheetState['status'] {
+    if (pending) {
+        return 'busy';
+    }
+
+    return failed ? 'failed' : 'idle';
+}
+
+/**
  * The recipe page's controller.
  *
  * @param input - The recipe, the viewer's identity signals, the finish-refusal claim and the navigation port.
@@ -130,17 +161,30 @@ export interface RecipeDetailController {
  *     service hooks.
  */
 export function useRecipeDetailController(input: RecipeDetailControllerInput): RecipeDetailController {
-    const { id, recipe, sessionClaims, profile, finishRefused, refusalArrived, onFinishRefusalSeen, nav, saving } =
-        input;
+    const {
+        id,
+        recipe,
+        sessionClaims,
+        profile,
+        finishRefused,
+        refusalArrived,
+        onFinishRefusalSeen,
+        nav,
+        saving,
+        offline,
+        reportError,
+    } = input;
     const { detailActions, moreMenu, visibility: visibilityCopy } = useMessages(recipeActionMessages);
+    const { visibility: editorVisibility } = useMessages(editorMessages);
     const locale = useLocale();
     const deleteRecipe = useDeleteRecipe();
     const setVisibility = useSetRecipeVisibility();
+    const queryClient = useQueryClient();
     const cloneRecipe = useCloneRecipe();
     const setRating = useSetRecipeRating();
     const deleteRating = useDeleteRecipeRating();
     // The view binds the cook's marks itself; the ⋯ menu reads the same marks to offer Clear checks.
-    const marks = useCookMarks(id);
+    const marks = useCookMarks(id, recipe.ingredients);
     const [deleteOpen, setDeleteOpen] = useState(false);
     // The delete's success closes the dialog; the screen is left only once that close has committed.
     useLeaveWhenClosed(deleteRecipe.isSuccess, deleteOpen, nav.onDeleted);
@@ -184,14 +228,76 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
     // F3: a Make public the server refused because a line uses a food only the cook can see. It is its own sheet with the lines
     // named, never the confirm's generic "try again".
     const refusedFoods = isPrivateFoodsOnPublicRecipeError(setVisibility.error) ? setVisibility.error.lines : undefined;
-    const makePublic = useMakePublicConfirm({
-        consequence: recipeMakePublicConsequence(
+    // ADR-0095: WHY the server refused a visibility. Each reason is answered once, below.
+    const refusalReason = invalidVisibilityReasonOf(setVisibility.error);
+    // A failure with its own answer (the sheet opens, the recipe is held) is not the generic failure.
+    const genericFailure =
+        setVisibility.error !== null &&
+        refusedFoods === undefined &&
+        refusalReason !== 'STATEMENT_REQUIRED' &&
+        refusalReason !== 'SOURCE_CONFLICT';
+
+    // The cook is asked what the recipe is, and the answer is ONE write: "I wrote this" with Public, a third-party answer with
+    // Private. It carries no separate confirmation: the statement is the confirmation.
+    const [statementOpen, setStatementOpen] = useState(false);
+
+    const openStatement = (): void => {
+        sheet.reset();
+        setStatementOpen(true);
+    };
+
+    // The refusal moves the state in the handler that met it; which dialog is open is never derived from the transient error.
+    const afterRefusal = (error: unknown): void => {
+        const reason = invalidVisibilityReasonOf(error);
+
+        if (reason === 'STATEMENT_REQUIRED') {
+            makePublic.dialog.onKeep();
+            openStatement();
+        } else if (reason === 'SOURCE_CONFLICT') {
+            makePublic.dialog.onKeep();
+            // The recipe is held: read it again, so its own `publicNeedsCheck` says so and the menu stops offering Public.
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipe(id) });
+        } else if (reason === 'PUBLIC_CONFIRMATION_REQUIRED' || reason === 'FROM_PERSON_PRIVATE_ONLY') {
+            reportError(error, { operation: 'recipeVisibility', reason });
+        }
+    };
+
+    const sheet = useStatementSheet({
+        locale,
+        onAnswer: (write) =>
+            setVisibility.mutate(
+                {
+                    id,
+                    visibility: write.visibility,
+                    ...(write.statement === undefined ? {} : { extras: { statement: write.statement } }),
+                },
+                { onSuccess: () => setStatementOpen(false), onError: afterRefusal },
+            ),
+    });
+
+    // Making a recipe public ALWAYS asks (ADR-0095): the passive line the confirmation records is on screen when the cook
+    // confirms. With nothing to free, the dialog's body is that line.
+    const freesASlot =
+        recipeMakePublicConsequence(
             { rule: recipePrivate.rule, standing: recipePrivate.standing, state: knownPaidFeatures ?? 'loading' },
             recipe.visibility,
-        ),
-        fallback: 'frees',
-        apply: (done) => setVisibility.mutate({ id, visibility: RecipeVisibility.PUBLIC }, { onSuccess: done }),
+        ) === 'frees';
+    const makePublic = useMakePublicConfirm({
+        consequence: freesASlot ? 'frees' : 'confirm',
+        fallback: 'confirm',
+        apply: (done) =>
+            setVisibility.mutate(
+                {
+                    id,
+                    visibility: RecipeVisibility.PUBLIC,
+                    extras: { publicConfirmation: publicWordingOf(locale) },
+                },
+                { onSuccess: done, onError: afterRefusal },
+            ),
     });
+    // A refusal that opens the sheet or holds the recipe closes the confirm that met it.
+    const confirmOpen = makePublic.dialog.open;
+    const held = recipe.publicNeedsCheck === true || refusalReason === 'SOURCE_CONFLICT';
 
     // P4: ONE Viewer value object feeds every gate below through the shared policy predicates (D7).
     const viewer = makeViewer({ id: viewerId });
@@ -206,12 +312,13 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             serverRefusal: serverRefusedPrivate?.reason,
             finishRefused,
             knownRefusal: recipePrivate.refusal,
-            writeFailed: setVisibility.error !== null && !makePublic.dialog.open && refusedFoods === undefined,
+            writeFailed: genericFailure && !confirmOpen && !statementOpen,
+            held,
             // The number is the SERVER's: the 403's own `limit`, else the standing it last answered.
             slotLimit:
                 serverRefusedPrivate?.slotLimit ?? (knownStanding.kind === 'full' ? knownStanding.limit : undefined),
         },
-        visibilityCopy,
+        { ...visibilityCopy, publicHeld: editorVisibility.publicHeldBySource },
     );
 
     // §6.1/§6.4: the ⋯ menu's entries are decided once for both platforms (`detailMenuOf`).
@@ -223,7 +330,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
         isPublic,
         hasMarks: marks.hasMarks,
         offersPrivate: true,
-        mayBePublic: mayBePublic(recipePrivate.rule),
+        mayBePublic: mayBePublic(recipePrivate.rule) && !held,
     });
 
     const menuItem = (item: DetailMenuItem): ActionMenuItem => {
@@ -237,10 +344,17 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
                     id: item,
                     label: detailActions.makePublic,
                     icon: 'globe',
+                    // Offline, the write cannot be made: the row stays, and says why.
+                    ...(offline ? { unavailable: detailActions.offline } : {}),
                     // A fresh confirm starts clean: an earlier failure is not news to it (review S3).
                     onSelect: () => {
                         setVisibility.reset();
-                        makePublic.request();
+
+                        if (recipe.publicNeedsStatement === true) {
+                            openStatement();
+                        } else {
+                            makePublic.request();
+                        }
                     },
                 };
             case 'clearChecks':
@@ -309,8 +423,25 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             upsell: privateGate.sheet,
             makePublic: {
                 ...makePublic.dialog,
+                open: confirmOpen,
                 busy: setVisibility.isPending,
-                error: setVisibility.error !== null && refusedFoods === undefined,
+                error: genericFailure,
+            },
+            statement: {
+                open: statementOpen,
+                surface: 'recipePage',
+                // Busy and failed are the write's own status, never stored beside it. A refusal that is not this sheet's to
+                // say (a client bug) is said inside it, as the generic failure.
+                state: {
+                    ...sheet.state,
+                    status: sheetStatusOf(setVisibility.isPending, genericFailure),
+                },
+                dispatch: sheet.dispatch,
+                onConfirm: sheet.confirm,
+                onDismiss: () => {
+                    setStatementOpen(false);
+                    setVisibility.reset();
+                },
             },
             ...(refusedFoods === undefined
                 ? {}

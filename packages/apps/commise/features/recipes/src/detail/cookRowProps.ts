@@ -14,8 +14,8 @@ export interface IngredientCheckRowProps {
     readonly checked: boolean;
     /** Whether every line of the recipe is removed, which drops the per-row removed badge. */
     readonly allRemoved: boolean;
-    /** Called with the line's key (`ingredientId`). */
-    readonly onToggle: (line: string) => void;
+    /** Called when the cook presses the row. The row carries no identity: the list binds the position. */
+    readonly onToggle: () => void;
     /** Whether a hairline separates this row from the one above it: every row of a group but its first. */
     readonly divided?: boolean;
     /**

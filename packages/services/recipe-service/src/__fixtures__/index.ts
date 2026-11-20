@@ -6,7 +6,7 @@
  * are provided: the persistence rows (`makeRecipeRow` / `makeVersionRow` — what the DAL returns) and
  * the shared domain `Recipe` (`makeRecipe` — the wire/domain contract from `@kitchensink/recipe-core`).
  */
-import type { Recipe } from '@kitchensink/recipe-core';
+import { PUBLIC_CONFIRM_WORDINGS, type Recipe } from '@kitchensink/recipe-core';
 
 import type {
     IngredientRow,
@@ -15,6 +15,13 @@ import type {
     RecipeStepRow,
     RecipeVersionRow,
 } from '../database/schema/index.js';
+
+/**
+ * The confirmation a COOK'S SCREEN sends when it showed the Public line: the wording and the locale it was shown in. For a suite
+ * that stands in for a cook with a real (dev-bypass) principal. A seed or a script that runs as a test principal sends
+ * `PUBLIC_CONFIRMATION_FOR_API_WRITERS` instead, which records nothing: a real principal that sends that is refused.
+ */
+export const PUBLIC_CONFIRMATION_AS_SHOWN = { version: PUBLIC_CONFIRM_WORDINGS[0], locale: 'en' } as const;
 
 /** Stable base timestamps so equality assertions are deterministic. */
 const BASE_DATE = new Date('2026-01-01T00:00:00.000Z');
@@ -46,6 +53,8 @@ export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
         firstPublishedAt: status === 'published' ? BASE_DATE : null,
         sourceType: 'user_created',
         sourceKind: null,
+        statementKind: null,
+        contentPastedAt: null,
         sourceUrl: null,
         sourceAttribution: null,
         clonedFromId: null,

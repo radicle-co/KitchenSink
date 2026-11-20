@@ -100,7 +100,7 @@ const Page: FC<{ readonly lines?: typeof ingredients; readonly startOpen?: boole
 }) => {
     const page = makeRecipeDetail({ servings: 4, ingredients: lines });
     const scale = useServingScale(page.id, page.servings);
-    const marks = useCookMarks(page.id);
+    const marks = useCookMarks(page.id, page.ingredients);
     const [open, setOpen] = useState(startOpen);
 
     return (
@@ -166,6 +166,25 @@ describe('the pinned ingredients bar (native)', () => {
         expect(stepper.compareDocumentPosition(rows[0] as HTMLElement)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
         expect(within(panel).getByText('Chicken')).toBeTruthy();
         expect(within(panel).getByText('Vegetables')).toBeTruthy();
+    });
+
+    it('lets the Servings row wrap, so a wide stepper drops under its label instead of leaving the screen', () => {
+        render(<Page startOpen />);
+
+        const panel = within(screen.getByRole('dialog', { name: 'Ingredients for 4' }));
+        const stepper = panel.getByRole('group', { name: detail.servingsAdjustLabel });
+        let row = stepper.parentElement;
+
+        // The row is the nearest ancestor that spreads its label and stepper apart.
+        while (row !== null && resolvedStyle(row, 'justifyContent') !== 'space-between') {
+            row = row.parentElement;
+        }
+
+        if (row === null) {
+            throw new Error('no space-between row above the stepper');
+        }
+
+        expect(resolvedStyle(row, 'flexWrap')).toBe('wrap');
     });
 
     it('closes by the bar, and by the scrim', () => {

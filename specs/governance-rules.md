@@ -149,10 +149,9 @@ zero bare `FR-NNN` references remain that fall outside that feature's own define
 
 **Numbering is deliberately NOT 1-based per feature.** This rule requires _locality_ and _qualified
 cross-references_; it does not mandate a starting number. Features carry overlapping ranges by design —
-001 owns FR-001…046, 004 FR-008…028, 005 FR-015…022, 006 FR-022…041, 007 FR-028…033, 008 FR-032…035,
+001 owns FR-001…046, 004 FR-008…068, 005 FR-015…022, 006 FR-022…041, 007 FR-028…033, 008 FR-032…035,
 009 FR-036…039, 010 FR-040…043, while 003, 011, 012, 013, and 014 number from 001. Numeric collision across
-features is therefore expected and accepted (004's `verify-report.md` records it as INFO I-002, "mitigated
-by the mandatory `004-` prefix"); the qualifier, not the number, carries the meaning.
+features is therefore expected and accepted (`004` `spec.md` D-017 relies on the mandatory `004-` prefix); the qualifier, not the number, carries the meaning.
 
 Two genuine defects of this class were fixed in the sweep, both of which the collision-tolerant model relies
 on qualifiers to prevent:
@@ -754,8 +753,8 @@ _(Superseded in part by Current State (2026-11-15): every facts card statement b
   `004-FR-011` no longer says imports are always public: it classifies by provenance into the four
   `sourceType` values and delegates enforcement to 001's shipped `evaluateVisibility`. `004-FR-013` creates
   physical-copy imports private; `004-FR-014` rejects known paywalled sources before any outbound request;
-  `004-FR-014a` requires attestation plus a source citation for pasted content; `004-FR-028` gates every
-  non-public import channel behind premium. An earlier revision of this sweep flagged the carve-out as
+  `004-FR-014a` requires attestation plus a source citation for pasted content; `004-FR-028` sets the private-slot
+  rule for every non-public import. An earlier revision of this sweep flagged the carve-out as
   missing — it is not.
 
 ---

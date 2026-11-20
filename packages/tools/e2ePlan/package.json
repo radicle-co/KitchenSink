@@ -17,7 +17,8 @@
         "./registeredMobileScreens": "./src/registeredMobileScreens.ts",
         "./hostMemory": "./src/hostMemory.ts",
         "./checkScope": "./src/checkScope.ts",
-        "./checkScopeGraph": "./src/checkScopeGraph.ts"
+        "./checkScopeGraph": "./src/checkScopeGraph.ts",
+        "./laneCosts": "./src/laneCosts.ts"
     },
     "scripts": {
         "test": "vitest run",

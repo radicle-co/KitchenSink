@@ -890,7 +890,7 @@ export interface RecipeHeroProps {
      */
     readonly photos: readonly RecipePhoto[];
     /**
-     * The controls that sit ON the photo: back and ⋯ (D12), each a `PhotoControl` from `@commise/ui/photo-control`.
+     * The controls that sit ON the photo: back and ⋯ (D12), Back is a `HeroButton` and ⋯ is an `ActionMenu` with `appearance="disc"`.
      * The hero lays them over its top edge, start to end, first in the reading order. The caller owns what they do.
      */
     readonly overlay?: ReactNode;
@@ -1006,9 +1006,11 @@ export interface DetailNativeLayout {
 
 /** The cook's marks as the body draws them, and the commands over them (`useCookMarks`). */
 export interface DetailMarks {
-    readonly checkedLines: ReadonlySet<string>;
+    /** The positions of the checked lines, in the stored (unscaled) order the body draws them in. */
+    readonly checkedLines: ReadonlySet<number>;
     readonly currentStep: number | undefined;
-    readonly toggleLine: (line: string) => void;
+    /** Tick or untick the line at a position. */
+    readonly toggleLine: (position: number) => void;
     readonly toggleStep: (step: number) => void;
 }
 

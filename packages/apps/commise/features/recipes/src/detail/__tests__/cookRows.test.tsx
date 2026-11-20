@@ -138,7 +138,7 @@ describe('IngredientCheckRow (web)', () => {
         fireEvent.click(screen.getByText('trimmed of excess fat'));
 
         expect(onToggle).toHaveBeenCalledTimes(2);
-        expect(onToggle).toHaveBeenCalledWith('ing_lamb');
+        expect(onToggle).toHaveBeenCalledWith();
     });
 
     // D11: a scaled amount read "1.5 cup". The visible text and the checkbox's name carry the same plural (SC 2.5.3).
@@ -162,7 +162,7 @@ describe('IngredientCheckRow (web)', () => {
         expect(row.textContent?.replaceAll('\u00A0', ' ')).toBe('1½ cups flour');
     });
 
-    it('reports a press on the row with the line’s key', () => {
+    it('reports a press on the row with no argument: the row carries no identity', () => {
         const onToggle = vi.fn();
         render(
             <ul>
@@ -172,7 +172,7 @@ describe('IngredientCheckRow (web)', () => {
 
         fireEvent.click(screen.getByText('lamb shoulder'));
 
-        expect(onToggle).toHaveBeenCalledWith('ing_lamb');
+        expect(onToggle).toHaveBeenCalledWith();
     });
 
     it('checked: dims the text, with no strike-through', () => {

@@ -12,6 +12,9 @@ vi.mock('../../src/storage/outboxStore.js', async () => ({
         .createMemoryOutboxStore,
 }));
 
+// The kept cooking-session store (bound by `endDeviceSession`) reports through Sentry; its native SDK is not loadable here.
+vi.mock('../../src/observability/sentryErrorReporter.js', () => ({ reportErrorToSentry: vi.fn() }));
+
 // The recent searches live in AsyncStorage too (owner ruling 2026-10-17); an in-memory double stands in for the native module.
 const { asyncStorage } = vi.hoisted(() => ({ asyncStorage: { store: new Map<string, string>() } }));
 

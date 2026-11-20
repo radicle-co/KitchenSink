@@ -5,15 +5,16 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { makeIngredientView } from '../../__fixtures__/index.js';
 import { recipeMessages } from '../../messages.js';
 import { pinnedBarFactsOf } from '../pinnedBarFacts.js';
 
 const { detail } = recipeMessages.en;
 
-const lines = (count: number): { ingredientId: string }[] =>
-    Array.from({ length: count }, (_, index) => ({ ingredientId: `i${String(index)}` }));
+const lines = (count: number) =>
+    Array.from({ length: count }, (_, index) => makeIngredientView({ ingredientId: `i${String(index)}` }));
 
-const facts = (over: { count?: number; ticked?: readonly string[]; open?: boolean; servings?: number } = {}) =>
+const facts = (over: { count?: number; ticked?: readonly number[]; open?: boolean; servings?: number } = {}) =>
     pinnedBarFactsOf({
         ingredients: lines(over.count ?? 13),
         checked: new Set(over.ticked ?? []),
@@ -33,14 +34,14 @@ describe('pinnedBarFactsOf', () => {
     });
 
     it('adds the ticked clause once something is ticked', () => {
-        const bar = facts({ ticked: ['i1'] });
+        const bar = facts({ ticked: [1] });
 
         expect(bar.name).toBe('Ingredients for 4, 13 items, 1 ticked. Show list.');
         expect(bar.meta).toBe('13 items · 1 ticked');
     });
 
     it('reads "13 items · 13 ticked" when every line is ticked', () => {
-        expect(facts({ ticked: lines(13).map((line) => line.ingredientId) }).meta).toBe('13 items · 13 ticked');
+        expect(facts({ ticked: lines(13).map((_, position) => position) }).meta).toBe('13 items · 13 ticked');
     });
 
     it('formats the servings for the locale, like the counts', () => {
@@ -58,7 +59,24 @@ describe('pinnedBarFactsOf', () => {
     });
 
     it('counts only ticks that still belong to a line, so a stale mark never counts', () => {
-        expect(facts({ ticked: ['i1', 'gone'] }).meta).toBe('13 items · 1 ticked');
+        expect(facts({ ticked: [1, 99] }).meta).toBe('13 items · 1 ticked');
+        expect(facts({ ticked: [7], count: 2 }).meta).toBe('2 items');
+    });
+
+    it('counts a tick by position: one of two lines of one food is one ticked (#155; mutant: by ingredientId)', () => {
+        const bar = pinnedBarFactsOf({
+            ingredients: [
+                makeIngredientView({ ingredientId: 'butter' }),
+                makeIngredientView({ ingredientId: 'butter' }),
+            ],
+            checked: new Set([0]),
+            servings: 4,
+            open: false,
+            copy: detail,
+            locale: 'en',
+        });
+
+        expect(bar.meta).toBe('2 items · 1 ticked');
     });
 
     it('ends the name with Hide list while the list is open, and the cue reads Hide', () => {

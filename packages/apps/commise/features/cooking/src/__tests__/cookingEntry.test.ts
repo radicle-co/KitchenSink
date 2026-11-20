@@ -1,6 +1,7 @@
 import { RecipeStatus } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
 
+import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
 import { cookingEntryOf } from '../cookingEntry.js';
 import type { CookingScreenRead } from '../cookingViewProps.js';
 
@@ -12,7 +13,7 @@ const ready = (
 ): CookingScreenRead => ({
     kind: 'ready',
     viewerIsOwner: overrides.viewerIsOwner ?? false,
-    recipe: {
+    recipe: makeCookingRecipe({
         id: 'r1',
         title: 'Soup',
         status: overrides.status ?? RecipeStatus.PUBLISHED,
@@ -20,7 +21,7 @@ const ready = (
             stepNumber: index + 1,
             instruction,
         })),
-    },
+    }),
 });
 
 /** The entry decision for a read that has not become a recipe yet, or never will, and for a recipe that has. */

@@ -6,6 +6,7 @@
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { setImmediate } from 'node:timers/promises';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -279,6 +280,8 @@ describe('runLaneRun — a lane run over fakes', () => {
         try {
             const run = runLaneRun(deps, { platforms: ['android'], requested: 3, selection: 'all' });
 
+            // The run looks for a loss on the next macrotask, which the fake clock does not drive.
+            await setImmediate();
             await vi.advanceTimersByTimeAsync(0);
             expect(spawnedAt, 'the first lane starts at once').toHaveLength(1);
 
@@ -824,5 +827,41 @@ describe('runLaneRun — a lost tunnel', () => {
         await expect(run).rejects.toThrow('during the run');
         expect(events).not.toContain('spawnLane android-1');
         expect(events).toContain('teardownHost android');
+    });
+
+    describe('a loss that already happened, however the adapter hands it on', () => {
+        const LOSS = new Error('the tunnel ssh exited with code 255 during the run');
+        const settled = Promise.resolve(LOSS);
+        const handOns: readonly [string, () => Promise<Error>][] = [
+            [
+                'three `.then` wrappers',
+                () =>
+                    settled
+                        .then((e) => e)
+                        .then((e) => e)
+                        .then((e) => e),
+            ],
+            ['an `async` function', async () => settled],
+        ];
+
+        it.each(handOns)('is read through %s: the run fails with it and starts no lane', async (_name, lost) => {
+            const { events, deps } = harness();
+            const run = runLaneRun(
+                {
+                    ...deps,
+                    adapterFor: (platform) => ({ ...fakeAdapter(events, platform), lost }),
+                    spawnLane: (lane) => {
+                        events.push(`spawnLane ${lane.platform}-${lane.index}`);
+
+                        return { pid: 0, exit: Promise.resolve(0), stop: () => undefined };
+                    },
+                },
+                { platforms: ['android'], requested: 1, selection: 'all' },
+            );
+
+            await expect(run).rejects.toThrow('during the run');
+            expect(events).not.toContain('spawnLane android-1');
+            expect(events).toContain('teardownHost android');
+        });
     });
 });

@@ -3,6 +3,8 @@
  * here, because it is a contract between the host and the session: `laneEnv` must be safe to ask before `prepare` has
  * opened the session, and must give its full answer after.
  */
+import { setImmediate } from 'node:timers/promises';
+
 import { describe, expect, it } from 'vitest';
 
 import { APK_PATH, makeLane, makeMacAndroidRig, makeRun } from '../src/maestroLanes/__fixtures__/macAndroidHostRig.js';
@@ -36,15 +38,13 @@ describe('MacAndroidHost lane environment and the session', () => {
         expect(env['KS_MAC_LANE_HOME']).toBe('/Users/x/ksIos/lanes/lane1');
     });
 
-    it('has the loss ready once the tunnel exits, ahead of a value that already resolved', async () => {
-        // A loss built only when asked settles a tick late and loses a race against a value that already resolved.
+    it('has the loss ready once the tunnel exits, before the run first looks', async () => {
+        // A loss that already happened must be readable when the run first looks, or lanes start on a dead tunnel.
         const { host, exitTunnel } = makeMacAndroidRig();
         await host.prepare(run, APK_PATH, 'abc123');
         exitTunnel(255);
-        await Promise.resolve();
-        await Promise.resolve();
 
-        await expect(Promise.race([host.lost(), Promise.resolve(undefined)])).resolves.toEqual(
+        await expect(Promise.race([host.lost(), setImmediate()])).resolves.toEqual(
             new Error('the tunnel ssh exited with code 255 during the run'),
         );
     });

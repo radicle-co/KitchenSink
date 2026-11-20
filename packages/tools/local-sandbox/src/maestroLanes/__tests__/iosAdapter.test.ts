@@ -1,3 +1,5 @@
+import { setImmediate } from 'node:timers/promises';
+
 import { describe, expect, it } from 'vitest';
 
 import { IosAdapter, type IosShell } from '../iosAdapter.js';
@@ -343,16 +345,14 @@ describe('IosAdapter', () => {
         await expect(adapter.lost()).resolves.toEqual(new Error('the tunnel ssh exited with code 255 during the run'));
     });
 
-    it('has its loss ready once the tunnel exits, ahead of a value that already resolved', async () => {
-        // A loss wrapped when asked settles a tick late and loses a race against a value that already resolved.
+    it('has its loss ready once the tunnel exits, before the run first looks', async () => {
+        // A loss that already happened must be readable when the run first looks, or lanes start on a dead tunnel.
         const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
         const adapter = new IosAdapter(options(recorder.shell));
         await adapter.prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
         recorder.exitTunnel(255);
-        await Promise.resolve();
-        await Promise.resolve();
 
-        await expect(Promise.race([adapter.lost(), Promise.resolve(undefined)])).resolves.toEqual(
+        await expect(Promise.race([adapter.lost(), setImmediate()])).resolves.toEqual(
             new Error('the tunnel ssh exited with code 255 during the run'),
         );
     });

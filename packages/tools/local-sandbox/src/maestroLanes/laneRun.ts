@@ -13,6 +13,7 @@
  */
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { setImmediate } from 'node:timers/promises';
 import { inspect } from 'node:util';
 
 import { planLanes } from '@kitchensink/e2e-plan';
@@ -309,10 +310,10 @@ async function runPlanned(
         );
 
         // Asked once, now: a loss that happened already (a stale forward answered the probe, then the tunnel ended)
-        // is still there to read. All promises go in ONE race, because a race over a race settles a tick late and
-        // would lose to the resolved sentinel below.
+        // is still there to read. `setImmediate` settles only after every queued microtask has run, so a loss that is
+        // already settled wins the race however many `then` or `async` layers wrap it.
         const losses = plans.map((plan) => plan.adapter.lost());
-        const alreadyLost = await Promise.race([...losses, Promise.resolve(undefined)]);
+        const alreadyLost = await Promise.race([...losses, setImmediate()]);
 
         if (alreadyLost !== undefined) {
             throw alreadyLost;

@@ -1,3 +1,5 @@
+import { setImmediate } from 'node:timers/promises';
+
 import { describe, expect, it } from 'vitest';
 
 import { createAndroidAdapter } from '../androidAdapter.js';
@@ -156,11 +158,11 @@ describe('the Android adapter over an injected host', () => {
         await expect(adapter.lost()).resolves.toBe(loss);
     });
 
-    it("hands on its host's loss as it is, ahead of a value that already resolved", async () => {
-        // A loss wrapped when asked settles a tick late and loses a race against a value that already resolved.
+    it("hands on its host's loss as it is, before the run first looks", async () => {
+        // A loss that already happened must be readable when the run first looks, or lanes start on a dead tunnel.
         const loss = new Error('the tunnel ssh exited with code 255 during the run');
         const { adapter } = rig('arm64-v8a', 'contentKey=k1\n', Promise.resolve(loss));
 
-        await expect(Promise.race([adapter.lost(), Promise.resolve(undefined)])).resolves.toBe(loss);
+        await expect(Promise.race([adapter.lost(), setImmediate()])).resolves.toBe(loss);
     });
 });

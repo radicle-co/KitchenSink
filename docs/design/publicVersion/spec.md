@@ -423,6 +423,24 @@ A row in To review in My recipes has one secondary text line, in two states only
 
 Attempts are counted by a holder, 3 in total: the import item while the job is a For everyone job, and the saved recipe for a Both job and the later route (the item's count is copied into the recipe when it is saved). Reopening and starting a new job does not reset them, and editing the private copy never does. With 3 used, "For everyone" and "Both" answer `409 attemptsUsed` and the cook sees `failed.titleFinal` and `failed.bodyFinal`, and the private exit (the wording of `review.notNow`) runs the paste's ordinary Save recipe. With no free slot the body is `failed.bodyFinalFull` and the only exit is `review.discard`, which calls the existing import delete, `DELETE /api/v1/import/{importId}`, because no job is live. (Ruled 2026-11-19.) On a file item the private exit is the wizard's per-recipe decision write and then advance, and with no free slot the body is `failed.bodyFinalFullFile` with `review.discardFile`. An import discarded with Stop or `review.discard` is deleted and not listed.
 
+### 6.12 Switching a file recipe to "I wrote this" (review wizard)
+
+The review wizard's per-recipe statement choice writes `statement_kind = 'authored'`. That clears the recipe's choice and its "Make the rest public" marker and cancels its public-version job (003B data model, "An authored statement write clears the choice"). A draft that is ready or being written cost a try that does not come back, so the switch asks first. The ask is inline in the row and never a central modal.
+
+| State at the tap                                                                 | What the cook sees                                                                                                                                                                               |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| No draft: no job, a resting job, or only a pending "Make the rest public" marker | No confirm. The switch commits and the marker clears silently.                                                                                                                                   |
+| Job `ready`                                                                      | The choice shows "I wrote this" as pending. The confirm appears directly under the row with `source.switchConfirm.ready`, and `source.switchConfirm.yes` and `source.switchConfirm.no` below it. |
+| Job `pending` or `writing`                                                       | The same confirm with `source.switchConfirm.writing`.                                                                                                                                            |
+| The job finishes while the confirm is open                                       | The line swaps in place to the ready line. The buttons stay and focus stays where it is.                                                                                                         |
+
+- **Pending, not committed.** Picking "I wrote this" does not commit. The choice shows as pending until the cook answers.
+- **No or Escape.** Restores the site choice and returns focus to the control. On mobile, Escape is the hardware keyboard key.
+- **Yes.** Commits the switch, discards or cancels the draft, and shows no further message.
+- **Focus and announcement.** When the confirm opens, focus moves to the confirm line, which sits in a polite live region.
+- **Layout.** Web: the two buttons side by side, Yes first. Mobile: two buttons stacked full width in the row, No first.
+- **The confirm is UX only.** The server stays safe if the job's state changes between the tap and Yes, because the authored write cancels whatever job is there under the lock.
+
 ---
 
 ## 7. Content
@@ -471,6 +489,10 @@ exclamation marks, no reason clauses, and none of the banned words (one list, `b
 | `yourImports.filePublished`     | "{count} published"                                                                                                                                                                                                                                                      | Final. Sixth segment, shown only above 0.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `review.readyUntil`             | "Ready to read until {time}"                                                                                                                                                                                                                                             | Final. In P8's header meta. `{time}` is in the paste design's S27 format, with the day when it is not today.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `review.readySoon`              | "Ready to read for less than an hour"                                                                                                                                                                                                                                    | Final. Replaces `review.readyUntil` under 1 hour left. After expiry the reopen rule applies (back to the choice, no “expired” wording).                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `source.switchConfirm.ready`    | "This throws away the public version we wrote. The try it used won’t come back."                                                                                                                                                                                         |
+| `source.switchConfirm.writing`  | "This stops the public version we’re writing. The try it used won’t come back."                                                                                                                                                                                          |
+| `source.switchConfirm.yes`      | "Switch to I wrote this"                                                                                                                                                                                                                                                 |
+| `source.switchConfirm.no`       | "Keep the public version"                                                                                                                                                                                                                                                |
 | `restPublic.skip.publicExists`  | "{count, plural, one {# recipe already has a public version.} other {# recipes already have a public version.}}"                                                                                                                                                         | Final. Inline summary after Make the rest public, shown only above 0.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `restPublic.skip.budget`        | "{count, plural, one {We can’t write # more public version right now.} other {We can’t write # more public versions right now.}}"                                                                                                                                        | Final. Shown only above 0.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `restPublic.skip.attemptsUsed`  | "{count, plural, one {# recipe has no tries left.} other {# recipes have no tries left.}}"                                                                                                                                                                               | Final. Shown only above 0.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -523,16 +545,17 @@ Glyphs in `packages/apps/commise/ui/src/icon/glyphs.ts`: `lock`, `clock`, `penci
 
 Each has a web leaf and a `.native.tsx` leaf with one shared props file. All are presentational.
 
-| Component              | Props (summary)                                                                   |
-| ---------------------- | --------------------------------------------------------------------------------- |
-| `ImportChoiceGroup`    | `selected`, `plan` (free with counts, or pro), `credit`, `error`, `onSelect`      |
-| `ImportOneWayNotice`   | `line`, `link?`, `slotLine?`                                                      |
-| `PublicVersionWriting` | `path` (`public` or `both`), `copySaved`, `offline`                               |
-| `PublicVersionReview`  | `title`, `steps`, `myCopy`, `compareOpen`, `editing`, `flags`, `credit`, `notNow` |
-| `PublicVersionCredit`  | `cook`, `domain?`, `licenceName` (shared with P6)                                 |
-| `ImportDeadEnd`        | `reason`, `pro` (null for hidden), `onUpgrade`, `onNotNow`                        |
-| `ProPlanCard`          | `prices`, `saving`, `trial?`, `perks`                                             |
-| `AgeConfirmDialog`     | `onConfirm`, `onNotNow`                                                           |
+| Component                 | Props (summary)                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------- |
+| `ImportChoiceGroup`       | `selected`, `plan` (free with counts, or pro), `credit`, `error`, `onSelect`      |
+| `ImportOneWayNotice`      | `line`, `link?`, `slotLine?`                                                      |
+| `PublicVersionWriting`    | `path` (`public` or `both`), `copySaved`, `offline`                               |
+| `PublicVersionReview`     | `title`, `steps`, `myCopy`, `compareOpen`, `editing`, `flags`, `credit`, `notNow` |
+| `PublicVersionCredit`     | `cook`, `domain?`, `licenceName` (shared with P6)                                 |
+| `ImportDeadEnd`           | `reason`, `pro` (null for hidden), `onUpgrade`, `onNotNow`                        |
+| `ProPlanCard`             | `prices`, `saving`, `trial?`, `perks`                                             |
+| `AgeConfirmDialog`        | `onConfirm`, `onNotNow`                                                           |
+| `SwitchToAuthoredConfirm` | `line`, `onYes`, `onNo`                                                           |
 
 `ProPlanCard` belongs with the subscription feature (010) once it exists. Until then it lives here.
 
@@ -697,4 +720,4 @@ Both.
 2. **Designer:** the grouped file row (§6.11, §7.2) is final. A resting job (`checkRefused` or `failed`) shows no line on P6, and "Share a public version" stays.
 3. **Design system owner:** `ButtonPair` and the `RadioList` selected fill (§8.3).
 4. **010 owner:** the mobile store sheet opening at Pro with both periods shown (§4, Upgrade).
-5. **Designer:** does switching a file recipe to "I wrote this" while its public version is `ready` need a confirm or an undo snackbar? Today it has no confirm: the switch clears the recipe's choice and cancels its job (data model, "An authored statement write clears the choice").
+5. **Designer (closed):** switching a file recipe to "I wrote this" confirms inline in the row when a draft is ready or being written, and never in a central modal (§6.12). Final.

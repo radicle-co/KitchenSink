@@ -37,7 +37,7 @@ Indexes:
   the existing pending job.
 - `(user_id) WHERE state = 'pending'`: the 3-per-cook cap (FR-065), checked under the per-user advisory lock the
   service already uses for slots (ADR-0073 shape).
-- Finished jobs are deleted after 7 days by the existing retention sweeper.
+- Finished jobs are deleted 7 days after `finished_at` by the existing retention sweeper.
 
 ## State transitions (job)
 

@@ -111,9 +111,12 @@ appId: ${APP_ID}
       file: common/jumpToSection.yaml
       env:
           SECTION: 'Photos & publish'
+# Scroll to the LAST line of the locked row, so the answer and the citation above it are on screen (the action bar hides
+# the top of the row when the answer alone is scrolled to).
 - scrollUntilVisible:
-      element: 'From a paid website'
+      element: 'The source of this recipe can’t be changed.'
       direction: DOWN
+      centerElement: true
       timeout: 30000
 - assertVisible: 'From a paid website'
 - assertVisible: 'Sams Subscription Kitchen'

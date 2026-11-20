@@ -454,7 +454,7 @@ them. So the import never invents a value:
     - **One statement, one origin, on every channel.** The cook chooses one statement for each recipe. The mapping to an
       origin does not vary by channel, and a channel offers the statements its own rules allow. The origins, their
       labels, stored forms and public rules are in [the model](../../docs/architecture/recipeStateModel.md#14-origin-axis-origin-where-the-words-came-from) and
-      [its public-by-state table](../../docs/architecture/recipeStateModel.md#4-public-by-state). "Adapted by you" is derived, never chosen.
+      [its public-by-state table](../../docs/architecture/recipeStateModel.md#4-public-by-state).
 
         | Statement                                                                   | Origin in the model |
         | --------------------------------------------------------------------------- | ------------------- |
@@ -466,7 +466,7 @@ them. So the import never invents a value:
         | 6. "From another person" (a family member or friend, with their permission) | `origin.person`     |
 
     - An "Adapted" method is rewritten, not trimmed (`016-FR-015b`). An AI rewrite is not the cook's own words
-      (`016-FR-015i`). Statement 6 is private for now. Naming the giver is optional and needs the giver's permission. Its credit and rights label never read "Written by you". The
+      (`016-FR-015i`). Naming the giver is optional and needs the giver's permission. Its credit and rights label never read "Written by you". The
       wording of all statements is confirmed before launch (`016-FR-050`).
     - **Detected source changed to "I wrote this".** A cook who changes a detected third-party source to "I wrote this"
       saves normally. The recipe cannot go public until a person clears it, and no cook control clears the hold.
@@ -985,7 +985,7 @@ official-API path is hidden by its capability flag and its tests run against the
   `D-019`). It keeps 016's rules, 017's user-directed posture and 020's check, and it adds no new label and no new
   pipeline.
 - **C-009 (Recipe rights)**: A web import is private in full (`FR-008`, `FR-066`), public as a Commise-written version
-  (`FR-065`), or as the cook's own Adapted version after our check (for a paid website also once our review finds the edits sufficient). The statements are listed in [the model](../../docs/architecture/recipeStateModel.md#8-statement-choices) (`FR-014a`). A recipe from another person is private for now (`FR-028`, [the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)). A fingerprint is kept at capture for the source check (`020-FR-012b`).
+  (`FR-065`), or as the cook's own Adapted version after our check (for a paid website also once our review finds the edits sufficient). The statements are in the `FR-014a` table. A recipe from another person is private for now (`FR-028`, [the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)). A fingerprint is kept at capture for the source check (`020-FR-012b`).
 
 ---
 

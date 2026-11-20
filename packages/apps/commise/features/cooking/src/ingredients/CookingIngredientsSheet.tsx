@@ -6,9 +6,9 @@
  * The sheet's title row draws the title and the × close, named `copy.close`; there is no Done (designer's D73). Every
  * close route reaches `onClose`, because the host answers by changing `open`.
  *
- * @platform shared
- *
  * Presentational: props → JSX.
+ *
+ * @platform shared
  */
 import { Sheet } from '@commise/ui/sheet';
 import type { FC } from 'react';

@@ -1476,9 +1476,11 @@ src/recipes/
   the config, do not rename the file.
 - A bare `.tsx` file that serves both platforms, because every import it makes resolves per platform, has no
   `.native.tsx` twin. Its docblock carries `@platform shared`, and the component docs then list it for both platforms
-  instead of as a web-only singleton. The tag is a claim the docs read, not one they infer from imports. The
-  generator refuses any other value and a shared file that has a `.native` twin. A shared file that draws DOM elements
-  is caught by review and the `crossPlatformLeafDuplication` guard, not by the docs.
+  instead of as a web-only singleton. Write it as the LAST tag of the docblock, after the layer line (`Presentational:`
+  or `Orchestration:`): text after a block tag belongs to the tag, so a layer line written after it drops out of the
+  file's description and the catalogue reads the layer as unstated. The tag is a claim the docs read, not one they
+  infer from imports. The generator refuses any other value and a shared file that has a `.native` twin. A shared file
+  that draws DOM elements is caught by review and the `crossPlatformLeafDuplication` guard, not by the docs.
 - Both files MUST export the **same public API** (identical exported names and
   type signatures). Type checking MUST pass for both with the same consumer code.
 

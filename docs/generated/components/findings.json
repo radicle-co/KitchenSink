@@ -8,7 +8,7 @@
         "missing-module-doc": 24,
         "platform-singleton": 105,
         "ref-api": 22,
-        "unclassified-layer": 97,
+        "unclassified-layer": 96,
         "undocumented-prop": 229
     },
     "findings": [
@@ -5461,14 +5461,6 @@
             "evidence": [
                 "native"
             ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "featuresCooking/ingredients/CookingIngredientsSheet",
-            "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsSheet.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
         },
         {
             "rule": "missing-module-doc",

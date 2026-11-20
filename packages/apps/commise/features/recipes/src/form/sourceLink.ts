@@ -32,7 +32,14 @@ import type { RecipeFormValues } from './values.js';
 /** What the recipe the editor holds says of its source: the server's own answer, `undefined` before the first save. */
 type StoredRecipe = Pick<
     RecipeDetail,
-    'status' | 'sourceType' | 'sourceKind' | 'sourceUrl' | 'sourceAttribution' | 'clonedFromId' | 'publicNeedsCheck'
+    | 'status'
+    | 'sourceType'
+    | 'sourceKind'
+    | 'statementKind'
+    | 'sourceUrl'
+    | 'sourceAttribution'
+    | 'clonedFromId'
+    | 'publicNeedsCheck'
 >;
 
 type PublicWebStatement = Extract<RecipeStatementInput, { kind: 'public_web' }>;
@@ -80,6 +87,7 @@ const sourceIsLocked = (recipe: StoredRecipe | undefined): boolean =>
     !sourceIsCorrectable({
         sourceType: recipe.sourceType,
         sourceKind: recipe.sourceKind ?? null,
+        statementKind: recipe.statementKind ?? null,
         clonedFromId: recipe.clonedFromId,
     });
 

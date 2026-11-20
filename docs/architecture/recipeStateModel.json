@@ -123,7 +123,7 @@
         },
         {
             "value": "stepsCredit.ai",
-            "label": "AI line",
+            "label": "(AI credit line; words in the copy plan)",
             "labelKey": "recipeState.stepsCredit.ai"
         },
         {

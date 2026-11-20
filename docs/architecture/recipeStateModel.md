@@ -88,11 +88,11 @@ closed to private and locks the source (section 4).
 
 Who wrote the current steps text. Stored per version when built (spec 027).
 
-| Value                 | Stored form | Label   | Rule                                                                                                                                                                       |
-| --------------------- | ----------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `stepsCredit.cook`    | not built   |         | The cook wrote or edited the steps.                                                                                                                                        |
-| `stepsCredit.ai`      | not built   | AI line | The steps came from a kept AI rewrite or an accepted wording suggestion. The recipe shows a line under the steps saying so. The words of the line belong to the copy plan. |
-| `stepsCredit.commise` | not built   |         | The steps are the Commise-written version.                                                                                                                                 |
+| Value                 | Stored form | Label                                    | Rule                                                                                                                                                                       |
+| --------------------- | ----------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stepsCredit.cook`    | not built   |                                          | The cook wrote or edited the steps.                                                                                                                                        |
+| `stepsCredit.ai`      | not built   | (AI credit line; words in the copy plan) | The steps came from a kept AI rewrite or an accepted wording suggestion. The recipe shows a line under the steps saying so. The words of the line belong to the copy plan. |
+| `stepsCredit.commise` | not built   |                                          | The steps are the Commise-written version.                                                                                                                                 |
 
 ### 1.6 Source evidence (axis `evidence`)
 
@@ -252,26 +252,26 @@ One label per value. The rights label a reader sees is the origin label, or "Ada
 paid website have one label each. The clone line replaces the old shared rights label for clones. Labels are in the
 tables above and in the JSON. Label keys in the JSON are placeholders for the copy plan.
 
-| Value                         | Label                       | Label key                             |
-| ----------------------------- | --------------------------- | ------------------------------------- |
-| `lifecycle.draft`             | Draft                       | `recipeState.lifecycle.draft`         |
-| `audience.private`            | Private                     | `recipeState.audience.private`        |
-| `audience.public`             | Public                      | `recipeState.audience.public`         |
-| `importChoice.both`           | Both                        | `recipeState.importChoice.both`       |
-| `publicCheckView.checking`    | Checking                    | `recipeState.publicCheck.checking`    |
-| `publicCheckView.inReview`    | In review                   | `recipeState.publicCheck.inReview`    |
-| `publicCheckView.notApproved` | Not approved to be public   | `recipeState.publicCheck.notApproved` |
-| `origin.own`                  | Written by you              | `recipeState.origin.own`              |
-| `origin.webPage`              | From a web page             | `recipeState.origin.webPage`          |
-| `origin.book`                 | From a cookbook or magazine | `recipeState.origin.book`             |
-| `origin.paidSite`             | From a paid website         | `recipeState.origin.paidSite`         |
-| `origin.person`               | From another person         | `recipeState.origin.person`           |
-| `origin.publicDomain`         | Public domain               | `recipeState.origin.publicDomain`     |
-| `origin.commiseWritten`       | Written by Commise          | `recipeState.origin.commiseWritten`   |
-| `stepsCredit.ai`              | AI line                     | `recipeState.stepsCredit.ai`          |
-| `derived.adaptedByYou`        | Adapted by you              | `recipeState.derived.adaptedByYou`    |
-| `derived.clonedFrom`          | Cloned from {cook}          | `recipeState.derived.clonedFrom`      |
-| `derived.unsavedChanges`      | Unsaved changes             | `recipeState.derived.unsavedChanges`  |
+| Value                         | Label                                    | Label key                             |
+| ----------------------------- | ---------------------------------------- | ------------------------------------- |
+| `lifecycle.draft`             | Draft                                    | `recipeState.lifecycle.draft`         |
+| `audience.private`            | Private                                  | `recipeState.audience.private`        |
+| `audience.public`             | Public                                   | `recipeState.audience.public`         |
+| `importChoice.both`           | Both                                     | `recipeState.importChoice.both`       |
+| `publicCheckView.checking`    | Checking                                 | `recipeState.publicCheck.checking`    |
+| `publicCheckView.inReview`    | In review                                | `recipeState.publicCheck.inReview`    |
+| `publicCheckView.notApproved` | Not approved to be public                | `recipeState.publicCheck.notApproved` |
+| `origin.own`                  | Written by you                           | `recipeState.origin.own`              |
+| `origin.webPage`              | From a web page                          | `recipeState.origin.webPage`          |
+| `origin.book`                 | From a cookbook or magazine              | `recipeState.origin.book`             |
+| `origin.paidSite`             | From a paid website                      | `recipeState.origin.paidSite`         |
+| `origin.person`               | From another person                      | `recipeState.origin.person`           |
+| `origin.publicDomain`         | Public domain                            | `recipeState.origin.publicDomain`     |
+| `origin.commiseWritten`       | Written by Commise                       | `recipeState.origin.commiseWritten`   |
+| `stepsCredit.ai`              | (AI credit line; words in the copy plan) | `recipeState.stepsCredit.ai`          |
+| `derived.adaptedByYou`        | Adapted by you                           | `recipeState.derived.adaptedByYou`    |
+| `derived.clonedFrom`          | Cloned from {cook}                       | `recipeState.derived.clonedFrom`      |
+| `derived.unsavedChanges`      | Unsaved changes                          | `recipeState.derived.unsavedChanges`  |
 
 ## 6. Refusal reasons
 

@@ -9,7 +9,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { DeviceAdapter, LanePlatform, LaneSpec } from '../laneTypes.js';
+import { NEVER_LOST, type DeviceAdapter, type LanePlatform, type LaneSpec } from '../laneTypes.js';
 import { runLaneRun, type LaneRunDeps } from '../laneRun.js';
 import { spawnRunner } from '../laneProcess.js';
 import type { SharedServices } from '../sharedServices.js';
@@ -40,9 +40,14 @@ function stubRunner(dir: string): string {
     return file;
 }
 
-function fakeAdapter(events: string[], platform: LanePlatform = 'android'): DeviceAdapter {
+function fakeAdapter(
+    events: string[],
+    platform: LanePlatform = 'android',
+    lost: Promise<Error> = NEVER_LOST,
+): DeviceAdapter {
     return {
         platform,
+        lost: () => lost,
         laneCost: { cpus: 1, memBytes: 1 },
         maxLanes: 8,
         hostFacts: () => Promise.resolve({ cpus: 64, load1: 0, memAvailable: 1024 }),
@@ -380,6 +385,7 @@ describe('runLaneRun — a lane run over fakes', () => {
             laneEnv = () => ({});
             stopDevice = () => Promise.resolve();
             teardownHost = () => Promise.resolve();
+            lost = () => NEVER_LOST;
         }
 
         await runLaneRun(
@@ -716,5 +722,67 @@ describe('runLaneRun — the green stamp settles after the check', () => {
         await runLaneRun(deps, { platforms: ['android'], selection: 'all' });
 
         expect(calls).toBe(0);
+    });
+});
+
+describe('runLaneRun — a lost tunnel', () => {
+    it('stops the lanes, still tears the host down, and fails the run with the loss when an adapter loses its tunnel', async () => {
+        let loseTunnel: (error: Error) => void = () => undefined;
+        const lost = new Promise<Error>((resolve) => {
+            loseTunnel = resolve;
+        });
+        const { events, deps } = harness();
+        const run = runLaneRun(
+            {
+                ...deps,
+                adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                // A lane that runs until it is stopped, as a real flow run does.
+                spawnLane: (lane) => {
+                    let finish: (code: number) => void = () => undefined;
+                    const exit = new Promise<number>((resolve) => {
+                        finish = resolve;
+                    });
+                    setTimeout(() => {
+                        loseTunnel(new Error('the tunnel ssh exited with code 255 during the run'));
+                    }, 20);
+
+                    return {
+                        pid: 0,
+                        exit,
+                        stop: () => {
+                            events.push(`stopLane ${lane.platform}-${lane.index}`);
+                            finish(143);
+                        },
+                    };
+                },
+            },
+            { platforms: ['android'], requested: 1, selection: 'all' },
+        );
+
+        await expect(run).rejects.toThrow('the tunnel ssh exited with code 255 during the run');
+        expect(events).toContain('stopLane android-1');
+        expect(events).toContain('stopDevice android-1');
+        expect(events).toContain('teardownHost android');
+        expect(events).toContain('unlock');
+    });
+    it('still stops the run when the tunnel was lost before the lanes began, and starts no lane', async () => {
+        const { events, deps } = harness();
+        const lost = Promise.resolve(new Error('the tunnel ssh exited with code 255 during the run'));
+        const run = runLaneRun(
+            {
+                ...deps,
+                adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                spawnLane: (lane) => {
+                    events.push(`spawnLane ${lane.platform}-${lane.index}`);
+
+                    return { pid: 0, exit: Promise.resolve(0), stop: () => undefined };
+                },
+            },
+            { platforms: ['android'], requested: 1, selection: 'all' },
+        );
+
+        await expect(run).rejects.toThrow('during the run');
+        expect(events).not.toContain('spawnLane android-1');
+        expect(events).toContain('teardownHost android');
     });
 });

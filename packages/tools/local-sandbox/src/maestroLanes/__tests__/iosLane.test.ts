@@ -146,6 +146,13 @@ describe('sshConfigText', () => {
         expect(text).toContain('ControlPath /tmp/cm-%C');
         expect(text).toContain('ServerAliveInterval 15');
     });
+
+    it('does not claim one connection per run: the master is shared by every run and only the tunnel opens its own', () => {
+        const text = sshConfigText({ host: 'me@mac', controlPath: '/tmp/cm-%C' });
+
+        expect(text).not.toContain('one ssh connection per run');
+        expect(text).toContain('the tunnel opens its own connection');
+    });
 });
 
 describe('tunnelsFromManifest — each tunnel is named by its origin', () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createAndroidAdapter } from '../androidAdapter.js';
 import type { AndroidHost } from '../androidHost.js';
-import type { CommandPort, LaneSpec } from '../laneTypes.js';
+import { NEVER_LOST, type CommandPort, type LaneSpec } from '../laneTypes.js';
 
 const lane: LaneSpec = {
     platform: 'android',
@@ -22,7 +22,7 @@ interface Rig {
 }
 
 /** An adapter over a recording host and a recording command port: what the adapter keeps and what it hands the host. */
-function rig(abi: 'x86_64' | 'arm64-v8a', manifest = 'contentKey=k1\n'): Rig {
+function rig(abi: 'x86_64' | 'arm64-v8a', manifest = 'contentKey=k1\n', lost: Promise<Error> = NEVER_LOST): Rig {
     const hostCalls: string[] = [];
     const envs: Record<string, string | undefined>[] = [];
     const commands: string[] = [];
@@ -68,6 +68,7 @@ function rig(abi: 'x86_64' | 'arm64-v8a', manifest = 'contentKey=k1\n'): Rig {
 
             return Promise.resolve();
         },
+        lost: () => lost,
     };
     const port: CommandPort = {
         run: (command, args, options) => {
@@ -146,5 +147,12 @@ describe('the Android adapter over an injected host', () => {
 
         expect(hostCalls).toContain('stop emulator-5556');
         expect(hostCalls[hostCalls.length - 1]).toBe('teardown');
+    });
+
+    it("answers its host's loss as its own, so a lost tunnel reaches the run", async () => {
+        const loss = new Error('the tunnel ssh exited with code 255 during the run');
+        const { adapter } = rig('arm64-v8a', 'contentKey=k1\n', Promise.resolve(loss));
+
+        await expect(adapter.lost()).resolves.toBe(loss);
     });
 });

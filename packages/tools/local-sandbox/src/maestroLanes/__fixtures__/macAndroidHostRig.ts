@@ -58,6 +58,8 @@ export interface MacAndroidRig {
     readonly tunnels: string[][];
     readonly links: [string, string][];
     readonly stopped: () => number;
+    /** Ends the tunnel's ssh with this exit code, as if it died. */
+    readonly exitTunnel: (code: number) => void;
 }
 
 /**
@@ -72,6 +74,10 @@ export function makeMacAndroidRig(options: { failing?: string } = {}): MacAndroi
     const tunnels: string[][] = [];
     const links: [string, string][] = [];
     let stopped = 0;
+    let exitTunnel: (code: number) => void = () => undefined;
+    const exited = new Promise<number>((resolve) => {
+        exitTunnel = resolve;
+    });
     const shell: MacShell = {
         run: (command, args) => {
             const line = [command, ...args].join(' ');
@@ -81,7 +87,9 @@ export function makeMacAndroidRig(options: { failing?: string } = {}): MacAndroi
                 return Promise.reject(new Error('exit 1'));
             }
 
-            return Promise.resolve(line.includes('printenv HOME') ? '/Users/x\n' : '');
+            return Promise.resolve(
+                line.includes('printenv HOME') ? '/Users/x\n' : line.includes('/health') ? '200' : '',
+            );
         },
         background: (command, args) => {
             tunnels.push([command, ...args]);
@@ -92,6 +100,7 @@ export function makeMacAndroidRig(options: { failing?: string } = {}): MacAndroi
 
                     return Promise.resolve();
                 },
+                exited,
             };
         },
         writeFile: () => Promise.resolve(),
@@ -110,5 +119,5 @@ export function makeMacAndroidRig(options: { failing?: string } = {}): MacAndroi
         readFile: (file) => (file.endsWith('testApp.manifest') ? MANIFEST : undefined),
     });
 
-    return { host, lines, tunnels, links, stopped: () => stopped };
+    return { host, lines, tunnels, links, stopped: () => stopped, exitTunnel: (code) => exitTunnel(code) };
 }

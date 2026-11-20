@@ -12,14 +12,17 @@ import path from 'node:path';
 import { quote } from 'shell-quote';
 
 import { macHostFromEnv, parseHostFacts, sshConfigText, type MacHostFacts, type Tunnel } from './iosLane.js';
-import type { RunContext } from './laneTypes.js';
+import { NEVER_LOST, type RunContext } from './laneTypes.js';
 
 /** The I/O a session needs. A real one wraps `child_process` and `fs`; a test scripts it. */
 export interface MacShell {
     /** Runs a command to completion and returns its stdout. Rejects on a non-zero exit. */
     run(command: string, args: readonly string[], env?: Readonly<Record<string, string>>): Promise<string>;
-    /** Starts a long-lived command (the tunnel). */
-    background(command: string, args: readonly string[]): { stop(): Promise<void> };
+    /**
+     * Starts a long-lived command (the tunnel). `exited` resolves with the command's exit code (a signal is `128 + n`)
+     * and never rejects.
+     */
+    background(command: string, args: readonly string[]): { stop(): Promise<void>; readonly exited: Promise<number> };
     writeFile(file: string, content: string): Promise<void>;
     linkFile(target: string, link: string): Promise<void>;
 }
@@ -28,7 +31,13 @@ export interface MacSessionOptions {
     readonly shell: MacShell;
     readonly env: Readonly<Record<string, string | undefined>>;
     readonly repoRoot: string;
+    /** Waits `ms`. Injected so a test counts the wait and does not spend it. */
+    readonly sleep?: (ms: number) => Promise<void>;
 }
+
+/** The health probe asks again every `PROBE_INTERVAL_MS` while a port is silent, and gives up after `PROBE_DEADLINE_MS`. */
+const PROBE_INTERVAL_MS = 500;
+const PROBE_DEADLINE_MS = 10_000;
 
 /** What the Mac's shell may see in a path we build from a value: no space, quote or metacharacter. */
 const PLAIN_NAME = /^[A-Za-z0-9._-]+$/u;
@@ -67,6 +76,8 @@ export type MacPaths = ReturnType<typeof macPathsOf>;
 export class MacSession {
     readonly host: string;
     private tunnel: { stop(): Promise<void> } | undefined;
+    private closing = false;
+    private loss: Promise<Error> = NEVER_LOST;
     private stateDirectory = '';
     private home = '';
     private run = '';
@@ -215,20 +226,113 @@ export class MacSession {
         );
     }
 
-    /** One reverse tunnel carrying each Mac port back to its port on this machine. */
-    openTunnel(forwards: readonly Tunnel[]): void {
-        this.tunnel = this.options.shell.background('ssh', [
+    /**
+     * One reverse tunnel carrying each Mac port back to its port on this machine, then a check that each port serves.
+     *
+     * The tunnel owns its ssh connection (S81). Through the shared master its forwards would outlive the run, and the
+     * next run's tunnel would exit with no message while the run used the dead forward.
+     *
+     * @throws When the tunnel exits before the check ends, when a port answers `/health` with anything but 200 before
+     * the deadline, or when the reply is not an HTTP code.
+     */
+    async openTunnel(forwards: readonly Tunnel[]): Promise<void> {
+        const tunnel = this.options.shell.background('ssh', [
             '-F',
             this.sshConfig,
             '-N',
+            '-o',
+            'ControlMaster=no',
+            '-o',
+            'ControlPath=none',
             '-o',
             'ExitOnForwardFailure=yes',
             ...forwards.flatMap((t) => ['-R', `${String(t.macPort)}:localhost:${String(t.localPort)}`]),
             this.host,
         ]);
+        this.tunnel = tunnel;
+        this.closing = false;
+        // Made now, so a loss before anyone asks is still there to read. An exit that close() causes is not a loss.
+        this.loss = tunnel.exited.then((code) => (this.closing ? NEVER_LOST : this.exitError(code, 'during the run')));
+        const early = tunnel.exited.then((code) => this.exitError(code, 'before the run used it'));
+        const probing = { over: false };
+
+        try {
+            const failure = await Promise.race([this.probeAll(forwards, probing), early]);
+
+            if (failure !== undefined) {
+                throw failure;
+            }
+        } finally {
+            probing.over = true;
+        }
+    }
+
+    /** Resolves with the reason when the tunnel exits while it is open. It stays pending after {@link MacSession.close}. */
+    lost(): Promise<Error> {
+        return this.loss;
+    }
+
+    private exitError(code: number, when: string): Error {
+        return new Error(`the tunnel ssh exited with code ${String(code)} ${when}`);
+    }
+
+    /** Asks each forwarded port in turn. Resolves with nothing when every port serves, and with the error otherwise. */
+    private async probeAll(forwards: readonly Tunnel[], probing: { over: boolean }): Promise<Error | undefined> {
+        for (const forward of forwards) {
+            const failure = await this.probe(forward, probing);
+
+            if (failure !== undefined) {
+                return failure;
+            }
+        }
+
+        return undefined;
+    }
+
+    /**
+     * Asks one Mac port for `/health`. Code 000 means nothing answers yet (the forward comes up a moment after ssh
+     * starts), so it is asked again until the deadline. Any other code that is not 200 fails at once. A reply that is
+     * not a code (curl missing on the Mac) fails at once and is quoted, never read as 000.
+     */
+    private async probe(forward: Tunnel, probing: { over: boolean }): Promise<Error | undefined> {
+        const { sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)) } = this.options;
+        const where = `the Mac port ${String(forward.macPort)}`;
+
+        for (let waited = 0; !probing.over; waited += PROBE_INTERVAL_MS) {
+            // curl exits non-zero when nothing answers but still prints 000, so its status is ignored and its output read.
+            const reply = (
+                await this.ssh(
+                    remote(
+                        'sh',
+                        '-c',
+                        // The port is a number from the manifest, so it can sit in the script text.
+                        `curl -s -o /dev/null -w %{http_code} --max-time 2 http://127.0.0.1:${String(forward.macPort)}/health || true`,
+                    ),
+                )
+            ).trim();
+
+            if (!/^\d{3}$/u.test(reply)) {
+                return new Error(`${where} probe answered ${JSON.stringify(reply)}, which is not an HTTP code`);
+            }
+
+            if (reply === '200') {
+                return undefined;
+            }
+
+            if (reply !== '000' || waited >= PROBE_DEADLINE_MS) {
+                return new Error(
+                    `${where} answered /health with ${reply}, so the forward to local port ${String(forward.localPort)} is not serving`,
+                );
+            }
+
+            await sleep(PROBE_INTERVAL_MS);
+        }
+
+        return undefined;
     }
 
     async close(): Promise<void> {
+        this.closing = true;
         await this.tunnel?.stop();
         this.tunnel = undefined;
     }

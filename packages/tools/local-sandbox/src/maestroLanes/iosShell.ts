@@ -6,6 +6,7 @@
  */
 import { execFile, spawn } from 'node:child_process';
 import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { constants as osConstants } from 'node:os';
 import path from 'node:path';
 
 import type { IosShell } from './iosAdapter.js';
@@ -29,9 +30,10 @@ export function createIosShell(): IosShell {
             }),
         background: (command, args) => {
             const child = spawn(command, [...args], { stdio: 'ignore', detached: true });
-            const exited = new Promise<void>((resolve) => {
-                child.once('exit', () => {
-                    resolve();
+            // A signal is `128 + n`, as a shell reports it.
+            const exited = new Promise<number>((resolve) => {
+                child.once('exit', (code, signal) => {
+                    resolve(code ?? 128 + (signal === null ? 0 : osConstants.signals[signal]));
                 });
             });
 
@@ -43,6 +45,7 @@ export function createIosShell(): IosShell {
 
                     await exited;
                 },
+                exited,
             };
         },
         writeFile: async (file, content) => {

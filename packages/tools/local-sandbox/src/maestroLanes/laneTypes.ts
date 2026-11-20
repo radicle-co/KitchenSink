@@ -61,7 +61,13 @@ export interface RunContext {
     readonly repoRoot: string;
 }
 
-/** One per platform. The orchestrator calls these in this order, except `laneEnv`, which may be asked at any time. */
+/**
+ * The `lost()` of an adapter that holds no tunnel: it never resolves. Exported once so each adapter states its choice
+ * and the type holds it, and so no two adapters carry two copies of "never".
+ */
+export const NEVER_LOST: Promise<Error> = new Promise<Error>(() => undefined);
+
+/** One per platform. The orchestrator calls these in this order, except `laneEnv` and `lost`, which may be asked at any time. */
 export interface DeviceAdapter {
     readonly platform: LanePlatform;
     /** What one lane costs the host, measured. */
@@ -82,4 +88,10 @@ export interface DeviceAdapter {
     laneEnv(lane: LaneSpec): Readonly<Record<string, string>>;
     stopDevice(lane: LaneSpec): Promise<void>;
     teardownHost(): Promise<void>;
+    /**
+     * Resolves with the reason when the adapter loses what the lanes need to keep running (the tunnel to the Mac).
+     * It may be asked at any time. A loss that happened before the ask still resolves, so a late asker is not blind to it.
+     * An adapter with nothing to lose returns {@link NEVER_LOST}.
+     */
+    lost(): Promise<Error>;
 }

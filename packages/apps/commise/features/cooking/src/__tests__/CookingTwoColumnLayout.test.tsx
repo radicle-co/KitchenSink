@@ -57,6 +57,8 @@ describe('CookingTwoColumnLayout (web)', () => {
         expect(slot.className.split(' ')).toContain('shrink-0');
         expect(row?.className.split(' ')).toContain('flex');
         expect(row?.className.split(' ')).toContain('min-h-0');
+        // A row, not a stack: flex-col would draw the ingredients over the step.
+        expect(row?.className.split(' ')).not.toContain('flex-col');
     });
 
     it('draws the slot on the canvas, inset 16 on every side inside its own scroll', () => {
@@ -77,5 +79,7 @@ describe('CookingTwoColumnLayout (web)', () => {
         expect(step.className.split(' ')).toContain('w-full');
         expect(step.parentElement?.className.split(' ')).toContain('justify-center');
         expect(step.parentElement?.className.split(' ')).toContain('flex-1');
+        // Without min-w-0 a long word in the step would widen the area and push the page sideways.
+        expect(step.parentElement?.className.split(' ')).toContain('min-w-0');
     });
 });

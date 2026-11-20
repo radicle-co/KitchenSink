@@ -13,7 +13,7 @@
         "documentedProps": 116,
         "classifiedComponents": 18,
         "componentsWithPatternTag": 8,
-        "crossPlatformComponents": 16
+        "crossPlatformComponents": 17
     },
     "components": [
         {
@@ -2206,9 +2206,10 @@
             "kind": "presentational",
             "patterns": [],
             "platforms": [
-                "web"
+                "web",
+                "native"
             ],
-            "crossPlatform": false,
+            "crossPlatform": true,
             "propsDiverge": false,
             "documented": true,
             "implementations": [
@@ -2222,6 +2223,10 @@
                         {
                             "name": "module",
                             "text": "CookingIngredientsSheet — the cooking ingredients list in the house bottom `Sheet` (L1 and L1w), for web and"
+                        },
+                        {
+                            "name": "platform",
+                            "text": "shared"
                         }
                     ],
                     "description": "The ingredients sheet, on web and native.",

@@ -10,7 +10,7 @@ import { sessionCookMarksBackend } from '../../src/detail/cookMarksBackend.js';
 import { cookMarksKey } from '../../src/detail/cookMarks.js';
 import { createCookMarksStore } from '../../src/detail/cookMarksStore.js';
 import { tickKeyOf } from '../../src/detail/__fixtures__/tickKeys.js';
-import { ingredientTickKeys, tickedPositions } from '../../src/detail/ingredientTickKey.js';
+import { ingredientTickKeys, tickedPositions } from '../../src/common/ingredientTickKey.js';
 
 const [BUTTER, LEMON, SALT, A] = [1, 2, 3, 4].map(tickKeyOf);
 const COOK = 'usr_1';

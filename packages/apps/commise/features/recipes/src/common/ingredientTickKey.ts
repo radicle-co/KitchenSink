@@ -1,5 +1,5 @@
 /**
- * @module @commise/features-recipes/detail — an ingredient tick's identity: the content of its recipe line (ADR-0096).
+ * @module @commise/features-recipes/common — an ingredient tick's identity: the content of its recipe line (ADR-0096).
  *
  * A key is the line's digest (`l1:` and 8 hex chars over its stored, cook-authored, unscaled fields) and `#n`, the
  * line's ordinal among the lines with that same digest. Two identical butter lines are `d#0` and `d#1`; a different

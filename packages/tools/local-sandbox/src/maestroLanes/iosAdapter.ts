@@ -87,7 +87,7 @@ export class IosAdapter implements DeviceAdapter {
         const manifest = await this.session.ssh(
             remote('cat', `${macPathsOf().iosApp(this.contentKey)}/testApp.manifest`),
         );
-        this.session.openTunnel(tunnelsFromManifest(manifest, this.options.hostPorts));
+        await this.session.openTunnel(tunnelsFromManifest(manifest, this.options.hostPorts));
     }
 
     async startDevice(lane: LaneSpec): Promise<void> {
@@ -136,6 +136,10 @@ export class IosAdapter implements DeviceAdapter {
         if (udid !== undefined) {
             await this.session.ssh(remote('xcrun', 'simctl', 'shutdown', udid));
         }
+    }
+
+    lost(): Promise<Error> {
+        return this.session.lost();
     }
 
     async teardownHost(): Promise<void> {

@@ -77,7 +77,7 @@ LOCAL_MAESTRO_WEB_ORIGIN='http://localhost:3000'
 LOCAL_MAESTRO_MAC_RECIPE_PORT=13000
 # The shared services' command lines, as `pgrep -f` matches them: a run refuses one it did not start. Written in the part
 # of ERE a JS RegExp reads the same way, because `maestroLanes.ts` matches them too. `{name}` is a consumer's name.
-LOCAL_MAESTRO_WORKER_PATTERN='src/local/main\.ts'
+: "${LOCAL_MAESTRO_WORKER_PATTERN:=src/local/main\.ts}"
 LOCAL_MAESTRO_CONSUMER_PATTERN='bin/queueConsumer\.ts {name}( |$)'
 
 # Processes this run started, as process-group ids (each is started under `setsid`), and whether it booted the emulator.

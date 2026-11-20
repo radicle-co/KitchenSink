@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 30,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 105,
+        "platform-singleton": 104,
         "ref-api": 22,
         "unclassified-layer": 96,
         "undocumented-prop": 229
@@ -5450,16 +5450,6 @@
             "evidence": [
                 "web: exit ingredients place",
                 "native: exit ingredients narrow place"
-            ]
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresCooking/ingredients/CookingIngredientsSheet",
-            "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsSheet.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
             ]
         },
         {

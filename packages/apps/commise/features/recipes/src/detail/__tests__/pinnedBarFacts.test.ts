@@ -5,13 +5,14 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { makeIngredientView } from '../../__fixtures__/index.js';
 import { recipeMessages } from '../../messages.js';
 import { pinnedBarFactsOf } from '../pinnedBarFacts.js';
 
 const { detail } = recipeMessages.en;
 
-const lines = (count: number): { ingredientId: string }[] =>
-    Array.from({ length: count }, (_, index) => ({ ingredientId: `i${String(index)}` }));
+const lines = (count: number) =>
+    Array.from({ length: count }, (_, index) => makeIngredientView({ ingredientId: `i${String(index)}` }));
 
 const facts = (over: { count?: number; ticked?: readonly number[]; open?: boolean; servings?: number } = {}) =>
     pinnedBarFactsOf({
@@ -64,7 +65,10 @@ describe('pinnedBarFactsOf', () => {
 
     it('counts a tick by position: one of two lines of one food is one ticked (#155; mutant: by ingredientId)', () => {
         const bar = pinnedBarFactsOf({
-            ingredients: [{ ingredientId: 'butter' }, { ingredientId: 'butter' }],
+            ingredients: [
+                makeIngredientView({ ingredientId: 'butter' }),
+                makeIngredientView({ ingredientId: 'butter' }),
+            ],
             checked: new Set([0]),
             servings: 4,
             open: false,

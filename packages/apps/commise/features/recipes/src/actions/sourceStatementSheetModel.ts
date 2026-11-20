@@ -23,7 +23,7 @@ import {
 
 /** The field an answer reveals. */
 interface StatementFieldView {
-    readonly kind: 'link' | 'bookTitle';
+    readonly kind: 'link' | 'bookTitle' | 'paidSite';
     readonly label: string;
     readonly value: string;
     /** The error to say, when the cook has pressed Confirm over a field that cannot be used. */
@@ -63,6 +63,7 @@ export interface StatementSheetView {
 const LABEL_KEY = {
     authored: 'answerAuthored',
     publicWeb: 'answerWeb',
+    paidSite: 'answerPaidSite',
     book: 'answerBook',
     fromPerson: 'answerPerson',
     publishPrivately: 'answerPublishPrivately',
@@ -72,6 +73,7 @@ const LABEL_KEY = {
 const HINT_KEY = {
     authored: 'hintAuthored',
     publicWeb: 'hintPrivate',
+    paidSite: 'hintPaidSite',
     book: 'hintPrivate',
     fromPerson: 'hintPerson',
     publishPrivately: undefined,
@@ -92,6 +94,10 @@ function fieldErrorTextOf(
 ): string {
     if (error.field === 'bookTitle') {
         return m.bookTitleError;
+    }
+
+    if (error.field === 'paidSite') {
+        return m.paidSiteError;
     }
 
     return { required: shared.source.invalid, invalid: shared.source.invalid, ownSite: shared.source.ownSite }[
@@ -125,6 +131,17 @@ function fieldViewOf(
             value: state.link,
             inputMode: 'url',
             autoCapitalize: 'none',
+            ...shown,
+        };
+    }
+
+    if (state.answer === 'paidSite') {
+        return {
+            kind: 'paidSite',
+            label: m.paidSiteLabel,
+            value: state.paidSite,
+            inputMode: 'text',
+            autoCapitalize: 'sentences',
             ...shown,
         };
     }

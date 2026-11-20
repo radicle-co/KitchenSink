@@ -5,7 +5,7 @@
  * busy, error, and every dismiss route. The sheet is a pure render of its state, so each case hands it a state.
  *
  * The rows a mutant must not survive: the confirm is refused (not pressable, still focusable) until an answer is chosen; the
- * editor offers five answers and the recipe page four; the revealed field and its error are the answer's own; while busy the
+ * editor offers six answers and the recipe page five; the revealed field and its error are the answer's own; while busy the
  * list and the dismiss are disabled and Escape is ignored; the effect line is always drawn.
  */
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -65,7 +65,7 @@ describe('SourceStatementSheet (web) — choosing', () => {
         expect(screen.queryByRole('dialog')).toBeNull();
     });
 
-    it('offers five answers on the editor, in order, none checked, and the radio group is named by the title', () => {
+    it('offers six answers on the editor, in order, none checked, and the radio group is named by the title', () => {
         renderSheet();
 
         const group = within(dialog()).getByRole('radiogroup', { name: 'Where is this recipe from?' });
@@ -74,6 +74,7 @@ describe('SourceStatementSheet (web) — choosing', () => {
         expect(radios.map((radio) => radio.textContent)).toEqual([
             expect.stringContaining('I wrote this'),
             expect.stringContaining('From a web page'),
+            expect.stringContaining('From a paid website'),
             expect.stringContaining('From a cookbook or magazine'),
             expect.stringContaining('From another person'),
             expect.stringContaining('Publish privately'),
@@ -81,10 +82,20 @@ describe('SourceStatementSheet (web) — choosing', () => {
         expect(within(group).queryByRole('radio', { checked: true })).toBeNull();
     });
 
-    it('offers four answers on the recipe page, with no way to publish privately', () => {
+    it('offers five answers on the recipe page, with no way to publish privately', () => {
         renderSheet({ surface: 'recipePage' });
 
-        expect(within(dialog()).getAllByRole('radio')).toHaveLength(4);
+        expect(
+            within(dialog())
+                .getAllByRole('radio')
+                .map((radio) => radio.textContent),
+        ).toEqual([
+            expect.stringContaining('I wrote this'),
+            expect.stringContaining('From a web page'),
+            expect.stringContaining('From a paid website'),
+            expect.stringContaining('From a cookbook or magazine'),
+            expect.stringContaining('From another person'),
+        ]);
         expect(screen.queryByRole('radio', { name: 'Publish privately' })).toBeNull();
     });
 
@@ -131,11 +142,14 @@ describe('SourceStatementSheet (web) — answered', () => {
     it.each([
         ['authored', 'I wrote this'],
         ['publicWeb', 'From a web page'],
+        ['paidSite', 'From a paid website'],
         ['book', 'From a cookbook or magazine'],
         ['fromPerson', 'From another person'],
         ['publishPrivately', 'Publish privately'],
     ] as const)('checks %s, enables the confirm, and confirming reports it', async (answer, name) => {
-        const { onConfirm } = renderSheet({ state: { answer, link: 'https://example.com/r', bookTitle: 'Joy' } });
+        const { onConfirm } = renderSheet({
+            state: { answer, link: 'https://example.com/r', bookTitle: 'Joy', paidSite: 'Sam' },
+        });
 
         expect(screen.getByRole('radio', { name, checked: true })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Publish' }).getAttribute('aria-disabled')).not.toBe('true');
@@ -328,5 +342,32 @@ describe('SourceStatementSheet (web) — focus on a failed Confirm', () => {
 
         await user.click(confirm);
         expect(document.activeElement).toBe(field);
+    });
+});
+
+describe('SourceStatementSheet — paid website', () => {
+    it('reveals its own field, sends what is typed as a paidSite change, and shows the lock hint before any choice', async () => {
+        const { dispatch } = renderSheet({ state: { answer: 'paidSite' } });
+
+        expect(screen.queryByLabelText('Book or magazine title')).toBeNull();
+        await userEvent.type(screen.getByLabelText('Website name or address'), 'S');
+        expect(dispatch).toHaveBeenCalledWith({ type: 'paidSite', text: 'S' });
+        expect(screen.getByText(/Once you confirm, this answer is locked\./u)).toBeTruthy();
+    });
+
+    it('shows the citation error on the field, linked to it, taking focus', () => {
+        renderSheet({ state: { answer: 'paidSite', attempted: true, focusPending: true } });
+
+        const field = screen.getByLabelText('Website name or address');
+
+        expect(field.getAttribute('aria-invalid')).toBe('true');
+        expect(screen.getByText('Add the website’s name or address.')).toBeTruthy();
+        expect(document.activeElement).toBe(field);
+    });
+
+    it('says the lock on the recipe page too', () => {
+        renderSheet({ surface: 'recipePage' });
+
+        expect(screen.getByText(/Once you confirm, this answer is locked\./u)).toBeTruthy();
     });
 });

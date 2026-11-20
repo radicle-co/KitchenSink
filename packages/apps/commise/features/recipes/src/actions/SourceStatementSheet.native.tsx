@@ -122,9 +122,7 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
                             disabled={view.busy}
                             focusRequested={field.focusRequested}
                             onFocusRequestHandled={() => dispatch({ type: 'focusHandled' })}
-                            onChangeText={(text) =>
-                                dispatch(field.kind === 'link' ? { type: 'link', text } : { type: 'bookTitle', text })
-                            }
+                            onChangeText={(text) => dispatch({ type: field.kind, text })}
                             onSubmit={onConfirm}
                         />
                     </Field>

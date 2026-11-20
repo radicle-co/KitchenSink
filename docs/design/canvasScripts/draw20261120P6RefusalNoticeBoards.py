@@ -224,8 +224,8 @@ def detail_content(card_tag: str) -> str:
             header_card(card_tag, True, "", ""),
         ),
         detail_figure(
-            "Another cook reading a public recipe: no line. Only the owner can open a private recipe, so no one else "
-            "ever meets a reason line",
+            "Another cook reading a public recipe: no line. No one but the owner sees a reason line, a household "
+            "member reading a private one included",
             header_card(card_tag, True, "", ""),
         ),
         detail_figure("Loading: no line until the recipe has loaded, so a line never flashes on a public recipe", ""),

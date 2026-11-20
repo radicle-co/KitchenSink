@@ -5470,8 +5470,8 @@
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingTopBar.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: exit place",
-                "native: exit narrow place"
+                "web: exit ingredients place",
+                "native: exit ingredients narrow place"
             ]
         },
         {

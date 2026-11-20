@@ -6,11 +6,11 @@
     "coverage": {
         "components": 18,
         "implementations": 32,
-        "props": 120,
+        "props": 122,
         "documentedComponents": 18,
         "implementationsWithModuleDoc": 32,
         "implementationsWithComponentDoc": 32,
-        "documentedProps": 109,
+        "documentedProps": 111,
         "classifiedComponents": 18,
         "componentsWithPatternTag": 8,
         "crossPlatformComponents": 14
@@ -1644,7 +1644,7 @@
             "dir": "packages/apps/commise/features/cooking/src",
             "kind": "presentational",
             "patterns": [
-                "Variant — `narrow` selects the under-360 layout (the place on its own row under Exit); display only, no behaviour"
+                "Variant — `narrow` selects the under-360 layout (the place on its own row); display only, no behaviour"
             ],
             "platforms": [
                 "web",
@@ -1681,6 +1681,15 @@
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
+                            "name": "ingredients",
+                            "type": "CookingAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: at L2 and L3, where the column is in view, and on a recipe with no ingredients.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
                             "name": "place",
                             "type": "{ readonly text: string; readonly tone: \"ink\" | \"muted\"; }",
                             "typeDetail": null,
@@ -1702,15 +1711,15 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingTopBar.native.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingTopBar — the native top bar: Exit as ONE control, the × and its visible label together with\none accessible name, on the quiet `md` house Button (44, lifted to the platform touch floor), then the place as plain text. Done passes\nno place, so it shows Exit alone. The place keeps the position and type of a later All steps button. No Ingredients pill\nyet, not even a disabled one.\n\nProps are the shared contract's `CookingTopBarProps` plus native's `narrow`, which the screen reads from the window once,\nbecause a leaf never reads the device: web's container query does the same work, so the web leaf has no such prop.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingTopBar — the native top bar: Exit as ONE control, the × and its visible label together with one\naccessible name, on the quiet `md` house Button (44, lifted to the platform touch floor), then the place as plain\ntext, then, while the screen gives `ingredients`, the quiet Ingredients button with its `listChecks` glyph and its\nlabel whole. Done passes no place, so it shows Exit alone. The bar wraps by whole controls, so no label wraps inside\nits button or is cut. Wide, the order is Exit, the place, Ingredients. Narrow (under 360), the place takes its own\nrow under Exit and Ingredients, which stay side by side while they fit and wrap whole when they do not.\nIngredients sits at the end of the bar: wide, the place takes the free space; narrow, it has an auto start margin.\n\nProps are the shared contract's `CookingTopBarProps` plus native's `narrow`, which the screen reads from the window\nonce, because a leaf never reads the device: web's container query does the same work, so the web leaf has no such\nprop.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "CookingTopBar — the native top bar: Exit as ONE control, the × and its visible label together with"
+                            "text": "CookingTopBar — the native top bar: Exit as ONE control, the × and its visible label together with one"
                         },
                         {
                             "name": "pattern",
-                            "text": "Variant — `narrow` selects the under-360 layout (the place on its own row under Exit); display only, no behaviour"
+                            "text": "Variant — `narrow` selects the under-360 layout (the place on its own row); display only, no behaviour"
                         }
                     ],
                     "description": "The native cooking top bar.",
@@ -1725,6 +1734,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Exit: one control, the × and its label, with one accessible name.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "ingredients",
+                            "type": "CookingAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: at L2 and L3, where the column is in view, and on a recipe with no ingredients.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {

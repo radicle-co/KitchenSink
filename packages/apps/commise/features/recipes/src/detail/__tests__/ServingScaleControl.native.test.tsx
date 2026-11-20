@@ -10,7 +10,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
 // The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
-import { render } from '@commise/ui/testing/tamagui';
+import { render, resolvedColour } from '@commise/ui/testing/tamagui';
+import { Text } from '@commise/ui/text';
 import userEvent from '@testing-library/user-event';
 import { MAX_SCALED_SERVINGS, MIN_SCALED_SERVINGS } from '@kitchensink/recipe-core/scaling';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
@@ -126,11 +127,19 @@ describe('ServingScaleControl (native)', () => {
     it('names the count by a hidden "Servings" label and sets it in Inter tabular digits (F8)', () => {
         render(<ServingScaleControl servings={4} baseServings={4} onServingsChange={vi.fn()} />);
 
-        const count = getComputedStyle(screen.getByText('4'));
+        const count = screen.getByText('4');
+        const fontVariantClass = (element: HTMLElement): string | undefined =>
+            element.className.split(' ').find((name) => name.startsWith('_fv-'));
 
         expect(screen.getByRole('group', { name: 'Servings' })).toBeTruthy();
-        expect(count.fontFamily).toMatch(/Inter/u);
-        expect(count.fontVariant).toMatch(/tabular-nums/u);
+        expect(getComputedStyle(count).fontFamily).toMatch(/Inter/u);
+        // REWRITTEN for #265 (decisions/0037): the count is the house `figureInline` Text, and jsdom drops its
+        // `font-variant` rule but keeps the atomic `_fv-` class, hashed per value. Equality with a reference
+        // `figureInline` Text proves the count asks for the house figures; `Text.native.test.tsx` pins what they are.
+        const reference = render(<Text typeRole="figureInline">ref</Text>);
+
+        expect(fontVariantClass(count)).toBeDefined();
+        expect(fontVariantClass(count)).toBe(fontVariantClass(reference.getByText('ref')));
     });
 
     it('clears the 44pt touch floor on every control', () => {
@@ -155,6 +164,8 @@ describe.each(['light', 'dark'] as const)('ServingScaleControl (native) — the 
 
         expect(getComputedStyle(more).borderTopColor).toBe(rgb(colours.lineControl));
         expect(more.querySelector('[data-commise-stub="icon"]')?.getAttribute('data-icon-name')).toBe('plus');
-        expect(getComputedStyle(screen.getByText('4')).color).toBe(rgb(colours.ink));
+        // REWRITTEN for #265 (decisions/0037): the count's colour is the `$ink` variable now, so it is read through the
+        // theme it sits under, in this scheme, not as a literal rgb on the node.
+        expect(resolvedColour(screen.getByText('4'), 'color')).toBe(rgb(colours.ink));
     });
 });

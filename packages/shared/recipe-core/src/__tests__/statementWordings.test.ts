@@ -13,11 +13,12 @@ import {
 const WORDING_FORMAT = /^[a-z][A-Za-z0-9]*\.v[0-9]+$/;
 
 describe('the closed wording lists (the copy a cook saw)', () => {
-    it('names exactly the four statement wordings and the one confirmation, as the blueprint fixes them', () => {
+    it('names exactly the five statement wordings and the one confirmation, as the blueprint fixes them', () => {
         expect([...STATEMENT_WORDINGS].sort()).toEqual([
             'statementAuthored.v1',
             'statementBook.v1',
             'statementFromPerson.v1',
+            'statementPaidSite.v1',
             'statementPublicWeb.v1',
         ]);
         expect([...PUBLIC_CONFIRM_WORDINGS]).toEqual(['publicConfirm.v1']);
@@ -32,6 +33,7 @@ describe('the closed wording lists (the copy a cook saw)', () => {
             'authored',
             'book',
             'fromPerson',
+            'paidSite',
             'publicWeb',
         ]);
         expect([...STATEMENT_WORDINGS].sort()).toEqual(Object.values(STATEMENT_WORDINGS_BY_CHOICE).flat().sort());
@@ -42,6 +44,7 @@ describe('the closed wording lists (the copy a cook saw)', () => {
         expect(STATEMENT_WORDINGS_BY_CHOICE.publicWeb).toEqual(['statementPublicWeb.v1']);
         expect(STATEMENT_WORDINGS_BY_CHOICE.book).toEqual(['statementBook.v1']);
         expect(STATEMENT_WORDINGS_BY_CHOICE.fromPerson).toEqual(['statementFromPerson.v1']);
+        expect(STATEMENT_WORDINGS_BY_CHOICE.paidSite).toEqual(['statementPaidSite.v1']);
     });
 });
 

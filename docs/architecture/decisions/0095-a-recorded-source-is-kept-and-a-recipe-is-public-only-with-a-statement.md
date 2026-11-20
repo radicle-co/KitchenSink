@@ -4,6 +4,8 @@
 - **Date:** 2026-11-15
 - **Amends:** [ADR-0089](0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md) §6. Removing a source
   still leaves visibility alone. But the removed source stays on record and keeps the recipe out of Public.
+- **Amended by:** [ADR-0097](0097-from-another-person-is-locked-for-the-cook.md): §4's "It is sticky" bullet. No cook
+  statement replaces a stored "From another person" now.
 - **Amends:** [ADR-0023](0023-curator-declared-provenance.md). A body with no statement no longer means "the cook wrote
   this". Spec 004 `004-FR-024` says "existing behaviour is unchanged". That is no longer true for publishing. The spec
   text is amended separately.

@@ -100,8 +100,8 @@ describe('ImportWizardLeave (native)', () => {
         expect(screen.queryByText(l.title)).toBeNull();
     });
 
-    // CL-394 (designer D77): leaving the wizard stops the action just taken until the cook chooses, so from 600 dp it is
-    // a centred dialog 448 dp wide; on a phone it is a bottom sheet.
+    // CL-394 (designer D77): leaving the wizard stops the action just taken until the cook chooses, so from 600 dp
+    // it is a centred dialog 448 dp wide; on a phone it is a bottom sheet.
     it('is a centred dialog 448 dp wide from 600 dp, and a bottom sheet below it', () => {
         const props = {
             open: true,

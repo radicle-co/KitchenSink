@@ -325,9 +325,10 @@ describe('Sheet (web)', () => {
             expect(classes.some((utility) => utility.startsWith('bottom-'))).toBe(false);
         });
 
-        // CL-394 (designer spec section 2): `content` and `full` share one 560 px (35 rem) cap, and `content` is capped at
-        // 85% of the visible height, where `full` IS 85% (a fixed height). They were the house dialog, `max-w-lg`.
-        it('gives full and content one width cap of 35 rem, and caps only content at 85% of the visible height', async () => {
+        // CL-394 (designer spec section 2): `content` and `full` share one 560 px (35 rem) cap, and `content` is
+        // capped at 85% of the visible height, where `full` IS 85% (a fixed height). They were the house dialog,
+        // `max-w-lg`.
+        it('gives full and content one 35 rem cap, and caps only content at 85% of the visible height', async () => {
             const user = await openHost(<Host overrides={{ size: 'full' }} />);
 
             expect(smUtilities('sm:max-h-')).toStrictEqual([]);
@@ -346,7 +347,7 @@ describe('Sheet (web)', () => {
 
     /**
      * CL-394 (designer spec sections 1 and 2, P61, owner ruling 2026-11-17): a sheet is a bottom sheet at EVERY width,
-     * anchored to the foot of the visible box and centred horizontally by `mx-auto`; only a dialog is centred in the box.
+     * anchored to the foot of the visible box and centred horizontally by `mx-auto`; only a dialog is centred in it.
      * Every geometry property is ONE utility per cell (emission order, not class order, decides two of one variant).
      */
     describe('from sm (CL-394)', () => {
@@ -627,7 +628,7 @@ describe('Sheet (web)', () => {
         });
 
         // CL-394: from `sm` only a dialog centres, on the visible box's centre; a sheet stays on the box's foot.
-        it('pins the top to the visible box below sm, and centres a dialog inside the visible box from sm', async () => {
+        it('pins the top to the visible box below sm, and centres a dialog in the visible box from sm', async () => {
             const user = await openHost(<Host overrides={{ size: 'full' }} />);
 
             const classes = screen.getByRole('dialog').className.split(/\s+/u);

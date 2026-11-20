@@ -122,8 +122,8 @@ for (const colorScheme of SCHEMES) {
             expect(published.postDataJSON()).not.toHaveProperty('publicConfirmation');
         });
 
-        // CL-394 (owner ruling 2026-11-17, designer D77): this ask stops the publish until the cook chooses, so at tablet
-        // width it stays a centred dialog at most 448 px wide, where every other sheet is a bottom sheet.
+        // CL-394 (owner ruling 2026-11-17, designer D77): this ask stops the publish until the cook chooses, so at
+        // tablet width it stays a centred dialog at most 448 px wide, where every other sheet is a bottom sheet.
         test('stays a centred dialog, at most 448 px wide, on a tablet', async ({ page }) => {
             const viewerId = await readViewerAppId(page);
             await mockRecipeApi(page, {

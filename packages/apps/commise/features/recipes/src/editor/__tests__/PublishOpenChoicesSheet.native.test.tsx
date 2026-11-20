@@ -125,8 +125,8 @@ describe('PublishOpenChoicesSheet (native)', () => {
         expect(row === null || row === undefined ? undefined : getComputedStyle(row).flexDirection).toBe('column');
     });
 
-    // CL-394 (designer D77): this ask stops the action just taken until the cook chooses, so from 600 dp it is a centred
-    // dialog 448 dp wide; on a phone it is a bottom sheet.
+    // CL-394 (designer D77): this ask stops the action just taken until the cook chooses, so from 600 dp it is a
+    // centred dialog 448 dp wide; on a phone it is a bottom sheet.
     it('is a centred dialog 448 dp wide from 600 dp, and a bottom sheet below it', () => {
         windowWidth(834);
         renderSheet();

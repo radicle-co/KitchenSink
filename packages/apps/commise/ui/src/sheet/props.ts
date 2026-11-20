@@ -76,22 +76,23 @@ interface SheetBaseProps {
 }
 
 /**
- * How a sheet is presented, and the size that goes with it: the one illegal pair, a dialog that is not `content`, cannot
- * be written.
+ * How a sheet is presented, and the size that goes with it. The one illegal pair, a dialog that is not `content`,
+ * cannot be written.
  */
-export type SheetShape =
+type SheetShape =
     | {
           /**
-           * `sheet` (the default): a bottom sheet at every width, at most 560 dp (native) or 35 rem (web) wide. `dialog`:
-           * a bottom sheet on a phone and, from the tablet width (native 600 dp, web `sm`), a CENTRED dialog at most 448
-           * wide (owner rulings 2026-10-26 and 2026-11-17: a centred modal only for an ask that stops the action just
-           * taken until the cook chooses). A dialog is only ever `content`.
+           * `sheet` (the default): a bottom sheet at every width, at most 560 dp (native) or 35 rem (web) wide.
+           * `dialog`: a bottom sheet on a phone and, from the tablet width (native 600 dp, web `sm`), a CENTRED dialog
+           * at most 448 wide (owner rulings 2026-10-26 and 2026-11-17: a centred modal only for an ask that stops the
+           * action just taken until the cook chooses). A dialog is only ever `content`.
            */
           readonly presentation?: 'sheet';
           /**
-           * `content`: as tall as its content, up to 85% of the available height. `full`: always 85% of it. `page`: a
-           * page-sized sheet, the available height less a small gap on web, and as wide as the detail column (72 rem)
-           * from `sm`. Native has no wider-than-phone variant, so there `page` is the same as `full`.
+           * `content`: as tall as its content, up to the available height. `full`: always the available height.
+           * `page`: a page-sized sheet, the available height. On web from `sm`, `content` stops at 85% of the visible
+           * height, `full` is 85% of it, and `page` is the visible height less 2 rem and as wide as the detail column
+           * (72 rem). Native has no wider-than-phone variant, so there `page` is the same as `full`.
            */
           readonly size: 'content' | 'full' | 'page';
       }

@@ -80,7 +80,9 @@ const FROM_SM: Readonly<Record<SheetProps['size'], string>> = {
     full:
         `${SHEET_FROM_SM} sm:top-auto ${FOOT_FROM_SM} sm:h-[calc(var(--sheet-visible-height,100dvh)*0.85)] ` +
         'sm:max-w-[35rem]',
-    page: `${SHEET_FROM_SM} sm:top-auto ${FOOT_FROM_SM} sm:h-[calc(var(--sheet-visible-height,100dvh)-2rem)] sm:max-w-6xl`,
+    page:
+        `${SHEET_FROM_SM} sm:top-auto ${FOOT_FROM_SM} ` +
+        'sm:h-[calc(var(--sheet-visible-height,100dvh)-2rem)] sm:max-w-6xl',
 };
 
 /**
@@ -111,6 +113,7 @@ export const Sheet: FC<SheetProps> = ({
     footer,
 }) => {
     const titleId = useId();
+    const shapeFromSm = presentation === 'dialog' ? DIALOG_FROM_SM : FROM_SM[size];
     const returnFocus = useReturnFocusOnClose(open);
     const visible = useVisualViewportKeyboard();
     const style =
@@ -144,7 +147,7 @@ export const Sheet: FC<SheetProps> = ({
                         onDismissed?.();
                     }}
                     style={style}
-                    className={`${CONTENT} ${PHONE[size]} ${presentation === 'dialog' ? DIALOG_FROM_SM : FROM_SM[size]}`}
+                    className={`${CONTENT} ${PHONE[size]} ${shapeFromSm}`}
                 >
                     <SheetPanel
                         title={title}

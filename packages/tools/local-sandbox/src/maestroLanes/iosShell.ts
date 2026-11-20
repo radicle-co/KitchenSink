@@ -6,10 +6,10 @@
  */
 import { execFile, spawn } from 'node:child_process';
 import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
-import { constants as osConstants } from 'node:os';
 import path from 'node:path';
 
 import type { IosShell } from './iosAdapter.js';
+import { exitCodeOf } from './laneProcess.js';
 
 export function createIosShell(): IosShell {
     return {
@@ -33,7 +33,7 @@ export function createIosShell(): IosShell {
             // A signal is `128 + n`, as a shell reports it.
             const exited = new Promise<number>((resolve) => {
                 child.once('exit', (code, signal) => {
-                    resolve(code ?? 128 + (signal === null ? 0 : osConstants.signals[signal]));
+                    resolve(exitCodeOf(code, signal));
                 });
             });
 

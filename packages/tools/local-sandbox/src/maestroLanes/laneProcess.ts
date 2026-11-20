@@ -15,6 +15,10 @@ import type { LaneSpec } from './laneTypes.js';
 /** The file in a lane's state folder the runner records the screens its flows showed to. */
 export const SCREEN_RECORD_FILE = 'screenRecord.tsv';
 
+/** The exit code a shell reports: the child's own, or `128 + n` for signal `n`. */
+export const exitCodeOf = (code: number | null, signal: NodeJS.Signals | null): number =>
+    code ?? (signal === null ? 1 : 128 + (constants.signals[signal] ?? 0));
+
 export interface LaneChild {
     readonly pid: number;
     /** The runner's exit code; a signal is `128 + n`, as a shell reports it. */
@@ -45,9 +49,7 @@ export function spawnRunner(input: {
 
     const exit = new Promise<number>((resolve) => {
         child.on('error', () => resolve(1));
-        child.on('exit', (code, signal) =>
-            resolve(code ?? (signal === null ? 1 : 128 + (constants.signals[signal] ?? 0))),
-        );
+        child.on('exit', (code, signal) => resolve(exitCodeOf(code, signal)));
     });
 
     return {

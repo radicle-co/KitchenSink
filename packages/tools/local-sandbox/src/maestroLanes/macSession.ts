@@ -8,6 +8,7 @@
  */
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { quote } from 'shell-quote';
 
@@ -311,7 +312,7 @@ export class MacSession {
      * not a code (curl missing on the Mac) fails at once and is quoted, never read as 000.
      */
     private async probe(forward: Tunnel, probing: Probing): Promise<Error | undefined> {
-        const { sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)) } = this.options;
+        const { sleep = (ms: number) => delay(ms) } = this.options;
         const now = this.options.now ?? Date.now;
         const where = `the Mac port ${String(forward.macPort)}`;
 

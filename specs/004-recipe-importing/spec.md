@@ -239,7 +239,7 @@ them. So the import never invents a value:
       allowlist, and of every recipe that 020's reviewer check flags. The allowlist is: the cook's own verified site
       (`026-FR-001`), an open licence stated in the page's structured data, public-domain works (`016-FR-015k`) and US
       government works.
-    - A paid-site recipe goes public as the cook's own Adapted version after our check, or as a page Commise writes in full that names no site (ADR-0097, [the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)).
+    - A paid-site recipe goes public as the cook's own Adapted version after our check and once our review finds the edits sufficient, or as a page Commise writes in full that names no site (ADR-0097, [the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)).
     - The rewrite, its checks and the cook's confirmation before it publishes are spec 003B. Until it ships, the rewrite
       cannot run, so an import is Private only.
     - Every state of the choice is designed in
@@ -441,7 +441,7 @@ them. So the import never invents a value:
 - **FR-014**: System MUST classify a source as a **paid site** when the page's structured data says
   `isAccessibleForFree=false`, when its domain is on the paid list, or when the site has a metered payment gate. The paid
   list is stored as data with an admin-managed lifecycle (D-004), not as a code constant, and it starts with a seeded
-  list. A paid-site recipe is kept privately (`FR-066`) and goes public as the cook's own Adapted version after our check, or as a page Commise writes in full that names no
+  list. A paid-site recipe is kept privately (`FR-066`) and goes public as the cook's own Adapted version after our check and once our review finds the edits sufficient, or as a page Commise writes in full that names no
   site (`FR-065`, ADR-0097). The classification never refuses an import and never blocks anything except the server fetch: the
   server never fetches a known paid site, and the cook is asked to paste the page instead (`FR-064`). The import never
   passes a payment gate or a login, and never uses a cook's password or cookies. There is no list of hosts of
@@ -531,10 +531,9 @@ them. So the import never invents a value:
       "Upgrade to Pro" action (`003B-FR-073`).
     - A recipe from another person is private only for now ([the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)), so this requirement's
       refusals apply to it. Its private copy uses a slot like any private recipe.
-    - A book or paid-site recipe can go public as the cook's own Adapted version after our check, or as a Commise-written version (`FR-065`). The cook's private copy uses
+    - A book recipe can go public as the cook's own Adapted version after our check, and a paid-site recipe also once our review finds the edits sufficient. Either can go public as a Commise-written version (`FR-065`). The cook's private copy uses
       a private slot even when the recipe also has a public version.
-- **FR-014b**: Withdrawn. A book or paid-site recipe's public forms are the cook's own Adapted version after our check, or a Commise-written version
-  (`FR-065`).
+- **FR-014b**: Withdrawn. A book or paid-site recipe's public forms are the cook's own Adapted version (after our check; for a paid website also once our review finds the edits sufficient), or a Commise-written version (`FR-065`).
 - **FR-024** _(partly shipped, [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md))_: Recipe
   creation MUST accept an explicit provenance (`sourceType` plus an optional source URL and attribution) and evaluate the
   visibility policy against the actual provenance. Omitted provenance means `user_created`. `POST /api/v1/recipes` takes
@@ -988,7 +987,7 @@ official-API path is hidden by its capability flag and its tests run against the
   `D-019`). It keeps 016's rules, 017's user-directed posture and 020's check, and it adds no new label and no new
   pipeline.
 - **C-009 (Recipe rights)**: A web import is private in full (`FR-008`, `FR-066`), public as a Commise-written version
-  (`FR-065`), or as the cook's own Adapted version after our check. There are five statements, and statement 1a is a variant of the first (`FR-014a`). A recipe from another person is private for now (`FR-028`, [the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)). A fingerprint is kept at capture for the source check (`020-FR-012b`).
+  (`FR-065`), or as the cook's own Adapted version after our check (for a paid website also once our review finds the edits sufficient). There are five statements, and statement 1a is a variant of the first (`FR-014a`). A recipe from another person is private for now (`FR-028`, [the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)). A fingerprint is kept at capture for the source check (`020-FR-012b`).
 
 ---
 

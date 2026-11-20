@@ -30,7 +30,7 @@ const Wrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (
     <CookMarksProvider subject="user_test">{children}</CookMarksProvider>
 );
 
-function viewOf(ticked: readonly string[] = []): CookingIngredientsListView {
+function viewOf(ticked: readonly number[] = []): CookingIngredientsListView {
     const view = cookingIngredientsView({
         ingredients: [
             makeRecipeIngredientView({ ingredientId: 'ing_flour', name: 'flour' }),
@@ -53,7 +53,7 @@ function viewOf(ticked: readonly string[] = []): CookingIngredientsListView {
 const commands = () => ({ onToggle: vi.fn(), onSetServings: vi.fn(), onClear: vi.fn() });
 
 describe('CookingIngredientsSheet (web)', () => {
-    function mount(open = true, ticked: readonly string[] = []) {
+    function mount(open = true, ticked: readonly number[] = []) {
         const handlers = { ...commands(), onClose: vi.fn() };
         const view = viewOf(ticked);
 
@@ -83,6 +83,12 @@ describe('CookingIngredientsSheet (web)', () => {
         const { onClose } = mount();
 
         expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
+        // The frame's whole set of buttons, so a Done that came back under any other name would fail here too.
+        expect(screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
+            copy.ingredients.close,
+            'Fewer servings',
+            'More servings',
+        ]);
 
         await user.click(screen.getByRole('button', { name: copy.ingredients.close }));
 
@@ -90,13 +96,13 @@ describe('CookingIngredientsSheet (web)', () => {
     });
 
     it('passes the list commands through: a tick, a serving and Clear ticks', async () => {
-        const { onToggle, onSetServings, onClear, onClose } = mount(true, ['ing_flour']);
+        const { onToggle, onSetServings, onClear, onClose } = mount(true, [0]);
 
         await user.click(screen.getByRole('checkbox', { name: /sugar/ }));
         await user.click(screen.getByRole('button', { name: 'More servings' }));
         await user.click(screen.getByRole('button', { name: copy.ingredients.clear }));
 
-        expect(onToggle).toHaveBeenCalledExactlyOnceWith('ing_sugar');
+        expect(onToggle).toHaveBeenCalledExactlyOnceWith(1);
         expect(onSetServings).toHaveBeenCalledExactlyOnceWith(3);
         expect(onClear).toHaveBeenCalledOnce();
         expect(onClose).not.toHaveBeenCalled();
@@ -104,7 +110,7 @@ describe('CookingIngredientsSheet (web)', () => {
 });
 
 describe('CookingIngredientsColumn (web)', () => {
-    function mount(ticked: readonly string[] = []) {
+    function mount(ticked: readonly number[] = []) {
         const handlers = commands();
         const view = viewOf(ticked);
 
@@ -127,15 +133,19 @@ describe('CookingIngredientsColumn (web)', () => {
 
         expect(screen.queryByRole('button', { name: copy.ingredients.close })).toBeNull();
         expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
+        expect(screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
+            'Fewer servings',
+            'More servings',
+        ]);
     });
 
     it('passes the list commands through', async () => {
-        const { onToggle, onClear } = mount(['ing_flour']);
+        const { onToggle, onClear } = mount([0]);
 
         await user.click(screen.getByRole('checkbox', { name: /sugar/ }));
         await user.click(screen.getByRole('button', { name: copy.ingredients.clear }));
 
-        expect(onToggle).toHaveBeenCalledExactlyOnceWith('ing_sugar');
+        expect(onToggle).toHaveBeenCalledExactlyOnceWith(1);
         expect(onClear).toHaveBeenCalledOnce();
     });
 });

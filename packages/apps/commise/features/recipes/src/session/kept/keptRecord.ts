@@ -1,12 +1,17 @@
 /**
  * @module The kept record, v1 (ADR-0094 section 2): one versioned document per user holding the cook's page ticks,
  * cooking sessions and timers. The format is a one-way door once a client has written it, so every read goes through a
- * strict zod parse. It holds ids, positions, digests, servings and instants only: no label, no recipe text.
+ * strict zod parse. It holds ids, positions, digests, servings and instants only: no label, no recipe text. An
+ * ingredient tick is a content key (a line's digest and ordinal, ADR-0096), a hash and a count, so no recipe text
+ * either. The record stays v1: `ticks` accepts the same JSON as before (an array of strings), and a string that is
+ * not a key is dropped on its own, so one old binding id never costs the document.
  *
  * @pattern Repository — the document schema and its parse/serialize pair are the persistence boundary.
  */
 import { isValidTimerMs, type StepRef } from '@kitchensink/cooking-core';
 import { z } from 'zod';
+
+import { ingredientTickKeysSchema } from '../../detail/ingredientTickKey.js';
 
 export const KEPT_RECORD_VERSION = 1;
 export const KEPT_KEY_PREFIX = 'cook.v2.';
@@ -34,7 +39,7 @@ const lineTickSchema = z.strictObject({
 
 const pageEntrySchema = z.strictObject({
     kind: z.literal('page'),
-    ticks: z.array(z.string()),
+    ticks: ingredientTickKeysSchema,
     pageStep: stepRefSchema.optional(),
     servings: z.number().positive().optional(),
     lastTouch: isoInstant,
@@ -45,7 +50,7 @@ const cookingEntrySchema = z.strictObject({
     step: stepRefSchema,
     marks: z.array(stepRefSchema),
     lineTicks: z.array(lineTickSchema),
-    ticks: z.array(z.string()),
+    ticks: ingredientTickKeysSchema,
     servings: z.number().positive().optional(),
     lastTouch: isoInstant,
 });

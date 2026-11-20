@@ -6,6 +6,7 @@
  */
 import { matchStep, matchStepStrict } from '@kitchensink/cooking-core';
 
+import type { IngredientTickKey } from '../../detail/ingredientTickKey.js';
 import { sessionClock, timerClock } from './sessionClock.js';
 import type { CookingEntry, KeptDocument, KeptEntry, KeptTimer, LineTickRef, StepMark } from './keptRecord.js';
 
@@ -17,7 +18,12 @@ export interface EndedSnapshot {
 }
 
 export type KeptCommand =
-    | { readonly type: 'tickPage'; readonly recipeId: string; readonly ingredientId: string; readonly ticked: boolean }
+    | {
+          readonly type: 'tickPage';
+          readonly recipeId: string;
+          readonly line: IngredientTickKey;
+          readonly ticked: boolean;
+      }
     | { readonly type: 'startSession'; readonly recipeId: string; readonly step: StepMark }
     /** Resume's "Start from step 1": ends the session and starts a new one. */
     | { readonly type: 'resetSession'; readonly recipeId: string; readonly step: StepMark }
@@ -30,7 +36,8 @@ export type KeptCommand =
     | { readonly type: 'restoreSession'; readonly snapshot: EndedSnapshot }
     /**
      * Moves a recipe's step, marks and line ticks onto the recipe's current steps (ADR-0094 section 9). Timers are not
-     * moved here: the timer reducer moves them with its `rematch` command.
+     * moved here: the timer reducer moves them with its `rematch` command. Ingredient ticks are content keys, so they
+     * are never moved or dropped here (ADR-0096).
      */
     | { readonly type: 'rebind'; readonly recipeId: string; readonly stepDigests: readonly string[] }
     | { readonly type: 'prune' };
@@ -85,11 +92,11 @@ function tickPage(doc: KeptDocument, c: Extract<KeptCommand, { type: 'tickPage' 
     const entry = doc.entries[c.recipeId];
     const ticks = entry?.ticks ?? [];
 
-    if (ticks.includes(c.ingredientId) === c.ticked) {
+    if (ticks.includes(c.line) === c.ticked) {
         return UNCHANGED;
     }
 
-    const next = c.ticked ? [...ticks, c.ingredientId] : ticks.filter((id) => id !== c.ingredientId);
+    const next = c.ticked ? [...ticks, c.line] : ticks.filter((key) => key !== c.line);
     const updated: KeptEntry =
         entry === undefined ? { kind: 'page', ticks: next, lastTouch: now } : { ...entry, ticks: next, lastTouch: now };
 

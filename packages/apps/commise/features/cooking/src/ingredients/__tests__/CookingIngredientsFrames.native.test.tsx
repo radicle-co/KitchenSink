@@ -31,7 +31,7 @@ const Wrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (
     <CookMarksProvider subject="user_test">{children}</CookMarksProvider>
 );
 
-function viewOf(ticked: readonly string[] = []): CookingIngredientsListView {
+function viewOf(ticked: readonly number[] = []): CookingIngredientsListView {
     const view = cookingIngredientsView({
         ingredients: [
             makeRecipeIngredientView({ ingredientId: 'ing_flour', name: 'flour' }),
@@ -54,7 +54,7 @@ function viewOf(ticked: readonly string[] = []): CookingIngredientsListView {
 const commands = () => ({ onToggle: vi.fn(), onSetServings: vi.fn(), onClear: vi.fn() });
 
 describe('CookingIngredientsSheet (native)', () => {
-    function mount(open = true, ticked: readonly string[] = []) {
+    function mount(open = true, ticked: readonly number[] = []) {
         const handlers = { ...commands(), onClose: vi.fn() };
         const view = viewOf(ticked);
 
@@ -91,13 +91,13 @@ describe('CookingIngredientsSheet (native)', () => {
     });
 
     it('passes the list commands through: a tick, a serving and Clear ticks', async () => {
-        const { onToggle, onSetServings, onClear, onClose } = mount(true, ['ing_flour']);
+        const { onToggle, onSetServings, onClear, onClose } = mount(true, [0]);
 
         await user.click(screen.getByRole('checkbox', { name: /sugar/ }));
         await user.click(screen.getByRole('button', { name: 'More servings' }));
         await user.click(screen.getByRole('button', { name: copy.ingredients.clear }));
 
-        expect(onToggle).toHaveBeenCalledExactlyOnceWith('ing_sugar');
+        expect(onToggle).toHaveBeenCalledExactlyOnceWith(1);
         expect(onSetServings).toHaveBeenCalledExactlyOnceWith(3);
         expect(onClear).toHaveBeenCalledOnce();
         expect(onClose).not.toHaveBeenCalled();
@@ -105,7 +105,7 @@ describe('CookingIngredientsSheet (native)', () => {
 });
 
 describe('CookingIngredientsColumn (native)', () => {
-    function mount(ticked: readonly string[] = []) {
+    function mount(ticked: readonly number[] = []) {
         const handlers = commands();
         const view = viewOf(ticked);
 
@@ -137,12 +137,12 @@ describe('CookingIngredientsColumn (native)', () => {
     });
 
     it('passes the list commands through', async () => {
-        const { onToggle, onClear } = mount(['ing_flour']);
+        const { onToggle, onClear } = mount([0]);
 
         await user.click(screen.getByRole('checkbox', { name: /sugar/ }));
         await user.click(screen.getByRole('button', { name: copy.ingredients.clear }));
 
-        expect(onToggle).toHaveBeenCalledExactlyOnceWith('ing_sugar');
+        expect(onToggle).toHaveBeenCalledExactlyOnceWith(1);
         expect(onClear).toHaveBeenCalledOnce();
     });
 });

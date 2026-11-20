@@ -23,8 +23,8 @@ const ranTool = (tool) => ({
     durationMs: 1,
     detail: '',
 });
-const KINDS = { code: 2, python: 0, codeInTsProject: 2, manifest: 1, workspaceRoots: 1 };
-const NO_KINDS = { code: 0, python: 0, codeInTsProject: 0, manifest: 0, workspaceRoots: 0 };
+const KINDS = { code: 2, python: 0, codeInTsProject: 2, manifest: 1, moduleSurface: 1, workflow: 0 };
+const NO_KINDS = { code: 0, python: 0, codeInTsProject: 0, manifest: 0, moduleSurface: 0, workflow: 0 };
 
 /** A scan in which every required tool ran over a diff that holds targets of every kind, and found nothing. */
 const makeStatus = (overrides = {}) => ({
@@ -132,7 +132,7 @@ describe('a scanner that did not run', () => {
         ['jscpd', { ...NO_KINDS, code: 1 }],
         ['semgrep', { ...NO_KINDS, python: 1 }],
         ['depcruise', { ...NO_KINDS, codeInTsProject: 1 }],
-        ['knip', { ...NO_KINDS, workspaceRoots: 1 }],
+        ['knip', { ...NO_KINDS, moduleSurface: 1 }],
         ['sherif', { ...NO_KINDS, manifest: 1 }],
         ['turbo-config', { ...NO_KINDS, manifest: 1 }],
         ['turbo-boundaries', { ...NO_KINDS, code: 1 }],
@@ -142,6 +142,42 @@ describe('a scanner that did not run', () => {
             assert.deepEqual(rules(judge({ status })), ['tool-did-not-run']);
         });
     }
+
+    it('passes a tool that reports NOT_APPLICABLE when the diff holds none of its kind', () => {
+        const status = makeStatus({
+            files: ['docs/readme.md'],
+            kinds: NO_KINDS,
+            tools: REQUIRED_TOOLS.map((tool) => ({ ...ranTool(tool), status: 'NOT_APPLICABLE', targets: 0 })),
+        });
+        assert.equal(judge({ status }).pass, true);
+    });
+
+    it('fails a tool that claims NOT_APPLICABLE although the diff holds files of its kind', () => {
+        const status = makeStatus({ tools: withTool('eslint-overlay', { status: 'NOT_APPLICABLE', targets: 0 }) });
+        const verdict = judge({ status });
+        assert.deepEqual(rules(verdict), ['tool-did-not-run']);
+        assert.match(verdict.violations[0].message, /eslint-overlay/);
+    });
+
+    it('does not read NOT_APPLICABLE as never-ran: a tool absent from the status still fails on a docs-only diff', () => {
+        const status = makeStatus({
+            files: ['docs/readme.md'],
+            kinds: NO_KINDS,
+            tools: REQUIRED_TOOLS.filter((tool) => tool !== 'knip').map((tool) => ({
+                ...ranTool(tool),
+                status: 'NOT_APPLICABLE',
+            })),
+        });
+        const verdict = judge({ status });
+        assert.deepEqual(rules(verdict), ['tool-did-not-run']);
+        assert.match(verdict.violations[0].message, /knip/);
+    });
+
+    it('does not expect knip to run for a code change with no export, import or manifest change', () => {
+        const kinds = { ...NO_KINDS, code: 1, codeInTsProject: 1 };
+        const status = makeStatus({ kinds, tools: withTool('knip', { status: 'NOT_APPLICABLE', targets: 0 }) });
+        assert.equal(judge({ status }).pass, true);
+    });
 
     it('fails the scan when a required tool is missing from the status altogether', () => {
         const status = makeStatus({ tools: REQUIRED_TOOLS.filter((tool) => tool !== 'depcruise').map(ranTool) });

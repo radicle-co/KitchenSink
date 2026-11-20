@@ -8,6 +8,8 @@
 // ⛔ A scanner that analysed nothing reads exactly like a clean codebase. So every required tool must be PRESENT in the
 // status, and a tool that did not run over a diff holding targets of its kind is a failure, never a pass.
 
+import { NOT_APPLICABLE, isApplicable } from './scanScope.mjs';
+
 /** The label that allows a PR to grow a baseline file. It waives that one rule and no other. */
 export const BASELINE_GROWTH_LABEL = 'baseline-growth';
 
@@ -32,18 +34,6 @@ export const REQUIRED_TOOLS = [
  * "no targets" and "skipped" are not failures (its own check is the gate for what it finds). FAILED still is.
  */
 const MAY_BE_ABSENT = new Set(['codeql']);
-
-/** What each tool needs in the diff before NO_TARGETS / SKIPPED can be believed. Keys are `status.kinds` counters. */
-const NEEDS = {
-    'eslint-overlay': (k) => k.code > 0,
-    semgrep: (k) => k.code + k.python > 0,
-    depcruise: (k) => k.codeInTsProject > 0,
-    jscpd: (k) => k.code > 0,
-    knip: (k) => k.workspaceRoots > 0,
-    sherif: (k) => k.manifest > 0,
-    'turbo-config': (k) => k.manifest > 0 || k.code > 0,
-    'turbo-boundaries': (k) => k.manifest > 0 || k.code > 0,
-};
 
 /** Severities that block. scan.mjs keeps each tool's own word: ESLint/Semgrep say `error`, CodeQL says `high`. */
 const BLOCKING_SEVERITIES = new Set(['error', 'high', 'critical']);
@@ -92,7 +82,12 @@ const toolProblems = (status) => {
             problems.push(`${tool}: missing from the scan status, so it proved nothing`);
         } else if (entry.status === 'FAILED') {
             problems.push(`${tool}: FAILED${entry.detail ? ` (${entry.detail})` : ''}`);
-        } else if (entry.status !== 'ran' && !MAY_BE_ABSENT.has(tool) && NEEDS[tool](kinds)) {
+        } else if (entry.status === NOT_APPLICABLE) {
+            // A claim that the diff holds nothing of this tool's kind, re-checked here: it passes only if that is true.
+            if (isApplicable(tool, kinds)) {
+                problems.push(`${tool}: reported ${NOT_APPLICABLE} although the diff holds files of its kind`);
+            }
+        } else if (entry.status !== 'ran' && !MAY_BE_ABSENT.has(tool) && isApplicable(tool, kinds)) {
             problems.push(
                 `${tool}: ${entry.status} although the diff holds files of its kind${entry.detail ? ` (${entry.detail})` : ''}`,
             );

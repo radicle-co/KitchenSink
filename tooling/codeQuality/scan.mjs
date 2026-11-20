@@ -36,6 +36,13 @@ import {
     workspaceDirs,
 } from './boundariesCore.mjs';
 import {
+    NOT_APPLICABLE,
+    cloneTouchesChangedLines,
+    cruiseTargets,
+    isApplicable,
+    touchesModuleSurface,
+} from './scanScope.mjs';
+import {
     depcruiseEdgeSpecifier,
     envReads,
     importLine,
@@ -298,6 +305,32 @@ const readJson = (p) => {
 
 const rootPkg = readJson(join(repo, 'package.json'));
 
+const manifestTouched = files.some(
+    (f) => f.endsWith('package.json') || f === 'turbo.json' || f.endsWith('/turbo.json') || f === 'pnpm-workspace.yaml',
+);
+// ⛔ ONLY CHANGED FILES (owner ruling 2026-11-20). How many changed files each kind of tool could act on. scanVerdict.mjs
+// reads this to tell a tool that rightly had nothing to do (NOT_APPLICABLE) from one that silently did nothing.
+// `moduleSurface` is how many changed code files add or remove an export, an import or a require: knip builds the whole
+// module graph, so it runs only when one did. A file with no diff (untracked, --files, --all) counts as having one.
+const moduleSurfaceFiles = (() => {
+    if (diffSelector === null || codeFiles.length === 0) {
+        return codeFiles.length;
+    }
+    const diffed = codeFiles.filter((f) => changedLines.has(f));
+    const diffText = sh('git', ['diff', '-U0', '--diff-filter=ACMR', ...diffSelector, '--', ...diffed], {
+        cwd: repo,
+    }).out;
+    return codeFiles.length - diffed.length + (touchesModuleSurface(diffText) ? 1 : 0);
+})();
+const kinds = {
+    code: codeFiles.length,
+    python: pyFiles.length,
+    codeInTsProject: codeFiles.filter((f) => existsSync(join(repo, packageRoot(f), 'tsconfig.json'))).length,
+    manifest: manifestTouched ? 1 : 0,
+    moduleSurface: moduleSurfaceFiles,
+    workflow: workflowFiles.length,
+};
+
 // ── tools ───────────────────────────────────────────────────────────────────────────────────────────────
 const findings = [];
 const statuses = [];
@@ -316,6 +349,19 @@ const add = (f) => {
 
 async function tool(name, fn) {
     if (wanted && !wanted.has(name)) {
+        return;
+    }
+    // A sweep (--all) asks every tool for the whole path; a change asks only the tools it holds files for.
+    if (!opt.all && !isApplicable(name, kinds)) {
+        statuses.push({
+            tool: name,
+            status: NOT_APPLICABLE,
+            targets: 0,
+            findings: 0,
+            findingsOnChangedLines: 0,
+            durationMs: 0,
+            detail: "the change holds no file of this tool's kind",
+        });
         return;
     }
     const t0 = Date.now();
@@ -510,12 +556,11 @@ await tool('depcruise', () => {
             .map((c) => join(cwd, c))
             .find(existsSync);
         const config = own ?? join(SCQ_HOME, 'depcruiseConfig.cjs');
-        const tops = [...new Set(group.map((f) => relative(root, f).split('/')[0]))].filter((d) =>
-            existsSync(join(cwd, d)),
-        );
+        // The changed files, not their package: depcruise follows their imports, so a cycle through one is still found.
+        const targetsHere = cruiseTargets(root, group);
         const r = sh(
             BIN('depcruise'),
-            ['--config', config, '--ts-config', 'tsconfig.json', '--output-type', 'json', ...tops],
+            ['--config', config, '--ts-config', 'tsconfig.json', '--output-type', 'json', ...targetsHere],
             { cwd },
         );
         if (!r.out.trim().startsWith('{')) {
@@ -529,6 +574,11 @@ await tool('depcruise', () => {
         notes.push(`${root || '.'}: ${own ? 'repo config' : 'advisory baseline config'}`);
         const inPkg = (p) => join(root, p);
         for (const v of res.summary.violations) {
+            // An orphan is a fact about who imports a module, and a cruise from the changed files never sees an
+            // importer outside them, so every changed file would read as one.
+            if (v.rule.name === 'no-orphans') {
+                continue;
+            }
             const members = [v.from, v.to, ...(v.cycle ?? []).map((c) => (typeof c === 'string' ? c : c.name))];
             const member = inScope.has(inPkg(v.from)) ? v.from : members.find((m) => inScope.has(inPkg(m)));
             if (member === undefined) {
@@ -596,11 +646,14 @@ await tool('jscpd', () => {
             const pkgDir = join(repo, root);
             const a = relative(repo, resolve(pkgDir, d.firstFile.name));
             const b = relative(repo, resolve(pkgDir, d.secondFile.name));
-            if (!inScope.has(a) && !inScope.has(b)) {
+            // Only a clone with one side on a changed line: the rest is the repository's own backlog.
+            const touches = (name, side) => inScope.has(name) && cloneTouchesChangedLines(side, changedLines.get(name));
+            const aSide = touches(a, d.firstFile);
+            if (!aSide && !touches(b, d.secondFile)) {
                 continue;
             }
-            const [file, other] = inScope.has(a) ? [a, d.secondFile] : [b, d.firstFile];
-            const start = inScope.has(a) ? d.firstFile.start : d.secondFile.start;
+            const [file, other] = aSide ? [a, d.secondFile] : [b, d.firstFile];
+            const start = aSide ? d.firstFile.start : d.secondFile.start;
             add({
                 tool: 'jscpd',
                 rule: 'duplicate-code',
@@ -775,15 +828,12 @@ await tool('zizmor', () => {
 });
 
 const isWorkspace = Boolean(rootPkg?.workspaces) || existsSync(join(repo, 'pnpm-workspace.yaml'));
-const manifestTouched = files.some(
-    (f) => f.endsWith('package.json') || f === 'turbo.json' || f.endsWith('/turbo.json') || f === 'pnpm-workspace.yaml',
-);
 
 await tool('sherif', () => {
     if (!isWorkspace) {
         return noTargets('not an npm/pnpm workspace');
     }
-    if (!manifestTouched && !opt.all && !(wanted && wanted.has('sherif'))) {
+    if (!manifestTouched && !opt.all) {
         return noTargets('no package manifest in scope');
     }
     if (!existsSync(BIN('sherif'))) {
@@ -808,7 +858,7 @@ await tool('turbo-config', () => {
     if (!existsSync(join(repo, 'turbo.json'))) {
         return noTargets('no turbo.json');
     }
-    if (!manifestTouched && codeFiles.length === 0 && !opt.all && !(wanted && wanted.has('turbo-config'))) {
+    if (!manifestTouched && codeFiles.length === 0 && !opt.all) {
         return noTargets('no turbo.json, package manifest or code file in scope');
     }
     /** Each variable read, at its first read in scope. */
@@ -907,7 +957,7 @@ await tool('turbo-boundaries', () => {
     if (!existsSync(turbo)) {
         return skipped('repo has no local turbo binary (run npm install)');
     }
-    if (!manifestTouched && codeFiles.length === 0 && !opt.all && !(wanted && wanted.has('turbo-boundaries'))) {
+    if (!manifestTouched && codeFiles.length === 0 && !opt.all) {
         return noTargets('no package manifest or code file in scope');
     }
     const r = sh(turbo, ['boundaries'], { cwd: repo, env: { NO_COLOR: '1', FORCE_COLOR: '0' } });
@@ -994,9 +1044,6 @@ await tool('knip', () => {
         return skipped('toolchain not installed');
     }
     const roots = [...groupByPackage(codeFiles).keys()].filter(Boolean);
-    if (roots.length === 0) {
-        return noTargets('no workspace roots in scope');
-    }
     // ⛔ ONE RUN FOR THE WHOLE MONOREPO, THEN FILTER — never one run per workspace. `--workspace` filters
     // knip's REPORTING, not its analysis: it builds the entire module graph either way. Measured on a
     // ~50-workspace monorepo, 2026-09-18: one workspace 18.25s, ALL workspaces 17.75s, and the findings for
@@ -1038,8 +1085,8 @@ await tool('knip', () => {
     }
     return {
         status: 'ran',
-        targets: roots.length,
-        detail: `one whole-repo run, findings filtered to the ${inScope.size} file(s) in scope across: ${roots.join(', ')}`,
+        targets: roots.length || inScope.size,
+        detail: `one whole-repo run, findings filtered to the ${inScope.size} file(s) in scope across: ${roots.join(', ') || 'the manifests'}`,
     };
 });
 
@@ -1248,15 +1295,6 @@ writeFileSync(
     join(out, 'findings.jsonl'),
     findings.map((f) => JSON.stringify(f)).join('\n') + (findings.length ? '\n' : ''),
 );
-// How many in-scope files each kind of tool could act on. scanVerdict.mjs reads this to tell a tool that rightly found
-// nothing to do from one that silently did nothing; it is the only place that knows (e.g. which code sits under a tsconfig).
-const kinds = {
-    code: codeFiles.length,
-    python: pyFiles.length,
-    codeInTsProject: codeFiles.filter((f) => existsSync(join(repo, packageRoot(f), 'tsconfig.json'))).length,
-    manifest: manifestTouched ? 1 : 0,
-    workspaceRoots: [...groupByPackage(codeFiles).keys()].filter(Boolean).length,
-};
 writeFileSync(
     join(out, 'status.json'),
     JSON.stringify({ repo, head, mergeBase, scope: scopeLabel, files, kinds, tools: statuses }, null, 2),

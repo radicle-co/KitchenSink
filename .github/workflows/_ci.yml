@@ -732,9 +732,12 @@ jobs:
     # @pattern Ratchet  — the boundaries baseline and the repoGuards baselines may only shrink.
     #
     # ADR-0097. This job is the deterministic half of the GATE: the `GATE` status (gate.yml) judges the evidence this
-    # job uploads as `scq-<sha>`. It has NO paths filter on purpose: a skipped check is not a passed one, and a diff
-    # of docs only simply finds no targets (scanVerdict.mjs tells that apart from a scanner that did not run).
-    # ⛔ A tool that FAILED, or that found no target in a diff that holds files of its kind, fails the job.
+    # job uploads as `scq-<sha>`. ONLY CHANGED FILES (owner ruling 2026-11-20): each tool runs only when the change holds
+    # a file of its kind, pointed at those files, and otherwise reports NOT_APPLICABLE (scanScope.mjs). The job has NO
+    # paths filter on purpose: a skipped check is not a passed one, and scanVerdict.mjs tells a tool with nothing to do
+    # from one that never ran.
+    # ⛔ A tool that FAILED, that is missing from the status, or that did not run although the change holds files of its
+    # kind, fails the job.
     codeQuality:
         name: Code quality scanners
         timeout-minutes: 20

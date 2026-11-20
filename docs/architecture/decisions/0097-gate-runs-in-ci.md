@@ -21,7 +21,8 @@ inside an agent session costs that session's budget and cannot be required by th
 
 1. **The scanners are one CI job.** `Code quality scanners` (`codeQuality` in `_ci.yml`) runs type-aware ESLint with
    SonarJS and the React, a11y, Node, Promise, Security and Next layers, Semgrep, dependency-cruiser, jscpd, knip,
-   sherif, the turbo config checks and `turbo boundaries`, and reads the CodeQL alerts of the ref. It has no paths filter.
+   sherif, the turbo config checks and `turbo boundaries`, and reads the CodeQL alerts of the ref. It has no paths filter,
+   and it looks only at files the PR changes (point 8).
    The repository's own lint, zizmor, ruff and mypy are not repeated, because other jobs already run them.
 2. **The toolchain lives in `tooling/codeQuality`, outside the npm workspaces.** Its exact pins and lockfile never touch
    the root install. The scripts are the published ones, with their paths made repository-relative.
@@ -38,6 +39,29 @@ inside an agent session costs that session's budget and cannot be required by th
 6. **It fails closed.** A step error, a timeout, a missing or malformed structured output, a `BLOCK` verdict or any
    blocking finding posts `failure`. Fork PRs are refused, because the secret is withheld from them.
 7. **GATE mode refuses to run outside `$GITHUB_ACTIONS`.**
+8. **Only changed files (owner ruling 2026-11-20, "We should only run on files that change").**
+    - A scanner runs only when the PR changes a file of its kind, and is pointed at the changed files: ESLint at the
+      changed files of each package, dependency-cruiser at the changed files, Semgrep, ruff and mypy at the changed
+      code and `.py` files. knip runs only when a changed file adds or removes an export or an import, or a manifest
+      changes. jscpd still compares the changed files against the repository, but reports only a clone that touches a
+      changed line. sherif and the turbo checks run only for a manifest or code change. Findings keep the
+      changed-line filter. `scanScope.mjs` holds these rules.
+    - A tool with nothing of its kind reports `NOT_APPLICABLE`, which passes. `scanVerdict.mjs` re-checks that claim
+      against the counts of changed files, so a tool that reports it while the PR holds its kind fails. A tool missing
+      from the status ("never ran") still fails. A docs-only PR therefore passes the scanner job with every tool
+      `NOT_APPLICABLE`.
+    - The judge gets the list of changed files and the diff of those files once (`judgeBrief.md`, `changes.diff`). It
+      judges only them and their changed lines, may read other files only to understand them, and a finding on any
+      other file is dropped (`gateScope.mjs`).
+    - Every verdict is kept per file with the file's blob id, in the run artifact `gate-<sha>`. A rerun judges only the
+      files whose (path, blob id) has no earlier verdict. An unchanged file keeps its verdict, so a BLOCK on it stays
+      until the file changes. When every changed file already has a verdict, the status repeats it with "reused from
+      <sha>" and the model is not called. The merged verdict is BLOCK if any changed file's latest verdict is BLOCK
+      (`gateLedger.mjs`). A blocking finding that names no file blocks every file of that run.
+    - A docs-only PR still gets a GATE result: one judge run over the changed doc set, asked to review the documents
+      and not the repository.
+    - `gateRun.mjs`, `gateLedger.mjs` and `gateScope.mjs` run in `gate.yml` from the BASE branch, without the token,
+      for the same reason the judge does.
 
 ## Consequences
 
@@ -46,6 +70,11 @@ inside an agent session costs that session's budget and cannot be required by th
 - Changing a baseline now needs a reviewed PR and the `baseline-growth` label. Burning a baseline down needs neither.
 - The toolchain's own scripts are out of the scanners' scope, so their complexity is not graded. Their tests are in
   `tooling/codeQuality/__tests__`.
-- The judge step spends the plan's OAuth token once per push to a ready PR. `gate-rerun` re-runs it without a push.
+- The judge step spends the plan's OAuth token once per push to a ready PR that changes a file with no verdict yet.
+  A push that changes nothing new costs no model call. `gate-rerun` re-runs it without a push.
+- A verdict is per file content, not per PR state. A change to a file that an unchanged file depends on does not
+  re-judge the unchanged file; that is the ruling's cost. A later change to the base is not seen either, until the
+  file changes. Residual risk, accepted.
+- The first PR that adds this tooling cannot run `gate.yml` against itself, because the tooling is read from the base.
 - A PR can edit `gate.yml` itself, because `pull_request` runs the head's workflow. A ruleset that pins the required
   status to its source, or a code-owner rule on `.github/workflows`, closes that.

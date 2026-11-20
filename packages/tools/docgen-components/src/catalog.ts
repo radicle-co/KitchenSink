@@ -48,23 +48,32 @@ function idPath(dir: string, packageDir: string): string {
  *
  * A suffix-less file whose imports resolve per platform (the house `Sheet`, say) has no `.native.tsx` twin to pair
  * with. The docblock declares it with `@platform shared`; the generator reads that and never infers it from imports.
- * The value set is closed: the tag's first word must be `shared`, and anything else (`web`, a typo) is refused rather
- * than read as no tag.
+ * The tag's whole text must be `shared`. The docblock parser ends a tag only at the next tag, so prose written after
+ * it would leave the description with no signal; it is refused instead, and the message says to write the tag last.
+ * Any other value (`web`, a typo) is refused too.
  *
  * @param leaf - One leaf.
  * @returns Whether it declares itself shared.
- * @throws {DocgenError} When the leaf carries an `@platform` tag whose value is not `shared`.
+ * @throws {DocgenError} When the leaf carries an `@platform` tag whose text is not exactly `shared`.
  */
 function isSharedLeaf(leaf: ComponentImplementation): boolean {
     const tags = [...leaf.moduleTags, ...leaf.tags].filter((tag) => tag.name === 'platform');
 
     for (const tag of tags) {
-        const value = tag.text.trim().split(/\s/)[0] ?? '';
+        const text = tag.text.trim();
+        const value = text.split(/\s/)[0] ?? '';
 
         if (value !== SHARED_PLATFORM) {
             throw new DocgenError(
                 `${leaf.sourcePath}: unknown @platform value ${JSON.stringify(value)}; ` +
                     `the only value is "${SHARED_PLATFORM}"`,
+            );
+        }
+
+        if (text !== SHARED_PLATFORM) {
+            throw new DocgenError(
+                `${leaf.sourcePath}: text after @platform ${SHARED_PLATFORM} leaves the description; ` +
+                    'write the tag last, after the layer line',
             );
         }
     }

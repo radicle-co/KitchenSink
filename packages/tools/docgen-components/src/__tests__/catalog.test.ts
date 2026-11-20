@@ -152,13 +152,22 @@ describe('buildEntries', () => {
             expect(buildEntries(GROUP, [tagged])[0]?.platforms).toEqual(['web', 'native']);
         });
 
-        // The docblock parser ends a tag at the next tag, so prose written after `@platform shared` rides in its text.
-        it('reads the value as the first word, so prose after the tag does not hide it', () => {
+        // The docblock parser ends a tag only at the next tag, so prose written after `@platform shared` rides in its
+        // text and leaves the description. The whole text must be `shared`, so that prose is refused, never swallowed.
+        it('accepts `shared` alone, even with surrounding whitespace', () => {
+            const spaced = makeImplementation({ moduleTags: [{ name: 'platform', text: ' shared\n' }] });
+
+            expect(buildEntries(GROUP, [spaced])[0]?.platforms).toEqual(['web', 'native']);
+        });
+
+        it('refuses prose after the tag, naming the file and saying to write the tag last', () => {
             const prose = makeImplementation({
                 moduleTags: [{ name: 'platform', text: 'shared\n\nPresentational: props → JSX.' }],
             });
 
-            expect(buildEntries(GROUP, [prose])[0]?.platforms).toEqual(['web', 'native']);
+            expect(() => buildEntries(GROUP, [prose])).toThrow(DocgenError);
+            expect(() => buildEntries(GROUP, [prose])).toThrow(prose.sourcePath);
+            expect(() => buildEntries(GROUP, [prose])).toThrow('write the tag last');
         });
 
         it('does not diverge on props, because there is nothing to compare against', () => {

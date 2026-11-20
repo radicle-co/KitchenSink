@@ -36,8 +36,8 @@ describe('MacAndroidHost lane environment and the session', () => {
         expect(env['KS_MAC_LANE_HOME']).toBe('/Users/x/ksIos/lanes/lane1');
     });
 
-    it('has the loss ready the moment the tunnel exits, so a race against an already-resolved value still sees it', async () => {
-        // laneRun races the losses against `Promise.resolve(undefined)`: a loss that is only built when asked loses that race.
+    it('has the loss ready once the tunnel exits, ahead of a value that already resolved', async () => {
+        // A loss built only when asked settles a tick late and loses a race against a value that already resolved.
         const { host, exitTunnel } = makeMacAndroidRig();
         await host.prepare(run, APK_PATH, 'abc123');
         exitTunnel(255);

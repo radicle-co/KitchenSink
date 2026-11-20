@@ -711,6 +711,44 @@ describe('useRecipeDetailController — where the recipe is from (ADR-0095)', ()
         });
     });
 
+    // 004-FR-014a (#374): the paid-website answer is one private write, the sheet closes, and a saved paid-site recipe is never offered Public.
+    it('the paid-website answer sends PRIVATE with its citation in one write, closes the sheet, and shows no refusal text', async () => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, publicNeedsStatement: true } });
+        const setVisibility = vi
+            .spyOn(mounted.client, 'setRecipeVisibility')
+            .mockResolvedValue(makeRecipeDetail({ id: 'rec_1', visibility: RecipeVisibility.PRIVATE }));
+
+        act(() => makePublicItem(mounted)?.onSelect());
+        act(() => mounted.result.current.dialogs.statement.dispatch({ type: 'choose', answer: 'paidSite' }));
+        act(() =>
+            mounted.result.current.dialogs.statement.dispatch({
+                type: 'paidSite',
+                text: ' Sam’s Subscription Kitchen ',
+            }),
+        );
+        await act(async () => mounted.result.current.dialogs.statement.onConfirm());
+
+        expect(setVisibility).toHaveBeenCalledTimes(1);
+        expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE, {
+            statement: {
+                kind: 'paid_site',
+                citation: 'Sam’s Subscription Kitchen',
+                wording: { version: 'statementPaidSite.v1', locale: 'en' },
+            },
+        });
+        await waitFor(() => expect(mounted.result.current.dialogs.statement.open).toBe(false));
+        expect(mounted.result.current.visibilityNotice).toBeUndefined();
+    });
+
+    it('a saved paid-site recipe no longer offers Make public', () => {
+        const mounted = mount({
+            ...owner,
+            recipe: { ...PRIVATE, sourceType: RecipeSourceType.IMPORTED_PAID, sourceKind: 'paid_site' },
+        });
+
+        expect(makePublicItem(mounted)).toBeUndefined();
+    });
+
     it('Cancel closes the sheet and sends nothing', () => {
         const mounted = mount({ ...owner, recipe: { ...PRIVATE, publicNeedsStatement: true } });
         const setVisibility = vi.spyOn(mounted.client, 'setRecipeVisibility');

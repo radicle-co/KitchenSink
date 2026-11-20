@@ -11,9 +11,9 @@
         "implementationsWithModuleDoc": 32,
         "implementationsWithComponentDoc": 32,
         "documentedProps": 111,
-        "classifiedComponents": 18,
+        "classifiedComponents": 17,
         "componentsWithPatternTag": 8,
-        "crossPlatformComponents": 14
+        "crossPlatformComponents": 15
     },
     "components": [
         {
@@ -2159,12 +2159,13 @@
             "packageName": "@commise/features-cooking",
             "layer": "feature",
             "dir": "packages/apps/commise/features/cooking/src/ingredients",
-            "kind": "presentational",
+            "kind": "unclassified",
             "patterns": [],
             "platforms": [
-                "web"
+                "web",
+                "native"
             ],
-            "crossPlatform": false,
+            "crossPlatform": true,
             "propsDiverge": false,
             "documented": true,
             "implementations": [
@@ -2173,11 +2174,15 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsSheet.tsx",
                     "dir": "packages/apps/commise/features/cooking/src/ingredients",
-                    "moduleDoc": "CookingIngredientsSheet — the cooking ingredients list in the house bottom `Sheet` (L1 and L1w), for web and\nnative alike: the house `Sheet` and the list each resolve to their own platform leaf, so this one file serves both.\nThe sheet's title row draws the title and the × close, named `copy.close`; there is no Done (designer's D73). Every\nclose route reaches `onClose`, because the host answers by changing `open`.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingIngredientsSheet — the cooking ingredients list in the house bottom `Sheet` (L1 and L1w), for web and\nnative alike: the house `Sheet` and the list each resolve to their own platform leaf, so this one file serves both.\nThe sheet's title row draws the title and the × close, named `copy.close`; there is no Done (designer's D73). Every\nclose route reaches `onClose`, because the host answers by changing `open`.",
                     "moduleTags": [
                         {
                             "name": "module",
                             "text": "CookingIngredientsSheet — the cooking ingredients list in the house bottom `Sheet` (L1 and L1w), for web and"
+                        },
+                        {
+                            "name": "platform",
+                            "text": "shared\n\nPresentational: props → JSX."
                         }
                     ],
                     "description": "The ingredients sheet, on web and native.",
@@ -2252,7 +2257,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": true,
+                        "presentational": false,
                         "orchestration": false
                     }
                 }

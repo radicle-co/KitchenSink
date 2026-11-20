@@ -127,4 +127,48 @@ describe('buildEntries', () => {
         expect(buildEntries(GROUP, [bare])[0]?.documented).toBe(false);
         expect(buildEntries(GROUP, [webLeaf, halfDocumented])[0]?.documented).toBe(true);
     });
+    // One suffix-less file can serve both platforms: its imports resolve per platform, so it has no twin to pair with.
+    // The docblock says so with `@platform shared` (docs are read, never inferred from code shape), and the entry then
+    // lists both platforms rather than reading as a web-only singleton.
+    describe('a shared leaf', () => {
+        const shared = makeImplementation({
+            name: 'Sheet',
+            sourcePath: 'packages/apps/commise/ui/src/button/Sheet.tsx',
+            moduleTags: [{ name: 'platform', text: 'shared' }],
+        });
+
+        it('serves both platforms from its one leaf', () => {
+            const [entry] = buildEntries(GROUP, [shared]);
+
+            expect(entry?.platforms).toEqual(['web', 'native']);
+            expect(entry?.crossPlatform).toBe(true);
+            expect(entry?.implementations).toHaveLength(1);
+        });
+
+        it('reads the tag from the component docblock as well as the module docblock', () => {
+            const tagged = makeImplementation({ moduleTags: [], tags: [{ name: 'platform', text: 'shared' }] });
+
+            expect(buildEntries(GROUP, [tagged])[0]?.platforms).toEqual(['web', 'native']);
+        });
+
+        // The docblock parser ends a tag at the next tag, so prose written after `@platform shared` rides in its text.
+        it('reads the value as the first word, so prose after the tag does not hide it', () => {
+            const prose = makeImplementation({
+                moduleTags: [{ name: 'platform', text: 'shared\n\nPresentational: props → JSX.' }],
+            });
+
+            expect(buildEntries(GROUP, [prose])[0]?.platforms).toEqual(['web', 'native']);
+        });
+
+        it('does not diverge on props, because there is nothing to compare against', () => {
+            expect(buildEntries(GROUP, [shared])[0]?.propsDiverge).toBe(false);
+        });
+
+        it('leaves a bare web leaf, and any other platform value, a web-only singleton', () => {
+            const other = makeImplementation({ moduleTags: [{ name: 'platform', text: 'web' }] });
+
+            expect(buildEntries(GROUP, [webLeaf])[0]?.platforms).toEqual(['web']);
+            expect(buildEntries(GROUP, [other])[0]?.platforms).toEqual(['web']);
+        });
+    });
 });

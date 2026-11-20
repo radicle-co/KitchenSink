@@ -40,6 +40,21 @@ function idPath(dir: string, packageDir: string): string {
 }
 
 /**
+ * Whether a leaf's own docblock says the one file serves both platforms.
+ *
+ * A suffix-less file whose imports resolve per platform (the house `Sheet`, say) has no `.native.tsx` twin to pair
+ * with. The docblock declares it with `@platform shared`; the generator reads that and never infers it from imports.
+ *
+ * @param leaf - One leaf.
+ * @returns Whether it declares itself shared.
+ */
+function isSharedLeaf(leaf: ComponentImplementation): boolean {
+    return [...leaf.moduleTags, ...leaf.tags].some(
+        (tag) => tag.name === 'platform' && tag.text.trim().split(/\s/)[0] === 'shared',
+    );
+}
+
+/**
  * Whether two leaves declare different prop NAMES.
  *
  * Names rather than types on purpose: the two leaves legitimately type the same prop differently (a web
@@ -104,7 +119,9 @@ export function buildEntries(
             (left, right) => PLATFORM_ORDER.indexOf(left.platform) - PLATFORM_ORDER.indexOf(right.platform),
         );
         const first = leaves[0] as ComponentImplementation;
-        const platforms = PLATFORM_ORDER.filter((platform) => leaves.some((leaf) => leaf.platform === platform));
+        const platforms = PLATFORM_ORDER.filter(
+            (platform) => leaves.some(isSharedLeaf) || leaves.some((leaf) => leaf.platform === platform),
+        );
         const path = idPath(first.dir, group.packageDir);
         const signals = combinedSignals(leaves);
 

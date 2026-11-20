@@ -1474,6 +1474,9 @@ src/recipes/
 - Web bundlers (Next.js / webpack / Turbopack) MUST NOT bundle `.native.*` files.
   If a web build pulls in a `.native.*` file, the bundler config is broken — fix
   the config, do not rename the file.
+- A bare `.tsx` file that serves both platforms, because every import it makes resolves per platform, has no
+  `.native.tsx` twin. Its docblock carries `@platform shared`, and the component docs then list it for both platforms
+  instead of as a web-only singleton. The tag is a claim the docs read, not one they infer from imports.
 - Both files MUST export the **same public API** (identical exported names and
   type signatures). Type checking MUST pass for both with the same consumer code.
 

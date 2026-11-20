@@ -36,6 +36,9 @@ describe('the cooking surface widths', () => {
         expect(NARROW_ROW.navWebClassName).toBe('@max-[22.5rem]:[&_svg]:hidden');
         expect(NARROW_ROW.placeWebClassName).toContain(`${String(NARROW_ROW.maxRem)}rem`);
         expect(NARROW_ROW.navWebClassName).toContain(`${String(NARROW_ROW.maxRem)}rem`);
+        // Ingredients: wide, after the place (the order class); narrow, at the end of its row (the auto start margin).
+        expect(NARROW_ROW.ingredientsWebClassName).toBe('@min-[22.5rem]:order-1 @max-[22.5rem]:ms-auto');
+        expect(NARROW_ROW.ingredientsWebClassName).toContain(`${String(NARROW_ROW.maxRem)}rem`);
     });
 
     it('truncates the Next preview to one line under a container height of 43.75 rem, the class holding the number', () => {

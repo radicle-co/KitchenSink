@@ -54,9 +54,9 @@ function recordingShell(answers: { ensure?: string; contentKey?: string } = {}):
                 return Promise.resolve(`${answers.ensure ?? 'UDID-1'}\n`);
             }
 
-            return Promise.resolve('');
+            return Promise.resolve(line.includes('/health') ? '200' : '');
         },
-        background: () => ({ stop: () => Promise.resolve() }),
+        background: () => ({ stop: () => Promise.resolve(), exited: new Promise<number>(() => undefined) }),
         writeFile: () => Promise.resolve(),
         linkFile: () => Promise.resolve(),
     };

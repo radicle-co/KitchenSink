@@ -7,6 +7,8 @@
  * close route reaches `onClose`, because the host answers by changing `open`.
  *
  * Presentational: props → JSX.
+ *
+ * @platform shared
  */
 import { Sheet } from '@commise/ui/sheet';
 import type { FC } from 'react';

@@ -13,6 +13,7 @@
  */
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { setImmediate } from 'node:timers/promises';
 import { inspect } from 'node:util';
 
 import { planLanes } from '@kitchensink/e2e-plan';
@@ -308,7 +309,18 @@ async function runPlanned(
             }),
         );
 
+        // Asked once, now: a loss that happened already (a stale forward answered the probe, then the tunnel ended)
+        // is still there to read. `setImmediate` settles only after every queued microtask has run, so a loss that is
+        // already settled wins the race however many `then` or `async` layers wrap it.
+        const losses = plans.map((plan) => plan.adapter.lost());
+        const alreadyLost = await Promise.race([...losses, setImmediate()]);
+
+        if (alreadyLost !== undefined) {
+            throw alreadyLost;
+        }
+
         const exits: Promise<number>[] = [];
+        const children: LaneChild[] = [];
 
         for (const lane of lanes) {
             if (deps.aborted()) {
@@ -321,6 +333,7 @@ async function runPlanned(
 
             const startedAt = Date.now();
             const child = deps.spawnLane(lane, envOf(lane));
+            children.push(child);
             deps.log(`lane ${laneName(lane)}/${lane.count}: ${lane.device} started, log ${lane.stateDir}/runner.log`);
             exits.push(
                 child.exit.then((code) => {
@@ -333,7 +346,27 @@ async function runPlanned(
             );
         }
 
-        const codes = await Promise.all(exits);
+        let codes: number[];
+
+        try {
+            codes = await Promise.race([
+                Promise.all(exits),
+                ...losses.map((loss) =>
+                    loss.then((error) => {
+                        throw error;
+                    }),
+                ),
+            ]);
+        } catch (error) {
+            // The lanes would run against a dead forward. Stop them and let them exit before the devices go.
+            for (const child of children) {
+                child.stop();
+            }
+
+            await Promise.allSettled(exits);
+
+            throw error;
+        }
 
         if (deps.aborted()) {
             return ABORTED;

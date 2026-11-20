@@ -15,6 +15,12 @@ const butter = (displayText: string) =>
     makeIngredientView({ ingredientId: 'ing_butter', name: 'butter', displayText, quantity: { kind: 'absent' } });
 const LINES = [butter('crust butter'), butter('filling butter')];
 
+const GROUPED = [
+    makeIngredientView({ displayText: 'crust flour', groupLabel: 'Crust', quantity: { kind: 'absent' } }),
+    makeIngredientView({ displayText: 'crust butter', groupLabel: 'Crust', quantity: { kind: 'absent' } }),
+    makeIngredientView({ displayText: 'filling flour', groupLabel: 'Filling', quantity: { kind: 'absent' } }),
+];
+
 describe('IngredientRuns (web)', () => {
     it('marks only the line at a ticked position, though two share a food (mutant: checked.has(ingredientId))', () => {
         render(<IngredientRuns ingredients={LINES} checked={new Set([0])} allRemoved={false} onToggle={vi.fn()} />);
@@ -40,5 +46,25 @@ describe('IngredientRuns (web)', () => {
             'false',
             'false',
         ]);
+    });
+
+    it('marks a line in the second group by its stored position, not its place in its own group', () => {
+        // Position 2 is the FIRST line of the second group: a group-local index would mark position 0 instead.
+        render(<IngredientRuns ingredients={GROUPED} checked={new Set([2])} allRemoved={false} onToggle={vi.fn()} />);
+
+        expect(screen.getAllByRole('checkbox').map((box) => box.getAttribute('aria-checked'))).toEqual([
+            'false',
+            'false',
+            'true',
+        ]);
+    });
+
+    it('reports the stored position of a line pressed in the second group', () => {
+        const onToggle = vi.fn();
+        render(<IngredientRuns ingredients={GROUPED} checked={new Set()} allRemoved={false} onToggle={onToggle} />);
+
+        fireEvent.click(screen.getByRole('checkbox', { name: /filling flour/u }));
+
+        expect(onToggle).toHaveBeenCalledExactlyOnceWith(2);
     });
 });

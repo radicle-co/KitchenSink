@@ -14,7 +14,7 @@
  */
 import { z } from 'zod';
 
-import { ingredientTickKeysSchema, type IngredientTickKey } from './ingredientTickKey.js';
+import { ingredientTickKeysSchema, type IngredientTickKey } from '../common/ingredientTickKey.js';
 
 /** One recipe's marks. */
 export interface CookMarks {
@@ -86,10 +86,12 @@ export function applyCookMark(state: CookMarks, command: CookMarkCommand): CookM
 }
 
 /**
- * Whether any mark is set — the condition for offering "Clear checks". Pure.
+ * Whether the marks hold anything the store must keep: a stored line key or a current step. It decides whether the
+ * record is kept or removed, and it counts a stale key (one no line matches). It does not decide whether to offer
+ * "Clear checks". Pure.
  *
  * @param state - The marks.
- * @returns `true` when a line is checked or a step is current.
+ * @returns `true` when a line key is held or a step is current.
  */
 export function hasCookMarks(state: CookMarks): boolean {
     return state.lines.size > 0 || state.currentStep !== undefined;

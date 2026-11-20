@@ -20,7 +20,11 @@
  */
 import { kindFromSignals, patternsFrom } from './classify.js';
 import type { ComponentGroup, Platform } from './config.js';
+import { DocgenError } from './errors.js';
 import type { ComponentEntry, ComponentImplementation, LayerSignals } from './model.js';
+
+/** The one `@platform` value: a bare file whose imports resolve per platform. */
+const SHARED_PLATFORM = 'shared';
 
 /** Platform order used everywhere, so two entries never disagree about which leaf comes first. */
 const PLATFORM_ORDER: readonly Platform[] = ['web', 'native'];
@@ -37,6 +41,68 @@ function idPath(dir: string, packageDir: string): string {
     const withinPackage = dir === packageDir ? '' : dir.slice(packageDir.length + 1);
 
     return withinPackage.startsWith('src/') ? withinPackage.slice(4) : withinPackage === 'src' ? '' : withinPackage;
+}
+
+/**
+ * Whether a leaf's own docblock says the one file serves both platforms.
+ *
+ * A suffix-less file whose imports resolve per platform (the house `Sheet`, say) has no `.native.tsx` twin to pair
+ * with. The docblock declares it with `@platform shared`; the generator reads that and never infers it from imports.
+ * The tag's whole text must be `shared`. The docblock parser ends a tag only at the next tag, so prose written after
+ * it would leave the description with no signal; it is refused instead, and the message says to write the tag last.
+ * Any other value (`web`, a typo) is refused too.
+ *
+ * @param leaf - One leaf.
+ * @returns Whether it declares itself shared.
+ * @throws {DocgenError} When the leaf carries an `@platform` tag whose text is not exactly `shared`.
+ */
+function isSharedLeaf(leaf: ComponentImplementation): boolean {
+    const tags = [...leaf.moduleTags, ...leaf.tags].filter((tag) => tag.name === 'platform');
+
+    for (const tag of tags) {
+        const text = tag.text.trim();
+        const value = text.split(/\s/)[0] ?? '';
+
+        if (value !== SHARED_PLATFORM) {
+            throw new DocgenError(
+                `${leaf.sourcePath}: unknown @platform value ${JSON.stringify(value)}; ` +
+                    `the only value is "${SHARED_PLATFORM}"`,
+            );
+        }
+
+        if (text !== SHARED_PLATFORM) {
+            throw new DocgenError(
+                `${leaf.sourcePath}: text after @platform ${SHARED_PLATFORM} leaves the description; ` +
+                    'write the tag last, after the layer line',
+            );
+        }
+    }
+
+    return tags.length > 0;
+}
+
+/**
+ * Read every leaf's `@platform` tag, then refuse a `shared` claim that the entry's own leaves disprove.
+ *
+ * Every leaf is validated before the entry is classified, so a bad value throws wherever its leaf sits and the result
+ * never depends on file order.
+ *
+ * @param leaves - Every leaf of one component.
+ * @returns Whether the component's one file serves both platforms.
+ * @throws {DocgenError} For an unknown `@platform` value, or a shared leaf beside a `.native` leaf.
+ */
+function sharedClaimOf(leaves: readonly ComponentImplementation[]): boolean {
+    const declaresShared = leaves.map(isSharedLeaf);
+    const shared = leaves.find((_leaf, index) => declaresShared[index]);
+    const twin = leaves.find((leaf) => leaf.platform === 'native');
+
+    if (shared !== undefined && twin !== undefined) {
+        throw new DocgenError(
+            `${shared.sourcePath}: declares @platform ${SHARED_PLATFORM} but has the native twin ${twin.sourcePath}`,
+        );
+    }
+
+    return shared !== undefined;
 }
 
 /**
@@ -104,7 +170,11 @@ export function buildEntries(
             (left, right) => PLATFORM_ORDER.indexOf(left.platform) - PLATFORM_ORDER.indexOf(right.platform),
         );
         const first = leaves[0] as ComponentImplementation;
-        const platforms = PLATFORM_ORDER.filter((platform) => leaves.some((leaf) => leaf.platform === platform));
+        const shared = sharedClaimOf(leaves);
+
+        const platforms = PLATFORM_ORDER.filter(
+            (platform) => shared || leaves.some((leaf) => leaf.platform === platform),
+        );
         const path = idPath(first.dir, group.packageDir);
         const signals = combinedSignals(leaves);
 

@@ -1,4 +1,4 @@
-import { ingredientTickKeysSchema, type IngredientTickKey } from '../ingredientTickKey.js';
+import { ingredientTickKeysSchema, type IngredientTickKey } from '../../common/ingredientTickKey.js';
 
 /**
  * A tick key for tests that treat keys as opaque: `l1:` and the number as 8 hex chars, ordinal 0 unless given. It

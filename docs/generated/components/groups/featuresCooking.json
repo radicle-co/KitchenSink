@@ -5,15 +5,15 @@
     "layer": "feature",
     "coverage": {
         "components": 18,
-        "implementations": 33,
-        "props": 125,
+        "implementations": 34,
+        "props": 127,
         "documentedComponents": 18,
-        "implementationsWithModuleDoc": 33,
-        "implementationsWithComponentDoc": 33,
-        "documentedProps": 114,
+        "implementationsWithModuleDoc": 34,
+        "implementationsWithComponentDoc": 34,
+        "documentedProps": 116,
         "classifiedComponents": 18,
         "componentsWithPatternTag": 8,
-        "crossPlatformComponents": 15
+        "crossPlatformComponents": 17
     },
     "components": [
         {
@@ -1659,7 +1659,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingTopBar.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingTopBar — the web cooking top bar.\n\nExit, then the place. Exit is ONE quiet `md` control, the × and the word together, with one accessible name. The\nplace is plain text.\nUnder 360 wide the place drops to its own full-width row; the Exit label stays.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingTopBar — the web cooking top bar.\n\nExit, then the place, then, while the screen gives `ingredients`, the quiet Ingredients button with its `listChecks`\nglyph and its label whole. Exit is ONE quiet `md` control, the × and the word together, with one accessible name.\nThe place is plain text. The bar is one tree in the order Exit, Ingredients, place: under 360 wide the place drops\nto its own full-width row under Exit and Ingredients, which stay side by side while they fit, and the Exit label\nstays. Wide, an `order` class moves Ingredients after the place, so the place takes the free space.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1783,22 +1783,66 @@
             "kind": "presentational",
             "patterns": [],
             "platforms": [
+                "web",
                 "native"
             ],
-            "crossPlatform": false,
+            "crossPlatform": true,
             "propsDiverge": false,
             "documented": true,
             "implementations": [
                 {
                     "name": "CookingTwoColumnLayout",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingTwoColumnLayout.native.tsx",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingTwoColumnLayout.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingTwoColumnLayout — the native two-column layout at L2 and L3: the ingredients column in a 300 wide slot\non the left that scrolls on its own, and the step column in the rest, at most 680 wide and centred in it. The slot is\non the canvas with no divider, and its content is inset 16 on every side inside the scroll, as the house sheet's\nedge is, so the scroll bar stays at the slot edge. It holds no state and reads no band: the screen picks it by\n`layoutBand`.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingTwoColumnLayout — the web two-column layout at L2 and L3: the ingredients column in a slot of\n`INGREDIENTS_COLUMN` width on the left that scrolls on its own, and the step column in the rest, at most\n`COOKING_COLUMN` wide and centred in it, as a flex column that may shrink, so a step body fills its height and keeps\nits footer pinned. The slot is on the canvas with no divider, and its content is inset 16 on every side inside the\nscroll, so the scroll bar stays at the slot edge. It holds no state and reads no band: the screen picks it by band.\nThe native twin is `CookingTwoColumnLayout.native.tsx`, on the same props.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "CookingTwoColumnLayout — the native two-column layout at L2 and L3: the ingredients column in a 300 wide slot"
+                            "text": "CookingTwoColumnLayout — the web two-column layout at L2 and L3: the ingredients column in a slot of"
+                        }
+                    ],
+                    "description": "The web two-column layout.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The step column: at most `COOKING_COLUMN.maxPx` wide and centred in the space the slot leaves.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingTwoColumnLayoutProps.ts"
+                        },
+                        {
+                            "name": "column",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The ingredients column, drawn in a fixed slot on the left that scrolls on its own.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingTwoColumnLayoutProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "CookingTwoColumnLayout",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingTwoColumnLayout.native.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingTwoColumnLayout — the native two-column layout at L2 and L3: the ingredients column in a slot of\n`INGREDIENTS_COLUMN` width on the left that scrolls on its own, and the step column in the rest, at most\n`COOKING_COLUMN` wide and centred in it. The slot is on the canvas with no divider, and its content is inset 16 on\nevery side inside the scroll, so the scroll bar stays at the slot edge. It holds no state and reads no band: the\nscreen picks it by band. The web twin is `CookingTwoColumnLayout.tsx`, on the same props.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingTwoColumnLayout — the native two-column layout at L2 and L3: the ingredients column in a slot of"
                         }
                     ],
                     "description": "The native two-column layout.",
@@ -2162,9 +2206,10 @@
             "kind": "presentational",
             "patterns": [],
             "platforms": [
-                "web"
+                "web",
+                "native"
             ],
-            "crossPlatform": false,
+            "crossPlatform": true,
             "propsDiverge": false,
             "documented": true,
             "implementations": [
@@ -2178,6 +2223,10 @@
                         {
                             "name": "module",
                             "text": "CookingIngredientsSheet — the cooking ingredients list in the house bottom `Sheet` (L1 and L1w), for web and"
+                        },
+                        {
+                            "name": "platform",
+                            "text": "shared"
                         }
                     ],
                     "description": "The ingredients sheet, on web and native.",

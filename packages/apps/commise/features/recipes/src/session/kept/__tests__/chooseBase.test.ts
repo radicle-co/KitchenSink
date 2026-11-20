@@ -11,7 +11,7 @@ import type { ParsedKept } from '../keptRecord.js';
 
 import { iso, makeDoc, makePage, T0 } from '../__fixtures__/keptFixtures.js';
 import { TICK } from '../../../detail/__fixtures__/tickKeys.js';
-import type { IngredientTickKey } from '../../../detail/ingredientTickKey.js';
+import type { IngredientTickKey } from '../../../common/ingredientTickKey.js';
 
 const ok = (rev: number, ticks: readonly IngredientTickKey[] = []): ParsedKept => ({
     kind: 'ok',

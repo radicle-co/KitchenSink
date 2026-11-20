@@ -4,6 +4,7 @@
  * `onOpen`, and it is named by `openLabel`, so a note with no way to open anything never shows a dead control. It is
  * the web twin of the native note: the same props, the same cases.
  */
+import { buttonSurfaceClass } from '@commise/ui/button';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -30,7 +31,12 @@ describe('CookingScaleNote (web)', () => {
 
         expect(screen.getAllByRole('button')).toHaveLength(1);
 
-        await user.click(screen.getByRole('button', { name: 'Open ingredients' }));
+        const button = screen.getByRole('button', { name: 'Open ingredients' });
+
+        // The house check: the class is the quiet variant at the default (md) size, so a primary or sm button fails.
+        expect(button.className).toBe(buttonSurfaceClass('quiet'));
+
+        await user.click(button);
 
         expect(onOpen).toHaveBeenCalledExactlyOnceWith();
     });
@@ -53,6 +59,8 @@ describe('CookingScaleNote (web)', () => {
         expect(glyph).not.toBeNull();
         expect(glyph?.getAttribute('aria-hidden')).toBe('true');
         expect(glyph?.compareDocumentPosition(sentence)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+        expect((glyph as SVGElement).style.color).toBe('var(--color-ink-muted)');
+        expect(note.className.split(' ')).toContain('items-start');
         expect(sentence.className).toContain('text-meta');
         expect(sentence.className).toContain('text-ink-muted');
     });

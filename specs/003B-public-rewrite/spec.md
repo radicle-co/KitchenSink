@@ -648,7 +648,7 @@ capacity frees up; the cook still reads and confirms each draft (FR-087). (C-6)
 #### K. Release
 
 - **FR-090**: The feature MUST sit behind one switch, read in one place, shared by web and mobile, and per market
-  (ADR-0093 §6a, which rules the launch state). The reader's market decides whether a public version is shown, and
+  (ADR-0093 §6a, which rules the launch state). The reader's market (C-31) decides whether a public version is shown, and
   the cook's market does not gate publishing. There is one switch for each market, all on at launch. With the feature
   switch off, imports behave as today (private only, offer reason `switchOff`).
 - **FR-091**: Web and mobile MUST ship every state in the same release (`CODING_STANDARDS.md` §14).
@@ -864,3 +864,4 @@ Still owed:
   the boards.
 - **C-30. The `public.hint` line.** Ruled 2026-11-19: it now ends "Once it’s published, we don’t keep your pasted steps.", which is true on the public-only path, because
   every place that holds the pasted steps is cleared at Publish: the item's draft (`payload`) goes through `claimSave` in the Publish transaction, the writer's queue message carries the job id only and never step text, the job's `source_steps` is set to NULL in the same UPDATE that ends the job `published` (a final state), the job's `output` becomes the public version's own written steps, the source record and the evidence record hold hashes only, and logs hold outcome and refusal category only (data-model, Not stored). An unfinished import keeps its draft until ADR-0072's 30-day purge (its date is `recipe_import_purge_at`, data model) (FR-033), and the line says "Once it’s published", so it makes no claim about an unfinished one (T319 tests it). The line shows in the For everyone row on the choice page and in the public-only card. The Both hint is unchanged (research R8). A file item shows `public.hintFile` instead ("we don’t keep the steps from your file for this recipe"), which is true for the same reason, because the file item's draft is cleared by `claimSave` at Publish too, and T319 tests it for a file item.
+- **C-31. Where does a reader's market come from?** Assumed, owner to confirm (FR-090). Default: a signed-in reader's market is the market on their account; a signed-out reader's market is the market of the request, resolved once on the server. Until the owner confirms, T383 does not start. T196 covers a signed-in and a signed-out reader.

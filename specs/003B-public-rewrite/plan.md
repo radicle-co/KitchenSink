@@ -180,6 +180,7 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart (imp
 2. Migration and LOCAL e2e: tables, columns, CHECK pairs, unique `source_page_key`, cascade and erasure.
 3. recipe-service: classifier, job API, Publish Command, wording guard, title builder, zod contract,
    `contract:generate`.
+   Slice P9 (server) ships the reader-market gate on the one read rule: a public version is shown only to a reader whose market has the switch on (T196, T383), after Publish (P7) and the one switch read (P3, T059).
 4. recipe-workers: handler, adapter wiring, infra (Lambda, queue, DLQ, reserved concurrency, NAT row, call site).
 5. Bake-off (027 step 5): pin the model and set the step threshold from the evaluation set (027 owns both). This feature sets the title check's own measure from the same set.
 6. Clients and UI, web and mobile together, after SPECIFY.

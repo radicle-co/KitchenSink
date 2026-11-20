@@ -58,12 +58,13 @@ describe('CookingTopBar', () => {
         expect(container.querySelector('p')).toBeNull();
     });
     describe('the Ingredients button', () => {
-        const ingredients = { label: 'Ingredients', onPress: vi.fn() };
+        // The accessible name says more than the label, as Exit's does, so a button that drops it fails here.
+        const ingredients = { label: 'Ingredients', accessibilityLabel: 'Open ingredients', onPress: vi.fn() };
 
         it('draws no Ingredients button while the screen gives none (L2, L3, or no ingredients)', () => {
             render(<CookingTopBar exit={exit} place={step2} />);
 
-            expect(screen.queryByRole('button', { name: 'Ingredients' })).toBeNull();
+            expect(screen.queryByRole('button', { name: 'Open ingredients' })).toBeNull();
             expect(screen.getAllByRole('button')).toHaveLength(1);
         });
 
@@ -72,7 +73,7 @@ describe('CookingTopBar', () => {
 
             render(<CookingTopBar exit={exit} place={step2} ingredients={{ ...ingredients, onPress }} />);
 
-            const button = screen.getByRole('button', { name: 'Ingredients' });
+            const button = screen.getByRole('button', { name: 'Open ingredients' });
 
             expect(screen.getAllByRole('button')).toHaveLength(2);
             expect(button.className).toContain(buttonSurfaceClass('quiet'));
@@ -87,7 +88,7 @@ describe('CookingTopBar', () => {
             render(<CookingTopBar exit={exit} place={step2} ingredients={ingredients} />);
 
             const exitButton = screen.getByRole('button', { name: 'Exit cooking mode' });
-            const button = screen.getByRole('button', { name: 'Ingredients' });
+            const button = screen.getByRole('button', { name: 'Open ingredients' });
             const place = screen.getByText('Step 2 of 6');
 
             expect(exitButton.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

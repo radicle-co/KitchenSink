@@ -190,22 +190,28 @@ describe('buildEntries', () => {
             },
         );
 
-        // The result must not depend on file order: a typo on a later leaf is refused even when a shared leaf
-        // comes first.
-        it.each([
-            ['first', true],
-            ['second', false],
-        ])('refuses a typo on a leaf listed %s, wherever the shared leaf sits', (_position, typoFirst) => {
+        // The result must not depend on file order: the shared leaf sits first and the typo after it, which a
+        // first-match shortcut would never read.
+        it('refuses a typo on a leaf listed after the shared leaf', () => {
+            const claimsShared = makeImplementation({ moduleTags: [{ name: 'platform', text: 'shared' }] });
             const typo = makeImplementation({
                 platform: 'native',
                 sourcePath: 'packages/apps/commise/ui/src/button/Button.native.tsx',
                 moduleTags: [{ name: 'platform', text: 'sharde' }],
             });
-            const claimsShared = makeImplementation({ moduleTags: [{ name: 'platform', text: 'shared' }] });
-            const leaves = typoFirst ? [typo, claimsShared] : [claimsShared, typo];
 
-            expect(() => buildEntries(GROUP, leaves)).toThrow('"sharde"');
-            expect(() => buildEntries(GROUP, leaves)).toThrow(typo.sourcePath);
+            expect(() => buildEntries(GROUP, [claimsShared, typo])).toThrow(
+                'packages/apps/commise/ui/src/button/Button.native.tsx: unknown @platform value "sharde"',
+            );
+        });
+
+        // A group that ships to one platform has nothing for `shared` to span, so the claim is a mistake.
+        it('refuses a shared leaf in a group that ships to one platform', () => {
+            const webOnly: ComponentGroup = { ...GROUP, platforms: ['web'] };
+
+            expect(() => buildEntries(webOnly, [shared])).toThrow(
+                'packages/apps/commise/ui/src/button/Sheet.tsx: declares @platform shared but its group ships to web only',
+            );
         });
 
         // The claim is one the generator can disprove: a native twin beside it means the file is not shared.

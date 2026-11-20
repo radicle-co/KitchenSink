@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 30,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 108,
+        "platform-singleton": 107,
         "ref-api": 22,
         "unclassified-layer": 96,
         "undocumented-prop": 229
@@ -5448,8 +5448,8 @@
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingTopBar.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: exit place",
-                "native: exit narrow place"
+                "web: exit ingredients place",
+                "native: exit ingredients narrow place"
             ]
         },
         {
@@ -5465,21 +5465,11 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "featuresCooking/ingredients/CookingIngredientsColumn",
-            "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsColumn.native.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "native"
-            ]
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
             "component": "featuresCooking/ingredients/CookingIngredientsSheet",
-            "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsSheet.native.tsx",
+            "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsSheet.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
-                "native"
+                "web"
             ]
         },
         {

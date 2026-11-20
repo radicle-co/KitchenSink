@@ -10,12 +10,13 @@
  * @pattern Controlled input — the value is the caller's; the step rule (`stepFrom`) is pure
  */
 import { useState, type FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { visuallyHidden } from '../accessibility/visuallyHidden.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import type { IconName } from '../icon/props.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
+import { Text } from '../text/Text.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
@@ -76,8 +77,10 @@ export const Stepper: FC<StepperProps> = ({
     return (
         <View style={styles.stack}>
             <Text
+                typeRole="label"
                 nativeID={labelId}
-                style={labelVisibility === 'hidden' ? visuallyHidden : [styles.label, { color: colors.inkMuted }]}
+                color="$inkMuted"
+                style={labelVisibility === 'hidden' ? visuallyHidden : undefined}
             >
                 {label}
             </Text>
@@ -89,7 +92,9 @@ export const Stepper: FC<StepperProps> = ({
                 style={styles.row}
             >
                 {stepButton(-1, decreaseLabel, 'minus')}
-                <Text style={[styles.value, { color: colors.ink }]}>{value}</Text>
+                <Text typeRole="body" minWidth={nativeTokens.spacing[5]} textAlign="center">
+                    <Text typeRole="figureInline">{value}</Text>
+                </Text>
                 {stepButton(1, increaseLabel, 'plus')}
             </View>
             <LiveRegion politeness="polite" visuallyHidden occurrence={spoken.occurrence}>
@@ -101,7 +106,6 @@ export const Stepper: FC<StepperProps> = ({
 
 const styles = StyleSheet.create({
     stack: { gap: nativeTokens.spacing[1] },
-    label: nativeTokens.type.label,
     row: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
     step: {
         alignItems: 'center',
@@ -109,11 +113,4 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     unavailable: { opacity: dimmedOpacity },
-    value: {
-        ...nativeTokens.type.body,
-        fontFamily: nativeTokens.fontFace.body.semibold,
-        fontVariant: ['tabular-nums', 'lining-nums'],
-        minWidth: nativeTokens.spacing[5],
-        textAlign: 'center',
-    },
 });

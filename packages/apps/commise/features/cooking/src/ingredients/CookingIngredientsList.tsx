@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * @module CookingIngredientsList — the cooking ingredients list on web: the title, the servings stepper, the lines
- * under their section labels and Clear ticks. Every piece is the recipe page's own (`IngredientRuns`,
- * `ServingScaleControl`, through `@commise/features-recipes/cook`), so cooking mode groups, names and keys a line, sets
- * an amount and counts servings exactly as the page does, in the page's own words.
+ * @module CookingIngredientsList — the cooking ingredients list on web: the servings stepper, the lines under their
+ * section labels and Clear ticks. Every piece is the recipe page's own (`IngredientRuns`, `ServingScaleControl`,
+ * through `@commise/features-recipes/cook`), so cooking mode groups, names and keys a line, sets an amount and counts
+ * servings exactly as the page does, in the page's own words.
  *
- * It holds no state and no frame. What it is given, and what a caller binds, is in `cookingIngredientsListProps.ts`.
- * Clear ticks is drawn only while a line of the list is ticked (`view.hasTicks`), because with none ticked it has
- * nothing to do.
+ * It holds no state, no frame and no heading: the sheet and the column wrap it and draw the title, and the screen binds
+ * `useCookingIngredients`. Clear ticks is drawn only while a line of the list is ticked (`view.hasTicks`), because with
+ * none ticked it has nothing to do.
  *
  * Presentational: props → JSX.
  */
@@ -27,7 +27,6 @@ export const CookingIngredientsList: FC<CookingIngredientsListProps> = ({
     onClear,
 }) => (
     <div className="flex flex-col gap-3">
-        <h2 className="text-section-title text-ink">{view.title}</h2>
         <ServingScaleControl
             servings={view.servings}
             baseServings={view.baseServings}

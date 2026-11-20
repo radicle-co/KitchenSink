@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cookingMessages } from '../../messages.js';
 import { makeRecipeIngredientView } from '../../__fixtures__/makeRecipeIngredientView.js';
 import { CookingIngredientsColumn } from '../CookingIngredientsColumn.native.js';
-import { CookingIngredientsSheet } from '../CookingIngredientsSheet.native.js';
+import { CookingIngredientsSheet } from '../CookingIngredientsSheet.js';
 import type { CookingIngredientsListView } from '../cookingIngredientsListProps.js';
 import { cookingIngredientsView } from '../ingredientsView.js';
 

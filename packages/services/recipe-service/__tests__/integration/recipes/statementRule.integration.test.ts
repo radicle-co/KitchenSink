@@ -1075,7 +1075,9 @@ describe('a recipe stored as "from another person" is never public', () => {
         expect(response.status).toBe(200);
     });
 
-    it('a statement can be changed before the first publish, and "I wrote this" then makes it publishable', async () => {
+    // Rewritten for the 2026-11-19 owner ruling (P7): a stored "from another person" is never changed by a cook write, so
+    // "I wrote this" is refused before the first publish too. It used to apply and make the recipe publishable.
+    it('"I wrote this" over a stored "from another person" is refused before the first publish, and nothing is written', async () => {
         stored = person();
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
@@ -1084,14 +1086,15 @@ describe('a recipe stored as "from another person" is never public', () => {
             publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
-        expect(response.status).toBe(200);
-        expect(setVisibility).toHaveBeenCalledOnce();
+        expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+        expect(setVisibility).not.toHaveBeenCalled();
+        expect(update).not.toHaveBeenCalled();
+        expect(stored).toMatchObject({ statementKind: 'fromPerson', visibility: 'private' });
     });
 
-    // Rewritten by the 2026-11-15 owner ruling: it asserted that a published recipe stored as "from another person" stays Private
-    // for good, because the statement was locked. The cook's statement is editable after the first publish, so "I wrote this"
-    // replaces it and the one write makes the recipe Public. No evidence is held, so nothing else refuses it.
-    it('after the first publish the cook may change the statement to "I wrote this", and the recipe may go Public', async () => {
+    // Rewritten for the 2026-11-19 owner ruling (P7), which supersedes the 2026-11-15 one this test carried: the statement of
+    // a published recipe stored as "from another person" is locked as well, so "I wrote this" is refused after the first publish.
+    it('"I wrote this" over a stored "from another person" is refused after the first publish, and nothing is written', async () => {
         stored = person({ status: 'published', firstPublishedAt: AT });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
@@ -1100,8 +1103,10 @@ describe('a recipe stored as "from another person" is never public', () => {
             publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
-        expect(response.status).toBe(200);
-        expect(stored).toMatchObject({ statementKind: 'authored', visibility: 'public' });
+        expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+        expect(setVisibility).not.toHaveBeenCalled();
+        expect(update).not.toHaveBeenCalled();
+        expect(stored).toMatchObject({ statementKind: 'fromPerson', visibility: 'private' });
     });
 
     it('a stored "from another person" stays Private while the statement is unchanged, published or not', async () => {
@@ -1211,7 +1216,9 @@ describe('"from another person" cannot be cleared into a public recipe', () => {
         expect(response.status).toBe(200);
     });
 
-    it('lets the cook replace it with "I wrote this", past attestation or not', async () => {
+    // Rewritten for the 2026-11-19 owner ruling (P7, R2): a past "from another person" attestation locks the answer, so "I wrote
+    // this" is refused. The attestation is read in the write's own transaction, for this recipe.
+    it('refuses "I wrote this" over a past "from another person" attestation with no stored statement', async () => {
         stored = person({ statementKind: null, status: 'published', firstPublishedAt: AT });
         attestedFromPerson = true;
 
@@ -1221,6 +1228,23 @@ describe('"from another person" cannot be cleared into a public recipe', () => {
             publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
         });
 
+        expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    // The "not" half of the base title (P7 row R4, unstated: apply): without it, a lock that refused every "I wrote this" over a
+    // null statement would still pass this file.
+    it('applies "I wrote this" over no stored statement and no attestation', async () => {
+        stored = person({ statementKind: null, status: 'published', firstPublishedAt: AT });
+        attestedFromPerson = false;
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            statement: AUTHORED,
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
+
         expect(response.status).toBe(200);
+        expect(setVisibility).toHaveBeenCalledOnce();
     });
 });

@@ -535,15 +535,19 @@ function refuseUnusable(correction: SourceCorrection): Exclude<SourceCorrection,
  * PATCH cannot read the same row two ways.
  *
  * @param row - The facts `RecipesDal.lockSlotFacts` read.
+ * @param attestedFromPerson - Whether the recipe holds a past "from another person" attestation while it stores no
+ *   statement (R2, P7): read by {@link RecipesService.attestedFromPersonIn} in the same transaction, `false` where the write
+ *   is not about to state anything.
  * @returns The stored source. Pure.
  */
-function storedSourceOf(row: LockedRecipeFacts): StoredSource {
+function storedSourceOf(row: LockedRecipeFacts, attestedFromPerson: boolean): StoredSource {
     return {
         sourceType: row.sourceType,
         sourceKind: row.sourceKind,
         statementKind: row.statementKind,
         clonedFromId: row.clonedFromId,
         sourceAttribution: row.sourceAttribution,
+        attestedFromPerson,
     };
 }
 
@@ -1405,6 +1409,9 @@ export class RecipesService {
             statementKind: existing.recipe.statementKind,
             clonedFromId: existing.recipe.clonedFromId,
             sourceAttribution: existing.recipe.sourceAttribution,
+            // `false` on purpose: this early judgement only refuses early. The attestation arm is read under the lock, where the
+            // decision that is written is made (`decideUnderLockIn`); the version check does not protect a read made before it.
+            attestedFromPerson: false,
         };
         const correction = refuseUnusable(evaluateSourceCorrection({ statement: dto.statement, stored: storedSource }));
 
@@ -1656,6 +1663,20 @@ export class RecipesService {
     }
 
     /**
+     * Whether the recipe holds a past "from another person" attestation while it stores NO statement (R2, P7), read in the
+     * write's transaction after the row lock. A stored statement answers the question itself, so nothing is read then.
+     *
+     * @param tx - The write's open transaction.
+     * @param id - The recipe.
+     * @param current - The facts read under the lock.
+     * @returns `true` when the recipe is held as another person's by an attestation alone.
+     * @sideEffect Reads `recipe_statement_attestations`, and only when no statement is stored.
+     */
+    private attestedFromPersonIn(tx: RecipeTx, id: string, current: LockedRecipeFacts): Promise<boolean> {
+        return current.statementKind === null ? this.gate.fromPersonHeld(tx, id, null) : Promise.resolve(false);
+    }
+
+    /**
      * Decide, from the facts read UNDER the row lock, what a PATCH's statement does, whether the state it leaves may be public,
      * and whether it records the confirmation it was sent.
      *
@@ -1697,7 +1718,10 @@ export class RecipesService {
             dto.statement === undefined
                 ? input.preLock
                 : refuseUnusable(
-                      evaluateSourceCorrection({ statement: dto.statement, stored: storedSourceOf(current) }),
+                      evaluateSourceCorrection({
+                          statement: dto.statement,
+                          stored: storedSourceOf(current, await this.attestedFromPersonIn(tx, id, current)),
+                      }),
                   );
 
         const applied = correction.kind === 'apply';
@@ -2032,7 +2056,10 @@ export class RecipesService {
             // a PATCH uses, over the facts under THIS lock, so the lock on the source is one rule.
             const correction = evaluateSourceCorrection({
                 statement: extras.statement,
-                stored: storedSourceOf(current),
+                stored: storedSourceOf(
+                    current,
+                    extras.statement !== undefined && (await this.attestedFromPersonIn(tx, id, current)),
+                ),
             });
 
             if (correction.kind === 'locked') {

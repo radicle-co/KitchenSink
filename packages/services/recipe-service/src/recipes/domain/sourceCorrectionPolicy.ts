@@ -9,13 +9,16 @@
  *
  * The editor's draft checkpoints may create the server row BEFORE the cook pastes the link, so the link must be settable on
  * the draft that already exists. Provenance by DECLARATION (the curator's `source`) stays create-only (ADR-0023); this is the
- * cook's STATEMENT, which a cook may change at any time, also after the first publish (ADR-0093 section 8, owner ruling 2026-11-15).
+ * cook's STATEMENT, which a cook may change at any time, also after the first publish (ADR-0093 section 8, owner ruling 2026-11-15),
+ * except that "From another person" is never changed or cleared (owner ruling 2026-11-19).
  *
  * ## ⛔ What stays locked
  *
  * The first publish locks nothing. The source stays locked where the cook did not state it in the editor (the curator's
- * public-domain text, a paid site): a pasted link restates nothing about those. It is also locked for a source a clone
- * inherited, so cloning is not a way to relabel a recipe, and for a kind this service does not know. The rule is
+ * public-domain text, a paid site): a pasted link restates nothing about those. It is also locked once the recipe stores
+ * "From another person", and for a recipe with no stored statement whose only trace is a past "From another person"
+ * attestation (a recipe cleared before the lock existed). Only stating it again passes, as a no-op. It is locked for a
+ * source a clone inherited, so cloning is not a way to relabel a recipe, and for a kind or statement this service does not know. The rule is
  * `sourceIsCorrectable`, which the editor reads too. Detected source evidence is append-only and a statement never touches it, so a
  * recipe that holds evidence is still refused Public by `sourceConflict`, whatever the cook says.
  *
@@ -48,6 +51,12 @@ export type StoredSource = CorrectableSourceFacts & {
     readonly statementKind: RecipeStatementKind | null;
     /** The stored citation (`recipes.source_attribution`), or `null`: what a paid site stated again is compared with. */
     readonly sourceAttribution: string | null;
+    /**
+     * Whether the recipe holds a past "from another person" attestation while it stores NO statement (R2, P7). It is read in
+     * the write's transaction and only when a statement is sent and none is stored; everywhere else it is `false`. Such a
+     * recipe is locked against every move except stating "from another person" again.
+     */
+    readonly attestedFromPerson: boolean;
 };
 
 /**
@@ -55,8 +64,9 @@ export type StoredSource = CorrectableSourceFacts & {
  *
  * - `unchanged`: the body carried no statement, or its statement would leave the recipe as it is.
  * - `apply`: write `provenance`; `makePrivate` says the same write also sets visibility to private.
- * - `locked`: refused, the source cannot change (not a statement the cook made, or inherited by a clone), or a clear was
- *   asked over "from another person", which only an explicit statement replaces.
+ * - `locked`: refused, the source cannot change (not a statement the cook made, inherited by a clone, or "from another
+ *   person", which only Commise changes), or the recipe holds a past "from another person" attestation and the move is not
+ *   that statement again.
  * - `unusable`: refused, the statement is not a usable web source (the wire schema refuses it first).
  */
 export type SourceCorrection =
@@ -106,13 +116,15 @@ export function evaluateSourceCorrection(input: {
 }): SourceCorrection {
     const { statement, stored } = input;
 
+    // 1. No statement: nothing to decide.
     if (statement === undefined) {
         return { kind: 'unchanged' };
     }
 
-    // The same paid site stated again took no effect, so it is `unchanged` BEFORE the lock: a paid-site answer rides every
-    // write until the server holds it, so a resend (a lost response, a retry after a 409) must not meet the lock it made.
-    // Any other statement over a paid site stays `locked`.
+    // 2. A write that changes nothing is `unchanged` BEFORE the lock, for every kind: it writes nothing, so it can never break a
+    // lock. That is what lets a resend (a lost response, a retry after a 409) through, and "from another person" over itself.
+    // An unusable statement never stops here, so it still meets the lock.
+    // The same paid site stated again is such a write: a paid-site answer rides every write until the server holds it.
     if (
         statement?.kind === 'paid_site' &&
         stored.sourceKind === 'paid_site' &&
@@ -121,25 +133,30 @@ export function evaluateSourceCorrection(input: {
         return { kind: 'unchanged' };
     }
 
-    // ONE lock rule, shared with the editor (`sourceIsCorrectable`, recipe-core): not stated by the cook, inherited by a clone,
-    // or an unknown kind. The first publish is not part of it.
-    if (!sourceIsCorrectable(stored)) {
-        return { kind: 'locked' };
-    }
-
-    // ⛔ "From another person" is not cleared by saying nothing. Only an explicit "I wrote this" or a stated source replaces it:
-    // a clear left a recipe that nothing remembered as another person's, which could then be published as the cook's own.
-    if (statement === null && stored.statementKind === 'fromPerson') {
-        return { kind: 'locked' };
-    }
-
     // No statement is the shipped default reading: user_created with no source fields. No grant is read on either branch.
     const decision =
         statement === null
             ? evaluateProvenance({ declared: undefined, grantedScopes: [] })
             : evaluateProvenance({ statement, grantedScopes: [] });
 
-    return decision.allowed && holdsAlready(decision.provenance, stored) ? { kind: 'unchanged' } : applyOf(decision);
+    if (decision.allowed && holdsAlready(decision.provenance, stored)) {
+        return { kind: 'unchanged' };
+    }
+
+    // 3. ONE lock rule, shared with the editor (`sourceIsCorrectable`, recipe-core): not stated by the cook, inherited by a
+    // clone, "from another person" (only Commise changes it), or an unknown kind. The first publish is not part of it.
+    if (!sourceIsCorrectable(stored)) {
+        return { kind: 'locked' };
+    }
+
+    // 4. The attestation arm: a recipe with no stored statement but a past "from another person" attestation. A clear over it was
+    // `unchanged` above; every move except stating "from another person" again is locked, an unusable one included.
+    if (stored.attestedFromPerson && statement?.kind !== 'fromPerson') {
+        return { kind: 'locked' };
+    }
+
+    // 5. Apply.
+    return applyOf(decision);
 }
 
 /**

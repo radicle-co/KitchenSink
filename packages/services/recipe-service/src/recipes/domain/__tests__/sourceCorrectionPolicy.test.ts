@@ -29,6 +29,11 @@ const BOOK = {
     wording: { version: 'statementBook.v1', locale: 'en' },
 } as const;
 const FROM_PERSON = { kind: 'fromPerson', wording: { version: 'statementFromPerson.v1', locale: 'en' } } as const;
+const PAID_SITE = {
+    kind: 'paid_site',
+    citation: 'Sam’s Subscription Kitchen',
+    wording: { version: 'statementPaidSite.v1', locale: 'en' },
+} as const;
 const AT = new Date('2026-11-01T00:00:00.000Z');
 
 const NONE: StoredSource = {
@@ -37,6 +42,7 @@ const NONE: StoredSource = {
     statementKind: null,
     clonedFromId: null,
     sourceAttribution: null,
+    attestedFromPerson: false,
 };
 
 /** The stored source as a recipe published once holds it. The policy reads no first-publish fact, so this must change nothing. */
@@ -282,23 +288,31 @@ describe('evaluateSourceCorrection — the whole table', () => {
         ['no statement', NONE],
         ['authored', AUTHORED_STORED],
         ['from another person', stored({ statementKind: 'fromPerson' })],
+        ['a past from-another-person attestation, no statement', stored({ attestedFromPerson: true })],
+        ['a clone holding from another person', stored({ statementKind: 'fromPerson', clonedFromId: 'r-1' })],
         ['a stated web copy', stored(WEB_COPY)],
         ['the curator’s text', stored({ sourceType: 'imported_public', sourceKind: null })],
         ['a stated book', stored({ sourceType: 'imported_physical', sourceKind: 'book', statementKind: 'source' })],
         [
-            'a stated paid site',
-            stored({ sourceType: 'imported_paid', sourceKind: 'paid_site', statementKind: 'source' }),
+            'a stated paid site, same citation',
+            stored({
+                sourceType: 'imported_paid',
+                sourceKind: 'paid_site',
+                statementKind: 'source',
+                sourceAttribution: PAID_SITE.citation,
+            }),
         ],
         ['a web copy inherited by a clone', stored({ ...WEB_COPY, clonedFromId: 'r-1' })],
     ];
 
-    type Move = 'setWeb' | 'clear' | 'authored' | 'setBook' | 'fromPerson';
-    const MOVES = ['setWeb', 'clear', 'authored', 'setBook', 'fromPerson'] as const;
+    type Move = 'setWeb' | 'clear' | 'authored' | 'setBook' | 'setPaidSite' | 'fromPerson';
+    const MOVES = ['setWeb', 'clear', 'authored', 'setBook', 'setPaidSite', 'fromPerson'] as const;
     const STATEMENT_OF = {
         setWeb: STATEMENT,
         clear: null,
         authored: AUTHORED,
         setBook: BOOK,
+        setPaidSite: PAID_SITE,
         fromPerson: FROM_PERSON,
     } as const;
 
@@ -310,41 +324,61 @@ describe('evaluateSourceCorrection — the whole table', () => {
         ['no statement', 'clear', 'unchanged'],
         ['no statement', 'authored', 'apply'],
         ['no statement', 'setBook', 'apply'],
+        ['no statement', 'setPaidSite', 'apply'],
         ['no statement', 'fromPerson', 'apply'],
         ['authored', 'setWeb', 'apply'],
         ['authored', 'clear', 'apply'],
         ['authored', 'authored', 'unchanged'],
         ['authored', 'setBook', 'apply'],
+        ['authored', 'setPaidSite', 'apply'],
         ['authored', 'fromPerson', 'apply'],
-        ['from another person', 'setWeb', 'apply'],
+        ['from another person', 'setWeb', 'locked'],
         ['from another person', 'clear', 'locked'],
-        ['from another person', 'authored', 'apply'],
-        ['from another person', 'setBook', 'apply'],
+        ['from another person', 'authored', 'locked'],
+        ['from another person', 'setBook', 'locked'],
+        ['from another person', 'setPaidSite', 'locked'],
         ['from another person', 'fromPerson', 'unchanged'],
+        ['a past from-another-person attestation, no statement', 'setWeb', 'locked'],
+        ['a past from-another-person attestation, no statement', 'clear', 'unchanged'],
+        ['a past from-another-person attestation, no statement', 'authored', 'locked'],
+        ['a past from-another-person attestation, no statement', 'setBook', 'locked'],
+        ['a past from-another-person attestation, no statement', 'setPaidSite', 'locked'],
+        ['a past from-another-person attestation, no statement', 'fromPerson', 'apply'],
+        ['a clone holding from another person', 'setWeb', 'locked'],
+        ['a clone holding from another person', 'clear', 'locked'],
+        ['a clone holding from another person', 'authored', 'locked'],
+        ['a clone holding from another person', 'setBook', 'locked'],
+        ['a clone holding from another person', 'setPaidSite', 'locked'],
+        ['a clone holding from another person', 'fromPerson', 'unchanged'],
         ['a stated web copy', 'setWeb', 'apply'],
         ['a stated web copy', 'clear', 'apply'],
         ['a stated web copy', 'authored', 'apply'],
         ['a stated web copy', 'setBook', 'apply'],
+        ['a stated web copy', 'setPaidSite', 'apply'],
         ['a stated web copy', 'fromPerson', 'apply'],
         ['the curator’s text', 'setWeb', 'locked'],
         ['the curator’s text', 'clear', 'locked'],
         ['the curator’s text', 'authored', 'locked'],
         ['the curator’s text', 'setBook', 'locked'],
+        ['the curator’s text', 'setPaidSite', 'locked'],
         ['the curator’s text', 'fromPerson', 'locked'],
         ['a stated book', 'setWeb', 'apply'],
         ['a stated book', 'clear', 'apply'],
         ['a stated book', 'authored', 'apply'],
         ['a stated book', 'setBook', 'apply'],
+        ['a stated book', 'setPaidSite', 'apply'],
         ['a stated book', 'fromPerson', 'apply'],
-        ['a stated paid site', 'setWeb', 'locked'],
-        ['a stated paid site', 'clear', 'locked'],
-        ['a stated paid site', 'authored', 'locked'],
-        ['a stated paid site', 'setBook', 'locked'],
-        ['a stated paid site', 'fromPerson', 'locked'],
+        ['a stated paid site, same citation', 'setWeb', 'locked'],
+        ['a stated paid site, same citation', 'clear', 'locked'],
+        ['a stated paid site, same citation', 'authored', 'locked'],
+        ['a stated paid site, same citation', 'setBook', 'locked'],
+        ['a stated paid site, same citation', 'setPaidSite', 'unchanged'],
+        ['a stated paid site, same citation', 'fromPerson', 'locked'],
         ['a web copy inherited by a clone', 'setWeb', 'locked'],
         ['a web copy inherited by a clone', 'clear', 'locked'],
         ['a web copy inherited by a clone', 'authored', 'locked'],
         ['a web copy inherited by a clone', 'setBook', 'locked'],
+        ['a web copy inherited by a clone', 'setPaidSite', 'locked'],
         ['a web copy inherited by a clone', 'fromPerson', 'locked'],
     ];
 
@@ -397,10 +431,15 @@ describe('evaluateSourceCorrection — a cookbook, or another person, before the
         });
     });
 
-    it('lets "from another person" be changed to "I wrote this" before the first publish, which is what makes the recipe publishable', () => {
-        expect(
-            evaluateSourceCorrection({ statement: AUTHORED, stored: stored({ statementKind: 'fromPerson' }) }),
-        ).toMatchObject({ kind: 'apply', provenance: { statementKind: 'authored' }, makePrivate: false });
+    // Rewritten by P7 (fromPersonLock, owner ruling 2026-11-19): it used to say `apply`, which is the gap: "I wrote this" over
+    // "From another person" left no evidence and the recipe could go Public. Only Commise changes the answer now.
+    it('refuses "I wrote this" over a stored "from another person", before and after the first publish', () => {
+        const held = stored({ statementKind: 'fromPerson' });
+
+        expect(evaluateSourceCorrection({ statement: AUTHORED, stored: held })).toEqual({ kind: 'locked' });
+        expect(evaluateSourceCorrection({ statement: AUTHORED, stored: publishedOnce(held) })).toEqual({
+            kind: 'locked',
+        });
     });
 
     // Rewritten for the provenance review (finding 1): this case asserted that "from another person" could be cleared with a null
@@ -470,11 +509,6 @@ describe('evaluateSourceCorrection — a cookbook, or another person, before the
 });
 
 describe('evaluateSourceCorrection — a paid site stated again', () => {
-    const PAID_SITE = {
-        kind: 'paid_site',
-        citation: 'Sam’s Subscription Kitchen',
-        wording: { version: 'statementPaidSite.v1', locale: 'en' },
-    } as const;
     const HELD = stored({
         sourceType: 'imported_paid',
         sourceKind: 'paid_site',
@@ -513,6 +547,69 @@ describe('evaluateSourceCorrection — a paid site stated again', () => {
     it('is locked when the stored citation is unknown, never unchanged on a guess', () => {
         expect(
             evaluateSourceCorrection({ statement: PAID_SITE, stored: { ...HELD, sourceAttribution: null } }).kind,
+        ).toBe('locked');
+    });
+});
+
+// P7 (fromPersonLock): the attestation arm. A recipe with no stored statement but a past "from another person" attestation
+// is locked against every move except stating "from another person" again, and a clear over it took no effect.
+describe('evaluateSourceCorrection — a past "from another person" attestation and no stored statement', () => {
+    const PAST = stored({ attestedFromPerson: true });
+    const UNUSABLE = {
+        kind: 'public_web',
+        citation: 'https://commise.app/recipes/1',
+        wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+    } as const;
+
+    it.each([
+        ['"I wrote this"', AUTHORED],
+        ['a web link', STATEMENT],
+        ['a book', BOOK],
+        ['a paid site', PAID_SITE],
+        ['an unusable web link', UNUSABLE],
+    ] as const)('refuses %s, before and after the first publish', (_name, statement) => {
+        expect(evaluateSourceCorrection({ statement, stored: PAST })).toEqual({ kind: 'locked' });
+        expect(evaluateSourceCorrection({ statement, stored: publishedOnce(PAST) })).toEqual({ kind: 'locked' });
+    });
+
+    it('lets "from another person" be stated again: it applies and the recipe is Private in the same write', () => {
+        expect(evaluateSourceCorrection({ statement: FROM_PERSON, stored: PAST })).toMatchObject({
+            kind: 'apply',
+            makePrivate: true,
+            provenance: { statementKind: 'fromPerson' },
+        });
+    });
+
+    it('treats a clear as unchanged: it took no effect, so it writes and records nothing', () => {
+        expect(evaluateSourceCorrection({ statement: null, stored: PAST })).toEqual({ kind: 'unchanged' });
+    });
+
+    it('does not lock a recipe with no attestation: the arm reads the fact, not the move', () => {
+        expect(evaluateSourceCorrection({ statement: AUTHORED, stored: NONE }).kind).toBe('apply');
+    });
+});
+
+// The zero-effect check comes before the lock (KTD-3), for every locked kind: an identical resend writes nothing.
+describe('evaluateSourceCorrection — a write that changes nothing is unchanged before the lock', () => {
+    it('"from another person" over itself, on a clone and after the first publish', () => {
+        for (const held of [
+            stored({ statementKind: 'fromPerson' }),
+            stored({ statementKind: 'fromPerson', clonedFromId: 'r-1' }),
+            publishedOnce(stored({ statementKind: 'fromPerson' })),
+        ]) {
+            expect(evaluateSourceCorrection({ statement: FROM_PERSON, stored: held })).toEqual({ kind: 'unchanged' });
+        }
+    });
+
+    it('an unusable statement never stops at the zero-effect step: it still meets the lock', () => {
+        const unusable = {
+            kind: 'public_web',
+            citation: 'https://commise.app/recipes/1',
+            wording: { version: 'statementPublicWeb.v1', locale: 'en' },
+        } as const;
+
+        expect(
+            evaluateSourceCorrection({ statement: unusable, stored: stored({ statementKind: 'fromPerson' }) }).kind,
         ).toBe('locked');
     });
 });

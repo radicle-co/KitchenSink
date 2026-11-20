@@ -376,16 +376,23 @@ for (const width of [430, 375]) {
 // #380 (designer D75, rule B): the bar and the open panel together end at half the window, at the largest text, and
 // the rows scroll inside the panel while the bar stays put. The 13 rows at 200% text are taller than the 320 px half of
 // a 640 px window.
-/** The element's box once its animations have finished; throws when it has none, so a missing box never passes. */
-async function settledBox(target: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
-    await target.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
-    const box = await target.boundingBox();
+/**
+ * The box of the dialog frame's last child (the open panel; the bar copy is its first) once its animations have finished.
+ * Throws when there is none, so a missing box never passes.
+ */
+async function settledPanelBox(frame: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
+    return frame.evaluate(async (element) => {
+        const panel = element.lastElementChild;
 
-    if (box === null) {
-        throw new Error('the element has no box');
-    }
+        if (panel === null) {
+            throw new Error('the dialog frame has no panel');
+        }
 
-    return box;
+        await Promise.all(panel.getAnimations().map((animation) => animation.finished));
+        const { x, y, width, height } = panel.getBoundingClientRect();
+
+        return { x, y, width, height };
+    });
 }
 
 test.describe('recipe page at 390 x 640 with 200% text', () => {
@@ -400,20 +407,18 @@ test.describe('recipe page at 390 x 640 with 200% text', () => {
         await expect(bar).toBeInViewport();
         await bar.click();
 
-        // The panel is the dialog frame's last child: the bar copy is its first. Its box is read once its enter
-        // animation has finished, so a mid-animation offset is never measured.
-        const panel = page.getByRole('dialog', { name: 'Ingredients for 4' }).locator('xpath=./*[last()]');
+        const frame = page.getByRole('dialog', { name: 'Ingredients for 4' });
 
-        await expect(panel).toBeVisible();
-        const opened = await settledBox(panel);
+        await expect(frame.getByRole('checkbox').first()).toBeVisible();
+        const opened = await settledPanelBox(frame);
 
         expect(opened.y + opened.height, 'the bar and panel end at half the window').toBeLessThanOrEqual(320);
 
         // The last row is under the cap until the panel scrolls: scrolling it in moves neither the panel nor the bar.
-        await panel.getByRole('checkbox').last().scrollIntoViewIfNeeded();
-        await expect(panel.getByRole('checkbox').last()).toBeInViewport();
+        await frame.getByRole('checkbox').last().scrollIntoViewIfNeeded();
+        await expect(frame.getByRole('checkbox').last()).toBeInViewport();
 
-        expect(await settledBox(panel), 'the panel did not move').toEqual(opened);
+        expect(await settledPanelBox(frame), 'the panel did not move').toEqual(opened);
         await expect(page.getByRole('button', { name: /Hide list\.$/u })).toBeInViewport();
     });
 });

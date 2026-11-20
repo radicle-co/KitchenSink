@@ -72,6 +72,11 @@ const BOOK = {
     citation: 'Joy of Cooking, p. 12',
     wording: { version: 'statementBook.v1', locale: 'en' },
 } as const;
+const PAID_SITE = {
+    kind: 'paid_site',
+    citation: 'Sam’s Subscription Kitchen',
+    wording: { version: 'statementPaidSite.v1', locale: 'en' },
+} as const;
 const PERSON = { kind: 'fromPerson', wording: { version: 'statementFromPerson.v1', locale: 'en' } } as const;
 
 const CONFIRM_ROW = (action: string) => ({
@@ -906,6 +911,35 @@ describe('PATCH /api/v1/recipes/{id}/visibility', () => {
             publicConfirmation: CONFIRM,
         });
         expect(await refusalOf(publicBook)).toMatchObject({ status: 400, code: 'INVALID_VISIBILITY' });
+        expect(insertMany).not.toHaveBeenCalled();
+    });
+
+    it('a paid website on set-visibility (the recipe page’s Make public answer) is applied Private with its evidence and one row, and Public for it is refused', async () => {
+        stored = rowOf({ status: 'draft' });
+
+        const privatePaid = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'private',
+            statement: PAID_SITE,
+        });
+        expect(privatePaid.status).toBe(200);
+        expect(insertEvidence).toHaveBeenCalledWith(
+            TX,
+            expect.objectContaining({
+                capture: 'editorCitation',
+                sourceKind: 'paid_site',
+                citation: PAID_SITE.citation,
+            }),
+        );
+        expect(recorded()).toEqual([STATEMENT_ROW('paidSite', 'statementPaidSite.v1', 'setVisibility')]);
+
+        stored = rowOf({ status: 'draft' });
+        vi.clearAllMocks();
+        const publicPaid = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            statement: PAID_SITE,
+            publicConfirmation: CONFIRM,
+        });
+        expect(await refusalOf(publicPaid)).toMatchObject({ status: 400, code: 'INVALID_VISIBILITY' });
         expect(insertMany).not.toHaveBeenCalled();
     });
 

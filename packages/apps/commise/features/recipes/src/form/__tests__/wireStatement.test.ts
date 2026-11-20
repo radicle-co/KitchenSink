@@ -22,6 +22,11 @@ const BOOK = {
     citation: 'Joy of Cooking',
     wording: { version: 'statementBook.v1', locale: 'en' },
 } as const;
+const PAID = {
+    kind: 'paid_site',
+    citation: 'Sam’s Subscription Kitchen',
+    wording: { version: 'statementPaidSite.v1', locale: 'en' },
+} as const;
 const CONFIRM = { version: 'publicConfirm.v1', locale: 'en' } as const;
 const ALLRECIPES = 'https://www.allrecipes.com/recipe/1/soup/';
 const PUBLIC = makeFilledRecipeFormValues({ visibility: RecipeVisibility.PUBLIC });
@@ -90,6 +95,28 @@ describe('a sheet statement', () => {
 
     it('a third-party statement rides only a write that publishes too, so it is stated and recorded once', () => {
         expect(toUpdateRecipeInput(PUBLIC, undefined, stored(), { statement: BOOK })).not.toHaveProperty('statement');
+    });
+});
+
+describe('a confirmed paid-site statement', () => {
+    // The answer locks at the sheet's confirm, so it rides the next write of any kind: a draft checkpoint included.
+    it('rides a draft checkpoint and a write that names no status, on create and on update', () => {
+        expect(toCreateRecipeInput(PUBLIC, RecipeStatus.DRAFT, { statement: PAID }).statement).toEqual(PAID);
+        expect(toCreateRecipeInput(PUBLIC, undefined, { statement: PAID }).statement).toEqual(PAID);
+        expect(toUpdateRecipeInput(PUBLIC, undefined, stored(), { statement: PAID }).statement).toEqual(PAID);
+    });
+
+    it('stops riding once the server holds the paid site, because a held one is locked and would answer 403', () => {
+        const held = stored({ sourceType: 'imported_paid', sourceKind: 'paid_site' });
+
+        expect(toUpdateRecipeInput(PUBLIC, PUBLISHED, held, { statement: PAID })).not.toHaveProperty('statement');
+    });
+
+    it('is a body the server accepts', () => {
+        expect(
+            createRecipeRequestSchema.safeParse(toCreateRecipeInput(PUBLIC, RecipeStatus.DRAFT, { statement: PAID }))
+                .success,
+        ).toBe(true);
     });
 });
 

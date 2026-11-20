@@ -117,6 +117,18 @@ describe('RecipeSourceField (web)', () => {
         expect(screen.queryByRole('button', { name: m.remove })).toBeNull();
     });
 
+    it('lockedCitation: the label, "From a paid website", the citation as plain text, the reason, and no link, field or Remove', () => {
+        renderRow({ kind: 'lockedCitation', citation: 'https://paid.example/recipe' });
+
+        expect(screen.getByText(m.label)).toBeTruthy();
+        expect(screen.getByText('From a paid website')).toBeTruthy();
+        expect(screen.getByText('https://paid.example/recipe')).toBeTruthy();
+        expect(screen.getByText(m.locked)).toBeTruthy();
+        expect(screen.queryByRole('link')).toBeNull();
+        expect(screen.queryByRole('textbox')).toBeNull();
+        expect(screen.queryByRole('button', { name: m.remove })).toBeNull();
+    });
+
     it('hidden: nothing at all', () => {
         const { container } = render(
             <RecipeSourceField row={{ kind: 'hidden' }} onTouched={vi.fn()} onChange={vi.fn()} onRemove={vi.fn()} />,

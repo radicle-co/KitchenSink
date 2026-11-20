@@ -374,6 +374,55 @@ describe('sourceRowOf: every state of the Source row', () => {
     });
 });
 
+describe('sourceRowOf: a paid website is locked, with no link', () => {
+    const paid = makeRecipeDetail({
+        status: RecipeStatus.DRAFT,
+        sourceType: RecipeSourceType.IMPORTED_PAID,
+        sourceKind: 'paid_site',
+        sourceAttribution: 'Sam’s Subscription Kitchen',
+    });
+
+    it('a saved paid-site recipe shows its citation, not the hidden row', () => {
+        expect(
+            sourceRowOf({ values: makeRecipeFormValues(), recipe: paid, fromPaste: false, showError: true }),
+        ).toEqual({ kind: 'lockedCitation', citation: 'Sam’s Subscription Kitchen' });
+    });
+
+    it('a citation the cook has just confirmed locks the row before any write', () => {
+        expect(
+            sourceRowOf({
+                values: makeRecipeFormValues(),
+                recipe: undefined,
+                fromPaste: false,
+                showError: false,
+                paidSiteStated: 'Sam’s Subscription Kitchen',
+            }),
+        ).toEqual({ kind: 'lockedCitation', citation: 'Sam’s Subscription Kitchen' });
+    });
+
+    it('a locked web copy with an address keeps its linked row, and the curator’s text stays hidden', () => {
+        const web = makeRecipeDetail({
+            status: RecipeStatus.DRAFT,
+            sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+            sourceKind: 'public_web',
+            sourceUrl: ALLRECIPES,
+            clonedFromId: CLONE_OF,
+        });
+
+        expect(
+            sourceRowOf({ values: makeRecipeFormValues(), recipe: web, fromPaste: false, showError: true }),
+        ).toMatchObject({ kind: 'locked', site: 'allrecipes.com' });
+        expect(
+            sourceRowOf({
+                values: makeRecipeFormValues(),
+                recipe: makeRecipeDetail({ sourceType: RecipeSourceType.IMPORTED_PUBLIC }),
+                fromPaste: false,
+                showError: true,
+            }),
+        ).toEqual({ kind: 'hidden' });
+    });
+});
+
 describe('sourceRowOf: an error is shown after the cook is done typing, not while they type', () => {
     const row = (values: ReturnType<typeof withLink>, showError: boolean) =>
         sourceRowOf({ values, recipe: undefined, fromPaste: false, showError });

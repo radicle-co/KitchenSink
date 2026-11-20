@@ -36,7 +36,10 @@ export interface AndroidHost {
      */
     laneEnv(lane: LaneSpec): Readonly<Record<string, string>>;
     teardown(): Promise<void>;
-    /** Resolves with the reason when the host loses the tunnel its lanes need. A host with no tunnel returns `NEVER_LOST`. */
+    /**
+     * Resolves with the reason when the host loses the tunnel its lanes need.
+     * A host with no tunnel returns `NEVER_LOST`.
+     */
     lost(): Promise<Error>;
 }
 

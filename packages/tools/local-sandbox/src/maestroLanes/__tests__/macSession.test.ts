@@ -71,22 +71,39 @@ function recorder(answers: Record<string, string> = {}, probes: Record<number, s
     return { shell, calls, files, links, tunnels, exitTunnel, stopped: () => stopped };
 }
 
+/**
+ * A session on a fake clock: `sleep` moves the clock by the wait, and every command to the Mac moves it by `replyMs`,
+ * as a real ssh round trip would. So no test waits and none reads the wall clock.
+ */
 const make = (
     shell: MacShell,
     env: Record<string, string | undefined> = { LOCAL_MAESTRO_IOS_HOST: 'me@mac' },
     sleeps: number[] = [],
-) =>
-    new MacSession({
-        shell,
+    replyMs = 0,
+) => {
+    let clock = 0;
+    const timed: MacShell = {
+        ...shell,
+        run: (command, args, runEnv) => {
+            clock += replyMs;
+
+            return shell.run(command, args, runEnv);
+        },
+    };
+
+    return new MacSession({
+        shell: timed,
         env,
         repoRoot: '/repo',
-        // The deadline is counted in slept time, so no test waits and none depends on the wall clock.
+        now: () => clock,
         sleep: (ms) => {
             sleeps.push(ms);
+            clock += ms;
 
             return Promise.resolve();
         },
     });
+};
 
 const run = { runId: 'r', stateDir: '/s', repoRoot: '/repo' };
 
@@ -244,6 +261,24 @@ describe('MacSession', () => {
 
             await expect(session.openTunnel(FORWARDS)).rejects.toThrow(/Connection refused/u);
             expect(rec.calls.filter((c) => c.args.join(' ').includes('127.0.0.1:3000/health'))).toHaveLength(1);
+        });
+
+        it('gives up at 10 s of wall time even when each reply is slow, long before 20 attempts', async () => {
+            const rec = recorder({}, { 3000: ['000'] });
+            const session = make(rec.shell, undefined, [], 4_000);
+            await session.open(run);
+
+            await expect(session.openTunnel(FORWARDS)).rejects.toThrow(/answered \/health with 000/u);
+            expect(rec.calls.filter((c) => c.args.join(' ').includes('127.0.0.1:3000/health')).length).toBeLessThan(5);
+        });
+
+        it('shares one 10 s deadline across the ports, so a slow first port leaves one try', async () => {
+            const rec = recorder({}, { 3000: ['200'], 3001: ['000'] });
+            const session = make(rec.shell, undefined, [], 6_000);
+            await session.open(run);
+
+            await expect(session.openTunnel(FORWARDS)).rejects.toThrow(/Mac port 3001 answered \/health with 000/u);
+            expect(rec.calls.filter((c) => c.args.join(' ').includes('127.0.0.1:3001/health'))).toHaveLength(1);
         });
 
         it('gives up when 10 s of waiting have passed, not before and not long after', async () => {

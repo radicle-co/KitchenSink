@@ -33,11 +33,24 @@ export interface MacSessionOptions {
     readonly repoRoot: string;
     /** Waits `ms`. Injected so a test counts the wait and does not spend it. */
     readonly sleep?: (ms: number) => Promise<void>;
+    /** The time in ms. Injected, with `sleep`, so a test moves the clock and the probe deadline is real wall time. */
+    readonly now?: () => number;
 }
 
-/** The health probe asks again every `PROBE_INTERVAL_MS` while a port is silent, and gives up after `PROBE_DEADLINE_MS`. */
+/**
+ * The health probe asks again every `PROBE_INTERVAL_MS` while a port is silent. All ports together get
+ * `PROBE_DEADLINE_MS` of wall time from the moment the tunnel starts.
+ */
 const PROBE_INTERVAL_MS = 500;
 const PROBE_DEADLINE_MS = 10_000;
+
+const healthUrl = (forward: Tunnel): string => `http://127.0.0.1:${String(forward.macPort)}/health`;
+
+/** What one opening of the tunnel shares across its ports: whether it is over, and the wall time it must end by. */
+interface Probing {
+    over: boolean;
+    readonly until: number;
+}
 
 /** What the Mac's shell may see in a path we build from a value: no space, quote or metacharacter. */
 const PLAIN_NAME = /^[A-Za-z0-9._-]+$/u;
@@ -254,7 +267,7 @@ export class MacSession {
         // Made now, so a loss before anyone asks is still there to read. An exit that close() causes is not a loss.
         this.loss = tunnel.exited.then((code) => (this.closing ? NEVER_LOST : this.exitError(code, 'during the run')));
         const early = tunnel.exited.then((code) => this.exitError(code, 'before the run used it'));
-        const probing = { over: false };
+        const probing = { over: false, until: (this.options.now ?? Date.now)() + PROBE_DEADLINE_MS };
 
         try {
             const failure = await Promise.race([this.probeAll(forwards, probing), early]);
@@ -267,7 +280,10 @@ export class MacSession {
         }
     }
 
-    /** Resolves with the reason when the tunnel exits while it is open. It stays pending after {@link MacSession.close}. */
+    /**
+     * Resolves with the reason when the tunnel exits while it is open.
+     * It stays pending after {@link MacSession.close}.
+     */
     lost(): Promise<Error> {
         return this.loss;
     }
@@ -277,7 +293,7 @@ export class MacSession {
     }
 
     /** Asks each forwarded port in turn. Resolves with nothing when every port serves, and with the error otherwise. */
-    private async probeAll(forwards: readonly Tunnel[], probing: { over: boolean }): Promise<Error | undefined> {
+    private async probeAll(forwards: readonly Tunnel[], probing: Probing): Promise<Error | undefined> {
         for (const forward of forwards) {
             const failure = await this.probe(forward, probing);
 
@@ -294,19 +310,21 @@ export class MacSession {
      * starts), so it is asked again until the deadline. Any other code that is not 200 fails at once. A reply that is
      * not a code (curl missing on the Mac) fails at once and is quoted, never read as 000.
      */
-    private async probe(forward: Tunnel, probing: { over: boolean }): Promise<Error | undefined> {
+    private async probe(forward: Tunnel, probing: Probing): Promise<Error | undefined> {
         const { sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)) } = this.options;
+        const now = this.options.now ?? Date.now;
         const where = `the Mac port ${String(forward.macPort)}`;
 
-        for (let waited = 0; !probing.over; waited += PROBE_INTERVAL_MS) {
-            // curl exits non-zero when nothing answers but still prints 000, so its status is ignored and its output read.
+        while (!probing.over) {
+            // curl exits non-zero when nothing answers but still prints 000, so its status is ignored and its
+            // output is read.
             const reply = (
                 await this.ssh(
                     remote(
                         'sh',
                         '-c',
                         // The port is a number from the manifest, so it can sit in the script text.
-                        `curl -s -o /dev/null -w %{http_code} --max-time 2 http://127.0.0.1:${String(forward.macPort)}/health || true`,
+                        `curl -s -o /dev/null -w %{http_code} --max-time 2 ${healthUrl(forward)} || true`,
                     ),
                 )
             ).trim();
@@ -319,9 +337,10 @@ export class MacSession {
                 return undefined;
             }
 
-            if (reply !== '000' || waited >= PROBE_DEADLINE_MS) {
+            if (reply !== '000' || now() >= probing.until) {
                 return new Error(
-                    `${where} answered /health with ${reply}, so the forward to local port ${String(forward.localPort)} is not serving`,
+                    `${where} answered /health with ${reply}, ` +
+                        `so the forward to local port ${String(forward.localPort)} is not serving`,
                 );
             }
 

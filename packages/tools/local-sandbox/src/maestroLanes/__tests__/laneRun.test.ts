@@ -726,7 +726,7 @@ describe('runLaneRun — the green stamp settles after the check', () => {
 });
 
 describe('runLaneRun — a lost tunnel', () => {
-    it('stops the lanes, still tears the host down, and fails the run with the loss when an adapter loses its tunnel', async () => {
+    it('stops the lanes, still tears the host down, and fails with the loss when a tunnel is lost', async () => {
         let loseTunnel: (error: Error) => void = () => undefined;
         const lost = new Promise<Error>((resolve) => {
             loseTunnel = resolve;

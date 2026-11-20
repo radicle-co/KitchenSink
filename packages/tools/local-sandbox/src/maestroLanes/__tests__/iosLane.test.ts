@@ -147,7 +147,7 @@ describe('sshConfigText', () => {
         expect(text).toContain('ServerAliveInterval 15');
     });
 
-    it('does not claim one connection per run: the master is shared by every run and only the tunnel opens its own', () => {
+    it('does not claim one connection per run: the master is shared and only the tunnel opens its own', () => {
         const text = sshConfigText({ host: 'me@mac', controlPath: '/tmp/cm-%C' });
 
         expect(text).not.toContain('one ssh connection per run');

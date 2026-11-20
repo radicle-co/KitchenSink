@@ -308,9 +308,9 @@ async function runPlanned(
             }),
         );
 
-        // Asked once, now: a loss that happened already (a stale forward answered the probe, then the tunnel ended) is still
-        // there to read. All promises go in ONE race, because a race over a race settles a tick late and would lose to
-        // the resolved sentinel below.
+        // Asked once, now: a loss that happened already (a stale forward answered the probe, then the tunnel ended)
+        // is still there to read. All promises go in ONE race, because a race over a race settles a tick late and
+        // would lose to the resolved sentinel below.
         const losses = plans.map((plan) => plan.adapter.lost());
         const alreadyLost = await Promise.race([...losses, Promise.resolve(undefined)]);
 

@@ -722,11 +722,119 @@ jobs:
               if: ${{ !cancelled() }}
               run: bash .github/scripts/pruneTurboCache.sh
 
-            # ⛔ No undeclared-dependency check runs in CI, deliberately (owner decision 2026-09-14). The `turbo
-            # boundaries` ratchet and its baseline live in the staff-code-quality agent's user-level toolchain skill,
-            # and only its local GATE runs it — a push from a machine without that skill, or under
-            # `SCQ_GATE_WAIVED`, is not checked. That gap was accepted. Do not re-add a CI copy: two homes for one
-            # baseline is the drift the move removed.
+            # The `turbo boundaries` ratchet and its baseline now live in this repository (`tooling/codeQuality`) and run in
+            # `codeQuality` below (owner ruling 2026-11-19). The earlier decision to keep them in the agent's user-level
+            # skill, and its warning not to add a CI copy, is superseded by ADR-0097.
+
+    # ── The code-quality scanners, run once per PR where a person or an agent cannot skip them ────────────────────
+    #
+    # @pattern Pipeline — scan.mjs (Adapter over eight scanners) → status.json + findings.jsonl → runVerdict.mjs (Policy)
+    # @pattern Ratchet  — the boundaries baseline and the repoGuards baselines may only shrink.
+    #
+    # ADR-0097. This job is the deterministic half of the GATE: the `GATE` status (gate.yml) judges the evidence this
+    # job uploads as `scq-<sha>`. It has NO paths filter on purpose: a skipped check is not a passed one, and a diff
+    # of docs only simply finds no targets (scanVerdict.mjs tells that apart from a scanner that did not run).
+    # ⛔ A tool that FAILED, or that found no target in a diff that holds files of its kind, fails the job.
+    codeQuality:
+        name: Code quality scanners
+        timeout-minutes: 20
+        runs-on: ubuntu-latest
+        needs: [install]
+        permissions:
+            contents: read # checkout
+            pull-requests: read # the live labels of the PR, for `baseline-growth` (a re-run's event payload is stale)
+            security-events: read # scan.mjs --codeql ci reads the CodeQL alerts published for this ref
+        env:
+            GH_TOKEN: ${{ github.token }}
+            GH_REPO: ${{ github.repository }}
+            EVENT_NAME: ${{ github.event_name }}
+            BASE_REF: ${{ github.base_ref }}
+            PR_NUMBER: ${{ github.event.pull_request.number }}
+            # The commit the evidence is about: a PR's own head, not the merge commit `github.sha` names.
+            EVIDENCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+            SCQ_OUT: ${{ github.workspace }}/scqOut
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+                  fetch-depth: 0 # the diff is measured from the merge base with the base branch
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                  node-version: 24
+            - name: Restore dependencies
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
+            # The scanners' own pinned toolchain sits OUTSIDE the workspaces, so it never touches the root install.
+            - name: Restore the scanner toolchain
+              id: toolchain
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: tooling/codeQuality/node_modules
+                  key: ${{ runner.os }}-codeQuality-${{ hashFiles('tooling/codeQuality/package-lock.json') }}
+            - name: Install the scanner toolchain
+              if: steps.toolchain.outputs.cache-hit != 'true'
+              working-directory: tooling/codeQuality
+              # --legacy-peer-deps: eslint-plugin-jsx-a11y and eslint-plugin-react declare no ESLint 10 peer range yet.
+              run: npm ci --legacy-peer-deps
+            - name: Install Semgrep (pinned)
+              run: pipx install semgrep==1.177.0
+            - name: Test the verdict policy
+              working-directory: tooling/codeQuality
+              run: npm test
+            - name: Run the scanners
+              run: |
+                  set -euo pipefail
+                  if [ "$EVENT_NAME" = pull_request ]; then
+                      base="origin/${BASE_REF}"
+                      export SCQ_CODEQL_REF="refs/pull/${PR_NUMBER}/merge"
+                  elif [ "$EVENT_NAME" = push ]; then
+                      base="HEAD^"
+                      export SCQ_CODEQL_REF="${GITHUB_REF}"
+                  else
+                      base="origin/main"
+                      export SCQ_CODEQL_REF="${GITHUB_REF}"
+                  fi
+                  echo "$base" >"$RUNNER_TEMP/scqBase"
+                  node tooling/codeQuality/scan.mjs --repo . --base "$base" --out "$SCQ_OUT" --codeql ci \
+                      --tools eslint-overlay,semgrep,depcruise,jscpd,knip,sherif,turbo-config,turbo-boundaries,codeql
+            - name: Judge the evidence
+              run: |
+                  set -euo pipefail
+                  labels=""
+                  if [ "$EVENT_NAME" = pull_request ]; then
+                      labels="$(gh api "repos/${GH_REPO}/issues/${PR_NUMBER}/labels" --jq '[.[].name] | join(",")')"
+                  fi
+                  node tooling/codeQuality/runVerdict.mjs --out "$SCQ_OUT" --base "$(cat "$RUNNER_TEMP/scqBase")" --labels "$labels"
+            - name: Write the job summary
+              if: ${{ always() }}
+              run: cat "$SCQ_OUT"/summary.md "$SCQ_OUT"/verdictSummary.md >>"$GITHUB_STEP_SUMMARY"
+            - name: Upload the evidence for the GATE
+              if: ${{ always() }}
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: scq-${{ env.EVIDENCE_SHA }}
+                  path: |
+                      scqOut/status.json
+                      scqOut/findings.jsonl
+                      scqOut/summary.md
+                      scqOut/verdict.json
+                      scqOut/verdictSummary.md
+                  if-no-files-found: error
+                  retention-days: 14
 
     format:
         name: Format check
@@ -3122,6 +3230,7 @@ jobs:
                 resolve-sandbox,
                 build-ui,
                 lint,
+                codeQuality,
                 format,
                 python-checks,
                 typecheck,

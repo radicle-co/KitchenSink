@@ -197,6 +197,11 @@ function discoverStandalonePackages(): readonly string[] {
             // ⚠️ Fixture manifests are not packages. `__tests__/__fixtures__/devRunnerProbe` exists to be READ by a
             // guard, never installed — counting it would demand `cdk-checks` install a fixture.
             .filter((dir) => !/(^|\/)(__tests__|__fixtures__|fixtures)(\/|$)/.test(dir))
+            // ⚠️ `tooling/*` holds plain-JavaScript toolchains that are not CDK apps and own no TypeScript (ADR-0097). A
+            // `deployInfra.yml` job exists to install, typecheck and synth infrastructure, none of which applies; the
+            // `codeQuality` job in `_ci.yml` installs the toolchain and runs its node:test suite. The exemption is the
+            // directory, so keep `tooling/` to plain JavaScript: a TypeScript package placed there would escape this check.
+            .filter((dir) => !dir.startsWith('tooling/'))
             .filter((dir) => dir !== '.' && !globs.some((glob) => minimatch(dir, glob)))
             .sort()
     );

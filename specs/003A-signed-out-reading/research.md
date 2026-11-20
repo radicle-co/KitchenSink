@@ -43,22 +43,19 @@ These facts drive the decisions. Each was read in the code, not assumed.
 
 ## R1. The shape of a signed-out read
 
-**Decision**: a public, read-only endpoint in recipe-service, `GET /api/v1/public/recipes/{id}`, always answered
-`no-store`. The web server renders the page from it with Next's classic incremental static regeneration (ISR):
-`revalidate = 60` on the page, `generateStaticParams()` returning `[]`, and `expireTime: 300` in `next.config.ts`. Next
-then sends `Cache-Control: s-maxage=60, stale-while-revalidate=240`, so the oldest copy anyone can be served is 300
-seconds old, with no purge. The native app calls the endpoint directly. This is 021 FR-106 Option A with one cache layer
+**Decision**: a public, read-only endpoint in recipe-service, `GET /api/v1/public/{locale}/recipes/{id}`, always answered
+`no-store`. The web server renders the page from it on each request, with no ISR (owner 2026-11-20: a CDN caches pages),
+and the page sends `Cache-Control: s-maxage=60, stale-while-revalidate=240` with no `Vary`, so the oldest copy anyone
+can be served is 300 seconds old, with no purge. The native app calls the endpoint directly. This is 021 FR-106 Option A with one cache layer
 (the architect's "A-prime").
 
-**Why ISR and not `'use cache'`.** `'use cache'` and `cacheLife` work only with `cacheComponents: true`, which is off in
-`next.config.ts`. Turning it on changes the whole app: it removes `dynamic` and `revalidate` from 14 `force-dynamic`
-pages and turns on navigation checks (Next 16.3 docs, `migrating-to-cache-components.md`). Its default `expire` is one
-year, so the CDN would get a stale window of about a year (`cdn-caching.md`). That breaks FR-013. `expireTime` covers
-the whole app, but this page is the app's only ISR page.
+**Why no ISR and no `'use cache'`.** `'use cache'` and `cacheLife` work only with `cacheComponents: true`, which is off in
+`next.config.ts`. Turning it on changes the whole app (Next 16.3 docs, `migrating-to-cache-components.md`), and its
+default `expire` is one year, which breaks FR-013. ISR was the first design, and the owner ruled it out on 2026-11-20:
+the CDN already caches by path, and the locale is in the path, so the web app adds no cache of its own.
 
-**Why a failed read renders and never throws.** When a refresh throws, Next keeps serving the last good page, for as
-long as the failures last. That can keep a page up after an exit event. So a food or identity failure renders the
-unavailable state as a normal page, which replaces the cached copy within 60 seconds (FR-008).
+**Why a failed read renders and never throws.** A failure must not extend a stale copy past an exit event. So a food or
+identity failure renders the unavailable state as a normal page, which replaces the cached copy within 60 seconds (FR-008).
 
 **Rationale**: one cache, and it forgets within 5 minutes by itself, so no purge has to succeed for an exit event to
 show (FR-013). The rule runs at request time, so 020's "last approved version" works without pushing anything.
@@ -170,10 +167,10 @@ recipe in the same transaction. The spec records the reading that both kinds of 
 
 ## R5. Caching and purge
 
-**Decision**: the page is the only cache (R1). The API is always `no-store`. The CloudFront behaviour for
-`/api/v1/public/recipes/*` on the recipe distribution uses `CACHING_DISABLED` and an origin-request policy that forwards
+**Decision**: the page is the only cache (R1), held by the CDN. The API is always `no-store`. The CloudFront behaviour for
+`/api/v1/public/*` on the recipe distribution uses `CACHING_DISABLED` and an origin-request policy that forwards
 no `Authorization` header, no cookie and no query string. The page never reads `searchParams`, cookies or headers, so
-the cache key is the path plus the page language (R8), and a share mark cannot split it.
+the cache key is the path, which holds the locale (R8), and a share mark cannot split it.
 
 **Rationale**: the one cache forgets within 5 minutes by itself, so the bound holds without a purge (FR-013). ADR-0020's
 "URL-only recipe behaviour" decision is not needed, because nothing on the API is cached.
@@ -188,7 +185,7 @@ the WAF rate limit and the production web cache are proven in production only. A
 
 - **Web pages**: a Vercel Firewall rate limit per real client address, answering `429` with `Retry-After`. No challenge
   action, because a challenge sets a cookie.
-- **API**: an AWS WAF web ACL on the recipe distribution with a rate rule scoped to `/api/v1/public/recipes/*`, so native
+- **API**: an AWS WAF web ACL on the recipe distribution with a rate rule scoped to `/api/v1/public/*`, so native
   clients are limited per address.
 - **Origin**: the public controller is `@SkipThrottle()`, so the per-user throttle's shared fallback bucket never sees a
   signed-out read.
@@ -210,28 +207,30 @@ include `Origin`. Otherwise the cache serves one origin's allow header to anothe
 
 ## R8. The public address and app links
 
-**Decision**: `https://commise.app/recipe/{id}/{slug}`, with no locale. A wrong or missing slug redirects with `308`
-only when the recipe is open. `/.well-known/` is excluded from the middleware. `/recipe/*` is handled by the middleware
-before Clerk and never reaches `clerkMiddleware`: it picks the page language and rewrites to the internal
-`/publicRecipe/{lang}/{id}/{slug}` (owner ruling 2026-11-09, spec Q3). The page's own words follow the first supported
-locale in `Accept-Language`, else English. The ISR cache key is the internal path, so it is the public path plus the
-language from a closed set, never the raw header. The response sends `Vary: Accept-Language`. One pure parser, `parsePublicRecipePath`, serves the web route, the middleware exclusion, the native
-gate, the native link config and the association files.
+**Decision**: `https://commise.app/{locale}/recipe/{id}/{slug}` (owner 2026-11-20, reverses spec Q3: every page carries its
+locale). A wrong or missing slug redirects with `308` only when the recipe is open. `/.well-known/` is excluded from the
+middleware. `/{locale}/recipe/*` is handled by the middleware before Clerk and never reaches `clerkMiddleware`. A
+locale-less address redirects to the locale `Accept-Language` negotiates, and a browser that matches no shipped locale
+goes to `en-US` (the default route locale, ADR-0082). A bare `en` is redirected to the negotiated locale, never mapped
+to a market. The page's own words follow the locale in the address, and the page sends `s-maxage` with no `Vary`. One
+pure parser, `parsePublicRecipePath`, serves the web route, the middleware exclusion, the native
+gate, the native link config and the association files. The in-app address `/{locale}/recipes/{id}` and this public
+address stay two addresses (owner 2026-11-20).
 
 The association files are served by route handlers at `/.well-known/apple-app-site-association` and
-`/.well-known/assetlinks.json`, and associate `/recipe/*` only. On native, the auth gate gains a `publicRecipe` state
+`/.well-known/assetlinks.json`, and associate `/{locale}/recipe/*` only. On native, the auth gate gains a `publicRecipe` state
 that exists only with its link. Signed in, React Navigation's `linking` maps the same path to the existing recipe
 screen.
 
-The public route has its own root layout (`app/publicRecipe/layout.tsx`) with no `ClerkProvider`, so nothing on the page
+The public route has a root layout with no `ClerkProvider` (how it sits beside `[locale]/layout.tsx` is settled in the U6 blueprint), so nothing on the page
 can start a Clerk session. A signed-out reader's account action returns through the in-app address
 `/{locale}/recipes/{id}?then=save|saveCopy|rate`, which `safeReturnPath` already accepts, so that parser does not change.
 
-**Rationale**: A locale-free address never changes when a second locale ships. Choosing the language from a closed set
-keeps the cache bounded: one entry per recipe per supported locale.
+**Rationale**: A locale in the address never breaks a shared link when a second locale ships, and the path is the whole
+cache key: one entry per recipe per shipped locale.
 The slug redirect only for open recipes keeps a closed recipe's title private.
 
-**One-way doors**: the address form, the cache key (path plus language), the association files' path set, team id, bundle id and signing fingerprints, and
+**One-way doors**: the address form, the read route, the cache key (the path), the association files' path set, team id, bundle id and signing fingerprints, and
 the native gate's state.
 
 ## R9. The signed-out actions

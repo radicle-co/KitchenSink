@@ -342,12 +342,12 @@ or local storage entry is written.
 - **The native app receives a link while the public view is already open.** It replaces the view with the new recipe.
 - **A link arrives while signed out and the person then signs in from the public view.** The app opens the recipe's
   normal screen after sign-in, with the pending action offered once (US4).
-- **A second locale ships later.** The public address has no locale (FR-015), so shared links keep working. The page's
-  own words follow the reader's browser language, with English as the fallback, and the recipe's text stays as the cook
-  wrote it (FR-015a).
-- **A search crawler reads the page.** Crawlers usually send no `Accept-Language` or send English, so the indexed copy
-  shows the English page words. That is accepted while there is one locale. 021's search work owns the question once
-  pages are indexable in more than one language (`021-FR-020a`).
+- **A second locale ships later.** Every public address carries its locale (FR-015), so a new locale adds addresses and
+  breaks none. The page's own words follow the locale in the address, with English as the fallback, and the recipe's
+  text stays as the cook wrote it (FR-015a). (Owner 2026-11-20.)
+- **A search crawler reads the page.** A crawler that reaches a locale-less address is redirected to the locale its
+  `Accept-Language` negotiates, else `en-US`, so the indexed copy is the one at the locale address. 021's search work
+  owns the question once pages are indexable in more than one language (`021-FR-020a`). (Owner 2026-11-20.)
 - **Previews (`pr-{N}`).** They have no CloudFront and no WAF, so no rate limit runs there. Every non-production public
   page sends `noindex` regardless (FR-017).
 
@@ -361,9 +361,11 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   facts-only option (I1) and its conditional plan unit are dropped.
 - **Q2. Are catalog food names public data? → No.** Catalog food names and nutrition are not ruled public. The signed
   public-reader call stays (FR-009, research R2).
-- **Q3. The language of the page's own words → the reader's browser language.** The page's words (headings, buttons,
-  states) follow `Accept-Language`, with English as the fallback. The page cache varies by the language chosen, so the
-  cache key is now the path plus that language (FR-015, FR-015a). The address still has no locale.
+- **Q3. The address carries the locale (owner 2026-11-20, reverses the 2026-11-09 answer).** "Every page should have
+  locale in it." The public address is `/{locale}/recipe/{id}/{slug}`, and the page's own words follow that locale. The
+  page is not cached by the web app (no ISR): the CDN caches it by path, and the path holds the locale, so the cache key
+  needs no `Accept-Language` and no `Vary` (FR-015, FR-015a). The signed-out reader's market is the region of that
+  locale (003B C-31).
 - **Q4. A rate-limit exemption from the web server to the API → allowed.** A secret header from the web server, rotated,
   lifts only the API's per-address limit for page renders. It grants no read (FR-016).
 - **Q5. What "Save" means → no restriction.** The owner, 2026-11-09: no such restriction exists in code or specs. A
@@ -450,14 +452,19 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   an alarm, and MUST amend this requirement.
 - **FR-014**: A redirect from a wrong slug to the right one MUST happen only for an open recipe. Otherwise the answer is
   not available, so no closed recipe's title leaks.
-- **FR-015**: The public address MUST be on `commise.app`, on its own route, with the recipe id and a readable slug, and
-  with no locale segment. The address is a one-way door. The cache key MUST be the path plus the page language chosen
-  under FR-015a, and nothing else: never a query string, a cookie, the `Authorization` header or the raw
-  `Accept-Language` header (owner ruling 2026-11-09, Q3, amending `021-FR-062`).
-- **FR-015a**: The page's own words MUST be in the reader's browser language: the first supported locale in
-  `Accept-Language`, else English. The language is chosen from the closed set of supported locales, so the number of
-  cache entries per recipe is at most the number of locales. The recipe's own text is never translated. The response
-  MUST say `Vary: Accept-Language`. The native public view uses the app's own language setting.
+- **FR-015**: The public address MUST be on `commise.app`, on its own route, with the locale, the recipe id and a
+  readable slug: `/{locale}/recipe/{id}/{slug}`. The address is a one-way door. The locale MUST be one of the shipped
+  locales. A locale-less address MUST redirect to the locale the browser's `Accept-Language` negotiates, and a browser
+  that matches no shipped locale MUST go to the default route locale, `en-US` (ADR-0082: the library is open, and a
+  browser language is not a market, `025-FR-001`). A bare `en` MUST redirect to the negotiated locale, never straight to
+  a market. The page MUST send `s-maxage` with no `Vary` header and use no incremental static regeneration. The cache
+  key MUST be the path, which holds the locale, and nothing else: never a query string, a cookie, the `Authorization`
+  header or the `Accept-Language` header (owner 2026-11-20, Q3, amending `021-FR-062`). The public address and the
+  in-app address `/{locale}/recipes/{id}` stay two addresses (owner 2026-11-20); merging them is out of scope.
+- **FR-015a**: The page's own words MUST be in the locale in the address, with English as the fallback when a catalog
+  has no copy. The recipe's own text is never translated. Because the locale is in the path, the number of cache
+  entries per recipe is at most the number of shipped locales. The native public view uses the app's own language
+  setting, and a signed-out native read sends that locale in the API path (`GET /api/v1/public/{locale}/recipes/{id}`).
 - **FR-016**: Signed-out traffic MUST be rate-limited per client address at the edge of each system that serves it: the
   web host and the API distribution (`021-FR-063`). It MUST NOT count against the per-user throttle, and it MUST NOT
   fall into a bucket that every signed-out reader shares. A rate-limit answer MUST NOT set a cookie or run a challenge
@@ -472,7 +479,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
 
 - **FR-018**: The public web page MUST be rendered on the server, from the public read only. No browser MUST call the
   public endpoint. The page and its route MUST be outside the Clerk sign-in middleware, so no session handshake or cookie
-  can reach the response. Only the language choice of FR-015a runs in front of it. Signed-in extras MUST load after the page, and only for a visitor who already has a session.
+  can reach the response. Only the locale redirect of FR-015 runs in front of it. Signed-in extras MUST load after the page, and only for a visitor who already has a session.
 - **FR-019**: The link association files MUST associate the public recipe route and nothing else (`021-FR-035`). The
   native app MUST open a public recipe link as the public view when signed out and as its own recipe screen when signed
   in. The public view MUST be a state of the auth gate that exists only with its link, so the gate still has no landing

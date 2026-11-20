@@ -89,7 +89,7 @@ A Value Object with one pure parser, `parsePublicRecipePath`.
 
 | Part   | Rule                                                                   |
 | ------ | ---------------------------------------------------------------------- |
-| prefix | `/recipe/`, with no locale                                             |
+| prefix | `/{locale}/recipe/`, with a shipped locale (owner 2026-11-20)          |
 | `id`   | a UUID                                                                 |
 | `slug` | optional. Lower-case words joined by single dashes, derived from title |
 
@@ -98,10 +98,9 @@ read only by measurement (the share mark's presence).
 
 ## Page language
 
-The language of the page's own words, chosen by the pure `publicPageLanguage` from `Accept-Language`: the first
-supported locale, else `en` (spec FR-015a). It is a member of the closed set of supported locales, never the raw header.
-It is part of the page's cache key, through the internal rewrite path `/publicRecipe/{lang}/{id}/{slug}`. The recipe's
-own text is never translated.
+The language of the page's own words is the locale in the address, a member of the closed set of shipped locales
+(spec FR-015a, owner 2026-11-20). It is part of the page's cache key because it is part of the path. A locale-less
+address redirects to the locale `Accept-Language` negotiates, else `en-US`. The recipe's own text is never translated.
 
 ## Public-reader token
 

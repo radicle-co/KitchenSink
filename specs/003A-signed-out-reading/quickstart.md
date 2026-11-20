@@ -51,7 +51,7 @@ npm run test:e2e:web
 npm run test:e2e:mobile
 ```
 
-Expected, web: a public address answers with `Vary: Accept-Language` and no `Set-Cookie`, the same bytes with and without a session, `noindex` on
+Expected, web: a public address answers with `s-maxage` and no `Vary` header and no `Set-Cookie`, and a locale-less address redirects to a locale, the same bytes with and without a session, `noindex` on
 a preview, and the not-available page for a private recipe. Expected, native: a tapped public link opens the public
 view signed out, Close lands on sign-in, and signed in it opens the recipe screen.
 
@@ -59,8 +59,8 @@ view signed out, Close lands on sign-in, and signed in it opens the recipe scree
 
 Start the sandbox with Sandbox Up (ADR-0060). Then run the manual `deployedE2e.yml`, or the impacted deployed specs.
 
-Expected while dark: every public address on `pr-{N}.sandbox.commise.app/recipe/…` answers the not-available page,
-sets no cookie, and sends `noindex`. `GET /api/v1/public/recipes/{id}` on `recipe-pr-{N}.commise.app` answers the one
+Expected while dark: every public address on `pr-{N}.sandbox.commise.app/{locale}/recipe/…` answers the not-available page,
+sets no cookie, and sends `noindex`. `GET /api/v1/public/{locale}/recipes/{id}` on `recipe-pr-{N}.commise.app` answers the one
 `404` body with and without a token.
 
 ## 5. k6 (by hand only)
@@ -72,7 +72,7 @@ dispatch, never on a push (owner ruling 2026-09-13). It is a regression detector
 
 These cannot be proven on a preview, because previews have no CloudFront and no WAF:
 
-- the CloudFront passthrough for `/api/v1/public/recipes/*` with caching disabled
+- the CloudFront passthrough for `/api/v1/public/*` with caching disabled
 - the WAF rate rule's `429` and `Retry-After`
 - the web host's production cache life and its rate limit
 - Apple's CDN fetching the association file, and Android's `pm verify-app-links`

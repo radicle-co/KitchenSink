@@ -14,6 +14,7 @@ interface Call {
 
 function recorder(answers: Record<string, string> = {}, probes: Record<number, string[]> = {}) {
     const calls: Call[] = [];
+    let asked = 0;
     let exitTunnel: (code: number) => void = () => undefined;
     const exited = new Promise<number>((resolve) => {
         exitTunnel = resolve;
@@ -29,6 +30,13 @@ function recorder(answers: Record<string, string> = {}, probes: Record<number, s
             const probed = /127\.0\.0\.1:(\d+)\/health/u.exec(line);
 
             if (probed !== null) {
+                asked += 1;
+
+                // A missing deadline fails here at once, where it would otherwise spin until the suite times out.
+                if (asked > 50) {
+                    return Promise.reject(new Error('the probe asked more than 50 times: it has no deadline'));
+                }
+
                 const queue = probes[Number(probed[1])] ?? ['200'];
 
                 if (queue[0] === 'REJECT') {
@@ -68,7 +76,7 @@ function recorder(answers: Record<string, string> = {}, probes: Record<number, s
         },
     };
 
-    return { shell, calls, files, links, tunnels, exitTunnel, stopped: () => stopped };
+    return { shell, calls, files, links, tunnels, exitTunnel, asked: () => asked, stopped: () => stopped };
 }
 
 /**
@@ -304,6 +312,20 @@ describe('MacSession', () => {
             await expect(session.lost()).resolves.toEqual(
                 new Error('the tunnel ssh exited with code 255 during the run'),
             );
+        });
+
+        it('stops asking once the tunnel has exited: no probe command goes out after the refusal', async () => {
+            const rec = recorder({}, { 3000: ['000'] });
+            const session = make(rec.shell);
+            await session.open(run);
+            const opening = session.openTunnel(FORWARDS);
+            rec.exitTunnel(255);
+            await expect(opening).rejects.toThrow(/exited with code 255 before/u);
+            const askedAtRefusal = rec.asked();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // One ask may already have been on its way when the tunnel ended. None may follow it.
+            expect(rec.asked() - askedAtRefusal).toBeLessThanOrEqual(1);
         });
 
         it('refuses with the exit code when the tunnel ssh exits before the probe passes', async () => {

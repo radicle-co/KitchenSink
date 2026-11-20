@@ -4,6 +4,7 @@ import type { RecipeIngredientView } from '@kitchensink/recipe-core';
 import { signInWithTicket } from './utils/auth';
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { applyTextScale } from './utils/textScale';
 
 /**
  * Owner ruling R1 (`docs/design/uiRefreshWorkshop5/ownerFeedback.md`) and the phone gutter, on the real recipe page:
@@ -371,6 +372,41 @@ for (const width of [430, 375]) {
         });
     });
 }
+
+// #380 (designer D75, rule B): the bar and the open panel together end at half the window, at the largest text, and
+// the rows
+// scroll inside the panel while the bar stays put. The 13 rows at 200% text are taller than the 320 px half of a 640
+// px window.
+test.describe('recipe page at 390 x 640 with 200% text', () => {
+    test.use({ viewport: { width: 390, height: 640 } });
+
+    test('the open bar and panel end at half the window, and the rows scroll inside the panel', async ({ page }) => {
+        await openRecipe(page);
+        await applyTextScale(page, 2);
+        await scrollIntoSteps(page);
+        const bar = page.getByRole('button', { name: /Show list\.$/u });
+
+        await expect(bar).toBeInViewport();
+        await bar.click();
+
+        const frame = page.getByRole('dialog', { name: 'Ingredients for 4' });
+
+        await expect(frame).toBeVisible();
+        const opened = await frame.boundingBox();
+
+        expect(
+            (opened?.y ?? 0) + (opened?.height ?? 0),
+            'the bar and panel end at half the window',
+        ).toBeLessThanOrEqual(320);
+
+        // The last row is under the cap until the panel scrolls: scrolling it in moves neither the panel nor the bar.
+        await frame.getByRole('checkbox').last().scrollIntoViewIfNeeded();
+        await expect(frame.getByRole('checkbox').last()).toBeInViewport();
+
+        expect(await frame.boundingBox(), 'the panel did not move').toEqual(opened);
+        await expect(page.getByRole('button', { name: /Hide list\.$/u })).toBeInViewport();
+    });
+});
 
 test.describe('recipe page at 1280 px', () => {
     test.use({ viewport: { width: 1280, height: 800 } });

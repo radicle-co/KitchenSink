@@ -13,7 +13,9 @@
  *
  * A MODAL dialog on Radix. The bar in the page is the trigger; while the list is open the dialog's content draws a second
  * copy of the bar, at the same fixed position above the scrim, as the close button, so the bar stays pressable above its
- * own panel. Radix owns Escape, the scroll lock, hiding the page behind, the Tab loop and the focus return to the trigger.
+ * own panel. The bar copy and the panel share one frame capped at half the window (`pinnedOverlayLimit`), so the panel
+ * takes what the bar leaves and the list scrolls inside it. Radix owns Escape, the scroll lock, hiding the page
+ * behind, the Tab loop and the focus return to the trigger.
  *
  * @pattern Adapter over @radix-ui/react-dialog — the bar is the trigger and, open, the close button of the same dialog.
  */
@@ -24,6 +26,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import type { FC, ReactNode } from 'react';
 
 import type { PinnedBarFacts } from './pinnedBarFacts.js';
+import { PINNED_OVERLAY_WEB_MAX_HEIGHT_CLASS_NAME } from './pinnedOverlayLimit.js';
 
 /** What {@link PinnedIngredientsBar} draws. */
 export interface PinnedIngredientsBarProps {
@@ -42,6 +45,14 @@ const BAR_FACE = `flex min-h-16 items-center gap-2.5 rounded-lg ${surfaceToneCla
 
 /** Where the bar sits: pinned under the top chrome. */
 const BAR_PLACE = 'fixed inset-x-3 top-[calc(env(safe-area-inset-top,0px)+0.5rem)]';
+
+/** The open list's panel: a flex child of the capped frame, scrolling inside itself, with no cap or offset of its own. */
+const PANEL_CLASS_NAME = [
+    'min-h-0 overflow-y-auto overscroll-contain rounded-lg',
+    surfaceToneClass('paper'),
+    'pb-2.5 shadow-xl outline-none',
+    enterTransitionClassName,
+].join(' ');
 
 /** What the bar says, drawn inside either button; the button's name already says it (SC 2.5.3). */
 const BarContent: FC<{ readonly facts: PinnedBarFacts; readonly open: boolean }> = ({ facts, open }) => (
@@ -90,15 +101,12 @@ export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({ facts, ope
                             event.target.lastElementChild.focus();
                         }
                     }}
-                    className={`${BAR_PLACE} z-40`}
+                    className={`${BAR_PLACE} z-40 flex flex-col gap-2 ${PINNED_OVERLAY_WEB_MAX_HEIGHT_CLASS_NAME}`}
                 >
-                    <Dialog.Close aria-label={facts.name} className={`w-full ${BAR_FACE}`}>
+                    <Dialog.Close aria-label={facts.name} className={`w-full shrink-0 ${BAR_FACE}`}>
                         <BarContent facts={facts} open />
                     </Dialog.Close>
-                    <div
-                        tabIndex={-1}
-                        className={`absolute inset-x-0 top-[4.5rem] max-h-[calc(100dvh-env(safe-area-inset-top,0px)-6rem-var(--bottom-chrome,0px))] overflow-y-auto overscroll-contain rounded-lg ${surfaceToneClass('paper')} pb-2.5 shadow-xl outline-none ${enterTransitionClassName}`}
-                    >
+                    <div tabIndex={-1} className={PANEL_CLASS_NAME}>
                         {children}
                     </div>
                 </Dialog.Content>

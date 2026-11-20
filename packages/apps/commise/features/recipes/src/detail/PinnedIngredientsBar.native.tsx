@@ -8,7 +8,9 @@
  * ONE button pinned at the top of the screen, under the status bar: "Ingredients for 4 / 13 items · 1 ticked / Show". It
  * opens the list in a panel directly under it, over a scrim, the servings stepper first. The bar has no stepper (a mistap
  * must never rescale a recipe mid-cook). The overlay stops at the bottom edge the screen's frame publishes, so the bar
- * and the panel never run under the tab bar or the bottom safe area; a list taller than the room scrolls inside the panel.
+ * and the panel never run under the tab bar or the bottom safe area. The bar and the open panel together end at half
+ * the
+ * window (`pinnedOverlayLimit`), at any text size; a list taller than the room scrolls inside the panel.
  *
  * All text is the design-system `Text` at the chrome cap (1.5x), so the bar never draws larger than the page title
  * (`designAnswers.md`, 2026-11-07). The Android back button closes the list through the back seam (ADR-0056), asked only
@@ -30,6 +32,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styled, View, XStack, YStack } from 'tamagui';
 
 import type { PinnedIngredientsBarProps } from './PinnedIngredientsBar.js';
+import { pinnedOverlayMaxHeight } from './pinnedOverlayLimit.js';
 
 /** The overlay: the screen above the bottom edge. It takes no touch of its own, so the page under a closed bar scrolls. */
 const Overlay = styled(YStack, {
@@ -164,7 +167,7 @@ export const PinnedIngredientsBar: FC<
                     </Pressable>
                 </ScrimLayer>
             )}
-            <Column paddingTop={top + 8}>
+            <Column paddingTop={top + 8} maxHeight={pinnedOverlayMaxHeight(windowHeight)}>
                 <PressScale
                     ref={barNode}
                     onPress={() => onOpenChange(!open)}

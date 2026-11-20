@@ -37,6 +37,8 @@ const SCALE = 3.1;
 
 // react-native-web drops `accessibilityHint`, so the pressables are wrapped to record the accessibility props a screen reader is given.
 const seen = vi.hoisted(() => ({ pressables: [] as { accessibilityLabel?: string; accessibilityHint?: string }[] }));
+// The window the screen reads: a case sets its height and system text scale, and `beforeEach` puts both back.
+const windowState = vi.hoisted(() => ({ height: 844, fontScale: 1 }));
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
@@ -52,7 +54,12 @@ vi.mock('react-native', async (importOriginal) => {
 
             return createElement(actual.Pressable, props);
         },
-        useWindowDimensions: () => ({ ...actual.Dimensions.get('window'), width: 390, height: 844, fontScale: 1 }),
+        useWindowDimensions: () => ({
+            ...actual.Dimensions.get('window'),
+            width: 390,
+            height: windowState.height,
+            fontScale: windowState.fontScale,
+        }),
         AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
     };
 });
@@ -63,6 +70,8 @@ vi.mock('react-native-safe-area-context', () => ({
 let back: HardwareBackHandle;
 
 beforeEach(() => {
+    windowState.height = 844;
+    windowState.fontScale = 1;
     resetServingScale();
     back = installHardwareBackHandler();
 });
@@ -301,6 +310,58 @@ describe('the pinned ingredients bar (native)', () => {
         expect(resolvedStyle(barText.getByText('Ingredients'), 'fontSize')).toBe(cap(nativeTokens.type.body.fontSize));
         expect(resolvedStyle(barText.getByText('13 items'), 'fontSize')).toBe(cap(nativeTokens.type.meta.fontSize));
         expect(resolvedStyle(barText.getByText('Show'), 'fontSize')).toBe(cap(nativeTokens.type.body.fontSize));
+    });
+});
+
+// D75: the bar and the open panel share one frame capped at half the window, at any text size. Yoga lays nothing out
+// under jsdom, so the cap is read from the frame's style, and the largest-text geometry is the device run's
+// (`recipes/pinnedIngredients.yaml` at AX5) and Playwright's.
+describe('the open bar and panel stay within half the window', () => {
+    const frameOf = (): HTMLElement => {
+        const dialog = screen.getByRole('dialog', { name: 'Ingredients for 4' });
+
+        return dialog.parentElement as HTMLElement;
+    };
+
+    it.each([
+        [844, 1, '422px'],
+        [667, 1, '333px'],
+        [375, 1, '187px'],
+        [844, SCALE, '422px'],
+        [667, SCALE, '333px'],
+    ])('caps the frame holding the bar and the panel: window %s at text scale %s gives %s', (height, scale, max) => {
+        windowState.height = height;
+        windowState.fontScale = scale;
+        render(<Page startOpen />, scale);
+
+        expect(resolvedStyle(frameOf(), 'maxHeight')).toBe(max);
+    });
+
+    it('holds the bar in the capped frame with the panel, so the cap counts the pinned top row', () => {
+        render(<Page startOpen />);
+
+        expect(frameOf().contains(bar('Hide'))).toBe(true);
+    });
+
+    it('draws the closed bar in the same capped frame, which lets the page take touches below the bar', () => {
+        render(<Page />);
+
+        let node: HTMLElement | null = bar('Show');
+
+        while (node !== null && resolvedStyle(node, 'maxHeight') !== '422px') {
+            node = node.parentElement;
+        }
+
+        expect(node).not.toBeNull();
+    });
+
+    it('scrolls the rows inside the panel', () => {
+        render(<Page startOpen />);
+
+        const panel = screen.getByRole('dialog', { name: 'Ingredients for 4' });
+
+        expect(resolvedStyle(panel, 'overflow')).toBe('hidden');
+        expect(within(panel).getAllByRole('checkbox')).toHaveLength(13);
     });
 });
 

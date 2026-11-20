@@ -52,7 +52,7 @@ export type StoredSource = CorrectableSourceFacts & {
     /** The stored citation (`recipes.source_attribution`), or `null`: what a paid site stated again is compared with. */
     readonly sourceAttribution: string | null;
     /**
-     * Whether the recipe holds a past "from another person" attestation while it stores NO statement (R2, P7). It is read in
+     * Whether the recipe holds a past "from another person" attestation while it stores NO statement (a recipe cleared before the lock existed). It is read in
      * the write's transaction and only when a statement is sent and none is stored; everywhere else it is `false`. Such a
      * recipe is locked against every move except stating "from another person" again.
      */

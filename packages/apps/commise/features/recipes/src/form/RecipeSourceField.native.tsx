@@ -29,7 +29,7 @@ import { editorMessages } from '../editor/messages.js';
 import { openExternalUrl } from '../detail/openExternalUrl.native.js';
 import { sourceErrorId, sourceNoteId } from './fieldErrorIds.js';
 import { sourceFieldId } from './fieldIds.js';
-import type { LockedAnswer } from './sourceLink.js';
+import { lockedAnswerLabel } from './sourceLink.js';
 import type { RecipeSourceFieldNativeProps } from './sourceFieldProps.js';
 
 const Column = styled(YStack, { name: 'SourceField', gap: '$1' });
@@ -55,10 +55,6 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
 }) => {
     const { source: m } = useMessages(editorMessages);
     const { sourceStatement: answers } = useMessages(recipeActionMessages);
-    const lockedAnswerText: Record<LockedAnswer, string> = {
-        paidSite: answers.answerPaidSite,
-        fromPerson: answers.answerPerson,
-    };
 
     if (row.kind === 'hidden') {
         return null;
@@ -97,7 +93,7 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
                 </Text>
                 {row.answer === undefined ? null : (
                     <Text typeRole="body" color="$ink">
-                        {lockedAnswerText[row.answer]}
+                        {lockedAnswerLabel(row.answer, answers)}
                     </Text>
                 )}
                 {row.citation === undefined ? null : (

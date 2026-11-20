@@ -1,12 +1,12 @@
 /**
- * P7 (fromPersonLock, owner ruling 2026-11-19): once a recipe stores "From another person", no cook write changes or clears
+ * Owner ruling 2026-11-19: once a recipe stores "From another person", no cook write changes or clears
  * it, through the editor save (PATCH), a publish request (PATCH with a status) or the "Make public" sheet (set-visibility).
  * Over the REAL HTTP pipeline with its dependencies MOCKED (`docs/CODING_STANDARDS.md` section 7.1a): the real policy, service
  * and gate, with the DALs as doubles.
  *
- * Two states are locked: a STORED statement, and the R2 state (no stored statement, a past "from another person"
- * attestation). The attestation fact is read through the attestations double, so each R2 case asserts the double's ARGUMENTS
- * (the write's transaction and the recipe id): a stub that returned `true` for any call would pass otherwise. The R4 cases set
+ * Two states are locked: a STORED statement, and the state of a recipe cleared before the lock existed (no stored statement, a past "from another person"
+ * attestation). The attestation fact is read through the attestations double, so each attestation case asserts the double's ARGUMENTS
+ * (the write's transaction and the recipe id): a stub that returned `true` for any call would pass otherwise. The unstated-recipe cases set
  * the double to `false` explicitly. That the REAL read answers correctly is the LOCAL e2e tier's (`statementClearedGate`).
  */
 import 'reflect-metadata';
@@ -58,6 +58,8 @@ const AUTHORED = { kind: 'authored', wording: { version: 'statementAuthored.v1',
 const FROM_PERSON = { kind: 'fromPerson', wording: { version: 'statementFromPerson.v1', locale: 'en' } } as const;
 
 let stored: RecipeRow;
+/** What a read OUTSIDE the lock sees (`findById`), when it differs from the locked row: a write that raced the statement. */
+let preLockStatementKind: RecipeRow['statementKind'] | undefined;
 
 function aggregateOf(recipe: RecipeRow): RecipeAggregate {
     return {
@@ -120,7 +122,14 @@ beforeAll(async () => {
                 useValue: {
                     create,
                     update,
-                    findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
+                    findById: async (id: string) =>
+                        id === RECIPE_ID
+                            ? aggregateOf(
+                                  preLockStatementKind === undefined
+                                      ? stored
+                                      : { ...stored, statementKind: preLockStatementKind },
+                              )
+                            : undefined,
                     privateFoodLines: async () => [],
                     lockAndCountPrivateSlots: async () => 0,
                     lockSlotFacts: async () => ({
@@ -168,6 +177,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
+    preLockStatementKind = undefined;
     vi.clearAllMocks();
     hasFromPerson.mockImplementation(async () => false);
 });
@@ -178,7 +188,7 @@ afterAll(async () => {
 });
 
 const FROM_PERSON_ROW = { statementKind: 'fromPerson' } as const;
-const R2_ROW = { statementKind: null } as const;
+const CLEARED_ROW = { statementKind: null } as const;
 
 /** The three routes that write a statement, each sending the same statement. */
 const ROUTES = [
@@ -212,7 +222,7 @@ function expectNothingWritten(): void {
     expect(insertMany).not.toHaveBeenCalled();
 }
 
-describe('AE10: "I wrote this" over a stored "From another person" is refused on every route', () => {
+describe('stored statement: "I wrote this" over a stored "From another person" is refused on every route', () => {
     it.each(ROUTES)('$name: 403 SOURCE_LOCKED, nothing written, the recipe stays private', async (route) => {
         stored = makeRecipeRow({
             id: RECIPE_ID,
@@ -233,16 +243,16 @@ describe('AE10: "I wrote this" over a stored "From another person" is refused on
     });
 });
 
-describe('AE10, R2: "I wrote this" over a past "From another person" attestation with no stored statement is refused', () => {
+describe('past attestation: "I wrote this" over a past "From another person" attestation with no stored statement is refused', () => {
     it.each(ROUTES)('$name: 403 SOURCE_LOCKED, the attestation is read in the write’s transaction', async (route) => {
-        hasFromPerson.mockImplementation(async () => true);
+        hasFromPerson.mockImplementation(async (tx, recipeId) => tx === TX && recipeId === RECIPE_ID);
         stored = makeRecipeRow({
             id: RECIPE_ID,
             ownerId: COOK,
             status: route.status,
             visibility: 'private',
             cuisine: 'italian',
-            ...R2_ROW,
+            ...CLEARED_ROW,
         });
 
         const response = await route.send(AUTHORED);
@@ -253,26 +263,80 @@ describe('AE10, R2: "I wrote this" over a past "From another person" attestation
         expect(hasFromPerson).toHaveBeenCalledWith(TX, RECIPE_ID);
     });
 
-    it.each(ROUTES)('$name: stating "From another person" again still applies and stays private', async (route) => {
-        hasFromPerson.mockImplementation(async () => true);
-        stored = makeRecipeRow({
-            id: RECIPE_ID,
-            ownerId: COOK,
-            status: route.status,
-            visibility: 'private',
-            cuisine: 'italian',
-            ...R2_ROW,
-        });
+    it.each(ROUTES)(
+        '$name: stating "From another person" again is not refused as locked, and stays private',
+        async (route) => {
+            hasFromPerson.mockImplementation(async (tx, recipeId) => tx === TX && recipeId === RECIPE_ID);
+            stored = makeRecipeRow({
+                id: RECIPE_ID,
+                ownerId: COOK,
+                status: route.status,
+                visibility: 'private',
+                cuisine: 'italian',
+                ...CLEARED_ROW,
+            });
 
-        await route.send(FROM_PERSON);
+            const response = await route.send(FROM_PERSON);
 
-        // Whatever the route then says about Public, the answer was not refused as locked, and nothing made it public.
-        expect(stored.visibility).toBe('private');
-        expect(hasFromPerson).toHaveBeenCalledWith(TX, RECIPE_ID);
-    });
+            // Not the lock's refusal: the first statement is accepted and written, and nothing made the recipe public.
+            expect(response.status).not.toBe(403);
+            // The sheet asks for Public, which "From another person" cannot have, so only the two PATCH routes write the statement.
+            if (!route.name.includes('set-visibility')) {
+                expect(insertMany).toHaveBeenCalled();
+            }
+
+            expect(stored.visibility).toBe('private');
+            expect(hasFromPerson).toHaveBeenCalledWith(TX, RECIPE_ID);
+        },
+    );
 });
 
-describe('R3: "From another person" over itself is a no-op, not a refusal', () => {
+describe('the lock is judged on the row read UNDER the lock, not on an earlier read (a racing write)', () => {
+    it.each(ROUTES)(
+        '$name: a statement stored after the earlier read is still refused, and nothing is written',
+        async (route) => {
+            stored = makeRecipeRow({
+                id: RECIPE_ID,
+                ownerId: COOK,
+                status: route.status,
+                visibility: 'private',
+                cuisine: 'italian',
+                ...FROM_PERSON_ROW,
+            });
+            // The read outside the lock saw no statement: another write stored "From another person" before this one took the lock.
+            preLockStatementKind = null;
+
+            const response = await route.send(AUTHORED);
+
+            expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+            expectNothingWritten();
+            expect(stored.statementKind).toBe('fromPerson');
+        },
+    );
+
+    it.each(ROUTES)(
+        '$name: an attestation visible only inside the write\u2019s transaction still refuses',
+        async (route) => {
+            // True only for the call made in the write's own transaction: a read outside it (or on another recipe) sees nothing.
+            hasFromPerson.mockImplementation(async (tx, recipeId) => tx === TX && recipeId === RECIPE_ID);
+            stored = makeRecipeRow({
+                id: RECIPE_ID,
+                ownerId: COOK,
+                status: route.status,
+                visibility: 'private',
+                cuisine: 'italian',
+                ...CLEARED_ROW,
+            });
+
+            const response = await route.send(AUTHORED);
+
+            expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+            expectNothingWritten();
+        },
+    );
+});
+
+describe('saying it again: "From another person" over itself is a no-op, not a refusal', () => {
     it('the editor save answers 200 and writes no statement and no evidence', async () => {
         stored = makeRecipeRow({
             id: RECIPE_ID,
@@ -294,7 +358,7 @@ describe('R3: "From another person" over itself is a no-op, not a refusal', () =
     });
 });
 
-describe('R4: an unstated recipe is not locked', () => {
+describe('an unstated recipe: an unstated recipe is not locked', () => {
     it.each([
         ['"I wrote this"', AUTHORED, 'authored'],
         ['"From another person"', FROM_PERSON, 'fromPerson'],
@@ -316,7 +380,7 @@ describe('R4: an unstated recipe is not locked', () => {
     });
 });
 
-describe('AE9: the cook’s own clone of a "From another person" recipe holds the answer, and it stays locked', () => {
+describe('a clone: the cook’s own clone of a "From another person" recipe holds the answer, and it stays locked', () => {
     it('the clone lands private, and "I wrote this" over it is 403 SOURCE_LOCKED', async () => {
         stored = makeRecipeRow({
             id: RECIPE_ID,

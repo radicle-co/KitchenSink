@@ -2,8 +2,8 @@
  * A past "from another person" is locked for the cook (LOCAL e2e, `docs/CODING_STANDARDS.md` §7.1a; migration 0090, ADR-0095
  * section 4 and ADR-0097), over HTTP against a REAL database.
  *
- * Once a recipe stores "from another person", no cook write replaces or clears it (P7). A recipe cleared before the lock existed
- * (no stored statement, a past `fromPerson` attestation row) is locked on the server too (R2). Those states can no longer be
+ * Once a recipe stores "from another person", no cook write replaces or clears it (owner ruling 2026-11-19). A recipe cleared before the lock existed
+ * (no stored statement, a past `fromPerson` attestation row) is locked on the server too (cleared before the lock existed). Those states can no longer be
  * reached through the API, so the tests put the row in them directly as the owner. The refusals read the attestation table
  * (`RecipeStatementAttestationsDal.hasFromPerson`) under the row lock, which a mocked data layer cannot prove.
  */

@@ -1,6 +1,6 @@
 appId: ${APP_ID}
 ---
-# A cook answers "From another person" and the answer is locked (P7, owner ruling 2026-11-19, AE8). The sheet's last answer, the
+# A cook answers "From another person" and the answer is locked (owner ruling 2026-11-19). The sheet's last answer, the
 # recipe goes out Private, then the reopened editor's Source row says the answer and why it cannot change, with no field and
 # no Remove. Mobile mirror of the web Playwright case `recipeSourceFromPaste.spec.ts` "a recipe stored as "From another person"
 # reopens with its Source locked". The pure decisions are the component tests' subject.

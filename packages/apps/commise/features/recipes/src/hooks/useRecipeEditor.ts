@@ -1535,6 +1535,13 @@ function retry(ctx: EditorContext): void {
 
     const trigger = parked.finishing ? finishingTrigger(lifecycleNow(ctx)) : 'sectionChange';
 
+    // ⛔ A 403 is the service refusing the statement this session sent (the recipe's source is locked, `SOURCE_LOCKED`: another
+    // device stored "From another person" since this editor read the recipe). Sent again it meets the same refusal, and the
+    // cook's other edits park behind it for good. The answer is forgotten, so the retry carries the content alone.
+    if (ctx.opts.port.failures.some((failure) => failure.seq === parked.seq && failure.status === 403)) {
+        ctx.statement.clearAnswer();
+    }
+
     void ctx.opts.port.withdraw(parked.seq).then(
         () => {
             ctx.lane.dispatch({ type: 'withdrawn', seq: parked.seq });

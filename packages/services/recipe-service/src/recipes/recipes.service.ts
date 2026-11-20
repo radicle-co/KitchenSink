@@ -536,7 +536,7 @@ function refuseUnusable(correction: SourceCorrection): Exclude<SourceCorrection,
  *
  * @param row - The facts `RecipesDal.lockSlotFacts` read.
  * @param attestedFromPerson - Whether the recipe holds a past "from another person" attestation while it stores no
- *   statement (R2, P7): read by {@link RecipesService.attestedFromPersonIn} in the same transaction, `false` where the write
+ *   statement (a recipe cleared before the lock existed): read by {@link RecipesService.attestedFromPersonIn} in the same transaction, `false` where the write
  *   is not about to state anything.
  * @returns The stored source. Pure.
  */
@@ -1663,7 +1663,7 @@ export class RecipesService {
     }
 
     /**
-     * Whether the recipe holds a past "from another person" attestation while it stores NO statement (R2, P7), read in the
+     * Whether the recipe holds a past "from another person" attestation while it stores NO statement (a recipe cleared before the lock existed), read in the
      * write's transaction after the row lock. A stored statement answers the question itself, so nothing is read then.
      *
      * @param tx - The write's open transaction.

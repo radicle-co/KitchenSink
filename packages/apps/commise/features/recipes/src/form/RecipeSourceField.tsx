@@ -23,17 +23,13 @@ import { recipeActionMessages } from '../actions/messages.js';
 import { editorMessages } from '../editor/messages.js';
 import { sourceErrorId, sourceNoteId } from './fieldErrorIds.js';
 import { describedByOf, sourceFieldId } from './fieldIds.js';
-import type { LockedAnswer } from './sourceLink.js';
+import { lockedAnswerLabel } from './sourceLink.js';
 import type { RecipeSourceFieldProps } from './sourceFieldProps.js';
 
 /** The Source row. */
 export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({ row, onChange, onRemove, onTouched }) => {
     const { source: m } = useMessages(editorMessages);
     const { sourceStatement: answers } = useMessages(recipeActionMessages);
-    const lockedAnswerText: Record<LockedAnswer, string> = {
-        paidSite: answers.answerPaidSite,
-        fromPerson: answers.answerPerson,
-    };
 
     if (row.kind === 'hidden') {
         return null;
@@ -63,7 +59,7 @@ export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({ row, onChange, o
             <div className="flex flex-col gap-1">
                 <span className="text-label text-ink-muted">{m.label}</span>
                 {row.answer === undefined ? null : (
-                    <span className="text-body-sm font-medium text-ink">{lockedAnswerText[row.answer]}</span>
+                    <span className="text-body-sm font-medium text-ink">{lockedAnswerLabel(row.answer, answers)}</span>
                 )}
                 {row.citation === undefined ? null : (
                     <span className="min-w-0 break-words text-caption text-ink-muted">{row.citation}</span>

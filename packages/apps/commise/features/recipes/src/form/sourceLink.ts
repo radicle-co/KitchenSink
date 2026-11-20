@@ -265,6 +265,25 @@ export const isLinkOnly = (extraction: SourceLinkExtraction): boolean =>
 /** The answers a locked Source row can name. */
 export type LockedAnswer = 'paidSite' | 'fromPerson';
 
+/**
+ * The words that name a locked answer: ONE map for both platforms' Source row.
+ *
+ * @param answer - The locked answer.
+ * @param words - The statement sheet's answer labels.
+ * @returns The label. Pure.
+ */
+export function lockedAnswerLabel(
+    answer: LockedAnswer,
+    words: { readonly answerPaidSite: string; readonly answerPerson: string },
+): string {
+    switch (answer) {
+        case 'paidSite':
+            return words.answerPaidSite;
+        case 'fromPerson':
+            return words.answerPerson;
+    }
+}
+
 /** Every state of the Source row (the editor spec's table). */
 export type SourceRowModel =
     /** A locked source with no web link: nothing to show. */

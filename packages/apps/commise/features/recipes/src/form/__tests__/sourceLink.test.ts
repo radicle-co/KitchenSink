@@ -17,6 +17,7 @@ import {
     draftPrivateRule,
     draftSourceOf,
     isLinkOnly,
+    lockedAnswerLabel,
     pastedSourcePlanOf,
     publicHeldOf,
     sourceRowOf,
@@ -397,6 +398,15 @@ describe('sourceRowOf: every state of the Source row', () => {
 
     it('a stored recipe still edits its source', () => {
         expect(row(withLink(ALLRECIPES), webCopy())).toMatchObject({ kind: 'filled' });
+    });
+});
+
+describe('lockedAnswerLabel', () => {
+    it('names each locked answer from the sheet’s own words', () => {
+        const words = { answerPaidSite: 'paid words', answerPerson: 'person words' };
+
+        expect(lockedAnswerLabel('paidSite', words)).toBe('paid words');
+        expect(lockedAnswerLabel('fromPerson', words)).toBe('person words');
     });
 });
 

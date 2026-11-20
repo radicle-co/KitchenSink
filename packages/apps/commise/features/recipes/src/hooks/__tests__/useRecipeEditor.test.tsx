@@ -4588,6 +4588,39 @@ describe('the source question on Publish (ADR-0095)', () => {
         });
     });
 
+    // The service refused the session's statement (`403 SOURCE_LOCKED`: another device stored "From another person"). Try again
+    // used to send the same statement and meet the same refusal, so the cook's other edits never synced.
+    it('⛔ Try again after a 403 on a write that carried a statement does not send that statement again', async () => {
+        const { result, port } = mount();
+
+        act(() => {
+            result.current.setValues(pasted());
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        act(() => {
+            result.current.answerStatement(authored);
+        });
+        await settle();
+
+        expect(port.submitted[0]).toMatchObject({ payload: { input: { statement: { kind: 'authored' } } } });
+
+        act(() => {
+            port.park(port.lastSeq(), 403);
+        });
+        await settle();
+        act(() => {
+            result.current.retry();
+        });
+        await settle();
+        await settle();
+
+        // The refused answer is forgotten and is NOT sent again: the sheet asks against the recipe as it is now.
+        expect(port.submitted).toHaveLength(1);
+        expect(result.current.statementAsk).toBe(true);
+    });
+
     it('"I wrote this" publishes public with the statement and NO separate confirmation, and the draft is marked pasted', async () => {
         const { result, port } = mount();
 

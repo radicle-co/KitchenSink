@@ -564,8 +564,8 @@ export const updateRecipeRequestSchema = createRecipeRequestBaseSchema.omit({ vi
     cuisine: recipeCuisineSchema.nullable().optional(),
     // Three-state (ADR-0089, ADR-0093 section 8): ABSENT leaves the source alone, a statement
     // sets it, and an explicit `null` removes it. The editor's draft checkpoints may create the row before the cook pastes
-    // the link, so the link has to be settable on a draft. The first publish does not lock it. A source the cook did not state, or a clone
-    // inherited, is locked, and the service answers `403 FORBIDDEN` (`details.reason: 'SOURCE_LOCKED'`). `source` is still never accepted here.
+    // the link, so the link has to be settable on a draft. The first publish does not lock it. A source the cook did not state, a clone
+    // inherited, or "From another person" (stored, or attested with no statement left) is locked, and the service answers `403 FORBIDDEN` (`details.reason: 'SOURCE_LOCKED'`). `source` is still never accepted here.
     statement: recipeOwnStatementSchema.nullable().optional(),
     contentPasted: contentPastedSchema,
     publicConfirmation: publicConfirmationSchema.optional(),

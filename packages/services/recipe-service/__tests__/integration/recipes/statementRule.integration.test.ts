@@ -1075,7 +1075,7 @@ describe('a recipe stored as "from another person" is never public', () => {
         expect(response.status).toBe(200);
     });
 
-    // Rewritten for the 2026-11-19 owner ruling (P7): a stored "from another person" is never changed by a cook write, so
+    // Rewritten for the 2026-11-19 owner ruling: a stored "from another person" is never changed by a cook write, so
     // "I wrote this" is refused before the first publish too. It used to apply and make the recipe publishable.
     it('"I wrote this" over a stored "from another person" is refused before the first publish, and nothing is written', async () => {
         stored = person();
@@ -1092,7 +1092,7 @@ describe('a recipe stored as "from another person" is never public', () => {
         expect(stored).toMatchObject({ statementKind: 'fromPerson', visibility: 'private' });
     });
 
-    // Rewritten for the 2026-11-19 owner ruling (P7), which supersedes the 2026-11-15 one this test carried: the statement of
+    // Rewritten for the 2026-11-19 owner ruling, which supersedes the 2026-11-15 one this test carried: the statement of
     // a published recipe stored as "from another person" is locked as well, so "I wrote this" is refused after the first publish.
     it('"I wrote this" over a stored "from another person" is refused after the first publish, and nothing is written', async () => {
         stored = person({ status: 'published', firstPublishedAt: AT });
@@ -1216,7 +1216,7 @@ describe('"from another person" cannot be cleared into a public recipe', () => {
         expect(response.status).toBe(200);
     });
 
-    // Rewritten for the 2026-11-19 owner ruling (P7, R2): a past "from another person" attestation locks the answer, so "I wrote
+    // Rewritten for the 2026-11-19 owner ruling (owner ruling 2026-11-19, a recipe cleared before the lock existed): a past "from another person" attestation locks the answer, so "I wrote
     // this" is refused. The attestation is read in the write's own transaction, for this recipe.
     it('refuses "I wrote this" over a past "from another person" attestation with no stored statement', async () => {
         stored = person({ statementKind: null, status: 'published', firstPublishedAt: AT });
@@ -1232,7 +1232,7 @@ describe('"from another person" cannot be cleared into a public recipe', () => {
         expect(setVisibility).not.toHaveBeenCalled();
     });
 
-    // The "not" half of the base title (P7 row R4, unstated: apply): without it, a lock that refused every "I wrote this" over a
+    // The "not" half of the base title (an unstated recipe takes either answer): without it, a lock that refused every "I wrote this" over a
     // null statement would still pass this file.
     it('applies "I wrote this" over no stored statement and no attestation', async () => {
         stored = person({ statementKind: null, status: 'published', firstPublishedAt: AT });

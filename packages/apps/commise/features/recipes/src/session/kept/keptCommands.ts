@@ -6,7 +6,7 @@
  */
 import { matchStep, matchStepStrict } from '@kitchensink/cooking-core';
 
-import type { IngredientTickKey } from '../../detail/ingredientTickKey.js';
+import type { IngredientTickKey } from '../../common/ingredientTickKey.js';
 import { sessionClock, timerClock } from './sessionClock.js';
 import type { CookingEntry, KeptDocument, KeptEntry, KeptTimer, LineTickRef, StepMark } from './keptRecord.js';
 

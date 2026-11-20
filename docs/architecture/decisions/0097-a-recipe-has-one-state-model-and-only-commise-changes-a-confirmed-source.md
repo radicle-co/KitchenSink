@@ -25,8 +25,7 @@
 - **Amends:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md) §1 and §5: a
   recipe from another person is private for now.
 - **Amends:** [ADR-0023](0023-curator-declared-provenance.md) §1b, the sentence on the current label: the cook's
-  one-way downgrade starts only from a confirmed "I wrote this". Where an ADR for the "From another person" lock is
-  already on the base and amends it, this ADR narrows the rest.
+  one-way downgrade starts only from a confirmed "I wrote this".
 - **Relates to:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md) §9: a
   private bulk import is usable at once, and only going public waits for review. That is the rule here too, and it is
   why the public check runs only on a recipe going public. [ADR-0073](0073-free-tier-private-slots.md) §11: a recipe

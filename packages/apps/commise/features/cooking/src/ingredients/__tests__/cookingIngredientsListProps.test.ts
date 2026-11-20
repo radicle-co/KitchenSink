@@ -37,7 +37,7 @@ describe('CookingIngredientsListProps', () => {
         >();
     });
 
-    it('has exactly these five props and an optional no-argument onClear (P60), so no mode or Done prop creeps in', () => {
+    it('has exactly these five props and an optional no-argument onClear (P60), so no mode prop creeps in', () => {
         expectTypeOf<keyof CookingIngredientsListProps>().toEqualTypeOf<
             'view' | 'copy' | 'onToggle' | 'onSetServings' | 'onClear'
         >();

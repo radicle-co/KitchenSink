@@ -477,8 +477,10 @@ test.describe('cooking mode at 390 with 200% text (plans 0002 and 0003a)', () =>
 });
 
 /**
- * The ingredients in cooking mode (T-015a): at one column the top bar's Ingredients button opens a sheet over the step and
- * closing it leaves the cook on the same step; from 800 wide the ingredients are a column beside the step with no button.
+ * The ingredients in cooking mode (T-015a): at one column the top bar's Ingredients button opens a sheet over the
+ * step and
+ * closing it leaves the cook on the same step; from 800 wide the ingredients are a column beside the step with no
+ * button.
  * The roast carries one ingredient line ("Salt"), the mocked recipe's default.
  */
 test.describe('the ingredients in cooking mode', () => {
@@ -525,6 +527,21 @@ test.describe('the ingredients in cooking mode', () => {
             await expect(stepRegion(page, 1, 6)).toBeVisible();
             await expectNoSidewaysScroll(page);
             expect(errors, 'console errors or hydration warnings').toEqual([]);
+        });
+    });
+
+    test.describe('at 1024', () => {
+        test.use({ viewport: { width: 1024, height: 800 } });
+
+        test('shows the scale note with no open button, because the column is in view', async ({ page }) => {
+            await seed(page);
+
+            await openCooking(page);
+            await page.getByRole('button', { name: 'More servings' }).click();
+
+            await expect(page.getByRole('note')).toContainText('You’re making');
+            await expect(page.getByRole('button', { name: 'Open ingredients' })).toHaveCount(0);
+            await expect(page.getByRole('button', { name: 'Ingredients' })).toHaveCount(0);
         });
     });
 });

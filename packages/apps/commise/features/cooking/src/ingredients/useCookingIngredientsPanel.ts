@@ -1,9 +1,12 @@
 'use client';
 
 /**
- * @module useCookingIngredientsPanel — what a cooking screen draws for the ingredients: the top bar's Ingredients action,
- * the scale note, the sheet and the column. It binds `useCookingIngredients` once, so the control, the note and the list
- * read one list. It derives every part for either band. Web draws them all and CSS picks by band (`TWO_COLUMN`), because
+ * @module useCookingIngredientsPanel — what a cooking screen draws for the ingredients: the top bar's Ingredients
+ * action,
+ * the scale note, the sheet and the column. It binds `useCookingIngredients` once, so the control, the note and the
+ * list
+ * read one list. It derives every part for either band. Web draws them all and CSS picks by band (`TWO_COLUMN`),
+ * because
  * the screen can arrive in the server HTML. Native has no server render, so it picks with `panelForBand`.
  *
  * Narrow, the sheet is the only way to the list, so the action and the note's open button exist. Wide, the column is in
@@ -99,10 +102,10 @@ export function useCookingIngredientsPanel(input: UseCookingIngredientsPanelInpu
 /**
  * Choose the parts one band draws, for a platform that knows its band when it renders (native has no server render).
  * Wide: the column and the note without its open button, because the column is in view. Narrow: the action, the sheet
- * and the note with its button. Web draws every part and lets CSS choose (`TWO_COLUMN`), so it never calls this.
+ * and the note with its button. Web draws every part and lets CSS choose (`TWO_COLUMN`), so it never calls this. Pure.
  *
  * @param panel - What {@link useCookingIngredientsPanel} derived.
- * @param wide - Whether the ingredients are a column beside the step. Pure.
+ * @param wide - Whether the ingredients are a column beside the step.
  * @returns The parts to draw.
  */
 export function panelForBand(panel: CookingIngredientsPanel, wide: boolean): CookingIngredientsPanel {

@@ -12,7 +12,8 @@ import type { CookingScreenRead } from '../cookingViewProps.js';
 
 /**
  * The web cooking screen's ingredients wiring (T-015a): the top bar's Ingredients button, the scale note and the sheet
- * at one column, the column and no button at two. The cook marks and the serving scale are the real ones the recipe page
+ * at one column, the column and no button at two. The cook marks and the serving scale are the real ones the recipe
+ * page
  * reads, the copy is the real catalogue, and the band comes from a `matchMedia` that answers the real 50 em query.
  */
 const Wrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (
@@ -141,7 +142,7 @@ describe('CookingScreen ingredients: structure by CSS band', () => {
         expect(screen.queryByRole('note')).toBeNull();
     });
 
-    it('draws the scale note with its open button, hidden from the two-column band, and the button opens the sheet', () => {
+    it('draws the scale note with an open button that is hidden from the two-column band and opens the sheet', () => {
         open({ wide: false, servings: 4 });
 
         const note = screen.getByRole('note');

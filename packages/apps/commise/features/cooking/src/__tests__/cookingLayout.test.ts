@@ -74,7 +74,8 @@ describe('the cooking surface widths', () => {
         // An em is 16 px at 100% text, so the two numbers are one width; at 200% text the web rule fires at 1,600 px.
         expect(TWO_COLUMN.minEm * 16).toBe(TWO_COLUMN.minPx);
         expect(TWO_COLUMN.webQuery).toContain(`${String(TWO_COLUMN.minEm)}em`);
-        // CSS decides which controls exist on web (display none leaves the accessibility tree), so each class holds the number.
+        // CSS decides which controls exist on web (display none leaves the accessibility tree), so each class holds
+        // the number.
         expect(TWO_COLUMN.columnWebClassName).toContain(`min-[${String(TWO_COLUMN.minEm)}em]`);
         expect(TWO_COLUMN.narrowOnlyWebClassName).toContain(`min-[${String(TWO_COLUMN.minEm)}em]`);
     });

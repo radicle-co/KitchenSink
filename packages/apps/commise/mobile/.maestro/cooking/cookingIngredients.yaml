@@ -1,6 +1,7 @@
 appId: ${APP_ID}
 ---
-# Cooking mode ingredients on a phone (T-015a). The recipe is the signer's `${E2E_RECIPE_COOKING}`, as in cookingModeFlow.
+# Cooking mode ingredients on a phone (T-015a). The recipe is the signer's `${E2E_RECIPE_COOKING}`, as in
+# cookingModeFlow.
 # One column: the top bar's Ingredients button opens the sheet over the step, and closing it leaves the cook on the SAME
 # step. The two-column band needs 800 wide, which only a tablet reaches, so it is proved by the component tests.
 - runFlow: common/openCookingRecipe.yaml

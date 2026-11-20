@@ -115,7 +115,8 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
                 }
                 body={
                     <>
-                        {/* The swipe surface: pan-y leaves vertical scrolling to the browser, so a sideways touch reaches us. */}
+                        {/* The swipe surface: pan-y leaves vertical scrolling to the browser,
+                        so a sideways touch is ours. */}
                         <div data-cooking-swipe className="touch-pan-y" {...swipe}>
                             <CookingStep {...model.step} />
                         </div>

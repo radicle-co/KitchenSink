@@ -272,7 +272,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingFrame — the web cooking surface: full screen, outside AppShell, because cooking is a\nfocused task.\n\nOne centred column at every band: the top bar pinned at the top, the foot pinned at the bottom (the\nNext preview above the actions), and only the body between them scrolls, so a focus line taller than the screen at\nthe largest text never pushes the place or Back / Next away. The foot keeps a gap above it, so a line cut off at the\nbottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the\nshort-screen height rule, and is busy while the recipe loads.\n\nGiven a `column`, the frame sets it beside the whole stack (notice, top bar, body and foot) in `CookingTwoColumnLayout`,\nand the stack keeps its own 680 cap there. Without one it is the one centred column above.\n\nThe route's offline notice (`CookingNoticeSlot`) is the first thing in the centred column, above the top bar and\nstarting where it starts.\n\nPresentational: props → JSX, plus the notice slot it reads from context.",
+                    "moduleDoc": "CookingFrame — the web cooking surface: full screen, outside AppShell, because cooking is a\nfocused task.\n\nOne centred column at every band: the top bar pinned at the top, the foot pinned at the bottom (the\nNext preview above the actions), and only the body between them scrolls, so a focus line taller than the screen at\nthe largest text never pushes the place or Back / Next away. The foot keeps a gap above it, so a line cut off at the\nbottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the\nshort-screen height rule, and is busy while the recipe loads.\n\nGiven a `column`, the frame sets it beside the whole stack (notice, top bar, body and foot) in\n`CookingTwoColumnLayout`,\nand the stack keeps its own 680 cap there. Without one it is the one centred column above.\n\nThe route's offline notice (`CookingNoticeSlot`) is the first thing in the centred column, above the top bar and\nstarting where it starts.\n\nPresentational: props → JSX, plus the notice slot it reads from context.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -308,7 +308,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The ingredients column, present only at L2 and L3. The frame then sets it beside the whole step stack (the notice,\ntop bar, body and foot), which keeps its own width cap. Absent: one centred column.",
+                            "description": "The ingredients column, present only at L2 and L3. The frame then sets it beside the whole step stack (the\nnotice,\ntop bar, body and foot), which keeps its own width cap. Absent: one centred column.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -387,7 +387,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The ingredients column, present only at L2 and L3. The frame then sets it beside the whole step stack (the notice,\ntop bar, body and foot), which keeps its own width cap. Absent: one centred column.",
+                            "description": "The ingredients column, present only at L2 and L3. The frame then sets it beside the whole step stack (the\nnotice,\ntop bar, body and foot), which keeps its own width cap. Absent: one centred column.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -1704,7 +1704,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: on a recipe with no ingredients, and (native) at L2 and L3, where the column is in view.\nWeb draws it always and hides it from the two-column band in CSS (`TWO_COLUMN.narrowOnlyWebClassName`).",
+                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: on a recipe with no ingredients, and (native) at L2 and L3, where the column is in\nview.\nWeb draws it always and hides it from the two-column band in CSS (`TWO_COLUMN.narrowOnlyWebClassName`).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -1760,7 +1760,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: on a recipe with no ingredients, and (native) at L2 and L3, where the column is in view.\nWeb draws it always and hides it from the two-column band in CSS (`TWO_COLUMN.narrowOnlyWebClassName`).",
+                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: on a recipe with no ingredients, and (native) at L2 and L3, where the column is in\nview.\nWeb draws it always and hides it from the two-column band in CSS (`TWO_COLUMN.narrowOnlyWebClassName`).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -1813,7 +1813,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingTwoColumnLayout.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingTwoColumnLayout — the web two-column layout at L2 and L3: the ingredients column in a slot of\n`INGREDIENTS_COLUMN` width on the left that scrolls on its own, and the step column in the rest, at most\n`COOKING_COLUMN` wide and centred in it, as a flex column that may shrink, so a step body fills its height and keeps\nits footer pinned. The slot is on the canvas with no divider, and its content is inset 16 on every side inside the\nscroll, so the scroll bar stays at the slot edge. It holds no state and reads no script band: the slot is hidden under the two-column band by `TWO_COLUMN.columnWebClassName`, so the\nstep column alone is left, centred, as the one column.\nThe native twin is `CookingTwoColumnLayout.native.tsx`, on the same props.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingTwoColumnLayout — the web two-column layout at L2 and L3: the ingredients column in a slot of\n`INGREDIENTS_COLUMN` width on the left that scrolls on its own, and the step column in the rest, at most\n`COOKING_COLUMN` wide and centred in it, as a flex column that may shrink, so a step body fills its height and keeps\nits footer pinned. The slot is on the canvas with no divider, and its content is inset 16 on every side inside the\nscroll, so the scroll bar stays at the slot edge. It holds no state and reads no script band: the slot is hidden\nunder the two-column band by `TWO_COLUMN.columnWebClassName`, so the\nstep column alone is left, centred, as the one column.\nThe native twin is `CookingTwoColumnLayout.native.tsx`, on the same props.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",

@@ -128,7 +128,8 @@ describe('CookingIngredientsList (native)', () => {
         expect(some.onClear).toHaveBeenCalledOnce();
     });
 
-    // P60: Clear ticks never ships without its Undo, so a host that has no Undo path gives no onClear and no button is drawn.
+    // P60: Clear ticks never ships without its Undo, so a host that has no Undo path gives no onClear and no button
+    // is drawn.
     it('draws no Clear ticks when the host gives no onClear, even with a ticked line', () => {
         const props: CookingIngredientsListProps = {
             view: viewOf({ ticked: [0] }),

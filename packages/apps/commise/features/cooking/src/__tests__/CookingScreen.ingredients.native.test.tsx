@@ -1,6 +1,8 @@
 /**
- * The native cooking screen's ingredients wiring (T-015a): the top bar's Ingredients button, the scale note and the sheet
- * at one column, the column and no button at two. The cook marks, the serving scale and the copy are the real ones; only
+ * The native cooking screen's ingredients wiring (T-015a): the top bar's Ingredients button, the scale note and the
+ * sheet
+ * at one column, the column and no button at two. The cook marks, the serving scale and the copy are the real ones;
+ * only
  * the window is doubled, because the band is read from its width: 390 is one column, 900 is two (800 and wider).
  * Every control is found by its accessible name, which is what a screen reader reads.
  */

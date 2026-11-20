@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * @module useIsTwoColumn — whether the web window is wide enough for the ingredients column beside the step (L2 and L3).
+ * @module useIsTwoColumn — whether the web window is wide enough for the ingredients column beside the step (L2 and
+ * L3).
  * The browser answers `TWO_COLUMN.webQuery`, in em, and the hook follows it live. The server render and the hydration
  * pass read narrow, so the session screen must never render during hydration, or a wide screen paints narrow first.
  * It has the shape of the web app's `useColorScheme`. A shared media query hook waits for a third caller.

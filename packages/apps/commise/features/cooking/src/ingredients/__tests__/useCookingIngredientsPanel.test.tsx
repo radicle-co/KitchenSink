@@ -146,7 +146,8 @@ describe('useCookingIngredientsPanel', () => {
         });
     });
 
-    // P60: Clear ticks ships with its Undo or not at all, and the Undo's outlet (the cooking snackbar) is not on main yet.
+    // P60: Clear ticks ships with its Undo or not at all, and the Undo's outlet (the cooking snackbar) is not on main
+    // yet.
     it.each([false, true])('gives the list no onClear, so Clear ticks is not drawn (wide: %s)', (wide) => {
         const { result } = mount({ wide });
         const frame = result.current.panel.sheet ?? result.current.panel.column;

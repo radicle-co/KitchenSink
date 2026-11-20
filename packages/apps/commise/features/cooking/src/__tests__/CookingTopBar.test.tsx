@@ -77,7 +77,8 @@ describe('CookingTopBar', () => {
 
             expect(screen.getAllByRole('button')).toHaveLength(2);
             expect(button.className).toContain(buttonSurfaceClass('quiet'));
-            // The accessible name contains the visible label, so the button is never a glyph alone (WCAG 2.5.3, label in name).
+            // The accessible name contains the visible label, so the button is never a glyph alone (WCAG 2.5.3, label
+            // in name).
             expect(button.textContent).toContain('Ingredients');
             expect(button.querySelector('svg')?.getAttribute('class')).toContain('list-checks');
 

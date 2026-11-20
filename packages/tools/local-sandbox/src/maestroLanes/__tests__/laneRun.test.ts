@@ -272,7 +272,7 @@ describe('runLaneRun — a lane run over fakes', () => {
             spawnLane: () => {
                 spawnedAt.push(Date.now());
 
-                return { pid: 0, exit: Promise.resolve(0), stop: () => undefined };
+                return { pid: 0, exit: Promise.resolve(0), stop: () => undefined, running: () => false };
             },
         });
         vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
@@ -751,6 +751,7 @@ describe('runLaneRun — a lost tunnel', () => {
 
                     return {
                         pid: 0,
+                        running: () => false,
                         exit,
                         stop: () => {
                             events.push(`stopLane ${lane.platform}-${lane.index}`);
@@ -789,6 +790,7 @@ describe('runLaneRun — a lost tunnel', () => {
 
                     return {
                         pid: 0,
+                        running: () => false,
                         exit,
                         // A real runner takes time to die: it exits after the stop, not with it.
                         stop: () => {
@@ -818,7 +820,7 @@ describe('runLaneRun — a lost tunnel', () => {
                 spawnLane: (lane) => {
                     events.push(`spawnLane ${lane.platform}-${lane.index}`);
 
-                    return { pid: 0, exit: Promise.resolve(0), stop: () => undefined };
+                    return { pid: 0, exit: Promise.resolve(0), stop: () => undefined, running: () => false };
                 },
             },
             { platforms: ['android'], requested: 1, selection: 'all' },
@@ -853,7 +855,7 @@ describe('runLaneRun — a lost tunnel', () => {
                     spawnLane: (lane) => {
                         events.push(`spawnLane ${lane.platform}-${lane.index}`);
 
-                        return { pid: 0, exit: Promise.resolve(0), stop: () => undefined };
+                        return { pid: 0, exit: Promise.resolve(0), stop: () => undefined, running: () => false };
                     },
                 },
                 { platforms: ['android'], requested: 1, selection: 'all' },
@@ -888,6 +890,7 @@ describe('runLaneRun — a lost tunnel', () => {
 
                         return {
                             pid: 0,
+                            running: () => false,
                             exit,
                             stop: () => {
                                 events.push(`stopLane ${lane.platform}-${lane.index}`);
@@ -926,6 +929,7 @@ describe('runLaneRun — a lost tunnel', () => {
 
                         return {
                             pid: 0,
+                            running: () => false,
                             exit,
                             // SIGTERM is ignored, as a runner stuck in a child process would.
                             stop: (signal) => {
@@ -949,6 +953,49 @@ describe('runLaneRun — a lost tunnel', () => {
             expect(events.indexOf('stopLane android-1 SIGKILL')).toBeLessThan(events.indexOf('stopDevice android-1'));
         });
 
+        it('kills the lane group when the runner exits but a child of it stays', async () => {
+            const { events, deps } = harness({});
+            const lost = new Promise<Error>((resolve) => {
+                setTimeout(() => {
+                    resolve(LOSS);
+                }, 20);
+            });
+            const run = runLaneRun(
+                {
+                    ...deps,
+                    stopGraceMs: 30,
+                    adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                    spawnLane: (lane) => {
+                        let groupAlive = true;
+                        let finish: (code: number) => void = () => undefined;
+                        const exit = new Promise<number>((resolve) => {
+                            finish = resolve;
+                        });
+
+                        return {
+                            pid: 0,
+                            // The runner (bash) dies on SIGTERM at once; a child in its group lives on.
+                            exit,
+                            running: () => groupAlive,
+                            stop: (signal) => {
+                                events.push(`stopLane ${lane.platform}-${lane.index} ${signal ?? 'SIGTERM'}`);
+                                finish(143);
+
+                                if (signal === 'SIGKILL') {
+                                    groupAlive = false;
+                                }
+                            },
+                        };
+                    },
+                },
+                { platforms: ['android'], requested: 1, selection: 'all' },
+            );
+
+            await expect(run).rejects.toThrow('during the run');
+            expect(events).toContain('stopLane android-1 SIGKILL');
+            expect(events.indexOf('stopLane android-1 SIGKILL')).toBeLessThan(events.indexOf('stopDevice android-1'));
+        });
+
         it('does not kill a lane that exits within the grace', async () => {
             const { events, deps } = harness({});
             const lost = new Promise<Error>((resolve) => {
@@ -969,6 +1016,7 @@ describe('runLaneRun — a lost tunnel', () => {
 
                         return {
                             pid: 0,
+                            running: () => false,
                             exit,
                             stop: (signal) => {
                                 events.push(`stop ${signal ?? 'SIGTERM'}`);

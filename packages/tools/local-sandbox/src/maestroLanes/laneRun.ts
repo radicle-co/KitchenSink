@@ -115,8 +115,11 @@ export interface LaneRunDeps {
 /** The exit code of a run the operator stopped. */
 const ABORTED = 130;
 
-/** How long a lane has to exit after SIGTERM before SIGKILL. A runner stuck in a child process ignores the first. */
+/** How long a lane's group has to be gone after SIGTERM before SIGKILL. A runner stuck in a child process ignores the first. */
 const STOP_GRACE_MS = 10_000;
+
+/** How often the run asks whether a stopped lane's group is gone. */
+const GROUP_POLL_MS = 25;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -373,7 +376,12 @@ async function runPlanned(
                 child.stop();
             }
 
-            const exited = Promise.allSettled(exits);
+            // The runner (bash) may exit on SIGTERM while a child of its group stays, so the wait is for the group.
+            const exited = Promise.allSettled(exits).then(async () => {
+                while (children.some((child) => child.running())) {
+                    await sleep(GROUP_POLL_MS);
+                }
+            });
 
             let graceOver: NodeJS.Timeout | undefined;
             const grace = new Promise<boolean>((resolve) => {

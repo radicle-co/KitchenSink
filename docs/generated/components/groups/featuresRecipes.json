@@ -10,7 +10,7 @@
         "documentedComponents": 210,
         "implementationsWithModuleDoc": 355,
         "implementationsWithComponentDoc": 244,
-        "documentedProps": 1883,
+        "documentedProps": 1887,
         "classifiedComponents": 188,
         "componentsWithPatternTag": 100,
         "crossPlatformComponents": 145
@@ -7522,11 +7522,11 @@
                         },
                         {
                             "name": "onToggle",
-                            "type": "(line: string) => void",
+                            "type": "() => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Called with the line's key (`ingredientId`).",
+                            "description": "Called when the cook presses the row. The row carries no identity: the list binds the position.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/cookRowProps.ts"
                         },
                         {
@@ -7601,11 +7601,11 @@
                         },
                         {
                             "name": "onToggle",
-                            "type": "(line: string) => void",
+                            "type": "() => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Called with the line's key (`ingredientId`).",
+                            "description": "Called when the cook presses the row. The row carries no identity: the list binds the position.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/cookRowProps.ts"
                         },
                         {
@@ -7672,11 +7672,11 @@
                         },
                         {
                             "name": "checked",
-                            "type": "ReadonlySet<string>",
+                            "type": "ReadonlySet<number>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "The positions, in `ingredients`, of the ticked lines.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
                         },
                         {
@@ -7690,11 +7690,11 @@
                         },
                         {
                             "name": "onToggle",
-                            "type": "(ingredientId: string) => void",
+                            "type": "(position: number) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "Called with the position, in `ingredients`, of the line the cook pressed.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
                         },
                         {
@@ -7742,11 +7742,11 @@
                         },
                         {
                             "name": "checked",
-                            "type": "ReadonlySet<string>",
+                            "type": "ReadonlySet<number>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "The positions, in `ingredients`, of the ticked lines.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
                         },
                         {
@@ -7760,11 +7760,11 @@
                         },
                         {
                             "name": "onToggle",
-                            "type": "(ingredientId: string) => void",
+                            "type": "(position: number) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "Called with the position, in `ingredients`, of the line the cook pressed.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
                         },
                         {

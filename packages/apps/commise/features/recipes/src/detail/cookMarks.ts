@@ -7,33 +7,38 @@
  * - **the current step** — at most ONE, a place marker rather than a completion record. A tap on another step moves
  *   it; a second tap on the same step clears it.
  *
- * The stored form holds the line keys and the step number and nothing else of the recipe, so a browser keeps no recipe
+ * The stored form holds the tick keys and the step number and nothing else of the recipe, so a browser keeps no recipe
  * content at rest. A stored value that cannot be read is read as no marks: it is a convenience, never worth an error.
  *
  * @pattern State + Command — a pure reducer over a discriminated union of commands
  */
 import { z } from 'zod';
 
+import { ingredientTickKeysSchema, type IngredientTickKey } from './ingredientTickKey.js';
+
 /** One recipe's marks. */
 export interface CookMarks {
-    /** The keys (`ingredientId`) of the lines the cook has checked. */
-    readonly lines: ReadonlySet<string>;
+    /** The tick keys (ADR-0096: a line's content digest and ordinal) of the lines the cook has checked. */
+    readonly lines: ReadonlySet<IngredientTickKey>;
     /** The 1-based number of the step the cook is on, if they marked one. */
     readonly currentStep: number | undefined;
 }
 
 /** What a cook can do to their marks. */
 export type CookMarkCommand =
-    | { readonly kind: 'toggleLine'; readonly line: string }
+    | { readonly kind: 'toggleLine'; readonly line: IngredientTickKey }
     | { readonly kind: 'toggleStep'; readonly step: number }
     | { readonly kind: 'clear' }
     /** Cooking mode's Clear ticks: every ingredient tick goes, the current-step marker stays. */
     | { readonly kind: 'clearIngredientTicks' }
     /** Cooking mode's Undo: these ticks are added back and none is removed. */
-    | { readonly kind: 'restoreIngredientTicks'; readonly lines: readonly string[] };
+    | { readonly kind: 'restoreIngredientTicks'; readonly lines: readonly IngredientTickKey[] };
 
 /** No marks. One shared object, so an untouched recipe's snapshot is reference-stable. */
-export const EMPTY_COOK_MARKS: CookMarks = Object.freeze({ lines: new Set<string>(), currentStep: undefined });
+export const EMPTY_COOK_MARKS: CookMarks = Object.freeze({
+    lines: new Set<IngredientTickKey>(),
+    currentStep: undefined,
+});
 
 /**
  * Apply one command. Pure: the state given is never changed.
@@ -66,7 +71,9 @@ export function applyCookMark(state: CookMarks, command: CookMarkCommand): CookM
             return EMPTY_COOK_MARKS;
 
         case 'clearIngredientTicks':
-            return state.lines.size === 0 ? state : { lines: new Set<string>(), currentStep: state.currentStep };
+            return state.lines.size === 0
+                ? state
+                : { lines: new Set<IngredientTickKey>(), currentStep: state.currentStep };
 
         case 'restoreIngredientTicks': {
             if (command.lines.every((line) => state.lines.has(line))) {
@@ -90,7 +97,7 @@ export function hasCookMarks(state: CookMarks): boolean {
 
 /** The stored form: line keys and a step number, nothing else. */
 const storedCookMarks = z.strictObject({
-    lines: z.array(z.string()),
+    lines: ingredientTickKeysSchema,
     step: z.number().int().positive().nullable(),
 });
 
@@ -132,7 +139,10 @@ export function parseCookMarks(raw: string | null): CookMarks {
     return { lines: new Set(parsed.data.lines), currentStep: parsed.data.step ?? undefined };
 }
 
-/** The namespace every cook-marks key starts with. The version is in it so a later shape can never misread this one. */
+/**
+ * The namespace every cook-marks key starts with. The version is in it so a later shape can never misread this one.
+ * It stays `cook.v1.`: `cook.v2.` belongs to the kept record, and `isCookMarksKeyOf` would match its keys.
+ */
 const KEY_PREFIX = 'cook.v1.';
 
 /**

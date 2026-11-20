@@ -20,7 +20,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { makeRecipeDetail } from '../../__fixtures__/index.js';
+import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { CookMarksProvider } from '../CookMarksProvider.js';
 import { memoryCookMarksBackend } from '../cookMarksStore.js';
 import { useCookMarks, type CookMarksBinding } from '../useCookMarks.js';
@@ -98,18 +98,21 @@ function mount(
             </RecipeServiceProvider>
         </QueryClientProvider>
     );
+    // One recipe object: the page's marks binding and the controller read the same stored lines.
+    const recipe = makeRecipeDetail({
+        id: 'rec_1',
+        ownerId: OWNER,
+        visibility: RecipeVisibility.PUBLIC,
+        ingredients: [makeIngredientView({ ingredientId: 'line_a', name: 'Flour' })],
+        ...over.recipe,
+    });
     const { result } = renderHook(
         () => {
-            marks.current = useCookMarks('rec_1');
+            marks.current = useCookMarks('rec_1', recipe.ingredients);
 
             rendered.current = useRecipeDetailController({
                 id: 'rec_1',
-                recipe: makeRecipeDetail({
-                    id: 'rec_1',
-                    ownerId: OWNER,
-                    visibility: RecipeVisibility.PUBLIC,
-                    ...over.recipe,
-                }),
+                recipe,
                 sessionClaims: over.sessionClaims,
                 profile: over.profile ?? settledProfile(undefined),
                 finishRefused: over.finishRefused ?? false,
@@ -339,7 +342,7 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
 
         expect(result.current.menu).toBeUndefined();
 
-        act(() => marks.current?.toggleLine('line_a'));
+        act(() => marks.current?.toggleLine(0));
 
         expect(result.current.menu?.items.map((item) => item.id)).toEqual(['clearChecks']);
 

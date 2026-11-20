@@ -1006,9 +1006,11 @@ export interface DetailNativeLayout {
 
 /** The cook's marks as the body draws them, and the commands over them (`useCookMarks`). */
 export interface DetailMarks {
-    readonly checkedLines: ReadonlySet<string>;
+    /** The positions of the checked lines, in the stored (unscaled) order the body draws them in. */
+    readonly checkedLines: ReadonlySet<number>;
     readonly currentStep: number | undefined;
-    readonly toggleLine: (line: string) => void;
+    /** Tick or untick the line at a position. */
+    readonly toggleLine: (position: number) => void;
     readonly toggleStep: (step: number) => void;
 }
 

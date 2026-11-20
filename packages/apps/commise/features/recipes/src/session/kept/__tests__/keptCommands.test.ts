@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { applyKeptCommand, snapshotForEnd, type KeptCommand, type KeptOutcome } from '../keptCommands.js';
-import type { KeptDocument } from '../keptRecord.js';
+import { parseKeptDocument, serializeKeptDocument, type KeptDocument } from '../keptRecord.js';
 
 import {
     HOUR,
@@ -14,6 +14,7 @@ import {
     T0,
     timerId,
 } from '../__fixtures__/keptFixtures.js';
+import { TICK } from '../../../detail/__fixtures__/tickKeys.js';
 
 const NOW = iso(T0 + HOUR);
 const digestOf = (n: string): string => `s1:${n.padStart(8, '0')}`;
@@ -48,11 +49,11 @@ describe('absent-entry rule (ADR-0094 section 6)', () => {
     });
 
     it('tickPage on an absent entry creates a page entry; unticking nothing changes nothing', () => {
-        const next = applied(run(doc, { type: 'tickPage', recipeId: 'r1', ingredientId: 'butter', ticked: true }));
+        const next = applied(run(doc, { type: 'tickPage', recipeId: 'r1', line: TICK.butter, ticked: true }));
 
-        expect(next.entries['r1']).toEqual({ kind: 'page', ticks: ['butter'], lastTouch: NOW });
+        expect(next.entries['r1']).toEqual({ kind: 'page', ticks: [TICK.butter], lastTouch: NOW });
         expect(next.rev).toBe(doc.rev + 1);
-        expect(run(doc, { type: 'tickPage', recipeId: 'r1', ingredientId: 'butter', ticked: false })).toEqual({
+        expect(run(doc, { type: 'tickPage', recipeId: 'r1', line: TICK.butter, ticked: false })).toEqual({
             kind: 'unchanged',
         });
     });
@@ -60,22 +61,22 @@ describe('absent-entry rule (ADR-0094 section 6)', () => {
 
 describe('page ticks', () => {
     it('ticks and unticks on a page entry and on a cooking entry, idempotently', () => {
-        const page = makeDoc({ entries: { r1: makePage({ ticks: ['salt'] }) } });
-        const ticked = applied(run(page, { type: 'tickPage', recipeId: 'r1', ingredientId: 'butter', ticked: true }));
+        const page = makeDoc({ entries: { r1: makePage({ ticks: [TICK.salt] }) } });
+        const ticked = applied(run(page, { type: 'tickPage', recipeId: 'r1', line: TICK.butter, ticked: true }));
 
-        expect(ticked.entries['r1']).toMatchObject({ kind: 'page', ticks: ['salt', 'butter'] });
-        expect(run(ticked, { type: 'tickPage', recipeId: 'r1', ingredientId: 'butter', ticked: true })).toEqual({
+        expect(ticked.entries['r1']).toMatchObject({ kind: 'page', ticks: [TICK.salt, TICK.butter] });
+        expect(run(ticked, { type: 'tickPage', recipeId: 'r1', line: TICK.butter, ticked: true })).toEqual({
             kind: 'unchanged',
         });
 
-        const cooking = makeDoc({ entries: { r1: makeCooking({ ticks: ['salt'] }) } });
-        const off = applied(run(cooking, { type: 'tickPage', recipeId: 'r1', ingredientId: 'salt', ticked: false }));
+        const cooking = makeDoc({ entries: { r1: makeCooking({ ticks: [TICK.salt] }) } });
+        const off = applied(run(cooking, { type: 'tickPage', recipeId: 'r1', line: TICK.salt, ticked: false }));
 
         expect(off.entries['r1']).toMatchObject({ kind: 'cooking', ticks: [] });
     });
 
     it('finish of another recipe leaves a page entry', () => {
-        const doc = makeDoc({ entries: { r1: makePage({ ticks: ['salt'] }), r2: makeCooking() } });
+        const doc = makeDoc({ entries: { r1: makePage({ ticks: [TICK.salt] }), r2: makeCooking() } });
         const next = applied(run(doc, { type: 'finish', recipeId: 'r2' }));
 
         expect(next.entries['r1']).toEqual(doc.entries['r1']);
@@ -85,7 +86,7 @@ describe('page ticks', () => {
 
 describe('startSession', () => {
     it('makes a session at the page step with the page ticks and servings (mutant: the start resets ticks)', () => {
-        const doc = makeDoc({ entries: { r1: makePage({ ticks: ['salt'], servings: 6, pageStep: step(3) }) } });
+        const doc = makeDoc({ entries: { r1: makePage({ ticks: [TICK.salt], servings: 6, pageStep: step(3) }) } });
         const next = applied(run(doc, { type: 'startSession', recipeId: 'r1', step: step(3) }));
 
         expect(next.entries['r1']).toEqual({
@@ -93,7 +94,7 @@ describe('startSession', () => {
             step: step(3),
             marks: [],
             lineTicks: [],
-            ticks: ['salt'],
+            ticks: [TICK.salt],
             servings: 6,
             lastTouch: NOW,
         });
@@ -106,7 +107,7 @@ describe('startSession', () => {
     });
 
     it('over a cooking entry joins it, writes nothing, and returns that entry step (mutant: overwrites)', () => {
-        const doc = makeDoc({ entries: { r1: makeCooking({ step: step(3), ticks: ['butter'] }) } });
+        const doc = makeDoc({ entries: { r1: makeCooking({ step: step(3), ticks: [TICK.butter] }) } });
         const outcome = run(doc, { type: 'startSession', recipeId: 'r1', step: step(0) });
 
         expect(outcome).toEqual({ kind: 'joined', step: step(3) });
@@ -115,7 +116,7 @@ describe('startSession', () => {
 
 describe('the two "Start from step 1" commands', () => {
     const doc = makeDoc({
-        entries: { r1: makeCooking({ step: step(3), ticks: ['butter'], marks: [step(1)] }) },
+        entries: { r1: makeCooking({ step: step(3), ticks: [TICK.butter], marks: [step(1)] }) },
         timers: [makeTimer({ recipeId: 'r1' })],
     });
 
@@ -213,8 +214,67 @@ describe('rebind (ADR-0094 section 9)', () => {
     });
 });
 
+describe('ingredient ticks are content keys (ADR-0096)', () => {
+    const NEWER = 'l2:deadbeef#0';
+
+    it('ticking the second of two identical lines keeps the first, and unticking the first leaves the second', () => {
+        const { twinFirst, twinSecond } = TICK;
+        const page = makeDoc({ entries: { r1: makePage({ ticks: [twinFirst] }) } });
+        const both = applied(run(page, { type: 'tickPage', recipeId: 'r1', line: twinSecond, ticked: true }));
+
+        expect(both.entries['r1']).toMatchObject({ ticks: [twinFirst, twinSecond] });
+
+        const off = applied(run(both, { type: 'tickPage', recipeId: 'r1', line: twinFirst, ticked: false }));
+
+        expect(off.entries['r1']).toMatchObject({ ticks: [twinSecond] });
+    });
+
+    it('a newer version’s key survives a tick and an untick of another line (mutant: filter to l1)', () => {
+        const raw = JSON.stringify(makeDoc({ entries: { r1: makePage({ ticks: [] }) } })).replace(
+            '"ticks":[]',
+            `"ticks":["${NEWER}"]`,
+        );
+        const parsed = parseKeptDocument(raw);
+
+        if (parsed.kind !== 'ok') {
+            throw new Error('the record with a newer key must parse');
+        }
+
+        const ticked = applied(run(parsed.doc, { type: 'tickPage', recipeId: 'r1', line: TICK.butter, ticked: true }));
+        const unticked = applied(run(ticked, { type: 'tickPage', recipeId: 'r1', line: TICK.butter, ticked: false }));
+        const reread = parseKeptDocument(serializeKeptDocument(unticked));
+
+        expect(reread.kind === 'ok' ? reread.doc.entries['r1'] : undefined).toMatchObject({ ticks: [NEWER] });
+    });
+
+    it('rebind leaves page and cooking ticks exactly as they were: an ingredient tick is not a step mark', () => {
+        const entry = makeCooking({
+            step: { index: 2, digest: digestOf('c') },
+            ticks: [TICK.butter, TICK.salt],
+        });
+        const next = applied(
+            run(makeDoc({ entries: { r1: entry } }), {
+                type: 'rebind',
+                recipeId: 'r1',
+                stepDigests: ['a', 'c', 'd', 'e'].map(digestOf),
+            }),
+        );
+
+        // The step moved (the rebind did something), and the ingredient ticks did not.
+        expect(next.entries['r1']).toMatchObject({ step: { index: 1 }, ticks: [TICK.butter, TICK.salt] });
+    });
+
+    it('rebind leaves a page entry and its ticks exactly as they were (mutant: rebind clears page ticks)', () => {
+        const doc = makeDoc({ entries: { r1: makePage({ ticks: [TICK.butter, TICK.salt] }) } });
+        const outcome = run(doc, { type: 'rebind', recipeId: 'r1', stepDigests: ['a', 'c'].map(digestOf) });
+        const after = outcome.kind === 'unchanged' ? doc : applied(outcome);
+
+        expect(after.entries['r1']).toEqual(doc.entries['r1']);
+    });
+});
+
 describe('End then Undo (ADR-0094 section 2)', () => {
-    const entry = makeCooking({ step: step(2), ticks: ['butter'], lastTouch: iso(T0) });
+    const entry = makeCooking({ step: step(2), ticks: [TICK.butter], lastTouch: iso(T0) });
     const timer = makeTimer({ recipeId: 'r1', stepIndex: 2, stepDigest: step(2).digest, ordinal: 2 });
     const before = makeDoc({ entries: { r1: entry }, timers: [timer] });
 
@@ -252,7 +312,7 @@ describe('End then Undo (ADR-0094 section 2)', () => {
     it('ticks made on the page entry in the window are merged, not overwritten', () => {
         const snapshot = snapshotForEnd(before, 'r1');
         const ended = applied(run(before, { type: 'endSession', recipeId: 'r1' }));
-        const withPage = applied(run(ended, { type: 'tickPage', recipeId: 'r1', ingredientId: 'salt', ticked: true }));
+        const withPage = applied(run(ended, { type: 'tickPage', recipeId: 'r1', line: TICK.salt, ticked: true }));
 
         if (snapshot === undefined) {
             throw new Error('no snapshot');
@@ -260,7 +320,7 @@ describe('End then Undo (ADR-0094 section 2)', () => {
 
         const back = applied(run(withPage, { type: 'restoreSession', snapshot }));
 
-        expect(back.entries['r1']).toMatchObject({ kind: 'cooking', ticks: ['butter', 'salt'] });
+        expect(back.entries['r1']).toMatchObject({ kind: 'cooking', ticks: [TICK.butter, TICK.salt] });
     });
 
     it.each([

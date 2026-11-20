@@ -15,10 +15,12 @@ import { IngredientCheckRow } from './IngredientCheckRow.js';
 export interface IngredientRunsProps {
     /** The lines, already scaled to the chosen servings. */
     readonly ingredients: readonly RecipeIngredientView[];
-    readonly checked: ReadonlySet<string>;
+    /** The positions, in `ingredients`, of the ticked lines. */
+    readonly checked: ReadonlySet<number>;
     /** Every line's food was removed from the catalog (the rows say so once, not on each line). */
     readonly allRemoved: boolean;
-    readonly onToggle: (ingredientId: string) => void;
+    /** Called with the position, in `ingredients`, of the line the cook pressed. */
+    readonly onToggle: (position: number) => void;
     /**
      * The owner's review control for a line, by its position in `ingredients` (the stored order: scaling keeps it), or
      * `undefined` for a line with none. The row draws it beside its check control.
@@ -44,13 +46,13 @@ export const IngredientRuns: FC<IngredientRunsProps> = ({
                     {run.lines.map(({ ingredient, position }, lineIndex) => (
                         <IngredientCheckRow
                             // The stored position, never `ingredientId`: two lines can share a food, and a duplicate key
-                            // hands one row's state to the other.
+                            // hands one row's state to the other. A tick is read and written by the same position.
                             key={position}
                             divided={lineIndex > 0}
                             ingredient={ingredient}
-                            checked={checked.has(ingredient.ingredientId)}
+                            checked={checked.has(position)}
                             allRemoved={allRemoved}
-                            onToggle={onToggle}
+                            onToggle={() => onToggle(position)}
                             {...withReviewAction(reviewAction?.(position, ingredient))}
                         />
                     ))}

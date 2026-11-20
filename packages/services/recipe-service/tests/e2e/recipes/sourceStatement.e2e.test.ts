@@ -326,6 +326,8 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             // Never a clone: the one fact besides the source the lock reads for the source-correction rule. The first publish is
             // not read (owner ruling 2026-11-15).
             clonedFromId: null,
+            // The citation a paid site stated again is judged against; a web copy's is its site.
+            sourceAttribution: 'allrecipes.com',
         });
     });
 

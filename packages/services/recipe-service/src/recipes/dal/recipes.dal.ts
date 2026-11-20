@@ -198,7 +198,7 @@ export interface LockedRecipeFacts extends SlotFacts {
     /** The recipe this one was cloned from, under the same lock: what decides if its source can still change. */
     readonly clonedFromId: RecipeRow['clonedFromId'];
     /** The cook's citation (`source_attribution`), under the same lock: a paid site stated again is judged against it. */
-    readonly sourceAttribution?: RecipeRow['sourceAttribution'];
+    readonly sourceAttribution: RecipeRow['sourceAttribution'];
 }
 
 /**

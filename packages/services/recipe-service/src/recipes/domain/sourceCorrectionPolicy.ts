@@ -47,7 +47,7 @@ export type StoredSource = CorrectableSourceFacts & {
     /** What the cook stated (`recipes.statement_kind`), or `null`. The database CHECK keeps it to the known vocabulary. */
     readonly statementKind: RecipeStatementKind | null;
     /** The stored citation (`recipes.source_attribution`), or `null`: what a paid site stated again is compared with. */
-    readonly sourceAttribution?: string | null;
+    readonly sourceAttribution: string | null;
 };
 
 /**
@@ -116,7 +116,7 @@ export function evaluateSourceCorrection(input: {
     if (
         statement?.kind === 'paid_site' &&
         stored.sourceKind === 'paid_site' &&
-        stored.sourceAttribution === statement.citation.trim()
+        stored.sourceAttribution === statement.citation
     ) {
         return { kind: 'unchanged' };
     }

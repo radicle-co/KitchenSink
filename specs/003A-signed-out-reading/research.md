@@ -170,7 +170,7 @@ recipe in the same transaction. The spec records the reading that both kinds of 
 **Decision**: the page is the only cache (R1), held by the CDN. The API is always `no-store`. The CloudFront behaviour for
 `/api/v1/public/*` on the recipe distribution uses `CACHING_DISABLED` and an origin-request policy that forwards
 no `Authorization` header, no cookie and no query string. The page never reads `searchParams`, cookies or headers, so
-the cache key is the path, which holds the locale (R8), and a share mark cannot split it.
+the cache key is the one FR-015 states (R8), and a share mark cannot split it.
 
 **Rationale**: the one cache forgets within 5 minutes by itself, so the bound holds without a purge (FR-013). ADR-0020's
 "URL-only recipe behaviour" decision is not needed, because nothing on the API is cached.
@@ -226,11 +226,11 @@ The public route has a root layout with no `ClerkProvider` (how it sits beside `
 can start a Clerk session. A signed-out reader's account action returns through the in-app address
 `/{locale}/recipes/{id}?then=save|saveCopy|rate`, which `safeReturnPath` already accepts, so that parser does not change.
 
-**Rationale**: A locale in the address never breaks a shared link when a second locale ships, and the path is the whole
-cache key: one entry per recipe per shipped locale.
+**Rationale**: A locale in the address never breaks a shared link when a second locale ships, and the cache key is the
+one FR-015 states.
 The slug redirect only for open recipes keeps a closed recipe's title private.
 
-**One-way doors**: the address form, the read route, the cache key (the path), the association files' path set, team id, bundle id and signing fingerprints, and
+**One-way doors**: the address form, the read route, the cache key (FR-015), the association files' path set, team id, bundle id and signing fingerprints, and
 the native gate's state.
 
 ## R9. The signed-out actions

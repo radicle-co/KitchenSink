@@ -44,7 +44,7 @@ done without them.
 
 ## Locale, page language and the cache key (owner 2026-11-20, reverses spec Q3)
 
-⚠️ This changes a one-way door: the locale is in the address, and the cache key is the path alone (it amends
+⚠️ This changes a one-way door: the locale is in the address, and the cache key is the one `003A-FR-015` states (it amends
 `021-FR-062`).
 
 - The page's own words (headings, buttons, states) are in the locale in the address, with English as the catalog
@@ -52,8 +52,7 @@ done without them.
 - A locale-less `/recipe/{id}/{slug}` redirects to the locale `Accept-Language` negotiates. A browser that matches no
   shipped locale (for example `fr-FR`, or `en-GB` while only `en-US` ships) goes to `en-US`, the default route locale. A bare
   `/en/recipe/...` has its locale replaced by the negotiated one and is never mapped straight to a market.
-- The page is a server render with no ISR. It sends `s-maxage` with no `Vary: Accept-Language`, so the CDN keys on the path, and each
-  recipe has at most one cache entry per shipped locale.
+- The page is a server render with no ISR. It sends `s-maxage` with no `Vary: Accept-Language`, so the CDN key is the one `003A-FR-015` states.
 
 ## Middleware
 

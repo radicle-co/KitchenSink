@@ -11,7 +11,7 @@ ADR-0082). Facts cards open signed out (FR-003, FR-004, FR-014 to FR-014h). Fami
 to the web (FR-002, FR-006). Cooks get a CC BY choice (FR-040a, FR-040b). The pre-launch confirmations grow (FR-095). See
 Session 2026-11-03. Amended 2026-11-09 for the owner's answers to feature 003A's questions: recipes left public at
 erasure (FR-002 rule 7), the page language and the cache key (FR-062), comments (FR-070), and the `noindex` 003A ships
-with (FR-020a). See Session 2026-11-09. Amended 2026-11-20: every page carries its locale in the URL (FR-062). Amended 2026-11-15 for the public versions of imported recipes (owner ruling,
+with (FR-020a). See Session 2026-11-09. Amended 2026-11-20: every page carries its locale in the URL (FR-010, FR-062). Amended 2026-11-15 for the public versions of imported recipes (owner ruling,
 2026-11-15, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)). Facts cards, linked cards, book cards and source cards are withdrawn. An imported
 recipe goes public only as a Commise-written version (FR-003, FR-014). See Session 2026-11-15
 **Input**: Owner, 2026-10-27: "Let's add a feature and spec for indexing and sharing as you note." And: "Include the
@@ -872,8 +872,7 @@ Session 2026-11-15.)_
 - **FR-012**: The server's response at a public address MUST always be the signed-out version, the same for every
   viewer, and MUST NOT set a cookie. This holds for an open recipe, a creator page and the not-available answer alike. Anything more for a signed-in viewer MUST appear only after the page loads in the
   browser, from the viewer's own session. It MUST never be part of the cached response. That covers their actions
-  (save, rate, add to a plan), the owner's note (FR-017), and links into the app (FR-013, FR-014). A cache keyed on the
-  path alone (FR-062) is safe only because of this rule.
+  (save, rate, add to a plan), the owner's note (FR-017), and links into the app (FR-013, FR-014). A cache keyed as `003A-FR-015` states (FR-062) is safe only because of this rule.
 - **FR-013**: Every address that is not an open recipe or an active creator page
   MUST get one **not-available** answer: status `404`, `noindex`, the same words ("This recipe is not available"), a
   sign-in link, and a generic Commise preview card. It MUST NOT differ between private, draft, deleted, erased, held,
@@ -1232,10 +1231,10 @@ Session 2026-11-15.)_
   inside this bound. A preview a social platform already copied is outside our control, and is a residual risk. After any
   exit event, every one MUST answer not available, or
   show the new content. It MUST do so within 5 minutes for 95% of events, and within 15 minutes for all. An event that the purge cannot confirm MUST raise an alarm.
-- **FR-062**: Public pages MUST be served from a CDN. The cache key MUST be the path alone. It MUST ignore query
-  parameters (the share mark included), cookies and the `Authorization` header. _(Amended 2026-11-20, owner ruling:
-  every page carries its locale in the URL.)_ The locale is part of the path (`/{locale}/recipe/{id}/{slug}`), so the
-  path alone is the key, and the page's own words follow that locale (`003A-FR-015`, `003A-FR-015a`). This is safe only
+- **FR-062**: Public pages MUST be served from a CDN. The cache key MUST be the path plus only Next's own RSC variant (`003A-FR-015`). It MUST ignore every other query
+  parameter (the share mark included), cookies and the `Authorization` header. _(Amended 2026-11-20, owner ruling:
+  every page carries its locale in the URL.)_ The locale is part of the path (`/{locale}/recipe/{id}/{slug}`), and the page's own words follow that locale
+  (`003A-FR-015`, `003A-FR-015a`). This is safe only
   because the response does not depend on who asked (FR-012, FR-101).
 - **FR-063**: Each client address MUST be rate-limited at the edge, where the real address is visible, never from a
   header a client can set. A person reading and sharing MUST never reach the limit. A client past it gets `429` with

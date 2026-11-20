@@ -99,7 +99,7 @@ read only by measurement (the share mark's presence).
 ## Page language
 
 The language of the page's own words is the locale in the address, a member of the closed set of shipped locales
-(spec FR-015a, owner 2026-11-20). It is part of the page's cache key because it is part of the path. A locale-less
+(spec FR-015a, owner 2026-11-20). It is part of the path, and so of the cache key (FR-015). A locale-less
 address redirects to the locale `Accept-Language` negotiates, else `en-US`. The recipe's own text is never translated.
 
 ## Public-reader token

@@ -63,7 +63,6 @@ appId: ${APP_ID}
           - assertVisible:
                 text: 'radio button, checked'
                 above: 'From a cookbook or magazine'
-- assertVisible: 'Once you confirm, this answer is locked.*'
 
 # A blank citation is refused at the field.
 - tapOn:

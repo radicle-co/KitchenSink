@@ -16,6 +16,7 @@
 import { servedLocaleOf } from '@commise/i18n';
 import {
     parseSourceLink,
+    SOURCE_LINK_MAX_LENGTH,
     PUBLIC_CONFIRM_WORDINGS,
     RecipeSourceType,
     RecipeVisibility,
@@ -31,11 +32,12 @@ import { recipeActionMessages } from './messages.js';
 export type StatementSurface = 'editor' | 'recipePage';
 
 /** What the cook can answer. `publishPrivately` is the editor's own: the recipe page's own way out is Cancel. */
-export type StatementAnswer = 'authored' | 'publicWeb' | 'book' | 'fromPerson' | 'publishPrivately';
+export type StatementAnswer = 'authored' | 'publicWeb' | 'paidSite' | 'book' | 'fromPerson' | 'publishPrivately';
 
 const RECIPE_PAGE_ANSWERS = [
     'authored',
     'publicWeb',
+    'paidSite',
     'book',
     'fromPerson',
 ] as const satisfies readonly StatementAnswer[];
@@ -97,6 +99,8 @@ export interface StatementFields {
     readonly link: string;
     /** The cookbook or magazine title, for `book`. */
     readonly bookTitle: string;
+    /** The website's name or address, as attribution text, for `paidSite`. */
+    readonly paidSite: string;
 }
 
 /** What an answer writes: the statement (none for publishing privately) and the visibility it leaves. */
@@ -145,6 +149,15 @@ export function statementWriteOf(answer: StatementAnswer, fields: StatementField
                 },
                 visibility: RecipeVisibility.PRIVATE,
             };
+        case 'paidSite':
+            return {
+                statement: {
+                    kind: 'paid_site',
+                    citation: fields.paidSite.trim(),
+                    wording: { version: STATEMENT_WORDINGS_BY_CHOICE.paidSite[0], locale },
+                },
+                visibility: RecipeVisibility.PRIVATE,
+            };
         case 'book':
             return {
                 statement: {
@@ -169,8 +182,19 @@ export function statementWriteOf(answer: StatementAnswer, fields: StatementField
 
 /** A revealed field that cannot be confirmed yet, and why. */
 export interface StatementFieldError {
-    readonly field: 'link' | 'bookTitle';
+    readonly field: 'link' | 'bookTitle' | 'paidSite';
     readonly reason: 'required' | 'invalid' | 'ownSite';
+}
+
+/** A citation field's problem: empty, or past the length the server takes (a longer one would fail every write). Pure. */
+function citationErrorOf(field: 'bookTitle' | 'paidSite', text: string): StatementFieldError | undefined {
+    const length = text.trim().length;
+
+    if (length === 0) {
+        return { field, reason: 'required' };
+    }
+
+    return length > SOURCE_LINK_MAX_LENGTH ? { field, reason: 'invalid' } : undefined;
 }
 
 /**
@@ -186,7 +210,11 @@ export function statementFieldErrorOf(
     fields: StatementFields,
 ): StatementFieldError | undefined {
     if (answer === 'book') {
-        return fields.bookTitle.trim() === '' ? { field: 'bookTitle', reason: 'required' } : undefined;
+        return citationErrorOf('bookTitle', fields.bookTitle);
+    }
+
+    if (answer === 'paidSite') {
+        return citationErrorOf('paidSite', fields.paidSite);
     }
 
     if (answer !== 'publicWeb') {
@@ -207,6 +235,7 @@ export interface StatementSheetState {
     readonly answer: StatementAnswer | undefined;
     readonly link: string;
     readonly bookTitle: string;
+    readonly paidSite: string;
     /** Confirm was pressed with the fields as they were: an invalid field then shows its error. */
     readonly attempted: boolean;
     /** Each Confirm over an unusable field raises it, so a second failed Confirm moves focus again; the field lowers it. */
@@ -219,7 +248,15 @@ export type StatementSheetPhase = 'choosing' | 'answered' | 'fieldError' | 'busy
 
 /** The sheet as it opens. */
 export function initialSheet(): StatementSheetState {
-    return { answer: undefined, link: '', bookTitle: '', attempted: false, focusPending: false, status: 'idle' };
+    return {
+        answer: undefined,
+        link: '',
+        bookTitle: '',
+        paidSite: '',
+        attempted: false,
+        focusPending: false,
+        status: 'idle',
+    };
 }
 
 /** What can happen to the sheet. */
@@ -227,6 +264,7 @@ export type StatementSheetAction =
     | { readonly type: 'choose'; readonly answer: StatementAnswer }
     | { readonly type: 'link'; readonly text: string }
     | { readonly type: 'bookTitle'; readonly text: string }
+    | { readonly type: 'paidSite'; readonly text: string }
     | { readonly type: 'attempt' }
     | { readonly type: 'focusHandled' }
     | { readonly type: 'busy' }
@@ -248,6 +286,8 @@ export function sheetReducer(state: StatementSheetState, action: StatementSheetA
             return { ...state, link: action.text };
         case 'bookTitle':
             return { ...state, bookTitle: action.text };
+        case 'paidSite':
+            return { ...state, paidSite: action.text };
         case 'attempt':
             return { ...state, attempted: true, focusPending: true };
         case 'focusHandled':

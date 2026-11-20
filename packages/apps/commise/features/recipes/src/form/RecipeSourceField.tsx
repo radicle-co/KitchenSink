@@ -19,6 +19,7 @@ import { FieldLabel, Input, fieldHintId } from '@commise/ui/input';
 import { SOURCE_LINK_INPUT_MAX_LENGTH } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
+import { recipeActionMessages } from '../actions/messages.js';
 import { editorMessages } from '../editor/messages.js';
 import { sourceErrorId, sourceNoteId } from './fieldErrorIds.js';
 import { describedByOf, sourceFieldId } from './fieldIds.js';
@@ -27,6 +28,7 @@ import type { RecipeSourceFieldProps } from './sourceFieldProps.js';
 /** The Source row. */
 export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({ row, onChange, onRemove, onTouched }) => {
     const { source: m } = useMessages(editorMessages);
+    const { sourceStatement: answers } = useMessages(recipeActionMessages);
 
     if (row.kind === 'hidden') {
         return null;
@@ -46,6 +48,17 @@ export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({ row, onChange, o
                     {fillTemplate(m.openLinkWeb, { site: row.site })}
                 </a>
                 <span className="min-w-0 break-all text-caption text-ink-muted">{row.url}</span>
+                <p className="text-caption text-ink-muted">{m.locked}</p>
+            </div>
+        );
+    }
+
+    if (row.kind === 'lockedCitation') {
+        return (
+            <div className="flex flex-col gap-1">
+                <span className="text-label text-ink-muted">{m.label}</span>
+                <span className="text-body-sm font-medium text-ink">{answers.answerPaidSite}</span>
+                <span className="min-w-0 break-words text-caption text-ink-muted">{row.citation}</span>
                 <p className="text-caption text-ink-muted">{m.locked}</p>
             </div>
         );

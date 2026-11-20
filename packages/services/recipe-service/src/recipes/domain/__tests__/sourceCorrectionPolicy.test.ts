@@ -36,6 +36,7 @@ const NONE: StoredSource = {
     sourceKind: null,
     statementKind: null,
     clonedFromId: null,
+    sourceAttribution: null,
 };
 
 /** The stored source as a recipe published once holds it. The policy reads no first-publish fact, so this must change nothing. */
@@ -465,5 +466,53 @@ describe('evaluateSourceCorrection — a cookbook, or another person, before the
                 }),
             }),
         ).toEqual({ kind: 'locked' });
+    });
+});
+
+describe('evaluateSourceCorrection — a paid site stated again', () => {
+    const PAID_SITE = {
+        kind: 'paid_site',
+        citation: 'Sam’s Subscription Kitchen',
+        wording: { version: 'statementPaidSite.v1', locale: 'en' },
+    } as const;
+    const HELD = stored({
+        sourceType: 'imported_paid',
+        sourceKind: 'paid_site',
+        statementKind: 'source',
+        sourceAttribution: 'Sam’s Subscription Kitchen',
+    });
+
+    it('the identical statement is unchanged, so a resend does not meet the lock it made', () => {
+        expect(evaluateSourceCorrection({ statement: PAID_SITE, stored: HELD })).toEqual({ kind: 'unchanged' });
+        expect(evaluateSourceCorrection({ statement: PAID_SITE, stored: publishedOnce(HELD) })).toEqual({
+            kind: 'unchanged',
+        });
+    });
+
+    it('compares the citation as stored, outer spaces included, because the write stores it as sent', () => {
+        const spaced = { ...PAID_SITE, citation: ' Sam’s Subscription Kitchen ' };
+
+        expect(
+            evaluateSourceCorrection({
+                statement: spaced,
+                stored: { ...HELD, sourceAttribution: ' Sam’s Subscription Kitchen ' },
+            }),
+        ).toEqual({ kind: 'unchanged' });
+        expect(evaluateSourceCorrection({ statement: spaced, stored: HELD }).kind).toBe('locked');
+    });
+
+    it('a different citation, a book, a clear and "I wrote this" over it stay locked', () => {
+        expect(
+            evaluateSourceCorrection({ statement: { ...PAID_SITE, citation: 'Another site' }, stored: HELD }).kind,
+        ).toBe('locked');
+        expect(evaluateSourceCorrection({ statement: BOOK, stored: HELD }).kind).toBe('locked');
+        expect(evaluateSourceCorrection({ statement: null, stored: HELD }).kind).toBe('locked');
+        expect(evaluateSourceCorrection({ statement: AUTHORED, stored: HELD }).kind).toBe('locked');
+    });
+
+    it('is locked when the stored citation is unknown, never unchanged on a guess', () => {
+        expect(
+            evaluateSourceCorrection({ statement: PAID_SITE, stored: { ...HELD, sourceAttribution: null } }).kind,
+        ).toBe('locked');
     });
 });

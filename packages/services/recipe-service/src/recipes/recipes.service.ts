@@ -543,6 +543,7 @@ function storedSourceOf(row: LockedRecipeFacts): StoredSource {
         sourceKind: row.sourceKind,
         statementKind: row.statementKind,
         clonedFromId: row.clonedFromId,
+        sourceAttribution: row.sourceAttribution,
     };
 }
 
@@ -1403,6 +1404,7 @@ export class RecipesService {
             sourceKind: existing.recipe.sourceKind,
             statementKind: existing.recipe.statementKind,
             clonedFromId: existing.recipe.clonedFromId,
+            sourceAttribution: existing.recipe.sourceAttribution,
         };
         const correction = refuseUnusable(evaluateSourceCorrection({ statement: dto.statement, stored: storedSource }));
 

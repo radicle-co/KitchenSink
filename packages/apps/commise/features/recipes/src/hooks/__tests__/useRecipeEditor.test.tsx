@@ -4604,7 +4604,7 @@ describe('the source question on Publish (ADR-0095)', () => {
 
         expect(result.current.statementAsk).toBe(false);
         expect(result.current.confirmLineShown).toBe(false);
-        const { input } = port.submitted[0]?.payload as { input: Record<string, unknown> };
+        const { input } = (port.submitted[0]?.payload ?? {}) as { input: Record<string, unknown> };
         expect(input).toMatchObject({
             status: 'published',
             visibility: RecipeVisibility.PUBLIC,
@@ -4633,6 +4633,43 @@ describe('the source question on Publish (ADR-0095)', () => {
         expect(port.submitted[0]).toMatchObject({
             payload: {
                 input: { status: 'published', visibility: RecipeVisibility.PRIVATE, statement: { kind: 'book' } },
+            },
+        });
+    });
+
+    it('⛔ a paid-site answer is held as stated from the confirm, goes out Private with its statement, and is not stated before', async () => {
+        const { result, port } = mount();
+        const paid = {
+            statement: {
+                kind: 'paid_site',
+                citation: 'Sam’s Subscription Kitchen',
+                wording: { version: 'statementPaidSite.v1', locale: 'en' },
+            },
+            visibility: RecipeVisibility.PRIVATE,
+        } as const;
+
+        act(() => {
+            result.current.setValues(pasted());
+        });
+        act(() => {
+            result.current.publish('');
+        });
+
+        expect(result.current.paidSiteStated).toBeUndefined();
+
+        act(() => {
+            result.current.answerStatement(paid);
+        });
+        await settle();
+
+        expect(result.current.paidSiteStated).toBe('Sam’s Subscription Kitchen');
+        expect(port.submitted[0]).toMatchObject({
+            payload: {
+                input: {
+                    status: 'published',
+                    visibility: RecipeVisibility.PRIVATE,
+                    statement: { kind: 'paid_site', citation: 'Sam’s Subscription Kitchen' },
+                },
             },
         });
     });
@@ -4685,7 +4722,7 @@ describe('the source question on Publish (ADR-0095)', () => {
         });
         await settle();
 
-        const { input } = port.submitted[0]?.payload as { input: Record<string, unknown> };
+        const { input } = (port.submitted[0]?.payload ?? {}) as { input: Record<string, unknown> };
         expect(input).not.toHaveProperty('statement');
         expect(input).toMatchObject({ visibility: RecipeVisibility.PRIVATE });
     });
@@ -4704,7 +4741,7 @@ describe('the Source row’s link sends no wording (ADR-0095)', () => {
         });
         await settle();
 
-        const { input } = port.submitted[0]?.payload as { input: { statement?: Record<string, unknown> } };
+        const { input } = (port.submitted[0]?.payload ?? {}) as { input: { statement?: Record<string, unknown> } };
 
         expect(input.statement).toEqual({ kind: 'public_web', citation: 'https://www.allrecipes.com/recipe/1/soup/' });
     });

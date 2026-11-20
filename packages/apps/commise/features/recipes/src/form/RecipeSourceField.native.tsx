@@ -24,6 +24,7 @@ import { SOURCE_LINK_INPUT_MAX_LENGTH } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 import { styled, YStack } from 'tamagui';
 
+import { recipeActionMessages } from '../actions/messages.js';
 import { editorMessages } from '../editor/messages.js';
 import { openExternalUrl } from '../detail/openExternalUrl.native.js';
 import { sourceErrorId, sourceNoteId } from './fieldErrorIds.js';
@@ -52,6 +53,7 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
     onOpen = openExternalUrl,
 }) => {
     const { source: m } = useMessages(editorMessages);
+    const { sourceStatement: answers } = useMessages(recipeActionMessages);
 
     if (row.kind === 'hidden') {
         return null;
@@ -74,6 +76,25 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
                 </PressScale>
                 <Text typeRole="meta" color="$inkMuted" flexShrink={1}>
                     {row.url}
+                </Text>
+                <Text typeRole="meta" color="$inkMuted">
+                    {m.locked}
+                </Text>
+            </Column>
+        );
+    }
+
+    if (row.kind === 'lockedCitation') {
+        return (
+            <Column>
+                <Text typeRole="label" color="$inkMuted">
+                    {m.label}
+                </Text>
+                <Text typeRole="body" color="$ink">
+                    {answers.answerPaidSite}
+                </Text>
+                <Text typeRole="meta" color="$inkMuted" flexShrink={1}>
+                    {row.citation}
                 </Text>
                 <Text typeRole="meta" color="$inkMuted">
                     {m.locked}

@@ -50,7 +50,8 @@ export interface ShownWordings {
     /**
      * The statement the cook gave in the source-statement sheet (ADR-0095), with the wording it showed. It beats the Source
      * field's own, and rides only a write that publishes: a draft checkpoint carries none, so a statement is stated and
-     * recorded once and a server that holds "I wrote this" is never owed its confirmation by a second one.
+     * recorded once and a server that holds "I wrote this" is never owed its confirmation by a second one. The one exception
+     * is a paid site, which rides any write until the server holds it.
      */
     readonly statement?: RecipeStatementInput;
 }
@@ -137,8 +138,22 @@ export const toCreateRecipeInput = (
 const sheetStatementOf = (
     shown: ShownWordings,
     status: RecipeStatus | undefined,
-): { readonly statement: RecipeStatementInput } | undefined =>
-    shown.statement !== undefined && status === RecipeStatus.PUBLISHED ? { statement: shown.statement } : undefined;
+    recipe?: { readonly sourceKind?: string | null },
+): { readonly statement: RecipeStatementInput } | undefined => {
+    const { statement } = shown;
+
+    if (statement === undefined) {
+        return undefined;
+    }
+
+    // A paid site locks at the confirm (it cannot be changed after), so it rides the next write of any kind until the server
+    // holds it. After that the write has nothing to add, so it is left out.
+    if (statement.kind === 'paid_site') {
+        return recipe?.sourceKind === 'paid_site' ? undefined : { statement };
+    }
+
+    return status === RecipeStatus.PUBLISHED ? { statement } : undefined;
+};
 
 /**
  * The passive Public confirmation (attestation record, migration 0088): sent when the write can leave the recipe published
@@ -226,7 +241,7 @@ export const toUpdateRecipeInput = (
         ...(status === RecipeStatus.PUBLISHED ? publicConfirmationOf(values, status, shown.publicConfirmation) : {}),
         // ⛔ A change of source, never the create's statement (ADR-0089): only before the first publish, `null` to remove one
         // the server holds, and nothing at all when the caller does not say which recipe this updates.
-        ...(sheetStatementOf(shown, status) ??
+        ...(sheetStatementOf(shown, status, recipe) ??
             (recipe === undefined ? {} : updateStatementOf(values, recipe, shown.statementWording))),
         // ⛔ A pasted line's source is CREATE-ONLY (ADR-0023's shape, blueprint A5): a PATCH that re-asserted it could
         // steer the cross-user memo, and the strict update contract refuses the keys outright, so every save after a

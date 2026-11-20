@@ -999,12 +999,23 @@ describe('RecipeEditorSurface — the source question (ADR-0095)', () => {
         expect(screen.queryByRole('dialog', { name: 'Where is this recipe from?' })).toBeNull();
     });
 
-    it('opens the sheet with the five editor answers while the editor asks', async () => {
+    it('opens the sheet with the six editor answers while the editor asks', async () => {
         mount({ editorOver: { statementAsk: true } });
 
         const sheet = await screen.findByRole('dialog', { name: 'Where is this recipe from?' });
 
-        expect(within(sheet).getAllByRole('radio')).toHaveLength(5);
+        expect(
+            within(sheet)
+                .getAllByRole('radio')
+                .map((radio) => radio.textContent),
+        ).toEqual([
+            expect.stringContaining('I wrote this'),
+            expect.stringContaining('From a web page'),
+            expect.stringContaining('From a paid website'),
+            expect.stringContaining('From a cookbook or magazine'),
+            expect.stringContaining('From another person'),
+            expect.stringContaining('Publish privately'),
+        ]);
     });
 
     it('Confirm hands the editor the answer, and Close dismisses without answering', async () => {

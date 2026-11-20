@@ -9,6 +9,7 @@
  * @pattern Presentation model — one pure projection of the state and the copy, rendered by two leaves
  */
 import type { RadioListOption } from '@commise/ui/radio-list';
+import { SOURCE_LINK_MAX_LENGTH } from '@kitchensink/recipe-core';
 
 import type { EditorMessages } from '../editor/messages.js';
 import type { SourceStatementMessages } from './messages.js';
@@ -23,7 +24,7 @@ import {
 
 /** The field an answer reveals. */
 interface StatementFieldView {
-    readonly kind: 'link' | 'bookTitle';
+    readonly kind: 'link' | 'bookTitle' | 'paidSite';
     readonly label: string;
     readonly value: string;
     /** The error to say, when the cook has pressed Confirm over a field that cannot be used. */
@@ -32,6 +33,8 @@ interface StatementFieldView {
     readonly focusRequested: boolean;
     readonly inputMode: 'url' | 'text';
     readonly autoCapitalize: 'none' | 'sentences';
+    /** The most the field takes: the server's citation bound, so a longer one cannot be typed or pasted. */
+    readonly maxLength?: number;
 }
 
 /**
@@ -63,6 +66,7 @@ export interface StatementSheetView {
 const LABEL_KEY = {
     authored: 'answerAuthored',
     publicWeb: 'answerWeb',
+    paidSite: 'answerPaidSite',
     book: 'answerBook',
     fromPerson: 'answerPerson',
     publishPrivately: 'answerPublishPrivately',
@@ -72,6 +76,7 @@ const LABEL_KEY = {
 const HINT_KEY = {
     authored: 'hintAuthored',
     publicWeb: 'hintPrivate',
+    paidSite: 'hintPaidSite',
     book: 'hintPrivate',
     fromPerson: 'hintPerson',
     publishPrivately: undefined,
@@ -92,6 +97,10 @@ function fieldErrorTextOf(
 ): string {
     if (error.field === 'bookTitle') {
         return m.bookTitleError;
+    }
+
+    if (error.field === 'paidSite') {
+        return m.paidSiteError;
     }
 
     return { required: shared.source.invalid, invalid: shared.source.invalid, ownSite: shared.source.ownSite }[
@@ -129,6 +138,18 @@ function fieldViewOf(
         };
     }
 
+    if (state.answer === 'paidSite') {
+        return {
+            kind: 'paidSite',
+            label: m.paidSiteLabel,
+            value: state.paidSite,
+            inputMode: 'text',
+            autoCapitalize: 'sentences',
+            maxLength: SOURCE_LINK_MAX_LENGTH,
+            ...shown,
+        };
+    }
+
     if (state.answer === 'book') {
         return {
             kind: 'bookTitle',
@@ -136,6 +157,7 @@ function fieldViewOf(
             value: state.bookTitle,
             inputMode: 'text',
             autoCapitalize: 'sentences',
+            maxLength: SOURCE_LINK_MAX_LENGTH,
             ...shown,
         };
     }

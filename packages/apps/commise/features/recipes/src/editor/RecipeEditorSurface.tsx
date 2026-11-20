@@ -209,7 +209,8 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     });
 
     // Whether a pasted link can still become the Source: false once it cannot be corrected (the curator's text, a paid site, a clone's).
-    const offersSource = source.row.kind !== 'locked' && source.row.kind !== 'hidden';
+    const offersSource =
+        source.row.kind !== 'locked' && source.row.kind !== 'lockedCitation' && source.row.kind !== 'hidden';
     // What a paste did to the Source, drawn under the paste control the cook used; Remove only where it can be undone.
     const noticeUnder = (origin: PasteOrigin): ReactNode =>
         source.notice?.origin === origin ? (

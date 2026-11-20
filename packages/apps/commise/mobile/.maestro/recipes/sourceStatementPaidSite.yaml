@@ -1,0 +1,124 @@
+appId: ${APP_ID}
+---
+# A cook states a paid website as the source (004-FR-014a, #374). The sheet's sixth answer, a blank citation refused at the
+# field, a citation confirmed (the recipe goes out Private, and the answer is locked from the confirm), then the editor's
+# Source row shows the citation as plain text with the locked line and no field. Mobile mirror of the web Playwright case
+# `recipeSourceFromPaste.spec.ts` "a paid-website answer ...". The pure decisions are the component tests' subject.
+#
+# What only a device proves: the sheet over the editor with the keyboard up, the new row reachable on a small phone, the
+# error read at the field, and the locked row on a reopened editor. The signer is Pro (`visibility.yaml`). Reseeded before it runs.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Paid Site Soup'
+- runFlow: common/chooseCuisine.yaml
+- runFlow: common/addTomatoAndStep.yaml
+
+# Paste one more step, so the draft is a pasted one.
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Steps'
+- tapOn: 'Paste steps'
+- tapOn:
+      text: 'Steps'
+      below: 'Paste steps'
+- inputText: 'Simmer the stock.'
+- assertVisible: 'Add 1 step'
+- tapOn: 'Add 1 step'
+- extendedWaitUntil:
+      notVisible: 'Add 1 step'
+      timeout: 20000
+
+# Publish asks first.
+- runFlow: common/closeEditorKeyboard.yaml
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Publish'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible: 'Where is this recipe from?'
+      timeout: 20000
+- assertVisible: 'From a paid website'
+- tapOn: 'From a paid website'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'From a paid website'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'radio button, checked'
+                above: 'From a cookbook or magazine'
+
+# A blank citation is refused at the field.
+- tapOn:
+      text: 'Publish'
+      below: 'Where is this recipe from?'
+- extendedWaitUntil:
+      visible: 'Add the website’s name or address.'
+      timeout: 10000
+- assertVisible: 'Where is this recipe from?'
+
+# A citation confirms: the recipe goes out Private.
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Website name or address'
+          TEXT: 'Sams Subscription Kitchen'
+- tapOn:
+      text: 'Publish'
+      below: 'Where is this recipe from?'
+      waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Paid Site Soup.*'
+      timeout: 40000
+- extendedWaitUntil:
+      visible:
+          text: '^Private$'
+      timeout: 40000
+
+# The reopened editor shows the Source locked: the citation as plain text, the reason, and no field.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Edit recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Photos & publish'
+# Scroll to the LAST line of the locked row, so the answer and the citation above it are on screen (the action bar hides
+# the top of the row when the answer alone is scrolled to).
+- scrollUntilVisible:
+      element: 'The source of this recipe can’t be changed.'
+      direction: DOWN
+      centerElement: true
+      timeout: 30000
+- assertVisible: 'From a paid website'
+- assertVisible: 'Sams Subscription Kitchen'
+- assertVisible: 'The source of this recipe can’t be changed.'
+- assertNotVisible: 'Copied this recipe from a web page.*'

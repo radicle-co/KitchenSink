@@ -15,7 +15,7 @@
  */
 import 'reflect-metadata';
 
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
@@ -186,6 +186,8 @@ beforeAll(async () => {
                             sourceKind: row.sourceKind,
                             statementKind: row.statementKind,
                             contentPastedAt: row.contentPastedAt,
+                            clonedFromId: row.clonedFromId,
+                            sourceAttribution: row.sourceAttribution,
                         };
                     },
                     setVisibility,
@@ -851,6 +853,129 @@ describe('the evidence rule: a cleared source does not make a copied recipe the 
             capture: 'importFile',
             sourceKind: 'book',
             citation: 'Joy of Cooking',
+        });
+    });
+});
+
+/**
+ * A paid website the cook states in the editor (`004-FR-014a` statement 5, #374 option B): the same route as a book, one more
+ * `kind`. The expected rows come from the spec and the plan's AE1 to AE11, not from the resolver's own output.
+ */
+describe('a paid-site statement on the recipe routes (#374, #376)', () => {
+    const CITATION = 'Sam’s Subscription Kitchen, March issue';
+    const PAID = {
+        kind: 'paid_site',
+        citation: CITATION,
+        wording: { version: 'statementPaidSite.v1', locale: 'en' },
+    } as const;
+    const PAID_ROW = {
+        sourceType: 'imported_paid',
+        sourceKind: 'paid_site',
+        sourceAttribution: CITATION,
+        statementKind: 'source',
+    } as const;
+
+    it('AE1: create stores imported_paid, the citation as attribution and no address, Private, with one editorCitation row', async () => {
+        const response = await call('POST', '/api/v1/recipes', {
+            ...DRAFT_BODY,
+            visibility: 'private',
+            statement: PAID,
+        });
+
+        expect(response.status).toBe(201);
+        expect(create).toHaveBeenCalledWith(
+            expect.objectContaining({ ...PAID_ROW, sourceUrl: null, visibility: 'private' }),
+            expect.anything(),
+        );
+        expect(insertEvidence).toHaveBeenCalledTimes(1);
+        expect(insertEvidence.mock.calls[0]?.[1]).toMatchObject({
+            capture: 'editorCitation',
+            sourceKind: 'paid_site',
+            citation: CITATION,
+        });
+        expect(insertEvidence.mock.calls[0]?.[1]).not.toHaveProperty('sourceUrl');
+        expect(insertEvidence.mock.calls[0]?.[1]).not.toHaveProperty('sourceDomain');
+    });
+
+    it('AE10: a citation that is a web address stays attribution text and fills no address or domain', async () => {
+        const link = 'https://paid.example/recipe';
+        const response = await call('POST', '/api/v1/recipes', {
+            ...DRAFT_BODY,
+            visibility: 'private',
+            statement: { ...PAID, citation: link },
+        });
+
+        expect(response.status).toBe(201);
+        expect(create).toHaveBeenCalledWith(
+            expect.objectContaining({ sourceAttribution: link, sourceUrl: null }),
+            expect.anything(),
+        );
+        expect(insertEvidence.mock.calls[0]?.[1]).not.toHaveProperty('sourceUrl');
+        expect(insertEvidence.mock.calls[0]?.[1]).not.toHaveProperty('sourceDomain');
+    });
+
+    it('AE2: a blank citation is refused with 400 naming the citation, and nothing is written', async () => {
+        const response = await call('POST', '/api/v1/recipes', {
+            ...DRAFT_BODY,
+            statement: { ...PAID, citation: '  ' },
+        });
+        const body = JSON.stringify(await response.json());
+
+        expect(response.status).toBe(400);
+        expect(body).toContain('citation');
+        expect(create).not.toHaveBeenCalled();
+    });
+
+    it('AE4: a paid-site recipe cannot be created Public', async () => {
+        const response = await call('POST', '/api/v1/recipes', {
+            ...DRAFT_BODY,
+            visibility: 'public',
+            statement: PAID,
+        });
+
+        expect(await refusalOf(response)).toMatchObject({ status: 400, code: 'INVALID_VISIBILITY' });
+        expect(create).not.toHaveBeenCalled();
+    });
+
+    describe('once stated, the answer is locked (P4 unlocks it)', () => {
+        beforeEach(() => {
+            stored = makeRecipeRow({
+                id: RECIPE_ID,
+                ownerId: COOK,
+                status: 'draft',
+                visibility: 'private',
+                ...PAID_ROW,
+                sourceUrl: null,
+            });
+        });
+
+        it('the identical statement again is a 200 and writes nothing: a resend does not meet the lock', async () => {
+            stored = makeRecipeRow({ ...stored, sourceAttribution: CITATION });
+
+            const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+                expectedVersion: 1,
+                statement: PAID,
+            });
+
+            expect(response.status).toBe(200);
+            expect(insertEvidence).not.toHaveBeenCalled();
+            expect(stored).toMatchObject(PAID_ROW);
+        });
+
+        it.each([
+            ['AE7: "I wrote this"', { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } }],
+            [
+                'AE11: a book with a citation',
+                { kind: 'book', citation: 'Joy of Cooking', wording: { version: 'statementBook.v1', locale: 'en' } },
+            ],
+            ['a web page', STATEMENT],
+        ])('refuses a change to %s with 403 SOURCE_LOCKED and writes nothing', async (_name, statement) => {
+            const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement });
+
+            expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+            expect(update).not.toHaveBeenCalled();
+            expect(insertEvidence).not.toHaveBeenCalled();
+            expect(stored).toMatchObject(PAID_ROW);
         });
     });
 });

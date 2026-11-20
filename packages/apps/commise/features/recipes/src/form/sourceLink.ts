@@ -32,7 +32,7 @@ import type { RecipeFormValues } from './values.js';
 /** What the recipe the editor holds says of its source: the server's own answer, `undefined` before the first save. */
 type StoredRecipe = Pick<
     RecipeDetail,
-    'status' | 'sourceType' | 'sourceKind' | 'sourceUrl' | 'clonedFromId' | 'publicNeedsCheck'
+    'status' | 'sourceType' | 'sourceKind' | 'sourceUrl' | 'sourceAttribution' | 'clonedFromId' | 'publicNeedsCheck'
 >;
 
 type PublicWebStatement = Extract<RecipeStatementInput, { kind: 'public_web' }>;
@@ -259,6 +259,8 @@ export type SourceRowModel =
     | { readonly kind: 'hidden' }
     /** A locked web source: its site as a link and the address, read only. */
     | { readonly kind: 'locked'; readonly site: string; readonly url: string }
+    /** A locked paid website: its citation as plain text, with no address to open. */
+    | { readonly kind: 'lockedCitation'; readonly citation: string }
     | { readonly kind: 'empty'; readonly text: string }
     | { readonly kind: 'filled'; readonly text: string; readonly site: string; readonly fromPaste: boolean }
     | { readonly kind: 'invalid'; readonly text: string }
@@ -280,10 +282,20 @@ export function sourceRowOf(input: {
      * While they type it is plain text, because a half-typed address is not a mistake yet.
      */
     readonly showError: boolean;
+    /** The citation of a paid website the cook has confirmed and no write has yet carried: locked from the confirm. */
+    readonly paidSiteStated?: string;
 }): SourceRowModel {
-    const { values, recipe, fromPaste, showError } = input;
+    const { values, recipe, fromPaste, showError, paidSiteStated } = input;
+
+    if (paidSiteStated !== undefined) {
+        return { kind: 'lockedCitation', citation: paidSiteStated };
+    }
 
     if (sourceIsLocked(recipe)) {
+        if (recipe?.sourceKind === 'paid_site') {
+            return { kind: 'lockedCitation', citation: recipe.sourceAttribution ?? '' };
+        }
+
         const stored = heldAsWebCopy(recipe) ? parseSourceLink(recipe?.sourceUrl ?? '') : undefined;
 
         return stored?.ok === true

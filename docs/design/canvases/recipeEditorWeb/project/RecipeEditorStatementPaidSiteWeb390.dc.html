@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, where it’s from: a paid website (web, 390)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <style id="redesignOverrides">
+            /* Redesign: type ramp 13 / 15 / 17 for form controls and for the native text classes (react-native-web
+               atomic classes), weights up to 600. Redundant once typeRole in the native bundle follows the ramp. */
+            input,
+            textarea,
+            select,
+            button {
+                font-size: 16px;
+            }
+            .r-1gkfh8e,
+            .r-1enofrn {
+                font-size: 14px !important;
+            }
+            .r-1b43r93 {
+                font-size: 16px !important;
+            }
+            /* No-photo cover (spec, Surfaces): a sky-to-coral gradient, a photo icon in a paper disc and "Waiting for its
+               photo". Never a letter tile. Reworks the component output with CSS only. */
+            [class*='bg-cover-'][aria-hidden='true'],
+            [aria-hidden='true'][style*='aspect-ratio'],
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) {
+                background: linear-gradient(135deg, var(--cover-sky), var(--cover-peach)) !important;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:first-child,
+            [aria-hidden='true'][style*='aspect-ratio'] > div:first-child,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:first-child {
+                position: relative;
+                display: block;
+                width: 48px;
+                height: 48px;
+                flex: none;
+                border-radius: 50%;
+                background: var(--paper);
+                font-size: 14px !important;
+                line-height: 20px !important;
+                color: transparent;
+                text-indent: 100%;
+                overflow: hidden;
+                white-space: nowrap;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:first-child::before,
+            [aria-hidden='true'][style*='aspect-ratio'] > div:first-child::before,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:first-child::before {
+                content: '';
+                position: absolute;
+                inset: 12px;
+                background: var(--ink-muted);
+                -webkit-mask: var(--photo-icon) center / contain no-repeat;
+                mask: var(--photo-icon) center / contain no-repeat;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:nth-child(2),
+            [aria-hidden='true'][style*='aspect-ratio'] > div:nth-child(2),
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:nth-child(2) {
+                display: none !important;
+            }
+            [class*='bg-cover-'][aria-hidden='true']::after,
+            [aria-hidden='true'][style*='aspect-ratio']::after,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px'])::after {
+                content: 'Waiting for its photo';
+                font-size: 14px;
+                line-height: 20px;
+                color: var(--ink-muted);
+                text-align: center;
+            }
+            [aria-hidden='true'][style*='aspect-ratio: 1 / 1']::after {
+                display: none;
+            }
+            @container cover (max-height: 6rem) {
+                [class*='bg-cover-'][aria-hidden='true']::after {
+                    display: none;
+                }
+            }
+            :root {
+                --photo-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='3'/%3E%3Ccircle cx='9' cy='10' r='1.5'/%3E%3Cpath d='M21 16l-5-5-8 8'/%3E%3C/svg%3E");
+            }
+            [style*='font-variant-numeric: tabular-nums'] {
+                font-size: 16px !important;
+            }
+            /* Editor sections are cards on the canvas (spec row 15); the title field is the one 28 title as you type. */
+            .ed-col {
+                max-width: 720px;
+            }
+            .ed-col > section,
+            [style*='gap: 24px'][style*='padding: 16px 16px'] > .sc-host-x > div {
+                background: var(--paper);
+                border-radius: var(--radius-lg);
+                box-shadow: var(--shadow-md);
+                padding: 20px 16px;
+            }
+            textarea#title,
+            input#title,
+            textarea#recipe-title,
+            input#recipe-title {
+                font: 600 28px/32px var(--font-display) !important;
+            }
+            .sr-only,
+            .r-109y4c4 {
+                font-size: 14px !important;
+            }
+            script {
+                display: none;
+            }
+            .r-ubezar,
+            .r-1i10wst,
+            .r-adyw6z,
+            .r-1x35g6 {
+                font-size: 16px !important;
+            }
+        
+.p3, .p3 * { box-sizing: border-box; }
+.p3 { width: 100%; text-align: left; display: flex; flex-direction: column; gap: 32px; padding: 24px 16px 32px; font: 400 16px/24px var(--font-body); color: var(--ink); }
+/* The recipe page's device frame draws its status bar over the top of `.rd`. */
+.nv-device .rd > .p3 { padding-top: 64px; }
+.p3.wide { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; padding: 28px 32px 40px; align-items: start; }
+.p3 p, .p3 h2, .p3 ul { margin: 0; }
+.p3 ul { padding: 0; list-style: none; }
+.p3 svg { width: 20px; height: 20px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.p3 .p3-cap { font-size: 14px; line-height: 20px; color: var(--ink-muted); margin: 0 0 8px; }
+.p3 .p3-stage { display: flex; justify-content: center; align-items: flex-start; border-radius: var(--radius-lg); overflow: hidden; background: var(--scrim); padding: 28px 20px; }
+.p3 .p3-stage.p3-bottom { padding: 28px 0 0; align-items: flex-end; }
+.p3 .p3-stage.p3-plain { background: var(--canvas); box-shadow: inset 0 0 0 1px var(--line-divider); padding: 20px; }
+.p3 .p3-dlg, .p3 .p3-bs { display: flex; flex-direction: column; gap: 16px; background: var(--paper-overlay); }
+.p3 .p3-dlg { width: 448px; max-width: 100%; padding: 24px; border-radius: var(--radius-xl); box-shadow: var(--shadow-xl); }
+.p3 .p3-bs { width: 100%; padding: 8px 16px 24px; border-radius: 24px 24px 0 0; }
+.p3 .p3-grab { width: 36px; height: 5px; border-radius: 3px; background: var(--line-divider); margin: 0 auto; }
+.p3 .p3-hd { display: flex; align-items: flex-start; gap: 8px; }
+.p3 .p3-hd h2 { flex: 1; min-width: 0; font: 600 18px/24px var(--font-display); padding-top: 10px; }
+.p3 .p3-x { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: var(--ink-muted); margin-right: -10px; }
+.p3 .p3-opts { display: flex; flex-direction: column; gap: 8px; }
+.p3 .p3-opt { display: flex; align-items: flex-start; gap: 12px; min-height: 48px; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line-control); background: var(--paper); }
+.p3 .p3-opt[aria-checked='true'] { border-color: var(--selected-edge); background: var(--selected-fill); }
+.p3 .p3-opt[aria-disabled='true'] { opacity: 0.6; }
+.p3 .p3-dot { width: 20px; height: 20px; flex: none; margin-top: 2px; border-radius: 50%; border: 2px solid var(--line-control); background: var(--paper); }
+.p3 .p3-opt[aria-checked='true'] .p3-dot { border: 6px solid var(--ink); }
+.p3 .p3-grow { flex: 1; min-width: 0; }
+.p3 .p3-t { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.p3 .p3-h { display: block; font-size: 14px; line-height: 20px; color: var(--ink-muted); overflow-wrap: anywhere; }
+.p3 .p3-lbl { display: block; font: 600 14px/20px var(--font-body); color: var(--ink-muted); margin-bottom: 4px; }
+.p3 .p3-inp { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-control); background: var(--paper); color: var(--ink-muted); }
+.p3 .p3-inp.p3-on { color: var(--ink); }
+.p3 .p3-inp.p3-bad { border: 2px solid var(--danger); box-shadow: 0 0 0 3px var(--focus-ring); }
+.p3 .p3-err { margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--danger-text); }
+.p3 .p3-eff { font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+.p3 .p3-acts { display: flex; gap: 12px; }
+.p3 .p3-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: var(--radius-md); font-weight: 600; }
+.p3 .p3-btn.p3-primary { background: var(--action); color: var(--on-action); }
+.p3 .p3-btn.p3-secondary { background: var(--paper); box-shadow: inset 0 0 0 1px var(--line-divider), var(--shadow-sm); }
+.p3 .p3-card { display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 560px; }
+.p3 .p3-src { display: flex; flex-direction: column; gap: 4px; }
+.p3 .p3-lock { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+.p3 .p3-lock svg { width: 16px; height: 16px; margin-top: 2px; }
+.p3 .p3-menu { width: 100%; max-width: 320px; background: var(--paper-overlay); border-radius: var(--radius-lg); box-shadow: var(--shadow-xl); padding: 8px 0; }
+.p3 .p3-menu li { display: flex; align-items: center; min-height: 48px; padding: 0 16px; }
+.p3 .p3-menu li.p3-del { color: var(--danger-text); border-top: 1px solid var(--line-divider); }
+</style>
+    <link rel="stylesheet" href="ds/commise/redesign.css" /></head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/24px var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    h2,
+                    h3,
+                    p,
+                    ul {
+                        margin: 0;
+                    }
+                    ul {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .cap {
+                        font: 500 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                        margin-bottom: 8px;
+                    }
+                    .h3 {
+                        font: 600 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .body {
+                        font: 400 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .hint {
+                        font: 500 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .alert {
+                        font: 500 16px/24px var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .cluster {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .page {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 32px;
+                        padding: 16px 0 24px;
+                    }
+                    .fig {
+                        padding: 0 16px;
+                    }
+                    .cap {
+                        padding: 0;
+                    }
+                    .pm-grid {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: flex-start;
+                        gap: 10px;
+                    }
+                    .pm-tile {
+                        position: relative;
+                        width: 31%;
+                    }
+                    .pm-img {
+                        position: relative;
+                        overflow: hidden;
+                        aspect-ratio: 1 / 1;
+                        border-radius: 12px;
+                    }
+                    .pm-q {
+                        position: relative;
+                        overflow: hidden;
+                        aspect-ratio: 1 / 1;
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                    }
+                    .pm-fill {
+                        position: absolute;
+                        inset: 0;
+                    }
+                    .pm-menu {
+                        position: absolute;
+                        top: 2px;
+                        right: 2px;
+                    }
+                    .pm-cover {
+                        position: absolute;
+                        bottom: 6px;
+                        left: 6px;
+                        border-radius: 999px;
+                        background: var(--action);
+                        padding: 2px 8px;
+                        font: 600 14px/20px var(--font-body);
+                        color: var(--on-action);
+                    }
+                    .pm-removing {
+                        position: absolute;
+                        left: 6px;
+                        right: 6px;
+                        bottom: 6px;
+                        border-radius: 999px;
+                        background: var(--photo-chip);
+                        padding: 2px 0;
+                        text-align: center;
+                        font: 500 14px/20px var(--font-body);
+                        color: var(--ink);
+                    }
+                    .pm-status {
+                        position: absolute;
+                        top: 6px;
+                        left: 6px;
+                        border-radius: 999px;
+                        padding: 2px 8px;
+                        font: 500 14px/20px var(--font-body);
+                        background: var(--photo-chip);
+                        color: var(--ink);
+                    }
+                    .pm-status.bad {
+                        background: var(--danger);
+                        color: var(--on-action);
+                    }
+                    .pm-retry {
+                        position: absolute;
+                        left: 6px;
+                        right: 6px;
+                        bottom: 6px;
+                    }
+                    .pm-err {
+                        margin-top: 4px;
+                        padding: 0 2px;
+                        font: 500 14px/20px var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .pm-mi {
+                        display: flex;
+                        min-height: 48px;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 0 8px;
+                        font: 400 16px/24px var(--font-body);
+                        color: var(--ink);
+                    }
+                    .pm-mi.danger {
+                        color: var(--danger-text);
+                    }
+                    .pm-sep {
+                        height: 1px;
+                        margin: 4px 0;
+                        background: var(--line-divider);
+                    }
+                    .stage {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-end;
+                        width: 390px;
+                        min-height: 600px;
+                        background: var(--canvas);
+                        overflow: hidden;
+                    }
+                    .under {
+                        position: absolute;
+                        inset: 0;
+                        padding: 16px;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .sh {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        min-height: 0;
+                        max-height: 100%;
+                    }
+                    .src {
+                        display: flex;
+                        min-height: 56px;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 0 8px;
+                        font: 400 16px/24px var(--font-body);
+                        color: var(--ink);
+                    }
+                    .msgs {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .msg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        padding-top: 12px;
+                        border-top: 1px solid var(--line-divider);
+                    }
+                    .msg:first-child {
+                        padding-top: 0;
+                        border-top: 0;
+                    }
+                    .vl {
+                        font: 600 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .vt {
+                        font: 600 16px/20px var(--font-body);
+                        color: var(--ink);
+                    }
+                    .vh,
+                    .vn {
+                        font: 500 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                </style></helmet
+            >
+            <div class="page"><div class="p3"><div class="p3-fig" role="group" aria-label="Publish asks: six answers, none chosen. The paid website hint says the answer locks"><p class="p3-cap">Publish asks: six answers, none chosen. The paid website hint says the answer locks</p><div class="p3-stage p3-bottom"><div class="p3-bs" role="dialog" aria-modal="true"><div class="p3-grab"></div><div class="p3-hd"><h2>Where is this recipe from?</h2><span class="p3-x" role="button" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></span></div><p>Part of this recipe was pasted in. Before it goes public, tell us where it’s from.</p><div class="p3-opts" role="radiogroup" aria-label="Where is this recipe from?"><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">I wrote this</span><span class="p3-h">It’s my own recipe, in my own words, and any photos are mine. It isn’t copied from a website, book or another person. Goes public.</span></span></div><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">From a web page</span><span class="p3-h">Stays private to you.</span></span></div><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">From a paid website</span><span class="p3-h">A recipe from a website you pay for, like a subscription. Stays private to you. Once you confirm, this answer is locked.</span></span></div><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">From a cookbook or magazine</span><span class="p3-h">Stays private to you.</span></span></div><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">From another person</span><span class="p3-h">A recipe someone gave you, like family or a friend. Stays private to you.</span></span></div><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">Publish privately</span></span></div></div><p class="p3-eff">If your answer isn’t true, we can remove the recipe and limit your account.</p><div class="p3-acts"><span class="p3-btn p3-secondary">Keep as draft</span><span class="p3-btn p3-primary"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Publish</span></div></div></div></div><div class="p3-fig" role="group" aria-label="From a paid website chosen: the website field shows under the answers, empty"><p class="p3-cap">From a paid website chosen: the website field shows under the answers, empty</p><div class="p3-stage p3-bottom"><div class="p3-bs" role="dialog" aria-modal="true"><div class="p3-grab"></div><div class="p3-hd"><h2>Where is this recipe from?</h2><span class="p3-x" role="button" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></span></div><p>Part of this recipe was pasted in. Before it goes public, tell us where it’s from.</p><div class="p3-opts" role="radiogroup" aria-label="Where is this recipe from?"><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">I wrote this</span><span class="p3-h">It’s my own recipe, in my own words, and any photos are mine. It isn’t copied from a website, book or another person. Goes public.</span></span></div><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">From a web page</span><span class="p3-h">Stays private to you.</span></span></div><div class="p3-opt" role="radio" aria-checked="true"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">From a paid website</span><span class="p3-h">A recipe from a website you pay for, like a subscription. Stays private to you. Once you confirm, this answer is locked.</span></span></div><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">From a cookbook or magazine</span><span class="p3-h">Stays private to you.</span></span></div><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">From another person</span><span class="p3-h">A recipe someone gave you, like family or a friend. Stays private to you.</span></span></div><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">Publish privately</span></span></div></div><div><span class="p3-lbl">Website name or address</span><div class="p3-inp" role="textbox" aria-label="Website name or address"></div></div><p class="p3-eff">If your answer isn’t true, we can remove the recipe and limit your account.</p><div class="p3-acts"><span class="p3-btn p3-secondary">Keep as draft</span><span class="p3-btn p3-primary"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Publish</span></div></div></div></div><div class="p3-fig" role="group" aria-label="Publish with the field blank: the error is under the field, and focus moves to it"><p class="p3-cap">Publish with the field blank: the error is under the field, and focus moves to it</p><div class="p3-stage p3-bottom"><div class="p3-bs" role="dialog" aria-modal="true"><div class="p3-grab"></div><div class="p3-hd"><h2>Where is this recipe from?</h2><span class="p3-x" role="button" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></span></div><p>Part of this recipe was pasted in. Before it goes public, tell us where it’s from.</p><div class="p3-opts" role="radiogroup" aria-label="Where is this recipe from?"><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">I wrote this</span><span class="p3-h">It’s my own recipe, in my own words, and any photos are mine. It isn’t copied from a website, book or another person. Goes public.</span></span></div><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">From a web page</span><span class="p3-h">Stays private to you.</span></span></div><div class="p3-opt" role="radio" aria-checked="true"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">From a paid website</span><span class="p3-h">A recipe from a website you pay for, like a subscription. Stays private to you. Once you confirm, this answer is locked.</span></span></div><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">From a cookbook or magazine</span><span class="p3-h">Stays private to you.</span></span></div><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">From another person</span><span class="p3-h">A recipe someone gave you, like family or a friend. Stays private to you.</span></span></div><div class="p3-opt" role="radio" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">Publish privately</span></span></div></div><div><span class="p3-lbl">Website name or address</span><div class="p3-inp p3-bad" aria-invalid="true" aria-describedby="paidSiteError" role="textbox" aria-label="Website name or address"></div><p class="p3-err" id="paidSiteError">Add the website’s name or address.</p></div><p class="p3-eff">If your answer isn’t true, we can remove the recipe and limit your account.</p><div class="p3-acts"><span class="p3-btn p3-secondary">Keep as draft</span><span class="p3-btn p3-primary"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Publish</span></div></div></div></div><div class="p3-fig" role="group" aria-label="After Publish: private, and the Source row is locked with no link. The same from the moment the cook confirms, also when the save fails or the cook is offline"><p class="p3-cap">After Publish: private, and the Source row is locked with no link. The same from the moment the cook confirms, also when the save fails or the cook is offline</p><div class="p3-stage p3-plain"><div class="p3-card"><div class="p3-src"><span class="p3-lbl">Source</span><span class="p3-t">bakeclub.example</span><span class="p3-h">From a paid website</span><p class="p3-lock"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>The source of this recipe can’t be changed.</span></p></div><div><span class="p3-lbl">Who can see it</span><div class="p3-opts" role="radiogroup" aria-label="Who can see it"><div class="p3-opt" role="radio" aria-disabled="true" aria-checked="false"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">Public</span><span class="p3-h">Not for this recipe. Its source is a book or a paid site, not a public web page.</span></span></div><div class="p3-opt" role="radio" aria-checked="true"><span class="p3-dot" aria-hidden="true"></span><span class="p3-grow"><span class="p3-t">Private</span><span class="p3-h">Only you can see it</span></span></div></div></div></div></div></div></div></div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2348}}'>
+            class Component extends DCLogic { renderVals(){ const noop=()=>{}; return {noop,yes:true,one:1,jItems:[{id:'setCover',label:"Set as cover",onSelect:noop},{id:'moveEarlier',label:"Move earlier",onSelect:noop},{id:'moveLater',label:"Move later",onSelect:noop},{id:'replace',label:"Replace",onSelect:noop}],jItemsCover:[{id:'setCover',label:"Set as cover",onSelect:noop,disabled:true},{id:'moveEarlier',label:"Move earlier",onSelect:noop,disabled:true},{id:'moveLater',label:"Move later",onSelect:noop},{id:'replace',label:"Replace",onSelect:noop}],jNone:[],jRemove:{id:'remove',label:"Remove",onSelect:noop},}; } }
+        </script>
+    </body>
+</html>

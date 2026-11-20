@@ -412,8 +412,8 @@ test.describe('recipe page at 390 x 640 with 200% text', () => {
         await expect(frame.getByRole('checkbox').first()).toBeVisible();
         const opened = await settledPanelBox(frame);
 
-        // Only the dialog's own bar copy shows: the trigger beneath it (first in the page, hidden from the tree by Radix)
-        // is transparent, so none of it peeks out below the copy.
+        // Only the dialog's own bar copy shows: the trigger beneath it (first in the page, and hidden from the
+        // tree by Radix) is transparent, so none of it peeks out below the copy.
         await expect(page.getByRole('button', { name: /Hide list\.$/u, includeHidden: true }).first()).toHaveCSS(
             'opacity',
             '0',

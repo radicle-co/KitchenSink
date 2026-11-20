@@ -17,6 +17,12 @@ const butter = (displayText: string) =>
     makeIngredientView({ ingredientId: 'ing_butter', name: 'butter', displayText, quantity: { kind: 'absent' } });
 const LINES = [butter('crust butter'), butter('filling butter')];
 
+const GROUPED = [
+    makeIngredientView({ displayText: 'crust flour', groupLabel: 'Crust', quantity: { kind: 'absent' } }),
+    makeIngredientView({ displayText: 'crust butter', groupLabel: 'Crust', quantity: { kind: 'absent' } }),
+    makeIngredientView({ displayText: 'filling flour', groupLabel: 'Filling', quantity: { kind: 'absent' } }),
+];
+
 describe('IngredientRuns (native)', () => {
     it('marks only the line at a ticked position, though two share a food (mutant: checked.has(ingredientId))', () => {
         renderWithTamagui(
@@ -41,5 +47,32 @@ describe('IngredientRuns (native)', () => {
 
         expect(onToggle).toHaveBeenCalledTimes(1);
         expect(onToggle).toHaveBeenCalledWith(1);
+    });
+
+    it('marks a line in the second group by its stored position, not its place in its own group', () => {
+        renderWithTamagui(
+            <IngredientRuns ingredients={GROUPED} checked={new Set([2])} allRemoved={false} onToggle={vi.fn()} />,
+            'light',
+            1,
+        );
+
+        expect(screen.getAllByRole('checkbox').map((box) => box.getAttribute('aria-checked'))).toEqual([
+            'false',
+            'false',
+            'true',
+        ]);
+    });
+
+    it('reports the stored position of a line pressed in the second group', () => {
+        const onToggle = vi.fn();
+        renderWithTamagui(
+            <IngredientRuns ingredients={GROUPED} checked={new Set()} allRemoved={false} onToggle={onToggle} />,
+            'light',
+            1,
+        );
+
+        fireEvent.click(screen.getByRole('checkbox', { name: /filling flour/u }));
+
+        expect(onToggle).toHaveBeenCalledExactlyOnceWith(2);
     });
 });

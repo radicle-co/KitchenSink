@@ -5,6 +5,7 @@
  */
 
 import { type Locale, fillTemplate } from '@commise/i18n';
+import type { RecipeIngredientView } from '@kitchensink/recipe-core';
 
 import type { RecipeDetailMessages } from '../messages.js';
 
@@ -29,7 +30,7 @@ export interface PinnedBarFacts {
 /** What {@link pinnedBarFactsOf} reads. */
 export interface PinnedBarFactsInput {
     /** The recipe's lines. A line is an item; a group heading is not. */
-    readonly ingredients: readonly unknown[];
+    readonly ingredients: readonly RecipeIngredientView[];
     /** The positions, in `ingredients`, of the ticked lines. A position with no line (a stale mark) is not counted. */
     readonly checked: ReadonlySet<number>;
     /** The serving count the page shows. */

@@ -18,7 +18,7 @@ import { useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
 
 import { EMPTY_COOK_MARKS } from './cookMarks.js';
 import { CookMarksContext } from './cookMarksContext.js';
-import { ingredientTickKeys, tickedPositions } from './ingredientTickKey.js';
+import { ingredientTickKeys, tickedPositions } from '../common/ingredientTickKey.js';
 
 /** What {@link useCookMarks} gives a detail screen. */
 export interface CookMarksBinding {

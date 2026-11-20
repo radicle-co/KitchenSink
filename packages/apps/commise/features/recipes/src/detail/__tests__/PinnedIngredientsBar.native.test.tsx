@@ -320,7 +320,11 @@ describe('the open bar and panel stay within half the window', () => {
     const frameOf = (): HTMLElement => {
         const dialog = screen.getByRole('dialog', { name: 'Ingredients for 4' });
 
-        return dialog.parentElement as HTMLElement;
+        if (dialog.parentElement === null) {
+            throw new Error('The dialog has a parent: the frame holding the bar and the panel.');
+        }
+
+        return dialog.parentElement;
     };
 
     it.each([
@@ -355,6 +359,7 @@ describe('the open bar and panel stay within half the window', () => {
         expect(node).not.toBeNull();
     });
 
+    // A guard, already true before the cap: the panel clips and the rows are all in it.
     it('scrolls the rows inside the panel', () => {
         render(<Page startOpen />);
 

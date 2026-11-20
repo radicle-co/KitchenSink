@@ -47,16 +47,12 @@ appId: ${APP_ID}
 - assertVisible: 'Servings'
 
 # ── THE ROWS SCROLL INSIDE THE PANEL ── (#380, designer D75) The open bar and its panel end at half the window, so a
-# large
-# text size leaves the panel less room than its rows need. Swipe inside the top quarter of the screen, where the panel
-# is, until
-# the last row shows below the bar's Hide label, and the bar is still on screen: the rows scroll in the panel and the
-# bar stays
-# put. Scoped by `below:` because the card's rows stay in the tree under the scrim. At the default size the last row
-# is already
-# in view and nothing scrolls; the AX5 run (iOS) and the 2.0 font run (Android) are the ones that exercise the swipe.
-# The half
-# cap itself is proved by the web spec and the designer's shots.
+# large text size leaves the panel less room than its rows need. Swipe between 45% and 30% of the screen height, where
+# the panel is below the bar even at the largest text, until the last row shows below the bar's Hide label and the bar
+# is still on screen: the rows scroll in the panel and the bar stays put. Scoped by `below:` because the card's rows
+# stay in the tree under the scrim. At the default size the last row is already in view and nothing scrolls. The AX5
+# run (iOS) and the 2.0 font run (Android) are the ones that exercise the swipe. The half cap itself is proved by the
+# web spec and the designer's shots.
 - repeat:
       times: 8
       while:
@@ -65,8 +61,8 @@ appId: ${APP_ID}
               below: 'Ingredients for .*Hide list.*'
       commands:
           - swipe:
-                start: 50%, 24%
-                end: 50%, 10%
+                start: 50%, 45%
+                end: 50%, 30%
 - assertVisible:
       text: '3 tbsp Tomato paste.*'
       below: 'Ingredients for .*Hide list.*'

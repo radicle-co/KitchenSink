@@ -1,12 +1,9 @@
 /**
  * @module pinnedOverlayLimit — how tall the open pinned ingredients bar and its panel may be together: half the window
  * (designer D75, and `docs/design/compactHeightLayout.md` rule B, which counts the pinned top row), so the step the
- * cook
- * is following keeps the other half at any text size. Native caps the frame holding the bar and the panel with the
- * number.
- * Web writes the same cap as a complete Tailwind class, because Tailwind builds only class text it can find in a
- * scanned
- * file. The two sit side by side, as `TWO_COLUMN_BODY` pairs a number with its class.
+ * cook is following keeps the other half at any text size. Native caps the frame holding the bar and the panel with
+ * the number. Web writes the same cap as a complete Tailwind class, because Tailwind builds only class text it can
+ * find in a scanned file. The two sit side by side, as `TWO_COLUMN_BODY` pairs a number with its class.
  */
 
 /**

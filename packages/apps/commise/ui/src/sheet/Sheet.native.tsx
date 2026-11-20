@@ -66,6 +66,7 @@ export const Sheet: FC<SheetProps> = ({
     size,
     presentation = 'sheet',
     screenReaderLanding = 'title',
+    busy = false,
     toolbar,
     children,
     footer,
@@ -149,6 +150,7 @@ export const Sheet: FC<SheetProps> = ({
                 closeLabel={closeLabel}
                 size={size}
                 presentation={shape}
+                busy={busy}
                 toolbar={toolbar}
                 footer={footer}
                 focusSignal={shown}

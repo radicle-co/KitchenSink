@@ -50,6 +50,26 @@ describe('RadioList (web)', () => {
         ]);
     });
 
+    it('disabled: every radio is disabled, a press changes nothing, and the group is still named', async () => {
+        const { onChange, group } = renderList({ disabled: true });
+
+        const radios = within(group).getAllByRole('radio');
+
+        expect(radios.every((radio) => (radio as HTMLButtonElement).disabled)).toBe(true);
+        await userEvent.click(radios[0] as HTMLElement);
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('not disabled by default', () => {
+        const { group } = renderList();
+
+        expect(
+            within(group)
+                .getAllByRole('radio')
+                .some((radio) => (radio as HTMLButtonElement).disabled),
+        ).toBe(false);
+    });
+
     it('⛔ checks nothing with no value', () => {
         const { group } = renderList();
 

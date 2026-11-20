@@ -29,6 +29,10 @@ export {
     RecipeSearchSortBy,
     RECIPE_SOURCE_KINDS,
     UNRECOGNISED_SOURCE_KIND,
+    RECIPE_STATEMENT_KINDS,
+    UNRECOGNISED_STATEMENT_KIND,
+    recipeStatementKindSchema,
+    recipeStatementKindViewSchema,
     RecipeSourceType,
     RecipeStatus,
     RecipeVersionArchiveStatus,
@@ -103,6 +107,8 @@ export type {
     RecipeSnapshot,
     RecipeSourceKind,
     RecipeSourceKindView,
+    RecipeStatementKind,
+    RecipeStatementKindView,
     RecipeStep,
     RecipeStepView,
     RecipeVersion,
@@ -213,6 +219,20 @@ export type { FoodId, IngredientId, RecipeId, S3Key, UserId } from './ids.js';
 export { makeViewer } from './viewer.js';
 export type { Viewer } from './viewer.js';
 export { canClone, canRate, isOwner } from './recipeAccessPolicy.js';
+export { sourceConflictOf } from './sourceConflict.js';
+export type { SourceConflictInput, SourceEvidenceFacts } from './sourceConflict.js';
+export { fromPersonOf } from './fromPerson.js';
+export { statementRequiredOf } from './statementRequired.js';
+export type { StatementRequiredInput } from './statementRequired.js';
+export {
+    PUBLIC_CONFIRM_WORDINGS,
+    PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    STATEMENT_WORDINGS,
+    STATEMENT_WORDINGS_BY_CHOICE,
+    WORDING_LOCALE_MAX_LENGTH,
+    WORDING_LOCALE_MIN_LENGTH,
+} from './statementWordings.js';
+export type { PublicConfirmWording, StatementWording } from './statementWordings.js';
 export { PRIVATE_ONLY_SOURCE_KEYS, privateOnlySourceKey, sourceIsCorrectable } from './sourceRules.js';
 export type { CorrectableSourceFacts } from './sourceRules.js';
 export {

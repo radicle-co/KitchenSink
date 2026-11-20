@@ -52,7 +52,20 @@ describe('visibilityRefusedFor', () => {
             false,
         ],
         ['…and for a Premium cook', PREMIUM, WEB, 'private', false],
-        ['your own recipe may be public', FREE, MINE, 'public', false],
+        // Rewritten for the provenance review (finding 7): this row said the cook's own recipe may be public on the import. Until
+        // the paste import carries wordings and writes attestation rows, no import item may be saved Public, whatever its label:
+        // a Public save would leave no record that the cook confirmed it. A choice of Public is REFUSED (nothing is saved or
+        // changed behind the cook's back), and the cook can choose Private.
+        ['⛔ your own recipe cannot be public on the import yet (no wording, no record)', FREE, MINE, 'public', true],
+        ['…not even for a Premium cook', PREMIUM, MINE, 'public', true],
+        [
+            '…and not for a test principal on a stage that does not contain it',
+            { ...FREE, principalKind: 'test', containment: 'off' },
+            MINE,
+            'public',
+            true,
+        ],
+        ['your own recipe may be private', FREE, MINE, 'private', false],
         [
             '⛔ your own recipe private on the free plan: the slot is the save’s question, not this seam’s',
             FREE,

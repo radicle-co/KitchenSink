@@ -14,6 +14,8 @@ export default defineConfig({
     test: {
         ...baseConfig.test,
         include: ['tests/e2e/**/*.e2e.test.ts'],
+        // It has its own set-up and config (vitest.repoCanvases.e2e.config.ts): it needs no build.
+        exclude: [...(baseConfig.test?.exclude ?? []), 'tests/e2e/renderRepoCanvases.e2e.test.ts'],
         globalSetup: ['tests/e2e/globalSetup.ts'],
         // The cold build runs Tailwind and esbuild, and the first browser launch is slow.
         testTimeout: 60_000,

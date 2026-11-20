@@ -1781,7 +1781,9 @@
                     strong {
                         font-weight: 600;
                     }
-                </style>
+                .dockRow { flex-wrap: wrap; } .dockRow .lab { flex: 1 1 160px; }
+.dockActs { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 12px; margin-left: auto; }
+</style>
             <link rel="stylesheet" href="ds/commise/redesign.css" /></helmet>
             <div class="screen web1280" data-screen="web1280ResumeEarlier" style="width: 1280px; height: 800px">
                 <div class="top">
@@ -1885,13 +1887,13 @@
                     <div class="colStep">
                         <div class="body">
                             <div class="center">
-                                <div class="resumeNote">
+                                <div class="t28">Carry on from earlier?</div><div class="resumeNote">
                                     <span class="t16"
                                         ><span class="w500">Welcome back.</span> You left this yesterday at 19:40, at
-                                        step 4. The roast timer ended at 20:52.</span
+                                        step 4. The Roast timer ended 12 h 49 min ago.</span
                                     >
                                 </div>
-                                <div class="t28">Carry on from earlier?</div>
+                                
                                 <span class="t16"
                                     >Your finished steps and ticks are kept. If you already ate it, end the
                                     session.</span
@@ -1980,7 +1982,7 @@
                                 </div>
                             </div>
                             <div class="nested">
-                                <div class="dockRow" role="status">
+                                <div class="dockRow">
                                     <svg
                                         class="doneBell"
                                         width="22"
@@ -1997,11 +1999,11 @@
                                     </svg>
                                     <div class="lab">
                                         <span class="t28">Done</span
-                                        ><span class="t14 muted">Roast · step 4 · ended yesterday at 20:52</span>
+                                        ><span class="t14 muted">Roast · step 4 · ended 12 h 49 min ago</span>
                                     </div>
-                                    <span class="clearBtn t16" role="button" aria-label="Clear the Roast timer"
+                                    <span class="dockActs"><span class="clearBtn t16" role="button" aria-label="Add 10 minutes to the Roast timer">+ 10 min</span><span class="clearBtn t16" role="button" aria-label="Clear the Roast timer"
                                         >Clear</span
-                                    >
+                                    ></span>
                                 </div>
                             </div>
                             <div class="stepItem">

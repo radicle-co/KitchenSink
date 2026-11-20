@@ -575,6 +575,32 @@ unsynced writes must be confirmed **before** the notice disappears along with th
 on the server) are identical, and a seventh state would need its own copy for a case indistinguishable to
 them. ⛔ It must **not** be silent.
 
+### The cooking form (feature 008, cooking mode)
+
+Cooking mode mounts the host in its cooking form. The cook reads steps with busy hands. Nothing they do in cooking
+mode waits on the network, so the notice reports one fact only: the device is offline.
+
+| Fact while cooking                            | Visible                                    | Spoken                                         |
+| --------------------------------------------- | ------------------------------------------ | ---------------------------------------------- |
+| Online, any outbox state                      | nothing                                    | none (empty region)                            |
+| Offline, any count                            | `offlineTitle` only, no body and no count  | polite on web; none on native (no live region) |
+| Back online (`syncing`, then synced)          | nothing: the notice clears with no message | none                                           |
+| `syncFailed` or `syncConflict`                | nothing while cooking                      | none                                           |
+| Work set aside (§17 of `specSharedSystem.md`) | nothing while cooking                      | none                                           |
+
+Offline wins: while the device is offline, the notice shows the title only, whatever else is true. The rows for back
+online, failures and conflicts apply only while online. The set-aside notice stays hidden in every cooking state.
+
+- ⛔ **Title only.** The cooking form gives the leaf no body, and the leaf then draws no body row. No empty row sits
+  under the title. No count: the count is about unsynced edits, and cooking mode makes none.
+- ⛔ **No "Back online" and no syncing message.** Reconnecting is quiet. The cook loses nothing, so there is nothing
+  to tell them.
+- **Placement:** in flow, topmost, above the cooking top bar, on web and native.
+- **Leaving cooking mode is never blocked offline** (owner ruling, 2026-11-15): every way out works, and the notice
+  carries no leave message.
+- Failures, conflicts and set-aside work are not lost: the app form shows them again once the cook leaves cooking
+  mode. The set-aside notice keeps its dismissal while hidden (on web, a page change still resets it, #315).
+
 ---
 
 ## 10. Files this specifies

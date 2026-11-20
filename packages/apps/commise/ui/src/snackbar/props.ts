@@ -11,6 +11,8 @@
  * - The timer pauses while the pointer is over the snackbar or focus is inside it (SC 2.2.1); on native, while a
  *   screen reader is running, it does not run at all.
  * - It is a polite `status` and never takes focus.
+ * - `withdraw` is the one way to close a snackbar without committing it other than its own action, and it is
+ *   targeted: it acts only on the snackbar its handle names.
  */
 import type { ReactNode } from 'react';
 
@@ -28,26 +30,29 @@ export interface SnackbarInput {
     readonly message: string;
     /** The one action, if any. */
     readonly action?: SnackbarAction;
-    /** Run once when the snackbar commits: it timed out, a newer one replaced it, or its handle's `dismiss()` ran. */
+    /** Run once when the snackbar commits: it timed out, or a newer one replaced it. */
     readonly onTimeout?: () => void;
     /** How long it stays, in ms, while not paused. Defaults to {@link DEFAULT_SNACKBAR_MS}. */
     readonly durationMs?: number;
 }
 
-/** The snackbar a screen showed, to take it down early. */
+/** What `show` returns: names this snackbar, and only this one, to `withdraw`. Compared by identity. */
 export interface SnackbarHandle {
-    /**
-     * Take the snackbar down now. This settles the entry and runs `onTimeout`; it never cancels. A screen whose
-     * `onTimeout` does the work (a removal sent only when Undo's time is up) has that work done at once. It does nothing
-     * once the snackbar has gone, or once a newer one has replaced it.
-     */
-    readonly dismiss: () => void;
+    readonly snackbar: true;
 }
 
 /** What `useSnackbar` hands a screen. */
 export interface SnackbarApi {
     /** Show a snackbar, committing the one it replaces. */
     readonly show: (input: SnackbarInput) => SnackbarHandle;
+    /**
+     * Take the snackbar away without committing it, when it is still the one showing. Runs neither its `onTimeout`
+     * nor its action.
+     *
+     * @returns The ms it had left, not counting time it was paused, or `undefined` when another snackbar replaced it,
+     *   it timed out, or it was acted on.
+     */
+    readonly withdraw: (handle: SnackbarHandle) => number | undefined;
 }
 
 /** The cross-platform `SnackbarHost` contract. */

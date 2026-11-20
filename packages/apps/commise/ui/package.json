@@ -29,6 +29,7 @@
             "import": "./dist/tokens/*.js",
             "default": "./dist/tokens/*.js"
         },
+        "./touch-target": "./src/touchTarget/touchTargetClass.ts",
         "./action-menu": "./src/actionMenu/index.ts",
         "./back-intercept": "./src/backIntercept/index.ts",
         "./testing/hardware-back": "./src/testing/hardwareBack.native.ts",
@@ -40,6 +41,7 @@
         "./testing/pressed-pressable": "./src/testing/pressedPressable.ts",
         "./testing/resize-observer": "./src/testing/resizeObserver.ts",
         "./testing/bounding-rects": "./src/testing/boundingRects.ts",
+        "./testing/button-pill": "./src/testing/buttonPill.ts",
         "./testing/surface-tone-of": "./src/testing/surfaceToneOf.ts",
         "./testing/record-text-inputs": "./src/testing/recordTextInputs.native.tsx",
         "./testing/tamagui": "./src/testing/tamaguiTesting.native.tsx",
@@ -125,7 +127,6 @@
         "./create-fab": "./src/createFab/index.ts",
         "./create-fab-policy": "./src/createFab/createFabPolicy.ts",
         "./hero-button": "./src/heroButton/index.ts",
-        "./photo-control": "./src/photoControl/index.ts",
         "./bar-geometry": "./src/largeTitleHeader/barGeometry.ts",
         "./large-title-header": "./src/largeTitleHeader/index.ts",
         "./pinned-search": "./src/pinnedSearch/index.native.ts",

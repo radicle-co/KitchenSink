@@ -12,18 +12,7 @@ import { useEffect } from 'react';
 
 import { COOKING_FOCUS_LINE_ID } from './CookingLineRow.js';
 import { COOKING_NAV_ID } from './CookingNav.js';
-
-/** What decides where focus goes. */
-export interface CookingFocusRecoveryInput {
-    /** How many times the cook has moved between steps. */
-    readonly moves: number;
-    /** How many lines of the current step are ticked. */
-    readonly tickedCount: number;
-    /** Whether every line of the current step is ticked. */
-    readonly everyLineTicked: boolean;
-    /** Whether the session is on Done, which has its own focus move. */
-    readonly finished: boolean;
-}
+import { cookingFocusTargetOf, type CookingFocusRecoveryInput } from './cookingFocusTarget.js';
 
 /** Whether focus was dropped to the page: nothing on the screen holds it. */
 const focusDropped = (): boolean => document.activeElement === null || document.activeElement === document.body;
@@ -47,7 +36,7 @@ export function useCookingFocusRecovery({
         }
 
         const target =
-            tickedCount > 0 && !everyLineTicked
+            cookingFocusTargetOf({ tickedCount, everyLineTicked }) === 'focusLine'
                 ? document.getElementById(COOKING_FOCUS_LINE_ID)
                 : [...(document.getElementById(COOKING_NAV_ID)?.querySelectorAll('button') ?? [])].at(-1);
 

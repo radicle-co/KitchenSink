@@ -168,6 +168,25 @@ describe('the pinned ingredients bar (native)', () => {
         expect(within(panel).getByText('Vegetables')).toBeTruthy();
     });
 
+    it('lets the Servings row wrap, so a wide stepper drops under its label instead of leaving the screen', () => {
+        render(<Page startOpen />);
+
+        const panel = within(screen.getByRole('dialog', { name: 'Ingredients for 4' }));
+        const stepper = panel.getByRole('group', { name: detail.servingsAdjustLabel });
+        let row = stepper.parentElement;
+
+        // The row is the nearest ancestor that spreads its label and stepper apart.
+        while (row !== null && resolvedStyle(row, 'justifyContent') !== 'space-between') {
+            row = row.parentElement;
+        }
+
+        if (row === null) {
+            throw new Error('no space-between row above the stepper');
+        }
+
+        expect(resolvedStyle(row, 'flexWrap')).toBe('wrap');
+    });
+
     it('closes by the bar, and by the scrim', () => {
         render(<Page startOpen />);
 

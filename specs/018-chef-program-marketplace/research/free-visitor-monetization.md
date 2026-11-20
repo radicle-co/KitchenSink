@@ -360,14 +360,14 @@ change must run `FR-058i`: measure all five channels first, because four of them
   owner's reframe**: sell CPG brands access to _pre-basket_ intent — privacy-preserving, aggregate,
   clean-room-matched — with the affiliate loop (`2a`) as the closed-loop proof that the signal converts.
   Retail media earns **60–70% margins** on exactly this class of asset, and **<48% of RMNs offer clean rooms**.
-  ⚠️ Requires consent design, counsel, and a sales function; ⛔ and it must never become `5c`'s careless form.
+  ⚠️ Requires consent design, an owner decision, and a sales function; ⛔ and it must never become `5c`'s careless form.
 - **5a. Recipe / nutrition engine licensing (B2B SaaS)** — Whisk's precedent is exact: a recipe CMS sold to
   brands and grocers on a usage fee. A different company motion.
 - **5b. White-label recipe experience for a retailer** — the same asset sold as a surface, not an API.
 - **5c. Aggregated, anonymized food-trend insights** — ⚠️ attractive and **genuinely dangerous**: one careless
   step from selling user data, must clear `016-FR-007`, and `016-FR-032` already classes derived signals
   (ingredient-resolution mappings, confidence scores, dedup keys, ranking signals) as **confidential and not
-  to be exposed**. Aggregate-only, non-re-identifiable, consented — assume counsel (`FR-062c`).
+  to be exposed**. Aggregate-only, non-re-identifiable, consented — an owner decision first (`FR-062c`).
 - **5d. ⛔ Corpus / AI-training licensing.** Headline numbers are real — Wiley **$49M** FY2026 (**$110M**
   lifetime); News Corp/OpenAI reported **~$250M/5yr**; aggregators exist (News/Media Alliance–ProRata at a
   **50%** revenue share; Perplexity's Publishers Program on a reported **$42.5M** pool). **Three conclusive
@@ -417,7 +417,7 @@ change must run `FR-058i`: measure all five channels first, because four of them
 
 9. **`5e` meal-intent commerce media through a clean room**, with **`3c` platform-sold CPG sponsorship** as
    the sales expression of it and **`3b` contextual in-recipe commerce** as the vendor-shaped fallback if
-   `2a`'s partner API access does not land. ⚠️ Needs consent design, counsel, and a sales function — but it
+   `2a`'s partner API access does not land. ⚠️ Needs consent design, an owner decision, and a sales function — but it
    is the only option whose margin structure (**60–70%**) is categorically different from everything else
    here, and the asset it monetizes is generated overwhelmingly by **free users**.
 
@@ -509,7 +509,7 @@ and the goods cannot be recovered.
 | **Self-dealing / cash-out**     | Buying your own listing with a stolen instrument and withdrawing the proceeds turns a marketplace into a laundering rail                                    | `FR-076` — detect and block the chef as economic beneficiary of their own listings                                                                                 |
 | **Seller default after payout** | Every guaranteed refund on a disbursed sale is an unsecured debt from a chef who may never earn again                                                       | `FR-039a` — a **rolling reserve**, the single cheapest control against both abuse and default                                                                      |
 | **AI-assisted claims**          | Generated receipts, damage images and identity documents make false claims cheap at volume                                                                  | `FR-081` — prefer evidence **we** generate over evidence the claimant supplies                                                                                     |
-| **Sanctioned counterparties**   | Strict liability                                                                                                                                            | `FR-079` — screen at onboarding **and on a cadence**                                                                                                               |
+| **Sanctioned counterparties**   | Never pay one                                                                                                                                               | `FR-079` — screen at onboarding **and on a cadence**                                                                                                               |
 
 ⚠️ **And the control on the controls**: `FR-080` requires every fraud action that withholds money or restricts
 an account to produce a readable reason, an appeal, and a record. Fraud systems that act silently are how

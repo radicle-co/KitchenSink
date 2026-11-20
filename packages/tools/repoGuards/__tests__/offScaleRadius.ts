@@ -19,8 +19,11 @@
  *   of `tamaguiTokens.radius` ({@link tamaguiRadiusFindings}); a number, a percentage, a cast and a variable are off
  *   the scale. The native reader above leaves a `styled(…)` object to that rule.
  *
- * - A fixed-size glyph (the 18 px checkbox) owns a corner no step fits, as a named `GLYPH_` constant. Only a module whose
- *   leading JSDoc carries a `@pattern Glyph` tag may read one; the radius scale gets no `xs` step.
+ * - A glyph (the checkbox) owns a corner no step fits, as a named `GLYPH_` constant. Only a module whose leading JSDoc
+ *   carries a `@pattern Glyph` tag may read one; the radius scale gets no `xs` step. A glyph that grows with its text
+ *   keeps the corner in proportion, so such a module may also write exactly `side * GLYPH_CORNER_PER_SIDE`: one plain identifier
+ *   times one `GLYPH_` constant, in either order, on a style object or a Tamagui element. A literal, a quotient, a
+ *   longer chain, an offset and a wrapped form are all refused ({@link isGlyphCornerProduct}).
  *
  * @pattern Visitor — a walk over the parsed syntax tree
  */
@@ -29,7 +32,7 @@ import path from 'node:path';
 
 import ts from 'typescript';
 
-import { appSourceModules, classTokensOf, parseModule, stringLikeTexts } from './appSources.js';
+import { appSourceModules, classTokensOf, parseModule, splitToken, stringLikeTexts } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
 import { isTamaguiStyledCall, tamaguiStyledNames, type StyledExportsOf } from './tamaguiElements.js';
 import { styleSiteFindings } from './tamaguiStyleSites.js';
@@ -69,8 +72,8 @@ export interface Offender {
  * @param token - One whitespace-free token.
  */
 export function isOffScaleClass(token: string): boolean {
-    const base = token.split(/:(?![^[]*\])/u).at(-1) ?? '';
-    const match = RADIUS_UTILITY.exec(base.replace(/^!/u, ''));
+    const { base } = splitToken(token);
+    const match = RADIUS_UTILITY.exec(base);
 
     if (match === null) {
         return false;
@@ -81,6 +84,26 @@ export function isOffScaleClass(token: string): boolean {
     return (
         size === undefined || (!([...STEPS, 'none'] as readonly string[]).includes(size) && !SPACING_CALC.test(size))
     );
+}
+
+/**
+ * Whether a value is a glyph's scaled corner: exactly one plain identifier times exactly one `GLYPH_` constant, in either
+ * order, with nothing around it. Pure.
+ *
+ * @param value - The radius expression.
+ */
+function isGlyphCornerProduct(value: ts.Expression): boolean {
+    if (!ts.isBinaryExpression(value) || value.operatorToken.kind !== ts.SyntaxKind.AsteriskToken) {
+        return false;
+    }
+
+    const { left, right } = value;
+
+    if (!ts.isIdentifier(left) || !ts.isIdentifier(right)) {
+        return false;
+    }
+
+    return GLYPH_CONSTANT.test(left.text) !== GLYPH_CONSTANT.test(right.text);
 }
 
 /**
@@ -99,6 +122,10 @@ function isOnScaleValue(value: ts.Expression, glyph: boolean): boolean {
     }
 
     if (glyph && ts.isIdentifier(value) && GLYPH_CONSTANT.test(value.text)) {
+        return true;
+    }
+
+    if (glyph && isGlyphCornerProduct(value)) {
         return true;
     }
 
@@ -210,10 +237,23 @@ export function tamaguiRadiusFindings(
     radiusKeys: ReadonlySet<string>,
 ): readonly string[] {
     const isRadiusToken = (token: string): boolean => token.startsWith('$') && radiusKeys.has(token.slice(1));
+    const glyph = GLYPH_PATTERN.test(source);
 
     return styleSiteFindings(source, fileName, styledExportsOf, {
         attribute: (attribute, file) => {
             if (!ts.isJsxAttribute(attribute) || !RADIUS_PROPERTY.test(attribute.name.getText(file))) {
+                return false;
+            }
+
+            const { initializer } = attribute;
+
+            if (
+                glyph &&
+                initializer !== undefined &&
+                ts.isJsxExpression(initializer) &&
+                initializer.expression !== undefined &&
+                isGlyphCornerProduct(initializer.expression)
+            ) {
                 return false;
             }
 

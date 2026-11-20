@@ -414,6 +414,11 @@ export function serverIdOf(server: ServerFacts): string | undefined {
     return server.kind === 'stored' ? server.recipe.id : undefined;
 }
 
+/** The server's recipe once it has one: what the source and visibility rules read. Pure. */
+export function storedRecipeOf(server: ServerFacts): RecipeDetail | undefined {
+    return server.kind === 'stored' ? server.recipe : undefined;
+}
+
 /** What the server holds, as form values; `undefined` before the server create. Pure. */
 export function serverValuesOf(server: ServerFacts): RecipeFormValues | undefined {
     return server.kind === 'stored' ? server.values : undefined;

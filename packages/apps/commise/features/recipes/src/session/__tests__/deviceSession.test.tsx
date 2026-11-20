@@ -27,6 +27,7 @@ import { recentSearchesKeyFor, type RecentSearchStore } from '../../discovery/re
 import { cookMarksKey } from '../../detail/cookMarks.js';
 import { draftQuarantineKeyFor, draftStoreFor, draftStoreKeyFor, toDraftValues } from '../../editor/draftStore.js';
 import { endDeviceSession, useDeviceSessionScope } from '../deviceSession.js';
+import { makeKeptStub } from '../kept/__fixtures__/keptStoreStub.js';
 
 /** The recent-search store the apps bind beside the device store (localStorage on web, AsyncStorage on mobile). */
 function makeRecentStore(): RecentSearchStore & { readonly data: Map<string, string> } {
@@ -99,7 +100,7 @@ describe('endDeviceSession', () => {
         await seedCook(store, 'user_a', recents);
         await seedCook(store, 'user_b', recents);
 
-        await endDeviceSession(store, 'user_a', recents);
+        await endDeviceSession(store, 'user_a', recents, makeKeptStub());
 
         expect(await keptFor(store, 'user_a')).toEqual([]);
         expect(await keptFor(store, 'user_b')).toHaveLength(4);
@@ -112,7 +113,7 @@ describe('endDeviceSession', () => {
         await seedCook(store, 'user_a', recents);
         await seedCook(store, 'user_b', recents);
 
-        await endDeviceSession(store, 'user_a', recents);
+        await endDeviceSession(store, 'user_a', recents, makeKeptStub());
 
         expect([...recents.data.keys()]).toEqual([recentSearchesKeyFor('user_b')]);
     });
@@ -122,7 +123,12 @@ describe('endDeviceSession', () => {
         const recents = makeRecentStore();
         await seedCook(store, 'user_a', recents);
 
-        await endDeviceSession(store, 'user_a', { ...recents, removeItem: () => Promise.reject(new Error('quota')) });
+        await endDeviceSession(
+            store,
+            'user_a',
+            { ...recents, removeItem: () => Promise.reject(new Error('quota')) },
+            makeKeptStub(),
+        );
 
         expect(await keptFor(store, 'user_a')).toEqual([]);
     });
@@ -131,9 +137,36 @@ describe('endDeviceSession', () => {
         const store = createMemoryOutboxStore();
         window.sessionStorage.setItem(cookMarksKey('user_b', 'rec_2'), '{}');
 
-        await endDeviceSession(store, undefined, makeRecentStore());
+        await endDeviceSession(store, undefined, makeRecentStore(), makeKeptStub());
 
         expect(window.sessionStorage.length).toBe(0);
+    });
+
+    it('⛔ clears the kept record of the cook who ended (red first: the kept store is a required argument)', async () => {
+        const kept = makeKeptStub();
+
+        await endDeviceSession(createMemoryOutboxStore(), 'user_a', makeRecentStore(), kept);
+
+        expect(kept.clear).toHaveBeenCalledWith('user_a');
+    });
+
+    it('⛔ clears the kept record even when nobody was signed in, before the early return (ADR-0094 section 4)', async () => {
+        const kept = makeKeptStub();
+
+        await endDeviceSession(createMemoryOutboxStore(), undefined, makeRecentStore(), kept);
+
+        expect(kept.clear).toHaveBeenCalledWith(undefined);
+    });
+
+    it('a failing kept clear does not stop the drafts and outbox being removed', async () => {
+        const store = createMemoryOutboxStore();
+        const kept = makeKeptStub();
+        kept.clear.mockRejectedValue(new Error('port down'));
+        await seedCook(store, 'user_a');
+
+        await endDeviceSession(store, 'user_a', makeRecentStore(), kept);
+
+        expect(await keptFor(store, 'user_a')).toEqual([]);
     });
 
     /** ⛔ THE CLEAR GOES THROUGH THE OUTBOX'S ONE WRITER: a change queued before it cannot write the journal back. */
@@ -143,7 +176,7 @@ describe('endDeviceSession', () => {
             appendIntent(log, { entity: 'recipe', intentKind: 'update', localId: 'rec_1', dependsOn: [], payload: {} }),
         );
 
-        await Promise.all([queued, endDeviceSession(store, 'user_a', makeRecentStore())]);
+        await Promise.all([queued, endDeviceSession(store, 'user_a', makeRecentStore(), makeKeptStub())]);
 
         expect((await loadOutbox(store, 'user_a')).records).toEqual([]);
         expect(await store.getItem(storeKeyFor('user_a'))).toBeNull();
@@ -151,17 +184,20 @@ describe('endDeviceSession', () => {
 });
 
 const scopeRecents = makeRecentStore();
+const scopeKept = makeKeptStub();
 
 function Scope({
     store,
     subject,
     recents = scopeRecents,
+    kept = scopeKept,
 }: {
     readonly store: OutboxStore;
     readonly subject: string | null | undefined;
     readonly recents?: RecentSearchStore;
+    readonly kept?: ReturnType<typeof makeKeptStub>;
 }) {
-    useDeviceSessionScope(store, subject, recents);
+    useDeviceSessionScope(store, subject, recents, kept);
 
     return null;
 }

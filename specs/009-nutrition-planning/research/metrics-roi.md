@@ -1,7 +1,7 @@
 # Metrics and ROI: Nutrition Planning
 
 **Branch**: `009-nutrition-planning` | **Date**: 2026-05-09
-**Status**: Complete | **Sources**: [spec.md](../spec.md), [research.md](../research.md), [v-model/requirements.md](../v-model/requirements.md)
+**Status**: Complete | **Sources**: [spec.md](../spec.md), [research.md](../research.md)
 
 ---
 

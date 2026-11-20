@@ -1,7 +1,7 @@
 # Metrics and ROI: Grocery Lists & Online Ordering
 
 **Branch**: `007-grocery-lists` | **Date**: 2026-05-09
-**Status**: Complete | **Sources**: [spec.md](../spec.md), [plan.md](../plan.md), [v-model/requirements.md](../v-model/requirements.md), [tasks.md](../tasks.md)
+**Status**: Complete | **Sources**: [spec.md](../spec.md), [plan.md](../plan.md), [tasks.md](../tasks.md)
 
 ---
 

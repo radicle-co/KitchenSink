@@ -323,6 +323,7 @@ export class ImportAdvanceService {
         await this.items.payUnpaid(principal.userId, header.id, {
             limit: this.limits.payBatch,
             isPremium: isPremiumPrincipal(principal),
+            principalKind: principal.principalKind,
         });
 
         for (const item of await this.items.findNeedingJob(header.id, this.limits.payBatch)) {

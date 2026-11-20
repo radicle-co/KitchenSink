@@ -81,6 +81,7 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
     PRIVATE_FOODS_ON_PUBLIC_RECIPE: HttpStatus.BAD_REQUEST,
     IMPORT_ITEM_LOCKED: HttpStatus.CONFLICT,
     IMPORT_ID_IN_USE: HttpStatus.CONFLICT,
+    IMPORT_STORAGE_FULL: HttpStatus.CONFLICT,
 
     // ── Auth and account lifecycle ──
     UNAUTHORIZED: HttpStatus.UNAUTHORIZED,

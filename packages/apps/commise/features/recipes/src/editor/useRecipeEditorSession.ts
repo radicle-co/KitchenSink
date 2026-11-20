@@ -38,6 +38,7 @@ import {
     useSetRecipeVisibility,
 } from '@kitchensink/recipe-service-client/hooks';
 import { useQueryClient } from '@tanstack/react-query';
+import type { DraftAction } from '../form/draftAction.js';
 import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 
 import { effectiveVisibility, heldVisibility, type PrivateRefusal } from '../actions/privateGate.js';
@@ -168,7 +169,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
      * to refuse is not sent, and the finish says so (`visibilityFollowUp`). @sideEffect
      */
     const finished = (stored: RecipeDetail, outcome: FinishedOutcome): void => {
-        const followUp = visibilityFollowUp(derivedVisibility(editor.values), stored, privateRefusal);
+        const followUp = visibilityFollowUp(derivedVisibility(editor.values, stored), stored, privateRefusal);
 
         if (followUp.kind === 'send') {
             setVisibility.mutate({ id: stored.id, visibility: followUp.visibility });
@@ -303,10 +304,19 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         recipe: seed.recipe,
         refused: editor.refusedFields.has('source'),
     });
+    // ADR-0095: a paste joined the draft, so Publish must ask where the recipe is from. The mark is the client's word that
+    // content was pasted, and it is set where the paste lands, not where it was offered.
+    const { setField } = editor;
+
+    const pasteDispatch = (action: DraftAction): void => {
+        dispatch(action);
+        setField('pasted', true);
+    };
+
     const paste = useIngredientsPaste({
         offered: editor.pasteAvailable,
         keepsSource: editor.pasteKeepsSource,
-        dispatch,
+        dispatch: pasteDispatch,
         lineKeys: editor.values.ingredients.map((line) => line.key),
         initiallyOpen: openPaste,
         hold: pasteHold,
@@ -328,7 +338,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         source,
         applyLineStatus,
         blur: () => editor.checkpoint('fieldBlur'),
-        appendSteps: (instructions) => dispatch({ kind: 'appendSteps', instructions }),
+        appendSteps: (instructions) => pasteDispatch({ kind: 'appendSteps', instructions }),
         photos,
         preview: {
             open: previewing,
@@ -343,10 +353,10 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
                         recipeIsPublished(seed.recipe) ? privateRefusal : refusalWhileDrafting(privateRefusal),
                         heldVisibility(
                             seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
-                            derivedVisibility(editor.values),
+                            derivedVisibility(editor.values, seed.recipe),
                         ),
                         // ⛔ DERIVED (ADR-0089): a draft with a web link is previewed as the private recipe it will be.
-                        derivedVisibility(editor.values),
+                        derivedVisibility(editor.values, seed.recipe),
                     ),
                 },
                 recipe: seed.recipe,

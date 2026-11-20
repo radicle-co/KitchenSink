@@ -14,7 +14,7 @@ import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 
 import type { RecipeDrizzle } from '../../../database/client.js';
 import { makeFakeDrizzle, methodsOf, type FakeDrizzle } from '../../../__testing__/makeFakeDrizzle.js';
-import { IMPORT_ALLOWANCE_RULES } from '../../importAllowancePolicy.js';
+import { IMPORT_ALLOWANCE_RULE } from '../../importAllowancePolicy.js';
 import type { ImportAllowanceChannel } from '../../../database/schema/importAllowanceEvents.js';
 import { ImportAllowanceDal } from '../importAllowance.dal.js';
 
@@ -22,6 +22,8 @@ const USER = '01JIMPORTALLOWANCEUSER0001';
 const NOW = new Date('2026-10-26T12:00:00.000Z');
 
 const dialect = new PgDialect();
+
+const PASTE = { channel: 'paste', isPremium: false, principalKind: 'real', units: 1 } as const;
 
 /** The SQL text and bound parameters a recorded builder argument renders to. */
 function rendered(argument: unknown): { text: string; params: unknown[] } {
@@ -58,7 +60,7 @@ describe('ImportAllowanceDal.admit', () => {
     it('takes the per-user lock BEFORE it reads the clock, the window or writes', async () => {
         queueReads([]);
 
-        await dal.admit(control.db, USER, { channel: 'paste', units: 1 });
+        await dal.admit(control.db, USER, PASTE);
 
         expect(methodsOf(control)[0]).toBe('execute');
         expect(methodsOf(control).indexOf('select')).toBeGreaterThan(0);
@@ -68,7 +70,7 @@ describe('ImportAllowanceDal.admit', () => {
     it('records the admitted unit with the SAME instant it decided on', async () => {
         queueReads([]);
 
-        const outcome = await dal.admit(control.db, USER, { channel: 'paste', units: 1 });
+        const outcome = await dal.admit(control.db, USER, PASTE);
 
         expect(outcome).toEqual({ kind: 'admitted', units: 1 });
         expect(valuesPayloads()).toEqual([{ userId: USER, channel: 'paste', units: 1, createdAt: NOW }]);
@@ -76,18 +78,18 @@ describe('ImportAllowanceDal.admit', () => {
 
     it('refuses at the limit, names when the oldest unit leaves, and writes nothing', async () => {
         const oldest = new Date(NOW.getTime() - 20 * 3_600_000);
-        const rest = Array.from({ length: IMPORT_ALLOWANCE_RULES.paste.limit - 1 }, () => ({
+        const rest = Array.from({ length: IMPORT_ALLOWANCE_RULE.limit.free - 1 }, () => ({
             channel: 'paste' as const,
             units: 1,
             createdAt: new Date(NOW.getTime() - 3_600_000),
         }));
         queueReads([{ channel: 'paste', units: 1, createdAt: oldest }, ...rest]);
 
-        const outcome = await dal.admit(control.db, USER, { channel: 'paste', units: 1 });
+        const outcome = await dal.admit(control.db, USER, PASTE);
 
         expect(outcome).toEqual({
             kind: 'refused',
-            resetsAt: new Date(oldest.getTime() + IMPORT_ALLOWANCE_RULES.paste.windowMs),
+            resetsAt: new Date(oldest.getTime() + IMPORT_ALLOWANCE_RULE.windowMs),
         });
         expect(methodsOf(control)).not.toContain('insert');
     });
@@ -95,7 +97,7 @@ describe('ImportAllowanceDal.admit', () => {
     it("prunes the caller's expired units under the lock, before it reads the window", async () => {
         queueReads([]);
 
-        await dal.admit(control.db, USER, { channel: 'paste', units: 1 });
+        await dal.admit(control.db, USER, PASTE);
 
         const methods = methodsOf(control);
 
@@ -106,7 +108,7 @@ describe('ImportAllowanceDal.admit', () => {
     it('⛔ takes the lock on the REGISTERED class and the caller’s own id, in the transaction-scoped form', async () => {
         queueReads([]);
 
-        await dal.admit(control.db, USER, { channel: 'paste', units: 1 });
+        await dal.admit(control.db, USER, PASTE);
 
         const lock = rendered(firstArgumentOf('execute'));
 
@@ -115,57 +117,77 @@ describe('ImportAllowanceDal.admit', () => {
         expect(lock.params).toEqual([ADVISORY_LOCK_CLASSES.recipeImportAllowance, USER]);
     });
 
-    it("⛔ prunes ONLY this user's rows at or before EACH CHANNEL's window edge, and reads ONLY this user's rows after it", async () => {
+    it("⛔ prunes ONLY this user's rows at or before the ONE window edge, and reads ONLY this user's rows after it, on every channel", async () => {
         queueReads([]);
 
-        await dal.admit(control.db, USER, { channel: 'paste', units: 1 });
+        await dal.admit(control.db, USER, PASTE);
 
-        const edge = new Date(NOW.getTime() - IMPORT_ALLOWANCE_RULES.paste.windowMs).toISOString();
+        const edge = new Date(NOW.getTime() - IMPORT_ALLOWANCE_RULE.windowMs).toISOString();
         const wheres = control.calls.filter((call) => call.method === 'where').map((call) => rendered(call.args[0]));
-        const perChannel = (operator: '<=' | '>'): string =>
-            [
-                '(("import_allowance_events"."channel" = $2 and "import_allowance_events"."created_at" ' +
-                    operator +
-                    ' $3)',
-                'or ("import_allowance_events"."channel" = $4 and "import_allowance_events"."created_at" ' +
-                    operator +
-                    ' $5))',
-            ].join(' ');
 
-        // The delete's predicate and the window read's predicate, in that order. Dropping the user filter would spend one
-        // user's window against everyone's; flipping an operator would move the edge the policy defines; dropping the
-        // channel from the edge would prune one channel's rows by another's window.
+        // Dropping the user filter would spend one user's window against everyone's; flipping an operator would move the
+        // edge the policy defines; a channel term would cut one channel's rows by a window of its own.
         expect(wheres).toHaveLength(2);
-        expect(wheres[0]?.text).toBe('("import_allowance_events"."user_id" = $1 and ' + perChannel('<=') + ')');
-        expect(wheres[0]?.params).toEqual([USER, 'paste', edge, 'bulk', edge]);
-        expect(wheres[1]?.text).toBe('("import_allowance_events"."user_id" = $1 and ' + perChannel('>') + ')');
-        expect(wheres[1]?.params).toEqual([USER, 'paste', edge, 'bulk', edge]);
+        expect(wheres[0]?.text).toBe(
+            '("import_allowance_events"."user_id" = $1 and "import_allowance_events"."created_at" <= $2)',
+        );
+        expect(wheres[0]?.params).toEqual([USER, edge]);
+        expect(wheres[1]?.text).toBe(
+            '("import_allowance_events"."user_id" = $1 and "import_allowance_events"."created_at" > $2)',
+        );
+        expect(wheres[1]?.params).toEqual([USER, edge]);
     });
 
-    it('⛔ asks the policy for the REQUESTED channel: a full paste allowance does not stop a bulk admission', async () => {
-        queueReads(
-            Array.from({ length: IMPORT_ALLOWANCE_RULES.paste.limit }, () => ({
-                channel: 'paste' as const,
-                units: 1,
+    it('⛔ counts EVERY channel: a full bulk allowance refuses a paste (one allowance, 2026-11-15)', async () => {
+        queueReads([
+            {
+                channel: 'bulk',
+                units: IMPORT_ALLOWANCE_RULE.limit.free,
                 createdAt: new Date(NOW.getTime() - 3_600_000),
-            })),
-        );
+            },
+        ]);
 
-        const outcome = await dal.admit(control.db, USER, { channel: 'bulk', isPremium: true, units: 5 });
+        const outcome = await dal.admit(control.db, USER, PASTE);
 
-        expect(outcome).toEqual({ kind: 'admitted', units: 5 });
-        expect(valuesPayloads()).toEqual([{ userId: USER, channel: 'bulk', units: 5, createdAt: NOW }]);
+        expect(outcome.kind).toBe('refused');
+        expect(methodsOf(control)).not.toContain('insert');
+    });
+
+    it('⛔ a paid cook is admitted past 200, and a test principal is never refused', async () => {
+        const spent = { channel: 'paste' as const, units: 5_000, createdAt: new Date(NOW.getTime() - 3_600_000) };
+
+        queueReads([{ ...spent, units: 200 }]);
+        const paid = await dal.admit(control.db, USER, { ...PASTE, isPremium: true });
+
+        queueReads([spent]);
+        const test = await dal.admit(control.db, USER, { ...PASTE, principalKind: 'test' });
+
+        expect(paid).toEqual({ kind: 'admitted', units: 1 });
+        expect(test).toEqual({ kind: 'admitted', units: 1 });
+    });
+
+    it('⛔ a test principal’s paste still writes its ledger row (ADR-0072 §8): the one pipeline runs end to end', async () => {
+        queueReads([]);
+
+        await dal.admit(control.db, USER, { ...PASTE, principalKind: 'test' });
+
+        expect(valuesPayloads()).toEqual([{ userId: USER, channel: 'paste', units: 1, createdAt: NOW }]);
     });
 
     it('⛔ writes ONLY the units that fit, and answers partial with when more opens', async () => {
         queueReads([{ channel: 'bulk', units: 990, createdAt: new Date(NOW.getTime() - 3_600_000) }]);
 
-        const outcome = await dal.admit(control.db, USER, { channel: 'bulk', isPremium: true, units: 50 });
+        const outcome = await dal.admit(control.db, USER, {
+            channel: 'bulk',
+            isPremium: true,
+            principalKind: 'real',
+            units: 50,
+        });
 
         expect(outcome).toEqual({
             kind: 'partial',
             units: 10,
-            resetsAt: new Date(NOW.getTime() - 3_600_000 + IMPORT_ALLOWANCE_RULES.bulk.windowMs),
+            resetsAt: new Date(NOW.getTime() - 3_600_000 + IMPORT_ALLOWANCE_RULE.windowMs),
         });
         expect(valuesPayloads()).toEqual([{ userId: USER, channel: 'bulk', units: 10, createdAt: NOW }]);
     });

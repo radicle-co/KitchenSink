@@ -68,19 +68,9 @@
                         font-size: 14px;
                         line-height: 20px;
                     }
-                    .rd .t15 {
-                        font-size: 16px;
-                        line-height: 24px;
-                    }
                     .rd .t17 {
                         font-size: 16px;
                         line-height: 24px;
-                    }
-                    .rd .soft {
-                        color: var(--ink-muted);
-                    }
-                    .rd .w500 {
-                        font-weight: 500;
                     }
                     .rd .w600 {
                         font-weight: 600;
@@ -113,7 +103,7 @@
                         background-position: center;
                     }
                     .rd .imgHero {
-                        background-image: url('/_blob/dbde48c21efce7a1ae70c00938b976a6');
+                        background-image: url('assets/5024d8f60c578f87.webp');
                     }
                     .rd .vp {
                         height: 844px;
@@ -427,10 +417,6 @@
                         fill: currentColor;
                         stroke: none;
                     }
-                    .rd .stars.big .ic {
-                        width: 18px;
-                        height: 18px;
-                    }
                     .rd .stars.tap {
                         gap: 0;
                     }
@@ -643,11 +629,6 @@
                         min-height: 56px;
                         margin-top: 16px;
                     }
-                    .rd .accordion .grow {
-                        flex: 1;
-                        font-size: 16px;
-                        font-weight: 600;
-                    }
                     .rd .accordion.open {
                         flex-wrap: wrap;
                         padding: 0;
@@ -659,11 +640,6 @@
                         padding: 0 16px;
                         min-height: 56px;
                         width: 100%;
-                    }
-                    .rd .accHead .grow {
-                        flex: 1;
-                        font-size: 16px;
-                        font-weight: 600;
                     }
                     .rd .accBody {
                         width: 100%;
@@ -1122,54 +1098,6 @@
                         -webkit-mask-image: linear-gradient(to bottom, var(--ink) calc(100% - 72px), transparent);
                         mask-image: linear-gradient(to bottom, var(--ink) calc(100% - 72px), transparent);
                     }
-                    .rd .timerDock {
-                        position: absolute;
-                        left: 12px;
-                        right: 12px;
-                        bottom: 92px;
-                        z-index: 7;
-                        display: flex;
-                        align-items: center;
-                        gap: 12px;
-                        padding: 10px 10px 10px 14px;
-                        border-radius: var(--radius-lg);
-                        background: var(--paper);
-                        box-shadow:
-                            var(--shadow-lg),
-                            inset 0 0 0 1px var(--line-divider);
-                    }
-                    .rd .timerDock .ring {
-                        width: 36px;
-                        height: 36px;
-                        border-radius: 50%;
-                        display: grid;
-                        place-items: center;
-                        background: var(--selected-fill);
-                        color: var(--action-text);
-                        flex: none;
-                    }
-                    .rd .timerDock .grow {
-                        flex: 1;
-                    }
-                    .rd .timerDock .big {
-                        font-size: 16px;
-                        font-weight: 600;
-                    }
-                    .rd .timerDock .iconBtn {
-                        width: 44px;
-                        height: 44px;
-                        display: grid;
-                        place-items: center;
-                        border-radius: 12px;
-                        background: var(--surface-muted);
-                        color: var(--ink);
-                    }
-                    .rd .timerDock.inCol {
-                        left: auto;
-                        right: 40px;
-                        bottom: 28px;
-                        width: 420px;
-                    }
                     .rd .web {
                         display: grid;
                         grid-template-columns: 232px 1fr;
@@ -1208,9 +1136,6 @@
                     }
                     .rd .side a.on .ic {
                         color: var(--action-text);
-                    }
-                    .rd .side .grow {
-                        flex: 1;
                     }
                     .rd .rail {
                         padding: 22px 12px;
@@ -1560,13 +1485,6 @@
                         place-items: center;
                         padding: 56px 56px;
                     }
-                    .rd .lightbox .big {
-                        width: 100%;
-                        aspect-ratio: 4/3;
-                        border-radius: var(--radius-lg);
-                        box-shadow: var(--shadow-xl);
-                        max-height: 100%;
-                    }
                     .rd .lightbox .close {
                         position: absolute;
                         top: 16px;
@@ -1672,9 +1590,6 @@
                         height: 52px;
                         border-radius: 26px;
                     }
-                    .rd .timerDock .iconBtn {
-                        border-radius: 22px;
-                    }
                     .rd .timer {
                         height: 36px;
                         border-radius: 18px;
@@ -1727,6 +1642,23 @@
                     .rd .tabbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
                     .tab .avatar.xs, .nv-tab .avatar.xs { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-divider); }
                     .tab.on .avatar.xs, .nv-tab.on .avatar.xs { box-shadow: 0 0 0 2px var(--ink); }
+
+/* S4b recipe-page timer dock: S3's CookingTimerRow in a region named "Timer". */
+.s4bDock { box-sizing: border-box; width: 100%; max-width: 600px; margin: 0 auto; padding: 0 8px 0 14px;
+  background: var(--paper-raised); color: var(--ink); border-radius: 18px; box-shadow: var(--shadow-lg);
+  font-family: Inter, system-ui, sans-serif; text-align: left; }
+.s4bDock * { box-sizing: border-box; }
+.s4bRow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 60px; padding: 6px 0; }
+.s4bGlyph { color: var(--action-text); flex: none; display: flex; }
+.s4bLab { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; }
+.s4bFig { font: 600 28px/32px Inter, system-ui, sans-serif; font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap; color: var(--ink); }
+.s4bMeta { font-size: 14px; line-height: 20px; color: var(--ink-muted); overflow-wrap: anywhere; }
+.s4bIcons { display: flex; gap: 8px; flex: none; margin-left: auto; }
+.s4bIb { width: 44px; height: 44px; border-radius: 22px; display: flex; align-items: center; justify-content: center;
+  color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; }
+/* Placement: 8 above the tab bar below 840 and on every native size. */
+.s4bSlot { padding: 0 12px 8px; flex: none; }
 </style></helmet
             >
             <svg width="0" height="0" style="position: absolute" aria-hidden="true">
@@ -1830,8 +1762,7 @@
                     </symbol>
                     <symbol id="cloudOff" viewBox="0 0 24 24">
                         <path d="M5 15.5a4 4 0 0 1 1.5-7.7 5.5 5.5 0 0 1 10.3 1.4A3.8 3.8 0 0 1 17 17H8M4 4l16 16" />
-                    </symbol>
-                <symbol id="calendar" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5" /><path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5" /></symbol></defs>
+                    </symbol></defs>
             </svg>
             <div class="rd vp" data-board="RecipeDetailScrolledMobile" style="width: 390px; height: 844px">
                 <div class="topBar withCook">
@@ -1938,28 +1869,14 @@
                         </ol>
                     </div>
                 </div>
-                <div class="timerDock" role="timer" aria-label="Roasting, 1 hour 12 minutes left">
-                    <span class="ring"
-                        ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg
-                    ></span>
-                    <div class="grow">
-                        <p class="big tnum">1:12:40 <span class="t15 soft w500">left</span></p>
-                        <p class="t13 soft">Roasting at 190°C · then rest 15 min</p>
-                    </div>
-                    <a class="iconBtn" href="#" aria-label="Pause timer"
-                        ><svg class="ic" aria-hidden="true"><use href="#pause" /></svg
-                    ></a>
-                </div>
-                <nav class="tabbar" aria-label="Main">
+                <div class="s4bSlot"><section class="s4bDock" aria-label="Timer"><div class="s4bRow"><span class="s4bGlyph"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"></line><line x1="12" x2="15" y1="14" y2="11"></line><circle cx="12" cy="14" r="8"></circle></svg></span><span class="s4bLab"><span class="s4bFig">43:12</span><span class="s4bMeta">Roast · step 4</span></span><span class="s4bIcons"><button type="button" class="s4bIb" aria-label="Pause Roast timer"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="4" width="4" height="16" rx="1"></rect><rect x="6" y="4" width="4" height="16" rx="1"></rect></svg></button><button type="button" class="s4bIb" aria-label="Cancel Roast timer"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button></span></div></section></div><nav class="tabbar" aria-label="Main" style="position: relative; z-index: 3">
                     <a class="tab" href="#"
                         ><svg class="ic" aria-hidden="true"><use href="#home" /></svg>Home</a
                     ><a class="tab on" href="#" aria-current="page"
                         ><svg class="ic" aria-hidden="true"><use href="#book" /></svg>Recipes</a
                     ><a class="tab" href="#"
                         ><svg class="ic" aria-hidden="true"><use href="#compass" /></svg>Discover</a
-                    ><a class="tab" href="#"
-                        ><svg class="ic" aria-hidden="true"><use href="#calendar" /></svg>Meal plan</a
-                    ><a class="tab" href="#"><span class="avatar xs" aria-hidden="true">ER</span>You</a><a class="tab" href="#"><span class="avatar xs" aria-hidden="true">ER</span>You</a>
+                    ><a class="tab" href="#"><span class="avatar xs" aria-hidden="true">ER</span>You</a>
                 </nav>
             </div></x-dc
         >

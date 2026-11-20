@@ -47,45 +47,7 @@ const advance = (ms: number): void => {
 
 const statusText = (): string => screen.getByRole('status').textContent ?? '';
 
-/** A screen whose button shows a snackbar and whose second button dismisses it through the handle `show` returned. */
-function DismissingScreen({ input }: { readonly input: SnackbarInput }): JSX.Element {
-    const { show } = useSnackbar();
-    const [handle, setHandle] = useState<SnackbarHandle | undefined>(undefined);
-
-    return (
-        <>
-            <button type="button" onClick={() => setHandle(show(input))}>
-                {`show ${input.message}`}
-            </button>
-            <button type="button" onClick={() => handle?.dismiss()}>
-                dismiss
-            </button>
-        </>
-    );
-}
-
 describe('SnackbarHost (web)', () => {
-    it('settles a dismissed snackbar: its onTimeout runs once and the snackbar goes', () => {
-        const onTimeout = vi.fn();
-        render(
-            <SnackbarHost>
-                <DismissingScreen input={{ message: 'Ticks cleared', onTimeout }} />
-            </SnackbarHost>,
-        );
-
-        showFrom('Ticks cleared');
-        advance(1000);
-        fireEvent.click(screen.getByRole('button', { name: 'dismiss' }));
-
-        // At once, long before its own six seconds are up.
-        expect(onTimeout).toHaveBeenCalledOnce();
-        expect(statusText()).toBe('');
-
-        advance(60_000);
-
-        expect(onTimeout).toHaveBeenCalledOnce();
-    });
-
     it('refuses a screen that asks for a snackbar outside a host', () => {
         expect(() => render(<Screen input={{ message: 'x' }} />)).toThrow(/SnackbarHost/u);
     });
@@ -334,3 +296,43 @@ describe('UndoSnackbar (web)', () => {
 });
 
 type ResizeObserverCallbackStub = () => void;
+
+describe('SnackbarHost (web): withdraw', () => {
+    it('takes the snackbar away without committing it, and answers the time it had left', () => {
+        const onTimeout = vi.fn();
+        const answers: (number | undefined)[] = [];
+
+        function Withdrawing(): JSX.Element {
+            const { show, withdraw } = useSnackbar();
+            const [handle, setHandle] = useState<SnackbarHandle | undefined>(undefined);
+
+            return (
+                <>
+                    <button type="button" onClick={() => setHandle(show({ message: 'Removed', onTimeout }))}>
+                        open
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => answers.push(handle === undefined ? undefined : withdraw(handle))}
+                    >
+                        take
+                    </button>
+                </>
+            );
+        }
+
+        render(
+            <SnackbarHost>
+                <Withdrawing />
+            </SnackbarHost>,
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'open' }));
+        advance(1000);
+        fireEvent.click(screen.getByRole('button', { name: 'take' }));
+        advance(10_000);
+
+        expect(answers).toEqual([5000]);
+        expect(statusText()).toBe('');
+        expect(onTimeout).not.toHaveBeenCalled();
+    });
+});

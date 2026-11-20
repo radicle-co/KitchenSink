@@ -8,7 +8,7 @@
  * shared boot mechanics are verified directly; the identity and recipe-service e2e suites additionally
  * exercise it transitively through their own `bootIdentityApp` / `bootRecipeApp` wrappers.
  */
-import { Controller, Get, Injectable, Module } from '@nestjs/common';
+import { Body, Controller, Get, Injectable, Module, Post } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { bootServiceApp, type BootedServiceApp } from '../bootServiceApp.js';
@@ -28,6 +28,11 @@ class ProbeController {
     @Get('probe')
     probe(): { echoed: string | undefined } {
         return { echoed: process.env['HARNESS_PROBE_VALUE'] };
+    }
+
+    @Post('echo')
+    echo(@Body() body: unknown): { body: unknown } {
+        return { body: body ?? null };
     }
 
     @Get('greeting')
@@ -125,6 +130,51 @@ describe('bootServiceApp', () => {
             greeting: 'from the double',
         });
         await expect((await fetch(`${booted.baseUrl}/probe`)).json()).resolves.toEqual({ echoed: 'still-real' });
+    });
+
+    describe.each([
+        ['as it ships', []],
+        ['with doubles', [{ provide: GreetingSource, useValue: { greeting: () => 'from the double' } }]],
+    ])('applies the service’s HTTP setup %s', (_name, doubles) => {
+        const postJson = async (baseUrl: string): Promise<Response> =>
+            fetch(`${baseUrl}/echo`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: '{"a":1}',
+            });
+
+        it('creates the app with its Nest options: with bodyParser off, nothing parses the body', async () => {
+            booted = await bootServiceApp({
+                loadAppModule: () => Promise.resolve({ AppModule: ProbeModule }),
+                doubles,
+                httpSetup: {
+                    nestOptions: (options) => ({ ...options, bodyParser: false }),
+                    configure: () => undefined,
+                },
+            });
+
+            await expect((await postJson(booted.baseUrl)).json()).resolves.toEqual({ body: null });
+        });
+
+        it('runs its configure step before the first request', async () => {
+            booted = await bootServiceApp({
+                loadAppModule: () => Promise.resolve({ AppModule: ProbeModule }),
+                doubles,
+                httpSetup: {
+                    nestOptions: (options) => ({ ...options, bodyParser: false }),
+                    configure: (app) => {
+                        app.use(
+                            (_req: unknown, res: { setHeader: (k: string, v: string) => void }, next: () => void) => {
+                                res.setHeader('x-configured', 'yes');
+                                next();
+                            },
+                        );
+                    },
+                },
+            });
+
+            expect((await postJson(booted.baseUrl)).headers.get('x-configured')).toBe('yes');
+        });
     });
 
     it('close() tears the listener down so further requests fail', async () => {

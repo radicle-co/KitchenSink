@@ -23,6 +23,7 @@ import { Icon } from '../icon/Icon.js';
 import { FieldLabel } from '../input/FieldLabel.js';
 import type { SearchFieldProps } from './props.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { TOUCH_TARGET_CLASS } from '../touchTarget/touchTargetClass.js';
 
 /** The pill. Its start padding clears the glyph and its end padding the clear control. */
 const FIELD =
@@ -32,7 +33,7 @@ const FIELD =
 
 /** The clear control: a 44 px target inside the pill's end. */
 const CLEAR =
-    'absolute inset-y-0 end-0.5 my-auto inline-flex size-11 items-center justify-center rounded-full text-ink-muted ' +
+    `absolute inset-y-0 end-0.5 my-auto inline-flex ${TOUCH_TARGET_CLASS.fixed} items-center justify-center rounded-full text-ink-muted ` +
     `hover:text-ink ${FOCUS_RING_CLASS.offset}`;
 
 /** The web design-system search field. */

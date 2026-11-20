@@ -8,35 +8,33 @@
  * @pattern Facade over {@link MacSession} and `bin/mac/androidLaneHost.sh`
  * @sideEffect Runs commands on the Mac: boots and kills emulators, copies the APK, opens a tunnel.
  */
-import type { LaneCost } from '@kitchensink/e2e-plan';
+import { laneCosts } from '@kitchensink/e2e-plan/laneCosts';
 
 import type { AndroidHost } from './androidHost.js';
 import { consolePort } from './androidSerials.js';
-import { tunnelsFromManifest } from './iosLane.js';
+import { tunnelsFromManifest, type Tunnel } from './iosLane.js';
 import type { LaneSpec, RunContext } from './laneTypes.js';
 import type { LocalSettings } from './localSettings.js';
+import { HOST_PORT_VARIABLES, type HostPorts } from './stackFacts.js';
 import { MacSession, macPathsOf, remote, type MacShell } from './macSession.js';
 
-/**
- * What a Mac Android lane costs, measured with `maestro:macUsage android` on a two-lane full run (2026-11-08, 75 minutes, the
- * 14-cpu Mac, host GPU): a lane's emulator and Maestro JVM used 0.65 to 0.68 cpus on average, p95 1.2, with bursts to 2.5 to
- * 2.7, and peaked at 5.47 to 5.71 GiB resident. The cpu figure is the burst rounded up and the memory the largest peak
- * rounded up. It counts only a lane's own processes (the GPU work runs in Metal), which is what the planner's margin on free
- * memory is for.
- */
-const MAC_ANDROID_LANE_COST: LaneCost = { cpus: 3, memBytes: Math.round(5.8 * 1024 ** 3) };
-
 const HEX = /^[0-9a-f]+$/u;
+
+/** The runner variable that names the Mac side of each tunnel. */
+const HOST_PORT_VARIABLE: Readonly<Record<Tunnel['origin'], string>> = {
+    recipeOrigin: HOST_PORT_VARIABLES.recipes,
+    identityOrigin: HOST_PORT_VARIABLES.identity,
+    foodOrigin: HOST_PORT_VARIABLES.food,
+};
 
 export interface MacAndroidHostOptions {
     readonly shell: MacShell;
     readonly env: Readonly<Record<string, string | undefined>>;
     readonly repoRoot: string;
-    /** The local stack's origins (the local side of each tunnel), and the lane AVD and the Mac recipe port it states. */
-    readonly settings: Pick<
-        LocalSettings,
-        'recipeOrigin' | 'identityOrigin' | 'foodOrigin' | 'avd' | 'avdConfig' | 'avdImage' | 'macRecipePort'
-    >;
+    /** The host port each service publishes (the local side of each tunnel), from the running stack. */
+    readonly hostPorts: HostPorts;
+    /** The lane AVD and the Mac recipe port it states. */
+    readonly settings: Pick<LocalSettings, 'avd' | 'avdConfig' | 'avdImage' | 'macRecipePort'>;
     /** The file's text, or `undefined` when it does not exist. */
     readonly readFile: (file: string) => string | undefined;
 }
@@ -48,6 +46,7 @@ export function createMacAndroidHost(options: MacAndroidHostOptions): AndroidHos
     const image = options.settings.avdImage(abi);
     let localApk = '';
     let remoteApk = '';
+    let tunnels: readonly Tunnel[] = [];
 
     const adb: AndroidHost['adb'] = async (serial, ...args) => {
         try {
@@ -63,7 +62,7 @@ export function createMacAndroidHost(options: MacAndroidHostOptions): AndroidHos
 
     return {
         abi,
-        laneCost: MAC_ANDROID_LANE_COST,
+        laneCost: laneCosts.macAndroid,
         hostFacts: () => session.facts(),
         prepare: async (run: RunContext, apk: string, key: string) => {
             if (!HEX.test(key)) {
@@ -87,11 +86,10 @@ export function createMacAndroidHost(options: MacAndroidHostOptions): AndroidHos
 
             // The origins the app was built with, read from its own manifest. The first is the recipe service.
             const manifest = options.readFile(apk.replace(/app\.apk$/u, 'testApp.manifest')) ?? '';
-            session.openTunnel(
-                tunnelsFromManifest(manifest, options.settings).map((tunnel) =>
-                    tunnel.origin === 'recipeOrigin' ? { ...tunnel, macPort: macRecipePort } : tunnel,
-                ),
+            tunnels = tunnelsFromManifest(manifest, options.hostPorts).map((tunnel) =>
+                tunnel.origin === 'recipeOrigin' ? { ...tunnel, macPort: macRecipePort } : tunnel,
             );
+            session.openTunnel(tunnels);
         },
         adb,
         boot: async (lane: LaneSpec) => {
@@ -124,7 +122,10 @@ export function createMacAndroidHost(options: MacAndroidHostOptions): AndroidHos
                 ANDROID_SERIAL: lane.device,
                 MAESTRO_ANDROID_APK: localApk,
                 MAESTRO_SKIP_INSTALL: '1',
-                MAESTRO_LOCAL_RECIPE_HOST_PORT: String(macRecipePort),
+                // The runner on the Mac reverses each device port onto the Mac side of its tunnel.
+                ...Object.fromEntries(
+                    tunnels.map((tunnel) => [HOST_PORT_VARIABLE[tunnel.origin], String(tunnel.macPort)]),
+                ),
                 KS_MAC_ANDROID_HOME: session.paths.androidSdk,
                 KS_MAC_ANDROID_ENV: session.paths.androidEnv,
             };

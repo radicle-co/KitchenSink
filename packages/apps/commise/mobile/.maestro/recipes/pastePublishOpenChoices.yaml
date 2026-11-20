@@ -68,6 +68,28 @@ appId: ${APP_ID}
 - assertVisible: 'Close editor'
 - assertVisible: 'Search for a food for 2 cups milk'
 
+# ADR-0095: the list was pasted, so after the open choices the cook is asked where the recipe is from. Keep as draft sends
+# nothing, and the editor is still open.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Publish'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible: '1 ingredient has no food yet'
+      timeout: 20000
+- tapOn: 'Publish anyway'
+- extendedWaitUntil:
+      visible: 'Where is this recipe from?'
+      timeout: 20000
+- tapOn: 'Keep as draft'
+- extendedWaitUntil:
+      notVisible: 'Where is this recipe from?'
+      timeout: 20000
+- assertVisible: 'Close editor'
+
 # The typed title gave the draft a server row, so it settles as "Saved", the helper's default (the device pass read
 # "Saved" in the header after the Publish tap).
 - runFlow: common/discardDraft.yaml

@@ -43,6 +43,7 @@ import { recipePhotos } from '../../../src/database/schema/photos.js';
 import { recipeDb } from '../../support/roleDb.js';
 import type { RecipesDal } from '../../../src/recipes/dal/recipes.dal.js';
 import { RECIPES_DAL } from '../../../src/recipes/recipes.tokens.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates and tombstones recipes as. */
 const OWNER = '01JSOFTDELETE0OWNER000000DD';
@@ -58,6 +59,7 @@ interface PaginatedBody {
 }
 
 const CREATE_PAYLOAD = {
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: 'Tombstone Test Recipe',
     description: 'Created by the C-007 soft-delete integration spec.',
     servings: 2,

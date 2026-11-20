@@ -23,6 +23,7 @@ import { useEffect } from 'react';
 import { clearStoredCookMarks } from '../detail/cookMarksBackend.js';
 import { recentSearchesKeyFor, type RecentSearchStore } from '../discovery/recentSearches.js';
 import { draftStoreFor } from '../editor/draftStore.js';
+import type { KeptSessionStore } from './kept/keptSessionStore.js';
 
 /**
  * Remove what the device kept for a cook: every cook mark in the tab (D18, whoever made them; a no-op on native, which
@@ -32,16 +33,24 @@ import { draftStoreFor } from '../editor/draftStore.js';
  * @param store - The app's one key/value store, the same object its draft store and `SyncProvider` use.
  * @param subject - The cook who was signed in (Clerk `userId`), or `undefined` when nobody was.
  * @param recentSearches - The app's recent-search store (REQUIRED: a caller that forgot it would leave the history behind).
+ * @param kept - The app's kept cooking-session store (REQUIRED for the same reason: its record would stay on the device).
  * @sideEffect Removes keys from the stores and from `sessionStorage`.
  */
 export async function endDeviceSession(
     store: OutboxStore,
     subject: string | undefined,
     recentSearches: RecentSearchStore,
+    kept: KeptSessionStore,
 ): Promise<void> {
     clearStoredCookMarks();
 
+    // ⛔ BEFORE THE EARLY RETURN: the store's own writer queues the removal behind every write already waiting, and bumps
+    // its generation so none of them lands afterwards (ADR-0094 section 4). A failed removal must not stop the rest.
+    const clearKept = kept.clear(subject).catch(() => undefined);
+
     if (subject === undefined) {
+        await clearKept;
+
         return;
     }
 
@@ -50,7 +59,12 @@ export async function endDeviceSession(
     const forgetRecents = recentSearches.removeItem(recentSearchesKeyFor(subject)).catch(() => undefined);
 
     // Both are queued now, synchronously, behind every change already asked of either store.
-    await Promise.all([draftStoreFor(store, subject).clear(), outboxMutatorFor(store, subject).clear(), forgetRecents]);
+    await Promise.all([
+        draftStoreFor(store, subject).clear(),
+        outboxMutatorFor(store, subject).clear(),
+        forgetRecents,
+        clearKept,
+    ]);
 }
 
 /**
@@ -94,6 +108,7 @@ async function observeCook(
     store: OutboxStore,
     subject: string | null,
     recentSearches: RecentSearchStore,
+    kept: KeptSessionStore,
 ): Promise<void> {
     // An unreadable record is treated as none: there is nothing to compare, and the namespacing still keeps another
     // cook's keys unreachable.
@@ -101,7 +116,7 @@ async function observeCook(
 
     if (held !== null && held !== subject) {
         // A failed clear leaves the keys namespaced to that cook, unreachable by anyone else signed in.
-        await endDeviceSession(store, held, recentSearches).catch(() => undefined);
+        await endDeviceSession(store, held, recentSearches, kept).catch(() => undefined);
     }
 
     if (held === subject) {
@@ -118,12 +133,14 @@ async function observeCook(
  * @param store - The app's one key/value store.
  * @param subject - Clerk's `userId`: a cook, `null` when signed out, `undefined` while loading (ignored).
  * @param recentSearches - The app's recent-search store, whose entries for the previous cook end with their session.
+ * @param kept - The app's kept cooking-session store, whose record for the previous cook ends with their session.
  * @sideEffect Removes the previous cook's stored drafts, outbox, recent searches and the tab's cook marks.
  */
 export function useDeviceSessionScope(
     store: OutboxStore,
     subject: string | null | undefined,
     recentSearches: RecentSearchStore,
+    kept: KeptSessionStore,
 ): void {
     useEffect(() => {
         if (subject === undefined) {
@@ -132,6 +149,6 @@ export function useDeviceSessionScope(
 
         // ⛔ Queued now, synchronously: an editor's exit checkpoint in the same commit (its cleanup runs first) has
         // already queued its writes on the stores' own writers, so a clear this decides is queued behind them.
-        void scopeQueueFor(store)(() => observeCook(store, subject, recentSearches)).catch(() => undefined);
-    }, [store, subject, recentSearches]);
+        void scopeQueueFor(store)(() => observeCook(store, subject, recentSearches, kept)).catch(() => undefined);
+    }, [store, subject, recentSearches, kept]);
 }

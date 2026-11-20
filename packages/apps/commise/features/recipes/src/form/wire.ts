@@ -19,13 +19,41 @@
  * Pure and platform-agnostic: shared unchanged by the web (`*.tsx`) and native (`*.native.tsx`) form
  * leaves and by the app container, so the two renders can never drift. No React, no platform APIs.
  */
-import { canonicalCuisine, quantityLowerBound, type RecipeDetail, type RecipeStatus } from '@kitchensink/recipe-core';
-import type { CreateRecipeRequest, RecipeStatementInput, UpdateRecipeRequest } from '@kitchensink/schema-recipe';
+import {
+    canonicalCuisine,
+    quantityLowerBound,
+    RecipeStatus,
+    RecipeVisibility,
+    type RecipeDetail,
+} from '@kitchensink/recipe-core';
+import type {
+    CreateRecipeRequest,
+    PublicConfirmationInput,
+    RecipeStatementInput,
+    UpdateRecipeRequest,
+} from '@kitchensink/schema-recipe';
 import { type RecipeFormValues } from './values.js';
-import { sourceStatementOf } from './sourceLink.js';
+import { sourceStatementOf, type PublicWebWording } from './sourceLink.js';
 import { isStoredLine, seedLineKey, type IngredientLineKey } from './lineKey.js';
 import { computeTotalTime } from './totalTime.js';
 import { draftQuantity } from './quantity.js';
+
+/**
+ * The wording a screen showed the cook, which the builders send exactly as given and never supply themselves: a client that
+ * sends a wording must have shown it. A builder given none sends none.
+ */
+export interface ShownWordings {
+    /** The Public confirmation line shown beside the Public choice. */
+    readonly publicConfirmation?: PublicConfirmationInput;
+    /** The wording shown beside a pasted web link. */
+    readonly statementWording?: PublicWebWording;
+    /**
+     * The statement the cook gave in the source-statement sheet (ADR-0095), with the wording it showed. It beats the Source
+     * field's own, and rides only a write that publishes: a draft checkpoint carries none, so a statement is stated and
+     * recorded once and a server that holds "I wrote this" is never owed its confirmation by a second one.
+     */
+    readonly statement?: RecipeStatementInput;
+}
 
 /**
  * Map form values to the service's published `CreateRecipeRequest` body: computes total time, drops
@@ -37,9 +65,14 @@ import { draftQuantity } from './quantity.js';
  *
  * @param values - The editor's form values.
  * @param status - The publication status to persist (`draft`/`published`); omit to leave it untouched.
+ * @param shown - The wording the screen showed. Without it the body carries no confirmation and no statement wording.
  * @returns The `POST /api/v1/recipes` body.
  */
-export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeStatus): CreateRecipeRequest => ({
+export const toCreateRecipeInput = (
+    values: RecipeFormValues,
+    status?: RecipeStatus,
+    shown: ShownWordings = {},
+): CreateRecipeRequest => ({
     title: values.title.trim(),
     ...(values.description.trim() === '' ? {} : { description: values.description.trim() }),
     // The canonical form (`cuisineField.md` §2): the field commits it already; this is the safety net, and the wire parse
@@ -92,13 +125,42 @@ export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeSta
     tags: [...values.tags],
     visibility: values.visibility,
     ...(status === undefined ? {} : { status }),
-    // ADR-0089: the link the cook pasted, when it parses. Never the raw text, and never the curator's `source`.
-    ...createStatementOf(values),
+    ...publicConfirmationOf(values, status, shown.publicConfirmation),
+    // ADR-0095: the client's word that content was pasted, never `false`: an absent key is "nothing seen".
+    ...(values.pasted === true ? { contentPasted: true as const } : {}),
+    // The sheet's answer when it rides this write, else (ADR-0089) the link the cook pasted, when it parses. Never the raw
+    // text, and never the curator's `source`.
+    ...(sheetStatementOf(shown, status) ?? createStatementOf(values, shown.statementWording)),
 });
 
+/** The sheet's statement as a body key, when it rides this write: only one that publishes. Pure. */
+const sheetStatementOf = (
+    shown: ShownWordings,
+    status: RecipeStatus | undefined,
+): { readonly statement: RecipeStatementInput } | undefined =>
+    shown.statement !== undefined && status === RecipeStatus.PUBLISHED ? { statement: shown.statement } : undefined;
+
+/**
+ * The passive Public confirmation (attestation record, migration 0088): sent when the write can leave the recipe published
+ * and public, which is a public choice and a status that is not `draft`, AND the screen gave the line it showed. The server
+ * judges whether it was owed and records it only when the write made the recipe live, so a save of a recipe already live
+ * carries it harmlessly. Pure.
+ */
+const publicConfirmationOf = (
+    values: Pick<RecipeFormValues, 'visibility'>,
+    status: RecipeStatus | undefined,
+    publicConfirmation: PublicConfirmationInput | undefined,
+): { readonly publicConfirmation?: PublicConfirmationInput } =>
+    publicConfirmation !== undefined && values.visibility === RecipeVisibility.PUBLIC && status !== RecipeStatus.DRAFT
+        ? { publicConfirmation }
+        : {};
+
 /** The create body's `statement`: the pasted link when it parses, else no key. Pure. */
-const createStatementOf = (values: RecipeFormValues): { readonly statement?: RecipeStatementInput } => {
-    const statement = sourceStatementOf(values, undefined);
+const createStatementOf = (
+    values: RecipeFormValues,
+    wording: PublicWebWording | undefined,
+): { readonly statement?: RecipeStatementInput } => {
+    const statement = sourceStatementOf(values, undefined, wording);
 
     return statement === undefined || statement === null ? {} : { statement };
 };
@@ -107,8 +169,9 @@ const createStatementOf = (values: RecipeFormValues): { readonly statement?: Rec
 const updateStatementOf = (
     values: RecipeFormValues,
     recipe: Parameters<typeof sourceStatementOf>[1],
+    wording: PublicWebWording | undefined,
 ): { readonly statement?: RecipeStatementInput | null } => {
-    const statement = sourceStatementOf(values, recipe);
+    const statement = sourceStatementOf(values, recipe, wording);
 
     return statement === undefined ? {} : { statement };
 };
@@ -138,22 +201,33 @@ const updateStatementOf = (
  * @param values - The editor's form values.
  * @param status - The publication status to persist (`draft`/`published`); omit to leave it untouched.
  * @param recipe - The recipe this updates, as the server holds it: what the Source is judged against.
+ * @param shown - The wording the screen showed. Without it the body carries no confirmation and no statement wording.
  * @returns The `PATCH /api/v1/recipes/{id}` body, without `expectedVersion`.
  */
 export const toUpdateRecipeInput = (
     values: RecipeFormValues,
     status?: RecipeStatus,
     recipe?: Parameters<typeof sourceStatementOf>[1],
+    shown: ShownWordings = {},
 ): Omit<UpdateRecipeRequest, 'expectedVersion'> => {
     // Destructured out, not `delete`d: the key must be ABSENT from the returned object, and a spread of the
     // create projection would otherwise reintroduce it past the type system's excess-property check.
-    const { visibility: _visibility, statement: _created, ingredients, ...rest } = toCreateRecipeInput(values, status);
+    const {
+        visibility: _visibility,
+        statement: _created,
+        publicConfirmation: _confirmation,
+        ingredients,
+        ...rest
+    } = toCreateRecipeInput(values, status, shown);
 
     return {
         ...rest,
+        // An update says nothing of publication unless it names a status, so only a publish can owe the confirmation.
+        ...(status === RecipeStatus.PUBLISHED ? publicConfirmationOf(values, status, shown.publicConfirmation) : {}),
         // ⛔ A change of source, never the create's statement (ADR-0089): only before the first publish, `null` to remove one
         // the server holds, and nothing at all when the caller does not say which recipe this updates.
-        ...(recipe === undefined ? {} : updateStatementOf(values, recipe)),
+        ...(sheetStatementOf(shown, status) ??
+            (recipe === undefined ? {} : updateStatementOf(values, recipe, shown.statementWording))),
         // ⛔ A pasted line's source is CREATE-ONLY (ADR-0023's shape, blueprint A5): a PATCH that re-asserted it could
         // steer the cross-user memo, and the strict update contract refuses the keys outright, so every save after a
         // paste would 400. Destructured out for the same reason `visibility` is: a spread skips the excess check.

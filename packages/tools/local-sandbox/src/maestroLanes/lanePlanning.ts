@@ -8,6 +8,7 @@ import { parseArgs } from 'node:util';
 
 import { maestroSlotForShard } from '@kitchensink/e2e-fixtures/testPool';
 
+import { isIosDevice, type IosDevice } from './iosLane.js';
 import type { LanePlatform, LaneSpec } from './laneTypes.js';
 
 /** The emulator the owner runs by hand. A lane never drives it. */
@@ -128,16 +129,20 @@ export interface LaneArgs {
     readonly selection: 'all' | 'changed' | readonly string[];
     /** Seconds between lane starts, so the lanes' first sign-ins do not meet Clerk's per-IP limit at once. */
     readonly staggerSeconds: number;
+    /** The class of the iOS lanes of this run: the iPhone default, or an iPad for the 820 pt layouts. */
+    readonly iosDevice: IosDevice;
 }
 
 const DEFAULT_STAGGER_SECONDS = 20;
 
 /**
- * Read `--platform android|ios|both [--lanes <n>] [--flows <f...>]`. `FULL_SUITE=1` runs everything, and
- * `MAESTRO_LANE_STAGGER_SECONDS` (whole seconds, default 20) spaces the lane starts. Pure.
+ * Read `--platform android|ios|both [--lanes <n>] [--flows <f...>] [--ios-device iphone|ipad]`. `FULL_SUITE=1` runs
+ * everything, `MAESTRO_LANE_STAGGER_SECONDS` (whole seconds, default 20) spaces the lane starts, and the flag beats
+ * `E2E_IOS_DEVICE`, which beats the iPhone default. Pure.
  *
  * @throws On a missing or unknown platform, a lane count that is not a positive integer, `--flows` naming nothing, a
- *   flow named without `--flows`, any other argument, or a stagger that is not a whole number of seconds.
+ *   flow named without `--flows`, any other argument, a stagger that is not a whole number of seconds, a device that is
+ *   not `iphone` or `ipad` (the flag and the variable are named together), or an iPad without an iOS platform.
  */
 export function parseLaneArgs(argv: readonly string[], env: Readonly<Record<string, string | undefined>>): LaneArgs {
     let parsed;
@@ -147,7 +152,12 @@ export function parseLaneArgs(argv: readonly string[], env: Readonly<Record<stri
             args: [...argv],
             strict: true,
             allowPositionals: true,
-            options: { platform: { type: 'string' }, lanes: { type: 'string' }, flows: { type: 'boolean' } },
+            options: {
+                platform: { type: 'string' },
+                lanes: { type: 'string' },
+                flows: { type: 'boolean' },
+                'ios-device': { type: 'string' },
+            },
         });
     } catch (error) {
         throw new Error(`maestro:lanes: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
@@ -179,12 +189,28 @@ export function parseLaneArgs(argv: readonly string[], env: Readonly<Record<stri
         throw new Error(`maestro:lanes: MAESTRO_LANE_STAGGER_SECONDS '${stagger}' is not a whole number of seconds`);
     }
 
+    const iosDevice = iosDeviceOf(parsed.values['ios-device'] ?? env['E2E_IOS_DEVICE'] ?? 'iphone');
+
+    if (iosDevice === 'ipad' && !chosen.includes('ios')) {
+        throw new Error('maestro:lanes: --ios-device/E2E_IOS_DEVICE ipad is iOS only: add --platform ios or both');
+    }
+
     return {
         platforms: chosen,
+        iosDevice,
         ...(lanes === undefined ? {} : { requested: Number(lanes) }),
         selection: env['FULL_SUITE'] === '1' ? 'all' : flows === true ? parsed.positionals : 'changed',
         staggerSeconds: stagger === undefined ? DEFAULT_STAGGER_SECONDS : Number(stagger),
     };
+}
+
+/** Parse the device class once, at the edge: anything but `iphone` or `ipad` (an empty value too) is refused. */
+function iosDeviceOf(raw: string): IosDevice {
+    if (!isIosDevice(raw)) {
+        throw new Error(`maestro:lanes: --ios-device/E2E_IOS_DEVICE '${raw}' is not iphone|ipad`);
+    }
+
+    return raw;
 }
 
 /** Where Android emulators run. The Mac is the default: nested emulators on WSL crashed Windows twice. */

@@ -1,5 +1,5 @@
 /**
- * `npm run maestro:lanes -- --platform android|ios|both [--lanes <n>] [--flows <f...>]` — the local Maestro lane
+ * `npm run maestro:lanes -- --platform android|ios|both [--lanes <n>] [--flows <f...>] [--ios-device iphone|ipad]` — the local Maestro lane
  * orchestrator: N emulators, each running one run-mode `runMaestroFlows.sh` lane against the local sandbox, under one
  * host-owned set of shared services. `FULL_SUITE=1` runs the whole suite; with no `--flows` the impact selector picks.
  *
@@ -32,6 +32,7 @@ import { createAndroidAdapter } from '../src/maestroLanes/androidAdapter.js';
 import { consolePort } from '../src/maestroLanes/androidSerials.js';
 import { createMacAndroidHost } from '../src/maestroLanes/macAndroidHost.js';
 import { IosAdapter } from '../src/maestroLanes/iosAdapter.js';
+import type { IosDevice } from '../src/maestroLanes/iosLane.js';
 import { createIosShell } from '../src/maestroLanes/iosShell.js';
 import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/hostLock.js';
 import { parseLaneArgs, platformTurns, type LaneArgs } from '../src/maestroLanes/lanePlanning.js';
@@ -41,6 +42,8 @@ import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from
 import type { CommandPort, DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
 import { CONSUMER_PLAN_RELATIVE, readConsumerPlan } from '../src/queueConsumers.js';
 import { parseLocalSettings, type LocalSettings } from '../src/maestroLanes/localSettings.js';
+import { BASE_ENVIRONMENT_SCRIPT } from '../src/maestroLanes/baseEnvironmentScript.js';
+import { hostPortsFromEnv, localstackFromEnv, parseWorkerEnvFrom } from '../src/maestroLanes/stackFacts.js';
 import { startSharedServices, type RunningService, type ServiceSpec } from '../src/maestroLanes/sharedServices.js';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -63,25 +66,13 @@ const runUserRecord = (platform: LanePlatform): string => path.join(STATE_DIR, `
  * @sideEffect Runs bash; may read the sandbox Clerk secret from real AWS once (cached by `localMaestro.sh`).
  */
 function baseEnvironment(): Env {
-    const result = spawnSync(
-        'bash',
-        [
-            '-c',
-            '. "$1" && cd "$2" && local_maestro_toolchain >&2 && local_maestro_load_clerk_keys >&2 && local_maestro_pin_aws && ' +
-                'local_maestro_seed_env "$(local_maestro_state_dir)" && local_maestro_require_services >&2 && ' +
-                'export MAESTRO_LOCAL_RECIPE_HOST_PORT="$LOCAL_MAESTRO_RECIPE_HOST_PORT" && env -0',
-            'maestroLanes',
-            LOCAL_MAESTRO,
-            REPO_ROOT,
-        ],
-        {
-            encoding: 'utf8',
-            // The state folder travels in the environment, which `local_maestro_state_dir` reads and checks.
-            env: { ...process.env, LOCAL_MAESTRO_STATE_DIR: STATE_DIR },
-            stdio: ['ignore', 'pipe', 'inherit'],
-            maxBuffer: 16 * 1024 * 1024,
-        },
-    );
+    const result = spawnSync('bash', ['-c', BASE_ENVIRONMENT_SCRIPT, 'maestroLanes', LOCAL_MAESTRO, REPO_ROOT], {
+        encoding: 'utf8',
+        // The state folder travels in the environment, which `local_maestro_state_dir` reads and checks.
+        env: { ...process.env, LOCAL_MAESTRO_STATE_DIR: STATE_DIR },
+        stdio: ['ignore', 'pipe', 'inherit'],
+        maxBuffer: 16 * 1024 * 1024,
+    });
 
     if (result.status !== 0) {
         throw new Error('maestro:lanes: the local environment is not ready (see above)');
@@ -158,9 +149,15 @@ function killGroup(pid: number): void {
  * The adapter for a platform. iOS and the Mac's Android refuse to build without `LOCAL_MAESTRO_IOS_HOST` (the variable's name
  * is kept for now: it names the Mac). Android runs on the Mac unless `LOCAL_MAESTRO_ANDROID_ON=wsl`.
  */
-function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings): DeviceAdapter {
+function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings, iosDevice: IosDevice): DeviceAdapter {
     if (platform === 'ios') {
-        return new IosAdapter({ shell: createIosShell(), env, repoRoot: REPO_ROOT, settings });
+        return new IosAdapter({
+            device: iosDevice,
+            shell: createIosShell(),
+            env,
+            repoRoot: REPO_ROOT,
+            hostPorts: hostPortsFromEnv(env),
+        });
     }
 
     const commands: CommandPort = {
@@ -179,6 +176,7 @@ function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings): 
                   shell: createIosShell(),
                   env,
                   repoRoot: REPO_ROOT,
+                  hostPorts: hostPortsFromEnv(env),
                   settings,
                   readFile: commands.readFile,
               })
@@ -199,33 +197,8 @@ function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings): 
     });
 }
 
-/**
- * The checkout that started the running local stack: `local:up` runs compose from `<checkout>/.local-sandbox`, and the
- * queue consumers' plan and code belong to that checkout, not to whichever tree runs the lanes.
- *
- * @sideEffect Runs `docker inspect`.
- */
-function stackRoot(): string {
-    const label = spawnSync(
-        'docker',
-        [
-            'inspect',
-            'local-sandbox-recipes',
-            '--format',
-            '{{index .Config.Labels "com.docker.compose.project.working_dir"}}',
-        ],
-        { encoding: 'utf8' },
-    ).stdout.trim();
-
-    if (label === '') {
-        throw new Error('maestro:lanes: no local stack is running - run `npm run local:up` first');
-    }
-
-    return path.dirname(label);
-}
-
 /** The services a lane run owns: every queue consumer the running stack planned, and the parse worker. */
-function serviceSpecs(root: string, settings: LocalSettings): readonly ServiceSpec[] {
+function serviceSpecs(root: string, settings: LocalSettings, env: Env): readonly ServiceSpec[] {
     const consumers = readConsumerPlan(path.join(root, CONSUMER_PLAN_RELATIVE)).map(
         ({ name, queueUrl }): ServiceSpec => ({
             name,
@@ -243,6 +216,8 @@ function serviceSpecs(root: string, settings: LocalSettings): readonly ServiceSp
             pattern: settings.workerPattern,
             command: 'npm',
             args: ['run', 'dev', '--workspace=@kitchensink/recipe-workers'],
+            // The worker's own `.env.development` names the default stack's ports; the running stack's win.
+            env: parseWorkerEnvFrom(env),
         },
     ];
 }
@@ -250,7 +225,7 @@ function serviceSpecs(root: string, settings: LocalSettings): readonly ServiceSp
 /** Start one service and wait until it is ready: a consumer prints `draining`, the worker is alive after 8 s. */
 async function startService(spec: ServiceSpec, env: Env, root: string): Promise<RunningService> {
     const log = path.join(STATE_DIR, `service.${spec.name}.log`);
-    const { pid } = spawnDetached(spec.command, spec.args, log, env, root);
+    const { pid } = spawnDetached(spec.command, spec.args, log, { ...env, ...spec.env }, root);
     const consumer = spec.name !== 'parseWorker';
 
     for (let waited = 0; waited < 60; waited += 1) {
@@ -383,13 +358,14 @@ async function resolveSelection(
  * @sideEffect Starts the queue consumers and the parse worker; writes the local recipe world.
  */
 async function startServices(base: Env, settings: LocalSettings) {
-    const root = stackRoot();
+    // The stack is this checkout's: `local_maestro_stack_env` refused the run otherwise.
+    const root = REPO_ROOT;
     const sqs = new SQSClient({
-        endpoint: settings.localstack,
+        endpoint: localstackFromEnv(base),
         region: 'us-east-1',
         credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
     });
-    const services = await startSharedServices(serviceSpecs(root, settings), {
+    const services = await startSharedServices(serviceSpecs(root, settings, base), {
         listProcesses: async () =>
             (await run('ps', ['-eo', 'pid=,args='])).stdout
                 .split('\n')
@@ -503,7 +479,7 @@ async function main(argv: readonly string[]): Promise<number> {
     process.on('SIGTERM', abort);
 
     const deps: LaneRunDeps = {
-        adapterFor: (platform) => adapterFor(platform, base, settings),
+        adapterFor: (platform) => adapterFor(platform, base, settings, args.iosDevice),
         stateDir: STATE_DIR,
         // Sorts by age, and holds no `:` or `.` (a folder name on the Mac side of an rsync too).
         runStamp: new Date().toISOString().replace(/[:.]/gu, '-'),
@@ -511,7 +487,13 @@ async function main(argv: readonly string[]): Promise<number> {
         lockDir: path.join(STATE_DIR, 'locks'),
         baseEnv: base,
         acquireLock: () =>
-            acquireHostLock(path.join(STATE_DIR, 'maestroLanes.lock'), process.pid, pidIsAlive, currentBootId()),
+            acquireHostLock(
+                path.join(STATE_DIR, 'maestroLanes.lock'),
+                process.pid,
+                pidIsAlive,
+                currentBootId(),
+                'maestro:lanes',
+            ),
         selectFlows: (platform, selector) => selectFlows(base, platform, selector),
         pack: async (platform, index, count, flows) => {
             const outcome = await run('bash', [RUNNER, 'pack', platform, String(index), String(count), ...flows]);

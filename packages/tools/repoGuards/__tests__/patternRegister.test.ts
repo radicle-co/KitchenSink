@@ -180,6 +180,10 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: 'One node handle, the field, for a host focus request (the step the editor has just added): `.focus()` on web and `TextInput.focus()` on native, neither of which has a declarative form. The same level-triggered request, acknowledged once taken, that Input, Button and Combobox take. On native the same node is also the one the field reveal host measures to hold the field in view, and the one the screen-reader cursor moves to when the screen names the field.',
     },
+    'featuresCooking/CookingLineRow': {
+        verdict: 'sanctioned',
+        why: "One node handle, the row's press control, for a host focus request: after a line is ticked the next unticked line takes the screen-reader cursor (designer D13). `moveScreenReaderFocus` has no declarative form; the request is the house level (`useFocusRequest`) the screen's focus recovery lowers on acknowledgement, the same one Button takes. Web needs no handle, because its recovery finds the row by id.",
+    },
     'featuresRecipes/form/IngredientRow': {
         verdict: 'sanctioned',
         why: "One node handle, the read row's open control (\"Edit {amount} {food}\"), for a host focus request: after a Remove the next row's open control takes focus, and after Done or a cancelled food search the row's own does (build spec §7.5.1, §7.5.2). `.focus()` on web and `moveScreenReaderFocus` on native have no declarative form; the request is a level the row view clears on acknowledgement. On native the same row also holds its node for `measureLayout`, which the field reveal host uses to put the row's top at the top of the visible area when a deep link names it (`useFieldStartReveal`).",
@@ -425,8 +429,12 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  * ⚠️ It went 91 → 93 with the catalogue regeneration, not with a new component. `docs/generated/components` had fallen
  * behind the tree, so `MetaLine` and `MetaLeadContext` (the card meta line, `card/metaLine.tsx`) were in no census; neither
  * states a layer, and regenerating brought them in. Counted, not stamped: the figure is a census, not a backlog.
+ *
+ * ⚠️ It went 93 → 96 (2026-11-15) with three cook route segments (`error.tsx`, `loading.tsx`, `page.tsx`), shapes §11.2
+ * puts out of scope. They state no layer on purpose: a layer word or a layer-restating tag added to hold the count would
+ * be the stamping this note forbids.
  */
-const LAYER_UNSTATED_CENSUS = 93;
+const LAYER_UNSTATED_CENSUS = 96;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.

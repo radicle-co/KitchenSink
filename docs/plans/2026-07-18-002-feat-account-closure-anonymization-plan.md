@@ -491,7 +491,7 @@ prod-exposure and prioritize accordingly**, independent of this CR's merge.
   `recipes.owner_id` (public/donated), and `account_erasure_jobs.owner_id` (job history). Ratings are
   anonymized (no surviving row). The kept public/donated recipes are pseudonymized personal data — **name the
   specific Art. 17(3) exemption** (e.g., a documented Art. 6(1)(f) legitimate-interest / freedom-of-expression
-  basis for community content) with counsel, so the "Art. 17 satisfaction" claim is backed.
+  basis for community content), so the "Art. 17 satisfaction" claim is backed.
 - **Service-principal auth (U4a) is a security-sensitive GREENFIELD inbound path.** Recipe-service has no
   machine principal today (food's `svc_*` is a worker-side provenance string, NOT reusable inbound auth) and
   deliberately rejects trusted-header identity (PR-#39). The capability MUST be a verified, event-bound
@@ -521,7 +521,7 @@ prod-exposure and prioritize accordingly**, independent of this CR's merge.
   identity deletion SQS message is `{identityId, userId, enqueuedAt, failureReason}` today (`sqs.service.ts`) —
   U2 must extend that DTO + `enqueueDeletion` to carry `{event, election}`.
 - **Legal.** Tombstone-retains-name + the deferred TTL, and the erasure retention basis, need documented
-  lawful bases. This plan states the engineering shape, not legal advice.
+  lawful bases. This plan states the engineering shape.
 
 ---
 

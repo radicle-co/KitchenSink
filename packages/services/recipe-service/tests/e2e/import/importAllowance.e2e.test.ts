@@ -1,21 +1,27 @@
 /**
- * The PER-CHANNEL import allowance (ADR-0072 §8) against a REAL database (LOCAL e2e, `docs/CODING_STANDARDS.md` §7.1a).
+ * The ONE import allowance (ADR-0072 §8, 004 FR-067) against a REAL database (LOCAL e2e, `docs/CODING_STANDARDS.md` §7.1a).
  *
- * `ImportAllowanceDal.admit` is driven directly as the SERVICE role (`recipe_app`), because the bulk route is not built
- * yet and the allowance is the part of it that only a real database can prove. What each case is there to catch:
+ * `ImportAllowanceDal.admit` is driven directly as the SERVICE role (`recipe_app`), because the allowance is the part of the import
+ * and the paste routes that only a real database can prove (the channel only labels the ledger row). What each case is there to catch:
  *
- *  - paste and bulk never borrow from each other (kills: summing every channel against one limit);
+ * ⚠️ REWRITTEN for the owner ruling of 2026-11-15 ("one pipeline, one allowance"). It used to pin "paste and bulk never
+ * borrow from each other", with a limit per channel. That is now the defect: every channel's rows count against one
+ * limit (200 Free, 1,000 paid), the `channel` column is attribution only, and a test principal has no limit. The rewritten
+ * cases are the ones named "one allowance" below; the rest keep their meaning with the one limit.
+ *
+ *  - a full bulk allowance refuses a paste, pastes count against bulk, and a paste's `resetsAt` can come from a bulk row
+ *    (kills: a limit or a window edge per channel);
  *  - a file larger than the room left admits what fits and writes ONLY that (kills: all-or-nothing, or writing the
  *    request instead of the admitted units);
  *  - a 2,000-recipe file at an empty ledger admits exactly 1,000 on a paid plan (kills: a per-file cap, Free's 200 for
  *    everyone), and the Free plan's 200th recipe is admitted and its 201st refused (kills: one limit for every plan);
- *  - `resetsAt` is read back from the table: the oldest counted bulk unit plus 24 h, and `now + 24 h` when the units
+ *  - `resetsAt` is read back from the table: the oldest counted unit plus 24 h, and `now + 24 h` when the units
  *    just admitted are the oldest (kills: ignoring the admitted units, or reading another channel's rows);
  *  - the lock is real, deterministically: while another session holds the user's key a bulk admit WAITS and writes
  *    nothing, then completes when it is released (kills: removing the lock, every time and not by timing luck);
  *  - TWO CONCURRENT admits of 600 at zero spend exactly 1,000 in total: 600 and 400 (kills: removing the per-user lock,
  *    which lets both read an empty ledger and write 1,200);
- *  - each channel is pruned by its own rows: an expired bulk unit is deleted, a fresh paste unit survives it;
+ *  - pruning uses ONE edge: an expired row is deleted whatever its channel, and a fresh row survives it;
  *  - a refusal writes no row.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -25,7 +31,7 @@ import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 
 import { ImportAllowanceDal, type AdmitOutcome } from '../../../src/common/dal/importAllowance.dal.js';
 import {
-    IMPORT_ALLOWANCE_RULES,
+    IMPORT_ALLOWANCE_RULE,
     importAllowanceLimitOf,
     type ImportAllowanceScope,
 } from '../../../src/common/importAllowancePolicy.js';
@@ -35,10 +41,10 @@ import { recipeDb } from '../../support/roleDb.js';
 const USER = '01JIMPORTALLOWANCEE2E00001';
 const OTHER = '01JIMPORTALLOWANCEE2E00002';
 const roleDb = recipeDb();
-const PAID_BULK_LIMIT = importAllowanceLimitOf({ channel: 'bulk', isPremium: true });
-const FREE_BULK_LIMIT = importAllowanceLimitOf({ channel: 'bulk', isPremium: false });
+const PAID_BULK_LIMIT = importAllowanceLimitOf({ isPremium: true, principalKind: 'real' });
+const FREE_BULK_LIMIT = importAllowanceLimitOf({ isPremium: false, principalKind: 'real' });
 
-describe('the per-channel import allowance (LOCAL e2e)', () => {
+describe('the one import allowance (LOCAL e2e)', () => {
     let pool: pg.Pool;
     let db: RecipeDrizzle;
     const dal = new ImportAllowanceDal();
@@ -56,9 +62,9 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
         await pool.end();
     });
 
-    /** The scope a case runs under: bulk on the paid plan, whose limit most cases were written for, unless it names Free. */
+    /** The scope a case runs under: the paid plan, whose limit most cases were written for, unless it names Free. */
     function scopeOf(channel: 'paste' | 'bulk', isPremium = true): ImportAllowanceScope {
-        return channel === 'paste' ? { channel } : { channel, isPremium };
+        return { channel, isPremium, principalKind: 'real' };
     }
 
     /** One admission in its own transaction, the way a service call makes it. */
@@ -89,17 +95,49 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
         return (result.rows[0] as { units: number }).units;
     }
 
-    it('⛔ a full paste allowance does not touch bulk, and a full bulk allowance does not touch paste', async () => {
-        await seed('paste', IMPORT_ALLOWANCE_RULES.paste.limit, 1);
-
-        expect(await admit('bulk', 3)).toEqual({ kind: 'admitted', units: 3 });
-        expect((await admit('paste', 1)).kind).toBe('refused');
-
+    it('⛔ one allowance: a full bulk allowance refuses a paste, and pastes count against bulk', async () => {
         await seed('bulk', PAID_BULK_LIMIT - 3, 1);
+        await seed('paste', 2, 1);
 
+        expect((await admit('paste', 2)).kind).toBe('partial');
+        expect(await spent('paste')).toBe(3);
+        expect((await admit('paste', 1)).kind).toBe('refused');
         expect((await admit('bulk', 1)).kind).toBe('refused');
-        expect(await spent('paste')).toBe(IMPORT_ALLOWANCE_RULES.paste.limit);
-        expect(await spent('bulk')).toBe(PAID_BULK_LIMIT);
+        expect((await spent('bulk')) + (await spent('paste'))).toBe(PAID_BULK_LIMIT);
+    });
+
+    it('⛔ one allowance: 150 Free pastes leave 50 bulk recipes, and the 51st is refused', async () => {
+        await seed('paste', 150, 1);
+
+        expect(await admit('bulk', 80, USER, false)).toEqual(expect.objectContaining({ kind: 'partial', units: 50 }));
+        expect((await admit('bulk', 1, USER, false)).kind).toBe('refused');
+    });
+
+    it('⛔ one allowance: a paste refusal reads resetsAt from a BULK row when that is the oldest counted unit', async () => {
+        await seed('bulk', FREE_BULK_LIMIT - 1, 20);
+        await seed('paste', 1, 2);
+
+        const outcome = await admit('paste', 1, USER, false);
+        const oldest = await pool.query(
+            'SELECT min(created_at) AS at FROM import_allowance_events WHERE user_id = $1',
+            [USER],
+        );
+
+        expect(outcome.kind).toBe('refused');
+        expect(outcome.kind === 'refused' && outcome.resetsAt.getTime()).toBe(
+            (oldest.rows[0] as { at: Date }).at.getTime() + IMPORT_ALLOWANCE_RULE.windowMs,
+        );
+    });
+
+    it('⛔ a test principal’s paste is never refused, however full the ledger', async () => {
+        await seed('bulk', FREE_BULK_LIMIT * 5, 1);
+
+        const outcome = await db.transaction((tx) =>
+            dal.admit(tx, USER, { channel: 'paste', isPremium: false, principalKind: 'test', units: 1 }),
+        );
+
+        expect(outcome).toEqual({ kind: 'admitted', units: 1 });
+        expect(await spent('paste')).toBe(1);
     });
 
     it('⛔ a 2,000-recipe file at an empty ledger admits exactly 1,000 and names a day from now', async () => {
@@ -119,31 +157,31 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
 
         // The units admitted now are the only ones counted, so the next room opens a day after they were written.
         expect(outcome.resetsAt.getTime()).toBe(
-            (written.rows[0] as { created_at: Date }).created_at.getTime() + IMPORT_ALLOWANCE_RULES.bulk.windowMs,
+            (written.rows[0] as { created_at: Date }).created_at.getTime() + IMPORT_ALLOWANCE_RULE.windowMs,
         );
     });
 
-    it('⛔ admits only the room that is left and writes only that, with resetsAt from the OLDEST counted bulk unit', async () => {
+    it('⛔ admits only the room that is left, counting a paste row too, with resetsAt from the OLDEST counted unit', async () => {
         await seed('bulk', 300, 20);
-        await seed('bulk', 500, 2);
-        // A much older PASTE row must not become the reset instant of a bulk answer.
+        await seed('bulk', 499, 2);
+        // The oldest counted unit is a PASTE row: one allowance, so it holds a unit and names the reset instant.
         await seed('paste', 1, 23);
 
         const outcome = await admit('bulk', 500);
         const oldest = await pool.query(
-            `SELECT min(created_at) AS at FROM import_allowance_events WHERE user_id = $1 AND channel = 'bulk' AND units = 300`,
+            `SELECT min(created_at) AS at FROM import_allowance_events WHERE user_id = $1 AND channel = 'paste'`,
             [USER],
         );
 
         expect(outcome).toMatchObject({ kind: 'partial', units: 200 });
-        expect(await spent('bulk')).toBe(1000);
+        expect((await spent('bulk')) + (await spent('paste'))).toBe(1000);
 
         if (outcome.kind !== 'partial') {
             throw new Error('expected a partial admission');
         }
 
         expect(outcome.resetsAt.getTime()).toBe(
-            (oldest.rows[0] as { at: Date }).at.getTime() + IMPORT_ALLOWANCE_RULES.bulk.windowMs,
+            (oldest.rows[0] as { at: Date }).at.getTime() + IMPORT_ALLOWANCE_RULE.windowMs,
         );
     });
 
@@ -196,16 +234,18 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
         }
     });
 
-    it('⛔ two concurrent admits across the two channels do not wait on each other for room', async () => {
+    it('⛔ two concurrent admits across the two channels share the one limit: the ledger holds 1,000, never 1,001', async () => {
         const outcomes = await Promise.all([admit('bulk', 1000), admit('paste', 1)]);
 
-        expect(outcomes.map((outcome) => outcome.kind)).toEqual(['admitted', 'admitted']);
-        expect(await spent('bulk')).toBe(1000);
-        expect(await spent('paste')).toBe(1);
+        // Either order is legal (bulk first refuses the paste; paste first admits only 999 of the bulk file). Both admitting
+        // in full is the defect: it needs a limit per channel, or no lock between them.
+        expect(outcomes.map((outcome) => outcome.kind)).not.toEqual(['admitted', 'admitted']);
+        expect((await spent('bulk')) + (await spent('paste'))).toBe(1000);
     });
 
-    it('prunes an expired bulk unit under the lock and leaves a fresh paste unit alone', async () => {
+    it('prunes expired rows on EVERY channel by the one edge and leaves a fresh row alone', async () => {
         await seed('bulk', 5, 25);
+        await seed('paste', 2, 25);
         await seed('paste', 1, 1);
 
         expect(await admit('bulk', 1)).toEqual({ kind: 'admitted', units: 1 });
@@ -232,6 +272,20 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
         expect(await admit('bulk', 1)).toEqual({ kind: 'admitted', units: 1 });
     });
 
+    // Owner ruling 2026-11-15: a test principal has no limit. The ledger still records the unit, so the one pipeline runs.
+    it('⛔ a test principal is admitted past a limit that refuses a real cook, and the unit is still written', async () => {
+        await seed('bulk', FREE_BULK_LIMIT, 1);
+
+        expect((await admit('bulk', 1, USER, false)).kind).toBe('refused');
+
+        const outcome = await db.transaction((tx) =>
+            dal.admit(tx, USER, { channel: 'bulk', isPremium: false, principalKind: 'test', units: 50 }),
+        );
+
+        expect(outcome).toEqual({ kind: 'admitted', units: 50 });
+        expect(await spent('bulk')).toBe(FREE_BULK_LIMIT + 50);
+    });
+
     it("counts each caller's allowance separately", async () => {
         await seed('bulk', PAID_BULK_LIMIT, 1, OTHER);
 
@@ -247,19 +301,19 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
     });
 
     describe('stateOf — what the import view shows (ADR-0072 §8 as amended: advance answers 200, not 429)', () => {
-        it('reads the units spent in the window, per channel, and when the oldest leaves, from the database’s own clock', async () => {
+        it('reads the units spent in the window, on every channel, and when the oldest leaves, from the database’s own clock', async () => {
             await seed('bulk', 30, 5);
             await seed('bulk', 12, 1);
-            await seed('paste', 99, 1);
+            await seed('paste', 8, 1);
             await seed('bulk', 500, 30); // outside the window
 
             const state = await dal.stateOf(db, USER, scopeOf('bulk'));
 
-            expect(state).toMatchObject({ limit: PAID_BULK_LIMIT, used: 42 });
+            expect(state).toMatchObject({ limit: PAID_BULK_LIMIT, used: 50 });
 
             const oldest = await pool.query<{ at: Date }>(
                 `SELECT min(created_at) AS at FROM import_allowance_events
-                  WHERE user_id = $1 AND channel = 'bulk' AND created_at > now() - interval '24 hours'`,
+                  WHERE user_id = $1 AND created_at > now() - interval '24 hours'`,
                 [USER],
             );
             const first = oldest.rows[0]?.at;

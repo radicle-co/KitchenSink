@@ -1,7 +1,7 @@
 # Metrics and ROI: Subscriptions & Monetization
 
 **Branch**: `010-subscriptions` | **Date**: 2026-05-09
-**Status**: Complete | **Sources**: [spec.md](../spec.md), [tasks.md](../tasks.md), [v-model/requirements.md](../v-model/requirements.md), [plan.md](../plan.md)
+**Status**: Complete | **Sources**: [spec.md](../spec.md), [tasks.md](../tasks.md), [plan.md](../plan.md)
 
 ---
 

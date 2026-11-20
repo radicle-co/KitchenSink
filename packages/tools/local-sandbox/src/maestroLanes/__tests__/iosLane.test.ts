@@ -2,7 +2,9 @@ import { MEMORY_SAFETY_MARGIN } from '@kitchensink/e2e-plan/hostMemory';
 import { describe, expect, it } from 'vitest';
 
 import {
+    IOS_DEVICES,
     IOS_MAX_LANES,
+    isIosDevice,
     laneSimulatorName,
     macHostFromEnv,
     parseHostFacts,
@@ -47,14 +49,28 @@ describe('parseHostFacts', () => {
 });
 
 describe('lane naming and ports', () => {
-    it('names lane Simulators by lane number', () => {
-        expect(laneSimulatorName(3)).toBe('ks-maestro-lane-3');
+    it('names lane Simulators by lane number, an iPhone lane and an iPad lane apart', () => {
+        expect(laneSimulatorName(3, 'iphone')).toBe('ks-maestro-lane-3');
+        expect(laneSimulatorName(3, 'ipad')).toBe('ks-maestro-ipad-3');
     });
 
-    it('refuses a lane outside 1..IOS_MAX_LANES', () => {
+    it('refuses a lane outside 1..IOS_MAX_LANES, in either class', () => {
         expect(IOS_MAX_LANES).toBe(5);
-        expect(() => laneSimulatorName(0)).toThrow();
-        expect(() => laneSimulatorName(IOS_MAX_LANES + 1)).toThrow();
+
+        for (const device of IOS_DEVICES) {
+            expect(() => laneSimulatorName(0, device)).toThrow();
+            expect(() => laneSimulatorName(IOS_MAX_LANES + 1, device)).toThrow();
+        }
+    });
+
+    it('knows exactly two device classes, and refuses any other word', () => {
+        expect(IOS_DEVICES).toEqual(['iphone', 'ipad']);
+        expect(isIosDevice('iphone')).toBe(true);
+        expect(isIosDevice('ipad')).toBe(true);
+
+        for (const raw of ['', 'iPad', 'ipod', ' ipad', 'ipad ']) {
+            expect(isIosDevice(raw)).toBe(false);
+        }
     });
 });
 
@@ -76,11 +92,15 @@ describe('macHostFromEnv', () => {
     });
 });
 
-const SETTINGS = {
-    recipeOrigin: 'http://localhost:3000',
-    identityOrigin: 'http://localhost:3001',
-    foodOrigin: 'http://localhost:3002',
-};
+/**
+ * REWRITTEN 2026-11-19 (LS-PORT, TEST-CHANGE decisions/0044): the local side of each tunnel is the host port the
+ * running stack publishes (`hostPortsFromEnv`), not an origin in `LocalSettings`. Three different ports, so a swap of
+ * two services fails. Old case to new case: "tunnels each baked origin port back" and "tunnels to the host port the
+ * stack really uses" are the first two cases below; "refuses a settings origin with no port" moved to
+ * `stackFacts.test.ts` ("a missing published port refuses and names the service"); the localhost and missing-origin
+ * refusals are unchanged.
+ */
+const PORTS = { recipes: 3110, identity: 3111, food: 3112 };
 
 describe('tunnelsFromManifest', () => {
     const manifest = [
@@ -90,42 +110,28 @@ describe('tunnelsFromManifest', () => {
         'foodOrigin=http://localhost:13002',
     ].join('\n');
 
-    it('tunnels each baked origin port back to that service on this machine', () => {
-        expect(tunnelsFromManifest(manifest, SETTINGS)).toEqual([
-            { origin: 'recipeOrigin', macPort: 13000, localPort: 3000 },
-            { origin: 'identityOrigin', macPort: 13001, localPort: 3001 },
-            { origin: 'foodOrigin', macPort: 13002, localPort: 3002 },
+    it('tunnels each baked origin port (the Mac side) back to the published host port of the same service', () => {
+        expect(tunnelsFromManifest(manifest, PORTS)).toEqual([
+            { origin: 'recipeOrigin', macPort: 13000, localPort: 3110 },
+            { origin: 'identityOrigin', macPort: 13001, localPort: 3111 },
+            { origin: 'foodOrigin', macPort: 13002, localPort: 3112 },
         ]);
     });
 
-    it('tunnels to the host port the local stack really uses, so a moved recipe port reaches the tunnel', () => {
-        const moved = { ...SETTINGS, recipeOrigin: 'http://localhost:3010' };
-        expect(tunnelsFromManifest(manifest, moved)).toContainEqual({
-            origin: 'recipeOrigin',
-            macPort: 13000,
-            localPort: 3010,
-        });
-        expect(tunnelsFromManifest(manifest, moved)).toContainEqual({
-            origin: 'identityOrigin',
-            macPort: 13001,
-            localPort: 3001,
-        });
-    });
+    it('reads the local side from the ports it is given, not from anything else', () => {
+        const moved = { recipes: 3200, identity: 3201, food: 3202 };
 
-    it('refuses a settings origin with no port, because the tunnel could not name the host side', () => {
-        expect(() => tunnelsFromManifest(manifest, { ...SETTINGS, foodOrigin: 'http://localhost' })).toThrow(
-            /foodOrigin/,
-        );
+        expect(tunnelsFromManifest(manifest, moved).map((tunnel) => tunnel.localPort)).toEqual([3200, 3201, 3202]);
     });
 
     it('refuses an origin that is not on localhost, because a tunnel cannot reach it', () => {
-        expect(() => tunnelsFromManifest(manifest.replace('localhost:13000', 'recipe.example.com'), SETTINGS)).toThrow(
+        expect(() => tunnelsFromManifest(manifest.replace('localhost:13000', 'recipe.example.com'), PORTS)).toThrow(
             /recipeOrigin/,
         );
     });
 
     it('refuses a manifest missing an origin', () => {
-        expect(() => tunnelsFromManifest('platform=ios\nrecipeOrigin=http://localhost:13000', SETTINGS)).toThrow(
+        expect(() => tunnelsFromManifest('platform=ios\nrecipeOrigin=http://localhost:13000', PORTS)).toThrow(
             /identityOrigin/,
         );
     });
@@ -149,11 +155,7 @@ describe('tunnelsFromManifest — each tunnel is named by its origin', () => {
             'identityOrigin=http://localhost:13001',
             'foodOrigin=http://localhost:13002',
         ].join('\n');
-        const tunnels = tunnelsFromManifest(manifest, {
-            recipeOrigin: 'http://localhost:3000',
-            identityOrigin: 'http://localhost:3001',
-            foodOrigin: 'http://localhost:3002',
-        });
+        const tunnels = tunnelsFromManifest(manifest, PORTS);
 
         expect(tunnels.map((tunnel) => tunnel.origin)).toEqual(['recipeOrigin', 'identityOrigin', 'foodOrigin']);
     });

@@ -293,8 +293,7 @@ onboarding — _paste a link, watch it work, then decide_ — inverts it.
   inline in instructions (tap to see the quantity without scrolling back up) and **orange tappable temperature
   text** (toggles °C/°F). Both are small, specific, and solve real in-kitchen friction. Worth stealing outright.
 - **Import** — screenshots stack as thumbnails bottom-left; the user **manually verifies formatting before
-  committing**, i.e. a review step, not a silent auto-commit. Good practice, and the same shape as our
-  `004-FR-015` draft-with-confidence model.
+  committing**, i.e. a review step, not a silent auto-commit. Our import differs: see `004-FR-015`.
 - **Meal plan** — weekly only, drag-and-drop onto day/meal slots.
 - **Grocery list** — aisle- or recipe-grouped, with in-app delivery ordering.
 - **Cook mode** — card-based, one step per card, checkable steps, screen stays awake. Plus-gated.
@@ -433,7 +432,7 @@ food-blogger forums could be swept directly.
 
 1. **The capture wedge itself.** Best-in-category at pulling a recipe out of a captioned or narrated social video, and they own the positioning in the App Store.
 2. **Distribution.** ~373K store ratings at 4.7–4.8★, TikTok-native growth with essentially no paid acquisition, 274K IG / 164K TikTok followers.
-3. **Trust posture.** Private-by-default, no public library, formal DMCA, explicit no-scraping claim. Simple to explain and legally defensible.
+3. **Trust posture.** Private-by-default, no public library, formal DMCA, explicit no-scraping claim. Simple to explain.
 4. **Surface coverage.** iOS, iPad, Mac, visionOS, Android, web, Chrome extension, 5 languages, near-weekly releases.
 5. **Price.** $39.99/yr undercuts most of the paid field.
 

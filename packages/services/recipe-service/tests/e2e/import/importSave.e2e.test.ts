@@ -14,6 +14,9 @@
  *    `public_web`, a book recipe `imported_physical`, and both keep the private visibility the cook chose;
  *  - the line origins reach `ingredients`: a bound line carries `bound_by` and its `import_line_id`, a line kept as written
  *    its link and no origin (kills: `lineOrigins` dropped on the way to `create`);
+ *  - the cook's line is stored as the cook's own words: `source_line` holds the file's line and
+ *    `source_line_transcribed_by_owner` is TRUE on every line, a line kept as written included (ADR-0090 section 2; kills: the
+ *    import dropping `sourceLine`, or `create` no longer vouching for it);
  *  - the claim commits in the recipe's own transaction: the item is saved with the id of the recipe that was written;
  *  - an item the cook must unblock (no servings) is HELD at the revision the save read, and no recipe exists for it.
  */
@@ -289,6 +292,23 @@ describe('the bulk import saves through the real create path (LOCAL e2e, real Po
     it('writes the line origins: a bound line is autoBest with its link, a line kept as written has its link only', async () => {
         expect(await originsOf(recipeTitled('web pancakes')?.id)).toStrictEqual([['autoBest', lineIds.get(WEB)]]);
         expect(await originsOf(recipeTitled('book stew')?.id)).toStrictEqual([[null, lineIds.get(BOOK)]]);
+    });
+
+    it('⛔ stores each line as the cook’s own words: the file’s raw line, flagged transcribed by the owner (ADR-0090 §2)', async () => {
+        const sourceOf = async (title: string) =>
+            (
+                await pool.query<{ source_line: string | null; source_line_transcribed_by_owner: boolean }>(
+                    `SELECT source_line, source_line_transcribed_by_owner FROM ingredients WHERE recipe_id = $1 ORDER BY sort_order`,
+                    [recipeTitled(title)?.id],
+                )
+            ).rows;
+
+        expect(await sourceOf('web pancakes')).toStrictEqual([
+            { source_line: '2 cups flour', source_line_transcribed_by_owner: true },
+        ]);
+        expect(await sourceOf('book stew')).toStrictEqual([
+            { source_line: `a pinch of ${SCOPE} mix`, source_line_transcribed_by_owner: true },
+        ]);
     });
 
     it('claims each saved item with the id of the recipe that was written', () => {

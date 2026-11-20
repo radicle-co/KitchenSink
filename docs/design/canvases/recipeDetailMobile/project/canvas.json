@@ -21,7 +21,7 @@
       "x": 470,
       "y": 260,
       "w": 390,
-      "h": 990,
+      "h": 1062,
       "title": "Recipe detail, scrolled, proposal (mobile, iPhone 390)"
     },
     "RecipeDetailIngredientsOpenIphone390.dc.html": {
@@ -301,7 +301,7 @@
       "x": 19270,
       "y": 260,
       "w": 390,
-      "h": 3516,
+      "h": 3588,
       "title": "Recipe detail, cooking in progress (mobile, iPhone 390)"
     },
     "RecipeDetailAndroid384.dc.html": {
@@ -315,7 +315,7 @@
       "x": 464,
       "y": 4624,
       "w": 384,
-      "h": 957,
+      "h": 1029,
       "title": "Recipe detail, scrolled, proposal (mobile, Android 384)"
     },
     "RecipeDetailIngredientsOpenAndroid384.dc.html": {
@@ -595,7 +595,7 @@
       "x": 19024,
       "y": 4624,
       "w": 384,
-      "h": 3483,
+      "h": 3555,
       "title": "Recipe detail, cooking in progress (mobile, Android 384)"
     },
     "RecipeDetailIpad820.dc.html": {
@@ -609,7 +609,7 @@
       "x": 900,
       "y": 8955,
       "w": 820,
-      "h": 2018,
+      "h": 2090,
       "title": "Recipe detail, scrolled, proposal (mobile, iPad 820)"
     },
     "RecipeDetailNutritionOpenIpad820.dc.html": {
@@ -882,99 +882,197 @@
       "x": 36000,
       "y": 8955,
       "w": 820,
-      "h": 2018,
+      "h": 2090,
       "title": "Recipe detail, cooking in progress (mobile, iPad 820)"
-    },
-    "RecipeFactsAndroid384.dc.html": {
-      "x": 19488,
-      "y": 4624,
-      "w": 384,
-      "h": 1926,
-      "title": "Recipe detail, facts card, proposal (mobile, Android 384)"
-    },
-    "RecipeFactsBookAndroid384.dc.html": {
-      "x": 19952,
-      "y": 4624,
-      "w": 384,
-      "h": 1838,
-      "title": "Recipe detail, facts card, from a book, proposal (mobile, Android 384)"
-    },
-    "RecipeSourceCardAndroid384.dc.html": {
-      "x": 20416,
-      "y": 4624,
-      "w": 384,
-      "h": 832,
-      "title": "Recipe detail, source card, proposal (mobile, Android 384)"
-    },
-    "RecipeFactsSaveCopyAndroid384.dc.html": {
-      "x": 20880,
-      "y": 4624,
-      "w": 384,
-      "h": 832,
-      "title": "Recipe detail, make public? (mobile, Android 384)"
-    },
-    "RecipeFactsIpad820.dc.html": {
-      "x": 36900,
-      "y": 8955,
-      "w": 820,
-      "h": 1351,
-      "title": "Recipe detail, facts card, proposal (mobile, iPad 820)"
-    },
-    "RecipeFactsBookIpad820.dc.html": {
-      "x": 37800,
-      "y": 8955,
-      "w": 820,
-      "h": 1331,
-      "title": "Recipe detail, facts card, from a book, proposal (mobile, iPad 820)"
-    },
-    "RecipeSourceCardIpad820.dc.html": {
-      "x": 38700,
-      "y": 8955,
-      "w": 820,
-      "h": 1180,
-      "title": "Recipe detail, source card, proposal (mobile, iPad 820)"
-    },
-    "RecipeFactsSaveCopyIpad820.dc.html": {
-      "x": 39600,
-      "y": 8955,
-      "w": 820,
-      "h": 1180,
-      "title": "Recipe detail, make public? (mobile, iPad 820)"
-    },
-    "RecipeFactsIphone390.dc.html": {
-      "x": 19740,
-      "y": 260,
-      "w": 390,
-      "h": 1959,
-      "title": "Recipe detail, facts card, proposal (mobile, iPhone 390)"
-    },
-    "RecipeFactsBookIphone390.dc.html": {
-      "x": 20210,
-      "y": 260,
-      "w": 390,
-      "h": 1871,
-      "title": "Recipe detail, facts card, from a book, proposal (mobile, iPhone 390)"
-    },
-    "RecipeSourceCardIphone390.dc.html": {
-      "x": 20680,
-      "y": 260,
-      "w": 390,
-      "h": 844,
-      "title": "Recipe detail, source card, proposal (mobile, iPhone 390)"
-    },
-    "RecipeFactsSaveCopyIphone390.dc.html": {
-      "x": 21150,
-      "y": 260,
-      "w": 390,
-      "h": 844,
-      "title": "Recipe detail, make public? (mobile, iPhone 390)"
     },
     "RecipeDetailExitSnackbarS3bMobile.dc.html": {
       "x": 0,
       "y": 11745,
       "w": 2400,
-      "h": 2630,
+      "h": 3438,
       "title": "Recipe detail, S3b exit-from-cooking-mode snackbar (mobile)"
+    },
+    "RecipeDetailDockS4bMobile.dc.html": {
+      "x": 0,
+      "y": 15603,
+      "w": 2400,
+      "h": 8232,
+      "title": "Recipe detail, S4b timer dock (mobile: iPhone 390, Android 384, 320 and 568 at the largest text, iPad 820 and 1194)"
+    },
+    "RecipePublicVersionIphone390.dc.html": {
+      "x": 0,
+      "y": 24255,
+      "w": 390,
+      "h": 3645,
+      "title": "Recipe detail, public version, a reader (mobile, iPhone 390)"
+    },
+    "RecipePublicVersionOwnerIphone390.dc.html": {
+      "x": 470,
+      "y": 24255,
+      "w": 390,
+      "h": 3696,
+      "title": "Recipe detail, public version, its owner (mobile, iPhone 390)"
+    },
+    "RecipePublicVersionStatesIphone390.dc.html": {
+      "x": 940,
+      "y": 24255,
+      "w": 390,
+      "h": 2410,
+      "title": "Recipe detail, public version, states (mobile, iPhone 390)"
+    },
+    "RecipePublicVersionHiddenIphone390.dc.html": {
+      "x": 1410,
+      "y": 24255,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, public version, hidden after a report (owner) (mobile, iPhone 390)"
+    },
+    "RecipePublicVersionHiddenReaderIphone390.dc.html": {
+      "x": 1880,
+      "y": 24255,
+      "w": 390,
+      "h": 1046,
+      "title": "Recipe detail, public version, hidden (reader) (mobile, iPhone 390)"
+    },
+    "RecipePrivateImportMenuIphone390.dc.html": {
+      "x": 2350,
+      "y": 24255,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe detail, private import, more menu (mobile, iPhone 390)"
+    },
+    "RecipePrivateImportShareLineIphone390.dc.html": {
+      "x": 2820,
+      "y": 24255,
+      "w": 390,
+      "h": 2072,
+      "title": "Recipe detail, private import, share-a-public-version answers (mobile, iPhone 390)"
+    },
+    "RecipePublicVersionReaderMenuIphone390.dc.html": {
+      "x": 3290,
+      "y": 24255,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, public version, reader more menu (mobile, iPhone 390)"
+    },
+    "RecipePublicVersionAndroid384.dc.html": {
+      "x": 0,
+      "y": 28511,
+      "w": 384,
+      "h": 3612,
+      "title": "Recipe detail, public version, a reader (mobile, Android 384)"
+    },
+    "RecipePublicVersionOwnerAndroid384.dc.html": {
+      "x": 464,
+      "y": 28511,
+      "w": 384,
+      "h": 3663,
+      "title": "Recipe detail, public version, its owner (mobile, Android 384)"
+    },
+    "RecipePrivateImportMenuAndroid384.dc.html": {
+      "x": 928,
+      "y": 28511,
+      "w": 384,
+      "h": 957,
+      "title": "Recipe detail, private import, more menu (mobile, Android 384)"
+    },
+    "RecipePublicVersionIpad820.dc.html": {
+      "x": 0,
+      "y": 32734,
+      "w": 820,
+      "h": 2055,
+      "title": "Recipe detail, public version, a reader (mobile, iPad 820)"
+    },
+    "RecipePublicVersionOwnerIpad820.dc.html": {
+      "x": 900,
+      "y": 32734,
+      "w": 820,
+      "h": 2044,
+      "title": "Recipe detail, public version, its owner (mobile, iPad 820)"
+    },
+    "RecipePublicVersionHiddenIpad820.dc.html": {
+      "x": 1800,
+      "y": 32734,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, public version, hidden after a report (owner) (mobile, iPad 820)"
+    },
+    "RecipePrivateImportMenuIpad820.dc.html": {
+      "x": 2700,
+      "y": 32734,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, private import, more menu (mobile, iPad 820)"
+    },
+    "RecipePrivateImportShareLineIpad820.dc.html": {
+      "x": 3600,
+      "y": 32734,
+      "w": 820,
+      "h": 1795,
+      "title": "Recipe detail, private import, share-a-public-version answers (mobile, iPad 820)"
+    },
+    "RecipePrivateImportPhotoSavedIphone390.dc.html": {
+      "x": 0,
+      "y": 35189,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe detail, private import, photo saved (states 1 and 3) (mobile, iPhone 390)"
+    },
+    "RecipePrivateImportPhotoLoadingIphone390.dc.html": {
+      "x": 470,
+      "y": 35189,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe detail, private import, photo loading (state 2) (mobile, iPhone 390)"
+    },
+    "RecipePrivateImportPhotoLinkOnlyIphone390.dc.html": {
+      "x": 940,
+      "y": 35189,
+      "w": 390,
+      "h": 990,
+      "title": "Recipe detail, private import, photo link only (state 4) (mobile, iPhone 390)"
+    },
+    "RecipePrivateImportPhotoSavedAndroid384.dc.html": {
+      "x": 1410,
+      "y": 35189,
+      "w": 384,
+      "h": 957,
+      "title": "Recipe detail, private import, photo saved (states 1 and 3) (mobile, Android 384)"
+    },
+    "RecipePrivateImportPhotoLoadingAndroid384.dc.html": {
+      "x": 1874,
+      "y": 35189,
+      "w": 384,
+      "h": 957,
+      "title": "Recipe detail, private import, photo loading (state 2) (mobile, Android 384)"
+    },
+    "RecipePrivateImportPhotoLinkOnlyAndroid384.dc.html": {
+      "x": 2338,
+      "y": 35189,
+      "w": 384,
+      "h": 957,
+      "title": "Recipe detail, private import, photo link only (state 4) (mobile, Android 384)"
+    },
+    "RecipePrivateImportPhotoSavedIpad820.dc.html": {
+      "x": 2802,
+      "y": 35189,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, private import, photo saved (states 1 and 3) (mobile, iPad 820)"
+    },
+    "RecipePrivateImportPhotoLoadingIpad820.dc.html": {
+      "x": 3702,
+      "y": 35189,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, private import, photo loading (state 2) (mobile, iPad 820)"
+    },
+    "RecipePrivateImportPhotoLinkOnlyIpad820.dc.html": {
+      "x": 4602,
+      "y": 35189,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, private import, photo link only (state 4) (mobile, iPad 820)"
     }
   },
   "order": [
@@ -1103,19 +1201,33 @@
     "RecipeVersionPreviewStatesIpad820.dc.html",
     "RecipeVersionCompareIpad820.dc.html",
     "RecipeDetailCookingIpad820.dc.html",
-    "RecipeFactsAndroid384.dc.html",
-    "RecipeFactsBookAndroid384.dc.html",
-    "RecipeSourceCardAndroid384.dc.html",
-    "RecipeFactsSaveCopyAndroid384.dc.html",
-    "RecipeFactsIpad820.dc.html",
-    "RecipeFactsBookIpad820.dc.html",
-    "RecipeSourceCardIpad820.dc.html",
-    "RecipeFactsSaveCopyIpad820.dc.html",
-    "RecipeFactsIphone390.dc.html",
-    "RecipeFactsBookIphone390.dc.html",
-    "RecipeSourceCardIphone390.dc.html",
-    "RecipeFactsSaveCopyIphone390.dc.html",
-    "RecipeDetailExitSnackbarS3bMobile.dc.html"
+    "RecipeDetailExitSnackbarS3bMobile.dc.html",
+    "RecipeDetailDockS4bMobile.dc.html",
+    "RecipePublicVersionIphone390.dc.html",
+    "RecipePublicVersionOwnerIphone390.dc.html",
+    "RecipePublicVersionStatesIphone390.dc.html",
+    "RecipePublicVersionHiddenIphone390.dc.html",
+    "RecipePublicVersionHiddenReaderIphone390.dc.html",
+    "RecipePrivateImportMenuIphone390.dc.html",
+    "RecipePrivateImportShareLineIphone390.dc.html",
+    "RecipePublicVersionReaderMenuIphone390.dc.html",
+    "RecipePublicVersionAndroid384.dc.html",
+    "RecipePublicVersionOwnerAndroid384.dc.html",
+    "RecipePrivateImportMenuAndroid384.dc.html",
+    "RecipePublicVersionIpad820.dc.html",
+    "RecipePublicVersionOwnerIpad820.dc.html",
+    "RecipePublicVersionHiddenIpad820.dc.html",
+    "RecipePrivateImportMenuIpad820.dc.html",
+    "RecipePrivateImportShareLineIpad820.dc.html",
+    "RecipePrivateImportPhotoSavedIphone390.dc.html",
+    "RecipePrivateImportPhotoLoadingIphone390.dc.html",
+    "RecipePrivateImportPhotoLinkOnlyIphone390.dc.html",
+    "RecipePrivateImportPhotoSavedAndroid384.dc.html",
+    "RecipePrivateImportPhotoLoadingAndroid384.dc.html",
+    "RecipePrivateImportPhotoLinkOnlyAndroid384.dc.html",
+    "RecipePrivateImportPhotoSavedIpad820.dc.html",
+    "RecipePrivateImportPhotoLoadingIpad820.dc.html",
+    "RecipePrivateImportPhotoLinkOnlyIpad820.dc.html"
   ],
   "notes": {
     "row0": {
@@ -1143,6 +1255,34 @@
       "x": 0,
       "y": 11485,
       "text": "Recipe detail: S3b exit snackbar (plan 0111). The running-timer dock on RecipeDetailScrolled is S4.",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nRecipeDetailDockS4bMobile": {
+      "x": 0,
+      "y": 15343,
+      "text": "Recipe detail: S4b timer dock on the recipe page",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowPV100": {
+      "x": 0,
+      "y": 23995,
+      "text": "Recipe detail, public version: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowPV101": {
+      "x": 0,
+      "y": 28251,
+      "text": "Recipe detail, public version: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowPV102": {
+      "x": 0,
+      "y": 32474,
+      "text": "Recipe detail, public version: mobile, iPad 820 (820 x 1180)",
       "kind": "title1",
       "maxW": 2400
     }

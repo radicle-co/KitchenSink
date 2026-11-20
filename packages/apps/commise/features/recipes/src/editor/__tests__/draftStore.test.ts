@@ -139,6 +139,21 @@ describe('createDraftStore', () => {
         expect(draftValuesSchema.safeParse(memento().values).success).toBe(true);
     });
 
+    /**
+     * ADR-0095: `pasted` is an OPTIONAL key and the format version does not move, so a v1 draft written before it still parses
+     * and one that has it keeps it. It is `true` or absent: a draft that says `false` is not one this app wrote.
+     */
+    it('round-trips a draft that was pasted into, and still parses a v1 draft without the key', async () => {
+        const drafts = createDraftStore(createMemoryOutboxStore(), 'user_a');
+        const pasted = memento({ values: toDraftValues({ ...makeRecipeFormValues(), pasted: true }) });
+
+        await drafts.save(pasted);
+
+        expect(await drafts.load(LOCAL_REF)).toStrictEqual(pasted);
+        expect(draftValuesSchema.safeParse(memento().values).success).toBe(true);
+        expect(draftValuesSchema.safeParse({ ...memento().values, pasted: false }).success).toBe(false);
+    });
+
     it('round-trips a memento, and answers nothing for a recipe it holds no draft for', async () => {
         const drafts = createDraftStore(createMemoryOutboxStore(), 'user_a');
 

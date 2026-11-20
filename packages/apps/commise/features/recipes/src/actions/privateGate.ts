@@ -19,6 +19,7 @@
  */
 import type { PaidFeatureState } from '@commise/features-account';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
+import { isInvalidVisibilityError } from '@kitchensink/recipe-service-client';
 
 /** What choosing a visibility does: apply it, open the Premium sheet, or nothing. */
 export type PrivateChoiceOutcome = 'apply' | 'upsell' | 'none';
@@ -168,6 +169,16 @@ export function privateRefusalOf(state: PaidFeatureState): PrivateRefusal | unde
  */
 export function serverRefusalOf(known: PaidFeatureState | undefined): PrivateRefusal {
     return privateRefusalOf(known ?? 'loading') ?? 'final';
+}
+
+/**
+ * Why a `400 INVALID_VISIBILITY` was refused, as the client's typed error names it. Pure.
+ *
+ * @param error - What the write failed with.
+ * @returns The reason, or `undefined` for a refusal that named none or a failure that is not this one.
+ */
+export function invalidVisibilityReasonOf(error: unknown) {
+    return isInvalidVisibilityError(error) ? error.reason : undefined;
 }
 
 /**

@@ -27,6 +27,7 @@ import {
     recipeApiErrorSchema,
     recipeErrorCodeSchema,
     IDENTITY_SYNC_PENDING_CODE,
+    INVALID_VISIBILITY_REASONS,
 } from '../apiError.schema.js';
 import { codeForStatus, RECIPE_ERROR_STATUS } from '../apiError.js';
 
@@ -308,6 +309,11 @@ describe('the bulk import codes (ADR-0072)', () => {
         expect(recipeApiErrorSchema.safeParse(body('IMPORT_ID_IN_USE')).success).toBe(true);
     });
 
+    it('IMPORT_STORAGE_FULL is a 409, a bare code: the cook holds as many unpaid bytes as one cook may', () => {
+        expect(RECIPE_ERROR_STATUS.IMPORT_STORAGE_FULL).toBe(409);
+        expect(recipeApiErrorSchema.safeParse(body('IMPORT_STORAGE_FULL')).success).toBe(true);
+    });
+
     it("IMPORT_NOT_FOUND is a 404, a bare code: a stranger's import and a missing one are ONE answer", () => {
         expect(RECIPE_ERROR_STATUS.IMPORT_NOT_FOUND).toBe(404);
         expect(recipeApiErrorSchema.safeParse(body('IMPORT_NOT_FOUND')).success).toBe(true);
@@ -407,6 +413,39 @@ describe('the bulk import codes (ADR-0072)', () => {
             expect(parse({ used: 50, limit: 0 })).toBe(false);
             expect(parse({ used: '50', limit: 50 })).toBe(false);
         });
+    });
+});
+
+describe('INVALID_VISIBILITY publishes the reasons a client branches on', () => {
+    const parse = (details?: Record<string, unknown>) =>
+        recipeApiErrorSchema.safeParse({
+            code: 'INVALID_VISIBILITY',
+            message: 'a message',
+            ...(details === undefined ? {} : { details }),
+        }).success;
+
+    it('publishes exactly the five reasons the visibility rules answer with', () => {
+        expect([...INVALID_VISIBILITY_REASONS].sort()).toEqual([
+            'API_WRITER_CONFIRMATION_FORBIDDEN',
+            'FROM_PERSON_PRIVATE_ONLY',
+            'PUBLIC_CONFIRMATION_REQUIRED',
+            'SOURCE_CONFLICT',
+            'STATEMENT_REQUIRED',
+        ]);
+    });
+
+    it('accepts each published reason, a plain refusal with no reason, and extra detail keys', () => {
+        for (const reason of INVALID_VISIBILITY_REASONS) {
+            expect(parse({ reason, visibility: 'public' })).toBe(true);
+        }
+
+        expect(parse()).toBe(true);
+        expect(parse({ visibility: 'public', sourceType: 'user_created' })).toBe(true);
+    });
+
+    it('refuses a reason that is not published, so a client cannot branch on a spelling the server never sends', () => {
+        expect(parse({ reason: 'SOMETHING_ELSE' })).toBe(false);
+        expect(parse({ reason: 7 })).toBe(false);
     });
 });
 

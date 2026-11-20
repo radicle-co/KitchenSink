@@ -11,7 +11,7 @@
  *    projection (`projectMatch`), so the line the wizard receives is what the published schema accepts, including the row the
  *    import saves (migration 0074: name, shown words, note) and a review the spend ceiling refused this month
  *    (`reviewBudgetSpent`, owner ruling 2026-10-26).
- *  - **The allowance asks one flat limit.** The view reads the ledger through `stateOf(db, user, 'bulk')`: no tier rides it.
+ *  - **The allowance asks one flat limit.** The view reads the ledger through `stateOf(db, user, holder)`, and the holder carries the plan and the principal kind (never a channel): every channel's rows count.
  *  - **What the save needs holds an item, through every service at once** (ADR-0072 §3 as amended 2026-11-11). An advance
  *    holds an item whose file states no cuisine, servings or times and never calls the create path, the view names
  *    `needsCuisine`, `needsServings` or `needsTimes` in a shape the published contract accepts, the step shows each as `null`,
@@ -160,7 +160,7 @@ beforeEach(() => {
         }
     }
 
-    const header = makeHeader();
+    const header = makeHeader({ visibility: 'private' });
 
     imports.findHeader.mockResolvedValue(header);
     imports.countsByStage.mockResolvedValue({ total: 1, received: 0, parsing: 0, matched: 1, saved: 0, refused: 0 });
@@ -204,11 +204,17 @@ describe('the import services under the real injector', () => {
 
         expect(importViewSchema.parse(view)).toEqual(view);
         expect(view.allowance).toEqual(ALLOWANCE);
-        expect(allowance.stateOf).toHaveBeenCalledWith(DB, USER, { channel: 'bulk', isPremium: false });
+        expect(allowance.stateOf).toHaveBeenCalledWith(DB, USER, {
+            isPremium: false,
+            principalKind: 'real',
+        });
 
         await service.getView(makePrincipal({ roles: ['vip'] }), IMPORT_ID, {});
 
-        expect(allowance.stateOf).toHaveBeenLastCalledWith(DB, USER, { channel: 'bulk', isPremium: true });
+        expect(allowance.stateOf).toHaveBeenLastCalledWith(DB, USER, {
+            isPremium: true,
+            principalKind: 'real',
+        });
     });
 
     it('an advance with nothing to do answers the view, which parses', async () => {
@@ -219,6 +225,7 @@ describe('the import services under the real injector', () => {
         expect(items.payUnpaid).toHaveBeenCalledWith(USER, IMPORT_ID, {
             limit: DEFAULT_IMPORT_ADVANCE_LIMITS.payBatch,
             isPremium: false,
+            principalKind: 'real',
         });
         // ADR-0072 §9's purge clock moves on every advance, through the real injector's wiring.
         expect(imports.touch).toHaveBeenCalledWith(IMPORT_ID);

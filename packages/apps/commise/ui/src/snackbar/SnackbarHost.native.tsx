@@ -108,6 +108,7 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
 
                     return queue.show(input);
                 },
+                withdraw: queue.withdraw,
             }}
         >
             {/* The measured height, or 0 when nothing shows, so the floating create button can rise above the bar. */}

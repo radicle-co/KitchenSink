@@ -19,7 +19,7 @@ import { OverlayHost } from '../../overlay/OverlayHost.native.js';
 import { render } from '../../testing/tamaguiTesting.native.js';
 import { SnackbarHost } from '../SnackbarHost.native.js';
 import { SnackbarOutlet } from '../SnackbarOutlet.native.js';
-import type { SnackbarHandle, SnackbarInput } from '../props.js';
+import type { SnackbarApi, SnackbarHandle, SnackbarInput } from '../props.js';
 import { useSnackbar } from '../useSnackbar.js';
 
 beforeEach(() => {
@@ -44,9 +44,9 @@ function Shower({
     onHandle,
 }: {
     readonly input: SnackbarInput;
-    readonly onHandle?: (handle: SnackbarHandle) => void;
+    readonly onHandle?: (handle: SnackbarHandle, withdraw: SnackbarApi['withdraw']) => void;
 }): JSX.Element {
-    const { show } = useSnackbar();
+    const { show, withdraw } = useSnackbar();
 
     return (
         <Pressable
@@ -55,7 +55,7 @@ function Shower({
                 // Shown first: `onHandle?.(show(input))` would skip `show` when no handler is given.
                 const handle = show(input);
 
-                onHandle?.(handle);
+                onHandle?.(handle, withdraw);
             }}
         >
             <Text>{`show ${input.message}`}</Text>
@@ -197,16 +197,18 @@ describe('the snackbar inside an open native window (integration: real host, rea
         expect(windowNamed('Ingredients').contains(regionsHolding('Ticks cleared')[0] ?? null)).toBe(true);
     });
 
-    it('settles the snackbar on dismiss, so its onTimeout runs once and the snackbar goes', () => {
+    it('takes the snackbar away on withdraw, with no onTimeout, and answers the ms left once', () => {
         const onTimeout = vi.fn();
         let handle: SnackbarHandle | undefined;
+        let withdraw: SnackbarApi['withdraw'] | undefined;
         render(
             <SnackbarHost>
                 <Window label="Ingredients">
                     <Shower
                         input={{ message: 'Ticks cleared', onTimeout }}
-                        onHandle={(next) => {
+                        onHandle={(next, take) => {
                             handle = next;
+                            withdraw = take;
                         }}
                     />
                 </Window>
@@ -214,30 +216,34 @@ describe('the snackbar inside an open native window (integration: real host, rea
         );
 
         showFrom('Ticks cleared');
-        act(() => handle?.dismiss());
-
-        // At once, long before its own six seconds are up.
-        expect(onTimeout).toHaveBeenCalledOnce();
-        expect(regionsHolding('Ticks cleared')).toStrictEqual([]);
-
-        act(() => handle?.dismiss());
+        let answer: number | undefined;
         act(() => {
+            answer = handle === undefined ? undefined : withdraw?.(handle);
+        });
+
+        // At once, long before its own six seconds are up, and it is not committed.
+        expect(answer).toBeTypeOf('number');
+        expect(regionsHolding('Ticks cleared')).toStrictEqual([]);
+        expect(onTimeout).not.toHaveBeenCalled();
+
+        act(() => {
+            expect(handle === undefined ? 0 : withdraw?.(handle)).toBeUndefined();
             vi.advanceTimersByTime(60_000);
         });
 
-        expect(onTimeout).toHaveBeenCalledOnce();
+        expect(onTimeout).not.toHaveBeenCalled();
     });
 
-    it('ignores the first handle when the same input is shown twice', () => {
-        let first: SnackbarHandle | undefined;
+    it('answers undefined for the first handle when the same input is shown twice, and the second stays', () => {
+        let first: { handle: SnackbarHandle; withdraw: SnackbarApi['withdraw'] } | undefined;
         const input: SnackbarInput = { message: 'Ticks cleared' };
         render(
             <SnackbarHost>
                 <Window label="Ingredients">
                     <Shower
                         input={input}
-                        onHandle={(next) => {
-                            first ??= next;
+                        onHandle={(handle, withdraw) => {
+                            first ??= { handle, withdraw };
                         }}
                     />
                 </Window>
@@ -246,20 +252,24 @@ describe('the snackbar inside an open native window (integration: real host, rea
 
         showFrom('Ticks cleared');
         showFrom('Ticks cleared');
-        act(() => first?.dismiss());
+        let answer: number | undefined = 0;
+        act(() => {
+            answer = first?.withdraw(first.handle);
+        });
 
+        expect(answer).toBeUndefined();
         expect(regionsHolding('Ticks cleared')).toHaveLength(1);
     });
 
-    it('ignores a dismiss after a newer snackbar replaced it', () => {
-        let first: SnackbarHandle | undefined;
+    it('answers undefined for a withdraw after a newer snackbar replaced it, and the newer stays', () => {
+        let first: { handle: SnackbarHandle; withdraw: SnackbarApi['withdraw'] } | undefined;
         render(
             <SnackbarHost>
                 <Window label="Ingredients">
                     <Shower
                         input={{ message: 'Ticks cleared' }}
-                        onHandle={(next) => {
-                            first = next;
+                        onHandle={(handle, withdraw) => {
+                            first = { handle, withdraw };
                         }}
                     />
                     <Shower input={{ message: 'Servings changed' }} />
@@ -269,8 +279,12 @@ describe('the snackbar inside an open native window (integration: real host, rea
 
         showFrom('Ticks cleared');
         showFrom('Servings changed');
-        act(() => first?.dismiss());
+        let answer: number | undefined = 0;
+        act(() => {
+            answer = first?.withdraw(first.handle);
+        });
 
+        expect(answer).toBeUndefined();
         expect(regionsHolding('Servings changed')).toHaveLength(1);
     });
 });

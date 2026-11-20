@@ -1,9 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RecipeStatus } from '@kitchensink/recipe-core';
 
+import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
 import type { CookingRecipe } from '../cookingViewProps.js';
+import { DONE_SETTLE_MS } from '../doneSettle.js';
 import { useCookingSessionScreen } from '../useCookingSessionScreen.js';
 
 /**
@@ -26,12 +28,13 @@ vi.mock('@commise/ui/keep-awake', async (importOriginal) => {
     };
 });
 
-const recipeOf = (instructions: readonly string[]): CookingRecipe => ({
-    id: 'r1',
-    title: 'Weeknight roast',
-    status: RecipeStatus.PUBLISHED,
-    steps: instructions.map((instruction, index) => ({ stepNumber: index + 1, instruction })),
-});
+const recipeOf = (instructions: readonly string[]): CookingRecipe =>
+    makeCookingRecipe({
+        id: 'r1',
+        title: 'Weeknight roast',
+        status: RecipeStatus.PUBLISHED,
+        steps: instructions.map((instruction, index) => ({ stepNumber: index + 1, instruction })),
+    });
 
 const SIX = recipeOf(['Heat the oil. Add the onion.', 'Add the butter.', 'Roast.', 'Rest.', 'Carve.', 'Serve.']);
 
@@ -50,6 +53,8 @@ beforeEach(() => {
     keepAwake.available = false;
     keepAwake.calls = [];
 });
+
+afterEach(() => vi.useRealTimers());
 
 describe('useCookingSessionScreen: a step', () => {
     it('opens on step 1 with the place, the forward name, no move yet and no Done', () => {
@@ -134,8 +139,12 @@ describe('useCookingSessionScreen: Done', () => {
     });
 
     it('returns to the recipe with the first action and starts over with the second', () => {
+        vi.useFakeTimers();
         const { result, onLeave } = mount();
         forwardTimes(result, 6);
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
 
         act(() => result.current.done?.backToRecipe.onPress());
         expect(onLeave).toHaveBeenCalledTimes(1);
@@ -143,6 +152,76 @@ describe('useCookingSessionScreen: Done', () => {
         act(() => result.current.done?.cookAgain.onPress());
         expect(result.current.done).toBeNull();
         expect(result.current.place).toBe('Step 1 of 6');
+    });
+});
+
+/** S24 and D15: Done ignores a press for 400 ms, so the tap on Finish cannot also choose an action. */
+describe('useCookingSessionScreen: the Done settle window', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    const reachDone = () => {
+        const mounted = mount();
+        forwardTimes(mounted.result, 6);
+
+        return mounted;
+    };
+
+    it('ignores Cook it again at 100 ms, and starts over at 500 ms', () => {
+        const { result } = reachDone();
+
+        act(() => {
+            vi.advanceTimersByTime(100);
+        });
+        act(() => result.current.done?.cookAgain.onPress());
+        expect(result.current.done).not.toBeNull();
+
+        act(() => {
+            vi.advanceTimersByTime(400);
+        });
+        act(() => result.current.done?.cookAgain.onPress());
+        expect(result.current.done).toBeNull();
+        expect(result.current.place).toMatch(/^Step\s1\sof\s6$/u);
+    });
+
+    it('ignores Back to the recipe at 100 ms, and leaves once at 500 ms', () => {
+        const { result, onLeave } = reachDone();
+
+        act(() => {
+            vi.advanceTimersByTime(100);
+        });
+        act(() => result.current.done?.backToRecipe.onPress());
+        expect(onLeave).not.toHaveBeenCalled();
+
+        act(() => {
+            vi.advanceTimersByTime(400);
+        });
+        act(() => result.current.done?.backToRecipe.onPress());
+        expect(onLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits again after Cook it again and a second Finish', () => {
+        const { result } = reachDone();
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
+        act(() => result.current.done?.cookAgain.onPress());
+        forwardTimes(result, 6);
+
+        act(() => {
+            vi.advanceTimersByTime(100);
+        });
+        act(() => result.current.done?.cookAgain.onPress());
+
+        expect(result.current.done).not.toBeNull();
+    });
+
+    it('never makes a step wait: Next works at once', () => {
+        const { result } = mount();
+
+        act(() => result.current.goForward());
+
+        expect(result.current.place).toMatch(/^Step\s2\sof\s6$/u);
     });
 });
 
@@ -184,8 +263,12 @@ describe('useCookingSessionScreen: what the live region says', () => {
     });
 
     it('counts Cook again as a move and announces step 1 like a Next does', () => {
+        vi.useFakeTimers();
         const { result } = mount();
         forwardTimes(result, 6);
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
         expect(result.current.moves).toBe(6);
 
         act(() => result.current.done?.cookAgain.onPress());

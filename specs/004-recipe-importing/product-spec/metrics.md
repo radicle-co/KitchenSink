@@ -1,92 +1,66 @@
-# Metrics: Recipe Importing
+# Metrics: Recipe Importing (004)
 
-**Branch**: `004-recipe-importing`
-**Regenerated**: 2026-08-02
 **Source**: [product-spec.md](./product-spec.md), [../spec.md](../spec.md)
 
-## Principle
-
-Every metric below names what it measures, what would make it lie, and the decision it informs. A metric with
-no decision attached is a dashboard, not a metric.
+Each target cites its source. A metric marked "(observe)" has no target yet: it is recorded from the day its flow
+ships, and a target is set from what is observed. A metric whose flow has not shipped says so.
 
 ## North star
 
-**Recipes successfully imported and confirmed per active user, per month.**
+**Recipes saved from an import per active cook per month.** It counts saved recipes, not started imports. An import
+that is refused, abandoned or held forever delivers nothing to the cook. Target: (observe).
 
-Deliberately measured at **confirmation**, not at import submission. An import that produces a draft the user
-abandons has delivered nothing. Counting submissions would let extraction quality regress while the headline
-number rose.
+## Extraction quality
 
-## Product metrics
+| ID  | Metric                    | Definition                                                                      | Target                                                                          | Source             |
+| --- | ------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------ |
+| Q-1 | Wrong-yes rate, per tier  | Yes answers whose extracted recipe differs from the page's recipe ÷ yes answers | 0 observed, and a 95% upper bound under 5%, before a device tier is switched on | `SC-002`, `D-009`  |
+| Q-2 | Coverage, per tier        | Pages a tier answers yes for ÷ pages it reads                                   | Reported next to Q-1. No floor.                                                 | `SC-003`           |
+| Q-3 | Not-extractable rate      | Imports where every tier says no and the fallback finds no recipe ÷ imports     | (observe)                                                                       | `FR-064`, `FR-056` |
+| Q-4 | Unparsed ingredient lines | Lines kept with an absent quantity ÷ ingredient lines                           | (observe)                                                                       | `FR-020`           |
 
-| ID  | Metric                          | Definition                              | Target    | Informs                                              |
-| --- | ------------------------------- | --------------------------------------- | --------- | ---------------------------------------------------- |
-| M-1 | Draft confirmation rate         | confirmed drafts ÷ drafts created       | ≥ 70%     | Is review a reasonable step or an abandonment cliff? |
-| M-2 | Time to confirmed recipe        | p50 from submission to confirmation     | ≤ 60s     | The "under a minute" vision claim                    |
-| M-3 | Fields corrected per draft      | mean user edits before confirming       | ≤ 3       | Extraction quality as the user experiences it        |
-| M-4 | Import share of recipe creation | imported ÷ all recipes created          | ≥ 25%     | Whether the feature earns its maintenance cost       |
-| M-5 | Duplicate-resolution rate       | imports resolving to an existing recipe | (observe) | Dedup working, and how much content overlaps         |
-| M-6 | Channel mix                     | share by url / instagram / file / ocr   | (observe) | Where to invest next; whether OCR justified P1       |
+Q-1 is a switch-on gate, not a dashboard. A tier that misses it stays off (`SC-003`).
 
-**What would make these lie**: M-1 rises if we silently auto-fill missing fields — which is exactly what the
-design forbids. If M-1 is ever "improved" by defaulting values, the metric has been gamed and the product is
-worse. Pair M-1 with M-3: falling corrections with a rising confirmation rate is genuine improvement; rising
-corrections with a rising confirmation rate is not.
+## The AI fallback (ships with `FR-056`)
 
-## Quality metrics
+| ID  | Metric               | Definition                                                        | Target                                                         | Source             |
+| --- | -------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------- | ------------------ |
+| F-1 | `budgetSpent` rate   | Fallback jobs ending `budgetSpent` ÷ fallback jobs                | (observe). Any rise is read against the monthly spend ceiling. | `FR-059`, ADR-0024 |
+| F-2 | Fallback outcome mix | Share of `extracted`, `noRecipe`, `severalRecipes` and `failed`   | (observe)                                                      | `FR-056`           |
+| F-3 | Refused before a job | Pastes refused over the 48,000-byte cap or by an opt-out ÷ pastes | (observe)                                                      | `FR-058`, `FR-063` |
 
-| ID  | Metric                 | Definition                                                   | Target    | Source          |
-| --- | ---------------------- | ------------------------------------------------------------ | --------- | --------------- |
-| Q-1 | Extraction accuracy    | field-level accuracy on the hand-verified corpus             | ≥ 85%     | SC-002, CI gate |
-| Q-2 | Clean JSON-LD yield    | JSON-LD sources whose draft misses at most `servings`        | ≥ 95%     | SC-003, CI gate |
-| Q-3 | Extractor strategy mix | share of imports resolved by JSON-LD / microdata / heuristic | (observe) | Runtime SLI     |
-| Q-4 | Ingredient parse rate  | lines parsed to a structured quantity                        | ≥ 80%     | Runtime SLI     |
-| Q-5 | No-recipe-found rate   | fetched successfully but nothing extractable                 | ≤ 10%     | Runtime SLI     |
+## Cook choices
 
-Q-1 and Q-2 are **CI gates that fail the build**, not dashboards. Q-3 is the early-warning signal: a rising
-heuristic share means the web's markup is drifting away from what we parse well, and it will show up in Q-1
-only after the corpus is refreshed. **A Q-3 shift of more than 10 percentage points toward the heuristic
-strategy triggers an out-of-cycle corpus refresh (D-009)** — this is the one metric wired to an action rather
-than a dashboard.
+| ID  | Metric                        | Definition                                                                                 | Target                                                         | Source    |
+| --- | ----------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | --------- |
+| C-1 | Private / Public / Both share | Share of saved imports by the cook's choice. Public and Both appear once 003B ships.       | (observe)                                                      | `FR-065`  |
+| C-2 | Duplicate choices             | Share of Duplicate, Replace, Cancel and "Import as a new copy" when a page is already held | (observe). Not shipped: the duplicate choice is not built yet. | `FR-008`  |
+| C-3 | Bulk skips kept               | "Already in your library" items left skipped ÷ such items                                  | (observe). Not shipped: `FR-068` is not built yet.             | `FR-068`  |
+| C-4 | Statement mix                 | Share of each statement the cook chooses                                                   | (observe)                                                      | `FR-014a` |
+| C-5 | Held items completed          | Held items the cook completes ÷ held items                                                 | (observe)                                                      | `FR-015`  |
 
 ## Reliability and performance
 
-| ID  | Metric                    | Target                               | Source     |
-| --- | ------------------------- | ------------------------------------ | ---------- |
-| R-1 | Import job success rate   | ≥ 97% excluding user-caused failures | SLO        |
-| R-2 | URL import latency        | p95 ≤ 15s · p99 ≤ 30s                | SC-004, k6 |
-| R-3 | Draft confirm latency     | p95 ≤ 400ms                          | SC-004, k6 |
-| R-4 | Circuit-breaker open time | (observe)                            | SLI        |
-| R-5 | Load shed rate (`429`)    | ≈ 0 at expected load                 | k6 soak    |
+| ID  | Metric                               | Target                                                                                               | Source   |
+| --- | ------------------------------------ | ---------------------------------------------------------------------------------------------------- | -------- |
+| R-1 | Link import on the server fetch path | p95 15 s or less, p99 30 s or less. Not shipped: the server fetch path is not built yet.             | `SC-004` |
+| R-2 | Save                                 | p95 400 ms or less                                                                                   | `SC-004` |
+| R-3 | robots.txt blocks                    | (observe), counted per `IMPORT_SOURCE_BLOCKED`. Not shipped: the server fetch path is not built yet. | `FR-023` |
 
-R-1 deliberately **excludes** blocked sources and no-recipe-found: those are the system working correctly, and
-counting them as failures would create pressure to weaken the blocklist.
+## Invariants
 
-## Safety and compliance
+Any non-zero reading is an incident, not a trend.
 
-| ID  | Metric                                      | Target    | Why                                                    |
-| --- | ------------------------------------------- | --------- | ------------------------------------------------------ |
-| S-1 | Duplicate public recipes per source         | **0**     | SC-005; a non-zero value means the unique index failed |
-| S-2 | Imported-public recipes lacking attribution | **0**     | Legal exposure (HAZ-015/023)                           |
-| S-3 | `imported_paid` recipes made public         | **0**     | Never permitted (REQ-CN-003)                           |
-| S-4 | OCR images outliving their draft            | **0**     | Privacy (HAZ-035)                                      |
-| S-5 | SSRF guard rejections                       | (observe) | A sudden rise indicates probing, not a bug             |
+| ID  | Invariant                                                              | Target                                                  | Source             |
+| --- | ---------------------------------------------------------------------- | ------------------------------------------------------- | ------------------ |
+| I-1 | A second import of a page not matched to the first                     | 0. Not shipped: the duplicate lookup is not built yet.  | `SC-005`           |
+| I-2 | A third-party recipe made public by any door other than the two routes | 0                                                       | `003B-FR-015`      |
+| I-3 | A paid-site recipe whose source wording is public                      | 0                                                       | `FR-014`, `FR-065` |
+| I-4 | A server fetch of a known paid site                                    | 0. Not shipped: the server fetch path is not built yet. | `FR-014`, `FR-064` |
+| I-5 | A value the source did not state, filled in by the import              | 0                                                       | `FR-015`, `FR-021` |
+| I-6 | A server download of a video                                           | 0                                                       | `FR-009`           |
 
-S-1 through S-4 are **invariants, not targets**. Any non-zero reading is an incident, not a trend to improve.
-S-5 is the one security metric that is expected to be non-zero — it counts attacks being stopped.
+## Not measured
 
-## Adoption gates
-
-| Phase       | Gate                                                                       |
-| ----------- | -------------------------------------------------------------------------- |
-| Launch      | Q-1 ≥ 85%, R-2 met, S-1..S-4 all zero in soak, ATP-012 fully passed        |
-| Post-launch | M-1 ≥ 70% within 30 days; if below, investigate M-3 before adding channels |
-| Instagram   | Ungated only when the Meta credential exists (D-002) — no product gate     |
-
-## Deliberately not measured
-
-- **Import submissions** as a headline — see north star.
-- **OCR accuracy against SC-002** — OCR is excluded from that bar by design; measuring it there would drag the
-  figure down for a reason unrelated to the extractor.
-- **Per-domain success rates published externally** — useful internally, but publishing a "sites we parse
-  badly" list invites both embarrassment and gaming.
+- Started imports as a headline. They rise while quality falls.
+- Per-site success rates in public.

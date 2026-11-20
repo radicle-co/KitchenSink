@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { IosAdapter, type IosShell } from '../iosAdapter.js';
+import type { IosDevice } from '../iosLane.js';
 
 const MANIFEST = [
     'platform=ios',
@@ -60,21 +61,23 @@ function makeShell(answers: Record<string, string> = {}): Recorder {
     return recorder;
 }
 
-const SETTINGS = {
-    recipeOrigin: 'http://localhost:3000',
-    identityOrigin: 'http://localhost:3001',
-    foodOrigin: 'http://localhost:3002',
-};
+/**
+ * REWRITTEN 2026-11-19 (LS-PORT, TEST-CHANGE decisions/0044): the adapter takes the host ports the running stack
+ * publishes, three different ones, so a swap of two services fails. The old settings origins are gone.
+ */
+const HOST_PORTS = { recipes: 3110, identity: 3111, food: 3112 };
 
 const options = (
     shell: IosShell,
     env: Record<string, string | undefined> = { LOCAL_MAESTRO_IOS_HOST: 'me@mac' },
-    settings = SETTINGS,
+    hostPorts = HOST_PORTS,
+    device: IosDevice = 'iphone',
 ) => ({
+    device,
     shell,
     env,
     repoRoot: '/repo',
-    settings,
+    hostPorts,
 });
 
 describe('IosAdapter', () => {
@@ -88,6 +91,41 @@ describe('IosAdapter', () => {
         const { cpus, memBytes } = new IosAdapter(options(makeShell().shell)).laneCost;
         expect(cpus).toBe(1);
         expect(memBytes).toBe(Math.round(2.1 * 1024 ** 3));
+    });
+
+    it('names an iPad lane device and sends the iPad class to the Mac, always explicitly', async () => {
+        const adapter = (device: IosDevice, recorder: Recorder) =>
+            new IosAdapter(options(recorder.shell, undefined, HOST_PORTS, device));
+        expect(adapter('ipad', makeShell()).deviceFor(2)).toBe('ks-maestro-ipad-2');
+        expect(adapter('iphone', makeShell()).deviceFor(2)).toBe('ks-maestro-lane-2');
+
+        for (const device of ['iphone', 'ipad'] as const) {
+            const recorder = makeShell({
+                'content-key': 'abc\n',
+                'testApp.manifest': MANIFEST,
+                'ensure 2': 'UDID-2\n',
+            });
+            const lanes = adapter(device, recorder);
+            await lanes.prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
+            await lanes.startDevice({
+                platform: 'ios',
+                index: 2,
+                count: 2,
+                device: lanes.deviceFor(2),
+                driverPort: 7002,
+                stateDir: '/s/lanes/ios-2',
+                fixtureEnvFile: '/s/lanes/ios-2/fixture.env',
+            });
+            expect(recorder.commands.join('\n')).toContain(`laneHost.sh ensure 2 ${device}`);
+        }
+    });
+
+    it('costs an iPad lane what the 2026-11-15 runs measured: peak 2.10 GiB and under one cpu busy', () => {
+        // Measured with maestro:macUsage ipad: mean 0.4 to 0.6 cpus per lane, peak resident 1.87 to 2.10 GiB, over a
+        // one-lane run and a two-lane run on the Mac.
+        const { cpus, memBytes } = new IosAdapter(options(makeShell().shell, undefined, HOST_PORTS, 'ipad')).laneCost;
+        expect(cpus).toBe(1);
+        expect(memBytes).toBe(Math.round(2.2 * 1024 ** 3));
     });
 
     it('refuses to be built without a Mac host', () => {
@@ -136,18 +174,20 @@ describe('IosAdapter', () => {
         const adapter = new IosAdapter(options(recorder.shell));
         await adapter.prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
         const tunnel = recorder.tunnels[0]?.join(' ') ?? '';
-        expect(tunnel).toContain('-R 13000:localhost:3000');
-        expect(tunnel).toContain('-R 13001:localhost:3001');
-        expect(tunnel).toContain('-R 13002:localhost:3002');
+        expect(tunnel).toContain('-R 13000:localhost:3110');
+        expect(tunnel).toContain('-R 13001:localhost:3111');
+        expect(tunnel).toContain('-R 13002:localhost:3112');
     });
 
-    it('tunnels to the recipe host port the local settings state when it has moved', async () => {
+    it('tunnels to the host ports the stack publishes when they have moved, and to no default port', async () => {
         const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
-        const moved = { ...SETTINGS, recipeOrigin: 'http://localhost:3010' };
+        const moved = { recipes: 3210, identity: 3211, food: 3212 };
         const adapter = new IosAdapter(options(recorder.shell, { LOCAL_MAESTRO_IOS_HOST: 'me@mac' }, moved));
         await adapter.prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
         const tunnel = recorder.tunnels[0]?.join(' ') ?? '';
-        expect(tunnel).toContain('-R 13000:localhost:3010');
+        expect(tunnel).toContain('-R 13000:localhost:3210');
+        expect(tunnel).toContain('-R 13001:localhost:3211');
+        expect(tunnel).toContain('-R 13002:localhost:3212');
         expect(tunnel).not.toContain('localhost:3000');
     });
 
@@ -169,7 +209,7 @@ describe('IosAdapter', () => {
             fixtureEnvFile: '/s/lanes/ios-2/fixture.env',
         });
         const joined = recorder.commands.join('\n');
-        expect(joined).toContain('laneHost.sh ensure 2');
+        expect(joined).toContain('laneHost.sh ensure 2 iphone');
         expect(joined).toContain('laneHost.sh erase UDID-2');
         expect(joined).toContain('laneHost.sh boot UDID-2');
         expect(joined).toContain('laneHost.sh install UDID-2 ksIos/apps/abc');

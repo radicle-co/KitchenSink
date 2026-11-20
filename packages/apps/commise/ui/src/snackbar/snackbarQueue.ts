@@ -3,22 +3,20 @@
  * arithmetic (`docs/architecture/uiOverhaulBlueprint.md` Part B). The host dispatches to it and runs what it settles.
  *
  * - `show` COMMITS the snackbar it replaces: the replaced one moves to `settled`, and the host runs its `onTimeout`.
- * - `expire` commits the snackbar that is showing; `act` closes it without committing (Undo).
- * - `dismiss` commits it early, for the screen that showed it. It names the snackbar by the `shown` token of that one
- *   showing, so it does nothing once a newer snackbar replaces it, even one shown from the same input.
+ * - `expire` commits the snackbar that is showing; `act` closes it without committing (its action, or a withdraw).
  * - `pause` banks the time left and `resume` starts it running again, so a snackbar paused under the pointer for a
  *   minute still has its own seconds when the pointer leaves (SC 2.2.1).
  *
  * Every action names the snackbar it is for (`id`), so a late timer or handler from a replaced one changes nothing.
  * The clock is an argument (`now`): the reducer never reads it.
  */
-import { DEFAULT_SNACKBAR_MS, type SnackbarInput } from './props.js';
+import { DEFAULT_SNACKBAR_MS, type SnackbarHandle, type SnackbarInput } from './props.js';
 
 /** One snackbar the queue has shown. */
 export interface SnackbarEntry {
     readonly id: number;
-    /** The token of this one showing, which the screen's handle names it by. */
-    readonly shown: symbol;
+    /** The identity `show` handed back, which `withdraw` must present. */
+    readonly handle: SnackbarHandle;
     readonly input: SnackbarInput;
     /** What is left of its life at `runningSince`, or now if paused. */
     readonly remainingMs: number;
@@ -38,10 +36,9 @@ export interface SnackbarState {
 
 /** What can happen to the queue. */
 export type SnackbarQueueAction =
-    | { readonly type: 'show'; readonly input: SnackbarInput; readonly shown: symbol; readonly now: number }
+    | { readonly type: 'show'; readonly input: SnackbarInput; readonly handle: SnackbarHandle; readonly now: number }
     | { readonly type: 'expire'; readonly id: number }
     | { readonly type: 'act'; readonly id: number }
-    | { readonly type: 'dismiss'; readonly shown: symbol }
     | { readonly type: 'pause'; readonly id: number; readonly now: number }
     | { readonly type: 'resume'; readonly id: number; readonly now: number }
     | { readonly type: 'drained'; readonly ids: readonly number[] };
@@ -66,7 +63,7 @@ export function snackbarReducer(state: SnackbarState, action: SnackbarQueueActio
             return {
                 current: {
                     id: state.nextId,
-                    shown: action.shown,
+                    handle: action.handle,
                     input: action.input,
                     remainingMs: action.input.durationMs ?? DEFAULT_SNACKBAR_MS,
                     runningSince: action.now,
@@ -80,10 +77,6 @@ export function snackbarReducer(state: SnackbarState, action: SnackbarQueueActio
                 : state;
         case 'act':
             return isCurrent(state, action.id) ? { ...state, current: null } : state;
-        case 'dismiss':
-            return state.current !== null && state.current.shown === action.shown
-                ? { ...state, current: null, settled: [...state.settled, state.current] }
-                : state;
         case 'pause':
             if (!isCurrent(state, action.id) || state.current.runningSince === null) {
                 return state;
@@ -93,7 +86,7 @@ export function snackbarReducer(state: SnackbarState, action: SnackbarQueueActio
                 ...state,
                 current: {
                     ...state.current,
-                    remainingMs: state.current.remainingMs - (action.now - state.current.runningSince),
+                    remainingMs: remainingMsOf(state.current, action.now),
                     runningSince: null,
                 },
             };
@@ -121,4 +114,16 @@ export function msUntilExpiry(entry: SnackbarEntry | null, now: number): number 
     }
 
     return Math.max(0, entry.remainingMs - (now - entry.runningSince));
+}
+
+/**
+ * How long a snackbar has left, not counting time it was paused: a paused one has banked its time in `remainingMs`.
+ * Pure.
+ *
+ * @param entry - The snackbar.
+ * @param now - The clock.
+ * @returns The ms left.
+ */
+export function remainingMsOf(entry: SnackbarEntry, now: number): number {
+    return msUntilExpiry(entry, now) ?? entry.remainingMs;
 }

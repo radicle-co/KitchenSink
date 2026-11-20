@@ -27,6 +27,7 @@ vi.mock('../../motion/useReduceMotion.native.js', () => ({ useReduceMotion: () =
 import { themeFor } from '../../theme/themeFor.js';
 import { RefreshNotice } from '../../refreshNotice/RefreshNotice.native.js';
 import { Surface } from '../../surfaceTone/Surface.native.js';
+import { pillOf } from '../../testing/buttonPill.js';
 import { Button } from '../Button.native.js';
 
 afterEach(() => {
@@ -40,19 +41,6 @@ function rgb(hex: string): string {
     const [r, g, b] = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
 
     return `rgb(${r}, ${g}, ${b})`;
-}
-
-/** The painted pill: the rounded element inside the button. */
-function pillOf(button: HTMLElement): HTMLElement {
-    const pill = [button, ...Array.from(button.querySelectorAll<HTMLElement>('*'))].find(
-        (element) => Number.parseFloat(getComputedStyle(element).borderTopLeftRadius) > 0,
-    );
-
-    if (pill === undefined) {
-        throw new Error('The button paints no rounded surface.');
-    }
-
-    return pill;
 }
 
 const light = themeFor('light');

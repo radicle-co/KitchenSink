@@ -16,8 +16,8 @@
             "platform": "web",
             "subject": "Account and sign in",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/accountAndSignInWeb/"
+            "source": "repo-canvas",
+            "folder": "accountAndSignInWeb"
         },
         {
             "id": "accountAndSignInMobile",
@@ -27,8 +27,8 @@
             "platform": "mobile",
             "subject": "Account and sign in",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/accountAndSignInMobile/"
+            "source": "repo-canvas",
+            "folder": "accountAndSignInMobile"
         },
         {
             "id": "accountAndSignInCombined",
@@ -38,8 +38,8 @@
             "platform": "combined",
             "subject": "Account and sign in",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/accountAndSignInCombined/"
+            "source": "repo-canvas",
+            "folder": "accountAndSignInCombined"
         },
         {
             "id": "appWideStatesWeb",
@@ -49,8 +49,8 @@
             "platform": "web",
             "subject": "App-wide states",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/appWideStatesWeb/"
+            "source": "repo-canvas",
+            "folder": "appWideStatesWeb"
         },
         {
             "id": "appWideStatesMobile",
@@ -60,8 +60,8 @@
             "platform": "mobile",
             "subject": "App-wide states",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/appWideStatesMobile/"
+            "source": "repo-canvas",
+            "folder": "appWideStatesMobile"
         },
         {
             "id": "appWideStatesCombined",
@@ -71,8 +71,8 @@
             "platform": "combined",
             "subject": "App-wide states",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/appWideStatesCombined/"
+            "source": "repo-canvas",
+            "folder": "appWideStatesCombined"
         },
         {
             "id": "cookingModeWeb",
@@ -82,8 +82,8 @@
             "platform": "web",
             "subject": "Cooking mode",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/cookingModeWeb/"
+            "source": "repo-canvas",
+            "folder": "cookingModeWeb"
         },
         {
             "id": "cookingModeMobile",
@@ -93,8 +93,8 @@
             "platform": "mobile",
             "subject": "Cooking mode",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/cookingModeMobile/"
+            "source": "repo-canvas",
+            "folder": "cookingModeMobile"
         },
         {
             "id": "cookingModeCombined",
@@ -104,8 +104,8 @@
             "platform": "combined",
             "subject": "Cooking mode",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/cookingModeCombined/"
+            "source": "repo-canvas",
+            "folder": "cookingModeCombined"
         },
         {
             "id": "discoverWeb",
@@ -115,8 +115,8 @@
             "platform": "web",
             "subject": "Discover",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/discoverWeb/"
+            "source": "repo-canvas",
+            "folder": "discoverWeb"
         },
         {
             "id": "discoverMobile",
@@ -126,8 +126,8 @@
             "platform": "mobile",
             "subject": "Discover",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/discoverMobile/"
+            "source": "repo-canvas",
+            "folder": "discoverMobile"
         },
         {
             "id": "discoverCombined",
@@ -137,8 +137,8 @@
             "platform": "combined",
             "subject": "Discover",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/discoverCombined/"
+            "source": "repo-canvas",
+            "folder": "discoverCombined"
         },
         {
             "id": "homeWeb",
@@ -148,8 +148,8 @@
             "platform": "web",
             "subject": "Home",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/homeWeb/"
+            "source": "repo-canvas",
+            "folder": "homeWeb"
         },
         {
             "id": "homeMobile",
@@ -159,8 +159,8 @@
             "platform": "mobile",
             "subject": "Home",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/homeMobile/"
+            "source": "repo-canvas",
+            "folder": "homeMobile"
         },
         {
             "id": "homeCombined",
@@ -170,8 +170,8 @@
             "platform": "combined",
             "subject": "Home",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/homeCombined/"
+            "source": "repo-canvas",
+            "folder": "homeCombined"
         },
         {
             "id": "recipeDetailWeb",
@@ -181,8 +181,8 @@
             "platform": "web",
             "subject": "Recipe detail",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipeDetailWeb/"
+            "source": "repo-canvas",
+            "folder": "recipeDetailWeb"
         },
         {
             "id": "recipeDetailMobile",
@@ -192,8 +192,8 @@
             "platform": "mobile",
             "subject": "Recipe detail",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipeDetailMobile/"
+            "source": "repo-canvas",
+            "folder": "recipeDetailMobile"
         },
         {
             "id": "recipeDetailCombined",
@@ -203,8 +203,8 @@
             "platform": "combined",
             "subject": "Recipe detail",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipeDetailCombined/"
+            "source": "repo-canvas",
+            "folder": "recipeDetailCombined"
         },
         {
             "id": "recipeEditorWeb",
@@ -214,8 +214,8 @@
             "platform": "web",
             "subject": "Recipe editor",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipeEditorWeb/"
+            "source": "repo-canvas",
+            "folder": "recipeEditorWeb"
         },
         {
             "id": "recipeEditorMobile",
@@ -225,8 +225,8 @@
             "platform": "mobile",
             "subject": "Recipe editor",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipeEditorMobile/"
+            "source": "repo-canvas",
+            "folder": "recipeEditorMobile"
         },
         {
             "id": "recipeEditorCombined",
@@ -236,8 +236,8 @@
             "platform": "combined",
             "subject": "Recipe editor",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipeEditorCombined/"
+            "source": "repo-canvas",
+            "folder": "recipeEditorCombined"
         },
         {
             "id": "recipesAndCollectionsWeb",
@@ -247,8 +247,8 @@
             "platform": "web",
             "subject": "Recipes and collections",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipesAndCollectionsWeb/"
+            "source": "repo-canvas",
+            "folder": "recipesAndCollectionsWeb"
         },
         {
             "id": "recipesAndCollectionsMobile",
@@ -258,8 +258,8 @@
             "platform": "mobile",
             "subject": "Recipes and collections",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipesAndCollectionsMobile/"
+            "source": "repo-canvas",
+            "folder": "recipesAndCollectionsMobile"
         },
         {
             "id": "recipesAndCollectionsCombined",
@@ -269,8 +269,8 @@
             "platform": "combined",
             "subject": "Recipes and collections",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipesAndCollectionsCombined/"
+            "source": "repo-canvas",
+            "folder": "recipesAndCollectionsCombined"
         },
         {
             "id": "aiAssistantWeb",
@@ -280,8 +280,8 @@
             "platform": "web",
             "subject": "AI assistant",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/aiAssistantWeb/"
+            "source": "repo-canvas",
+            "folder": "aiAssistantWeb"
         },
         {
             "id": "aiAssistantMobile",
@@ -291,8 +291,8 @@
             "platform": "mobile",
             "subject": "AI assistant",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/aiAssistantMobile/"
+            "source": "repo-canvas",
+            "folder": "aiAssistantMobile"
         },
         {
             "id": "aiAssistantCombined",
@@ -302,8 +302,8 @@
             "platform": "combined",
             "subject": "AI assistant",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/aiAssistantCombined/"
+            "source": "repo-canvas",
+            "folder": "aiAssistantCombined"
         },
         {
             "id": "chefProgramWeb",
@@ -313,8 +313,8 @@
             "platform": "web",
             "subject": "Chef program",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/chefProgramWeb/"
+            "source": "repo-canvas",
+            "folder": "chefProgramWeb"
         },
         {
             "id": "chefProgramMobile",
@@ -324,8 +324,8 @@
             "platform": "mobile",
             "subject": "Chef program",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/chefProgramMobile/"
+            "source": "repo-canvas",
+            "folder": "chefProgramMobile"
         },
         {
             "id": "chefProgramCombined",
@@ -335,8 +335,8 @@
             "platform": "combined",
             "subject": "Chef program",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/chefProgramCombined/"
+            "source": "repo-canvas",
+            "folder": "chefProgramCombined"
         },
         {
             "id": "contentSourceCheckWeb",
@@ -346,8 +346,8 @@
             "platform": "web",
             "subject": "Content source check",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/contentSourceCheckWeb/"
+            "source": "repo-canvas",
+            "folder": "contentSourceCheckWeb"
         },
         {
             "id": "contentSourceCheckMobile",
@@ -357,8 +357,8 @@
             "platform": "mobile",
             "subject": "Content source check",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/contentSourceCheckMobile/"
+            "source": "repo-canvas",
+            "folder": "contentSourceCheckMobile"
         },
         {
             "id": "contentSourceCheckCombined",
@@ -368,8 +368,8 @@
             "platform": "combined",
             "subject": "Content source check",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/contentSourceCheckCombined/"
+            "source": "repo-canvas",
+            "folder": "contentSourceCheckCombined"
         },
         {
             "id": "cookWithMeWeb",
@@ -379,8 +379,8 @@
             "platform": "web",
             "subject": "Cook with me",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/cookWithMeWeb/"
+            "source": "repo-canvas",
+            "folder": "cookWithMeWeb"
         },
         {
             "id": "cookWithMeMobile",
@@ -390,8 +390,8 @@
             "platform": "mobile",
             "subject": "Cook with me",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/cookWithMeMobile/"
+            "source": "repo-canvas",
+            "folder": "cookWithMeMobile"
         },
         {
             "id": "cookWithMeCombined",
@@ -401,8 +401,8 @@
             "platform": "combined",
             "subject": "Cook with me",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/cookWithMeCombined/"
+            "source": "repo-canvas",
+            "folder": "cookWithMeCombined"
         },
         {
             "id": "cookingSchoolWeb",
@@ -412,8 +412,8 @@
             "platform": "web",
             "subject": "Cooking school",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/cookingSchoolWeb/"
+            "source": "repo-canvas",
+            "folder": "cookingSchoolWeb"
         },
         {
             "id": "cookingSchoolMobile",
@@ -423,8 +423,8 @@
             "platform": "mobile",
             "subject": "Cooking school",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/cookingSchoolMobile/"
+            "source": "repo-canvas",
+            "folder": "cookingSchoolMobile"
         },
         {
             "id": "cookingSchoolCombined",
@@ -434,8 +434,8 @@
             "platform": "combined",
             "subject": "Cooking school",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/cookingSchoolCombined/"
+            "source": "repo-canvas",
+            "folder": "cookingSchoolCombined"
         },
         {
             "id": "creatorProfilesWeb",
@@ -445,8 +445,8 @@
             "platform": "web",
             "subject": "Creator profiles",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/creatorProfilesWeb/"
+            "source": "repo-canvas",
+            "folder": "creatorProfilesWeb"
         },
         {
             "id": "creatorProfilesMobile",
@@ -456,8 +456,8 @@
             "platform": "mobile",
             "subject": "Creator profiles",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/creatorProfilesMobile/"
+            "source": "repo-canvas",
+            "folder": "creatorProfilesMobile"
         },
         {
             "id": "creatorProfilesCombined",
@@ -467,8 +467,8 @@
             "platform": "combined",
             "subject": "Creator profiles",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/creatorProfilesCombined/"
+            "source": "repo-canvas",
+            "folder": "creatorProfilesCombined"
         },
         {
             "id": "draftsWeb",
@@ -478,8 +478,8 @@
             "platform": "web",
             "subject": "Drafts",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/draftsWeb/"
+            "source": "repo-canvas",
+            "folder": "draftsWeb"
         },
         {
             "id": "draftsMobile",
@@ -489,8 +489,8 @@
             "platform": "mobile",
             "subject": "Drafts",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/draftsMobile/"
+            "source": "repo-canvas",
+            "folder": "draftsMobile"
         },
         {
             "id": "draftsCombined",
@@ -500,8 +500,8 @@
             "platform": "combined",
             "subject": "Drafts",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/draftsCombined/"
+            "source": "repo-canvas",
+            "folder": "draftsCombined"
         },
         {
             "id": "groceryListsWeb",
@@ -511,8 +511,8 @@
             "platform": "web",
             "subject": "Grocery lists",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/groceryListsWeb/"
+            "source": "repo-canvas",
+            "folder": "groceryListsWeb"
         },
         {
             "id": "groceryListsMobile",
@@ -522,8 +522,8 @@
             "platform": "mobile",
             "subject": "Grocery lists",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/groceryListsMobile/"
+            "source": "repo-canvas",
+            "folder": "groceryListsMobile"
         },
         {
             "id": "groceryListsCombined",
@@ -533,8 +533,8 @@
             "platform": "combined",
             "subject": "Grocery lists",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/groceryListsCombined/"
+            "source": "repo-canvas",
+            "folder": "groceryListsCombined"
         },
         {
             "id": "inAppNoticesWeb",
@@ -544,8 +544,8 @@
             "platform": "web",
             "subject": "In-app notices",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/inAppNoticesWeb/"
+            "source": "repo-canvas",
+            "folder": "inAppNoticesWeb"
         },
         {
             "id": "inAppNoticesMobile",
@@ -555,8 +555,8 @@
             "platform": "mobile",
             "subject": "In-app notices",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/inAppNoticesMobile/"
+            "source": "repo-canvas",
+            "folder": "inAppNoticesMobile"
         },
         {
             "id": "inAppNoticesCombined",
@@ -566,8 +566,8 @@
             "platform": "combined",
             "subject": "In-app notices",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/inAppNoticesCombined/"
+            "source": "repo-canvas",
+            "folder": "inAppNoticesCombined"
         },
         {
             "id": "mealPlanningWeb",
@@ -577,8 +577,8 @@
             "platform": "web",
             "subject": "Meal planning",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/mealPlanningWeb/"
+            "source": "repo-canvas",
+            "folder": "mealPlanningWeb"
         },
         {
             "id": "mealPlanningMobile",
@@ -588,8 +588,8 @@
             "platform": "mobile",
             "subject": "Meal planning",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/mealPlanningMobile/"
+            "source": "repo-canvas",
+            "folder": "mealPlanningMobile"
         },
         {
             "id": "mealPlanningCombined",
@@ -599,8 +599,8 @@
             "platform": "combined",
             "subject": "Meal planning",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/mealPlanningCombined/"
+            "source": "repo-canvas",
+            "folder": "mealPlanningCombined"
         },
         {
             "id": "nutritionPlanningWeb",
@@ -610,8 +610,8 @@
             "platform": "web",
             "subject": "Nutrition planning",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/nutritionPlanningWeb/"
+            "source": "repo-canvas",
+            "folder": "nutritionPlanningWeb"
         },
         {
             "id": "nutritionPlanningMobile",
@@ -621,8 +621,8 @@
             "platform": "mobile",
             "subject": "Nutrition planning",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/nutritionPlanningMobile/"
+            "source": "repo-canvas",
+            "folder": "nutritionPlanningMobile"
         },
         {
             "id": "nutritionPlanningCombined",
@@ -632,8 +632,8 @@
             "platform": "combined",
             "subject": "Nutrition planning",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/nutritionPlanningCombined/"
+            "source": "repo-canvas",
+            "folder": "nutritionPlanningCombined"
         },
         {
             "id": "offlineWeb",
@@ -643,8 +643,8 @@
             "platform": "web",
             "subject": "Offline",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/offlineWeb/"
+            "source": "repo-canvas",
+            "folder": "offlineWeb"
         },
         {
             "id": "offlineMobile",
@@ -654,8 +654,8 @@
             "platform": "mobile",
             "subject": "Offline",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/offlineMobile/"
+            "source": "repo-canvas",
+            "folder": "offlineMobile"
         },
         {
             "id": "offlineCombined",
@@ -665,8 +665,8 @@
             "platform": "combined",
             "subject": "Offline",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/offlineCombined/"
+            "source": "repo-canvas",
+            "folder": "offlineCombined"
         },
         {
             "id": "publishingRewardsWeb",
@@ -676,8 +676,8 @@
             "platform": "web",
             "subject": "Publishing rewards",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/publishingRewardsWeb/"
+            "source": "repo-canvas",
+            "folder": "publishingRewardsWeb"
         },
         {
             "id": "publishingRewardsMobile",
@@ -687,8 +687,8 @@
             "platform": "mobile",
             "subject": "Publishing rewards",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/publishingRewardsMobile/"
+            "source": "repo-canvas",
+            "folder": "publishingRewardsMobile"
         },
         {
             "id": "publishingRewardsCombined",
@@ -698,8 +698,8 @@
             "platform": "combined",
             "subject": "Publishing rewards",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/publishingRewardsCombined/"
+            "source": "repo-canvas",
+            "folder": "publishingRewardsCombined"
         },
         {
             "id": "recipeDigitizationAndFamilyCirclesWeb",
@@ -709,8 +709,8 @@
             "platform": "web",
             "subject": "Recipe digitization and family circles",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipeDigitizationAndFamilyCirclesWeb/"
+            "source": "repo-canvas",
+            "folder": "recipeDigitizationAndFamilyCirclesWeb"
         },
         {
             "id": "recipeDigitizationAndFamilyCirclesMobile",
@@ -720,8 +720,8 @@
             "platform": "mobile",
             "subject": "Recipe digitization and family circles",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipeDigitizationAndFamilyCirclesMobile/"
+            "source": "repo-canvas",
+            "folder": "recipeDigitizationAndFamilyCirclesMobile"
         },
         {
             "id": "recipeDigitizationAndFamilyCirclesCombined",
@@ -731,8 +731,8 @@
             "platform": "combined",
             "subject": "Recipe digitization and family circles",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipeDigitizationAndFamilyCirclesCombined/"
+            "source": "repo-canvas",
+            "folder": "recipeDigitizationAndFamilyCirclesCombined"
         },
         {
             "id": "recipeImportingWeb",
@@ -742,8 +742,8 @@
             "platform": "web",
             "subject": "Recipe importing",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipeImportingWeb/"
+            "source": "repo-canvas",
+            "folder": "recipeImportingWeb"
         },
         {
             "id": "recipeImportingMobile",
@@ -753,8 +753,8 @@
             "platform": "mobile",
             "subject": "Recipe importing",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipeImportingMobile/"
+            "source": "repo-canvas",
+            "folder": "recipeImportingMobile"
         },
         {
             "id": "recipeImportingCombined",
@@ -764,8 +764,8 @@
             "platform": "combined",
             "subject": "Recipe importing",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/recipeImportingCombined/"
+            "source": "repo-canvas",
+            "folder": "recipeImportingCombined"
         },
         {
             "id": "reportsRulesAndYourRightsWeb",
@@ -775,8 +775,8 @@
             "platform": "web",
             "subject": "Reports, rules and your rights",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/reportsRulesAndYourRightsWeb/"
+            "source": "repo-canvas",
+            "folder": "reportsRulesAndYourRightsWeb"
         },
         {
             "id": "reportsRulesAndYourRightsMobile",
@@ -786,8 +786,8 @@
             "platform": "mobile",
             "subject": "Reports, rules and your rights",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/reportsRulesAndYourRightsMobile/"
+            "source": "repo-canvas",
+            "folder": "reportsRulesAndYourRightsMobile"
         },
         {
             "id": "reportsRulesAndYourRightsCombined",
@@ -797,8 +797,8 @@
             "platform": "combined",
             "subject": "Reports, rules and your rights",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/reportsRulesAndYourRightsCombined/"
+            "source": "repo-canvas",
+            "folder": "reportsRulesAndYourRightsCombined"
         },
         {
             "id": "subscriptionsWeb",
@@ -808,8 +808,8 @@
             "platform": "web",
             "subject": "Subscriptions",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/subscriptionsWeb/"
+            "source": "repo-canvas",
+            "folder": "subscriptionsWeb"
         },
         {
             "id": "subscriptionsMobile",
@@ -819,8 +819,8 @@
             "platform": "mobile",
             "subject": "Subscriptions",
             "status": "current",
-            "source": "live",
-            "snapshot": "docs/design/canvases/subscriptionsMobile/"
+            "source": "repo-canvas",
+            "folder": "subscriptionsMobile"
         },
         {
             "id": "subscriptionsCombined",
@@ -830,8 +830,8 @@
             "platform": "combined",
             "subject": "Subscriptions",
             "status": "archive",
-            "source": "live",
-            "snapshot": "docs/design/canvases/subscriptionsCombined/"
+            "source": "repo-canvas",
+            "folder": "subscriptionsCombined"
         },
         {
             "id": "recipeEditorEmptyMistake",

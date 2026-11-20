@@ -38,6 +38,7 @@ import pg from 'pg';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { recipeDb } from '../../support/roleDb.js';
+import { PUBLIC_CONFIRMATION_AS_SHOWN } from '../../../src/__fixtures__/index.js';
 
 /** The dev-bypass owner ULID this suite creates recipes as. */
 const OWNER = '01JU14SRCLINE0WNER0000000AA';
@@ -74,6 +75,7 @@ async function onlyRefusedField(response: Response): Promise<string | undefined>
 
 /** A create body carrying exactly one ingredient line, optionally with a transcribed source line. */
 const createBody = (sourceLine?: string): Record<string, unknown> => ({
+    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
     title: `U14 source line ${Date.now()}-${Math.random()}`,
     description: 'Created by the U14 source-line spec.',
     servings: 4,

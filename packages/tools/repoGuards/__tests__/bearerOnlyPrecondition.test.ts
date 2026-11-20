@@ -46,7 +46,16 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 import { lineOf } from './appSources.js';
-import { isTestFile, parse, presentFiles, repoRoot, visit, type SourceFile } from './serviceSources.js';
+import {
+    enablesCors,
+    isTestFile,
+    moduleNamedBy,
+    parse,
+    presentFiles,
+    repoRoot,
+    visit,
+    type SourceFile,
+} from './serviceSources.js';
 
 // ───────────────────────────── the vocabulary ─────────────────────────────
 
@@ -128,29 +137,6 @@ function literalText(node: ts.Node | undefined): string | undefined {
     return node !== undefined && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
         ? node.text
         : undefined;
-}
-
-/**
- * The module a node names, for every way a module is pulled in: `import … from`, `export … from`, `require(…)`
- * and `import(…)`. Pure.
- *
- * @param node - Any node.
- * @returns The specifier, or `undefined` when the node pulls in no module.
- */
-function moduleNamedBy(node: ts.Node): string | undefined {
-    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier !== undefined) {
-        return literalText(node.moduleSpecifier);
-    }
-
-    if (
-        ts.isCallExpression(node) &&
-        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-            (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
-    ) {
-        return literalText(node.arguments[0]);
-    }
-
-    return undefined;
 }
 
 /** Whether an expression's text ends in `headers`, i.e. it is a request's header bag. */
@@ -329,50 +315,6 @@ function adoptsSharedPolicy(source: SourceFile): boolean {
     });
 
     return adopts;
-}
-
-/**
- * Whether a source turns CORS on by any route Nest or Express offers: `app.enableCors(…)`,
- * `NestFactory.create(…, { cors: … })`, or an import of the `cors` middleware. Pure.
- *
- * @param source - The file to read.
- * @returns `true` when the file enables CORS.
- */
-function enablesCors(source: SourceFile): boolean {
-    let enables = false;
-
-    visit(parse(source), (node) => {
-        if (moduleNamedBy(node) === 'cors') {
-            enables = true;
-        }
-
-        if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) {
-            return;
-        }
-
-        if (node.expression.name.text === 'enableCors') {
-            enables = true;
-        }
-
-        // `create`'s options object, and only there: `{ cors: true }` anywhere else is just an object.
-        if (node.expression.name.text === 'create') {
-            for (const argument of node.arguments) {
-                if (
-                    ts.isObjectLiteralExpression(argument) &&
-                    argument.properties.some(
-                        (property) =>
-                            property.name !== undefined &&
-                            ts.isIdentifier(property.name) &&
-                            property.name.text === 'cors',
-                    )
-                ) {
-                    enables = true;
-                }
-            }
-        }
-    });
-
-    return enables;
 }
 
 /**
@@ -858,6 +800,20 @@ describe('enablesCors — every way to turn CORS on', () => {
         ["Nest's enableCors", 'app.enableCors(options);'],
         ["NestFactory's cors option", 'const app = await NestFactory.create(AppModule, { cors: true });'],
         ['the cors middleware', "import cors from 'cors';"],
+        // `jsonBodyHttpSetup` calls `enableCors` itself, in `@kitchensink/nest-http-setup`, so a service that uses it has
+        // no `.enableCors(` of its own and is still browser-facing. The call is followed through the import binding.
+        [
+            'the shared JSON-body setup, named import',
+            "import { jsonBodyHttpSetup } from '@kitchensink/nest-http-setup';\nexport const S = jsonBodyHttpSetup(() => p());",
+        ],
+        [
+            'the shared JSON-body setup, renamed import',
+            "import { jsonBodyHttpSetup as setUp } from '@kitchensink/nest-http-setup';\nexport const S = setUp(() => p());",
+        ],
+        [
+            'the shared JSON-body setup, namespace import',
+            "import * as http from '@kitchensink/nest-http-setup';\nexport const S = http.jsonBodyHttpSetup(() => p());",
+        ],
     ])('finds %s', (_label, contents) => {
         expect(enablesCors(source(contents))).toBe(true);
     });
@@ -866,6 +822,26 @@ describe('enablesCors — every way to turn CORS on', () => {
         ['a comment', '// app.enableCors() is not called here\nexport const a = 1;'],
         ['a cors key on an unrelated object', 'const o = { cors: true };'],
         ['a module whose name contains the word', "import x from 'cors-anywhere-docs';"],
+        [
+            'a comment naming the shared setup',
+            '// jsonBodyHttpSetup(() => policy) is not called here\nexport const a = 1;',
+        ],
+        [
+            'a reference that is not a call',
+            "import { jsonBodyHttpSetup } from '@kitchensink/nest-http-setup';\nexport const a = jsonBodyHttpSetup;",
+        ],
+        [
+            'a local function that shares the name',
+            'function jsonBodyHttpSetup() {}\nexport const a = jsonBodyHttpSetup();',
+        ],
+        [
+            'a method of another module that shares the name',
+            "import * as helpers from './helpers.js';\nexport const a = helpers.jsonBodyHttpSetup(() => p());",
+        ],
+        [
+            'a type-only import of the setup',
+            "import type { jsonBodyHttpSetup } from '@kitchensink/nest-http-setup';\nexport type A = typeof jsonBodyHttpSetup;",
+        ],
     ])('does not mistake %s for enabling CORS', (_label, contents) => {
         expect(enablesCors(source(contents))).toBe(false);
     });
@@ -972,11 +948,18 @@ describe('the real tree — discovery', () => {
         }
     });
 
+    // The ONE file that calls `enableCors` without deciding a policy: `jsonBodyHttpSetup` installs whatever policy its
+    // caller builds. Its callers are the packages this guard must see, and `enablesCors` flags every one of them through
+    // the `jsonBodyHttpSetup(` call, so exempting this file hides no service. A second `enableCors` in the same package
+    // is NOT exempt.
+    const POLICY_CARRIER_FILE = 'packages/shared/nest-http-setup/src/jsonBodyHttpSetup.ts';
+
     it('every package that turns CORS on adopts the shared policy, so none escapes this guard', () => {
         const enabling = [
             ...new Set(
                 treeSources
                     .filter((candidate) => enablesCors(candidate))
+                    .filter((candidate) => candidate.file !== POLICY_CARRIER_FILE)
                     .flatMap((candidate) => packageOf(candidate.file, manifestDirectories) ?? []),
             ),
         ].sort();

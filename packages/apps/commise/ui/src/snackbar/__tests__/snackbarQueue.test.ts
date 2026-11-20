@@ -1,14 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_SNACKBAR_MS } from '../props.js';
-import { INITIAL_SNACKBAR_STATE, msUntilExpiry, snackbarReducer, type SnackbarState } from '../snackbarQueue.js';
+import {
+    INITIAL_SNACKBAR_STATE,
+    msUntilExpiry,
+    remainingMsOf,
+    snackbarReducer,
+    type SnackbarState,
+} from '../snackbarQueue.js';
 
 /**
  * The snackbar queue — a pure reducer that owns the ONE-AT-A-TIME rule and the timer's arithmetic; the host only
  * dispatches and runs what the reducer has settled.
  */
 const show = (state: SnackbarState, message: string, now: number, extra: object = {}): SnackbarState =>
-    snackbarReducer(state, { type: 'show', input: { message, ...extra }, shown: Symbol(message), now });
+    snackbarReducer(state, { type: 'show', input: { message, ...extra }, handle: { snackbar: true }, now });
 
 describe('snackbarReducer', () => {
     it('shows a snackbar, running from now for its default duration', () => {
@@ -77,42 +83,6 @@ describe('snackbarReducer', () => {
         expect(snackbarReducer(state, { type: 'resume', id, now: 4000 })).toBe(state);
     });
 
-    it('settles a dismissed snackbar, so its onTimeout still runs', () => {
-        const input = { message: 'Ticks cleared' };
-        const shown = Symbol('shown');
-        const state = snackbarReducer(INITIAL_SNACKBAR_STATE, { type: 'show', input, shown, now: 0 });
-        const dismissed = snackbarReducer(state, { type: 'dismiss', shown });
-
-        expect(dismissed.current).toBeNull();
-        expect(dismissed.settled.map((entry) => entry.input)).toStrictEqual([input]);
-    });
-
-    it('ignores a dismiss for a snackbar that a newer one already replaced', () => {
-        const first = Symbol('first');
-        const replaced = snackbarReducer(
-            snackbarReducer(INITIAL_SNACKBAR_STATE, {
-                type: 'show',
-                input: { message: 'Ticks cleared' },
-                shown: first,
-                now: 0,
-            }),
-            { type: 'show', input: { message: 'Removed Pasta' }, shown: Symbol('second'), now: 10 },
-        );
-
-        expect(snackbarReducer(replaced, { type: 'dismiss', shown: first })).toBe(replaced);
-    });
-
-    it('ignores the first showing’s dismiss when the same input is shown again', () => {
-        const input = { message: 'Ticks cleared' };
-        const first = Symbol('first');
-        const again = snackbarReducer(
-            snackbarReducer(INITIAL_SNACKBAR_STATE, { type: 'show', input, shown: first, now: 0 }),
-            { type: 'show', input, shown: Symbol('again'), now: 10 },
-        );
-
-        expect(snackbarReducer(again, { type: 'dismiss', shown: first })).toBe(again);
-    });
-
     it('lets the host forget the commits it has run', () => {
         const state = show(show(INITIAL_SNACKBAR_STATE, 'A', 0), 'B', 1);
         const [settled] = state.settled;
@@ -140,5 +110,46 @@ describe('msUntilExpiry', () => {
 
         expect(msUntilExpiry(paused.current, 20)).toBeNull();
         expect(msUntilExpiry(null, 20)).toBeNull();
+    });
+});
+
+describe('remainingMsOf and the handle', () => {
+    const handle = { snackbar: true } as const;
+
+    it('stores the handle the show action carries', () => {
+        const state = snackbarReducer(INITIAL_SNACKBAR_STATE, {
+            type: 'show',
+            input: { message: 'A' },
+            handle,
+            now: 0,
+        });
+
+        expect(state.current?.handle).toBe(handle);
+    });
+
+    it('reads the time left while running, and the banked time while paused', () => {
+        const running = snackbarReducer(INITIAL_SNACKBAR_STATE, {
+            type: 'show',
+            input: { message: 'A' },
+            handle,
+            now: 0,
+        });
+        const entry = running.current;
+        const paused = snackbarReducer(running, { type: 'pause', id: entry?.id ?? -1, now: 2000 }).current;
+
+        expect(entry === null ? NaN : remainingMsOf(entry, 1000)).toBe(5000);
+        expect(paused === null ? NaN : remainingMsOf(paused, 99_000)).toBe(4000);
+    });
+
+    it('never reads a negative time for a pause that lands after the snackbar was due', () => {
+        const running = snackbarReducer(INITIAL_SNACKBAR_STATE, {
+            type: 'show',
+            input: { message: 'A' },
+            handle,
+            now: 0,
+        });
+        const paused = snackbarReducer(running, { type: 'pause', id: running.current?.id ?? -1, now: 60_000 }).current;
+
+        expect(paused === null ? NaN : remainingMsOf(paused, 99_000)).toBe(0);
     });
 });

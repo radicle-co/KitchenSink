@@ -322,15 +322,36 @@
       "x": 0,
       "y": 2820,
       "w": 2400,
-      "h": 2660,
+      "h": 3018,
       "title": "Cooking mode, S3 dock row (web: 1024, 320 at 200%)"
     },
     "CookingModeAlarmGoToStepS3bWeb.dc.html": {
       "x": 0,
-      "y": 5900,
+      "y": 6280,
       "w": 2400,
-      "h": 1890,
+      "h": 1992,
       "title": "Cooking mode, S3b alarm with \"Stop and go to step\" (web)"
+    },
+    "CookingModeIngredientsS2Web.dc.html": {
+      "x": 0,
+      "y": 8692,
+      "w": 2400,
+      "h": 8638,
+      "title": "Cooking mode, S2 ingredients and servings (web: 390, 768, 1024, 1280, 320 at 200%)"
+    },
+    "CookingModeAddTimerS3aWeb.dc.html": {
+      "x": 0,
+      "y": 17750,
+      "w": 2400,
+      "h": 3744,
+      "title": "Cooking mode, S3a Add a timer (web: 390, 1024, 1280, 320 at 200%)"
+    },
+    "CookingModeResumeS4aWeb.dc.html": {
+      "x": 0,
+      "y": 21914,
+      "w": 2800,
+      "h": 3220,
+      "title": "Cooking mode, S4a leave and come back (web: 390, 768, 1024, 1280, 320 at 200%)"
     }
   },
   "order": [
@@ -379,7 +400,10 @@
     "CookingModeAllStepsWeb390.dc.html",
     "CookingModeDoneWeb390.dc.html",
     "CookingModeDockRowS3Web.dc.html",
-    "CookingModeAlarmGoToStepS3bWeb.dc.html"
+    "CookingModeAlarmGoToStepS3bWeb.dc.html",
+    "CookingModeIngredientsS2Web.dc.html",
+    "CookingModeAddTimerS3aWeb.dc.html",
+    "CookingModeResumeS4aWeb.dc.html"
   ],
   "notes": {
     "row0": {
@@ -405,8 +429,29 @@
     },
     "nCookingModeAlarmGoToStepS3bWeb": {
       "x": 0,
-      "y": 5640,
+      "y": 6020,
       "text": "Cooking mode: S3b alarm outside cooking mode (plan 0111)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nCookingModeIngredientsS2Web": {
+      "x": 0,
+      "y": 8432,
+      "text": "Cooking mode: S2 ingredients and servings, the built one-list shape (Luna designer D16-D18)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nCookingModeAddTimerS3aWeb": {
+      "x": 0,
+      "y": 17490,
+      "text": "Cooking mode: S3a Add a timer (SPECIFY S36, KTD16)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nCookingModeResumeS4aWeb": {
+      "x": 0,
+      "y": 21654,
+      "text": "Cooking mode: S4a leave and come back, the Resume lines, the Done row and the entry meta lines (Luna plan 0003, designer D16-D24 and D37)",
       "kind": "title1",
       "maxW": 2400
     }

@@ -67,13 +67,11 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 **Artifact Remediation**:
 
 - Burn down `002` `verify-report.md`: 6 critical / 2 warning → 0 / 0.
-- Regenerate `002` V-Model artifacts; close 278 untested rows + 59 missing trace refs in `traceability-matrix.md`.
-- Execute `002` V-Model test suite (`acceptance-plan.md`, `system-test.md`, `integration-test.md`, `unit-test.md`); attach executed evidence.
 
 **Exit**:
 
 - `002/verify-report.md` shows `0 CRITICAL, 0 WARNING`.
-- `002/v-model/release-audit-report.md` is no longer blocked under [GR-001](./governance-rules.md#gr-001-release-readiness-gate).
+- `002` meets the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - Clerk hosted sign-in/sign-up flow demonstrably works on web and mobile in `dev` and `staging`.
 
 ---
@@ -92,15 +90,13 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 - **`001`**:
     - Resolve the two architectural blockers called out in `specs/001-commise-recipe-app/review.md`: API URL prefix collision (see [GR-002](./governance-rules.md#gr-002-api-url-prefix-standard)) and missing `shared/recipe-core` type library (see [GR-007](./governance-rules.md#gr-007-shared-type-library-ownership)).
     - Burn down `verify-report.md`: 5 critical / 2 warning → 0 / 0.
-    - Close 337 untested + 178 missing trace refs.
-- **`003`**: Burn down 1 critical / 2 warning → 0 / 0. Close 131 untested + 107 missing trace refs.
-- **`004`**: Burn down 1 critical / 2 warning → 0 / 0. Close 93 untested + 43 missing trace refs.
-- V-Model regen + test execution for all three.
+- **`003`**: Burn down 1 critical / 2 warning → 0 / 0.
+- **`004`**: meets the exit line in [Beta section 2.1](./beta-exit-criteria.md#21-spec--verification-gates).
 
 **Exit**:
 
-- `001`, `003`, `004` `verify-report.md` all show `0 CRITICAL, 0 WARNING`.
-- All three release-audit reports unblocked.
+- `001` and `003` `verify-report.md` show `0 CRITICAL, 0 WARNING`. `004` meets the exit line in [Beta section 2.1](./beta-exit-criteria.md#21-spec--verification-gates).
+- `001`, `003` and `004` meet the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - Demonstrable end-to-end against real data: create a recipe, attach an ingredient pulled from USDA, import a recipe from a URL.
 - `shared/recipe-core` type library exists and is consumed by every downstream feature spec that references recipe entities.
 
@@ -120,14 +116,12 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 
 - ~~Generate `011/verify-report.md`~~ — **it exists** (verified 2026-08-02), alongside `sync-verify-report.md`, `analyze-report.md`, and `pre-impl-review.md`; the 2026-05-12 claim that it was absent is stale.
 - Burn down findings to `0 CRITICAL, 0 WARNING`.
-- Close 128 untested + 117 missing trace refs in `011/v-model/traceability-matrix.md`.
-- V-Model regen + test execution.
 - Add a documented OCR-accuracy benchmark on a labeled corpus to test evidence; baseline accuracy floor must be set before promotion to Beta.
 
 **Exit**:
 
 - `011/verify-report.md` shows `0 CRITICAL, 0 WARNING`.
-- `011/v-model/release-audit-report.md` unblocked.
+- `011` meets the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - Photo-to-recipe demonstrably works on web and mobile against the labeled corpus at the documented accuracy floor.
 
 ---
@@ -143,15 +137,14 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 
 **Artifact Remediation**:
 
-- **`008`**: Burn down 4 critical / 2 warning → 0 / 0. Close 76 untested + 70 missing trace refs.
-- **`007`**: Burn down 4 critical / 2 warning → 0 / 0. Close 113 untested + 48 missing trace refs.
-- V-Model regen + test execution for both.
+- **`008`**: Burn down 4 critical / 2 warning → 0 / 0.
+- **`007`**: Burn down 4 critical / 2 warning → 0 / 0.
 - Confirm offline-mode contract per [GR-005](./governance-rules.md#gr-005-offline-and-sync-strategy) (`008` is the named owner).
 
 **Exit**:
 
 - Both `verify-report.md` files show `0 CRITICAL, 0 WARNING`.
-- Both release-audit reports unblocked.
+- `007` and `008` meet the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - Real user can step through Cooking Mode for a recipe and generate a grocery list from a recipe or selection.
 
 ---
@@ -169,13 +162,11 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 **Artifact Remediation**:
 
 - Burn down `006/verify-report.md`: 4 critical / 3 warning → 0 / 0.
-- Close 121 untested + 41 missing trace refs.
-- V-Model regen + test execution.
 
 **Exit (per-feature)**:
 
 - `006/verify-report.md` shows `0 CRITICAL, 0 WARNING`.
-- `006/v-model/release-audit-report.md` unblocked.
+- `006` meets the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 
 **Exit (milestone — Beta gate)**:
 
@@ -196,16 +187,15 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 **Artifact Remediation**:
 
 - **`005`**:
-    - Burn down `verify-report.md`: 3 critical / 3 warning → 0 / 0. Close 176 untested + 12 missing trace refs.
+    - Burn down `verify-report.md`: 3 critical / 3 warning → 0 / 0.
     - Confirm [GR-010 EU AI Act compliance propagation](./governance-rules.md#gr-010-eu-ai-act-compliance-propagation) hooks are present.
     - AI cost guardrails (per-user quotas, per-call ceiling, model fallback) MUST appear in test evidence.
-- **`009`**: Burn down 3 critical / 2 warning → 0 / 0. Close 187 untested + 14 missing trace refs.
-- V-Model regen + test execution for both.
+- **`009`**: Burn down 3 critical / 2 warning → 0 / 0.
 
 **Exit**:
 
 - Both `verify-report.md` files show `0 CRITICAL, 0 WARNING`.
-- Both release-audit reports unblocked.
+- `005` and `009` meet the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - AI features stable in Beta cohort with cost-per-active-user inside the projected band.
 - Nutrition tracking demonstrably accurate against a USDA-backed reference set.
 
@@ -223,17 +213,16 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 
 **Artifact Remediation**:
 
-- Burn down `010/verify-report.md`: 1 critical / 6 warning → 0 / 0. Close 127 untested + 36 missing trace refs.
+- Burn down `010/verify-report.md`: 1 critical / 6 warning → 0 / 0.
 - Confirm subscription gating mechanism per [GR-012](./governance-rules.md#gr-012-subscription-gating-mechanism).
 - **Ship `010-FR-044` — the subscription tier as a signed token claim.** Without it `@RequirePremium()` is enforceable only inside the identity service. It needs no merchant capability, and it unblocks all entitlement gating: `001-FR-003` (private recipe visibility is the premium gate, enforced in the recipe service), 013 course access control, and the three rows 006 deferred (`006-FR-025`–`027`).
 - **Decide the marketplace-payments question.** This is the _compensation_ half only — anything that moves money **to a creator**: the tip jar (`012-FR-031`–`033`), the creator-earnings surface (`012-FR-034`), and `013-FR-010`'s 20%/80% share. Either bring it into 010's scope here or stand up a dedicated payments feature; `M7` monetization is blocked on the answer, but `M7` _gating_ is not.
-- V-Model regen + test execution.
 - Add a payments-compliance review: PCI scope assessment, SCA support, refund / cancel / dunning flows tested against sandbox cards on web and mobile (incl. App Store / Play Store IAP if applicable).
 
 **Exit (per-feature)**:
 
 - `010/verify-report.md` shows `0 CRITICAL, 0 WARNING`.
-- `010/v-model/release-audit-report.md` unblocked.
+- `010` meets the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 
 **Exit (milestone — 1.0 gate)**:
 
@@ -256,21 +245,18 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 - **`012`**:
     - ~~Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md`~~ — **all four now exist** (verified 2026-08-02); the 2026-05-12 claim that none existed is stale.
     - Burn down findings to `0 CRITICAL, 0 WARNING`.
-    - Close 102 untested + 32 missing trace refs.
     - Integrate creator monetization tier with `010` subscription gating.
     - ~~**Author FRs for the monetization surface.**~~ Done 2026-08-02 — `012-FR-031` … `012-FR-034` (tip jar + creator-earnings surface) authored as **DRAFT**. Premium recipes and paid follows were drafted and then **withdrawn** on the owner ruling that recipe visibility is binary private/public.
     - ⚠️ **Marketplace payments are unspecified — this blocks creator COMPENSATION, not gating.** 010 provides no one-time payments or payouts (its scope is `010-FR-040`…`044`). Blocked: `012-FR-031`–`034` and `013-FR-010`. **Not blocked**: entitlement gating of the premium tier's own features and 013 course access control, which need only `010-FR-044`. Marketplace payments need their own spec, including the money-transmission and tax posture that splitting third-party revenue implies.
 - **`013`**:
     - ~~Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md`~~ — **all four now exist** (verified 2026-08-02); the 2026-05-12 claim that none existed is stale.
     - Burn down findings to `0 CRITICAL, 0 WARNING`.
-    - Close 204 untested + 34 missing trace refs.
-- V-Model regen + test execution for both.
 - Confirm audience and sharing model per [GR-014](./governance-rules.md#gr-014-audience-and-sharing-model).
 
 **Exit**:
 
 - Both `verify-report.md` files show `0 CRITICAL, 0 WARNING`.
-- Both release-audit reports unblocked.
+- `012` and `013` meet the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - Creators can publish; school courses can be enrolled in; both gated behind appropriate subscription tiers.
 
 ---
@@ -289,15 +275,13 @@ Each milestone has three required sections: **Entry**, **Artifact Remediation**,
 
 - ~~Generate `plan.md`, `tasks.md`, `review.md`, `verify-report.md`~~ — **all four now exist** (verified 2026-08-02); the 2026-05-12 claim that none existed is stale.
 - Burn down findings to `0 CRITICAL, 0 WARNING`.
-- Close 620 untested + 31 missing trace refs (largest gap in the portfolio).
 - Confirm notification system ownership per [GR-011](./governance-rules.md#gr-011-notification-system-ownership).
 - Integrate notification hooks back into `006`, `007`, `008`, `010`, `012`, `013`.
-- V-Model regen + test execution.
 
 **Exit**:
 
 - `014/verify-report.md` shows `0 CRITICAL, 0 WARNING`.
-- `014/v-model/release-audit-report.md` unblocked.
+- `014` meets the [release proof](./beta-exit-criteria.md#release-proof) on the release-candidate commit (`docs/reviews/releaseProof<feature number>On<yyyymmdd>.md`).
 - Push, email, and in-app notifications demonstrably live across all integrated surfaces.
 - **v1 COMPLETE**.
 

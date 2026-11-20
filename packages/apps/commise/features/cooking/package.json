@@ -4,6 +4,7 @@
     "private": true,
     "type": "module",
     "exports": {
+        "./mobile": "./src/mobileEntry.ts",
         "./web": "./src/webEntry.ts"
     },
     "scripts": {
@@ -16,9 +17,11 @@
         "format:check": "prettier --check ."
     },
     "dependencies": {
+        "@commise/features-recipes": "*",
         "@commise/i18n": "*",
         "@commise/ui": "*",
-        "@kitchensink/cooking-core": "*"
+        "@kitchensink/cooking-core": "*",
+        "@kitchensink/recipe-core": "*"
     },
     "peerDependencies": {
         "react": "^19.2.0",
@@ -33,11 +36,11 @@
     "devDependencies": {
         "@commise/test-utils": "^0.0.0",
         "@kitchensink/eslint": "*",
-        "@kitchensink/recipe-core": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "@testing-library/react": "^16.3.0",
+        "@testing-library/user-event": "^14.0.0",
         "@types/react": "^19.0.0",
         "eslint": "^10.0.3",
         "jsdom": "^30.0.1",

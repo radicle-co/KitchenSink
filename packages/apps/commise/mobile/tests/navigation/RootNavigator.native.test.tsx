@@ -29,6 +29,9 @@ import { renderWithProviders } from '@commise/test-utils';
 import { useBackIntercept } from '@commise/ui/back-intercept';
 import { installHardwareBackHandler, type HardwareBackHandle } from '@commise/ui/testing/hardware-back';
 
+import { ReportFocusedRootRouteContext } from '../../src/navigation/focusedRootRoute.js';
+import { navigationRef } from '../../src/navigation/navigationRef.js';
+
 vi.mock('@sentry/react-native', () => ({ captureException: vi.fn() }));
 // A device with a status bar: the shell's ScreenFrame pads this much at the top of every tab screen.
 vi.mock('react-native-safe-area-context', async (importOriginal) => ({
@@ -134,6 +137,7 @@ vi.mock('../../src/screens/RecipeDetailScreen.js', () => ({
         onBack?: () => void;
         onDeleted?: () => void;
         onCloned?: (copyId: string) => void;
+        onStartCooking?: (recipeId: string) => void;
         refusalArrived?: boolean;
         finishRefused?: boolean;
         onFinishRefusalSeen?: () => void;
@@ -165,12 +169,17 @@ vi.mock('../../src/screens/RecipeDetailScreen.js', () => ({
                     Delete: props.onDeleted,
                     'Save a copy': () => props.onCloned?.(`${props.recipeId}-copy`),
                     'Open sheet': () => setSheetOpen(true),
+                    'Start cooking': () => props.onStartCooking?.(props.recipeId),
                 })}
                 {sheetOpen ? <Text>Sheet open</Text> : null}
                 {props.finishRefused === true ? <Text>{`Refusal kept for ${props.recipeId}`}</Text> : null}
             </View>
         );
     },
+}));
+vi.mock('../../src/screens/CookingModeScreen.js', () => ({
+    CookingModeScreen: (props: { recipeId: string; onLeave: () => void; onEdit: () => void; onHome: () => void }) =>
+        stub(`Cooking ${props.recipeId}`, { Leave: props.onLeave, Edit: props.onEdit, Home: props.onHome }),
 }));
 vi.mock('../../src/screens/CollectionDetailScreen.js', () => ({
     CollectionDetailScreen: (props: { collectionId: string; onDeleted: () => void; onCloned: (id: string) => void }) =>
@@ -641,6 +650,59 @@ describe('a saved copy', () => {
     });
 });
 
+describe('cooking mode', () => {
+    function startCooking(): void {
+        renderRoot();
+        press('Open Lamb');
+        press('Start cooking');
+    }
+
+    it('sits above the tabs, so the tab bar hides, and Leave returns to the recipe it was started from', () => {
+        startCooking();
+        expect(showing('Cooking lamb')).toBe(true);
+        expect(tabBar()).toBeNull();
+
+        press('Leave');
+        expect(showing('Detail lamb')).toBe(true);
+        expect(tabBar()).not.toBeNull();
+    });
+
+    it('turns the edge swipe off on its screen: a swipe is how a cook moves between steps', () => {
+        startCooking();
+        expect(showing('Cooking lamb')).toBe(true);
+
+        expect(navigationRef.getCurrentOptions()).toMatchObject({ gestureEnabled: false });
+    });
+
+    it('leaves on hardware Back to the recipe, and holds no sheet answer of its own', () => {
+        startCooking();
+        let handled = false;
+        act(() => {
+            handled = back.press();
+        });
+
+        expect(handled).toBe(true);
+        expect(showing('Detail lamb')).toBe(true);
+    });
+
+    it('replaces itself with the editor on Edit, so Back from the editor never re-enters cooking', () => {
+        startCooking();
+        press('Edit');
+        expect(showing('Edit lamb')).toBe(true);
+
+        press('Cancel edit');
+        expect(showing('Cooking lamb')).toBe(false);
+        expect(showing('Detail lamb')).toBe(true);
+    });
+
+    it('goes Home to the Home tab', () => {
+        startCooking();
+        press('Home');
+        expect(showing('Home screen')).toBe(true);
+        expect(tab('Home').getAttribute('aria-selected')).toBe('true');
+    });
+});
+
 describe('hardware Back', () => {
     it('lets an open sheet answer FIRST: it closes the sheet, not the screen', () => {
         renderRoot();
@@ -705,5 +767,41 @@ describe('the snackbar host', () => {
 
         expect(status.textContent).toBe('Removed Pasta');
         expect(getComputedStyle(status).bottom).toBe('88px');
+    });
+});
+
+describe('the focused root route, reported to the gate', () => {
+    function renderReporting(): { readonly reported: (string | undefined)[] } {
+        const reported: (string | undefined)[] = [];
+        back = installHardwareBackHandler();
+        renderWithProviders(
+            <ReportFocusedRootRouteContext value={(name) => reported.push(name)}>
+                <AppRoot />
+            </ReportFocusedRootRouteContext>,
+        );
+
+        return { reported };
+    }
+
+    it('reports the cooking task while it is focused, and the tabs again once it is left', () => {
+        const { reported } = renderReporting();
+        expect(reported.at(-1)).toBe('Tabs');
+
+        press('Open Lamb');
+        press('Start cooking');
+        expect(reported.at(-1)).toBe('CookingMode');
+
+        press('Leave');
+        expect(reported.at(-1)).toBe('Tabs');
+    });
+
+    it('reports the editor, not cooking, after Edit replaces cooking', () => {
+        const { reported } = renderReporting();
+
+        press('Open Lamb');
+        press('Start cooking');
+        press('Edit');
+
+        expect(reported.at(-1)).toBe('RecipeEdit');
     });
 });

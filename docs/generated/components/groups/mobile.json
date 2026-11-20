@@ -4,15 +4,15 @@
     "packageName": "@commise/mobile",
     "layer": "app",
     "coverage": {
-        "components": 55,
-        "implementations": 55,
-        "props": 155,
-        "documentedComponents": 54,
-        "implementationsWithModuleDoc": 53,
-        "implementationsWithComponentDoc": 41,
-        "documentedProps": 146,
-        "classifiedComponents": 40,
-        "componentsWithPatternTag": 26,
+        "components": 56,
+        "implementations": 56,
+        "props": 159,
+        "documentedComponents": 55,
+        "implementationsWithModuleDoc": 54,
+        "implementationsWithComponentDoc": 42,
+        "documentedProps": 147,
+        "classifiedComponents": 41,
+        "componentsWithPatternTag": 27,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -3390,6 +3390,96 @@
                             "defaultValue": null,
                             "description": "The sign-up the provider hook returned.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/CompleteSignUpScreen.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/screens/CookingModeScreen",
+            "name": "CookingModeScreen",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/screens",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter — the route's params, session and query, to `CookingScreen`'s read and callbacks"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingModeScreen",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/screens/CookingModeScreen.tsx",
+                    "dir": "packages/apps/commise/mobile/src/screens",
+                    "moduleDoc": "The cooking-mode screen, an orchestration screen: it reads the recipe and the viewer, and hands `CookingScreen` the read and where each way out\ngoes. The same shape as the web cook route (`CookingRoute`), so one rule decides who is cooking on both platforms.\n\nThe read is the SAME `recipeQueries(client).detail(id)` the recipe page reads. A 404 is \"not available\", any other\nfailure is \"try again\", which resets the boundary and reads again. TanStack's `focusManager` is driven by `AppState`\n(`query/connectivity.ts`), so returning to the app refetches under a cook on a step; `useCookingRead` holds the first\nready read, so that refetch never moves them.",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — the route's params, session and query, to `CookingScreen`'s read and callbacks"
+                        }
+                    ],
+                    "description": "The cooking screen's read boundary around the settled screen.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The recipe id and where each way out goes."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The cooking screen in the read's state."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onEdit",
+                            "type": "CookingScreenProps",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onHome",
+                            "type": "CookingScreenProps",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onLeave",
+                            "type": "CookingScreenProps",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "recipeId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe being cooked.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/CookingModeScreen.tsx"
                         }
                     ],
                     "usesRefApi": [],

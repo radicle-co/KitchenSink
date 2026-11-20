@@ -16,9 +16,11 @@
  *    saved as written that no one has picked, owned by the caller, whose recipe still exists.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
+import * as schema from '../../../src/database/schema/index.js';
 import { RecipeImportItemsDal } from '../../../src/import/dal/recipeImportItems.dal.js';
 import { RecipeImportLinesDal } from '../../../src/import/dal/recipeImportLines.dal.js';
 import { RecipeImportsDal } from '../../../src/import/dal/recipeImports.dal.js';
@@ -576,6 +578,120 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
         });
     });
 
+    // The routes are public, so unpaid storage is bounded per cook: payment is the only thing that moves an item on, and an
+    // unpaid item is never purged before 30 days. File SIZE is not capped (owner ruling): the bytes a cook may hold UNPAID are.
+    describe('⛔ unpaid storage is capped per cook, under the per-user lock', () => {
+        const CAP = 30_000;
+        const bigRecipe = (title: string, bytes = 10_000) => recipe(title, ['x'.repeat(bytes)]);
+        let capped: RecipeImportItemsDal;
+
+        beforeAll(() => {
+            capped = new RecipeImportItemsDal(db, new ImportAllowanceDal(), CAP);
+        });
+
+        const store = (importId: string, ordinal: number, title: string, bytes?: number, dal = capped) =>
+            dal.upsertItems(importId, [{ ordinal, recipe: bigRecipe(title, bytes) }]);
+
+        async function itemCount(importId: string): Promise<number> {
+            const result = await pool.query('SELECT count(*)::int AS n FROM recipe_import_items WHERE import_id = $1', [
+                importId,
+            ]);
+
+            return (result.rows[0] as { n: number }).n;
+        }
+
+        it('refuses the chunk that would take the cook over the cap, across their imports, and writes none of it', async () => {
+            const first = await newImport(3);
+            const second = await newImport(3);
+
+            expect(await store(first.id, 0, 'a')).toEqual({ kind: 'ok' });
+            expect(await store(first.id, 1, 'b')).toEqual({ kind: 'ok' });
+            expect(await store(second.id, 0, 'c')).toEqual({ kind: 'storageFull' });
+            expect(await itemCount(second.id)).toBe(0);
+        });
+
+        it('counts only the cook’s own rows, and not the rows of a cook who is over', async () => {
+            const mine = await newImport(3);
+            const theirs = await newImport(3, OTHER);
+
+            await store(mine.id, 0, 'a');
+            await store(mine.id, 1, 'b');
+
+            expect(await store(theirs.id, 0, 'c')).toEqual({ kind: 'ok' });
+        });
+
+        it('stops counting an item once it has paid its unit: payment is what moves storage on', async () => {
+            const first = await newImport(3);
+            const second = await newImport(3);
+
+            await store(first.id, 0, 'a');
+            await store(first.id, 1, 'b');
+            await pool.query('UPDATE recipe_import_items SET allowance_spent_at = now() WHERE import_id = $1', [
+                first.id,
+            ]);
+
+            expect(await store(second.id, 0, 'c')).toEqual({ kind: 'ok' });
+        });
+
+        it('lets a cook who is over the cap replace an item with a smaller recipe, but not a larger one', async () => {
+            const header = await newImport(3);
+            const uncapped = items;
+
+            await store(header.id, 0, 'a', 10_000, uncapped);
+            await store(header.id, 1, 'b', 10_000, uncapped);
+            await store(header.id, 2, 'c', 15_000, uncapped); // 35 kB held: over the 30 kB cap
+
+            expect(await store(header.id, 2, 'c', 20_000)).toEqual({ kind: 'storageFull' });
+            expect(await store(header.id, 2, 'c', 5_000)).toEqual({ kind: 'ok' });
+            // A change that adds no bytes (a decision on an item, a replay of the same recipe) is never refused.
+            expect(await store(header.id, 0, 'a')).toEqual({ kind: 'ok' });
+        });
+
+        it('an item read back carries no payload_bytes: it is the cap’s measure, not part of the item', async () => {
+            const header = await newImport(1);
+
+            expect(await store(header.id, 0, 'a')).toEqual({ kind: 'ok' });
+
+            const item = await capped.findItem(header.id, 0);
+
+            expect(item).toBeDefined();
+            expect(Object.keys(item ?? {})).not.toContain('payloadBytes');
+        });
+
+        it('⛔ measures the cap from payload_bytes: no statement of the request serialises a payload to text', async () => {
+            const header = await newImport(3);
+            const issued: string[] = [];
+            // A drizzle instance with a query logger: every statement the DAL issues through it is recorded, typed.
+            const traced = drizzle(pool, { schema, logger: { logQuery: (query: string) => void issued.push(query) } });
+            const tracedDal = new RecipeImportItemsDal(traced, new ImportAllowanceDal(), CAP);
+
+            expect(await store(header.id, 0, 'a', undefined, tracedDal)).toEqual({ kind: 'ok' });
+
+            const measures = issued.filter((text) => /sum\(/iu.test(text));
+
+            expect(measures.length).toBeGreaterThan(0);
+            expect(measures.every((text) => /sum\(\s*i\.payload_bytes\s*\)/iu.test(text))).toBe(true);
+            expect(issued.filter((text) => /payload::text|octet_length/iu.test(text))).toEqual([]);
+        });
+
+        it('⛔ two concurrent chunks in two imports of one cook cannot both fit: the per-user lock serialises them', async () => {
+            const first = await newImport(3);
+            const second = await newImport(3);
+            const outcomes = await Promise.all([
+                capped.upsertItems(first.id, [
+                    { ordinal: 0, recipe: bigRecipe('a') },
+                    { ordinal: 1, recipe: bigRecipe('b') },
+                ]),
+                capped.upsertItems(second.id, [
+                    { ordinal: 0, recipe: bigRecipe('c') },
+                    { ordinal: 1, recipe: bigRecipe('d') },
+                ]),
+            ]);
+
+            expect(outcomes.map((outcome) => outcome.kind).sort()).toEqual(['ok', 'storageFull']);
+        });
+    });
+
     describe('⛔ a refused recipe (no ingredient line or no step; ADR-0072 §3, owner ruling 2026-11-11)', () => {
         const noSteps = (title: string) => ({ ...recipe(title), steps: [] });
 
@@ -631,7 +747,9 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 { ordinal: 2, recipe: noSteps('stepless') },
             ]);
 
-            expect(await items.payUnpaid(USER, header.id, { limit: 10, isPremium: true })).toEqual({
+            expect(
+                await items.payUnpaid(USER, header.id, { limit: 10, isPremium: true, principalKind: 'real' }),
+            ).toEqual({
                 kind: 'paid',
                 ordinals: [1],
             });
@@ -944,7 +1062,9 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                         )
                     ).rows[0]?.n;
 
-                it('reopens it: back to received, a new parse generation, no snapshot, the unit still spent, held no more', async () => {
+                // REWRITTEN (review of #261): it pinned "the unit still spent". Every reopen is a new LLM parse against the shared ceiling, so a
+                // reopen must COST a unit: the unit is un-spent, and the next advance pays it again under the one allowance.
+                it('reopens it: back to received and UNPAID, a new parse generation, no snapshot, held no more; paying it again costs a unit', async () => {
                     const { header, before } = await heldMatched('unreadable');
 
                     expect(
@@ -963,10 +1083,24 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                         parseGeneration: (before?.parseGeneration ?? Number.NaN) + 1,
                         decisionRev: (before?.decisionRev ?? Number.NaN) + 1,
                     });
-                    expect(after?.allowanceSpentAt).not.toBeNull();
+                    expect(after?.allowanceSpentAt).toBeNull();
                     expect(after?.heldAtRev).not.toBe(after?.decisionRev);
                     expect(await linesOf(header.id)).toBe(0);
+                    // Unpaid, so it gets no job until it pays: a reopen is not a free re-parse.
+                    expect(await items.findNeedingJob(header.id, 10)).toEqual([]);
+                    expect(
+                        await items.payUnpaid(USER, header.id, { limit: 10, isPremium: false, principalKind: 'real' }),
+                    ).toEqual({
+                        kind: 'paid',
+                        ordinals: [0],
+                    });
                     expect((await items.findNeedingJob(header.id, 10)).map((item) => item.ordinal)).toEqual([0]);
+                    const ledger = await pool.query(
+                        'SELECT sum(units)::int AS n FROM import_allowance_events WHERE user_id = $1',
+                        [USER],
+                    );
+
+                    expect(ledger.rows[0]).toEqual({ n: 1 });
                 });
 
                 it('⛔ still locks a matched item held for any other reason', async () => {
@@ -1150,16 +1284,22 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
 
             await put(header.id, [0, 1, 2, 3, 4, 5]);
 
-            const outcome = await items.payUnpaid(USER, header.id, { limit: 4, isPremium: true });
+            const outcome = await items.payUnpaid(USER, header.id, {
+                limit: 4,
+                isPremium: true,
+                principalKind: 'real',
+            });
 
             expect(outcome).toEqual({ kind: 'paid', ordinals: [0, 1, 2, 3] });
             expect(await ledger()).toBe(4);
 
-            const again = await items.payUnpaid(USER, header.id, { limit: 4, isPremium: true });
+            const again = await items.payUnpaid(USER, header.id, { limit: 4, isPremium: true, principalKind: 'real' });
 
             expect(again).toEqual({ kind: 'paid', ordinals: [4, 5] });
             expect(await ledger()).toBe(6);
-            expect(await items.payUnpaid(USER, header.id, { limit: 4, isPremium: true })).toEqual({ kind: 'nothing' });
+            expect(
+                await items.payUnpaid(USER, header.id, { limit: 4, isPremium: true, principalKind: 'real' }),
+            ).toEqual({ kind: 'nothing' });
         });
 
         it('⛔ pays only what fits the day: 997 spent leaves room for 3, and the rest waits', async () => {
@@ -1171,7 +1311,11 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 [USER],
             );
 
-            const outcome = await items.payUnpaid(USER, header.id, { limit: 5, isPremium: true });
+            const outcome = await items.payUnpaid(USER, header.id, {
+                limit: 5,
+                isPremium: true,
+                principalKind: 'real',
+            });
 
             expect(outcome).toMatchObject({ kind: 'paid', ordinals: [0, 1, 2] });
             expect(await ledger()).toBe(1000);
@@ -1187,7 +1331,11 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 [USER],
             );
 
-            const outcome = await items.payUnpaid(USER, header.id, { limit: 5, isPremium: false });
+            const outcome = await items.payUnpaid(USER, header.id, {
+                limit: 5,
+                isPremium: false,
+                principalKind: 'real',
+            });
 
             expect(outcome).toMatchObject({ kind: 'paid', ordinals: [0, 1, 2] });
             expect(await ledger()).toBe(200);
@@ -1203,7 +1351,11 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 [USER],
             );
 
-            const outcome = await items.payUnpaid(USER, header.id, { limit: 2, isPremium: true });
+            const outcome = await items.payUnpaid(USER, header.id, {
+                limit: 2,
+                isPremium: true,
+                principalKind: 'real',
+            });
 
             expect(outcome.kind).toBe('refused');
             expect(await ledger()).toBe(1000);
@@ -1218,7 +1370,9 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 { ordinal: 1, recipe: recipe('Has lines') },
             ]);
 
-            expect(await items.payUnpaid(USER, header.id, { limit: 5, isPremium: true })).toEqual({
+            expect(
+                await items.payUnpaid(USER, header.id, { limit: 5, isPremium: true, principalKind: 'real' }),
+            ).toEqual({
                 kind: 'paid',
                 ordinals: [1],
             });
@@ -1234,8 +1388,8 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
             );
 
             const outcomes = await Promise.all([
-                items.payUnpaid(USER, header.id, { limit: 10, isPremium: true }),
-                items.payUnpaid(USER, header.id, { limit: 10, isPremium: true }),
+                items.payUnpaid(USER, header.id, { limit: 10, isPremium: true, principalKind: 'real' }),
+                items.payUnpaid(USER, header.id, { limit: 10, isPremium: true, principalKind: 'real' }),
             ]);
             const paid = outcomes.flatMap((outcome) => (outcome.kind === 'paid' ? outcome.ordinals : []));
 
@@ -1249,7 +1403,9 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
 
             await put(theirs.id, [0, 1]);
 
-            expect(await items.payUnpaid(USER, theirs.id, { limit: 5, isPremium: true })).toEqual({ kind: 'nothing' });
+            expect(
+                await items.payUnpaid(USER, theirs.id, { limit: 5, isPremium: true, principalKind: 'real' }),
+            ).toEqual({ kind: 'nothing' });
             expect(await ledger()).toBe(0);
         });
     });
@@ -1675,7 +1831,7 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                     db.transaction((tx) => items.claimSave(tx, header.id, 0, RECIPE_ID, 0)),
                     imports.moveCursor(USER, header.id, { from: 0, to: 1, mark: { ordinal: 0, review: 'reviewed' } }),
                     items.recordChoicesBatch(header.id, [{ ordinal: 0, visibility: 'public' }]),
-                    items.payUnpaid(USER, header.id, { limit: 10, isPremium: true }),
+                    items.payUnpaid(USER, header.id, { limit: 10, isPremium: true, principalKind: 'real' }),
                 ]);
 
                 failures.push(

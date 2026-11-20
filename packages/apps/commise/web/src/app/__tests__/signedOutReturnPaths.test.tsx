@@ -64,6 +64,12 @@ const PAGES: readonly (readonly [string, () => Promise<{ default: Page }>, unkno
         { ...here, searchParams: Promise.resolve({}) },
         '/en/discover',
     ],
+    [
+        '/recipes/[id]/cook',
+        () => import('../[locale]/recipes/[id]/cook/page'),
+        withId(RECIPE_ID),
+        `/en/recipes/${RECIPE_ID}/cook`,
+    ],
     ['/profile', () => import('../[locale]/profile/page'), here, '/en/profile'],
     ['/legal/sources', () => import('../[locale]/legal/sources/page'), here, '/en/legal/sources'],
 ];

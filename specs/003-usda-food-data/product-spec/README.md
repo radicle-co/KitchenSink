@@ -28,7 +28,6 @@ This directory contains the Product Forge v1.7.0 product specification artifacts
 - [metrics.md](./metrics.md) — per-story product outcomes
 - [../spec.md](../spec.md) — canonical FR ID reference (FR-001..FR-053 + FR-IDN/RES/MRG/ADP groups)
 - [../plan.md](../plan.md) — architecture and implementation sequencing
-- [../v-model/requirements.md](../v-model/requirements.md) — REQ-NNN atomic decomposition
 
 ---
 

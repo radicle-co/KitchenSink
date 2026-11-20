@@ -13,10 +13,6 @@ export interface RecipeSourceFieldProps {
     readonly onTouched: () => void;
     /** "Remove source". */
     readonly onRemove: () => void;
-    /** The field is asked for focus (after Remove): a level, which stands until {@link onFocusHandled}. */
-    readonly focusRequested: boolean;
-    /** The field took a requested focus. */
-    readonly onFocusHandled: () => void;
 }
 
 /** The native row's extra: React Native has no declarative link, so opening the locked site is injected. */

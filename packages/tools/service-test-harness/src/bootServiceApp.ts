@@ -51,7 +51,7 @@ import 'reflect-metadata';
 
 import type { AddressInfo } from 'node:net';
 
-import type { INestApplication } from '@nestjs/common';
+import type { INestApplication, NestApplicationOptions } from '@nestjs/common';
 
 /** Options for {@link bootServiceApp}. */
 export interface BootServiceAppOptions {
@@ -66,6 +66,19 @@ export interface BootServiceAppOptions {
      * `docs/CODING_STANDARDS.md` §7.1a). Everything else in `AppModule` stays real. Absent, the app boots as it ships.
      */
     readonly doubles?: readonly ProviderDouble[];
+    /** The service's own HTTP setup, applied exactly as its `main.ts` applies it. Absent, Nest's defaults. */
+    readonly httpSetup?: ServiceHttpSetup;
+}
+
+/**
+ * What a service's `main.ts` does to its app besides `listen`: the options it creates the app with (for example
+ * `bodyParser: false`) and the step that registers its own middleware. A suite passes the service's own object, so the
+ * tier serves requests through the same stack production does.
+ */
+export interface ServiceHttpSetup {
+    /** The create options, given the harness's own (`logger: false`). */
+    readonly nestOptions: (options: { readonly logger: false }) => NestApplicationOptions;
+    readonly configure: (app: INestApplication) => void;
 }
 
 /**
@@ -92,14 +105,19 @@ export interface BootedServiceApp {
  *
  * @param appModule - The service's `AppModule`.
  * @param doubles - The providers to replace; empty for the real app.
+ * @param nestOptions - The create options, `logger` already off (`ServiceHttpSetup.nestOptions`, or the harness's).
  * @returns The created (not yet listening) application.
  * @sideEffect Compiles the module graph, which runs every provider factory.
  */
-async function createApp(appModule: unknown, doubles: readonly ProviderDouble[]): Promise<INestApplication> {
+async function createApp(
+    appModule: unknown,
+    doubles: readonly ProviderDouble[],
+    nestOptions: NestApplicationOptions,
+): Promise<INestApplication> {
     if (doubles.length === 0) {
         const { NestFactory } = await import('@nestjs/core');
 
-        return NestFactory.create(appModule as never, { logger: false });
+        return NestFactory.create(appModule as never, nestOptions);
     }
 
     const { Test } = await import('@nestjs/testing');
@@ -109,7 +127,7 @@ async function createApp(appModule: unknown, doubles: readonly ProviderDouble[])
         builder = builder.overrideProvider(double.provide).useValue(double.useValue);
     }
 
-    return (await builder.compile()).createNestApplication({ logger: false });
+    return (await builder.compile()).createNestApplication(nestOptions);
 }
 
 /** Set `key` only when it is not already present, so CI/env overrides always win. */
@@ -137,7 +155,13 @@ export async function bootServiceApp(options: BootServiceAppOptions): Promise<Bo
 
     // Dynamic import AFTER env is set — config validates and the DB pool builds at module init.
     const { AppModule } = await options.loadAppModule();
-    const app = await createApp(AppModule, options.doubles ?? []);
+    const app = await createApp(
+        AppModule,
+        options.doubles ?? [],
+        options.httpSetup?.nestOptions({ logger: false }) ?? { logger: false },
+    );
+
+    options.httpSetup?.configure(app);
     // Ephemeral port — no fixed-port collisions across parallel test jobs.
     await app.listen(0);
 

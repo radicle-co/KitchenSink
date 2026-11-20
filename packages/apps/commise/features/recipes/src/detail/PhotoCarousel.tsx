@@ -35,6 +35,7 @@ import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 import { pageAt } from './photoPaging.js';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { TOUCH_TARGET_CLASS } from '@commise/ui/touch-target';
 
 /** Props for {@link PhotoCarousel} — the recipe's photos (display order) and the recipe title for alt text. */
 export interface PhotoCarouselProps {
@@ -134,13 +135,13 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                     {photos.map((photo, index) => (
                         <li key={photo.id}>
                             {/* Touch floor: a 10px dot is far below the 44px minimum, so the HIT AREA grows to
-                                `size-11` at base (collapsing to `sm:size-4` for the mouse) while the visible
-                                dot stays 10px — the strip still reads as dots, but every one is tappable. */}
+                                44 px (`TOUCH_TARGET_CLASS.fixed`) at base, collapsing to `sm:size-4` for the mouse,
+                                while the visible dot stays 10px — the strip still reads as dots, but every one is tappable. */}
                             <a
                                 href={`#recipe-photo-${photo.id}`}
                                 aria-label={fillTemplate(detail.photoDot, { title, index: index + 1 })}
                                 aria-current={index === page ? 'true' : undefined}
-                                className="flex size-11 items-center justify-center sm:size-4"
+                                className={`flex ${TOUCH_TARGET_CLASS.fixed} items-center justify-center sm:size-4`}
                             >
                                 <span
                                     aria-hidden
@@ -168,9 +169,9 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                         )}
                         <Dialog.Close
                             aria-label={detail.lightboxClose}
-                            // Touch floor: `size-11` (44px) everywhere — this is overlay chrome on a
+                            // Touch floor: `TOUCH_TARGET_CLASS.fixed` (44px) everywhere — this is overlay chrome on a
                             // full-screen image, so there is no desktop-density reason to shrink it.
-                            className={`absolute right-4 top-4 flex size-11 items-center justify-center rounded-full bg-paper text-ink shadow-lg transition hover:bg-paper ${FOCUS_RING_CLASS.floating}`}
+                            className={`absolute right-4 top-4 flex ${TOUCH_TARGET_CLASS.fixed} items-center justify-center rounded-full bg-paper text-ink shadow-lg transition hover:bg-paper ${FOCUS_RING_CLASS.floating}`}
                         >
                             <span aria-hidden>×</span>
                         </Dialog.Close>

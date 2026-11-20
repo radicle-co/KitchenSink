@@ -7,7 +7,7 @@
  * `Pressable` and reads the props the leaf hands it: the `error` is the accessibility hint of both buttons (the cursor
  * lands on the buttons, not on the group), and the group's `label` is its `accessibilityLabel`, the name iOS reads.
  */
-import { cleanup, render } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const seen = vi.hoisted(() => ({
@@ -36,6 +36,7 @@ vi.mock('react-native', async (importOriginal) => {
     };
 });
 
+import { renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
 import { Stepper } from '../Stepper.native.js';
 
 afterEach(() => {
@@ -47,7 +48,7 @@ afterEach(() => {
 const MESSAGE = 'Servings must be at least 1.';
 
 const renderField = (error?: string) =>
-    render(
+    renderWithTamagui(
         <Stepper
             id="servings"
             label="Servings"
@@ -58,6 +59,7 @@ const renderField = (error?: string) =>
             increaseLabel="More servings"
             {...(error === undefined ? {} : { error })}
         />,
+        'light',
     );
 
 describe('Stepper (native) — the error and the name a screen reader receives', () => {

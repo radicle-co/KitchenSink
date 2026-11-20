@@ -10,7 +10,7 @@
         "documentedComponents": 55,
         "implementationsWithModuleDoc": 54,
         "implementationsWithComponentDoc": 42,
-        "documentedProps": 147,
+        "documentedProps": 150,
         "classifiedComponents": 41,
         "componentsWithPatternTag": 27,
         "crossPlatformComponents": 0
@@ -3447,30 +3447,30 @@
                     "props": [
                         {
                             "name": "onEdit",
-                            "type": "CookingScreenProps",
+                            "type": "() => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
+                            "description": "To the editor, replacing the cook route: the owner's Edit recipe on a recipe with no steps, and where an owner's draft link goes.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
                             "name": "onHome",
-                            "type": "CookingScreenProps",
+                            "type": "() => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
+                            "description": "Go to Home from a recipe that is gone.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
                             "name": "onLeave",
-                            "type": "CookingScreenProps",
+                            "type": "() => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
-                            "declaredIn": null
+                            "description": "Exit, Back on step 1, and Back to the recipe: to the recipe page, by route, never by history.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
                             "name": "recipeId",

@@ -2,13 +2,13 @@
  * The snackbar inside an open native window — the integration of the real `SnackbarHost` and the real `OverlayHost`,
  * neither mocked.
  *
- * A React Native `Modal` is a window of its own, so a snackbar drawn at the app root sits under an open sheet or dialog,
- * where nobody can reach its Undo. So an open window offers the host an outlet, and the host draws the one snackbar
- * there. The queue, the timer and the screen-reader pause stay in the host.
+ * A React Native `Modal` is a window of its own, so a snackbar drawn at the app root sits under an open sheet or
+ * dialog, where nobody can reach its Undo. So an open window offers the host an outlet, and the host draws the one
+ * snackbar there. The queue, the timer and the screen-reader pause stay in the host.
  *
- * ⚠️ react-native-web renders a `Modal` into the same document, so this proves WHERE the snackbar is drawn and that it is
- * drawn ONCE. It cannot prove that the window draws above the app, or that a screen reader announces it: those need a
- * device.
+ * ⚠️ react-native-web renders a `Modal` into the same document, so this proves WHERE the snackbar is drawn and that it
+ * is drawn ONCE. It cannot prove that the window draws above the app, or that a screen reader announces it: those
+ * need a device.
  */
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { AccessibilityInfo, Pressable, Text } from 'react-native';

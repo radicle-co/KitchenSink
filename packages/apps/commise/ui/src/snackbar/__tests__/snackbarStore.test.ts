@@ -77,7 +77,7 @@ describe('withdraw is targeted', () => {
         expect(first.getState().current?.input.message).toBe('B');
     });
 
-    it('names a showing, not its input: the first handle of one input object shown twice leaves the second showing', () => {
+    it('names a showing, not its input: the first handle of an input shown twice leaves the second showing', () => {
         const { store } = setup();
         const input = { message: 'A' };
         const first = store.show(input);

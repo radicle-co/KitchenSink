@@ -59,7 +59,8 @@ export const OverlayHost: FC<OverlayHostProps> = ({ onDismissRequest, presenting
                     <OverlayDepthContext value={depth}>{children}</OverlayDepthContext>
                 </OverlayDismissContext.Provider>
             </BackInterceptContext.Provider>
-            {/* Last, so the snackbar draws above the window's own content. React Native's `visible` defaults to true. */}
+            {/* Last, so the snackbar draws above the window's own content. React Native's `visible` is true unless
+                set. */}
             <SnackbarOutlet presenting={presenting ?? modalProps.visible ?? true} depth={depth} />
         </Modal>
     );

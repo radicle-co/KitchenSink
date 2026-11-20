@@ -6,10 +6,10 @@
         "cross-platform-props-diverge": 30,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 109,
+        "platform-singleton": 108,
         "ref-api": 22,
         "unclassified-layer": 96,
-        "undocumented-prop": 232
+        "undocumented-prop": 231
     },
     "findings": [
         {
@@ -5497,21 +5497,11 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "featuresCooking/ingredients/CookingIngredientsColumn",
-            "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsColumn.native.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "native"
-            ]
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
             "component": "featuresCooking/ingredients/CookingIngredientsSheet",
-            "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsSheet.native.tsx",
+            "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingIngredientsSheet.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
-                "native"
+                "web"
             ]
         },
         {
@@ -6885,18 +6875,6 @@
             "sourcePath": "packages/apps/commise/mobile/src/screens/AppRoot.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "mobile/screens/CookingModeScreen",
-            "sourcePath": "packages/apps/commise/mobile/src/screens/CookingModeScreen.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "onEdit",
-                "onHome",
-                "onLeave"
-            ]
         },
         {
             "rule": "missing-component-doc",

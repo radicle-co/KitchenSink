@@ -204,6 +204,38 @@ test.describe('a pasted recipe asks where it is from before it goes public (ADR-
         expect(writes.some((w) => w.body?.['visibility'] === 'private')).toBe(true);
     });
 
+    // AE6 (#374): the paid website is the sixth choice, under "From a web page", and locks at the confirm.
+    test('a paid-website answer with no citation shows the field error; with one it publishes private with that statement', async ({
+        page,
+    }) => {
+        const writes = await pastedRecipeReady(page);
+
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+        await expect(sheetOf(page).getByRole('radio')).toHaveCount(6);
+        await sheetOf(page)
+            .getByRole('radio', { name: /From a paid website/u })
+            .click();
+        await expect(sheetOf(page).getByText('Once you confirm, this answer is locked.')).toBeVisible();
+        await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(sheetOf(page).getByText('Add the website’s name or address.')).toBeVisible();
+        await expect(sheetOf(page).getByLabel('Website name or address')).toBeFocused();
+        expect(published(writes)).toEqual([]);
+
+        await sheetOf(page).getByLabel('Website name or address').fill('Sam’s Subscription Kitchen');
+        await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(page.getByText('Recipe published.')).toBeVisible();
+        expect(published(writes)[0]?.body).toMatchObject({
+            statement: {
+                kind: 'paid_site',
+                citation: 'Sam’s Subscription Kitchen',
+                wording: { version: 'statementPaidSite.v1' },
+            },
+        });
+        expect(writes.some((w) => w.body?.['visibility'] === 'private')).toBe(true);
+    });
+
     // At 320 px the pinned footer takes a third of the sheet, so the field and its message sat partly under it.
     test('at 320 px the title field and its error scroll into view above the pinned footer', async ({ page }) => {
         await page.setViewportSize({ width: 320, height: 640 });

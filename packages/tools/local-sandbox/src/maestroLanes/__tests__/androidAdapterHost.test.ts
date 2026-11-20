@@ -155,4 +155,12 @@ describe('the Android adapter over an injected host', () => {
 
         await expect(adapter.lost()).resolves.toBe(loss);
     });
+
+    it("hands on its host's loss as it is, ahead of a value that already resolved", async () => {
+        // A loss wrapped when asked settles a tick late and loses a race against a value that already resolved.
+        const loss = new Error('the tunnel ssh exited with code 255 during the run');
+        const { adapter } = rig('arm64-v8a', 'contentKey=k1\n', Promise.resolve(loss));
+
+        await expect(Promise.race([adapter.lost(), Promise.resolve(undefined)])).resolves.toBe(loss);
+    });
 });

@@ -195,7 +195,7 @@ screens on the public-only path (the job's `path` is `public`). It never infers 
 
 ## Switch a file item to "I wrote this"
 
-The review wizard's per-recipe statement choice and a reopening `upsertItems` that carries it write `statement_kind = 'authored'`, `choice = NULL` and `public_requested_at = NULL` in one UPDATE (the `choice` CHECK refuses an authored item with a choice). In the same transaction, after the items `FOR UPDATE` (header, item, job), they cancel the item's live or resting job, and `promote()` runs after commit when a `pending` or `writing` job was cancelled. The item's `visibility` is unchanged, and the switch shows no confirm dialog. Switching back to a third-party statement leaves `choice` NULL (data model, "An authored statement write clears the choice").
+The review wizard's per-recipe statement choice and a reopening `upsertItems` that carries it write `statement_kind = 'authored'`, `choice = NULL` and `public_requested_at = NULL` in one UPDATE (the `choice` CHECK refuses an authored item with a choice). In the same transaction, after the items `FOR UPDATE` (header, item, job), they cancel the item's live or resting job, and `promote()` runs after commit when a `pending` or `writing` job was cancelled. The item's `visibility` is unchanged, and the switch shows no confirm dialog today (an open design question, design spec section 15, item 5). Switching back to a third-party statement leaves `choice` NULL (data model, "An authored statement write clears the choice").
 
 ## Make the rest public
 

@@ -26,11 +26,11 @@ describe('docs versus code', () => {
 
 describe('findings stay inside the judged files', () => {
     const judged = ['src/a.ts', 'src/b.ts'];
-    it('drops a finding on a file outside the judged set and says how many', () => {
+    it('drops an ADVISORY finding on a file outside the judged set and says how many', () => {
         const { kept, dropped } = scopeFindings(
             [
-                { severity: 'blocking', file: 'src/a.ts', title: 'in' },
-                { severity: 'blocking', file: 'src/other.ts', title: 'out' },
+                { severity: 'advisory', file: 'src/a.ts', title: 'in' },
+                { severity: 'advisory', file: 'src/other.ts', title: 'out' },
             ],
             judged,
         );
@@ -41,10 +41,40 @@ describe('findings stay inside the judged files', () => {
         assert.equal(dropped, 1);
     });
 
+    it('keeps a BLOCKING finding on an unknown file, with no file, so it blocks every judged file', () => {
+        const { kept, dropped } = scopeFindings([{ severity: 'blocking', file: 'src/other.ts', title: 'out' }], judged);
+        assert.equal(dropped, 0);
+        assert.equal(kept.length, 1);
+        assert.equal(kept[0].file, undefined);
+        assert.match(kept[0].title, /out/);
+        assert.match(kept[0].title, /src\/other\.ts/);
+    });
+
+    it('matches a mis-pathed file to the judged file: ./ prefix, :line suffix, repo-root prefix', () => {
+        for (const file of [
+            './src/b.ts',
+            'src/b.ts:12',
+            './src/b.ts:12:3',
+            '/home/runner/work/r/r/src/b.ts',
+            'b/src/b.ts',
+        ]) {
+            const { kept } = scopeFindings([{ severity: 'blocking', file, title: 't', detail: 'd' }], judged);
+            assert.equal(kept[0].file, 'src/b.ts', file);
+        }
+    });
+
     it('keeps a finding with no file', () => {
         const { kept, dropped } = scopeFindings([{ severity: 'advisory', title: 'pr-level' }], judged);
         assert.equal(kept.length, 1);
         assert.equal(dropped, 0);
+    });
+});
+
+describe('the brief names deleted files', () => {
+    it('lists each deleted path so the judge can weigh what the deletion removes', () => {
+        const brief = renderBrief({ mode: 'code', files: ['src/old.ts'], deleted: ['src/old.ts'], diffPath: '/d' });
+        assert.match(brief, /^Deleted files:$/m);
+        assert.match(brief, /^- src\/old\.ts \(deleted\)$/m);
     });
 });
 

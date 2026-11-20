@@ -78,3 +78,14 @@ inside an agent session costs that session's budget and cannot be required by th
 - The first PR that adds this tooling cannot run `gate.yml` against itself, because the tooling is read from the base.
 - A PR can edit `gate.yml` itself, because `pull_request` runs the head's workflow. A ruleset that pins the required
   status to its source, or a code-owner rule on `.github/workflows`, closes that.
+
+## Known gaps until the ruleset PR
+
+The ruleset PR that follows this one closes these three. Until it merges, the `GATE` status is not a hard guarantee.
+
+- **Ledger artifacts are accepted from any run of the branch.** `gate.yml` restores `gate-<sha>` from every completed
+  run on the head ref. It must accept them only from runs of the pinned workflow on the base.
+- **The required check is a status context, not a pinned workflow.** The ruleset must require the workflow itself, so
+  that a PR cannot post a `GATE` status from another source.
+- **Scanner evidence can be forged.** The judge reads the `scq-<sha>` artifact of the PR's own `ci-pr.yml` run, which
+  the head's workflow produces. The evidence must come from the pinned workflow.

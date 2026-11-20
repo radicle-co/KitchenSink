@@ -28,7 +28,9 @@ permissions: {}
 
 concurrency:
     # A newer push supersedes a judge still running on an older head; its `pending` is replaced by the new run's.
-    group: gate-${{ github.event.pull_request.number }}
+    # ⛔ `labeled` fires for every label, and the job `if` below only skips AFTER the group has cancelled the running GATE.
+    # A label other than `gate-rerun` therefore gets a group of its own (the run id), so it can never cancel a judge.
+    group: gate-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && github.event.label.name != 'gate-rerun' && github.run_id || 'judge' }}
     cancel-in-progress: true
 
 jobs:
@@ -37,7 +39,8 @@ jobs:
         # `labeled` fires for every label, so only `gate-rerun` re-runs the judge.
         if: github.event.action != 'labeled' || github.event.label.name == 'gate-rerun'
         runs-on: ubuntu-latest
-        timeout-minutes: 25
+        # evidence wait (up to 46) + judge (up to 20) + the small steps
+        timeout-minutes: 75
         permissions:
             contents: read # checkout of the PR and of the base's `.claude/`
             pull-requests: write # the one review comment that carries the findings
@@ -89,9 +92,10 @@ jobs:
                   persist-credentials: false
                   fetch-depth: 0
 
-            # ⛔ THE JUDGE COMES FROM THE BASE, NEVER THE HEAD. `.claude/` is replaced wholesale by the base's copy (agent
-            # card, skills AND settings, whose hooks would otherwise run PR-supplied code with the OAuth token in reach),
-            # and a PR-supplied `.mcp.json` is removed for the same reason.
+            # ⛔ THE JUDGE COMES FROM THE BASE, NEVER THE HEAD. Everything the agent loads as instructions is replaced by the
+            # base's copy: `.claude/` (agent card, skills AND settings, whose hooks would otherwise run PR-supplied code
+            # with the OAuth token in reach), `.mcp.json`, and every `CLAUDE.md`, `CLAUDE.local.md` and `AGENTS.md` at any
+            # depth (project memory). A head copy that does not exist at the base is deleted.
             - name: Install the judge from the base branch
               id: judge-source
               if: steps.plan.outputs.go == 'true'
@@ -106,8 +110,20 @@ jobs:
                       echo "ready=false" >>"$GITHUB_OUTPUT"
                       exit 0
                   fi
-                  rm -rf .claude .mcp.json
-                  git checkout "$BASE_SHA" -- .claude
+                  pattern='(^|/)(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md|\.mcp\.json)$|(^|/)\.claude/'
+                  git ls-files -z | { grep -zE "$pattern" || true; } | xargs -0 -r git rm -q -f --
+                  rm -rf .claude
+                  git ls-tree -r -z --name-only "$BASE_SHA" | { grep -zE "$pattern" || true; } |
+                      xargs -0 -r git checkout "$BASE_SHA" --
+                  # Fail closed if the instruction files in the tree are not exactly the base's.
+                  base_list="$(git ls-tree -r --name-only "$BASE_SHA" | { grep -E "$pattern" || true; } | sort)"
+                  tree_list="$(git ls-files | { grep -E "$pattern" || true; } | sort)"
+                  if [ "$base_list" != "$tree_list" ] ||
+                      ! git ls-files -z | { grep -zE "$pattern" || true; } | xargs -0 -r git diff --quiet "$BASE_SHA" --; then
+                      post failure "GATE failed closed: the judge's instruction files do not match the base branch"
+                      echo "ready=false" >>"$GITHUB_OUTPUT"
+                      exit 0
+                  fi
                   echo "ready=true" >>"$GITHUB_OUTPUT"
 
             # ⛔ THE GATE TOOLING COMES FROM THE BASE TOO. gateRun.mjs and its two policies decide what the judge sees and
@@ -152,17 +168,26 @@ jobs:
             - name: Plan what to judge
               id: scope
               if: steps.tools.outputs.ready == 'true'
+              env:
+                  EVENT_ACTION: ${{ github.event.action }}
               run: |
                   set -euo pipefail
+                  # A `gate-rerun` label asks for a second opinion: files whose latest verdict is BLOCK are judged again.
+                  extra=()
+                  if [ "$EVENT_ACTION" = labeled ]; then
+                      extra+=(--rejudge-blocked)
+                  fi
                   env -u GH_TOKEN node "$GATE_DIR/tools/gateRun.mjs" plan --repo . --base "$BASE_SHA" --head "$SHA" \
-                      --ledger "$GATE_DIR/ledger" --out "$GATE_DIR" | tee -a "$GITHUB_OUTPUT"
+                      --ledger "$GATE_DIR/ledger" --out "$GATE_DIR" "${extra[@]}" | tee -a "$GITHUB_OUTPUT"
 
-            # The scanners run in `ci-pr.yml` (job `Code quality scanners`) on this same push. Wait for that job to
-            # finish rather than re-running the scanners: one run of each, and the judge reads exactly what the check
-            # reported. Polls for at most 18 minutes.
+            # The scanners run in `ci-pr.yml` (job `Code quality scanners`) on this same push. Wait for THAT JOB to finish
+            # rather than re-running the scanners: one run of each, and the judge reads exactly what the check reported.
+            # The job's own limit is 20 minutes after the `install` job it needs (up to ~15), so the wait is 15 + 20 + a
+            # 10-minute margin = 45 minutes (90 polls of 30 s, plus the downloads). Out of time is `failure`, never a pass.
             - name: Fetch the scanner evidence
               id: evidence
               if: steps.scope.outputs.mode == 'judge'
+              timeout-minutes: 48
               run: |
                   set -euo pipefail
                   post() {
@@ -174,7 +199,9 @@ jobs:
                       echo "ready=false" >>"$GITHUB_OUTPUT"
                       exit 0
                   }
-                  for _ in $(seq 1 54); do
+                  run_id=""
+                  job_state=""
+                  for _ in $(seq 1 90); do
                       run_id="$(gh run list --repo "$REPO" --workflow ci-pr.yml --commit "$SHA" --event pull_request \
                           --json databaseId,createdAt --jq 'sort_by(.createdAt) | last | .databaseId // empty')"
                       if [ -n "$run_id" ]; then
@@ -184,10 +211,13 @@ jobs:
                               break
                           fi
                       fi
-                      sleep 20
+                      sleep 30
                   done
-                  if [ -z "${run_id:-}" ] || [ "${job_state:-}" != completed ]; then
-                      fail "No scanner evidence: the Code quality scanners job did not finish for this commit"
+                  if [ -z "$run_id" ]; then
+                      fail "No scanner evidence: no ci-pr.yml run exists for this commit after 45 minutes"
+                  fi
+                  if [ "$job_state" != completed ]; then
+                      fail "No scanner evidence: the Code quality scanners job did not finish within 45 minutes"
                   fi
                   mkdir -p "$SCQ_EVIDENCE"
                   if ! gh run download "$run_id" --repo "$REPO" --name "scq-${SHA}" --dir "$SCQ_EVIDENCE"; then
@@ -195,9 +225,23 @@ jobs:
                   fi
                   echo "ready=true" >>"$GITHUB_OUTPUT"
 
+            # ⛔ SEAL BEFORE THE JUDGE. The judge reads this directory and the evidence as DATA; it must not be able to
+            # change either, even with a prompt-injected plan. It gets no tool that writes (see the judge step), the files are
+            # made read-only, and their hashes are recorded OUTSIDE both directories so the verdict step can prove nothing
+            # changed (the tools, plan.json, the brief, the diff and the scanner evidence).
+            - name: Seal the GATE inputs
+              id: seal
+              if: steps.evidence.outputs.ready == 'true'
+              run: |
+                  set -euo pipefail
+                  chmod -R a-w "$GATE_DIR" "$SCQ_EVIDENCE"
+                  mkdir -p "${RUNNER_TEMP}/gateSeal"
+                  find "$GATE_DIR" "$SCQ_EVIDENCE" -type f -print0 | sort -z | xargs -0 sha256sum >"${RUNNER_TEMP}/gateSeal/sha256.txt"
+                  echo "manifest=${RUNNER_TEMP}/gateSeal/sha256.txt" >>"$GITHUB_OUTPUT"
+
             - name: Judge the diff (GATE mode)
               id: judge
-              if: steps.evidence.outputs.ready == 'true'
+              if: steps.seal.outcome == 'success'
               timeout-minutes: 20
               uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1.0.269
               with:
@@ -207,10 +251,10 @@ jobs:
                   prompt: |
                       Run the staff-code-quality agent in GATE mode on pull request #${{ github.event.pull_request.number }}.
 
-                      Your scope is in ${{ env.GATE_DIR }}/judgeBrief.md: the files to judge and the diff of exactly those
-                      files. Read it first. Judge only those files and their changed lines. Read other files only to
-                      understand the changed code, and raise no finding on a file that is not listed. Do not diff the rest of
-                      the pull request.
+                      You have read-only tools (Read, Glob, Grep) and no shell. Your scope is in ${{ env.GATE_DIR }}/judgeBrief.md:
+                      the files to judge and the diff of exactly those files (${{ env.GATE_DIR }}/changes.diff). Read it first. Judge only those files and their changed lines. Read other files only to
+                      understand the changed code, and raise no finding on a file that is not listed. Do not read
+                      anything outside the repository, the brief, the diff and the scanner evidence.
 
                       The scanner evidence is the scq artifact in ${{ env.SCQ_EVIDENCE }} (status.json, findings.jsonl,
                       summary.md, verdict.json). Read it; do not run any scanner. A tool whose status is NOT_APPLICABLE found
@@ -226,7 +270,8 @@ jobs:
                       --model claude-opus-5-5
                       --max-turns 60
                       --agent staff-code-quality
-                      --allowedTools "Read,Glob,Grep,Skill,TodoWrite,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git merge-base:*),Bash(git rev-parse:*),Bash(git status:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(wc:*),Bash(jq:*)"
+                      --allowedTools "Read,Glob,Grep"
+                      --disallowedTools "Bash,Edit,MultiEdit,Write,NotebookEdit,Task,WebFetch,WebSearch,Read(//proc/**),Read(//sys/**),Read(//etc/**),Read(//root/**),Read(//run/**),Read(//var/**),Read(~/.*/**),Read(/${{ runner.temp }}/_runner_file_commands/**),Read(/${{ runner.temp }}/_github_workflow/**),Read(/${{ runner.temp }}/_github_home/**),Read(/${{ runner.temp }}/gateSeal/**)"
                       --json-schema '{"type":"object","additionalProperties":false,"required":["verdict","findings"],"properties":{"verdict":{"enum":["PASS","BLOCK"]},"findings":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["severity","title","detail"],"properties":{"severity":{"enum":["blocking","advisory"]},"file":{"type":"string"},"line":{"type":"integer"},"title":{"type":"string"},"detail":{"type":"string"}}}}}}'
 
             # Runs whether or not the judge step succeeded, and turns anything but a clean, well-formed result into
@@ -239,18 +284,48 @@ jobs:
                   MODE: ${{ steps.scope.outputs.mode }}
                   JUDGE_OUTCOME: ${{ steps.judge.outcome }}
                   STRUCTURED_OUTPUT: ${{ steps.judge.outputs.structured_output }}
+                  SEAL_MANIFEST: ${{ steps.seal.outputs.manifest }}
+                  OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
               run: |
                   set -euo pipefail
                   post() {
                       gh api "repos/${REPO}/statuses/${SHA}" -f state="$1" -f context=GATE -f description="${2:0:140}" \
                           -f target_url="$RUN_URL" >/dev/null
                   }
+                  # Mask every credential this step can see, so no later log line prints one.
+                  secrets=("$GH_TOKEN" "$OAUTH_TOKEN")
+                  while IFS='=' read -r name value; do
+                      case "$name" in ACTIONS_*) secrets+=("$value") ;; esac
+                  done < <(env)
+                  for value in "${secrets[@]}"; do
+                      if [ "${#value}" -ge 8 ]; then
+                          echo "::add-mask::${value}"
+                      fi
+                  done
                   record_args=(--out "$GATE_DIR" --sha "$SHA")
                   if [ "$MODE" = judge ]; then
                       if [ "$JUDGE_OUTCOME" != success ]; then
                           post failure "GATE failed closed: the judge step ended as ${JUDGE_OUTCOME}"
                           exit 0
                       fi
+                      # The inputs must be exactly what was sealed: a changed tool, plan, brief or evidence is a failure.
+                      if [ -z "$SEAL_MANIFEST" ] || ! sha256sum --check --quiet "$SEAL_MANIFEST" >/dev/null 2>&1; then
+                          post failure "GATE failed closed: the sealed inputs changed while the judge ran"
+                          exit 0
+                      fi
+                      # The judge's text is posted publicly. Refuse it, posting nothing of it, when it holds a credential.
+                      for value in "${secrets[@]}"; do
+                          if [ "${#value}" -ge 8 ]; then
+                              case "$STRUCTURED_OUTPUT" in
+                                  *"$value"*)
+                                      post failure "GATE failed closed: the judge output held a credential and was withheld"
+                                      exit 0
+                                      ;;
+                              esac
+                          fi
+                      done
+                      # The record step writes into the directory the seal made read-only.
+                      chmod -R u+w "$GATE_DIR"
                       if ! printf '%s' "$STRUCTURED_OUTPUT" | jq -e '(.verdict == "PASS" or .verdict == "BLOCK") and (.findings | type == "array")' >/dev/null 2>&1; then
                           post failure "GATE failed closed: the judge returned no valid structured verdict"
                           exit 0

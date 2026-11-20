@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Adapter between gate.yml and the pure GATE policies (gateScope.mjs, gateLedger.mjs). Two steps:
 //
-//   node gateRun.mjs plan   --repo <dir> --base <sha> --head <sha> --ledger <dir> --out <dir>
+//   node gateRun.mjs plan   --repo <dir> --base <sha> --head <sha> --ledger <dir> --out <dir> [--rejudge-blocked]
 //       Finds the files this PR changes, hashes their content at <head>, restores the earlier verdicts from <ledger>
 //       (one sub-directory per earlier run, oldest first, each holding gateVerdict.json), and writes what to judge:
-//       plan.json, judgeBrief.md and changes.diff in <out>. Prints `mode=none|reuse|judge`.
+//       plan.json, judgeBrief.md and changes.diff in <out>. Prints `mode=none|reuse|judge`. A deleted code or test file
+//       is judged too. --rejudge-blocked (a `gate-rerun`) judges a file whose latest verdict is BLOCK again.
 //   node gateRun.mjs record --out <dir> --sha <head> [--judge <file holding the judge's structured output>]
 //       Merges the judge's verdict for the judged files with the carried ones, writes gateVerdict.json (the `gate-<sha>`
 //       artifact) and gateReview.md, and prints `state=` and `description=` for the commit status.
@@ -25,7 +26,7 @@ import {
     planRun,
     renderReview,
 } from './gateLedger.mjs';
-import { judgeMode, renderBrief, scopeFindings } from './gateScope.mjs';
+import { isDocFile, judgeMode, renderBrief, scopeFindings } from './gateScope.mjs';
 
 const [command, ...rest] = process.argv.slice(2);
 const arg = (name) => (rest.includes(name) ? rest[rest.indexOf(name) + 1] : undefined);
@@ -37,6 +38,9 @@ const need = (name) => {
     }
     return value;
 };
+
+/** The verdict key of a file the PR deletes: it has no content to hash. */
+const DELETED = 'deleted';
 
 const git = (repo, args) =>
     execFileSync('git', args, {
@@ -79,12 +83,25 @@ function plan() {
     const head = need('--head');
     const out = need('--out');
     const mergeBase = git(repo, ['merge-base', base, head]).trim();
-    const names = git(repo, ['diff', '--name-only', '--diff-filter=ACMR', '-z', mergeBase, head])
+    // --no-renames: a rename is a deletion of the old path plus an addition of the new one, so neither goes unjudged.
+    const names = git(repo, ['diff', '--name-only', '--no-renames', '--diff-filter=ACMR', '-z', mergeBase, head])
         .split('\0')
         .filter(Boolean);
     const ids = blobIds(repo, head, names);
     const changed = new Map(names.filter((n) => ids.has(n)).map((n) => [n, ids.get(n)]));
-    const run = planRun({ changed, ledger: foldLedger(loadRecords(need('--ledger'))) });
+    // A deleted code or test file is judged too (what its deletion removes); a deleted document is not. A deleted
+    // file has no content, so its verdict is keyed on a marker and a rerun at the same head still reuses it.
+    const deleted = git(repo, ['diff', '--name-only', '--no-renames', '--diff-filter=D', '-z', mergeBase, head])
+        .split('\0')
+        .filter((n) => n !== '' && !isDocFile(n));
+    for (const path of deleted) {
+        changed.set(path, DELETED);
+    }
+    const run = planRun({
+        changed,
+        ledger: foldLedger(loadRecords(need('--ledger'))),
+        rejudgeBlocked: rest.includes('--rejudge-blocked'),
+    });
     const mode = changed.size === 0 ? 'none' : run.reuse ? 'reuse' : 'judge';
     const diffPath = join(out, 'changes.diff');
     if (mode === 'judge') {
@@ -94,7 +111,12 @@ function plan() {
         );
         writeFileSync(
             join(out, 'judgeBrief.md'),
-            renderBrief({ mode: judgeMode(run.toJudge), files: run.toJudge, diffPath }),
+            renderBrief({
+                mode: judgeMode(run.toJudge),
+                files: run.toJudge,
+                deleted: run.toJudge.filter((path) => changed.get(path) === DELETED),
+                diffPath,
+            }),
         );
     }
     writeFileSync(
@@ -103,6 +125,7 @@ function plan() {
             {
                 mode,
                 toJudge: run.toJudge,
+                deleted: run.toJudge.filter((path) => changed.get(path) === DELETED),
                 carried: run.carried,
                 reusedFrom: run.reusedFrom,
                 changed: Object.fromEntries(changed),

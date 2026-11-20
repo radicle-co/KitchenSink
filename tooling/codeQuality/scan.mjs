@@ -21,7 +21,7 @@
 //   summary.md      human-readable table
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir, totalmem } from 'node:os';
+import { homedir, totalmem } from 'node:os';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
@@ -116,8 +116,11 @@ if (!repo) {
     console.error('scan.mjs: --repo is not inside a git work tree');
     process.exit(2);
 }
-// Default output lives OUTSIDE the work tree: the agent is read-only with respect to the repository.
-const out = resolve(opt.out ?? join(tmpdir(), 'scq', repo.replaceAll(sep, '_')));
+// Default output lives OUTSIDE the work tree (the agent is read-only with respect to the repository) and in the user's
+// cache directory, not the shared temp directory: stable, so a CodeQL database is reused, and no predictable name in /tmp.
+const out = resolve(
+    opt.out ?? join(process.env['XDG_CACHE_HOME'] ?? join(homedir(), '.cache'), 'scq', repo.replaceAll(sep, '_')),
+);
 mkdirSync(out, { recursive: true });
 
 /**
@@ -981,7 +984,7 @@ await tool('turbo-boundaries', () => {
     const ownedUnread = report.unparseable.filter((unread) => unread.owned).map((unread) => unread.file);
     const ignoreDecision = gitIgnoredFiles(repo, [...report.findings.map((finding) => finding.file), ...ownedUnread]);
     const ignored = ignoreDecision.ignored ?? new Set();
-    const { pairs, counted, skipped } = excludeIgnored(report.findings, ignored);
+    const { pairs, counted, skipped: ignoredFindings } = excludeIgnored(report.findings, ignored);
     const baselinePath = defaultBaselinePath(process.env);
     const baselined = existsSync(baselinePath)
         ? (JSON.parse(readFileSync(baselinePath, 'utf8')).pairs ?? [])
@@ -1021,7 +1024,7 @@ await tool('turbo-boundaries', () => {
         verdict.stale.length > 0
             ? `${verdict.stale.length} baselined triple(s) STALE — run boundariesRatchet.mjs --update`
             : '',
-        skipped.length > 0 ? `${skipped.length} finding(s) in gitignored build output, excluded` : '',
+        ignoredFindings.length > 0 ? `${ignoredFindings.length} finding(s) in gitignored build output, excluded` : '',
         ignoreDecision.ignored === null ? `git check-ignore failed (${ignoreDecision.error}); nothing excluded` : '',
     ].filter(Boolean);
     return {
@@ -1335,7 +1338,7 @@ const md = [
     '',
     '## Rules firing on changed lines',
     '',
-    ...[...byRule.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `- ${n} × ${k.replace('\t', ' ')}`),
+    ...[...byRule.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `- ${n} × ${k.replaceAll('\t', ' ')}`),
     '',
     '## Findings with no line',
     '',

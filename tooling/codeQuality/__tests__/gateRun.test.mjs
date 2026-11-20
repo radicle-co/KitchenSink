@@ -125,3 +125,89 @@ describe('gateRun against a git repository', () => {
         assert.equal(files['README.md'], undefined);
     });
 });
+
+const removeFile = (path) => {
+    git('rm', '-q', path);
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', `delete ${path}`);
+    return git('rev-parse', 'HEAD');
+};
+
+describe('gateRun: deletions and gate-rerun', () => {
+    before(() => {
+        root = mkdtempSync(join(tmpdir(), 'gateRun2-'));
+        repo = join(root, 'repo');
+        mkdirSync(repo);
+        git('init', '-q', '-b', 'main');
+        commitFile('README.md', 'base\n');
+        commitFile('src/old.ts', 'export const old = 1;\n');
+        commitFile('tests/old.test.ts', 'export const t = 1;\n');
+        base = commitFile('docs/gone.md', 'gone\n');
+    });
+    after(() => rmSync(root, { recursive: true, force: true }));
+
+    it('judges a PR that only deletes code or test files, and lists the deleted paths in the brief', () => {
+        removeFile('src/old.ts');
+        const head = removeFile('docs/gone.md');
+        const out = fresh('outD');
+        const result = plan(head, fresh('ledgerD'), out);
+        assert.equal(result.mode, 'judge');
+        const planned = readPlan(out);
+        assert.deepEqual(planned.toJudge, ['src/old.ts']);
+        assert.deepEqual(planned.deleted, ['src/old.ts']);
+        assert.match(readFileSync(join(out, 'judgeBrief.md'), 'utf8'), /^- src\/old\.ts \(deleted\)$/m);
+        assert.match(readFileSync(join(out, 'changes.diff'), 'utf8'), /deleted file mode/);
+    });
+
+    it('keys a deleted file on a deleted marker, so the verdict is reused at the same head', () => {
+        const head = git('rev-parse', 'HEAD');
+        const ledger = fresh('ledgerD2');
+        const out = fresh('outD2');
+        plan(head, ledger, out);
+        const pass = join(root, 'passD.json');
+        writeFileSync(pass, JSON.stringify({ verdict: 'PASS', findings: [] }));
+        assert.equal(node('record', '--out', out, '--sha', head, '--judge', pass).state, 'success');
+        store(ledger, '00', out);
+        const again = plan(head, ledger, fresh('outD3'));
+        assert.equal(again.mode, 'reuse');
+    });
+
+    it('re-judges a BLOCKED file on a gate-rerun at the same head, and reuses the PASS ones', () => {
+        const head = commitFile('src/a.ts', 'export const a = 1;\n');
+        const head2 = commitFile('src/b.ts', 'export const b = 1;\n');
+        const ledger = fresh('ledgerR');
+        const out = fresh('outR');
+        plan(head2, ledger, out);
+        const verdict = join(root, 'blockR.json');
+        writeFileSync(
+            verdict,
+            JSON.stringify({
+                verdict: 'BLOCK',
+                findings: [{ severity: 'blocking', file: './src/a.ts:3', title: 'bad', detail: 'd' }],
+            }),
+        );
+        assert.equal(node('record', '--out', out, '--sha', head2, '--judge', verdict).state, 'failure');
+        const files = JSON.parse(readFileSync(join(out, 'gateVerdict.json'), 'utf8')).files;
+        assert.equal(files['src/a.ts'].verdict, 'BLOCK');
+        assert.equal(files['src/b.ts'].verdict, 'PASS');
+        store(ledger, '00', out);
+        assert.equal(plan(head2, ledger, fresh('outR2')).mode, 'reuse');
+        const rerunOut = fresh('outR3');
+        const rerun = node(
+            'plan',
+            '--repo',
+            repo,
+            '--base',
+            base,
+            '--head',
+            head2,
+            '--ledger',
+            ledger,
+            '--out',
+            rerunOut,
+            '--rejudge-blocked',
+        );
+        assert.equal(rerun.mode, 'judge');
+        assert.deepEqual(readPlan(rerunOut).toJudge, ['src/a.ts']);
+        assert.equal(head, git('rev-parse', 'HEAD~1'));
+    });
+});

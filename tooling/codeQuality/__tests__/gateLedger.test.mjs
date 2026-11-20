@@ -62,6 +62,23 @@ describe('perFileVerdicts', () => {
     });
 });
 
+describe('planRun: a gate-rerun re-judges blocked files', () => {
+    const ledger = foldLedger([record('s1', { 'a.ts': entry('A1', 'BLOCK'), 'b.ts': entry('B1', 'PASS') })]);
+
+    it('reuses a BLOCK on an ordinary rerun', () => {
+        const plan = planRun({ changed: hashes({ 'a.ts': 'A1', 'b.ts': 'B1' }), ledger });
+        assert.equal(plan.reuse, true);
+    });
+
+    it('judges the BLOCKED file again on a gate-rerun and still reuses the PASS', () => {
+        const plan = planRun({ changed: hashes({ 'a.ts': 'A1', 'b.ts': 'B1' }), ledger, rejudgeBlocked: true });
+        assert.deepEqual(plan.toJudge, ['a.ts']);
+        assert.equal(plan.reuse, false);
+        assert.equal(plan.carried['b.ts'].verdict, 'PASS');
+        assert.equal(plan.carried['a.ts'], undefined);
+    });
+});
+
 describe('planRun: reuse and the rerun scope', () => {
     const ledger = foldLedger([record('s1', { 'a.ts': entry('A1', 'PASS'), 'b.ts': entry('B1', 'PASS') })]);
 

@@ -18,16 +18,55 @@ export const isDocFile = (path) => DOC_EXTENSIONS.test(path);
 export const judgeMode = (files) => (files.every(isDocFile) ? 'docs' : 'code');
 
 /**
- * The judge must not raise findings on files outside the scope it was given. The brief says so, and this enforces
- * it, because a prompt is a request and not a guarantee. A finding that names no file is kept. Pure.
+ * The judged file a finding's `file` names, or undefined. The judge writes paths loosely (`./src/b.ts`, `src/b.ts:12`,
+ * an absolute checkout path, a diff's `b/` prefix), so a path is read back to the listed file it ends with. Pure.
  *
- * @param {Array<{file?: string}>} findings
+ * @param {string | undefined} file
+ * @param {string[]} judgedFiles
+ */
+export function matchJudgedFile(file, judgedFiles) {
+    if (typeof file !== 'string') {
+        return undefined;
+    }
+    const path = file.replace(/(:\d+){1,2}$/, '').replace(/^(\.\/)+/, '');
+    if (judgedFiles.includes(path)) {
+        return path;
+    }
+    return judgedFiles
+        .filter((judged) => path.endsWith(`/${judged}`))
+        .sort((a, b) => b.length - a.length)
+        .at(0);
+}
+
+/**
+ * The judge must not raise findings on files outside the scope it was given. The brief says so, and this enforces
+ * it, because a prompt is a request and not a guarantee. Paths are normalised first (see matchJudgedFile). An
+ * ADVISORY finding on a file that matches no judged file is dropped. A BLOCKING one is never dropped: it loses its
+ * file and so blocks every judged file, because dropping it would let a mis-pathed finding turn a BLOCK into a PASS.
+ * A finding that names no file is kept. Pure.
+ *
+ * @param {Array<{file?: string, severity?: string, title?: string, detail?: string}>} findings
  * @param {string[]} judgedFiles
  */
 export function scopeFindings(findings, judgedFiles) {
-    const judged = new Set(judgedFiles);
-    const kept = findings.filter((f) => f.file === undefined || judged.has(f.file));
-    return { kept, dropped: findings.length - kept.length };
+    const kept = [];
+    let dropped = 0;
+    for (const f of findings) {
+        if (f.file === undefined) {
+            kept.push(f);
+            continue;
+        }
+        const file = matchJudgedFile(f.file, judgedFiles);
+        if (file !== undefined) {
+            kept.push({ ...f, file });
+        } else if (f.severity === 'blocking') {
+            const { file: named, ...rest } = f;
+            kept.push({ ...rest, title: `${f.title ?? ''} (named ${named}, which is not a judged file)`.trim() });
+        } else {
+            dropped += 1;
+        }
+    }
+    return { kept, dropped };
 }
 
 const SHARED_RULES = [
@@ -39,9 +78,9 @@ const SHARED_RULES = [
 /**
  * The brief the judge reads: the scope, once. Pure.
  *
- * @param {{mode: 'docs' | 'code', files: string[], diffPath: string}} input
+ * @param {{mode: 'docs' | 'code', files: string[], deleted?: string[], diffPath: string}} input
  */
-export function renderBrief({ mode, files, diffPath }) {
+export function renderBrief({ mode, files, deleted = [], diffPath }) {
     return [
         '# GATE scope',
         '',
@@ -59,6 +98,17 @@ export function renderBrief({ mode, files, diffPath }) {
         '',
         ...files.map((f) => `- ${f}`),
         '',
+        ...(deleted.length === 0
+            ? []
+            : [
+                  'Deleted files:',
+                  '',
+                  ...deleted.map((f) => `- ${f} (deleted)`),
+                  '',
+                  'A deleted file has no new content. Judge what the deletion removes: a test that guarded a behaviour, a',
+                  'module other files still import, a guard that kept a rule enforced.',
+                  '',
+              ]),
         `The diff of exactly these files is in ${diffPath}. Read it once; do not run git diff for the rest of the pull request.`,
         '',
         ...SHARED_RULES,

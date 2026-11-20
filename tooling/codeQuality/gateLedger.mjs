@@ -52,17 +52,18 @@ export function foldLedger(records) {
 /**
  * Which of the PR's changed files need the judge, and which keep an earlier verdict. A file whose (path, hash) is in
  * the ledger is carried; anything else is judged. A file that left the PR is not carried. When nothing needs judging
- * the earlier verdict is reused whole, and `reusedFrom` names the newest record it came from. Pure.
+ * the earlier verdict is reused whole, and `reusedFrom` names the newest record it came from. On a `gate-rerun`
+ * (`rejudgeBlocked`) a carried BLOCK is judged again, so a wrong block clears without editing the file. Pure.
  *
- * @param {{changed: Map<string, string>, ledger: Map<string, any>}} input
+ * @param {{changed: Map<string, string>, ledger: Map<string, any>, rejudgeBlocked?: boolean}} input
  */
-export function planRun({ changed, ledger }) {
+export function planRun({ changed, ledger, rejudgeBlocked = false }) {
     const carried = {};
     const toJudge = [];
     let newest;
     for (const [path, hash] of changed) {
         const found = ledger.get(key(path, hash));
-        if (found === undefined) {
+        if (found === undefined || (rejudgeBlocked && found.verdict === 'BLOCK')) {
             toJudge.push(path);
         } else {
             carried[path] = { hash, verdict: found.verdict, findings: found.findings, sha: found.sha };

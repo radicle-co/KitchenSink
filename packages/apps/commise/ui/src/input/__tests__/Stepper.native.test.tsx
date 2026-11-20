@@ -5,7 +5,8 @@ import { useState, type ReactElement } from 'react';
 
 import { Text } from '../../text/Text.native.js';
 import { withPlatformOs } from '../../testing/platformOs.native.js';
-import { renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
+import { renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { nativeTokens } from '../../tokens/native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Stepper } from '../Stepper.native.js';
 import type { StepperProps } from '../props.js';
@@ -54,6 +55,15 @@ describe('Stepper (native)', () => {
 
         expect(fontVariantClass(count)).toBeDefined();
         expect(fontVariantClass(count)).toBe(fontVariantClass(screen.getByText('ref')));
+    });
+
+    // The face IS the weight on native, so the count's semibold is its `figureInline` font family. If the count fell back to the body face, this fails.
+    it('draws the count in the semibold figure face', () => {
+        render(<Servings />);
+
+        const count = within(screen.getByRole('group', { name: 'Servings' })).getByText('2');
+
+        expect(resolvedStyle(count, 'fontFamily')).toContain(nativeTokens.type.figureInline.fontFamily);
     });
 
     it('steps the value up and down', () => {

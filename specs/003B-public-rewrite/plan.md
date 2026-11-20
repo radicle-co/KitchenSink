@@ -155,7 +155,7 @@ specs/003B-public-rewrite/
 packages/shared/recipe-core/src/stepWriting/                  # 027's engine (built once, by 003B first: 027-FR-045)
 packages/shared/recipe-core/src/copy/bannedWords.ts            # the one banned-word list (FR-064)
 packages/shared/recipe-core/src/stage/stageClass.ts  # subpath ./stage: stageClassOf, moved from recipe-workers/infra/lib/consumerConcurrency.ts (T343)
-packages/shared/recipe-core/src/publicVersion/{promoter,jobExpiry,writerCapacity}.ts  # subpaths ./public-version/{promoter,job-expiry,writer-capacity}: the global promoter, the shared job-expiry function, publicVersionCapacity(stage) (T335, T343, T354)
+packages/shared/recipe-core/src/publicVersion/{promoter,jobExpiry,writerCapacity}.ts  # subpaths ./public-version/{promoter,job-expiry,writer-capacity}: the global promoter, the shared job-expiry function, publicVersionCapacity(stage) (the promoter T335 and T343, the expiry function T381, the capacity function T354)
 packages/services/recipe-service/src/import/domain/sourceClassification.ts
 packages/services/recipe-service/src/import/publicVersion/     # controller, schema, service, DAL, title builder
 packages/services/recipe-service/src/recipes/domain/publicVersionWordingGuard.ts

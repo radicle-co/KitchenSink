@@ -20,7 +20,7 @@ export const CookMarksTestProvider: FC<{ readonly children: ReactNode }> = ({ ch
  */
 export const idleDetailBodyState = {
     marks: {
-        checkedLines: new Set<string>(),
+        checkedLines: new Set<number>(),
         currentStep: undefined,
         toggleLine: (): void => undefined,
         toggleStep: (): void => undefined,

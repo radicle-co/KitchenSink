@@ -23,6 +23,8 @@ export {
 
 // ── Steps as the cook walks them: lines and place (FR-032, FR-033, FR-033a) ──
 export { STEP_LINE_ABBREVIATIONS, splitStepLines } from './stepLines.js';
+export { INGREDIENT_LINE_DIGEST_VERSION, ingredientLineDigest } from './ingredientLineDigest.js';
+export type { IngredientLineDigestInput } from './ingredientLineDigest.js';
 export { STEP_DIGEST_VERSION, matchStep, matchStepStrict, normalizeStepText, stepDigest } from './stepDigest.js';
 export type { StepRef } from './stepDigest.js';
 export { cookingStepsOf } from './cookingSteps.js';

@@ -5,15 +5,15 @@
     "layer": "feature",
     "coverage": {
         "components": 18,
-        "implementations": 33,
-        "props": 124,
+        "implementations": 34,
+        "props": 127,
         "documentedComponents": 18,
-        "implementationsWithModuleDoc": 33,
-        "implementationsWithComponentDoc": 33,
-        "documentedProps": 113,
+        "implementationsWithModuleDoc": 34,
+        "implementationsWithComponentDoc": 34,
+        "documentedProps": 116,
         "classifiedComponents": 18,
         "componentsWithPatternTag": 8,
-        "crossPlatformComponents": 15
+        "crossPlatformComponents": 16
     },
     "components": [
         {
@@ -1941,16 +1941,16 @@
                         },
                         {
                             "name": "onToggle",
-                            "type": "(ingredientId: string) => void",
+                            "type": "(position: number) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Tick or untick one line, by its ingredient id.",
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
                             "name": "view",
-                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<string>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2011,16 +2011,16 @@
                         },
                         {
                             "name": "onToggle",
-                            "type": "(ingredientId: string) => void",
+                            "type": "(position: number) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Tick or untick one line, by its ingredient id.",
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
                             "name": "view",
-                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<string>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2100,16 +2100,16 @@
                         },
                         {
                             "name": "onToggle",
-                            "type": "(ingredientId: string) => void",
+                            "type": "(position: number) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Tick or untick one line, by its ingredient id.",
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
                             "name": "view",
-                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<string>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2170,16 +2170,16 @@
                         },
                         {
                             "name": "onToggle",
-                            "type": "(ingredientId: string) => void",
+                            "type": "(position: number) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Tick or untick one line, by its ingredient id.",
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
                             "name": "view",
-                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<string>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2267,11 +2267,11 @@
                         },
                         {
                             "name": "onToggle",
-                            "type": "(ingredientId: string) => void",
+                            "type": "(position: number) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Tick or untick one line, by its ingredient id.",
+                            "description": "Tick or untick one line, by its position in `view.ingredients`.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
@@ -2285,7 +2285,7 @@
                         },
                         {
                             "name": "view",
-                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<string>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
+                            "type": "{ readonly kind: \"list\"; readonly title: string; readonly ingredients: readonly RecipeIngredientView[]; readonly checked: ReadonlySet<number>; readonly hasTicks: boolean; readonly allRemoved: boolean; readonly servings: number; readonly baseServings: number; readonly scaleNote: string | undefined; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2312,12 +2312,65 @@
             "kind": "presentational",
             "patterns": [],
             "platforms": [
+                "web",
                 "native"
             ],
-            "crossPlatform": false,
+            "crossPlatform": true,
             "propsDiverge": false,
             "documented": true,
             "implementations": [
+                {
+                    "name": "CookingScaleNote",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/ingredients/CookingScaleNote.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src/ingredients",
+                    "moduleDoc": "CookingScaleNote — the web scale note under a step: a muted info glyph and the sentence that says the steps\ngive amounts for another serving count, in the small muted type that marks it as not part of the step. While the\nscreen gives it `onOpen`, one quiet button under it opens the ingredients. It holds no state, and it has no live\nregion because it arrives with the step.\n\nPresentational: props → JSX. The native twin is `CookingScaleNote.native.tsx`, on the same props.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingScaleNote — the web scale note under a step: a muted info glyph and the sentence that says the steps"
+                        }
+                    ],
+                    "description": "The web scale note.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "note",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The note, already filled with both serving counts (`view.scaleNote`).",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
+                        },
+                        {
+                            "name": "onOpen",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open the ingredients. Absent: the note stands alone, with no button.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
+                        },
+                        {
+                            "name": "openLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The button's visible text and its accessible name (`cooking.step.scaleNoteOpen`).",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingScaleNoteProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
                 {
                     "name": "CookingScaleNote",
                     "platform": "native",

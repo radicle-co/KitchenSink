@@ -15,6 +15,7 @@ import type { FC, ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { cookingMessages } from '../../src/messages.js';
+import { CookingIngredientsList } from '../../src/ingredients/CookingIngredientsList.js';
 import { useCookingIngredients } from '../../src/ingredients/useCookingIngredients.js';
 
 afterEach(() => {
@@ -112,37 +113,40 @@ describe('cooking mode ingredients against the recipe page', () => {
         expect(namesOfRows(rows)[0]).toBe('1½ cups flour');
     });
 
-    it('ticks a line through the real row, and the page’s own marks binding sees it', async () => {
+    it('ticks a line through the real list, and the page’s own marks binding sees it', async () => {
         const id = nextId();
         const user = userEvent.setup();
-        // The cooking list and the page's marks binding sit under ONE provider, as the app root mounts them.
-        const both = renderHook(
-            () => ({
-                cooking: useCookingIngredients({ recipe: { id, ingredients: LINES, servings: 2 }, copy, locale: 'en' }),
-                marks: useCookMarks(id),
-            }),
-            { wrapper: Wrapper },
-        );
 
-        render(
-            <ul>
-                {LINES.map((ingredient) => (
-                    <IngredientCheckRow
-                        key={ingredient.ingredientId}
-                        ingredient={ingredient}
-                        checked={false}
-                        allRemoved={false}
-                        onToggle={(ingredientId) => {
-                            both.result.current.cooking.toggle(ingredientId);
-                        }}
-                    />
-                ))}
-            </ul>,
-        );
+        // The cooking list and the page's marks binding sit under ONE provider, as the app root mounts them.
+        const Screen: FC = () => {
+            const cooking = useCookingIngredients({
+                recipe: { id, ingredients: LINES, servings: 2 },
+                copy,
+                locale: 'en',
+            });
+            const marks = useCookMarks(id, LINES);
+
+            return (
+                <>
+                    {cooking.view.kind === 'list' ? (
+                        <CookingIngredientsList
+                            view={cooking.view}
+                            copy={copy.ingredients}
+                            onToggle={cooking.toggle}
+                            onSetServings={cooking.setServings}
+                            onClear={() => void cooking.clearTicks()}
+                        />
+                    ) : null}
+                    <output aria-label="page ticks">{[...marks.checkedLines].join(',')}</output>
+                </>
+            );
+        };
+
+        render(<Screen />, { wrapper: Wrapper });
         const [firstTick] = screen.getAllByRole('checkbox');
         await user.click(firstTick);
 
-        expect([...both.result.current.marks.checkedLines]).toEqual(['ing_flour']);
+        expect(screen.getByLabelText('page ticks').textContent).toBe('0');
     });
 
     it('clears the ticks, keeps the step, and Undo brings the cleared ticks back', () => {
@@ -150,7 +154,7 @@ describe('cooking mode ingredients against the recipe page', () => {
         const { result } = renderHook(
             () => ({
                 cooking: useCookingIngredients({ recipe: { id, ingredients: LINES, servings: 2 }, copy, locale: 'en' }),
-                marks: useCookMarks(id),
+                marks: useCookMarks(id, LINES),
                 scale: useServingScale(id, 2),
             }),
             { wrapper: Wrapper },
@@ -159,8 +163,8 @@ describe('cooking mode ingredients against the recipe page', () => {
 
         act(() => {
             result.current.marks.toggleStep(3);
-            result.current.cooking.toggle('ing_flour');
-            result.current.cooking.toggle('ing_salt');
+            result.current.cooking.toggle(0);
+            result.current.cooking.toggle(1);
         });
         act(() => {
             undo = result.current.cooking.clearTicks();
@@ -173,7 +177,7 @@ describe('cooking mode ingredients against the recipe page', () => {
             undo();
         });
 
-        expect(new Set(result.current.marks.checkedLines)).toEqual(new Set(['ing_flour', 'ing_salt']));
+        expect(new Set(result.current.marks.checkedLines)).toEqual(new Set([0, 1]));
         expect(result.current.marks.currentStep).toBe(3);
     });
 });

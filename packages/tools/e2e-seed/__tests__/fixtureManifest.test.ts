@@ -838,3 +838,37 @@ describe('the cooking recipe (cooking mode)', () => {
         expect(Object.isFrozen(cooking.ingredients)).toBe(true);
     });
 });
+
+/**
+ * The line-ticks Maestro flow (ADR-0096, #155) opens a recipe with two IDENTICAL lines, so it can tick one and see that
+ * the other stays unticked. It is the signer's, outside SEED_WORLD, and made only by `reset --mode cooking`.
+ */
+describe('the twin-lines recipe (cooking mode)', () => {
+    const manifest = deriveFixtureManifest(RUN, PLATFORM, SHARD);
+    const twin = manifest.twinLinesRecipe;
+
+    it("is the signer's, PRIVATE and published, and outside the counted library", () => {
+        expect(twin.owner).toBe('signer');
+        expect(twin.visibility).toBe('private');
+        expect(twin.status).toBeUndefined();
+        expect(manifest.recipes.map((recipe) => recipe.title)).not.toContain(twin.title);
+        const ids = new Map([['Butter', '00000000-0000-4000-8000-0000000000d0']]);
+
+        expect(createRecipeRequestSchema.safeParse(toCreateRequest(twin, ids)).success).toBe(true);
+    });
+
+    it('has two lines that are the same in name, quantity and unit (mutant: one line, or two different lines)', () => {
+        const [first, second, ...rest] = twin.ingredients;
+
+        expect(rest).toEqual([]);
+        expect(first).toBeDefined();
+        expect(second).toEqual(first);
+    });
+
+    it('reaches the flow as E2E_RECIPE_TWIN_LINES, with a regex-safe title that no other recipe shares', () => {
+        expect(FIXTURE_ENV_KEYS.twinLinesRecipe).toBe('E2E_RECIPE_TWIN_LINES');
+        expect(manifestToEnvLines(manifest, provisioned(ERASURE))).toContain(`E2E_RECIPE_TWIN_LINES=${twin.title}`);
+        expect(twin.title).toMatch(/^[A-Za-z0-9 -]+$/u);
+        expect(twin.title).not.toBe(manifest.cookingRecipe.title);
+    });
+});

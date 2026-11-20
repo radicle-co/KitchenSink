@@ -10,8 +10,8 @@ the owner's ruling on [026](../026-chef-spaces/spec.md) Q2. Amended 2026-11-03 f
 ADR-0082). Facts cards open signed out (FR-003, FR-004, FR-014 to FR-014h). Family and gated public domain text open
 to the web (FR-002, FR-006). Cooks get a CC BY choice (FR-040a, FR-040b). The pre-launch confirmations grow (FR-095). See
 Session 2026-11-03. Amended 2026-11-09 for the owner's answers to feature 003A's questions: recipes left public at
-erasure (FR-002 rule 7), the locale in the address and the cache key (FR-062), comments (FR-070), and the `noindex` 003A ships
-with (FR-020a). See Session 2026-11-09. Amended 2026-11-15 for the public versions of imported recipes (owner ruling,
+erasure (FR-002 rule 7), the page language and the cache key (FR-062), comments (FR-070), and the `noindex` 003A ships
+with (FR-020a). See Session 2026-11-09. Amended 2026-11-20: every page carries its locale in the URL (FR-062). Amended 2026-11-15 for the public versions of imported recipes (owner ruling,
 2026-11-15, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)). Facts cards, linked cards, book cards and source cards are withdrawn. An imported
 recipe goes public only as a Commise-written version (FR-003, FR-014). See Session 2026-11-15
 **Input**: Owner, 2026-10-27: "Let's add a feature and spec for indexing and sharing as you note." And: "Include the
@@ -832,7 +832,7 @@ Session 2026-11-15.)_
 - **FR-010**: Each open recipe MUST have one public page at one canonical address on `commise.app`, on its own route,
   never the app root. The address MUST be built from the recipe's id and a slug from its title. It MUST NOT contain the
   cook's handle, so a handle change never breaks it. A wrong or stale slug MUST redirect permanently to the canonical
-  one. Whether the path carries a locale is a plan decision. Either way there is one canonical address per recipe.
+  one. The path carries the locale (`/{locale}/recipe/{id}/{slug}`, owner 2026-11-20). There is one canonical address per recipe in each shipped locale.
 - **FR-010a** _(added 2026-10-29, owner ruling Q2 on [026](../026-chef-spaces/spec.md): "Their blog")_: A chef chooses a
   **Home**, their blog or Commise (`026-FR-006`). Home starts as the blog. While Home is the blog, an open recipe that
   has an origin on the chef's claimed site (`004-FR-053a`) MUST follow these rules. _(amended 2026-11-03, owner ruling
@@ -1496,7 +1496,7 @@ Session 2026-11-15.)_
   stamped in `blocking` mode (FR-020).
 - **The web app runs on Vercel and production services sit behind CloudFront** (ADR-0020). Photos and avatars are on
   the media CDN (ADR-0064).
-- **English is the only locale** (`SUPPORTED_LOCALES`). No alternate-language pages are declared until a second locale
+- **`en-US` is the only shipped locale** (`SUPPORTED_LOCALES`), and the catalogs are `en`. No alternate-language pages are declared until a second locale
   ships.
 - **Search results come slowly.** The business plan plans no search volume in its first 24 months. This feature makes
   search possible. It does not promise traffic.

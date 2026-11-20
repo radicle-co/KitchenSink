@@ -10,7 +10,7 @@
 
 ⚠️ One-way door (owner 2026-11-20, 003B C-31): the locale is a PATH segment, because the web forwards no query. Native
 builds in the wild call this path, so it is never renamed. The locale must be in the shipped set; an unshipped or
-malformed locale answers the one `404` body. The route is pinned by `publicRecipeRoute.integration.test.ts` (003B T390).
+malformed locale answers the one `404` body. The route is pinned by 003A U4's integration test (plan, test table).
 
 - It is excluded from the Clerk `AuthMiddleware`, and only this path and method are excluded.
 - It reads no `Authorization` header, cookie or session. It takes no `@CallerBearerToken()` and no

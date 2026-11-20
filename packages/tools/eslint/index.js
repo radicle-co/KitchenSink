@@ -279,6 +279,18 @@ const PACKAGE_INTERNALS_PATTERN = {
         // does not hold.
         '!@kitchensink/*/spend',
         '!@kitchensink/*/spend/spend-arithmetic',
+        // `comparison-form` — the one text fold both sides of a wording comparison pass through; a second copy would
+        // change what a stored fingerprint means.
+        '!@kitchensink/*/comparison-form',
+        // `step-writing/*` — the wording fingerprint, the content digest input and the keyring parse. Each will be read
+        // by more than one deployable (the service's wording guard, the worker, the digest in both), and a second copy
+        // of any of them would drift from a PERSISTED value.
+        '!@kitchensink/*/step-writing',
+        '!@kitchensink/*/step-writing/word-shingles',
+        '!@kitchensink/*/step-writing/content-digest',
+        '!@kitchensink/*/step-writing/fingerprint-keyring',
+        // Server only (`node:crypto`): `repoGuards/__tests__/nodeKeyedHashServerOnly.test.ts` keeps apps from importing it.
+        '!@kitchensink/*/step-writing/node-keyed-hash',
         // `parsing/parse-prompt` and `parsing/parse-answer` (plan U18) — the LLM
         // parse leg's half of the model contract. The prompt is a MEASURED
         // ARTIFACT: every figure in the 2026-08-23 model comparison is denominated

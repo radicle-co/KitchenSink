@@ -50,7 +50,7 @@ export const isTestFile = (path: string): boolean => TEST_FILE(path);
 /**
  * The zero list: the ONLY paths that select no test.
  *
- * Markdown is prose. The two lane-packing timing tables are data for the runner, not for a screen. A vitest test or
+ * Markdown is prose. The two lane-packing timing tables are data for the runner, not for a screen, and so is the recipe state model's value file. A vitest test or
  * its config cannot change what a Playwright spec or a Maestro flow does. The repo-wide guards read files and run no
  * screen. Everything else, `docs/` and `specs/` included, can feed a test (a mockup HTML a spec screenshots against, a
  * fixture JSON), so it is not here.
@@ -63,6 +63,8 @@ const IRRELEVANT = picomatch(
         // unattributable files. A new spec or flow is still selected by its own file.
         'packages/apps/commise/web/tests/e2e/testDurations.json',
         'packages/apps/commise/mobile/tests/e2e/maestroFlowSeconds.tsv',
+        // The recipe state model's values, read only by a repoGuards test. A named file, not a docs JSON rule.
+        'docs/architecture/recipeStateModel.json',
     ],
     { dot: true },
 );

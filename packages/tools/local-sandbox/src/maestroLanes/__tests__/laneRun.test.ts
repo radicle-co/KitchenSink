@@ -996,6 +996,53 @@ describe('runLaneRun — a lost tunnel', () => {
             expect(events.indexOf('stopLane android-1 SIGKILL')).toBeLessThan(events.indexOf('stopDevice android-1'));
         });
 
+        it('kills the lane whose group stays even when another lane is already gone, and waits for it', async () => {
+            const { events, deps } = harness({ staggerMs: 0 });
+            const lost = new Promise<Error>((resolve) => {
+                setTimeout(() => {
+                    resolve(LOSS);
+                }, 20);
+            });
+            const run = runLaneRun(
+                {
+                    ...deps,
+                    stopGraceMs: 30,
+                    adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                    spawnLane: (lane) => {
+                        let groupAlive = lane.index === 2;
+                        let finish: (code: number) => void = () => undefined;
+                        const exit = new Promise<number>((resolve) => {
+                            finish = resolve;
+                        });
+
+                        return {
+                            pid: 0,
+                            exit,
+                            running: () => groupAlive,
+                            stop: (signal) => {
+                                events.push(`stopLane ${lane.index} ${signal ?? 'SIGTERM'}`);
+                                finish(143);
+
+                                if (signal === 'SIGKILL' && groupAlive) {
+                                    // The group takes a moment to go after the kill, as a real one does.
+                                    setTimeout(() => {
+                                        groupAlive = false;
+                                        events.push(`laneGone ${lane.index}`);
+                                    }, 40);
+                                }
+                            },
+                        };
+                    },
+                },
+                { platforms: ['android'], requested: 2, selection: 'all' },
+            );
+
+            await expect(run).rejects.toThrow('during the run');
+            expect(events).toContain('stopLane 2 SIGKILL');
+            expect(events.indexOf('laneGone 2')).toBeGreaterThan(-1);
+            expect(events.indexOf('laneGone 2')).toBeLessThan(events.indexOf('stopDevice android-2'));
+        });
+
         it('does not kill a lane that exits within the grace', async () => {
             const { events, deps } = harness({});
             const lost = new Promise<Error>((resolve) => {

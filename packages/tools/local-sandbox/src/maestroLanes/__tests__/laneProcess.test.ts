@@ -67,4 +67,29 @@ describe('spawnRunner', () => {
         await expect(child.exit).resolves.toBe(1);
         expect(child.running()).toBe(false);
     });
+
+    it('passes its signal on: a runner that ignores SIGTERM survives stop(), and SIGKILL ends its group', async () => {
+        const { script, dir } = runnerWith("trap '' TERM\nsleep 30 &\nwait\n");
+        const child = spawnRunner({
+            script,
+            cwd: dir,
+            env: { PATH: process.env['PATH'] ?? '' },
+            log: path.join(dir, 'log'),
+        });
+        children.push(child);
+        await delay(200);
+
+        child.stop();
+        await delay(200);
+
+        expect(child.running()).toBe(true);
+
+        child.stop('SIGKILL');
+
+        for (let tries = 0; tries < 100 && child.running(); tries += 1) {
+            await delay(20);
+        }
+
+        expect(child.running()).toBe(false);
+    });
 });

@@ -64,10 +64,19 @@ describe('the cooking surface widths', () => {
     });
 
     it('shows the two columns from 800 px for native and 50 em for web, the same width at 100% text', () => {
-        expect(TWO_COLUMN).toEqual({ minPx: 800, minEm: 50, webQuery: '(min-width: 50em)' });
+        expect(TWO_COLUMN).toEqual({
+            minPx: 800,
+            minEm: 50,
+            webQuery: '(min-width: 50em)',
+            columnWebClassName: 'hidden min-[50em]:block',
+            narrowOnlyWebClassName: 'min-[50em]:hidden',
+        });
         // An em is 16 px at 100% text, so the two numbers are one width; at 200% text the web rule fires at 1,600 px.
         expect(TWO_COLUMN.minEm * 16).toBe(TWO_COLUMN.minPx);
         expect(TWO_COLUMN.webQuery).toContain(`${String(TWO_COLUMN.minEm)}em`);
+        // CSS decides which controls exist on web (display none leaves the accessibility tree), so each class holds the number.
+        expect(TWO_COLUMN.columnWebClassName).toContain(`min-[${String(TWO_COLUMN.minEm)}em]`);
+        expect(TWO_COLUMN.narrowOnlyWebClassName).toContain(`min-[${String(TWO_COLUMN.minEm)}em]`);
     });
 
     it('is two columns at 800 and wider, and one column at 799', () => {

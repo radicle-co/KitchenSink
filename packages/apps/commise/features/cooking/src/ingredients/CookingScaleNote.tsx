@@ -10,6 +10,8 @@ import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import type { FC } from 'react';
 
+import { TWO_COLUMN } from '../cookingLayout.js';
+
 import type { CookingScaleNoteProps } from './cookingScaleNoteProps.js';
 
 /** The web scale note. */
@@ -20,9 +22,11 @@ export const CookingScaleNote: FC<CookingScaleNoteProps> = ({ note, openLabel, o
             <p className="text-meta text-ink-muted">{note}</p>
         </div>
         {onOpen === undefined ? null : (
-            <Button variant="quiet" size="md" onPress={() => onOpen()}>
-                {openLabel}
-            </Button>
+            <div className={TWO_COLUMN.narrowOnlyWebClassName}>
+                <Button variant="quiet" size="md" onPress={() => onOpen()}>
+                    {openLabel}
+                </Button>
+            </div>
         )}
     </div>
 );

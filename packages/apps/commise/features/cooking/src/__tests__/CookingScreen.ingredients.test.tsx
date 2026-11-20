@@ -1,5 +1,5 @@
 import { CookMarksProvider, useServingScale } from '@commise/features-recipes/cook';
-import { cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
 import type { FC, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -19,19 +19,36 @@ const Wrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (
     <CookMarksProvider subject="user_test">{children}</CookMarksProvider>
 );
 
-/** Answer the two-column query: `wide` is whether the window reaches 800 px. */
-function stubWindow(wide: boolean): void {
+/** Answer the two-column query, and let a test cross the band as a resize does. */
+function stubWindow(wide: boolean) {
+    let matches = wide;
+    const listeners = new Set<() => void>();
+
     vi.stubGlobal('matchMedia', (query: string) => ({
-        matches: wide && query === TWO_COLUMN.webQuery,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
+        get matches() {
+            return matches && query === TWO_COLUMN.webQuery;
+        },
+        addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
     }));
+
+    return {
+        resizeTo: (next: boolean) => {
+            matches = next;
+            listeners.forEach((listener) => listener());
+        },
+    };
 }
 
 let counter = 0;
 
 /** A recipe with two ingredient lines and two steps, under a fresh id (the serving scale is keyed by recipe id). */
-function open(options: { readonly wide: boolean; readonly servings?: number; readonly lines?: number }) {
+function open(options: {
+    readonly wide: boolean;
+    readonly servings?: number;
+    readonly lines?: number;
+    readonly keepStub?: boolean;
+}) {
     counter += 1;
     const id = `rec_screen_${String(counter)}`;
     const lines = options.lines ?? 2;
@@ -51,7 +68,9 @@ function open(options: { readonly wide: boolean; readonly servings?: number; rea
         }),
     };
 
-    stubWindow(options.wide);
+    if (options.keepStub !== true) {
+        stubWindow(options.wide);
+    }
 
     if (options.servings !== undefined) {
         const servings = options.servings;
@@ -70,12 +89,37 @@ afterEach(() => {
     window.sessionStorage.clear();
 });
 
-describe('CookingScreen ingredients: one column', () => {
-    it('offers Ingredients in the top bar and no column', () => {
+/** The element's own class list holds a class (jsdom evaluates no media query, so the band is read from the class). */
+const closestWith = (element: HTMLElement, className: string) => element.closest(`[class~="${className}"]`);
+
+describe('CookingScreen ingredients: structure by CSS band', () => {
+    it('draws the top bar button, hidden from the two-column band by its wrapper', () => {
         open({ wide: false });
 
-        expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Ingredients' })).toBeTruthy();
-        expect(screen.queryByRole('heading', { name: /ingredients/iu })).toBeNull();
+        const button = within(screen.getByRole('banner')).getByRole('button', { name: 'Ingredients' });
+
+        expect(closestWith(button, TWO_COLUMN.narrowOnlyWebClassName)).not.toBeNull();
+    });
+
+    it('draws the column beside the step in a slot that shows only from the two-column band', () => {
+        open({ wide: false });
+
+        const column = htmlElementOf(screen.getByRole('heading', { name: /ingredients/iu }).parentElement);
+        const slot = htmlElementOf(closestWith(column, TWO_COLUMN.columnWebClassName.split(' ')[0] ?? ''));
+
+        for (const token of TWO_COLUMN.columnWebClassName.split(' ')) {
+            expect(slot.className.split(' ')).toContain(token);
+        }
+
+        expect(within(column).getByRole('checkbox', { name: /flour/u })).toBeTruthy();
+        expect(screen.getByText('Step 1 of 2')).toBeTruthy();
+    });
+
+    it('draws the same structure whatever the window says, because the server cannot know the window', () => {
+        open({ wide: true });
+
+        expect(screen.getByRole('heading', { name: /ingredients/iu })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Ingredients' })).toBeTruthy();
     });
 
     it('opens the sheet from the top bar and closes it on the same step', () => {
@@ -97,42 +141,38 @@ describe('CookingScreen ingredients: one column', () => {
         expect(screen.queryByRole('note')).toBeNull();
     });
 
-    it('shows the scale note with its open button once the servings differ, and the button opens the sheet', () => {
+    it('draws the scale note with its open button, hidden from the two-column band, and the button opens the sheet', () => {
         open({ wide: false, servings: 4 });
 
         const note = screen.getByRole('note');
+        const button = within(note).getByRole('button', { name: 'Open ingredients' });
 
         expect(note.textContent).toContain('You’re making 4');
-        fireEvent.click(within(note).getByRole('button', { name: 'Open ingredients' }));
+        expect(closestWith(button, TWO_COLUMN.narrowOnlyWebClassName)).not.toBeNull();
+
+        fireEvent.click(button);
 
         expect(screen.getByRole('dialog')).toBeTruthy();
     });
 
-    it('offers nothing to open on a recipe with no ingredients', () => {
+    it('closes an open sheet when the window crosses the band, and keeps it closed on the way back', () => {
+        const media = stubWindow(false);
+
+        open({ wide: false, keepStub: true });
+        fireEvent.click(screen.getByRole('button', { name: 'Ingredients' }));
+        expect(screen.getByRole('dialog')).toBeTruthy();
+
+        act(() => media.resizeTo(true));
+        act(() => media.resizeTo(false));
+
+        expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('draws nothing to open on a recipe with no ingredients', () => {
         open({ wide: false, lines: 0 });
 
         expect(screen.queryByRole('button', { name: 'Ingredients' })).toBeNull();
-    });
-});
-
-describe('CookingScreen ingredients: two columns', () => {
-    it('draws the column beside the step, with no Ingredients button in the top bar', () => {
-        open({ wide: true });
-
-        const column = htmlElementOf(screen.getByRole('heading', { name: /ingredients/iu }).parentElement);
-
-        expect(within(column).getByRole('checkbox', { name: /flour/u })).toBeTruthy();
-        expect(within(screen.getByRole('banner')).queryByRole('button', { name: 'Ingredients' })).toBeNull();
-        expect(screen.getByText('Step 1 of 2')).toBeTruthy();
-    });
-
-    it('keeps the scale note but draws no open button, because the column is in view', () => {
-        open({ wide: true, servings: 4 });
-
-        const note = screen.getByRole('note');
-
-        expect(note.textContent).toContain('You’re making 4');
-        expect(within(note).queryByRole('button')).toBeNull();
+        expect(screen.queryByRole('heading', { name: /ingredients/iu })).toBeNull();
     });
 
     // P60: no Clear ticks without its Undo, and the Undo's outlet is not on main yet.
@@ -145,12 +185,6 @@ describe('CookingScreen ingredients: two columns', () => {
 
         expect(within(column).getByRole('checkbox', { name: /flour/u }).getAttribute('aria-checked')).toBe('true');
         expect(screen.queryByRole('button', { name: 'Clear ticks' })).toBeNull();
-    });
-
-    it('draws no column on a recipe with no ingredients', () => {
-        open({ wide: true, lines: 0 });
-
-        expect(screen.queryByRole('heading', { name: /ingredients/iu })).toBeNull();
     });
 });
 

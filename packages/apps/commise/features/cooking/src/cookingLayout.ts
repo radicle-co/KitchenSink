@@ -56,11 +56,20 @@ export const PREVIEW_IN_BODY = {
 
 /**
  * From 800 the ingredients sit in a column beside the step (L2 and L3); under it they open in a sheet (L1 and L1w). The
- * band decides which controls exist, so a script reads it, never CSS alone. Web asks the browser in em, so a cook with a
- * larger default text size gets the one column sooner, like the rem rules above. Native reads `minPx` against its window
- * width.
+ * band decides which controls exist. Web decides it in CSS, because the screen can arrive in the server HTML and the
+ * browser paints that before any script runs: `columnWebClassName` shows the column slot from the band, and
+ * `narrowOnlyWebClassName` removes a control under it (`display: none` also leaves the accessibility tree). Both are in
+ * em, so a cook with a larger default text size gets the one column sooner, like the rem rules above. The web script
+ * (`webQuery`) only closes an open sheet when the band changes. Native has no server render and reads `minPx` against
+ * its window width.
  */
-export const TWO_COLUMN = { minPx: 800, minEm: 50, webQuery: '(min-width: 50em)' } as const;
+export const TWO_COLUMN = {
+    minPx: 800,
+    minEm: 50,
+    webQuery: '(min-width: 50em)',
+    columnWebClassName: 'hidden min-[50em]:block',
+    narrowOnlyWebClassName: 'min-[50em]:hidden',
+} as const;
 
 /**
  * @param widthPx - The window width in px.

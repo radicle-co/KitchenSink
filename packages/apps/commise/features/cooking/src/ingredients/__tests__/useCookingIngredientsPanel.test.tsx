@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { makeCookingRecipe } from '../../__fixtures__/makeCookingRecipe.js';
 import { makeRecipeIngredientView } from '../../__fixtures__/makeRecipeIngredientView.js';
 import { cookingMessages } from '../../messages.js';
-import { useCookingIngredientsPanel } from '../useCookingIngredientsPanel.js';
+import { panelForBand, useCookingIngredientsPanel } from '../useCookingIngredientsPanel.js';
 
 const copy = resolveMessages(cookingMessages, 'en');
 
@@ -46,65 +46,42 @@ function mount(options: { readonly wide: boolean; readonly lines?: number } = { 
 }
 
 describe('useCookingIngredientsPanel', () => {
-    describe('narrow', () => {
-        it('offers Ingredients in the top bar, with the sheet closed and no column', () => {
-            const { result } = mount();
-            const { panel } = result.current;
+    // The panel holds every part for either band: web draws them all and CSS picks, native picks with `panelForBand`.
+    it.each([false, true])('derives every part of the ingredients whatever the band (wide: %s)', (wide) => {
+        const { result } = mount({ wide });
+        const { panel } = result.current;
 
-            expect(panel.topAction?.label).toBe('Ingredients');
-            expect(panel.sheet?.open).toBe(false);
-            expect(panel.column).toBeUndefined();
-        });
-
-        it('opens the sheet from the top bar and closes it from onClose', () => {
-            const { result } = mount();
-
-            act(() => result.current.panel.topAction?.onPress());
-            expect(result.current.panel.sheet?.open).toBe(true);
-
-            act(() => result.current.panel.sheet?.onClose());
-            expect(result.current.panel.sheet?.open).toBe(false);
-        });
-
-        it('has no scale note at the recipe servings', () => {
-            expect(mount().result.current.panel.scaleNote).toBeUndefined();
-        });
-
-        it('gives the scale note an open button that opens the sheet, once the servings differ', () => {
-            const { result } = mount();
-
-            act(() => result.current.scale.setServings(4));
-
-            const note = result.current.panel.scaleNote;
-
-            expect(note?.note).toBe(
-                'The steps give amounts for 2. You’re making 4, so use the amounts in Ingredients.',
-            );
-            expect(note?.openLabel).toBe('Open ingredients');
-
-            act(() => note?.onOpen?.());
-            expect(result.current.panel.sheet?.open).toBe(true);
-        });
+        expect(panel.topAction?.label).toBe('Ingredients');
+        expect(panel.sheet?.open).toBe(false);
+        expect(panel.column?.view.kind).toBe('list');
     });
 
-    describe('wide', () => {
-        it('draws the column, with no top bar action and no sheet', () => {
-            const { result } = mount({ wide: true });
-            const { panel } = result.current;
+    it('opens the sheet from the top bar and closes it from onClose', () => {
+        const { result } = mount();
 
-            expect(panel.column?.view.kind).toBe('list');
-            expect(panel.topAction).toBeUndefined();
-            expect(panel.sheet).toBeUndefined();
-        });
+        act(() => result.current.panel.topAction?.onPress());
+        expect(result.current.panel.sheet?.open).toBe(true);
 
-        it('keeps the scale note but gives it no open button, because the column is in view', () => {
-            const { result } = mount({ wide: true });
+        act(() => result.current.panel.sheet?.onClose());
+        expect(result.current.panel.sheet?.open).toBe(false);
+    });
 
-            act(() => result.current.scale.setServings(4));
+    it('has no scale note at the recipe servings', () => {
+        expect(mount().result.current.panel.scaleNote).toBeUndefined();
+    });
 
-            expect(result.current.panel.scaleNote?.note).toContain('You’re making 4');
-            expect(result.current.panel.scaleNote?.onOpen).toBeUndefined();
-        });
+    it('gives the scale note an open button that opens the sheet, once the servings differ', () => {
+        const { result } = mount();
+
+        act(() => result.current.scale.setServings(4));
+
+        const note = result.current.panel.scaleNote;
+
+        expect(note?.note).toBe('The steps give amounts for 2. You’re making 4, so use the amounts in Ingredients.');
+        expect(note?.openLabel).toBe('Open ingredients');
+
+        act(() => note?.onOpen?.());
+        expect(result.current.panel.sheet?.open).toBe(true);
     });
 
     describe('crossing the band', () => {
@@ -118,6 +95,42 @@ describe('useCookingIngredientsPanel', () => {
             rerender({ wide: false });
 
             expect(result.current.panel.sheet?.open).toBe(false);
+        });
+    });
+
+    describe('panelForBand', () => {
+        it('keeps the top bar action, the sheet and the open button when narrow, and drops the column', () => {
+            const { result } = mount();
+
+            act(() => result.current.scale.setServings(4));
+
+            const narrow = panelForBand(result.current.panel, false);
+
+            expect(narrow.topAction).toBeDefined();
+            expect(narrow.sheet).toBeDefined();
+            expect(narrow.scaleNote?.onOpen).toBeDefined();
+            expect(narrow.column).toBeUndefined();
+        });
+
+        it('keeps the column and the bare note when wide, and drops the action, the sheet and the open button', () => {
+            const { result } = mount();
+
+            act(() => result.current.scale.setServings(4));
+
+            const wide = panelForBand(result.current.panel, true);
+
+            expect(wide.column).toBeDefined();
+            expect(wide.scaleNote?.note).toContain('You’re making 4');
+            expect(wide.scaleNote?.onOpen).toBeUndefined();
+            expect(wide.topAction).toBeUndefined();
+            expect(wide.sheet).toBeUndefined();
+        });
+
+        it('is an empty panel for a recipe with no ingredients, at either band', () => {
+            const { result } = mount({ wide: false, lines: 0 });
+
+            expect(panelForBand(result.current.panel, false)).toEqual({});
+            expect(panelForBand(result.current.panel, true)).toEqual({});
         });
     });
 

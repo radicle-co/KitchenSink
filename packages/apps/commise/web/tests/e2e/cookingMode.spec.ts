@@ -490,6 +490,11 @@ test.describe('the ingredients in cooking mode', () => {
             const errors = watchErrors(page);
 
             await openCooking(page);
+            // One column: the column slot is hidden (display none), and the step is one centred column.
+            await expect(page.getByRole('main').getByRole('heading', { level: 2, name: /Ingredients/u })).toBeHidden();
+            const step = await stepRegion(page, 1, 6).boundingBox();
+            expect(step?.x ?? -1).toBeGreaterThanOrEqual(0);
+            expect((step?.x ?? 0) + (step?.width ?? 0)).toBeLessThanOrEqual(390);
             await checkbox(page, FIRST_LINE).click();
             await page.getByRole('button', { name: 'Ingredients' }).click();
             await expect(page.getByRole('dialog')).toBeVisible();
@@ -515,6 +520,7 @@ test.describe('the ingredients in cooking mode', () => {
 
             await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('Ingredients');
             await expect(page.getByRole('checkbox', { name: /Salt/u })).toBeVisible();
+            // CSS removes the button from the page and the accessibility tree at this width.
             await expect(page.getByRole('button', { name: 'Ingredients' })).toHaveCount(0);
             await expect(stepRegion(page, 1, 6)).toBeVisible();
             await expectNoSidewaysScroll(page);

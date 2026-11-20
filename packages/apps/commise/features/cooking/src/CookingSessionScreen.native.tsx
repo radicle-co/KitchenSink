@@ -24,7 +24,7 @@ import type { CookingRecipe } from './cookingViewProps.js';
 import { CookingIngredientsColumn } from './ingredients/CookingIngredientsColumn.native.js';
 import { CookingIngredientsSheet } from './ingredients/CookingIngredientsSheet.js';
 import { CookingScaleNote } from './ingredients/CookingScaleNote.native.js';
-import { useCookingIngredientsPanel } from './ingredients/useCookingIngredientsPanel.js';
+import { panelForBand, useCookingIngredientsPanel } from './ingredients/useCookingIngredientsPanel.js';
 import { cookingMessages } from './messages.js';
 import { stepSwipeResponderOf } from './stepSwipeResponder.native.js';
 import { useCookingFocusRecovery } from './useCookingFocusRecovery.native.js';
@@ -56,12 +56,11 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
     width,
 }) => {
     const model = useCookingSessionScreen({ recipe, onLeave });
-    const panel = useCookingIngredientsPanel({
-        recipe,
-        copy: useMessages(cookingMessages),
-        locale: useLocale(),
-        wide: isTwoColumn(width),
-    });
+    const wide = isTwoColumn(width);
+    const panel = panelForBand(
+        useCookingIngredientsPanel({ recipe, copy: useMessages(cookingMessages), locale: useLocale(), wide }),
+        wide,
+    );
     const { done, hasPrevious, hasNext, goForward, goBack } = model;
     const focus = useCookingFocusRecovery({
         moves: model.moves,

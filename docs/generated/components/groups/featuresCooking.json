@@ -1704,7 +1704,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: at L2 and L3, where the column is in view, and on a recipe with no ingredients.",
+                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: on a recipe with no ingredients, and (native) at L2 and L3, where the column is in view.\nWeb draws it always and hides it from the two-column band in CSS (`TWO_COLUMN.narrowOnlyWebClassName`).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -1760,7 +1760,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: at L2 and L3, where the column is in view, and on a recipe with no ingredients.",
+                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: on a recipe with no ingredients, and (native) at L2 and L3, where the column is in view.\nWeb draws it always and hides it from the two-column band in CSS (`TWO_COLUMN.narrowOnlyWebClassName`).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -1813,7 +1813,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingTwoColumnLayout.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingTwoColumnLayout — the web two-column layout at L2 and L3: the ingredients column in a slot of\n`INGREDIENTS_COLUMN` width on the left that scrolls on its own, and the step column in the rest, at most\n`COOKING_COLUMN` wide and centred in it, as a flex column that may shrink, so a step body fills its height and keeps\nits footer pinned. The slot is on the canvas with no divider, and its content is inset 16 on every side inside the\nscroll, so the scroll bar stays at the slot edge. It holds no state and reads no band: the screen picks it by band.\nThe native twin is `CookingTwoColumnLayout.native.tsx`, on the same props.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingTwoColumnLayout — the web two-column layout at L2 and L3: the ingredients column in a slot of\n`INGREDIENTS_COLUMN` width on the left that scrolls on its own, and the step column in the rest, at most\n`COOKING_COLUMN` wide and centred in it, as a flex column that may shrink, so a step body fills its height and keeps\nits footer pinned. The slot is on the canvas with no divider, and its content is inset 16 on every side inside the\nscroll, so the scroll bar stays at the slot edge. It holds no state and reads no script band: the slot is hidden under the two-column band by `TWO_COLUMN.columnWebClassName`, so the\nstep column alone is left, centred, as the one column.\nThe native twin is `CookingTwoColumnLayout.native.tsx`, on the same props.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",

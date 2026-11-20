@@ -377,8 +377,8 @@ for (const width of [430, 375]) {
 // the rows scroll inside the panel while the bar stays put. The 13 rows at 200% text are taller than the 320 px half of
 // a 640 px window.
 /**
- * The box of the dialog frame's last child (the open panel; the bar copy is its first) once its animations have finished.
- * Throws when there is none, so a missing box never passes.
+ * The box of the dialog frame's last child (the open panel; the bar copy is its first) once its animations have
+ * finished. Throws when there is none, so a missing box never passes.
  */
 async function settledPanelBox(frame: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
     return frame.evaluate(async (element) => {

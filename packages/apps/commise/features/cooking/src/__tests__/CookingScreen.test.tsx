@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import type { ComponentProps } from 'react';
+import { CookMarksProvider } from '@commise/features-recipes/cook';
+import type { ComponentProps, FC, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RecipeStatus } from '@kitchensink/recipe-core';
@@ -50,6 +51,11 @@ vi.mock('@commise/ui/keep-awake', async (importOriginal) => {
     };
 });
 
+// The ingredients list reads the cook marks the app root provides, so every render here sits in the same provider.
+const Marks: FC<{ readonly children: ReactNode }> = ({ children }) => (
+    <CookMarksProvider subject="user_test">{children}</CookMarksProvider>
+);
+
 const TITLE = 'Weeknight roast';
 
 /** Six steps with text and one blank one: the blank step is not a step for the cook. */
@@ -72,7 +78,7 @@ const ready = (over: Partial<Extract<CookingScreenRead, { kind: 'ready' }>> = {}
 
 function setup(read: CookingScreenRead = ready()) {
     const props: CookingScreenProps = { read, onLeave: vi.fn(), onEdit: vi.fn(), onHome: vi.fn() };
-    const view = render(<CookingScreen {...props} />);
+    const view = render(<CookingScreen {...props} />, { wrapper: Marks });
 
     return { ...props, ...view };
 }
@@ -1142,6 +1148,7 @@ describe('CookingScreen: focus recovery inside a page that has its own landmarks
                     <button type="button">Outside button</button>
                 </nav>
             </main>,
+            { wrapper: Marks },
         );
     };
 

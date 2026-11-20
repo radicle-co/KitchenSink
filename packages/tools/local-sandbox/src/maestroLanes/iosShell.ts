@@ -39,7 +39,8 @@ export function createIosShell(): IosShell {
 
             return {
                 stop: async () => {
-                    if (child.pid !== undefined && child.exitCode === null) {
+                    // A child killed by a signal has no exit code but is gone: its group no longer exists to signal.
+                    if (child.pid !== undefined && child.exitCode === null && child.signalCode === null) {
                         process.kill(-child.pid, 'SIGTERM');
                     }
 

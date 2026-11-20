@@ -48,4 +48,11 @@ describe('createIosShell', () => {
 
         await expect(task.exited).resolves.toBe(128 + 15);
     });
+
+    it('stops a background command that already died of a signal, without throwing', async () => {
+        const task = createIosShell().background('sh', ['-c', 'kill -9 $$']);
+        await task.exited;
+
+        await expect(task.stop()).resolves.toBeUndefined();
+    });
 });
